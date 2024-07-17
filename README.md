@@ -251,5 +251,51 @@ dout_by_dx = diffpair(x)
 myFunc.backward.call(dout_by_da, dout_by_dx, res)
 ```
 
+This, however is not particularly user friendly, Python like, or remotely similar to how PyTorch operates!
+
+To begin, I would propose we leave the forward option out of this convenience api (it can still be accessed via slang obviously), especially as it will cause extra confusion given in PyTorch world 'forward' is the 'feed forward' step.
 
 
+In the above example, dealing with scalar, immutable values, there still isn't a lot of improvement could be done. However once dealing with lists of values, the PyTorch '.grad' model can be asily applied:
+
+```
+yy.py
+a = [3]
+x = [2]
+res = myFunc.call(a,x)
+#res -> [12]
+
+#Use backwards differentiation
+myFunc.backward.call(a, x, res)
+#a.grad -> [4]
+#x.grad -> [12]
+```
+
+If use of scalars was really desired, they could be wrapped in some minimal 'gradient supporting' type:
+
+```
+yy.py
+a = DiffFloat(3)
+x = DiffFloat(2)
+res = myFunc.call(a,x)
+#res -> 12
+
+#Use backwards differentiation
+myFunc.backward.call(a, x, res)
+#a.grad -> 4
+#x.grad -> 12
+```
+
+At that point, we could also introduce the 'needs grad' approach taken in PyTorch, either inferring it directly from the type provided, or checking for a 'needsgrad' property internally, and as in Copper only generate gradients for variables that're useful:
+
+```
+yy.py
+a = DiffFloat(3)
+x = 2
+res = myFunc.call(a,x)
+#res -> 12
+
+#Use backwards differentiation
+myFunc.backward.call(a, x, res)
+#a.grad -> 4
+```
