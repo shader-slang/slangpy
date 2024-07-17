@@ -230,7 +230,7 @@ void myFunc_backProp(
     float dResult);    
 ```
 
-If we were to follow the same line of thinking thus far, the logical approach to making this accessible as a kernel function would be
+If we were to follow the same line of thinking thus far, the logical (though ugly) approach to making this accessible as a kernel function would be
 
 ```
 yy.py
@@ -250,11 +250,6 @@ dout_by_da = diffpair(a)
 dout_by_dx = diffpair(x)
 myFunc.backward.call(dout_by_da, dout_by_dx, res)
 ```
-
-
-### Basic api
-
-Before going in to differentials, 
 
 
 
