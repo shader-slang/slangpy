@@ -329,10 +329,26 @@ myFunc.backward.call(a, x, res)
 ```
 
 Following the earlier batching rules we've assumed it's valid to pass a and x into backward to get resulting gradients. However whilst it was possible to batch differently during the call, there is now no clearly defined value for a.grad. You could argue:
-- a.grad should be d/d_a for all values of x (i.e. a become list)
+- a.grad should be d/d_a for all values of res (i.e. a become list)
 - a.grad should be an accumulation of d/d_a (i.e. remain a scalar)
 
-A database 'group' query often hits a similar problem, and typically treats the first option as a special case of accumulation
+A database 'group' query often hits a similar problem, and typically treats the first option as a special case of accumulation - 'push' accumulation, in which every result is added to list rather than accumulated through some mathematical function. 
 
+With that in mind, _if_ we wanted to the logical way to clear up the ambiguity would be some form of accumulator flag:
 
+```
+a.accumulator = 'sum'
+myFunc.backward.call(a, x, res)
+#a.grad -> sum of dres_by_da
+
+a.accumulator = 'push'
+myFunc.backward.call(a, x, res)
+#a.grad -> list of dres_by_da
+
+a.accumulator = 'first'
+myFunc.backward.call(a, x, res)
+#a.grad -> first dres_by_da
+```
+
+This has the neat benefit that it can be applied to both a AND x, with the batch dimensionality defined by res. For example, even if the input 'x' was a list, we could still ask gradients to be accumulated into a single scalar.
 
