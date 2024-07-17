@@ -299,3 +299,40 @@ res = myFunc.call(a,x)
 myFunc.backward.call(a, x, res)
 #a.grad -> 4
 ```
+
+This basic layout feels correct to me, and much more akin to how most Python libraries operate.
+
+My knowledge of PyTorch at the moment isn't strong enough to know how we'd integrate that with PyTorch if-and-only-if we wanted to (i.e. PyTorch might not be there, or just because PyTorch is, doesn't mean calling backward means we want autograd doing stuff).
+
+### Gradient accumulation
+
+With the system above, even if we wanted to ignore gradient accumulation, we couldn't. Code such as the following would introduce an ambiguity:
+
+```
+xx.slang
+[Differentiable]
+float myFunc(float a, float x)
+{
+    return a * x * x;
+}
+
+yy.py
+a = DiffFloat(3)
+x = Tensor([1,2,3], needsgrad=True)
+res = myFunc.call(a,x)
+#res -> [3,12,27]
+
+#Use backwards differentiation
+myFunc.backward.call(a, x, res)
+#a.grad -> ???
+#x.grad -> [6,12,18]
+```
+
+Following the earlier batching rules we've assumed it's valid to pass a and x into backward to get resulting gradients. However whilst it was possible to batch differently during the call, there is now no clearly defined value for a.grad. You could argue:
+- a.grad should be d/d_a for all values of x (i.e. a become list)
+- a.grad should be an accumulation of d/d_a (i.e. remain a scalar)
+
+A database 'group' query often hits a similar problem, and typically treats the first option as a special case of accumulation
+
+
+
