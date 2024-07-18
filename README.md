@@ -505,6 +505,8 @@ result.backward()
 
 Internally this would be relatively simple to implement. The call to `torch()` would generate a function that could gain access to the input/output tensors. These would then be passed to a call an `autograd.Function.apply` call in the correct order. It's made doubly easy, because Benedikt already solved most of this in `copper` :)
 
+Note: if pytorch module was not found, this would simply throw an exception, thus allowing kernel functions to operate correctly in a project without pytorch installed.
+
 ## None-pytorch projects / Custom optimizers
 
 Due to the huge performance gains it's reasonable to assume the trend of custom optimizers will continue. Whilst it's not the job of kernel functions to _solve_ this, they should still represent an increase in usability over pure calls to compute.
@@ -522,11 +524,11 @@ Provided we ensure minimal overheads, out of the box kernel functions would impr
 - The custom structured buffer type would not be needed
 - Where desired, more flexible tensor structures could be used, reducing the need for manual indexing
 - Up front knowledge of buffer param size counts wouldn't be necessary for gradient allocation (would be implicit based on calls)
-- Bespoke hierarchical parameter binding would be unnecesary
 
 Aspects we'd need to ensure still worked / were fast are:
 - To support the custom gradient generation, it would need to be easy to access and pass gradient buffers to kernel functions
 - Setting constants up front is useful, but we need to ensure modifying globals every frame has no new overheads
+- Robust control over thread grouping for dispatch
 
 In effect, a version 1 would probably take strong advantage of the simpler calling mechanisms, but gain less from the simplified calls to backward propagation. 
 
@@ -534,6 +536,9 @@ Going forward, natural extensions would be:
 - Implement some form of call graph around kernel functions to replace the `Module` concept
 - Accumulator support to remove some of the boilerplate around gradient accumulation
 - Look at providing 'fused' forward+backward kernel support, as used by the differential rasterizer
+
+## Accumulators
+
 
 
 ## Graphics API
