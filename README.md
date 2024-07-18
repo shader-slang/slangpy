@@ -604,20 +604,20 @@ Whether it belongs in a kernel-functions package or a level higher, render graph
 ```
 MyGraph = kf.Graph(<some input/output definitions>)
 
-# Create nodes from 3 functions inside a render graph
-NodeA = function_a.node(MyGraph)
-NodeB = function_b.node(MyGraph)
-NodeC = function_c.node(MyGraph)
+# Create nodes from 3 functions
+NodeA = function_a.node()
+NodeB = function_b.node()
+NodeC = function_c.node()
 
 #Read inputs from graph
-(input1, input2, input3) = MyGraph.Inputs
+(input1, input2, input3) = MyGraph.get_inputs()
 
 #Call Node A (returns 2 outputs) and Node B
 (output1, output2) = NodeA(input1)
 output3 = NodeB(input2)
 
 #Feed all 3 outputs into Node C
-MyGraph.Outputs = NodeC(output1, output2, output3)
+MyGraph.set_outputs(NodeC(output1, output2, output3))
 
 # Can now call the graph, and (with help from Sai working out chain rule for render graphs), a corresponding backwards:
 result = MyGraph.call(args)
@@ -625,6 +625,9 @@ MyGraph.backwards.call(args, result)
 
 # And because we're still in kernel function land, we could convert the graph to PyTorch
 MyPyTorchGraph = MyGraph.torch()
+
+# Or, it could be turned into a node for another graph, of which we could have a library!
+MyReusableNode = MyGraph.node()
 ```
 
 As an aside, the strongly data/reflection driven nature of kernel functions also leaves us open to render graph visualizers/debuggers or even graphical user interfaces for building them.
