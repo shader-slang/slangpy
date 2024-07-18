@@ -446,12 +446,12 @@ Question: Would we need to support _outputs_ having grads, i.e. if this was part
 When applied to machine learning, it is unlikely that you'd have a large array of Python 'ray' objects / dictionaries. Rather, you'd represent the positions / directions in tensors. This could be done in various ways
 
 As an array-of-structures of various layouts:
-- 1*1D tennor, completely flat, [ pos.x,pos.y,pos.z,dir.x,dir.y,dir.z, repeat for more rays ]
+- 1*1D tensor, completely flat, [ pos.x,pos.y,pos.z,dir.x,dir.y,dir.z, repeat for more rays ]
 - 1*2D tensor, flat entry per ray, [ [pos.x,pos.y,pos.z,dir.x,dir.y,dir.z], ... ]
 - 1*3D tensor, 2 vectors per ray, [ [[pos.x,pos.y,pos.z],[dir.x,dir.y,dir.z]], ... ]
 
 Or a more structure of arrays form:
-- 2*1D tensor, [ [pos.x,pos.y,pos.z], ... ],  [ [dir.x,dir.y,dir.z], ... ]
+- 2*2D tensor, [ [pos.x,pos.y,pos.z], ... ],  [ [dir.x,dir.y,dir.z], ... ]
 
 Plus a million other combinations of varying degrees of flatteness and AOS vs SOA mappings!
 
