@@ -466,9 +466,80 @@ raytrace.call(rays={'pos': positions, 'dir': directions}, colors=colors)
 
 We could take this to the extreme, and attempt to allow 'auto flattening' to the correct shape, or digging down deeper into structures so pos.x, pos.y, and pos.z could all be separate tensors. I think some of this will be necessary and fall out naturally, but we should take baby steps - it has the potential to grow into a can of worms. Certainly we should enforce dimensionality matching, even if we dive into clever typing straight off.
 
-## Build in tensor type
+## Tensor type
+
+Whilst I've referred to 'batchable lists' in this document, the reality is the vast majority of interaction with kernels would involve either:
+- Broadcast scalar constants
+- Graphics primitives (eg textures / buffers)
+- Tensors
+
+SGL doesn't currently have strong support for tensors, and Slang has basic support for a `TensorView`. To support  future work, we should introduce a tensor type as a core concept in both SGL and Slang with conversions to/from PyTorch tensors when necessary.
+
+## Pytorch integration
+
+The principle requirement for PyTorch integration is that the kernel function needs to interact seamlessly with PyTorch autograd. When it comes down to it, this involves 2 engineering problems:
+- Ensuring tensors are tracked by auto grad by calling kernel functions via an `autograd.Function.apply` call
+- Supporting the idea of a context in which an operation is occuring, so a user doesn't have to remember which tensors were involved in a forward pass when calling a backwards one
+
+I am reluctant to enforce context tracking at the base layer of the API - not all use cases of kernel functions will want this, and it would be intrusive. As such, I propose we support creation of a PyTorch wrapper:
+
+```
+#Convert kernel function to PyTorch one by calling torch() instead of call()
+Add = add_func.torch()
+
+#Due to none-mutable state storage, would also support configuring
+Add = add_func
+    .set({})                #set some properties before calling
+    .options({})            #possible way of configuring specific properties of the call
+    .typeconformance({})    #may allow specification of type conformances as part of call
+    .torch()
+
+#Can now call Add, just as with any normal custom auto grad function
+a = Tensor(bla)
+b = 10
+result = Add(a, b)
+result.backward()
+
+#a.grad- -> dout / da
+```
+
+Internally this would be relatively simple to implement. The call to `torch()` would generate a function that could gain access to the input/output tensors. These would then be passed to a call an `autograd.Function.apply` call in the correct order. It's made doubly easy, because Benedikt already solved most of this in `copper` :)
+
+## None-pytorch projects / Custom optimizers
+
+On several projects we've now created custom implementations of optimizers rather than use PyTorch, and due to the huge performance gains it's reasonable to assume the trend will continue. Whilst it's not the job of kernel functions to _solve_ this, they should still represent an increase in usability over pure calls to compute.
+
+<b>NOTE: This is my current reading of the Gaussian code - may not be correct :) </b>
+
+The Gaussian project is a good example of this, which uses (Marco's?) lightweight `sglu` library as a base interface to SGL. At its core, `sglu` implements:
+- A structured buffer wrapper that can have associated grads
+- A hierarchical `Module` base class that can bind parameters and (critically) return a flat array of all structured buffers in itself and any children that require gradients
+
+Similar to the PyTorch Adam implementation, the Gaussian version takes a list of parameters that need training. Within the training loop, primals and gradients are calculated as usual and the optimizer does its job. The critical difference between this setup and PyTorch is the lack of autograd - it is down to the modules to generate the correct gradients and write them to the correct buffers.
+
+Provided we ensure minimal overheads, out of the box kernel functions would improve a few areas without causing any hindrance:
+- Boiler plate for slang kernels and associated loading/calling code would be reduced. 
+- The custom structured buffer type would not be needed
+- Where desired, more flexible tensor structures could be used, reducing the need for manual indexing
+- Up front knowledge of buffer param size counts wouldn't be necessary for gradient allocation (would be implicit based on calls)
+- Bespoke hierarchical parameter binding would be unnecesary
+
+Aspects we'd need to ensure still worked / were fast are:
+- To support the custom gradient generation, it would need to be easy to access and pass gradient buffers to kernel functions
+- Setting constants up front is useful, but we need to modifying globals every frame has no new overheads
+
+In effect, a version 1 would probably take strong advantage of the simpler calling mechanisms, but gain less from the simplified calls to backward propagation. 
+
+Going forward, natural extensions would be:
+- Implement some form of call graph around kernel functions to replace the `Module` concept
+- Accumulator support to remove some of the boilerplate around gradient accumulation
+- Look at providing 'fused' forward+backward kernel support, as used by the differential rasterizer
+
+
+## Graphics API
 
 .. todo ..
+
 
 ## Raytracing API
 
@@ -478,14 +549,9 @@ We could take this to the extreme, and attempt to allow 'auto flattening' to the
 
 .. todo ..
 
-## Pytorch integration
+## Fusing
 
 .. todo ..
-
-## Custom optimizers
-
-.. todo ..
-
 
 # Background / thought process / brain dumps
 
