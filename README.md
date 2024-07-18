@@ -619,7 +619,8 @@ output3 = NodeB(input2)
 #Feed all 3 outputs into Node C
 MyGraph.set_outputs(NodeC(output1, output2, output3))
 
-# Can now call the graph, and (with help from Sai working out chain rule for render graphs), a corresponding backwards:
+# Can now call the graph, and (with help from Sai working out chain rule 
+# for render graphs), a corresponding backwards:
 result = MyGraph.call(args)
 MyGraph.backwards.call(args, result)
 
