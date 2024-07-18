@@ -507,7 +507,7 @@ Internally this would be relatively simple to implement. The call to `torch()` w
 
 ## None-pytorch projects / Custom optimizers
 
-On several projects we've now created custom implementations of optimizers rather than use PyTorch, and due to the huge performance gains it's reasonable to assume the trend will continue. Whilst it's not the job of kernel functions to _solve_ this, they should still represent an increase in usability over pure calls to compute.
+Due to the huge performance gains it's reasonable to assume the trend of custom optimizers will continue. Whilst it's not the job of kernel functions to _solve_ this, they should still represent an increase in usability over pure calls to compute.
 
 <b>NOTE: This is my current reading of the Gaussian code - may not be correct :) </b>
 
@@ -526,7 +526,7 @@ Provided we ensure minimal overheads, out of the box kernel functions would impr
 
 Aspects we'd need to ensure still worked / were fast are:
 - To support the custom gradient generation, it would need to be easy to access and pass gradient buffers to kernel functions
-- Setting constants up front is useful, but we need to modifying globals every frame has no new overheads
+- Setting constants up front is useful, but we need to ensure modifying globals every frame has no new overheads
 
 In effect, a version 1 would probably take strong advantage of the simpler calling mechanisms, but gain less from the simplified calls to backward propagation. 
 
