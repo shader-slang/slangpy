@@ -602,7 +602,7 @@ This'll be left as a TODO for a little while, but I envisage it being wrapped up
 Whether it belongs in a kernel-functions package or a level higher, render graphs would be well supported by this model. As with PyTorch, we would introduce a `.node` method to convert a kernel function to a render graph node. At this point, standard Pythonic call tracing techniques could be used to build simple graphs:
 
 ```
-MyGraph = kf.Graph(<some input/output definitions>)
+MyGraph = kf.Graph(<minimal input/output information>)
 
 # Create nodes from 3 functions
 NodeA = function_a.node()
