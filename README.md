@@ -478,6 +478,15 @@ We could take this to the extreme, and attempt to allow 'auto flattening' to the
 
 .. todo ..
 
+## Pytorch integration
+
+.. todo ..
+
+## Custom optimizers
+
+.. todo ..
+
+
 # Background / thought process / brain dumps
 
 <b>Note: Everything below is bits of the thought process / brain dumps that fed into the above design. They're kept for posterity / reference now, but not key to the API design.</b>
