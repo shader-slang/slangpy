@@ -537,26 +537,100 @@ Going forward, natural extensions would be:
 - Accumulator support to remove some of the boilerplate around gradient accumulation
 - Look at providing 'fused' forward+backward kernel support, as used by the differential rasterizer
 
-## Accumulators
+## Raytracing Pipeline
 
+The ray tracing API would be relatively trivial to fit to the same model. At the very least, this shader could be build up:
 
+```
+raytrace.slang
 
-## Graphics API
+void missed(inout Payload payload)
+{
+    payload.color = float3(0, 0, 0);
+}
 
-.. todo ..
+void hit(inout Payload payload, BuiltInTriangleIntersectionAttributes attribs)
+{
+    payload.color = float3(attribs.barycentrics, 0);
+}
 
+void ray_gen(uint2 pixel, out float4 color)
+{
+    uint2 dim = DispatchRaysDimensions().xy;
+    float2 uv = float2(pixel) / float2(dim);
 
-## Raytracing API
+    RayDesc ray;
+    ray.Origin = float3(uv * 2 - 1, 1);
+    ray.Direction = float3(0, 0, -1);
+    ray.TMin = 0;
+    ray.TMax = 2;
 
-.. todo ..
+    Payload payload = {};
+    TraceRay(tlas,0,0xff,0,0,0,ray,payload);
+    color = float4(payload.color, 1.f);
+}
+```
 
-## CUDA/Gfx interop
+With the following simple API to build a 'ray gen' kernel function, and wrap corresponding callbacks if need be
 
-.. todo ..
+```
+raytrace.py
 
-## Fusing
+#make a ray gen kernel function
+ray_gen = kf.get_ray_gen(module, "ray_gen",  miss="missed", closesthit="hit")
 
-.. todo ..
+#<do all the tedious TLAS setup that we have to make better>
+
+ray_gen
+    .set("tlas": my_tlas)
+    .options(
+        hit_groups = [bla],
+        max_recursion = 1,
+        max_payload_size = 12    
+    )
+    .call(pixel=MyTexture.Shape, color=MyTexture)
+```
+
+With work, common patterns such as converting pixel to uv could probably also be wrapped up cleanly.
+
+## Graphics Pipeline
+
+This'll be left as a TODO for a little while, but I envisage it being wrapped up in the same style. Ultimately render state is just a set of options, and vertex / index buffers are simply parameters to a function call. There's no reason it can't be mimic a similar pattern.
+
+## Render Graphs / Fusing
+
+Whether it belongs in a kernel-functions package or a level higher, render graphs would be well supported by this model. As with PyTorch, we would introduce a `.node` method to convert a kernel function to a render graph node. At this point, standard Pythonic call tracing techniques could be used to build simple graphs:
+
+```
+MyGraph = kf.Graph(<some input/output definitions>)
+
+# Create nodes from 3 functions inside a render graph
+NodeA = function_a.node(MyGraph)
+NodeB = function_b.node(MyGraph)
+NodeC = function_c.node(MyGraph)
+
+#Read inputs from graph
+(input1, input2, input3) = MyGraph.Inputs
+
+#Call Node A (returns 2 outputs) and Node B
+(output1, output2) = NodeA(input1)
+output3 = NodeB(input2)
+
+#Feed all 3 outputs into Node C
+MyGraph.Outputs = NodeC(output1, output2, output3)
+
+# Can now call the graph, and (with help from Sai working out chain rule for render graphs), a corresponding backwards:
+result = MyGraph.call(args)
+MyGraph.backwards.call(args, result)
+
+# And because we're still in kernel function land, we could convert the graph to PyTorch
+MyPyTorchGraph = MyGraph.torch()
+```
+
+As an aside, the strongly data/reflection driven nature of kernel functions also leaves us open to render graph visualizers/debuggers or even graphical user interfaces for building them.
+
+Fusing is simply the process of taking a graph like the one above, and rather than calling it as a sequence of dispatches with buffer transfers, combining calls into a single kernel and triggering them with a single dispatch. Whether this process was automatic or not would probably just depend on reliability / compilation costs, but it would be easy to implement at a later data if  the graph API was clearly defined.
+
 
 # Background / thought process / brain dumps
 
