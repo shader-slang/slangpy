@@ -466,6 +466,18 @@ raytrace.call(rays={'pos': positions, 'dir': directions}, colors=colors)
 
 We could take this to the extreme, and attempt to allow 'auto flattening' to the correct shape, or digging down deeper into structures so pos.x, pos.y, and pos.z could all be separate tensors. I think some of this will be necessary and fall out naturally, but we should take baby steps - it has the potential to grow into a can of worms. Certainly we should enforce dimensionality matching, even if we dive into clever typing straight off.
 
+## Build in tensor type
+
+.. todo ..
+
+## Raytracing API
+
+.. todo ..
+
+## CUDA/Gfx interop
+
+.. todo ..
+
 # Background / thought process / brain dumps
 
 <b>Note: Everything below is bits of the thought process / brain dumps that fed into the above design. They're kept for posterity / reference now, but not key to the API design.</b>
