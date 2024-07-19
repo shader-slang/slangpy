@@ -533,11 +533,13 @@ The class function is now usable just like a global function:
 mymodule = device.loadModule('xx.slang')
 scaler = Scaler(mymodule, 100.0)
 numbers = Tensor([1,2,3,4])
-scaler.scale_value(numbers)
+scaler.scale_value.call(numbers)
 #numbers -> Tensor([10,20,30,40])
 ```
 
 Question: would we treat class methods as const, or attempt to support read-back of the class state as well? If so, would this be automatic or explicit?
+
+Question: should we utilize decorators instead of / as an alternative to inheritance?
 
 ## Tensor type
 
