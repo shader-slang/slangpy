@@ -466,6 +466,79 @@ raytrace.call(rays={'pos': positions, 'dir': directions}, colors=colors)
 
 We could take this to the extreme, and attempt to allow 'auto flattening' to the correct shape, or digging down deeper into structures so pos.x, pos.y, and pos.z could all be separate tensors. I think some of this will be necessary and fall out naturally, but we should take baby steps - it has the potential to grow into a can of worms. Certainly we should enforce dimensionality matching, even if we dive into clever typing straight off.
 
+## Python classes
+
+As a base line, all the rules above for marshalling dictionaries and representing fields as scalars or tensors etc should all function identically for classes. i.e. this example of nicely typed Python should function perfectly:
+
+```
+xx.slang
+[Differentiable]
+struct Ray {
+    float3 pos;
+    float3 dir;
+}
+
+[Differentiable]
+float3 raytrace(in Ray ray) {
+    //...hard stuff to work out the color here!...
+    return color;
+}
+
+yy.py
+class RayTraceInput:
+    __init__(self)
+        self.pos: sgl.float3 | Tensor = None
+        self.dir: sgl.float3 | Tensor = None
+
+rti = RayTraceInput()
+rti.pos = sgl.float3(1,1,1)
+rti.dir = Tensor([0,0,1], [0,1,0], ... )
+colors = Tensor()
+raytrace.call(rays=rti, colors=colors)
+```
+
+Just as with dictionaries, all we're doing here is defining the fields that'll be fed to the `Ray` input for each call to `raytrace` using fields of a Python object.
+
+## Class methods
+
+Calling methods directly on Slang structs through the use of a Pythonic class method call is supported by inheriting from the `kf.Struct` type, and listing the methods to bind to as class fields.
+
+A slang struct containing state and a function that both takes parameters and uses the internal state:
+
+```
+xx.slang
+struct Scaler
+{
+    float scale;
+
+    void scale_value(inout float val) { val *= scale; }
+}
+```
+
+Python class wraps the state and defines the function it wishes to bind to:
+
+```
+class Scaler(kf.Struct):
+    scale_value: kf.Function
+
+    def __init__(self, module, scale):
+        super().__init__(module)
+        self.scale = scale
+
+```
+
+The class function is now usable just like a global function:
+
+```
+mymodule = device.loadModule('xx.slang')
+scaler = Scaler(mymodule, 100.0)
+numbers = Tensor([1,2,3,4])
+scaler.scale_value(numbers)
+#numbers -> Tensor([10,20,30,40])
+```
+
+Question: would we treat class methods as const, or attempt to support read-back of the class state as well? If so, would this be automatic or explicit?
+
 ## Tensor type
 
 Whilst I've referred to 'batchable lists' in this document, the reality is the vast majority of interaction with kernels would involve either:
