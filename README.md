@@ -158,6 +158,8 @@ with command_buffer.encode_compute_commands() as encoder:
 command_buffer.submit()
 ```
 
+Question: Should we all for use of python call operator instead of requiring explicit `.call` function as a shorthand?
+
 ## Backwards Pass
 
 Mimicking how existing machine libaries operate, the differential can be supported with a backward property, which is simply another callable function:
@@ -550,6 +552,54 @@ Whilst I've referred to 'batchable lists' in this document, the reality is the v
 
 SGL doesn't currently have strong support for tensors, and Slang has basic support for a `TensorView`. To support  future work, we should introduce a tensor type as a core concept in both SGL and Slang with conversions to/from PyTorch tensors when necessary.
 
+## Accumulators
+
+Gradient accumulation during a backwards pass is the obvious case for an accumulator, however in the more general case any broadcast `out` parameter could support them. This would be particularly valuable in cases of bespoke training, where gradient calculations may not be part of an explicit 'backwards' pass.
+
+<b>Note: This aspect of the API is 'theory' - will probably need flushing out once we've made progress on the basics!</b> 
+
+In general any out parameter could be used for broadcasting:
+
+```
+xx.slang
+void myfunc(float3 input, out float3 result)
+{
+    result = input * 10
+}
+
+yy.py
+#by default, this should clearly fail - the inputs suggests 3 calls, but only asking for 1 output
+inputs = Tensor([1,2,3],[4,5,6],[7,8,9])
+result = sgl.float3()
+myfunc.call(inputs, result)
+# ERROR: Mismatched batching
+
+#potential api to request the result was accumulated
+myfunc.accumulate(result='sum')
+      .call(inputs, result)
+# result -> [10+40+70, 20+50+80, 30+60+90]
+```
+
+In a more complex real world context, running an ML training run and accumulating gradients of a mini batch, we'd end up with something along the lines of:
+
+```
+batch_inputs = Tensor([ [..batch entry 0 data..], [..batch entry 1 data..], ... ], needs_grads=True)
+batch_outputs = Tensor(batch_inputs.shape)
+
+myfunc.call(input=batch_inputs, result=batch_outputs)
+
+#populate input grads as normal
+myfunc.backwards
+    .call(input=batch_inputs, result=batch_outputs)
+
+#populate input grads through summed accumulation
+myfunc.backwards
+    .accumulate({'input.grad': 'sum'})
+    .call(input=batch_inputs, result=batch_outputs)
+#input.grads -> accumulated input gradients across the whole mini batch
+```
+
+
 ## Pytorch integration
 
 The principle requirement for PyTorch integration is that the kernel function needs to interact seamlessly with PyTorch autograd. When it comes down to it, this involves 2 engineering problems:
@@ -709,4 +759,51 @@ MyReusableNode = MyGraph.node()
 As an aside, the strongly data/reflection driven nature of kernel functions also leaves us open to render graph visualizers/debuggers or even graphical user interfaces for building them.
 
 Fusing is simply the process of taking a graph like the one above, and rather than calling it as a sequence of dispatches with buffer transfers, combining calls into a single kernel and triggering them with a single dispatch. Whether this process was automatic or not would probably just depend on reliability / compilation costs, but it would be easy to implement at a later data if  the graph API was clearly defined.
+
+## Dynamic state
+
+Thus far the API has provided a robust means to set globals before a call:
+
+```
+myfunc.set({...})
+      .call(args)
+```
+
+However in reality, most real time situations have some unchanging global state, and some that changes every frame. Remembering to update / pass this state consistency is a source of bugs.
+
+It's conceivable we could add a simple mechanism to 'hook' a call:
+
+```
+def callback(context):
+    ...use context to bind / configure dynamic state...
+
+my_configured_func = myfunc
+    .set({... unchanging globbal state ...})
+    .hook(callback)
+    .call(args)
+
+#will now trigger 'callback' every time its called
+my_configured_func.call(args)
+```
+
+In this case, we could equally allow the hook mechanism to bind to a class, perhaps with an explicit function name, or perhaps through simple inheritance:
+
+```
+class Scene:
+
+    def render_callback(context):
+        ...
+
+scene = Scene()
+
+my_configured_func = myfunc
+    .set({... unchanging globbal state ...})
+    .hook(scene, Scene.render_callback) # probably there's a better way!
+    .call(args)
+
+#will now trigger 'render_callback' on the scene instance every time its called
+my_configured_func.call(args)
+```
+
+There is a question over whether this functionality is too high level for kernel functions, however the oppurtunity to hook into certain calls is likely to be useful to any higher level APIs.
 
