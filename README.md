@@ -13,17 +13,13 @@ Currently we have several implementations of systems that integrate python with 
 
 Outside of these, we've got projects that can be divided up in a few different ways - some use Falcor, some use SGL, some just use SlangTorch with PyTorch. These divide up further with various approaches to forward/backward processes and PyTorch vs custom training mechanisms. Looking at the Slangtorch examples (includes learned mip maps), neural textures, neural materials, difftrace, gaussian splats and falcor ray tracers gives a wide range of examples of problems solved, and how code has 'ended up' being written under certain constraints.
 
-Having reviewed the various options, copper represents the best high level approach in creating a clean and usable interface from Python to Slang. I've called this kernel functions for now, as its too boring a name to possibly use, so it won't accidently end up being stuck with!
+Having reviewed the various options, copper represents the best high level approach in creating a clean and usable interface from Python to Slang via SGL. I've called this kernel functions for now, as its too boring a name to possibly use, so it won't accidently end up being stuck with!
 
-See Benedikt's write up of copper for more info: https://gitlab-master.nvidia.com/bbitterli/Falcor/-/tree/copper2/scripts/internal/NeuralAppearance/python/copper2?ref_type=heads
-
-
-<b>NOTE: This doc is work in progress! :) </b>
-
+See Benedikt's write up for more info on `copper`: https://gitlab-master.nvidia.com/bbitterli/Falcor/-/tree/copper2/scripts/internal/NeuralAppearance/python/copper2?ref_type=heads
 
 # Calling kernels and batching
 
-Derived from **Copper**, Benedikts observation, which we all generally agree with, is that the boiler plate involved in writing explicit compute kernels need to go. A user should be able to write this function:
+Derived from `copper`, Benedikts observation, which we all generally agree with, is that the boiler plate involved in writing explicit compute kernels needs to go. A user should be able to write this function:
 
 ```
 // xx.slang
@@ -33,7 +29,7 @@ float add(float x, float y)
 }
 ```
 
-And call it from Python, whilst being allowed to pass in either a constant or an array-like structure for either x or power, and automatically be returned either a single float or an array-like structure accordingly. i.e.
+And call it from Python, whilst being allowed to pass in either a constant or an array-like structure for either x or y, and automatically be returned either a single float or an array-like structure accordingly. i.e.
 
 ```
 # yy.py
@@ -63,7 +59,7 @@ z = add(x,y)
 #z -> ERROR
 ```
 
-Of course, in GPU/Python world rather than lists we'd be likely dealing with structured buffers, tensors or numpy arrays.
+Of course, in GPU/Python world, rather than lists we'd be likely dealing with structured buffers, tensors or numpy arrays.
 
 ## in / out / inout Parameters
 
@@ -72,7 +68,7 @@ Slang supports the full range of in, out and inout parameters. These would be su
 - out: writes back result (as you'd expect) - would fail to write to broadcast value
 - inout: again, as you'd expect
 
-We have discussed whether function return values should actually be forbidden, with results _only_ returnable via an `out` parameter. This has considerable benefits both in terms of matching PyTorch auto diff, and reducing ambiguities in how values should be returned in more complex batching situations. That said, in many cases this is an unnecesary restriction and would be nice to avoid.
+We have discussed whether function return values should actually be forbidden, with results _only_ returnable via an `out` parameter. This has considerable benefits both in terms of matching the PyTorch auto diff style, and reducing ambiguities in how values should be returned in more complex batching situations. That said, in many cases this is an unnecesary restriction and would be nice to avoid.
 
 ## More complex batching
 
@@ -128,7 +124,7 @@ add_func
     .call(args)             #all real work is deferred until the actual call
 ```
 
-If the above return none-mutating state, it would also allow users to preconfigure their calls
+As each method returns none-mutating state, it also allows users to preconfigure their calls
 
 ```
 #configure once
@@ -142,7 +138,7 @@ configured_add_func.call(args1)
 configured_add_func.call(args2)
 ```
 
-This also offers up oppurtunities to trigger the call in other ways, such as adding it to an SGL command list:
+This offers up oppurtunities to trigger the call in other ways, such as adding it to an SGL command list:
 
 ```
 command_buffer = device.create_command_buffer()
@@ -158,7 +154,7 @@ with command_buffer.encode_compute_commands() as encoder:
 command_buffer.submit()
 ```
 
-Question: Should we all for use of python call operator instead of requiring explicit `.call` function as a shorthand?
+Question: Should we support use of python call operator instead of requiring explicit `.call` function as a shorthand?
 
 ## Backwards Pass
 
@@ -186,7 +182,7 @@ Were the slang function none-differentiable, the .backward function would simply
 
 Conveniently, as we're simply wrapping Slang function calls, if a custom differential were provided for the function in question, it would naturally be called as part of the backward pass above.
 
-Thus far I am inclined to suggest we leave forward differentials out of the Python api until required - they can of course still be calculated within a slang program, however I'm concerned that by attempting to wrap a Pythonic api around both forward and backward differentials we'd end up creating confusion unnecesarily, especially given 'forward' typically refers to the forward feedback step of a neural network in the context of machine learning frameworks.
+Thus far I am inclined to suggest we leave forward differentials out of the Python api until required - they can of course still be calculated within a slang program, however I'm concerned that by attempting to wrap a Pythonic api around both forward and backward differentials we'd end up creating confusion unnecesarily, especially given 'forward' typically refers to the feed-forward step in the context of machine learning frameworks.
 
 ## Explicit batched types
 
@@ -200,7 +196,7 @@ b = Batchable([1,2,3])
 result = add(a,b)
 ```
 
-As the `is_tensor_like` would return true for any tensor-like type, this would also be valid (and probably more common):
+As `kf.is_batchable_like` would return true for any tensor-like type, this would also be valid (and probably more common):
 
 ```
 a = 10
@@ -208,7 +204,7 @@ b = torch.Tensor([1,2,3])
 result = add(a,b)
 ```
 
-I am currently undecided on this point - it feels clean initially, but raises the question of what types should be 'batchable'. A numpy array? A structured buffer? If so, why these types but not a list? Perhaps if we want batching (and accordingly, broadcasting) to be explicit, it shouldn't be type based but use some other parameter mechanism?
+I am currently undecided on this point - it feels clean, but raises the question of what types should be 'batchable'. A numpy array? A structured buffer? If so, why these types but not a list?
 
 ## Differentiable types
 
@@ -259,7 +255,7 @@ void main(uint3 tid: SV_DispatchThreadID)
 
 ```
 main.set(color=float3(1,0,0), texture=mytex)
-    .threads(256,256)
+    .threads(mytex.width,mytex.height)
     .call()
 ```
 
@@ -359,11 +355,11 @@ raytrace
     ) 
 ```
 
-A final note there is the significant parameter block containing the whole scene. In theory it could be passed to the function as well, however a user may not wish to structure the code in this highly functional way, and an API shouldn't force users to a certain way of thinking unless absolutely necessary.
+A final note there is the significant parameter block containing the whole scene. In theory it could be passed as an argument, however a user may not wish to structure code in this highly functional way, and an API shouldn't force users to a certain way of thinking unless absolutely necessary.
 
 # Complex Types / Type Marshalling
 
-Thus far we've focussed on simple types like 'float', however we need to support the full range of types that Slang supports. SGL already contains extensive type marshalling support (though needs some additions), so is well suited to the problem. For this section, we can assume that basic process of converting a python dictionary to/from a slang structure is solved (as it pretty much is in SGL). That is, it is currently possible in SGL to call:
+Thus far we've focussed on simple types like 'float', however we need to support the full range of types that Slang supports. SGL already contains extensive type marshalling support (though needs some additions), so is well suited to the problem. For this section, we can assume that the basic process of converting a python dictionary to/from a slang structure is solved (as it pretty much is in SGL). That is, it is currently possible in SGL to call:
 
 ```
     computekernel.dispatch(
@@ -372,7 +368,7 @@ Thus far we've focussed on simple types like 'float', however we need to support
     )
 ```
 
-And it will 'just work'. I believe we haven't yet added this process to all the API, and the reverse is less flushed out, but it should exist in SGL and is not too complex (albeit a little tedious!) to get going!
+And it will 'just work'. Whilst this process isn't entirely flushed out in SGL, it needs to at some point, and and is not too complex (albeit a little tedious!) to get going!
 
 ## Simple structures / batching
 
@@ -503,9 +499,9 @@ Just as with dictionaries, all we're doing here is defining the fields that'll b
 
 ## Class methods
 
-Calling methods directly on Slang structs through the use of a Pythonic class method call is supported by inheriting from the `kf.Struct` type, and listing the methods to bind to as class fields.
+Calling methods directly on Slang structs through the use a python method is supported by inheriting from the `kf.Struct` type, and listing the methods to bind as class fields.
 
-A slang struct containing state and a function that both takes parameters and uses the internal state:
+A slang struct and method that use both parameters and internal state:
 
 ```
 xx.slang
@@ -580,7 +576,7 @@ myfunc.accumulate(result='sum')
 # result -> [10+40+70, 20+50+80, 30+60+90]
 ```
 
-In a more complex real world context, running an ML training run and accumulating gradients of a mini batch, we'd end up with something along the lines of:
+In a more complex real world context, training and accumulating gradients of a mini batch, we'd end up with something along the lines of:
 
 ```
 batch_inputs = Tensor([ [..batch entry 0 data..], [..batch entry 1 data..], ... ], needs_grads=True)
@@ -591,6 +587,7 @@ myfunc.call(input=batch_inputs, result=batch_outputs)
 #populate input grads as normal
 myfunc.backwards
     .call(input=batch_inputs, result=batch_outputs)
+#input.grads -> gradients per mini batch entry
 
 #populate input grads through summed accumulation
 myfunc.backwards
@@ -664,7 +661,7 @@ Going forward, natural extensions would be:
 
 ## Raytracing Pipeline
 
-The ray tracing API would be relatively trivial to fit to the same model. At the very least, this shader could be build up:
+The ray tracing API would be relatively trivial to fit to the same model. At the very least, this shader could be built:
 
 ```
 raytrace.slang
@@ -758,7 +755,7 @@ MyReusableNode = MyGraph.node()
 
 As an aside, the strongly data/reflection driven nature of kernel functions also leaves us open to render graph visualizers/debuggers or even graphical user interfaces for building them.
 
-Fusing is simply the process of taking a graph like the one above, and rather than calling it as a sequence of dispatches with buffer transfers, combining calls into a single kernel and triggering them with a single dispatch. Whether this process was automatic or not would probably just depend on reliability / compilation costs, but it would be easy to implement at a later data if  the graph API was clearly defined.
+Fusing is simply the process of taking a graph like the one above, and rather than calling it as a sequence of dispatches with buffer transfers, combining calls into a single kernel and triggering them with a single dispatch. Whether this process was automatic or not would probably just depend on reliability / compilation costs, but it would be easy to implement at a later date if the graph API was clearly defined.
 
 ## Dynamic state
 
@@ -769,7 +766,7 @@ myfunc.set({...})
       .call(args)
 ```
 
-However in reality, most real time situations have some unchanging global state, and some that changes every frame. Remembering to update / pass this state consistency is a source of bugs.
+However most real time situations have a lot of dynamic state. Remembering to update / pass this state consistently is a source of bugs.
 
 It's conceivable we could add a simple mechanism to 'hook' a call:
 
@@ -786,7 +783,7 @@ my_configured_func = myfunc
 my_configured_func.call(args)
 ```
 
-In this case, we could equally allow the hook mechanism to bind to a class, perhaps with an explicit function name, or perhaps through simple inheritance:
+In this case, we could equally allow the hook mechanism to bind to a class, perhaps with an explicit function name:
 
 ```
 class Scene:
