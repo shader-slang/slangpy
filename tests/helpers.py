@@ -17,6 +17,7 @@ else:
 
 DEVICE_CACHE = {}
 
+
 def get_device(type: sgl.DeviceType, use_cache: bool = True) -> sgl.Device:
     if use_cache and type in DEVICE_CACHE:
         return DEVICE_CACHE[type]
@@ -31,4 +32,3 @@ def get_device(type: sgl.DeviceType, use_cache: bool = True) -> sgl.Device:
     if use_cache:
         DEVICE_CACHE[type] = device
     return device
-
