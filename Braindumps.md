@@ -19,14 +19,14 @@ float myFunc(float a, float x)
 
 //Forward derivative
 DifferentialPair<float> myFunc_fwd_derivative(
-    DifferentialPair<float> a, 
+    DifferentialPair<float> a,
     DifferentialPair<float> x);
 
 //Backward derivative
 void myFunc_backProp(
-    inout DifferentialPair<float> a, 
-    inout DifferentialPair<float> x, 
-    float dResult);    
+    inout DifferentialPair<float> a,
+    inout DifferentialPair<float> x,
+    float dResult);
 ```
 
 If we were to follow the same line of thinking thus far, the logical (though ugly) approach to making this accessible as a kernel function would be
@@ -131,7 +131,7 @@ Following the earlier batching rules we've assumed it's valid to pass a and x in
 - a.grad should be d/d_a for all values of res (i.e. a become list)
 - a.grad should be an accumulation of d/d_a (i.e. remain a scalar)
 
-A database 'group' query often hits a similar problem, and typically treats the first option as a special case of accumulation - 'push' accumulation, in which every result is added to list rather than accumulated through some mathematical function. 
+A database 'group' query often hits a similar problem, and typically treats the first option as a special case of accumulation - 'push' accumulation, in which every result is added to list rather than accumulated through some mathematical function.
 
 With that in mind, _if_ we wanted to the logical way to clear up the ambiguity would be some form of accumulator flag:
 

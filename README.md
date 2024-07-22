@@ -131,8 +131,8 @@ As each method returns none-mutating state, it also allows users to preconfigure
 ```
 #configure once
 configured_add_func = add_func
-    .set({})            
-    .options({})        
+    .set({})
+    .options({})
     .typeconformance({})
 
 #call multiple times
@@ -193,7 +193,7 @@ Thus far I am inclined to suggest we leave forward differentials out of the Pyth
 
 ## Explicit batched types
 
-Whilst the earlier ability to pass pure lists in as batched parameters is convenient, it has the potential to cause confusion when, for example, calling a function that takes an array or even just multi dimensional types such as vectors. 
+Whilst the earlier ability to pass pure lists in as batched parameters is convenient, it has the potential to cause confusion when, for example, calling a function that takes an array or even just multi dimensional types such as vectors.
 
 To handle this, we _could_ implement a model similar to PyTorch's `is_tensor_like`, and add a `kf.is_batchable_like`, along with a default `Batchable` type. Thus to support batching on a list, at a minimum you would be required to wrap it in a Batchable:
 
@@ -215,7 +215,7 @@ I am currently undecided on this point - it feels clean, but raises the question
 
 ## Differentiable types
 
-Most machine learning libraries make the observation that a parameter and its associated partial derivate  are deeply linked, and thus attach 1 to the other. For example, in PyTorch a `Tensor` object has a `.grad` property, which is also a `Tensor`. Slang makes a similar observation in its implementation of a `DifferentialPair`. 
+Most machine learning libraries make the observation that a parameter and its associated partial derivate  are deeply linked, and thus attach 1 to the other. For example, in PyTorch a `Tensor` object has a `.grad` property, which is also a `Tensor`. Slang makes a similar observation in its implementation of a `DifferentialPair`.
 
 It makes sense again to provide `kf.is_differentiable_like`, which returns true if the associated type supports having `.grad` and `.needs_grad` properties. Again this could be true by default for a PyTorch `Tensor`, however would also allow us to create wrappers for scalars or structured buffers. For example, a possible implementation could involve
 
@@ -345,7 +345,7 @@ raytrace
         frame=10,
         pixel=MyTexture.shape,
         res=MyTexture
-    ) 
+    )
 ```
 
 In this case though a key optimization has been lost - the original ray tracer quite deliberately used cache coherent blocks of 16x16 pixels. This suggests still we'd want the ability to add additional options before the call to control code gen:
@@ -359,7 +359,7 @@ raytrace
         frame=10,
         pixel=MyTexture.shape,
         res=MyTexture
-    ) 
+    )
 ```
 
 A final note there is the significant parameter block containing the whole scene. In theory it could be passed as an argument, however a user may not wish to structure code in this highly functional way, and an API shouldn't force users to a certain way of thinking unless absolutely necessary.
@@ -405,7 +405,7 @@ color = raytrace.call({
 })
 ```
 
-Internally this would either need to marshal the ray into a structured buffer of some form, or write it directly as a uniform. 
+Internally this would either need to marshal the ray into a structured buffer of some form, or write it directly as a uniform.
 
 Batching could operate as expected if providing a structured buffer or batchable list of rays:
 
@@ -570,7 +570,7 @@ SGL doesn't currently have strong support for tensors, and Slang has basic suppo
 
 Gradient accumulation during a backwards pass is the obvious case for an accumulator, however in the more general case any broadcast `out` parameter could support them. This would be particularly valuable in cases of bespoke training, where gradient calculations may not be part of an explicit 'backwards' pass.
 
-<b>Note: This aspect of the API is 'theory' - will probably need flushing out once we've made progress on the basics!</b> 
+<b>Note: This aspect of the API is 'theory' - will probably need flushing out once we've made progress on the basics!</b>
 
 In general any out parameter could be used for broadcasting:
 
@@ -660,7 +660,7 @@ The Gaussian project is a good example of this, which uses (Marco's?) lightweigh
 Similar to the PyTorch Adam implementation, the Gaussian version takes a list of parameters that need training. Within the training loop, primals and gradients are calculated as usual and the optimizer does its job. The critical difference between this setup and PyTorch is the lack of autograd - it is down to the modules to generate the correct gradients and write them to the correct buffers.
 
 Provided we ensure minimal overheads, out of the box kernel functions would improve a few areas without causing any hindrance:
-- Boiler plate for slang kernels and associated loading/calling code would be reduced. 
+- Boiler plate for slang kernels and associated loading/calling code would be reduced.
 - The custom structured buffer type would not be needed
 - Where desired, more flexible tensor structures could be used, reducing the need for manual indexing
 - Up front knowledge of buffer param size counts wouldn't be necessary for gradient allocation (would be implicit based on calls)
@@ -670,7 +670,7 @@ Aspects we'd need to ensure still worked / were fast are:
 - Setting constants up front is useful, but we need to ensure modifying globals every frame has no new overheads
 - Robust control over thread grouping for dispatch
 
-In effect, a version 1 would probably take strong advantage of the simpler calling mechanisms, but gain less from the simplified calls to backward propagation. 
+In effect, a version 1 would probably take strong advantage of the simpler calling mechanisms, but gain less from the simplified calls to backward propagation.
 
 Going forward, natural extensions would be:
 - Implement some form of call graph around kernel functions to replace the `Module` concept
@@ -726,7 +726,7 @@ ray_gen
     .options(
         hit_groups = [bla],
         max_recursion = 1,
-        max_payload_size = 12    
+        max_payload_size = 12
     )
     .call(pixel=MyTexture.Shape, color=MyTexture)
 ```
@@ -759,7 +759,7 @@ output3 = NodeB(input2)
 #Feed all 3 outputs into Node C
 MyGraph.set_outputs(NodeC(output1, output2, output3))
 
-# Can now call the graph, and (with help from Sai working out chain rule 
+# Can now call the graph, and (with help from Sai working out chain rule
 # for render graphs), a corresponding backwards:
 result = MyGraph.call(args)
 MyGraph.backwards.call(args, result)
@@ -821,4 +821,3 @@ my_configured_func.call(args)
 ```
 
 There is a question over whether this functionality is too high level for kernel functions, however the oppurtunity to hook into certain calls is likely to be useful to any higher level APIs.
-

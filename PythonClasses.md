@@ -276,11 +276,3 @@ mdg.generateMaterialSample(...)
 ```
 
 I personally am not keen on this for not entirely justifiable reasons! I guess it's because it is hiding something big behind something tiny, and isn't really consistent with the other method chaining aspects of the API. But, it is standard practice in python ML with modules and functions, so maybe I'm just being picky!
-
-
-
-
-
-
-
-

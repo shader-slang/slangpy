@@ -1,0 +1,3 @@
+typing_extensions
+pre-commit
+pytest
