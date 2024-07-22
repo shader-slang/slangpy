@@ -8,7 +8,7 @@ Currently we have several implementations of systems that integrate python with 
 - **Slang Torch**: CUDA based python project for compiling and calling CUDA functions written in slang and using them with pytorch
 - **Falcor**: Does absolutely everything plus a bit more
 - **SGL**: Low level python first graphics api
-- **SLGU**: Thin wrapper around SGL with basic concept of structured buffers that have associated gradients and modules designed for differential calls
+- **SLGU**: Thin wrapper around SGL with concept of structured buffers that have associated gradients and modules designed for differential calls
 - **Copper**: Benedict's new experiments in creating a simpler mechanism to call Slang functions from Python, sitting on top of Falcor
 
 Outside of these, we've got projects that can be divided up in a few different ways - some use Falcor, some use SGL, some just use SlangTorch with PyTorch. These divide up further with various approaches to forward/backward processes and PyTorch vs custom training mechanisms. Looking at the Slangtorch examples (includes learned mip maps), neural textures, neural materials, difftrace, gaussian splats and falcor ray tracers gives a wide range of examples of problems solved, and how code has 'ended up' being written under certain constraints.
@@ -552,6 +552,8 @@ Question: should we utilize decorators instead of / as an alternative to inherit
 - Pro: `module` parameter automatically inserted + handled, so no need to remember to call `super`
 - Pro: doesn't interfere with other inheritance chains
 - Con: `IDE / auto complete` can not highlight / document the need for the module parameter
+- Con: if we want to add extra api to the KStruct (eg getting the associated module), they have to be silently added by decorator
+
 
 ## Tensor type
 
