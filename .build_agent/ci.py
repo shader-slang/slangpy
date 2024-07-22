@@ -20,5 +20,8 @@ run_command("pip install git+https://gitlab-master.nvidia.com/skallweit/sgl.git"
 # install requirements for building
 run_command("pip install -r .build_agent/requirements.txt")
 
+# run precommit
+run_command("pre-commit run --all-files")
+
 # run tests
 run_command("pytest tests")
