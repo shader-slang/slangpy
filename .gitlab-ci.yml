@@ -16,8 +16,6 @@
 # Base job (initializes conda environment then runs ci.py script)
 .base:
   stage: build
-  tags:
-    - build
   script:
     # Run CI script
     - python -u ci.py
@@ -37,9 +35,11 @@
 # Standard build job
 # -----------------------------------------------------------------------------
 
-default-build:
+windows-build:  
   extends:
     - .default-rules
     - .base
     - .unit-test
+  tags:
+    - os/windows
 
