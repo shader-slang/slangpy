@@ -1,2 +1,2 @@
-def test_func():
-    return "hello"
+def test_func_2():
+    return "hello to you"
