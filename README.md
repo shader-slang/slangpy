@@ -104,6 +104,8 @@ float2 sample(int position, float2[] source)
 
 In the above example, the source array could just as easily have been a structured buffer, tensor or even a texture. I am unclear yet as to whether there are actual ambiguities that can be created, or whether for any given set of inputs you can always identify either a single correct answer, or a conflicting batch size.
 
+When it comes to broadcasting, rules have been established for how it should work in Python: https://numpy.org/doc/stable/user/basics.broadcasting.html. Whilst we won't necessarily have the full flexibility of numpy up front, we will ensure that any batching functionality that does exist matches the numpy patterns.
+
 # Core API structure
 
 Whilst the above examples involve single function calls to methods, and passing in pure python lists as batched parameters is elegant, it does remove oppurtunities to customize / defer calls. It can also create ambiguities in how certain parameters are passed to Slang. With that in mind, we will implement the Pythonic method-chaining pattern for function calls:
