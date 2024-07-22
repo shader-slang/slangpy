@@ -13,7 +13,7 @@ Currently we have several implementations of systems that integrate python with 
 
 Outside of these, we've got projects that can be divided up in a few different ways - some use Falcor, some use SGL, some just use SlangTorch with PyTorch. These divide up further with various approaches to forward/backward processes and PyTorch vs custom training mechanisms. Looking at the Slangtorch examples (includes learned mip maps), neural textures, neural materials, difftrace, gaussian splats and falcor ray tracers gives a wide range of examples of problems solved, and how code has 'ended up' being written under certain constraints.
 
-Having reviewed the various options, copper represents the best high level approach in creating a clean and usable interface from Python to Slang via SGL. I've called this kernel functions for now, as its too boring a name to possibly use, so it won't accidently end up being stuck with!
+Having reviewed the various options, the `copper` api style represents the best high level approach in creating a clean and usable interface from Python to Slang via SGL. I've called this kernel functions for now, as its too boring a name to possibly use, so it won't accidently end up being stuck with!
 
 See Benedikt's write up for more info on `copper`: https://gitlab-master.nvidia.com/bbitterli/Falcor/-/tree/copper2/scripts/internal/NeuralAppearance/python/copper2?ref_type=heads
 
