@@ -10,7 +10,7 @@ def run_command(command, shell=True):
     sys.stdout.flush()
     result = subprocess.run(command, shell=shell)
     if result.returncode != 0:
-        raise (f"Error running command: {command}")
+        raise NameError(f"Error running command: {command}")
     return result
 
 
@@ -24,4 +24,4 @@ run_command("pip install -r .build_agent/requirements.txt")
 run_command("pre-commit run --all-files")
 
 # run tests
-run_command("pytest tests")
+run_command("pytest --junit-xml=junit-test.xml tests")

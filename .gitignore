@@ -2,3 +2,4 @@ kernelfunctions.egg-info
 .vscode/
 .pytest_cache
 __pycache__
+junit*.xml
