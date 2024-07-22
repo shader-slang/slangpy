@@ -41,5 +41,6 @@ windows-build:
     - .base
     - .unit-test
   tags:
-    - os/windows
+    - gpu
+    - windows
 
