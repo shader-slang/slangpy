@@ -18,7 +18,7 @@ def run_command(command, shell=True):
 run_command("pip install git+https://gitlab-master.nvidia.com/skallweit/sgl.git")
 
 # install requirements for building
-run_command("pip install .build_agent/requirements.txt")
+run_command("pip install -r .build_agent/requirements.txt")
 
 # run tests
 run_command("pytest tests")
