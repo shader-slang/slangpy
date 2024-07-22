@@ -38,6 +38,7 @@
   tags:
     - linux
     - gpu
+    - nvrgfx-rtx03
   variables:
     CONDA_PATH: /home/gitlab-runner/FalcorMiniconda
     CONDA_ENV: falcor2
