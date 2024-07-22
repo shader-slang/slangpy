@@ -1,0 +1,45 @@
+# -----------------------------------------------------------------------------
+# Rule templates
+# -----------------------------------------------------------------------------
+
+# Rule to trigger on merge requests and updates to default branch
+.default-rules:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == 'schedule'
+
+# -----------------------------------------------------------------------------
+# Job templates
+# -----------------------------------------------------------------------------
+
+# Base job (initializes conda environment then runs ci.py script)
+.base:
+  stage: build
+  tags:
+    - build
+  script:
+    # Run CI script
+    - python -u ci.py
+
+# Add standard unit test variables
+.unit-test:
+  variables:
+    RUN_UNIT_TESTS: true
+  artifacts:
+    paths:
+      - "junit-*.xml"
+    reports:
+      junit:
+        - "junit-*.xml"
+
+# -----------------------------------------------------------------------------
+# Standard build job
+# -----------------------------------------------------------------------------
+
+default-build:
+  extends:
+    - .default-rules
+    - .base
+    - .unit-test
+
