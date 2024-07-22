@@ -1,16 +1,45 @@
 
 
+class KFunction:
+    def __init__(self, name: str|None=None):
+        self.name = name
 
-class MyClass:
-    my_function = lambda x: x + 1
+    def call(self, *args, **kwargs):
+        print("Calling", self.name)
+        return self.name
+    
+    def __call__(self, *args, **kwargs):
+        return self.call(*args, **kwargs)
 
-    def __init__(self, value):
-        set.__setattr__(self, 'my_function', lambda x: x + value)
-        pass
-        #self.my_function = lambda x: x + value
+class KStruct:
+    def __init__(self):
+        for name, value in self.__class__.__dict__.items():
+            if isinstance(value, KFunction):
+                value.name = name
 
-print(MyClass.my_function(1))  # 2
+#Basic version
+class MyClass(KStruct):
 
-c = MyClass(10)
-print(c.my_function(1))
+    my_function = KFunction()
+
+    def __init__(self):
+        super().__init__()
+
+#Mechanism to wrap purely by name
+class MyClass(KStruct):
+
+    __my_function = KFunction("my_function")
+
+    def __init__(self):
+        super().__init__()
+
+    def my_function(self):
+        print("Before")
+        res = self.__my_function()
+        print("After")
+        return res
+
+c = MyClass()
+res = c.my_function()
+print(res)
 

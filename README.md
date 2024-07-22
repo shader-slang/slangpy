@@ -136,6 +136,11 @@ configured_add_func = add_func
 #call multiple times
 configured_add_func.call(args1)
 configured_add_func.call(args2)
+
+#also support shothand through the use of Python `__call__` operator
+configured_add_func(args1)
+configured_add_func(args2)
+
 ```
 
 This offers up oppurtunities to trigger the call in other ways, such as adding it to an SGL command list:
@@ -154,7 +159,7 @@ with command_buffer.encode_compute_commands() as encoder:
 command_buffer.submit()
 ```
 
-Question: Should we support use of python call operator instead of requiring explicit `.call` function as a shorthand?
+As shown in the examples, the API will also override the Python `__call__` operator, allowings users to treat the kernel function just like any other function where it makes sense.
 
 ## Backwards Pass
 
@@ -437,7 +442,7 @@ raytrace.backwards.call(rays, colors)
 #rays.grad-> buffer of Ray.Differentials
 ```
 
-Question: Would we need to support _outputs_ having grads, i.e. if this was part of a larger backwards propagation chain?
+While _outputs_ would by default have a gradient of 1, specification of its gradient will also be supported, to allow a kernel function to part of a larger back-propagation operation.
 
 ## Tensors / AOS / SOA
 
@@ -535,9 +540,18 @@ scaler.scale_value.call(numbers)
 #numbers -> Tensor([10,20,30,40])
 ```
 
-Question: would we treat class methods as const, or attempt to support read-back of the class state as well? If so, would this be automatic or explicit?
+Or, using the `__call__` override:
 
-Question: should we utilize decorators instead of / as an alternative to inheritance?
+```
+scaler.scale_value(numbers)
+```
+
+To keep things simple, the initial version of the API will treat class members as const, thus requiring that fields be set to writable buffers to be modified. If this turns out to be an issue, or it is simple to implement, we will expand functionality to include write back of any field.
+
+Question: should we utilize decorators instead of / as an alternative to inheritance? This approach has pros and cons:
+- Pro: `module` parameter automatically inserted + handled, so no need to remember to call `super`
+- Pro: doesn't interfere with other inheritance chains
+- Con: `IDE / auto complete` can not highlight / document the need for the module parameter
 
 ## Tensor type
 
