@@ -13,17 +13,46 @@
 # Job templates
 # -----------------------------------------------------------------------------
 
-# Base job (initializes conda environment then runs ci.py script)
-.base:
+# Windows (initializes conda environment then runs ci.py script)
+.windows-base:
   stage: build
+  tags:
+    - windows
+    - gpu
+  variables:
+    CONDA_PATH: C:\Users\NvrGfxTest\FalcorMiniconda
+    CONDA_ENV: kernelfunctions
   script:
+    # Setup conda environment
+    - Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+    - |
+      & $CONDA_PATH\shell\condabin\conda-hook.ps1
+    - conda activate $CONDA_ENV
+
     # Run CI script
-    - python -u ci.py
+    - python -u build_agent/ci.py
+
+# Linux (initializes conda environment then runs ci.py script)
+.linux-base:
+  stage: build
+  tags:
+    - linux
+    - gpu
+  variables:
+    CONDA_PATH: /home/gitlab-runner/FalcorMiniconda
+    CONDA_ENV: kernelfunctions
+  script:
+    # Setup conda environment
+    - source ${CONDA_PATH}/bin/activate
+    - conda activate ${CONDA_ENV}
+    # Run CI script
+    - python -u build_agent/ci.py
 
 # Add standard unit test variables
 .unit-test:
   variables:
     RUN_UNIT_TESTS: true
+    RUN_PYTHON_TESTS: true
   artifacts:
     paths:
       - "junit-*.xml"
@@ -31,16 +60,19 @@
       junit:
         - "junit-*.xml"
 
+
 # -----------------------------------------------------------------------------
 # Standard build job
 # -----------------------------------------------------------------------------
 
-windows-build:  
+windows:
   extends:
     - .default-rules
-    - .base
+    - .windows-base
     - .unit-test
-  tags:
-    - gpu
-    - windows
 
+linux:
+  extends:
+    - .default-rules
+    - .linux-base
+    - .unit-test
