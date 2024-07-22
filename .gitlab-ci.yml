@@ -19,6 +19,7 @@
   tags:
     - windows
     - gpu
+    - nvrgfx-rtx04
   variables:
     CONDA_PATH: C:\Users\NvrGfxTest\FalcorMiniconda
     CONDA_ENV: falcor2
@@ -38,7 +39,6 @@
   tags:
     - linux
     - gpu
-    - nvrgfx-rtx04
   variables:
     CONDA_PATH: /home/gitlab-runner/FalcorMiniconda
     CONDA_ENV: falcor2
