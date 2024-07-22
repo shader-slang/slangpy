@@ -17,8 +17,11 @@ def run_command(command, shell=True):
 # struggling to get sgl to install via requirements - install directly here instead
 run_command("pip install git+https://gitlab-master.nvidia.com/skallweit/sgl.git")
 
-# install requirements for building
-run_command("pip install -r .build_agent/requirements.txt")
+# install this package as editable
+run_command("pip install --editable .")
+
+# install dev requirements
+run_command("pip install -r requirements-dev.txt")
 
 # run precommit
 run_command("pre-commit run --all-files")
