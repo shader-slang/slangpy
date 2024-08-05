@@ -11,6 +11,6 @@ description = "Call compute kernel functions in SGL"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "sgl @ git+https://gitlab-master.nvidia.com/skallweit/sgl.git"
+    "sgl @ git+https://gitlab-master.nvidia.com/skallweit/sgl.git@ccummings/kernel-functions-extensions"
 ]
 dynamic = ["version"]
