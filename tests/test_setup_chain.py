@@ -115,7 +115,7 @@ def test_set_lambda_callback(device_type: sgl.DeviceType):
     assert call_data.sets == {"a": 10, "b": 3}
 
 
-class TestInstance:
+class InstanceTest:
     def __init__(self, a: Any, b: Any):
         super().__init__()
         self.a = a
@@ -134,7 +134,7 @@ def test_set_instance_callback(device_type: sgl.DeviceType):
         device, "add_numbers", SIMPLE_FUNCTION_RETURN_VALUE
     )
 
-    instance = TestInstance(10, 20)
+    instance = InstanceTest(10, 20)
 
     chain = function.set(a=1, b=2).set(instance.get_values).set(b=3)
 

@@ -14,7 +14,7 @@ SUCCESS_TESTS = [
 ]
 
 # Same but for expected failures
-FAIL_TESTS = [[(3,), (2,)], [(2, 1), (8, 3, 4)]]
+FAIL_TESTS = [[(3,), (2,), (0,)], [(2, 1), (8, 3, 4), (0,)]]
 
 
 def TEST_ID(test: str):
