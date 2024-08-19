@@ -311,10 +311,10 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
 """
 
         # Write the shader to a file for debugging.
-        with open(
-            f".temp/{self.function.module.name}_{self.function.name}.slang", "w"
-        ) as f:
-            f.write(shader)
+        # with open(
+        #     f".temp/{self.function.module.name}_{self.function.name}.slang", "w"
+        # ) as f:
+        #     f.write(shader)
 
         # Build new module and link it with the one that contains the function being called.
         module: sgl.SlangModule = session.load_module_from_source(
