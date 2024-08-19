@@ -21,7 +21,7 @@ public float sum(float x, float y)
 ```python
 # simple_two_funcs.py
 import kernelfunctions as kf
-dev = kf.device("cuda") // Good idea to put everything behind a device object to take care of capability stuff later on.
+dev = kf.device("cuda") // Good idea to put module loading behind a device object to take care of capability stuff later on.
 
 m = dev.loadModule('simple_two_funcs.slang')
 ```
@@ -40,7 +40,7 @@ m = dev.loadModule('simple_two_funcs.slang')
 	# to the 'front' of the existing dimensions.
 	# 
 	# vsqr can be represented as "vsqr<N> := float[N] -> float[N]"
-	vsqr = dev.vmap(m.sqr, in_axes=(0,), out_axes=0)
+	vsqr = kf.vmap(m.sqr, in_axes=(0,), out_axes=0)
 	print(vsqr([1, 2, 3])) # numpy.ndarray [1, 4, 9] (vector call)
 	```
 - Note that `vmap` allows direct inference of output size from input dimensions, since we have an explicit mapping between input and output dimensions.
@@ -52,18 +52,18 @@ m = dev.loadModule('simple_two_funcs.slang')
 	
 	# Passing "None" will avoid vectorizing the corresponding argument
 	# vsum<N> := (float[N], (float)) -> float[N]
-	vsum = dev.vmap(m.sum, in_axes=(0, None), out_axes=0)
+	vsum = kf.vmap(m.sum, in_axes=(0, None), out_axes=0)
 
 	# First argument is 'uniform'. Second argument is 'constant' (broadcasted). 
 	print(vsum((1, 2, 3, 4), 10))
 
 	# Can also map this further to create a method that is 2D in the first arg, and 1D in the second arg.
 	# vvsum<M, N> := (float[M, N], float[M]) -> (float[M, N])
-	vvsum = dev.vmap(vsum, in_axes=(0, 0), out_axes=0)
+	vvsum = kf.vmap(vsum, in_axes=(0, 0), out_axes=0)
 
 	# Alternatively, if you want the second axis of the first arg to be 'M', you can specify '1' instead of '0' which places the new dimension in position 1
 	# vvsum_T<M, N> := (float [N, M], float[M]) -> (float[M, N])
-	vvsum_T = dev.vmap(vsum, in_axes=(1, 0), out_axes=0)
+	vvsum_T = kf.vmap(vsum, in_axes=(1, 0), out_axes=0)
 	```
 
 - `vmap` is intended to be a very light-weight wrapper that generates a kernel around a function & replaces scalar inputs with buffer types coded with the appropriate number of dimensions (as generic arguments)
@@ -134,7 +134,7 @@ m = dev.loadModule('simple_two_funcs.slang')
 		 output[thread_id] = f(x[thread_id], y[thread_id.x]);
 	}
 	```
-- `IBuffer`'s are specialized with the concrete buffer types from the type wrappers. Since `dev.wrap()` is device specific, it can choose to create a `StructuredBuffer` or `TensorView` or a user provided buffer type. Example implementations:
+- `IBuffer`'s are specialized with the concrete buffer types from the type wrappers. Since `kf.wrap()` is device specific, it can choose to create a `StructuredBuffer` or `TensorView` or a user provided buffer type. Example implementations:
 	```csharp
 	struct StructuredBuffer2DImpl<T, let N: int, let M: int> : IBuffer<T, In, N, M> { 
 		StructuredBuffer2D<T> buffer;
@@ -155,7 +155,7 @@ m = dev.loadModule('simple_two_funcs.slang')
 	composed = lambda x : m.sqr(m.sqr(x))
 
 	# Fuse into a single function
-	composed = dev.fuse(composed)
+	composed = kf.fuse(composed)
 	```
 	Under the hood, this is qquivalent to internally emitting the set of functions as a single slang expression:
 	```csharp
@@ -173,10 +173,21 @@ m = dev.loadModule('simple_two_funcs.slang')
 - `fuse`d methods can be used with `vmap` to create a vectorized kernel out of the composed method.
 	```python
 	# Then create a vectorized kernel out of the composed function
-	vcomposed = dev.vmap(composed, in_axes=(0,), out_axes=0)
+	vcomposed = kf.vmap(composed, in_axes=(0,), out_axes=0)
 	print(vcomposed([1, 2, 3])) # [4, 16, 36] (vector call)
 	```
 - `vmap` **cannot** be used inside a fuse call. `vmap` turns Slang functions into a kernel and `fuse` can only be used to chain together Slang functions.
+- Since `fuse` and `vmap` are higher-order functions, they can be invoked as python decorators. This is the intended approach to use `vmap` and `fuse`
+    ```python
+    # fusion and mapping operators are executed in succession.
+    @kf.vmap(in_axes=(0, 0), out_axes=0)
+    @kf.vmap(in_axes=(0, 0), out_axes=0)
+    @kf.fuse
+    def hyp_sqr_2d(x, y):
+        return m.sum(m.sqr(x), m.sqr(y))
+    
+    # hyp_sqr_2d<N, M> := (float[N, M], float[N, M]) -> float[N, M]
+    ```
 
 ## Direct access to `public` structs and their methods
 This is a feature already partially present in slangtorch (structs have their fields exposed, but no methods)
@@ -211,7 +222,7 @@ This is a feature already partially present in slangtorch (structs have their fi
 	Now we can create a method from python to call a member method
 	```python
 	import kernelfunctions as kf
-	m = kf.loadModule("rasterizer2d.slang")
+	m = dev.loadModule("rasterizer2d.slang")
 
 	def my_func(triangle : m.Triangle2D, pix_id : m.float2): # Note that type annotations are optional in python, but it helps to follow the code (and all these types are exposed publicly because they're used in the code)
 		# Create a rasterizer object 
@@ -222,7 +233,7 @@ This is a feature already partially present in slangtorch (structs have their fi
 
 	Then create a fused kernel
 	```python
-	callable_func = dev.fuse(my_func)
+	callable_func = kf.fuse(my_func)
 	```
 
 	This will simply make an anonymous slang function of this form:
@@ -234,15 +245,17 @@ This is a feature already partially present in slangtorch (structs have their fi
 	Then, we can `vmap` this twice to map it in 2D and then call it to create a kernel:
 	```python
 	# "None" says "do not add a dimension to this input", so the triangles buffer is not transformed further
-	cf1d = dev.vmap(callable_func, in_axis=(None, 0), out_axis=0)
-	cf2d = dev.vmap(cf1d, in_axis=(None, 0), out_axis=0)
+	cf1d = kf.vmap(callable_func, in_axes=(None, 0), out_axes=0)
+	cf2d = kf.vmap(cf1d, in_axes=(None, 0), out_axes=0)
 
 	# Type constructors can be invoked as kernel functions (more on this in a bit)
 	triangle = m.Triangle2D(v0=(0, 10), v1=(10, 0), v2=(10, 10), color=(1,1,0,1))
-	xx = torch.linspace(0, 50, steps=50)
-	yy = torch.linspace(0, 50, steps=50)
+
+    # Create an MxNx2 grid of pixel indices
+	xx = torch.linspace(0, 50, N=50)
+	yy = torch.linspace(0, 50, N=50)
 	x, y = torch.meshgrid(xx, yy)
-	xy = torch.stack([x, y], axis=-1) # Creates an MxNx2 image of pixel indices 
+	xy = torch.stack([x, y], axis=-1) 
 
 	cf2d(triangle, xy) # Launch kernel.. the launch parameters can be deduced in a direct manner because each vmap adds a corresponding dimension to the input.
 
@@ -251,15 +264,16 @@ This is a feature already partially present in slangtorch (structs have their fi
 	The generated kernel should look something like this:
 	```csharp
 	__generic<let Dim1: int, let Dim2: int>
-	void anonymous_kernel_1(Triangle inp_1, IBuffer2D<Dim1, Dim2, int> buf_1, IBuffer2D<Dim1, Dim2, float2> buf_out)
+	void anonymous_kernel_1(
+        Triangle inp_1,
+        IBuffer<int, In, Dim1, Dim2> buf_1,
+        IBuffer<float2, Out, Dim1, Dim2> buf_out)
 	{ 
 		uint3 tid = get_platform_independent_global_thread_id();
-	  if (tid.x >= Dim1 || tid.y >= Dim2)
+        if (tid.x >= Dim1 || tid.y >= Dim2)
 			buf_out[tid] = anonymous_func_1(inp_1, buf_1[tid]);
 	}
 	```
-
-
 
 ## `wrap`/`unwrap`: Transfer python type (and associated data) into a Slang type and vice-versa
 
@@ -284,10 +298,10 @@ dev = kf.device("cuda")
 m = dev.loadModule("rasterizer2D")
 	
 # invec's type is a wrapper object with the given data, and cannot be used within python anymore.
-invec = dev.wrap(m.float2, (5, 2))
+invec = kf.wrap(m.float2, (5, 2))
 
 # You can unwrap it back to a python type
-outvec = dev.unwrap(tuple, invec)
+outvec = kf.unwrap(tuple, invec)
 
 # outvec is automatically 'unwrapped' from float2 back to a tuple (2, 5)
 outvec = m.f(invec)
@@ -296,13 +310,13 @@ outvec = m.f(invec)
 # f : float2 -> float2
 # mapped_f<N> : float2[N] -> float2[N]
 #
-mapped_f = dev.vmap(m.f, in_axes=(0,), out_axes=0)
+mapped_f = kf.vmap(m.f, in_axes=(0,), out_axes=0)
 
 # mapped_f's input is an `IBuffer<N, In, float2>` which is an abstract buffer that can be satisfied with a D3D `StructuredBuffer<float2>` or a CUDA
 # `TensorView<float2>`. We can invoke the handler for `IBuffer` to let it decide based on the device type.
 # This call is invoked _automatically_ under the hood (but the user can invoke it to be explicit if they wish to)
 #
-buffer = dev.wrap(m.IBuffer.of(float2), [(1, 2), (4, 6), (10, 9), (2, 6), (10, 10)])
+buffer = kf.wrap(m.IBuffer.of(float2), [(1, 2), (4, 6), (10, 9), (2, 6), (10, 10)])
 
 # output has been unwrapped automatically into an ndarray for each python use. (location of the ndarray memory is based on the device object)
 output = mapped_f(buffer)
@@ -363,7 +377,7 @@ As an example `StructuredBuffer<T>` is a buffer that is parameterized on `T`
 - Like regular functions & methods, constructors can be `vmap`'d. This is handy to create a buffer of objects from a set of tensors:
 	```python
 	# multi_triangle_constructor<N> := (float2[N], float2[N], float2[N], float4[N]) -> Triangle2D[N]
-	multi_triangle_constructor = dev.vmap(m.Triangle2D, in_axes=(0, 0, 0, 0), out_axes=(0))
+	multi_triangle_constructor = kf.vmap(m.Triangle2D, in_axes=(0, 0, 0, 0), out_axes=(0))
 
 	N = 200
 	triangles = multi_triangle_constructor(
@@ -440,18 +454,12 @@ Here's the same example above, but with `Triangle2D` replaced with `IRasterPrimi
 	# Quick note: as long as modules are loaded with the same device object, common types are de-duplicated.
 	# This means m_circle.float2 == m_rasterizer.float2
 
+    # mapped_rasterizer<T: IRasterPrimitive2D, M, N> := (T, (float2[M, N])) -> (float4[M, N])
+    @kf.vmap(in_axes=(None, 0), out_axes=0)
+    @kf.vmap(in_axes=(None, 0), out_axes=0)
+    @kf.fuse
 	def rasterize_pixel(primitive, pix_id):
 		 return m_rasterizer.Rasterizer2D(primitive).rasterize_pixel(pix_id)
-
-	# Under-the-hood, fused_rasterizer is generic because Rasterizer2D has unknown generic parameter T : IRasterPrimitive2D
-	# fused_rasterizer<T: IRasterPrimitive2D> := (T, float2) -> float4
-	fused_rasterizer = dev.fuse(rasterize_pixel)
-
-	# mapped_rasterizer<T: IRasterPrimitive2D, M, N> := (T, (float2[M, N])) -> (float4[M, N])
-	mapped_rasterizer = 
-			 dev.vmap(
-				dev.vmap(
-						fused_rasterizer, in_axes=(None, 0), out_axes=0), in_axes=(None, 0), out_axes=0)
 
 	xx, yy = torch.meshgrid(
 			 torch.linspace(-50, 50, N=50),
