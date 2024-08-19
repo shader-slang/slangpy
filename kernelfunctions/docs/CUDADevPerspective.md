@@ -454,11 +454,11 @@ Here's the same example above, but with `Triangle2D` replaced with `IRasterPrimi
 	# Quick note: as long as modules are loaded with the same device object, common types are de-duplicated.
 	# This means m_circle.float2 == m_rasterizer.float2
 
-    # mapped_rasterizer<T: IRasterPrimitive2D, M, N> := (T, (float2[M, N])) -> (float4[M, N])
+    # generic_rasterizer_2d<T: IRasterPrimitive2D, M, N> := (T, (float2[M, N])) -> (float4[M, N])
     @kf.vmap(in_axes=(None, 0), out_axes=0)
     @kf.vmap(in_axes=(None, 0), out_axes=0)
     @kf.fuse
-	def rasterize_pixel(primitive, pix_id):
+	def generic_rasterizer_2d(primitive, pix_id):
 		 return m_rasterizer.Rasterizer2D(primitive).rasterize_pixel(pix_id)
 
 	xx, yy = torch.meshgrid(
@@ -474,9 +474,9 @@ Here's the same example above, but with `Triangle2D` replaced with `IRasterPrimi
 	# Under-the-hood, we simply create a kernel that calls the fused method with the concrete type and let Slang's type system
 	# handle the specialization.
 	#
-	image = mapped_rasterizer(circle_obj, xys)
+	image = generic_rasterizer_2d(circle_obj, xys)
 
 	# Use rasterizer with triangle objects.
-	image = mapped_rasterizer(triangle_obj, xys)
+	image = generic_rasterizer_2d(triangle_obj, xys)
 	```
 
