@@ -134,10 +134,14 @@ m = dev.loadModule('simple_two_funcs.slang')
 		 output[thread_id] = f(x[thread_id], y[thread_id.x]);
 	}
 	```
-- `IBuffer`'s are specialized with the concrete buffer types from the type wrappers. Since `dev.wrap()` is device specific, it can choose to create a `StructuredBuffer` or `TensorView` or a user provided buffer type. Example:
+- `IBuffer`'s are specialized with the concrete buffer types from the type wrappers. Since `dev.wrap()` is device specific, it can choose to create a `StructuredBuffer` or `TensorView` or a user provided buffer type. Example implementations:
 	```csharp
-	struct StructuredBuffer2DImpl<T, let N: int, let M: int> : IBuffer<T, N, M> { 
+	struct StructuredBuffer2DImpl<T, let N: int, let M: int> : IBuffer<T, In, N, M> { 
 		StructuredBuffer2D<T> buffer;
+	}
+
+    struct RWStructuredBufferImpl<T, let N: int> : IBuffer<T, Out, N> { 
+		RWStructuredBuffer<T> buffer;
 	}
 	```
 	The wrapper type can be reflected to get the size and type, which provides all the information we need for the allocation.
@@ -289,15 +293,15 @@ outvec = m.f(invec)
 
 # vectorize the method 
 # f : float2 -> float2
-# mapped_f<N> : IBuffer<N, float2> -> IBuffer<N, float2>
+# mapped_f<N> : float2[N] -> float2[N]
 #
 mapped_f = dev.vmap(m.f, in_axes=(0,), out_axes=0)
 
-# mapped_f's input is an `IBuffer<N, float2>` which is an abstract buffer that can be satisfied with a D3D `StructuredBuffer<float2>` or a CUDA
+# mapped_f's input is an `IBuffer<N, In, float2>` which is an abstract buffer that can be satisfied with a D3D `StructuredBuffer<float2>` or a CUDA
 # `TensorView<float2>`. We can invoke the handler for `IBuffer` to let it decide based on the device type.
 # This call is invoked _automatically_ under the hood (but the user can invoke it to be explicit if they wish to)
 #
-buffer = dev.wrap(m.IBuffer.of(5, float2), [(1, 2), (4, 6), (10, 9), (2, 6), (10, 10)])
+buffer = dev.wrap(m.IBuffer.of(float2), [(1, 2), (4, 6), (10, 9), (2, 6), (10, 10)])
 
 # output has been unwrapped automatically into an ndarray for each python use. (location of the ndarray memory is based on the device object)
 output = mapped_f(buffer)
@@ -311,7 +315,7 @@ output_of_slang_buffer_type = mapped_f(buffer, no_unwrap=True)
 - A wrapper class needs 4 methods: 
 	-  constructor `__init__(device, slang_type, python_object)` where `device` is the current active device object and `slang_type` is the provided slang type. Can throw a `CastError` if the data is not in an acceptable format.
 	-  destructor `__del__()` : release any resources.
-	-  `slang_type() -> SlangType` : return the fully specialized slang type. The type originally provided to the constructor could have unspecialized arguments (for example `IBuffer<N, float2>`). Inspecting the python object can fill in the blanks.  If the full concrete type cannot be deduced, a `CastError` should be thrown.
+	-  `slang_type() -> SlangType` : return the fully specialized slang type. The type originally provided to the constructor could have unspecialized arguments (for example `IBuffer<float2, In, M, N>`, where M and N are unknowns). Inspecting the python object can fill in the blanks.  If the full concrete type cannot be deduced, a `CastError` should be thrown.
 	- `bind(device, slang_var)`: Given a variable reflection, perform any binding actions. The framework handles emitting variables & resources to the global scope, if necessary, before providing the variable reflection. 
 -  Wrapper classes can be registered using something like `sc.register_wrapper(slang_type, wrapper_class)` and `sc.register_unwrapper`. Most standard types will have predefined wrapper classes, but the user can add a wrapper class to an existing type if they wish. We can run the wrapper classes in reverse order of registration until one succeeds, to enable user overrides to go first.
 
@@ -357,7 +361,7 @@ As an example `StructuredBuffer<T>` is a buffer that is parameterized on `T`
 
 - Like regular functions & methods, constructors can be `vmap`'d. This is handy to create a buffer of objects from a set of tensors:
 	```python
-	# (float2[N], float2[N], float2[N], float4[N]) -> Triangle2D[N]
+	# multi_triangle_constructor<N> := (float2[N], float2[N], float2[N], float4[N]) -> Triangle2D[N]
 	multi_triangle_constructor = dev.vmap(m.Triangle2D, in_axes=(0, 0, 0, 0), out_axes=(0))
 
 	N = 200
@@ -367,8 +371,8 @@ As an example `StructuredBuffer<T>` is a buffer that is parameterized on `T`
 		v2=torch.rand((N,2)),
 		color=torch.rand((N,4)))
 
-	# On D3D, triangles will be a `stdlib::hlsl::StructuredBuffer<Triangle>`
-	# On CUDA, triangles will be a `stdlib::cuda::TensorView<Triangle>`
+	# On D3D, triangles will be a `StructuredBuffer<Triangle>`
+	# On CUDA, triangles will be a `TensorView<Triangle>`
 	#
 	# All buffer types are a subtype of IBuffer
 	#
@@ -440,13 +444,12 @@ Here's the same example above, but with `Triangle2D` replaced with `IRasterPrimi
 	# fused_rasterizer<T: IRasterPrimitive2D> := (T, float2) -> float4
 	fused_rasterizer = dev.fuse(rasterize_pixel)
 
-	# mapped_rasterizer<T: IRasterPrimitive2D> := (T, (float2[M, N])) -> (float4[M, N])
+	# mapped_rasterizer<T: IRasterPrimitive2D, M, N> := (T, (float2[M, N])) -> (float4[M, N])
 	mapped_rasterizer = 
 			 dev.vmap(
 				dev.vmap(
 						fused_rasterizer, in_axes=(None, 0), out_axes=0), in_axes=(None, 0), out_axes=0)
 
-	# Use circle_rasterizer with 2D tensors.
 	xx, yy = torch.meshgrid(
 			 torch.linspace(-50, 50, N=50),
 			 torch.linspace(-50, 50, N=50))
