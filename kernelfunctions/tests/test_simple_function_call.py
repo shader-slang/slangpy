@@ -1,14 +1,9 @@
 from typing import Optional, Union
 import numpy as np
 import pytest
-import sys
-from pathlib import Path
-
 import sgl
 import kernelfunctions as kf
-
-sys.path.append(str(Path(__file__).parent))
-import helpers
+import kernelfunctions.tests.helpers as helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

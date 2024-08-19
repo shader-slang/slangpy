@@ -12,9 +12,11 @@ readme = "README.md"
 requires-python = ">=3.9"
 dynamic = ["version"]
 
+[tool.setuptools]
+py-modules = ["kernelfunctions", "copper"]
+
 [tool.pyright]
-include = ["./kernelfunctions","./tests"]
-ignore = ["./kernelfunctions/experiments"]
+include = ["./kernelfunctions","./copper"]
 extraPaths = ["./tests"]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

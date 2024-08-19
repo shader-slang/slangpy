@@ -1,12 +1,7 @@
 import pytest
-import sys
-from pathlib import Path
 import sgl
 import kernelfunctions as kf
-
-sys.path.append(str(Path(__file__).parent))
-import helpers
-
+import kernelfunctions.tests.helpers as helpers
 
 SIMPLE_FUNCTION_RETURN_VALUE = r"""
 int add_numbers(int a, int b) {

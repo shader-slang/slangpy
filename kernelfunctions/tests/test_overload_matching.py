@@ -1,12 +1,8 @@
 from typing import Any
 import pytest
-import sys
-from pathlib import Path
 import kernelfunctions as kf
 import sgl
-
-sys.path.append(str(Path(__file__).parent))
-import helpers
+import kernelfunctions.tests.helpers as helpers
 
 
 class ScalarMatchTest:

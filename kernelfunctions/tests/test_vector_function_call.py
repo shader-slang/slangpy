@@ -1,10 +1,6 @@
 import pytest
-import sys
-from pathlib import Path
 import sgl
-
-sys.path.append(str(Path(__file__).parent))
-import helpers
+import kernelfunctions.tests.helpers as helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
