@@ -16,7 +16,7 @@ def run_command(command, shell=True):
 
 # struggling to get sgl to install via requirements - install directly here instead
 run_command(
-    "pip install git+https://gitlab-master.nvidia.com/skallweit/sgl.git@ccummings/kernel-functions-extensions"
+    "pip install --upgrade --force-reinstall git+https://gitlab-master.nvidia.com/skallweit/sgl.git"
 )
 
 # install this package as editable
