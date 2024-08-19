@@ -10,7 +10,16 @@ authors = [
 description = "Call compute kernel functions in SGL"
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = [
-    "sgl @ git+https://gitlab-master.nvidia.com/skallweit/sgl.git@ccummings/kernel-functions-extensions"
-]
 dynamic = ["version"]
+
+[tool.pyright]
+include = ["./kernelfunctions","./tests"]
+ignore = ["./kernelfunctions/experiments"]
+extraPaths = ["./tests"]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+reportUnusedImport = "error"
+reportMissingSuperCall  = "error"
+reportInvalidStringEscapeSequence = "error"
+reportMissingParameterType = "error"
+reportMissingTypeArgument = "warning"

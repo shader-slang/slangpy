@@ -3,3 +3,4 @@ kernelfunctions.egg-info
 .pytest_cache
 __pycache__
 junit*.xml
+.temp/
