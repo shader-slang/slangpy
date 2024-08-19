@@ -69,7 +69,7 @@ m = dev.loadModule('simple_two_funcs.slang')
 - `vmap` is intended to be a very light-weight wrapper that generates a kernel around a function & replaces scalar inputs with buffer types coded with the appropriate number of dimensions (as generic arguments)
 
 - A slang kernel has not been 'compiled' yet upon using `vmap`. We just record the dimensions we need for the final kernel and compile the kernel upon being called.
-- **Under-the-hood**: upon invocation, we create a new function that translates a method into a new method that operates on strongly-typed buffer objects. See next section (on `IBuffer`) for more.
+- **Under-the-hood**: upon invocation, we create a new function that translates a method into a new method that operates on buffer objects with strongly-typed sizes. See next section (on `IBuffer`) for more.
 
 ## Universal buffer interface `IBuffer<T, M: Mode, let A : int, let B: int ...>`
 - Slang has recently added *variadic generics* as well as *generically-defined interfaces*. This allows us to define a strongly-typed N-dimensional buffer interface.
@@ -263,7 +263,8 @@ This is a feature already partially present in slangtorch (structs have their fi
 
 ## `wrap`/`unwrap`: Transfer python type (and associated data) into a Slang type and vice-versa
 
-- `wrap` creates an appropriate wrapper object out of the provided data and concrete Slang type. 
+- `wrap` creates an appropriate wrapper object out of the provided data and Slang type.
+- The Slang type need not be fully specialized. wrapper object is responsible for inferring unknowns.
 - Since `wrap` must be called on an active device object, we have device specific information if necessary.
 - `wrap` is called automatically by the framework, when trying to pass a non-Slang type into a kernel. `.wrap` is invoked automatically with the argument type info reflected from the function's signature
 - `wrap` simply calls a registered 'handler' for that particular Slang type. A user can register their own handler for their Slang type if necessary.
@@ -388,6 +389,7 @@ Here's the same example above, but with `Triangle2D` replaced with `IRasterPrimi
 	{
 		 float4 get_color_at(float2 pix);
 	}
+
 	public struct Rasterizer2D<T: IRasterPrimitive2D>
 	{
 		T primitive;
@@ -396,12 +398,13 @@ Here's the same example above, but with `Triangle2D` replaced with `IRasterPrimi
 		{
 			float2 pos = float2(pixel_id.x + .5f, pixel_id.y + .5f);
 			float4 color = float4(0, 0, 0, 0);
-			return triangle.get_color_at(pixel_id);
+			return primitive.get_color_at(pixel_id);
 		}
 	}
 	```
 
 	And then a bunch of different files with primitive definitions:
+
 	```csharp
 	// circle.slang
 	import rasterizer2D;
