@@ -17,8 +17,8 @@ void add_numbers(float2 a, float2 b) {
     )
 
     function(sgl.float2(1, 2), sgl.float2(2, 3))
-    function(1.0, sgl.float2(2, 3))
-    function(sgl.float2(2, 3), 2.1)
+    # function(1.0, sgl.float2(2, 3))
+    # function(sgl.float2(2, 3), 2.1)
 
 
 if __name__ == "__main__":

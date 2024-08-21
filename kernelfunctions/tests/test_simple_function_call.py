@@ -122,14 +122,12 @@ void add_numbers(int a, int b, out int c) {
         assert out_data[i] == in_data_0[i] + in_data_1[i]
 
 
-@pytest.mark.skip(reason="Fix after sgl update")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_call_function_with_buffer(device_type: sgl.DeviceType):
     device = helpers.get_device(device_type)
     buffer_pair_test(device, 128)
 
 
-@pytest.mark.skip(reason="Fix after sgl update")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_call_function_with_none_threadgroup_sized_buffer(device_type: sgl.DeviceType):
     device = helpers.get_device(device_type)

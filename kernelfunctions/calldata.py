@@ -1,138 +1,18 @@
-import re
-from typing import cast
+import os
+from typing import Any, Optional, cast
 import numpy as np
 import numpy.typing as npt
 import sgl
 import hashlib
 
-from .function import *
-from .buffer import StructuredBuffer
-from .typemappings import (
-    is_valid_scalar_type_conversion,
-    is_valid_vector_type_conversion,
-)
-
-
-def scalar_typename_2_slang_typename(scalar_type: str) -> str:
-    scalar_type = scalar_type.replace("32", "")
-    scalar_type = re.sub(r"(\d+)", r"$1_t", scalar_type)
-    return scalar_type
-
-
-class VariablePair:
-    def __init__(
-        self,
-        slang_variable: sgl.VariableReflection,
-        slang_type: sgl.TypeReflection,
-        python_variable: Any,
-    ) -> None:
-        super().__init__()
-        self.slang_variable = slang_variable
-        self.python_variable = python_variable
-        self.slang_type = slang_type
-
-    def variable_type_def_string(self):
-        if isinstance(self.python_variable, StructuredBuffer):
-            if self.python_variable.element_type in [
-                int,
-                float,
-                bool,
-                sgl.int1,
-                sgl.float1,
-                sgl.bool1,
-            ]:
-                return f"RWStructuredBuffer<{self.slang_type.name}>"
-            else:
-                return f"RWStructuredBuffer<{type(self.python_variable).__name__}>"
-        elif self.slang_type.kind == sgl.TypeReflection.Kind.scalar:
-            return type(self.python_variable).__name__
-        elif self.slang_type.kind == sgl.TypeReflection.Kind.vector:
-            return type(self.python_variable).__name__
-        elif self.slang_type.kind == sgl.TypeReflection.Kind.matrix:
-            return type(self.python_variable).__name__
-
-    def variable_access_string(self, indexer: str = "i"):
-        if isinstance(self.python_variable, StructuredBuffer):
-            return f"{self.slang_variable.name}[{indexer}]"
-        else:
-            return f"{self.slang_variable.name}"
-
-    def shape(self):
-        if isinstance(self.python_variable, StructuredBuffer):
-            return (self.python_variable.element_count,)
-        else:
-            return (1,)
-
-
-def _scalar_types_compatible(
-    slang_type: sgl.TypeReflection, python_variable: Any
-) -> bool:
-
-    python_type = type(python_variable)
-    if isinstance(python_variable, StructuredBuffer):
-        python_type = python_variable.element_type
-
-    if slang_type.kind == sgl.TypeReflection.Kind.scalar:
-        return is_valid_scalar_type_conversion(slang_type.scalar_type, python_type)
-    elif slang_type.kind == sgl.TypeReflection.Kind.vector:
-        return is_valid_vector_type_conversion(
-            slang_type.scalar_type, python_type, slang_type.col_count
-        )
-    else:
-        return False
-
-
-def _walk(slang_variable: sgl.VariableReflection, python_variable: Any) -> VariablePair:
-    slang_type = slang_variable.type
-
-    if slang_type.kind == sgl.TypeReflection.Kind.struct:
-        # Slang struct - step into it and walk child fields
-        newdict = {}
-        for member in slang_type.fields:
-            newdict[member.name] = _walk(member, python_variable[member.name])
-        return VariablePair(slang_variable, slang_type, newdict)
-    elif slang_type.kind == sgl.TypeReflection.Kind.array:
-        newlist = []
-        for i, element in enumerate(python_variable):
-            newlist.append(_walk(slang_variable, element))
-        return VariablePair(slang_variable, slang_type, newlist)
-    elif (
-        slang_type.kind == sgl.TypeReflection.Kind.scalar
-        or slang_type.kind == sgl.TypeReflection.Kind.vector
-    ):
-        if not _scalar_types_compatible(slang_type, python_variable):
-            raise ValueError(
-                f"Type mismatch: {slang_type.scalar_type} and {type(python_variable)}"
-            )
-        return VariablePair(slang_variable, slang_type, python_variable)
-    else:
-        raise ValueError(f"Unsupported type {slang_type.kind}")
-
-
-def _try_walk(
-    slang_variable: sgl.VariableReflection, python_variable: Any
-) -> Optional[VariablePair]:
-    try:
-        return _walk(slang_variable, python_variable)
-    except ValueError as e:
-        return None
-
-
-class FunctionMatch:
-    def __init__(
-        self, function: sgl.FunctionReflection, parameters: dict[str, VariablePair]
-    ) -> None:
-        super().__init__()
-        self.function = function
-        self.parameters = parameters
-
-    def call(self):
-        pass
+from kernelfunctions.buffer import StructuredBuffer
+from kernelfunctions.function import Function, FunctionChainBase, FunctionChainSet
+import kernelfunctions.translation as kft
 
 
 def match_function_overload_to_python_args(
-    overload: sgl.FunctionReflection, *args: Any, **kwargs: Any
-) -> Optional[dict[str, VariablePair]]:
+    overload: sgl.FunctionReflection, deep_check: bool, *args: Any, **kwargs: Any
+) -> Optional[dict[str, kft.Argument]]:
     overload_parameters = overload.parameters
 
     # If there are more positional arguments than parameters, it can't match.
@@ -140,16 +20,17 @@ def match_function_overload_to_python_args(
         return None
 
     # Dictionary of slang arguments and corresponding python arguments
-    handled_args: dict[str, VariablePair] = {
-        x.name: cast(VariablePair, None) for x in overload_parameters
+    handled_args: dict[str, kft.Argument] = {
+        x.name: cast(kft.Argument, None) for x in overload_parameters
     }
 
     # Positional arguments must all match perfectly
     for i, arg in enumerate(args):
-        pair = _try_walk(overload_parameters[i], arg)
-        if not pair:
+        param = overload_parameters[i]
+        converter = kft.try_create_argument(param, arg, deep_check=deep_check)
+        if not converter:
             return None
-        handled_args[overload_parameters[i].name] = pair
+        handled_args[param.name] = converter
 
     # Pair up kw arguments with slang arguments
     overload_parameters_dict = {x.name: x for x in overload_parameters}
@@ -157,10 +38,10 @@ def match_function_overload_to_python_args(
         param = overload_parameters_dict.get(name)
         if param is None:
             return None
-        pair = _try_walk(param, arg)
-        if not pair:
+        converter = kft.try_create_argument(param, arg, deep_check=deep_check)
+        if not converter:
             return None
-        handled_args[name] = pair
+        handled_args[param.name] = converter
 
     # Check if all arguments have been handled
     for arg in handled_args.values():
@@ -170,16 +51,16 @@ def match_function_overload_to_python_args(
     return handled_args
 
 
-def generate_call_data(variable: VariablePair):
-    if isinstance(variable.python_variable, dict):
+def generate_call_data(argument: kft.Argument):
+    if isinstance(argument.value, dict):
         res = {}
-        for name, value in variable.python_variable.items():
+        for name, value in argument.value.items():
             res[name] = generate_call_data(value)
         return res
-    elif isinstance(variable.python_variable, StructuredBuffer):
-        return variable.python_variable.buffer
+    elif isinstance(argument.value, StructuredBuffer):
+        return argument.value.buffer
     else:
-        return variable.python_variable
+        return argument.value
 
 
 def calculate_broadcast_dimensions(
@@ -228,14 +109,14 @@ class CallData:
                     )
 
         self.sets = sets
-        self.parameters: Optional[dict[str, VariablePair]] = None
+        self.parameters: Optional[dict[str, kft.Argument]] = None
 
     def call(self, *args: Any, **kwargs: Any):
 
         # Find an overload that matches the arguments, and pull out the mapping of slang variables to python variables.
         for ast_function in self.function.ast_functions:
             parameters = match_function_overload_to_python_args(
-                ast_function.as_function(), *args, **kwargs
+                ast_function.as_function(), False, *args, **kwargs
             )
             if parameters:
                 self.overload = ast_function
@@ -250,7 +131,7 @@ class CallData:
 
         # Calculate broadcast dimensions using numpy rules with parameter shapes
         dim_sizes = calculate_broadcast_dimensions(
-            [x.shape() for x in self.parameters.values()]
+            [x.python_shape for x in self.parameters.values()]
         )
 
         # Calc total threads required
@@ -260,24 +141,26 @@ class CallData:
 
         # Build variable names list for call data struct.
         variable_names = "".join(
-            [
-                f"   {x.variable_type_def_string()} {x.slang_variable.name};\n"
-                for x in self.parameters.values()
-            ]
+            [f"   {x.input_def_string} {x.name};\n" for x in self.parameters.values()]
         )
 
         # Indexer will just be x axis of dispatch thread for now
         indexer = "dispatchThreadID.x"
 
         # Build function arguments list.
-        func_args = ", ".join(
+        trampoline_params = ", ".join(
+            [f"{x.param_string}" for x in self.parameters.values()]
+        )
+        trampoline_args = ", ".join(
             [
-                f"call_data.{x.variable_access_string(indexer)}"
+                f"call_data.{x.get_variable_access_string(indexer)}"
                 for x in self.parameters.values()
             ]
         )
+        func_args = ", ".join([f"{x.name}" for x in self.parameters.values()])
 
         # Build function call (defaults to just the name).
+        trampoline_call = "_trampoline"
         func_call = self.function.name
 
         # If the function has a return type, we need to create a buffer to store the result
@@ -288,7 +171,11 @@ class CallData:
             raise ValueError(f"Unsupported return type {rtname}")
         if rtname != "void":
             variable_names = f"{variable_names}   RWStructuredBuffer<{self.overload.as_function().return_type.name}> _res;"
-            func_call = f"call_data._res[0] = {func_call}"
+            func_call = f"_res = {func_call}"
+            trampoline_args += f", call_data._res[0]"
+            trampoline_params += (
+                f", out {self.overload.as_function().return_type.name} _res"
+            )
 
         # Build the shader string.
         shader = f"""
@@ -301,20 +188,26 @@ CallData call_data;
 
 static const uint3 TOTAL_THREADS = uint3({total_threads}, 1, 1);
 
+[Differentiable]
+void _trampoline({trampoline_params}) {{
+    {func_call}({func_args});
+}}
+
 [shader("compute")]
 [numthreads(32, 1, 1)]
 void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
     if (any(dispatchThreadID >= TOTAL_THREADS))
         return;
-    {func_call}({func_args});
+    {trampoline_call}({trampoline_args});
 }}
 """
 
         # Write the shader to a file for debugging.
-        # with open(
-        #     f".temp/{self.function.module.name}_{self.function.name}.slang", "w"
-        # ) as f:
-        #     f.write(shader)
+        os.makedirs(".temp", exist_ok=True)
+        with open(
+            f".temp/{self.function.module.name}_{self.function.name}.slang", "w"
+        ) as f:
+            f.write(shader)
 
         # Build new module and link it with the one that contains the function being called.
         module: sgl.SlangModule = session.load_module_from_source(
@@ -326,9 +219,13 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
 
         # Find the cell_data structure via the module's global constant buffer, so we
         # can extract the fields and concrete layouts for them.
-        cbuffer_type_layout = module.layout.globals_type_layout
-        if cbuffer_type_layout.element_type_layout:
-            cbuffer_type_layout = cbuffer_type_layout.element_type_layout
+        cbuffer_type_layout = module.layout.globals_type_layout.unwrap_array()
+        element_type_layout = cbuffer_type_layout.element_type_layout
+        if (
+            element_type_layout is not None
+            and element_type_layout.kind == sgl.TypeReflection.Kind.struct
+        ):
+            cbuffer_type_layout = element_type_layout
         assert len(cbuffer_type_layout.fields) == 1
         call_data_variable_layout = cbuffer_type_layout.fields[0]
         assert call_data_variable_layout.name == "call_data"
