@@ -35,10 +35,10 @@ m = dev.loadModule('simple_two_funcs.slang')
 - Broadly speaking, `vmap` simultaneously adds 1 dimension to the inputs and the outputs:
 	```python
   # m.sqr is a scalar method with a scalar output. Represented by "m.sqr := float -> float"
-  # 
-	# Vectorize with vmap: in_axes=(0,) means that the new dimension is added 
+  #
+	# Vectorize with vmap: in_axes=(0,) means that the new dimension is added
 	# to the 'front' of the existing dimensions.
-	# 
+	#
 	# vsqr can be represented as "vsqr<N> := float[N] -> float[N]"
 	vsqr = kf.vmap(m.sqr, in_axes=(0,), out_axes=0)
 	print(vsqr([1, 2, 3])) # numpy.ndarray [1, 4, 9] (vector call)
@@ -47,14 +47,14 @@ m = dev.loadModule('simple_two_funcs.slang')
 - `vmap` can be repeatedly invoked to create kernels that work with multi-dimensional inputs and outputs.
 - `vmap` can be used to broadcast one parameter while treating the other one as constant. For example, `m.sum` has multiple inputs:
 	```python
-	
+
 	# m.sum := (float, float) -> float
-	
+
 	# Passing "None" will avoid vectorizing the corresponding argument
 	# vsum<N> := (float[N], (float)) -> float[N]
 	vsum = kf.vmap(m.sum, in_axes=(0, None), out_axes=0)
 
-	# First argument is 'uniform'. Second argument is 'constant' (broadcasted). 
+	# First argument is 'uniform'. Second argument is 'constant' (broadcasted).
 	print(vsum((1, 2, 3, 4), 10))
 
 	# Can also map this further to create a method that is 2D in the first arg, and 1D in the second arg.
@@ -90,7 +90,7 @@ m = dev.loadModule('simple_two_funcs.slang')
 
 	# result is a python 'namedtuple' of slang objects along with their output parameter names.
 	result = m.outer_product_kernel(vec_a = torch.rand((100,)), vec_b = torch.rand((50,)))
-	
+
 	# result has one object ('output'). If the method had more `Out` tensors, each one becomes a member of the namedtuple
 	mat_ab = result.output
 	print(mat_ab.shape) # shape deduced from inferred generic parameters: (100,50)
@@ -103,30 +103,30 @@ m = dev.loadModule('simple_two_funcs.slang')
 	# Errors. N and M inconsistent.
 	m.outer_product_kernel.of(N=500, M=500)(vec_a = torch.rand((100,)), vec_b = torch.rand((50,)))
 	```
-- `.vmap`'s implementation simply wraps argument types into buffers, and adds a dimension to args that are already buffers. Example: 
+- `.vmap`'s implementation simply wraps argument types into buffers, and adds a dimension to args that are already buffers. Example:
 	```csharp
-	float f(float x, float y) { 
+	float f(float x, float y) {
 		return x + y;
 	}
-	
-	// mapped_f = vmap(f, in_axes=(0, 0), out_axes=0) 
+
+	// mapped_f = vmap(f, in_axes=(0, 0), out_axes=0)
   // mapped_f when called results in the following wrapper being synthesized on the fly.
 	void synthesized_vmapped_f<let Dim1: int>(
-		IBuffer<float, In, Dim1> x, 
+		IBuffer<float, In, Dim1> x,
 		IBuffer<float, In, Dim1> y,
 		IBuffer<float, Out, Dim1> output)
 	{
 		 uint thread_id = get_thread_id<1>();
 		 output[thread_id] = f(x[thread_id], y[thread_id]);
 	}
-  
-  // Call vmap again on the result simply adds another dimension. 
-  // Let's say we map it again, but this time 
+
+  // Call vmap again on the result simply adds another dimension.
+  // Let's say we map it again, but this time
   // mapped_2d_f = vmap(mapped_f, in_axes=(0, None), out_axes=0)
   //
   // This is the synthesized wrapper signature:
   void synthesized_vmapped_f_2<let Dim1: int, let Dim2: int>(
-	  IBuffer<float, In, Dim1, Dim2> x, 
+	  IBuffer<float, In, Dim1, Dim2> x,
 	  IBuffer<float, In, Dim1> y,
 	  IBuffer<float, Out, Dim1, Dim2> output)
 	{
@@ -136,11 +136,11 @@ m = dev.loadModule('simple_two_funcs.slang')
 	```
 - `IBuffer`'s are specialized with the concrete buffer types from the type wrappers. Since `kf.wrap()` is device specific, it can choose to create a `StructuredBuffer` or `TensorView` or a user provided buffer type. Example implementations:
 	```csharp
-	struct StructuredBuffer2DImpl<T, let N: int, let M: int> : IBuffer<T, In, N, M> { 
+	struct StructuredBuffer2DImpl<T, let N: int, let M: int> : IBuffer<T, In, N, M> {
 		StructuredBuffer2D<T> buffer;
 	}
 
-    struct RWStructuredBufferImpl<T, let N: int> : IBuffer<T, Out, N> { 
+    struct RWStructuredBufferImpl<T, let N: int> : IBuffer<T, Out, N> {
 		RWStructuredBuffer<T> buffer;
 	}
 	```
@@ -166,7 +166,7 @@ m = dev.loadModule('simple_two_funcs.slang')
 		return sqr(sqr(x));
 	}
 	```
-	where the types are inferred from the function input types. 
+	where the types are inferred from the function input types.
 
 - We disallow overloaded methods for simplicity. Otherwise, this creates a tricky problem where we have to resolve both the type and the overload simultaneously, and since the type could be a coerced version of a python type, this can make the overload resolution very complicated (and needs to include the python code in-the-loop).
 
@@ -185,7 +185,7 @@ m = dev.loadModule('simple_two_funcs.slang')
     @kf.fuse
     def hyp_sqr_2d(x, y):
         return m.sum(m.sqr(x), m.sqr(y))
-    
+
     # hyp_sqr_2d<N, M> := (float[N, M], float[N, M]) -> float[N, M]
     ```
 
@@ -225,7 +225,7 @@ This is a feature already partially present in slangtorch (structs have their fi
 	m = dev.loadModule("rasterizer2d.slang")
 
 	def my_func(triangle : m.Triangle2D, pix_id : m.float2): # Note that type annotations are optional in python, but it helps to follow the code (and all these types are exposed publicly because they're used in the code)
-		# Create a rasterizer object 
+		# Create a rasterizer object
 		rasterizer2D = m.Rasterizer2D(triangle=triangle)
 		return rasterizer2D.rasterize_pixel(pix_id)
 
@@ -240,7 +240,7 @@ This is a feature already partially present in slangtorch (structs have their fi
 	```csharp
 	float anonymous_func_1(Triangle2D inp_1, float2 inp_2){ Rasterizer2D(inp_1).rasterize_pixel(inp_2); }
 	```
-	Under-the-hood, it should be straightforward to implement, since all we are doing is tracing and building up a slang expression. 
+	Under-the-hood, it should be straightforward to implement, since all we are doing is tracing and building up a slang expression.
 
 	Then, we can `vmap` this twice to map it in 2D and then call it to create a kernel:
 	```python
@@ -255,7 +255,7 @@ This is a feature already partially present in slangtorch (structs have their fi
 	xx = torch.linspace(0, 50, N=50)
 	yy = torch.linspace(0, 50, N=50)
 	x, y = torch.meshgrid(xx, yy)
-	xy = torch.stack([x, y], axis=-1) 
+	xy = torch.stack([x, y], axis=-1)
 
 	cf2d(triangle, xy) # Launch kernel.. the launch parameters can be deduced in a direct manner because each vmap adds a corresponding dimension to the input.
 
@@ -268,7 +268,7 @@ This is a feature already partially present in slangtorch (structs have their fi
         Triangle inp_1,
         IBuffer<int, In, Dim1, Dim2> buf_1,
         IBuffer<float2, Out, Dim1, Dim2> buf_out)
-	{ 
+	{
 		uint3 tid = get_platform_independent_global_thread_id();
         if (tid.x >= Dim1 || tid.y >= Dim2)
 			buf_out[tid] = anonymous_func_1(inp_1, buf_1[tid]);
@@ -296,7 +296,7 @@ float2 f(float2 xy)
 import kernelfunctions as kf
 dev = kf.device("cuda")
 m = dev.loadModule("rasterizer2D")
-	
+
 # invec's type is a wrapper object with the given data, and cannot be used within python anymore.
 invec = kf.wrap(m.float2, (5, 2))
 
@@ -306,7 +306,7 @@ outvec = kf.unwrap(tuple, invec)
 # outvec is automatically 'unwrapped' from float2 back to a tuple (2, 5)
 outvec = m.f(invec)
 
-# vectorize the method 
+# vectorize the method
 # f : float2 -> float2
 # mapped_f<N> : float2[N] -> float2[N]
 #
@@ -327,11 +327,11 @@ output_of_slang_buffer_type = mapped_f(buffer, no_unwrap=True)
 ```
 
 ### Registering a wrapper/unwrapper
-- A wrapper class needs 4 methods: 
+- A wrapper class needs 4 methods:
 	-  constructor `__init__(device, slang_type, python_object)` where `device` is the current active device object and `slang_type` is the provided slang type. Can throw a `CastError` if the data is not in an acceptable format.
 	-  destructor `__del__()` : release any resources.
 	-  `slang_type() -> SlangType` : return the fully specialized slang type. The type originally provided to the constructor could have unspecialized arguments (for example `IBuffer<float2, In, M, N>`, where M and N are unknowns). Inspecting the python object can fill in the blanks.  If the full concrete type cannot be deduced, a `CastError` should be thrown.
-	- `bind(device, slang_var)`: Given a variable reflection, perform any binding actions. The framework handles emitting variables & resources to the global scope, if necessary, before providing the variable reflection. 
+	- `bind(device, slang_var)`: Given a variable reflection, perform any binding actions. The framework handles emitting variables & resources to the global scope, if necessary, before providing the variable reflection.
 -  Wrapper classes can be registered using something like `sc.register_wrapper(slang_type, wrapper_class)` and `sc.register_unwrapper`. Most standard types will have predefined wrapper classes, but the user can add a wrapper class to an existing type if they wish. We can run the wrapper classes in reverse order of registration until one succeeds, to enable user overrides to go first.
 
 ## `.of()/.arg()`: Setting & getting specialization arguments
@@ -349,7 +349,7 @@ As an example `StructuredBuffer<T>` is a buffer that is parameterized on `T`
 	assert(sbufferFloat.arg("T") == m.float)
 	```
 
-- References to the same types with the same specialization args will be logically equal and can be directly compared. 
+- References to the same types with the same specialization args will be logically equal and can be directly compared.
 - `is_subtype(slang_super_type)` triggers Slang's sub-type check and can be used to verify conformance to interfaces. Example:
 	```python
   # Note that IBuffer is not an actual interface currently (this is just for demonstration)
@@ -393,9 +393,9 @@ As an example `StructuredBuffer<T>` is a buffer that is parameterized on `T`
 	#
 	assert(triangles.type().is_subtype(m.IBuffer) == True)
 	```
- 
+
 ## Fusion with generics & interfaces
-- `fuse()`'s biggest benefit is its ability to work seamlessly with Slang's generics and interfaces. 
+- `fuse()`'s biggest benefit is its ability to work seamlessly with Slang's generics and interfaces.
 Here's the same example above, but with `Triangle2D` replaced with `IRasterPrimitive2D`
 	```csharp
 	// rasterizer2D.slang
@@ -470,7 +470,7 @@ Here's the same example above, but with `Triangle2D` replaced with `IRasterPrimi
 	circle_obj = m_circle.Circle2D(o=(-10, 10), r=10, color=(1.0, 0.0, 1.0, 1.0))
 	triangle_obj = m_triangle.Triangle2D(v=[(-10, 10), (10, -10), (-10, -10)], color=(0.0, 1.0, 0.0, 1.0))
 
-	# Use rasterizer with circle. 
+	# Use rasterizer with circle.
 	# Under-the-hood, we simply create a kernel that calls the fused method with the concrete type and let Slang's type system
 	# handle the specialization.
 	#
@@ -479,4 +479,3 @@ Here's the same example above, but with `Triangle2D` replaced with `IRasterPrimi
 	# Use rasterizer with triangle objects.
 	image = generic_rasterizer_2d(triangle_obj, xys)
 	```
-
