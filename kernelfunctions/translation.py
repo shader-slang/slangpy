@@ -1,8 +1,10 @@
+import enum
 from typing import Any, Optional, Union
 
 import sgl
 from kernelfunctions.buffer import StructuredBuffer
 import kernelfunctions.typemappings as tm
+from kernelfunctions.utils import ScalarDiffPair, ScalarRef, is_differentiable_buffer
 
 N = object()
 
@@ -11,6 +13,14 @@ TTypeType = Optional[Union["BaseType", sgl.TypeReflection.ScalarType]]
 
 def scalar_type_to_param_string(scalar_type: sgl.TypeReflection.ScalarType) -> str:
     return f"{str(scalar_type)[11:]}_t"
+
+
+def is_scalar_type_differentiable(scalar_type: sgl.TypeReflection.ScalarType) -> bool:
+    return scalar_type in [
+        sgl.TypeReflection.ScalarType.float16,
+        sgl.TypeReflection.ScalarType.float32,
+        sgl.TypeReflection.ScalarType.float64,
+    ]
 
 
 class BaseType:
@@ -39,6 +49,9 @@ class BaseType:
     def is_compatible_with_python_value(self, python_value: Any, deep: bool) -> bool:
         return self.is_compatible_with_python_type(type(python_value))
 
+    def is_differentiable(self) -> bool:
+        return False
+
 
 # Fixed size scaler value such as a float, 1D with fixed length of 1
 class ScalarType(BaseType):
@@ -59,6 +72,9 @@ class ScalarType(BaseType):
 
     def is_compatible_with_python_type(self, python_type: type) -> bool:
         return tm.is_valid_scalar_type_conversion(self.slang_scalar_type, python_type)
+
+    def is_differentiable(self) -> bool:
+        return is_scalar_type_differentiable(self.slang_scalar_type)
 
 
 # Fixed size vector value such as a float3, 1D with fixed length of num components
@@ -83,6 +99,9 @@ class VectorType(BaseType):
             self.slang_scalar_type, python_type, self.reflection.col_count
         )
 
+    def is_differentiable(self) -> bool:
+        return is_scalar_type_differentiable(self.slang_scalar_type)
+
 
 # Fixed size matrix value such as a float3x3, 2D with fixed length of num rows and num columns
 class MatrixType(BaseType):
@@ -101,6 +120,9 @@ class MatrixType(BaseType):
     def param_def_string(self) -> str:
         s = self.shape
         return f"matrix<{scalar_type_to_param_string(self.slang_scalar_type)},{s[0]},{s[1]}>"
+
+    def is_differentiable(self) -> bool:
+        return is_scalar_type_differentiable(self.slang_scalar_type)
 
 
 # Fixed size array value, 1D with an optionall defined number of elements
@@ -205,21 +227,50 @@ def try_convert_type(reflection: sgl.TypeReflection) -> Optional[BaseType]:
         return None
 
 
-class Argument:
-    def __init__(
-        self, reflection: sgl.VariableReflection, value: Any, translation_type: BaseType
-    ):
+class ArgumentAccessType(enum.Enum):
+    none = (0,)
+    read = (1,)
+    write = (2,)
+    readwrite = 3
+
+
+class BaseFuncValue:
+    def __init__(self, value: Optional[Any], translation_type: BaseType):
         super().__init__()
         self.value = value
-        self.reflection = reflection
         self.translation_type = translation_type
+        self.type_layout_reflection: Optional[sgl.TypeLayoutReflection] = None
 
     @property
-    def input_def_string(self) -> str:
+    def name(self) -> str:
+        raise NotImplementedError()
+
+    def has_modifier(self, modifier: sgl.ModifierID) -> bool:
+        raise NotImplementedError()
+
+    @property
+    def input_def_string_for_read(self) -> str:
         if isinstance(self.value, StructuredBuffer):
             return f"RWStructuredBuffer<{self.translation_type.param_def_string}>"
         else:
             return self.translation_type.param_def_string
+
+    @property
+    def input_def_string_for_write(self) -> str:
+        return f"RWStructuredBuffer<{self.translation_type.param_def_string}>"
+
+    @property
+    def inputgrad_def_string_for_read(self) -> str:
+        if isinstance(self.value, StructuredBuffer):
+            return f"RWStructuredBuffer<{self.translation_type.param_def_string}.Differential>"
+        else:
+            return f"{self.translation_type.param_def_string}.Differential"
+
+    @property
+    def inputgrad_def_string_for_write(self) -> str:
+        return (
+            f"RWStructuredBuffer<{self.translation_type.param_def_string}.Differential>"
+        )
 
     @property
     def python_shape(self):
@@ -229,22 +280,115 @@ class Argument:
             return (1,)
 
     @property
-    def name(self) -> str:
-        return self.reflection.name
+    def is_differentiable(self) -> bool:
+        return (
+            is_differentiable_buffer(self.value)
+            and self.translation_type.is_differentiable
+            and not self.has_modifier(sgl.ModifierID.nodiff)
+        )
 
     @property
     def param_string(self) -> str:
         modifiers: list[str] = []
-        for x in sgl.ModifierID:
-            if self.reflection.has_modifier(x):
+        for x in [sgl.ModifierID.inn, sgl.ModifierID.out, sgl.ModifierID.inout]:
+            if self.has_modifier(x):
                 modifiers.append(str(x)[11:])
+        if self.has_modifier(sgl.ModifierID.nodiff) or not self.is_differentiable:
+            modifiers.append("no_diff")
         return f"{' '.join(modifiers)} {self.translation_type.param_def_string} {self.name}"
 
-    def get_variable_access_string(self, indexer: str = "i"):
+    @property
+    def forward_access(self) -> ArgumentAccessType:
+        raise NotImplementedError()
+
+    @property
+    def backward_access(self) -> tuple[ArgumentAccessType, ArgumentAccessType]:
+        raise NotImplementedError()
+
+    def get_variable_index_string_for_read(self, indexer: str = "i"):
         if isinstance(self.value, StructuredBuffer):
-            return f"{self.name}[{indexer}]"
+            return f"[{indexer}]"
         else:
-            return f"{self.name}"
+            return ""
+
+    def get_variable_access_string_for_read(self, indexer: str = "i"):
+        return f"{self.name}{self.get_variable_index_string_for_read(indexer)}"
+
+    def get_variable_index_string_for_write(self, indexer: str = "i"):
+        if isinstance(self.value, StructuredBuffer):
+            return f"[{indexer}]"
+        else:
+            return "[0]"
+
+    def get_variable_access_string_for_write(self, indexer: str = "i"):
+        return f"{self.name}{self.get_variable_index_string_for_write(indexer)}"
+
+
+class Argument(BaseFuncValue):
+    def __init__(
+        self, reflection: sgl.VariableReflection, value: Any, translation_type: BaseType
+    ):
+        super().__init__(value, translation_type)
+        self.reflection = reflection
+
+    @property
+    def name(self) -> str:
+        return self.reflection.name
+
+    def has_modifier(self, modifier: sgl.ModifierID) -> bool:
+        return self.reflection.has_modifier(modifier)
+
+    @property
+    def forward_access(self) -> ArgumentAccessType:
+        if self.reflection.has_modifier(sgl.ModifierID.inout):
+            return ArgumentAccessType.readwrite
+        elif self.reflection.has_modifier(sgl.ModifierID.out):
+            return ArgumentAccessType.write
+        else:
+            return ArgumentAccessType.read
+
+    @property
+    def backward_access(self) -> tuple[ArgumentAccessType, ArgumentAccessType]:
+        if self.is_differentiable:
+            if self.reflection.has_modifier(sgl.ModifierID.inout):
+                return (ArgumentAccessType.read, ArgumentAccessType.readwrite)
+            elif self.reflection.has_modifier(sgl.ModifierID.out):
+                return (ArgumentAccessType.none, ArgumentAccessType.read)
+            else:
+                return (ArgumentAccessType.read, ArgumentAccessType.write)
+        else:
+            if self.reflection.has_modifier(sgl.ModifierID.inout):
+                return (ArgumentAccessType.read, ArgumentAccessType.none)
+            elif self.reflection.has_modifier(sgl.ModifierID.out):
+                return (ArgumentAccessType.none, ArgumentAccessType.none)
+            else:
+                return (ArgumentAccessType.read, ArgumentAccessType.none)
+
+
+class ReturnValue(BaseFuncValue):
+    def __init__(
+        self, reflection: sgl.FunctionReflection, value: Any, translation_type: BaseType
+    ):
+        super().__init__(value, translation_type)
+        self.reflection = reflection
+
+    @property
+    def name(self) -> str:
+        return "_res"
+
+    def has_modifier(self, modifier: sgl.ModifierID) -> bool:
+        return self.reflection.has_modifier(modifier)
+
+    @property
+    def forward_access(self) -> ArgumentAccessType:
+        return ArgumentAccessType.write
+
+    @property
+    def backward_access(self) -> tuple[ArgumentAccessType, ArgumentAccessType]:
+        if self.is_differentiable:
+            return (ArgumentAccessType.none, ArgumentAccessType.read)
+        else:
+            return (ArgumentAccessType.none, ArgumentAccessType.none)
 
 
 def try_create_argument(
@@ -256,6 +400,14 @@ def try_create_argument(
 
     if base_type.is_compatible_with_python_value(value, deep_check):
         return Argument(reflection, value, base_type)
+
+    if isinstance(value, ScalarRef):
+        if base_type.is_compatible_with_python_value(value.value, deep_check):
+            return Argument(reflection, value, base_type)
+
+    if isinstance(value, ScalarDiffPair):
+        if base_type.is_compatible_with_python_value(value.primal, deep_check):
+            return Argument(reflection, value, base_type)
 
     if isinstance(value, StructuredBuffer):
         if base_type.is_compatible_with_python_type(value.element_type):
