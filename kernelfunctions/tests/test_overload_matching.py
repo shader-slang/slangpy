@@ -103,7 +103,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
 
     if succeed:
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), True, v0, v1
+            function.ast_functions[0].as_function(), True, False, v0, v1
         )
         assert match is not None
         assert match["a"].name == "a"
@@ -112,7 +112,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match["b"].value == v1
 
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), True, a=v0, b=v1
+            function.ast_functions[0].as_function(), True, False, a=v0, b=v1
         )
         assert match is not None
         assert match["a"].name == "a"
@@ -121,7 +121,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match["b"].value == v1
 
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), True, b=v1, a=v0
+            function.ast_functions[0].as_function(), True, False, b=v1, a=v0
         )
         assert match is not None
         assert match["a"].name == "a"
@@ -130,7 +130,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match["b"].value == v1
     else:
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), True, v0, v1
+            function.ast_functions[0].as_function(), True, False, v0, v1
         )
         assert match is None
 
@@ -159,18 +159,18 @@ void add_numbers(MyStruct v) {{ }}
 
     if succeed:
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), True, {"a": v0, "b": v1}
+            function.ast_functions[0].as_function(), True, False, {"a": v0, "b": v1}
         )
         assert match is not None
         assert isinstance(match["v"].translation_type, kftrans.StructType)
         assert match["v"].name == "v"
         assert match["v"].translation_type.fields["a"].reflection is not None
         assert match["v"].translation_type.fields["b"].reflection is not None
-        assert match["v"].value["a"] == v0
-        assert match["v"].value["b"] == v1
+        assert match["v"].value["a"] == v0  # type: ignore
+        assert match["v"].value["b"] == v1  # type: ignore
     else:
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), True, {"a": v0, "b": v1}
+            function.ast_functions[0].as_function(), True, False, {"a": v0, "b": v1}
         )
         assert match is None
 

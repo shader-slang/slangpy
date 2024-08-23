@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import hashlib
-from typing import Optional
+from typing import Any, Optional
+
+import pytest
 import kernelfunctions
 import sgl
 import sys
@@ -22,6 +24,12 @@ DEVICE_CACHE: dict[sgl.DeviceType, sgl.Device] = {}
 
 # Enable this to make tests just run on d3d12 for faster testing
 DEFAULT_DEVICE_TYPES = [sgl.DeviceType.d3d12]
+
+
+# Returns a unique random 16 character string for every variant of every test.
+@pytest.fixture
+def test_id(request: Any):
+    return hashlib.sha256(request.node.nodeid.encode()).hexdigest()[:16]
 
 
 # Helper to get device of a given type
