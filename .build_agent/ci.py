@@ -1,11 +1,9 @@
-import argparse
-import os
 import subprocess
 import sys
 
 
 # Helper to run a command.
-def run_command(command, shell=True):
+def run_command(command: str, shell: bool = True):
     print(command)
     sys.stdout.flush()
     result = subprocess.run(command, shell=shell)
@@ -16,7 +14,7 @@ def run_command(command, shell=True):
 
 # struggling to get sgl to install via requirements - install directly here instead
 run_command(
-    "pip install --upgrade --force-reinstall git+https://gitlab-master.nvidia.com/skallweit/sgl.git"
+    "pip install --upgrade --force-reinstall git+https://github.com/shader-slang/sgl.git"
 )
 
 # install this package as editable
