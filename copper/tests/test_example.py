@@ -1,10 +1,10 @@
 import pytest
-import copper
 import copper.tests.helpers as helpers  # type: ignore (just here as example of having a test helpers module)
+from copper.util import broadcast_shapes
 
 
 def test_copper():
-    assert copper.my_function() == 42
+    assert broadcast_shapes([(1, 2, 3), (3,), (4, 1, 1, 1)]) == (4, 1, 2, 3)
 
 
 if __name__ == "__main__":
