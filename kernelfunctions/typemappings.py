@@ -60,6 +60,17 @@ SGL_TYPES_FROM_PYTHON_TYPE: dict[Type[TPythonScalar], list[TSGLVector]] = {
 }
 
 
+def is_scalar_type(python_type: type):
+    return python_type in [int, float, bool, sgl.int1, sgl.uint1, sgl.float1, sgl.bool1]
+
+
+# Check if python type maps directly to a slang scalar type
+def is_scalar_instance(python_variable: Any):
+    return isinstance(
+        python_variable, (int, float, bool, sgl.int1, sgl.uint1, sgl.float1, sgl.bool1)
+    )
+
+
 # Get an SGL type by its name (eg int) and dimensionality (1-4).
 def get_sgl_type_by_name(type_name: TSGLScalarName, dim: int):
     return SGL_TYPES_BY_NAME[type_name][dim - 1]

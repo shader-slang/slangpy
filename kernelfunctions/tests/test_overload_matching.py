@@ -3,6 +3,7 @@ import pytest
 import kernelfunctions as kf
 import sgl
 import kernelfunctions.tests.helpers as helpers
+import kernelfunctions.translation as kftrans
 
 
 class ScalarMatchTest:
@@ -102,34 +103,34 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
 
     if succeed:
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), v0, v1
+            function.ast_functions[0].as_function(), True, False, v0, v1
         )
         assert match is not None
-        assert match["a"].slang_variable.name == "a"
-        assert match["b"].slang_variable.name == "b"
-        assert match["a"].python_variable == v0
-        assert match["b"].python_variable == v1
+        assert match["a"].name == "a"
+        assert match["b"].name == "b"
+        assert match["a"].value == v0
+        assert match["b"].value == v1
 
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), a=v0, b=v1
+            function.ast_functions[0].as_function(), True, False, a=v0, b=v1
         )
         assert match is not None
-        assert match["a"].slang_variable.name == "a"
-        assert match["b"].slang_variable.name == "b"
-        assert match["a"].python_variable == v0
-        assert match["b"].python_variable == v1
+        assert match["a"].name == "a"
+        assert match["b"].name == "b"
+        assert match["a"].value == v0
+        assert match["b"].value == v1
 
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), b=v1, a=v0
+            function.ast_functions[0].as_function(), True, False, b=v1, a=v0
         )
         assert match is not None
-        assert match["a"].slang_variable.name == "a"
-        assert match["b"].slang_variable.name == "b"
-        assert match["a"].python_variable == v0
-        assert match["b"].python_variable == v1
+        assert match["a"].name == "a"
+        assert match["b"].name == "b"
+        assert match["a"].value == v0
+        assert match["b"].value == v1
     else:
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), v0, v1
+            function.ast_functions[0].as_function(), True, False, v0, v1
         )
         assert match is None
 
@@ -158,17 +159,18 @@ void add_numbers(MyStruct v) {{ }}
 
     if succeed:
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), {"a": v0, "b": v1}
+            function.ast_functions[0].as_function(), True, False, {"a": v0, "b": v1}
         )
         assert match is not None
-        assert match["v"].slang_variable.name == "v"
-        assert match["v"].python_variable["a"].slang_variable.name == "a"
-        assert match["v"].python_variable["b"].slang_variable.name == "b"
-        assert match["v"].python_variable["a"].python_variable == v0
-        assert match["v"].python_variable["b"].python_variable == v1
+        assert isinstance(match["v"].translation_type, kftrans.StructType)
+        assert match["v"].name == "v"
+        assert match["v"].translation_type.fields["a"].reflection is not None
+        assert match["v"].translation_type.fields["b"].reflection is not None
+        assert match["v"].value["a"] == v0  # type: ignore
+        assert match["v"].value["b"] == v1  # type: ignore
     else:
         match = kf.calldata.match_function_overload_to_python_args(
-            function.ast_functions[0].as_function(), {"a": v0, "b": v1}
+            function.ast_functions[0].as_function(), True, False, {"a": v0, "b": v1}
         )
         assert match is None
 

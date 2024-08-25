@@ -20,7 +20,7 @@ def test_build_chain_function_only(device_type: sgl.DeviceType):
         device, "add_numbers", SIMPLE_FUNCTION_RETURN_VALUE
     )
 
-    chain = function._build_call_data().chain
+    chain = function._build_call_data(False, 1, 1).chain
     assert len(chain) == 1
     assert isinstance(chain[0], kf.Function)
 
@@ -36,13 +36,13 @@ def test_build_chain_with_sets(device_type: sgl.DeviceType):
     s2 = s1.set(a=3)
 
     # Verify the function only has itself in the chain.
-    func_call = function._build_call_data()
+    func_call = function._build_call_data(False, 1, 1)
     func_chain = func_call.chain
     assert len(func_chain) == 1
     assert isinstance(func_chain[0], kf.Function)
 
     # Verify the chain for the function and s1.
-    s1_call = s1._build_call_data()
+    s1_call = s1._build_call_data(False, 1, 1)
     s1_chain = s1_call.chain
     assert len(s1_chain) == 2
     assert isinstance(s1_chain[0], kf.Function)
@@ -50,7 +50,7 @@ def test_build_chain_with_sets(device_type: sgl.DeviceType):
     assert s1_chain[1].props == {"a": 1, "b": 2}
 
     # Verify the chain for the function, s1, and s2.
-    s2_call = s2._build_call_data()
+    s2_call = s2._build_call_data(False, 1, 1)
     s2_chain = s2_call.chain
     assert len(s2_chain) == 3
     assert isinstance(s2_chain[0], kf.Function)
@@ -107,7 +107,7 @@ def test_set_lambda_callback(device_type: sgl.DeviceType):
 
     chain = function.set(a=1, b=2).set(lambda chain: {"a": 10}).set(b=3)
 
-    call_data = chain._build_call_data()
+    call_data = chain._build_call_data(False, 1, 1)
     assert call_data.sets == {"a": 10, "b": 3}
 
 
@@ -134,7 +134,7 @@ def test_set_instance_callback(device_type: sgl.DeviceType):
 
     chain = function.set(a=1, b=2).set(instance.get_values).set(b=3)
 
-    call_data = chain._build_call_data()
+    call_data = chain._build_call_data(False, 1, 1)
     assert call_data.sets == {"a": 10, "b": 3}
 
 

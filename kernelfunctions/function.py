@@ -8,16 +8,23 @@ class FunctionChainBase:
         self.parent = parent
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
-        calldata = self._build_call_data()
-        return calldata.call(*args, **kwargs)
+        calldata = self._build_call_data(False, *args, **kwargs)
+        return calldata.call()
+
+    def backwards(self, *args: Any, **kwargs: Any) -> Any:
+        calldata = self._build_call_data(True, *args, **kwargs)
+        return calldata.call()
 
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)
 
+    def debug_build_call_data(self, backwards: bool, *args: Any, **kwargs: Any):
+        return self._build_call_data(backwards, *args, **kwargs)
+
     def __call__(self, *args: Any, **kwargs: Any):
         return self.call(*args, **kwargs)
 
-    def _build_call_data(self):
+    def _build_call_data(self, backwards: bool, *args: Any, **kwargs: Any):
         from .calldata import CallData
 
         chain = []
@@ -26,7 +33,7 @@ class FunctionChainBase:
             chain.append(current)
             current = current.parent
         chain.reverse()
-        return CallData(chain)
+        return CallData(chain, backwards, *args, **kwargs)
 
 
 class FunctionChainSet(FunctionChainBase):
