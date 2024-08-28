@@ -285,7 +285,7 @@ dot.map(b=(1,2,0))(float3, tensor)
 
 # or maybe using an options structure
 dot(float3, tensor(3,100,100), _options={
-    'remap' = {
+    'remap': {
         'b': (1,2,0)
     }
 })
@@ -334,6 +334,14 @@ yy.python
 # r_AS = (1000,50)
 read.vmap("(N),(M)->(N,M)")
     .call(inttensor(1000,2), tensor(50, 100, 100,4))
+
+#or, as with map, other calling styles
+read.vmap(bla)(args)
+
+read2 = read.vamp(bla)
+read2(args)
+
+read(args, _options={'vmap': 'bla'})
 ```
 
 This explicit mapping of input dimensions to output dimensions tells slangpy both how to calculate the overall call size, and how to do indexing at the kernel level. 
