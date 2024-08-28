@@ -274,9 +274,9 @@ def test_readslice_invalid_broadcast():
         )
 
 
-def test_readslice_remap():
+def test_readslice_argument_map():
 
-    # Use remapping to allow 50 (4,256,128) buffers to be
+    # Use argument mapping to allow 50 (4,256,128) buffers to be
     # passed as 50 (256,128,4) slices
     shapes = calculate_argument_shapes(
         READ_SLICE_SIGNATURE,
@@ -289,6 +289,27 @@ def test_readslice_remap():
             "type_shapes": [[2], [256, 128, 4], [4]],
             "arg_shapes": [[50], [50], [50]],
             "call_shape": [50],
+        },
+    )
+    assert not diff
+
+
+def test_readslice_function_map():
+
+    # Use remapping to allow 1000 indices to be batch tested
+    # against 50*(4,256,128), resulting in output of 50*(1000)
+    shapes = calculate_argument_shapes(
+        READ_SLICE_SIGNATURE,
+        [(1000, 2), (50, 256, 128, 4), None],
+        None,
+        [(1,), (0,), None],
+    )
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {
+            "type_shapes": [[2], [256, 128, 4], [4]],
+            "arg_shapes": [[1000], [50], [50, 1000]],
+            "call_shape": [50, 1000],
         },
     )
     assert not diff

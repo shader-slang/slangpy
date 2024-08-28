@@ -14,11 +14,12 @@ def calculate_argument_shapes(
     param_type_shapes: list[TLooseShape],
     input_shapes: list[TLooseOrUndefinedShape],
     input_remaps: Optional[list[TConcreteOrUndefinedShape]] = None,
+    call_remaps: Optional[list[TConcreteOrUndefinedShape]] = None,
 ):
 
     type_shapes: list[list[Optional[int]]] = []
     arg_shapes: list[Optional[list[Optional[int]]]] = []
-    max_dims = 0
+    highest_output_dim = 0
 
     # Iterate over each pair of parameter type shape and input shape.
     for param_idx in range(len(param_type_shapes)):
@@ -71,28 +72,61 @@ def calculate_argument_shapes(
 
             # Argment shape is what's left of the input shape
             arg_shape = list(input_shape)[: input_len - type_len]
-            max_dims = max(max_dims, len(arg_shape))
+            highest_output_dim = max(highest_output_dim, len(arg_shape))
             arg_shapes.append(arg_shape)
         else:
             # If input not defined, parameter shape is the argument shape
             type_shapes.append(list(param_type_shape))
             arg_shapes.append(None)
 
-    # Call shape has the number of dimensions that the largest argument has
-    call_shape: list[Optional[int]] = [None for _ in range(max_dims)]
-
-    # Numpy rules for calculating broadcast dimension sizes, with additional
-    # rules for handling undefined dimensions
-    call_dim_end = max_dims - 1
+    # Define a default function transform based on numpy rules
+    call_dim_end = highest_output_dim - 1
+    mappings: list[Optional[list[int]]] = []
     for arg_index, arg_shape in enumerate(arg_shapes):
         if arg_shape is not None:
             arg_dims = len(arg_shape)
-            arg_dim_end = arg_dims - 1
-            for i in range(arg_dims):
-                call_dim_idx = call_dim_end - i
-                arg_dim_idx = arg_dim_end - i
-                call_dim_size = call_shape[call_dim_idx]
+            mappings.append([call_dim_end - i for i in range(arg_dims)])
+        else:
+            mappings.append(None)
+
+    # Inject call remapping into the transformation
+    if call_remaps is not None:
+        for arg_index, arg_shape in enumerate(arg_shapes):
+            if arg_shape is not None:
+                call_remap = call_remaps[arg_index]
+                if call_remap is not None:
+                    if len(call_remap) != arg_dims:
+                        raise ValueError(
+                            f"Call remap {call_remap} must have the same number of dimensions as the argument shape {arg_shape}"
+                        )
+                    arg_dims = len(arg_shape)
+                    mapping = mappings[arg_index]
+                    assert mapping is not None
+                    for i in range(arg_dims):
+                        if call_remap[i] is not None:
+                            mapping[i] = call_remap[i]
+
+    # Find the highest dimension in the mappings
+    highest_output_dim = -1
+    for mapping in mappings:
+        if mapping is not None:
+            for dim in mapping:
+                highest_output_dim = max(highest_output_dim, dim)
+
+    # Call shape has the number of dimensions that the largest argument has
+    call_shape: list[Optional[int]] = [None for _ in range(highest_output_dim + 1)]
+
+    # Numpy rules for calculating broadcast dimension sizes, with additional
+    # rules for handling undefined dimensions
+    for arg_index, arg_shape in enumerate(arg_shapes):
+        if arg_shape is not None:
+            arg_dims = len(arg_shape)
+            mapping = mappings[arg_index]
+            assert mapping is not None
+            for arg_dim_idx in range(arg_dims):
+                call_dim_idx = mapping[arg_dim_idx]
                 arg_dim_size = arg_shape[arg_dim_idx]
+                call_dim_size = call_shape[call_dim_idx]
                 if call_dim_size is None:
                     call_dim_size = arg_dim_size
                 elif call_dim_size == 1:
@@ -107,6 +141,7 @@ def calculate_argument_shapes(
     for i in range(len(arg_shapes)):
         if arg_shapes[i] is None:
             arg_shapes[i] = call_shape
+            mappings[i] = [i for i in range(len(call_shape))]
 
     # Raise an error if the call shape is still undefined
     if None in call_shape:
@@ -116,10 +151,10 @@ def calculate_argument_shapes(
     for arg_index, arg_shape in enumerate(arg_shapes):
         if arg_shape is not None:
             arg_dims = len(arg_shape)
-            arg_dim_end = arg_dims - 1
-            for i in range(arg_dims):
-                call_dim_idx = call_dim_end - i
-                arg_dim_idx = arg_dim_end - i
+            mapping = mappings[arg_index]
+            assert mapping is not None
+            for arg_dim_idx in range(arg_dims):
+                call_dim_idx = mapping[arg_dim_idx]
                 if arg_shape[arg_dim_idx] is None:
                     arg_shape[arg_dim_idx] = call_shape[call_dim_idx]
             if None in arg_shape:
