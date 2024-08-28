@@ -67,17 +67,17 @@ yy.python
 # r_TS = (1)
 
 # simple scalar call
-# a_AS = (1)
-# b_AS = (1)
-# CS   = (1)
-# r_AS = (1)
+# a_AS = ()
+# b_AS = ()
+# CS   = ()
+# r_AS = ()
 dot(float3, float3)
 
 # error: no implicit conversion of concrete types
 dot(10.0, float3)
 
 # broadcast a
-# a_AS = (1)
+# a_AS = ()
 # b_AS = (100)
 # CS   = (100)
 # r_AS = (100)
@@ -85,7 +85,7 @@ dot(float3, tensor(100,3))
 
 # broadcast b
 # a_AS = (100)
-# b_AS = (1)
+# b_AS = ()
 # CS   = (100)
 # r_AS = (100)
 dot(tensor(100,3), float3)
@@ -130,10 +130,10 @@ yy.python
 # r_TS = (1)
 
 # Use slangpy scalar ref to receive floating point output
-# a_AS = (1)
-# b_AS = (1)
-# CS   = (1)
-# r_AS = (1)
+# a_AS = ()
+# b_AS = ()
+# CS   = ()
+# r_AS = ()
 output = ScalarRef(0.0)
 dot(float3, float3, output)
 
@@ -141,16 +141,16 @@ dot(float3, float3, output)
 # If error explicitly ignored, all calls will just
 # attempt to write to r 
 # a_AS = (100)
-# b_AS = (1)
+# b_AS = ()
 # CS   = (100)
-# r_AS = (1)
+# r_AS = ()
 output = ScalarRef(0.0)
 dot(tensor(100,3), float3, output)
 
 # Undefined buffer output allows 
 # slangpy to assign it the call shape
 # a_AS = (100)
-# b_AS = (1)
+# b_AS = ()
 # CS   = (100)
 # r_AS = (100)  [inferred]
 output = BufferOutput(t=float3)
@@ -159,7 +159,7 @@ dot(tensor(100,3), float3, output)
 # Buffer with dimensionality constraint causes 
 # error due to undefinable dimensions
 # a_AS = (100)
-# b_AS = (1)
+# b_AS = ()
 # r_AS = (?,?,100) [error: undefinable dimensions]
 output = BufferOutput(t=float3, dimensions=3)
 dot(tensor(100,3), float3, output)
@@ -167,7 +167,7 @@ dot(tensor(100,3), float3, output)
 # Buffer with dimensionality constraint simply
 # helps with error checking
 # a_AS = (100)
-# b_AS = (1)
+# b_AS = ()
 # r_AS = (100) [inferred]
 output = BufferOutput(t=float3,dimensions=1)
 dot(tensor(100,3), float3, output)
@@ -198,15 +198,15 @@ yy.python
 # Pass a tensor of the same dimensionality, exact shape
 # is inferred and no broadcast occurs
 # b_TS = (100,100,4)
-# a_AS = (1)
-# b_AS = (1)
-# CS   = (1)
-# r_AS = (1)
+# a_AS = ()
+# b_AS = ()
+# CS   = ()
+# r_AS = ()
 read(int2, tensor(100,100,4))
 
 # Broadcast the tensor across 50 indexes
 # b_TS = (100,100,4)
-# a_AS = (1)
+# a_AS = ()
 # b_AS = (50)
 # CS   = (50)
 # r_AS = (50)
@@ -253,14 +253,14 @@ float dot(float3 a, float3 b)
 ```
 
 ```
-# a_AS = (1)
+# a_AS = ()
 # b_AS = (100,100)
 # CS   = (100,100)
 # r_AS = (100,100)
 dot(float3, tensor(100,100,3))
 
 # Error as b can not be mapped to the type shape (3)
-# a_AS = (1)
+# a_AS = ()
 # b_AS = <error>
 dot(float3, tensor(3,100,100))
 ```
@@ -268,7 +268,7 @@ dot(float3, tensor(3,100,100))
 To allow the user more flexibility with input dimensions, a simple resolution would be
 
 ```
-# a_AS = (1)
+# a_AS = ()
 # b_IS = (3,100,100) -> (100,100,3)
 # b_AS = (100,100)
 # CS   = (100,100)
@@ -356,7 +356,7 @@ Allowing users to name dimensions in their buffers/tensors is already becoming p
 From the earlier dot product map example:
 
 ```
-# a_AS = (1)
+# a_AS = ()
 # b_IS = (c,w,h)=(3,100,100) -> (w,h,c)=(100,100,3)
 # b_AS = (100,100)
 # CS   = (100,100)
