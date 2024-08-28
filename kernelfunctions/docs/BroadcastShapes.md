@@ -346,3 +346,39 @@ read(args, _options={'vmap': 'bla'})
 
 This explicit mapping of input dimensions to output dimensions tells slangpy both how to calculate the overall call size, and how to do indexing at the kernel level. 
 
+## Named dimensions (wip proposal)
+
+Allowing users to name dimensions in their buffers/tensors is already becoming popular, and we can make use of it our end elegantly:
+- For a .map, explicit dimension names instead of indices can be used
+- For .vmap, no aliases are needed (it can just be vmap("a.dim1","b.dim2") etc)
+- A user can opt-in to always specify .map and/or .vmap for some/all calls to aid in error checking
+
+From the earlier dot product map example:
+
+```
+# a_AS = (1)
+# b_IS = (c,w,h)=(3,100,100) -> (w,h,c)=(100,100,3)
+# b_AS = (100,100)
+# CS   = (100,100)
+# r_AS = (100,100)
+mytensor = tensor(channels=3, width=100, height=100)
+dot.map(b=('width','height','channels')) # remap B's dimensions
+   .call(float3, mytensor)
+```
+
+Or the vmap example:
+
+```
+yy.python
+# Function transform adjusts call shape, thus broadcasting can work
+# a_AS = (s)       = (1000)
+# b_TS = (w,h,c)   = (100,100,4)
+# b_AS = (b)       = (50)
+# CS   = (b.b,a.s) = (50,1000)
+# r_AS = (b.b,a.s) = (50,1000)
+tensor_a = inttensor(samples=1000, indices=2)
+tensor_b = tensor(batches=50, width=100, height=100, channels=4)
+read.vmap('array.batches','read.samples')
+    .call(tensor_a, tensor_b)
+```
+
