@@ -13,6 +13,11 @@ DOT_PRODUCT_SIGNATURE: list[TLooseShape] = [(3,), (3,), (1,)]
 # float4 read(int2 index, Slice<2,float4> array) { return array[index];}
 READ_SLICE_SIGNATURE: list[TLooseShape] = [(2,), (None, None, 4), (4,)]
 
+# Copy function designed to replicate situations in which we'd ideally
+# be able to infer a buffer size but can't due to absence of generics
+# void copy(int index, Slice<1,float4> from, Slice<1,float4> to) { to[index] = from[index];}
+COPY_AT_INDEX_SIGNATURE: list[TLooseShape] = [(1,), (None, 4), (None, 4)]
+
 
 def test_dotproduct_scalar():
 
@@ -313,6 +318,52 @@ def test_readslice_function_map():
         },
     )
     assert not diff
+
+
+def test_copyatindex_both_buffers_defined():
+
+    # Call copy-at-index passing 2 fully defined buffers
+    shapes = calculate_argument_shapes(
+        COPY_AT_INDEX_SIGNATURE, [(50, 1), (100, 4), (100, 4)]
+    )
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {
+            "type_shapes": [[1], [100, 4], [100, 4]],
+            "arg_shapes": [[50], [], []],
+            "call_shape": [50],
+        },
+    )
+    assert not diff
+
+
+def test_copyatindex_undersized_output():
+
+    # Situation we'd ideally detect in which output
+    # buffer will overrun as its too small, but we
+    # need generics/IBuffer to do so.
+    shapes = calculate_argument_shapes(
+        COPY_AT_INDEX_SIGNATURE, [(50, 1), (100, 4), (10, 4)]
+    )
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {
+            "type_shapes": [[1], [100, 4], [10, 4]],
+            "arg_shapes": [[50], [], []],
+            "call_shape": [50],
+        },
+    )
+    assert not diff
+
+
+def test_copyatindex_undefined_output_size():
+
+    # Output buffer size is undefined and can't be inferred.
+    # This would ideally be solved with generics / IBuffer interface
+    with pytest.raises(ValueError, match=re.escape("Arg 2 type shape is ambiguous")):
+        shapes = calculate_argument_shapes(
+            COPY_AT_INDEX_SIGNATURE, [(50, 1), (100, 4), (None, 4)]
+        )
 
 
 if __name__ == "__main__":
