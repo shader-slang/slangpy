@@ -96,6 +96,8 @@ def calculate_argument_shapes(
                     call_dim_size = arg_dim_size
                 elif call_dim_size == 1:
                     call_dim_size = arg_dim_size
+                elif arg_dim_size == 1:
+                    pass  # call dim already set and arg dim is 1 so can be broadcast
                 elif arg_dim_size is not None and call_dim_size != arg_dim_size:
                     raise ValueError(
                         f"Arg {arg_index}, CS[{call_dim_idx}] != AS[{arg_dim_idx}], {call_dim_size} != {arg_dim_size}"
@@ -205,3 +207,18 @@ def _split_type_and_argument_shapes(
             arg_shapes.append(None)
 
     return type_shapes, arg_shapes
+
+
+def build_indexer(call_shape: list[int], arg_shape: list[int]):
+    # Build the index expression
+    index_expr = ""
+    call_offset = len(call_shape) - len(arg_shape)
+    for i in range(len(arg_shape)):
+        if i < len(arg_shape):
+            if arg_shape[i] == 1:
+                index_expr += "0"
+            else:
+                index_expr += f"call_id[{call_offset+i}]"
+        if i < len(arg_shape) - 1:
+            index_expr += ", "
+    return index_expr

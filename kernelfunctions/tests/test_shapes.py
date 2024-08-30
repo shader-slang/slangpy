@@ -1,6 +1,6 @@
 import re
 import pytest
-from kernelfunctions.shapes import TLooseShape, calculate_argument_shapes
+from kernelfunctions.shapes import TLooseShape, build_indexer, calculate_argument_shapes
 import deepdiff
 
 # First set of tests emulate the shape of the following slang function
@@ -30,6 +30,10 @@ def test_dotproduct_scalar():
     )
     assert not diff
 
+    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
+    diff = deepdiff.DeepDiff(indexers, ["", "", ""])
+    assert not diff
+
 
 def test_dotproduct_broadcast_a():
 
@@ -55,6 +59,10 @@ def test_dotproduct_broadcast_a():
     )
     assert not diff
 
+    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
+    diff = deepdiff.DeepDiff(indexers, ["", "call_id[0]", "call_id[0]"])
+    assert not diff
+
 
 def test_dotproduct_broadcast_b():
 
@@ -78,6 +86,39 @@ def test_dotproduct_broadcast_b():
             "call_shape": [100],
         },
     )
+    assert not diff
+
+    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
+    diff = deepdiff.DeepDiff(indexers, ["call_id[0]", "", "call_id[0]"])
+    assert not diff
+
+
+def test_dotproduct_broadcast_b_from_buffer():
+
+    # emulates the same case but being passed a buffer for a
+    shapes = calculate_argument_shapes(
+        DOT_PRODUCT_SIGNATURE,
+        [
+            (
+                100,
+                3,
+            ),
+            (1, 3),
+            None,
+        ],
+    )
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {
+            "type_shapes": [[3], [3], [1]],
+            "arg_shapes": [[100], [1], [100]],
+            "call_shape": [100],
+        },
+    )
+    assert not diff
+
+    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
+    diff = deepdiff.DeepDiff(indexers, ["call_id[0]", "0", "call_id[0]"])
     assert not diff
 
 
@@ -364,6 +405,33 @@ def test_copyatindex_undefined_output_size():
         shapes = calculate_argument_shapes(
             COPY_AT_INDEX_SIGNATURE, [(50, 1), (100, 4), (None, 4)]
         )
+
+
+def test_indexers():
+    arg_shape = []
+    call_shape = [300, 200, 100, 10, 10]
+    indexer = build_indexer(call_shape, arg_shape)
+    assert indexer == ""
+
+    arg_shape = [100, 1, 1]
+    call_shape = [300, 200, 100, 10, 10]
+    indexer = build_indexer(call_shape, arg_shape)
+    assert indexer == "call_id[2], 0, 0"
+
+    arg_shape = [1, 10, 1]
+    call_shape = [300, 200, 100, 10, 10]
+    indexer = build_indexer(call_shape, arg_shape)
+    assert indexer == "0, call_id[3], 0"
+
+    arg_shape = [1, 1, 10]
+    call_shape = [300, 200, 100, 10, 10]
+    indexer = build_indexer(call_shape, arg_shape)
+    assert indexer == "0, 0, call_id[4]"
+
+    arg_shape = [300, 1, 1, 1, 10]
+    call_shape = [300, 200, 100, 10, 10]
+    indexer = build_indexer(call_shape, arg_shape)
+    assert indexer == "call_id[0], 0, 0, 0, call_id[4]"
 
 
 if __name__ == "__main__":
