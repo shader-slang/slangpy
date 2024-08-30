@@ -195,5 +195,43 @@ def test_call_function_with_broadcast(device_type: sgl.DeviceType):
     buffer_pair_test(device, 0, 74)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_remap_output(device_type: sgl.DeviceType):
+    device = helpers.get_device(device_type)
+
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers_remap",
+        r"""
+void add_numbers_remap(int a, int b, out int c) {
+    c = a + b;
+}
+""",
+    )
+
+    a = kf.StructuredBuffer(
+        element_count=100,
+        device=device,
+        element_type=int,
+    )
+    a.buffer.from_numpy(rand_array_of_ints(a.element_count))
+
+    b = kf.StructuredBuffer(
+        element_count=50,
+        device=device,
+        element_type=int,
+    )
+    b.buffer.from_numpy(rand_array_of_ints(b.element_count))
+
+    c = kf.StructuredBuffer(
+        element_count=50,
+        device=device,
+        element_type=int,
+    )
+    c.buffer.from_numpy(rand_array_of_ints(c.element_count))
+
+    function.transform_output({"a": (1,), "b": (0,)})(a, b, c)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

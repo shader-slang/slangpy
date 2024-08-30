@@ -236,7 +236,7 @@ class ArgumentAccessType(enum.Enum):
 
 def get_value_shape(value: Any) -> tuple[Union[int, None], ...]:
     if isinstance(value, StructuredBuffer):
-        return (value.element_count,) + get_value_shape(value.element_type)
+        return value.shape + get_value_shape(value.element_type)
 
     if isinstance(value, type):
         value = value()
@@ -265,30 +265,41 @@ class BaseFuncValue:
     @property
     def input_def_string_for_read(self) -> str:
         if isinstance(self.value, StructuredBuffer):
-            return f"RWStructuredBuffer<{self.translation_type.param_def_string}>"
+            return f"RWTensorBuffer<{self.translation_type.param_def_string},{len(self.value.shape)}>"
         else:
             return self.translation_type.param_def_string
 
     @property
     def input_def_string_for_write(self) -> str:
-        return f"RWStructuredBuffer<{self.translation_type.param_def_string}>"
+        if isinstance(self.value, StructuredBuffer):
+            return f"RWTensorBuffer<{self.translation_type.param_def_string},{len(self.value.shape)}>"
+        else:
+            return f"RWStructuredBuffer<{self.translation_type.param_def_string}>"
 
     @property
     def inputgrad_def_string_for_read(self) -> str:
         if isinstance(self.value, StructuredBuffer):
-            return f"RWStructuredBuffer<{self.translation_type.param_def_string}.Differential>"
+            return f"RWTensorBuffer<{self.translation_type.param_def_string}.Differential,{len(self.value.shape)}>"
         else:
             return f"{self.translation_type.param_def_string}.Differential"
 
     @property
     def inputgrad_def_string_for_write(self) -> str:
-        return (
-            f"RWStructuredBuffer<{self.translation_type.param_def_string}.Differential>"
-        )
+        if isinstance(self.value, StructuredBuffer):
+            return f"RWTensorBuffer<{self.translation_type.param_def_string},{len(self.value.shape)}>"
+        else:
+            return f"RWStructuredBuffer<{self.translation_type.param_def_string}.Differential>"
 
     @property
     def parameter_shape(self):
         return self.translation_type.shape
+
+    @property
+    def buffer_shape(self):
+        if isinstance(self.value, StructuredBuffer):
+            return self.value.shape
+        else:
+            return None
 
     @property
     def value_shape(self):

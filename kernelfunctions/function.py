@@ -1,6 +1,8 @@
 from typing import Any, Callable, Optional
 import sgl
 
+from kernelfunctions.shapes import TConcreteShape, TLooseShape
+
 
 class FunctionChainBase:
     def __init__(self, parent: Optional["FunctionChainBase"]) -> None:
@@ -17,6 +19,12 @@ class FunctionChainBase:
 
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)
+
+    def transform_input(self, transforms: dict[str, TLooseShape]):
+        return FunctionChainInputTransform(self, transforms)
+
+    def transform_output(self, transforms: dict[str, TLooseShape]):
+        return FunctionChainOutputTransform(self, transforms)
 
     def debug_build_call_data(self, backwards: bool, *args: Any, **kwargs: Any):
         return self._build_call_data(backwards, *args, **kwargs)
@@ -64,6 +72,22 @@ class FunctionChainSet(FunctionChainBase):
                 )
         else:
             raise ValueError("Set requires at least one argument")
+
+
+class FunctionChainInputTransform(FunctionChainBase):
+    def __init__(
+        self, parent: FunctionChainBase, transforms: dict[str, TConcreteShape]
+    ) -> None:
+        super().__init__(parent)
+        self.transforms = transforms
+
+
+class FunctionChainOutputTransform(FunctionChainBase):
+    def __init__(
+        self, parent: FunctionChainBase, transforms: dict[str, TConcreteShape]
+    ) -> None:
+        super().__init__(parent)
+        self.transforms = transforms
 
 
 # A callable kernel function. This assumes the function is in the root

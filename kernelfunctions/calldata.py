@@ -6,11 +6,60 @@ import sgl
 import hashlib
 
 from kernelfunctions.buffer import StructuredBuffer
-from kernelfunctions.function import Function, FunctionChainBase, FunctionChainSet
-from kernelfunctions.shapes import calculate_argument_shapes
+from kernelfunctions.function import (
+    Function,
+    FunctionChainBase,
+    FunctionChainInputTransform,
+    FunctionChainOutputTransform,
+    FunctionChainSet,
+)
+from kernelfunctions.shapes import (
+    TConcreteShape,
+    TLooseShape,
+    build_indexer,
+    calculate_argument_shapes,
+)
 import kernelfunctions.translation as kft
 import kernelfunctions.codegen as cg
 from kernelfunctions.utils import ScalarDiffPair, ScalarRef, is_differentiable_buffer
+
+TYPES = r"""
+int _idx<let N: int>(int[N] index, int[N] stride) {
+    int idx = 0;
+    for (int i = 0; i < N; i++) {
+        idx += index[i] * stride[i];
+    }
+    return idx;
+}
+
+struct TensorBuffer<T, let N : int> {
+    RWStructuredBuffer<T> buffer;
+    int[N] strides;
+    T get(int[N] index) {
+        return buffer[_idx(index, strides)];
+    }
+    __subscript(int[N] index)->T
+    {
+        get { return get(index); }
+    }
+}
+
+struct RWTensorBuffer<T, let N : int> {
+    RWStructuredBuffer<T> buffer;
+    int[N] strides;
+    T get(int[N] index) {
+        return buffer[_idx(index, strides)];
+    }
+    void set(int[N] index, T value) {
+        buffer[_idx(index, strides)] = value;
+    }
+    __subscript(int[N] index)->T
+    {
+        get { return get(index); }
+        set { set(index, newValue); }
+    }
+}
+"""
 
 
 def match_function_overload_to_python_args(
@@ -108,6 +157,8 @@ class CallData:
         self.backwards = backwards
         self.args = args
         self.kwargs = kwargs
+        self.input_transforms: dict[str, TConcreteShape] = {}
+        self.outut_transforms: dict[str, TConcreteShape] = {}
         sets = {}
         for item in chain:
             if isinstance(item, FunctionChainSet):
@@ -119,6 +170,10 @@ class CallData:
                     raise ValueError(
                         "FunctionChainSet must have either a props or callback"
                     )
+            if isinstance(item, FunctionChainInputTransform):
+                self.input_transforms.update(item.transforms)
+            if isinstance(item, FunctionChainOutputTransform):
+                self.outut_transforms.update(item.transforms)
 
         self.sets = sets
 
@@ -170,16 +225,25 @@ class CallData:
         if backwards and not self.differentiable:
             raise ValueError("Function is not differentiable")
 
+        all_params = list(self.parameters.values()) + (
+            [self.return_value] if self.return_value is not None else []
+        )
+
         # Calculate call shape
         self.shape = calculate_argument_shapes(
-            [x.parameter_shape for x in self.parameters.values()],
-            [x.value_shape for x in self.parameters.values()],
+            [x.parameter_shape for x in all_params],
+            [x.value_shape for x in all_params],
+            [self.input_transforms.get(x.name) for x in all_params],
+            [self.outut_transforms.get(x.name) for x in all_params],
         )
 
         # Store total threads
         self.total_threads = 1
-        for dim in self.shape["call_shape"]:
+        self.strides = []
+        for dim in reversed(self.shape["call_shape"]):
+            self.strides.append(self.total_threads)
             self.total_threads *= dim
+        self.strides.reverse()
 
         # Build variable names list for call data struct.
         variable_name_list = []
@@ -188,14 +252,16 @@ class CallData:
         targs: list[str] = []
         if not self.backwards:
             variable_name_list = []
-            for x in self.parameters:
+            for i, x in enumerate(self.parameters):
                 self._append_forward_variable_code_for_argument(
                     self.parameters[x],
                     variable_name_list,
                     ptrs,
                     ptws,
                     targs,
-                    "dispatchThreadID.x",
+                    build_indexer(
+                        self.shape["call_shape"], self.shape["arg_shapes"][i]
+                    ),
                 )
             if self.return_value is not None:
                 self._append_forward_variable_code_for_return_value(
@@ -204,17 +270,22 @@ class CallData:
                     ptrs,
                     ptws,
                     targs,
-                    "dispatchThreadID.x",
+                    build_indexer(
+                        self.shape["call_shape"],
+                        self.shape["arg_shapes"][len(self.parameters)],
+                    ),
                 )
         else:
-            for x in self.parameters:
+            for i, x in enumerate(self.parameters):
                 self._append_backward_variable_code_for_argument(
                     self.parameters[x],
                     variable_name_list,
                     ptrs,
                     ptws,
                     targs,
-                    "dispatchThreadID.x",
+                    build_indexer(
+                        self.shape["call_shape"], self.shape["arg_shapes"][i]
+                    ),
                 )
             if self.return_value is not None:
                 self._append_backward_variable_code_for_return_value(
@@ -223,7 +294,10 @@ class CallData:
                     ptrs,
                     ptws,
                     targs,
-                    "dispatchThreadID.x",
+                    build_indexer(
+                        self.shape["call_shape"],
+                        self.shape["arg_shapes"][len(self.parameters)],
+                    ),
                 )
 
         self.variable_names = "\n".join(
@@ -280,7 +354,10 @@ class CallData:
         else:
             idx = arg.get_variable_index_string_for_write(indexer)
 
-        # Build the 'call_data.variable[idx]' string for this variable
+        shape = arg.buffer_shape
+        if shape is not None and len(shape) > 0:
+            idx = f"[{{{idx[1:-1]}}}]"
+
         call_data = cg.attribute("call_data", f"{arg.name}{idx}")
 
         # Append variable code based on access type
@@ -316,6 +393,9 @@ class CallData:
     ):
         # Return value is effectively a write-only variable called _res
         idx = arg.get_variable_index_string_for_write(indexer)
+        shape = arg.buffer_shape
+        if shape is not None and len(shape) > 0:
+            idx = f"[{{{idx[1:-1]}}}]"
         call_data = cg.attribute("call_data", f"{arg.name}{idx}")
         out_names.append(cg.declare(arg.input_def_string_for_write, arg.name))
         out_reads.append(
@@ -452,16 +532,28 @@ class CallData:
         else:
             trampoline_call = "bwd_diff(_trampoline)"
 
+        if len(self.strides) > 0:
+            self.variable_names += f"\n    int[{len(self.strides)}] _call_stride;"
+            load_call_id = f"    int[{len(self.strides)}] call_id;\n"
+            load_call_id += "".join(
+                [
+                    f"    call_id[{i}] = dispatchThreadID.x/call_data._call_stride[{i}];\n"
+                    for i in range(len(self.strides))
+                ]
+            )
+            self.pre_trampoline_reads = load_call_id + self.pre_trampoline_reads
+
         # Build the shader string.
         shader = f"""
 import "{self.function.module.name}";
 
+{TYPES}
+
 struct CallData {{
+    uint3 _thread_count;
 {self.variable_names}
 }};
-CallData call_data;
-
-static const uint3 TOTAL_THREADS = uint3({self.total_threads}, 1, 1);
+ParameterBlock<CallData> call_data;
 
 {self.trampoline_modifiers}
 void _trampoline({self.trampoline_params}) {{
@@ -471,7 +563,7 @@ void _trampoline({self.trampoline_params}) {{
 [shader("compute")]
 [numthreads(32, 1, 1)]
 void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
-    if (any(dispatchThreadID >= TOTAL_THREADS))
+    if (any(dispatchThreadID >= call_data._thread_count))
         return;
 {self.pre_trampoline_reads}
     {trampoline_call}({self.trampoline_args});
@@ -564,7 +656,10 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
         layouts: dict[str, sgl.TypeLayoutReflection],
     ) -> Any:
         if isinstance(argument.value, StructuredBuffer):
-            return argument.value.buffer
+            return {
+                "buffer": argument.value.buffer,
+                "strides": list(argument.value.strides),
+            }
         elif isinstance(argument.value, ScalarDiffPair):
             if writable:
                 return self._create_buffer_for_scalar_argument(argument.name, layouts)
@@ -615,7 +710,7 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
     ) -> Any:
         if isinstance(argument.value, StructuredBuffer):
             assert isinstance(
-                output, sgl.Buffer
+                output, dict
             )  # No need to do anything if this was a buffer
         elif isinstance(argument.value, ScalarDiffPair):
             if writable:
@@ -696,6 +791,7 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
         # Find the cell_data structure via the module's global constant buffer, so we
         # can extract the fields and concrete layouts for them.
         cbuffer_type_layout = module.layout.globals_type_layout.unwrap_array()
+        cbuffer_fields = [x for x in cbuffer_type_layout.fields]
         element_type_layout = cbuffer_type_layout.element_type_layout
         if (
             element_type_layout is not None
@@ -705,7 +801,9 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
         assert len(cbuffer_type_layout.fields) == 1
         call_data_variable_layout = cbuffer_type_layout.fields[0]
         assert call_data_variable_layout.name == "call_data"
-        call_data_type_layout = call_data_variable_layout.type_layout
+        call_data_type_layout = (
+            call_data_variable_layout.type_layout.element_type_layout
+        )
         field_layouts = {
             field.name: field.type_layout for field in call_data_type_layout.fields
         }
@@ -718,6 +816,9 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
             self._write_call_data_for_argument(
                 self.return_value, call_data, field_layouts
             )
+        if len(self.strides) > 0:
+            call_data["_call_stride"] = self.strides
+        call_data["_thread_count"] = sgl.uint3(self.total_threads, 1, 1)
 
         # Dispatch the kernel.
         kernel.dispatch(sgl.uint3(self.total_threads, 1, 1), {"call_data": call_data})
