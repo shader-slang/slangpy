@@ -1,9 +1,18 @@
-from typing import Optional, cast
+from typing import Optional, TypedDict, cast
 
 TConcreteShape = tuple[int, ...]
 TConcreteOrUndefinedShape = Optional[TConcreteShape]
 TLooseShape = tuple[Optional[int], ...]
 TLooseOrUndefinedShape = Optional[TLooseShape]
+
+TArgShapesResult = TypedDict(
+    "TArgShapesResult",
+    {
+        "type_shapes": list[list[int]],
+        "arg_shapes": list[list[int]],
+        "call_shape": list[int],
+    },
+)
 
 
 # Given the shapes of the parameters (inferred from reflection) and inputs (passed in by the user), calculates the
@@ -15,7 +24,7 @@ def calculate_argument_shapes(
     input_shapes: list[TLooseOrUndefinedShape],
     input_transforms: Optional[list[TConcreteOrUndefinedShape]] = None,
     call_transforms: Optional[list[TConcreteOrUndefinedShape]] = None,
-):
+) -> TArgShapesResult:
     # Break the input shapes into type shapes and argument shapes
     (type_shapes, arg_shapes) = _split_type_and_argument_shapes(
         param_type_shapes, input_shapes, input_transforms

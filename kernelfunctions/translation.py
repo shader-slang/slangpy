@@ -134,7 +134,7 @@ class ArrayType(BaseType):
     def shape(self) -> tuple[Union[int, None], ...]:
         ec = self.reflection.element_count
         if ec >= 1:
-            return (self.reflection.element_count,)
+            return (self.reflection.element_count,) + self.element_type.shape
         else:
             return (None,)
 
@@ -234,6 +234,20 @@ class ArgumentAccessType(enum.Enum):
     readwrite = 3
 
 
+def get_value_shape(value: Any) -> tuple[Union[int, None], ...]:
+    if isinstance(value, StructuredBuffer):
+        return (value.element_count,) + get_value_shape(value.element_type)
+
+    if isinstance(value, type):
+        value = value()
+
+    shape = getattr(value, "shape", None)
+    if shape is not None:
+        return shape
+
+    return (1,)
+
+
 class BaseFuncValue:
     def __init__(self, value: Optional[Any], translation_type: BaseType):
         super().__init__()
@@ -273,11 +287,15 @@ class BaseFuncValue:
         )
 
     @property
-    def python_shape(self):
-        if isinstance(self.value, StructuredBuffer):
-            return (self.value.element_count,)
+    def parameter_shape(self):
+        return self.translation_type.shape
+
+    @property
+    def value_shape(self):
+        if self.value is not None:
+            return get_value_shape(self.value)
         else:
-            return (1,)
+            return None
 
     @property
     def is_differentiable(self) -> bool:

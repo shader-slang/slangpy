@@ -7,6 +7,7 @@ import hashlib
 
 from kernelfunctions.buffer import StructuredBuffer
 from kernelfunctions.function import Function, FunctionChainBase, FunctionChainSet
+from kernelfunctions.shapes import calculate_argument_shapes
 import kernelfunctions.translation as kft
 import kernelfunctions.codegen as cg
 from kernelfunctions.utils import ScalarDiffPair, ScalarRef, is_differentiable_buffer
@@ -169,14 +170,15 @@ class CallData:
         if backwards and not self.differentiable:
             raise ValueError("Function is not differentiable")
 
-        # Calculate broadcast dimensions using numpy rules with parameter shapes
-        self.dim_sizes = calculate_broadcast_dimensions(
-            [x.python_shape for x in self.parameters.values()]
+        # Calculate call shape
+        self.shape = calculate_argument_shapes(
+            [x.parameter_shape for x in self.parameters.values()],
+            [x.value_shape for x in self.parameters.values()],
         )
 
         # Store total threads
         self.total_threads = 1
-        for dim in self.dim_sizes:
+        for dim in self.shape["call_shape"]:
             self.total_threads *= dim
 
         # Build variable names list for call data struct.
