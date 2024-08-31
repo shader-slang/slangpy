@@ -25,3 +25,8 @@ reportMissingSuperCall  = "error"
 reportInvalidStringEscapeSequence = "error"
 reportMissingParameterType = "error"
 reportMissingTypeArgument = "warning"
+
+[tool.autopep8]
+in-place = true
+max-line-length = 90
+
