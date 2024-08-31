@@ -534,10 +534,11 @@ class CallData:
 
         if len(self.strides) > 0:
             self.variable_names += f"\n    int[{len(self.strides)}] _call_stride;"
+            self.variable_names += f"\n    int[{len(self.strides)}] _call_dim;"
             load_call_id = f"    int[{len(self.strides)}] call_id;\n"
             load_call_id += "".join(
                 [
-                    f"    call_id[{i}] = dispatchThreadID.x/call_data._call_stride[{i}];\n"
+                    f"    call_id[{i}] = (dispatchThreadID.x/call_data._call_stride[{i}]) % call_data._call_dim[{i}];\n"
                     for i in range(len(self.strides))
                 ]
             )
@@ -769,9 +770,9 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
     ) -> Any:
         layout_name = layouts[arg_name].element_type_layout.name
         if layout_name == "int":
-            return buffer.to_numpy().view(np.int32)[0]
+            return int(buffer.to_numpy().view(np.int32)[0])
         elif layout_name == "float":
-            return buffer.to_numpy().view(np.float32)[0]
+            return float(buffer.to_numpy().view(np.float32)[0])
         else:
             raise ValueError(f"Unsupported scalar type {layout_name}")
 
@@ -818,6 +819,7 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {{
             )
         if len(self.strides) > 0:
             call_data["_call_stride"] = self.strides
+            call_data["_call_dim"] = self.shape["call_shape"]
         call_data["_thread_count"] = sgl.uint3(self.total_threads, 1, 1)
 
         # Dispatch the kernel.

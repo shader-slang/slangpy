@@ -47,7 +47,7 @@ def calculate_argument_shapes(
     for arg_index, arg_shape in enumerate(arg_shapes):
         if arg_shape is not None:
             arg_dims = len(arg_shape)
-            transforms.append([call_dim_end - i for i in range(arg_dims)])
+            transforms.append([i for i in range(arg_dims)])
         else:
             transforms.append(None)
 

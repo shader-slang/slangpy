@@ -233,6 +233,24 @@ def test_dotproduct_infer_buffer_size():
     assert not diff
 
 
+def test_dotproduct_big_tensors():
+
+    # Use remapping to allow 1000 indices to be batch tested
+    # against 50*(4,256,128), resulting in output of 50*(1000)
+    shapes = calculate_argument_shapes(
+        DOT_PRODUCT_SIGNATURE, [(8, 4, 2, 3), (8, 4, 2, 3), (8, 4, 2, 1)]
+    )
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {
+            "type_shapes": [[3], [3], [1]],
+            "arg_shapes": [[8, 4, 2], [8, 4, 2], [8, 4, 2]],
+            "call_shape": [8, 4, 2],
+        },
+    )
+    assert not diff
+
+
 def test_readslice_scalar():
 
     # Scalar call to the read slice function, with a single index

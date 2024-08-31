@@ -7,7 +7,7 @@ import numpy as np
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_create_function(device_type: sgl.DeviceType):
+def test_basic_3d_call(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
 
@@ -21,16 +21,21 @@ void add_numbers_nd(float a, float b, out float c) {
 """,
     )
 
-    a = StructuredBuffer(device, element_type=float, shape=(512, 256, 4))
-    a.buffer.from_numpy(np.random.rand(a.element_count).astype(np.float32))
+    a = StructuredBuffer(device, element_type=float, shape=(2, 2))
+    b = StructuredBuffer(device, element_type=float, shape=(2, 2))
+    c = StructuredBuffer(device, element_type=float, shape=(2, 2))
 
-    b = StructuredBuffer(device, element_type=float, shape=(512, 256, 4))
-    b.buffer.from_numpy(np.random.rand(a.element_count).astype(np.float32))
+    a_data = np.random.rand(*a.shape).astype(np.float32)  # type: ignore (shape is a tuple)
+    b_data = np.random.rand(*b.shape).astype(np.float32)  # type: ignore (shape is a tuple)
 
-    c = StructuredBuffer(device, element_type=float, shape=(512, 256, 4))
-    c.buffer.from_numpy(np.zeros(a.element_count, dtype=np.float32))
+    a.buffer.from_numpy(a_data)
+    b.buffer.from_numpy(b_data)
 
     function(a, b, c)
+
+    c_expected = a_data + b_data
+    c_data = c.buffer.to_numpy().view(np.float32).reshape(*c.shape)
+    assert np.allclose(c_data, c_expected, atol=0.01)
 
 
 if __name__ == "__main__":
