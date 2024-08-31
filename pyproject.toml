@@ -29,4 +29,7 @@ reportMissingTypeArgument = "warning"
 [tool.autopep8]
 in-place = true
 max-line-length = 90
-
+#ignore:
+# pep8 defaults
+# E731: lambda->def
+ignore = "E226,E24,W50,W690,E731"

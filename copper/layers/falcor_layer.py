@@ -421,7 +421,7 @@ class FalcorReflectedType(ReflectedType):
         if open_pos == -1:  # ???
             return []
 
-        arg_str = decl_string[open_pos + 1 : -1]
+        arg_str = decl_string[open_pos + 1: -1]
 
         args = []
         cur = ""

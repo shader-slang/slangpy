@@ -48,7 +48,8 @@ class FunctionChainSet(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
         super().__init__(parent)
         self.props: Optional[dict[str, Any]] = None
-        self.callback: Optional[Callable] = None  # type: ignore (not decided on arguments yet)
+        # type: ignore (not decided on arguments yet)
+        self.callback: Optional[Callable] = None
 
         if len(args) > 0 and len(kwargs) > 0:
             raise ValueError(

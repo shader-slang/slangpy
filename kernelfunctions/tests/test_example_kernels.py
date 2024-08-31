@@ -50,14 +50,16 @@ void user_func(float a, float b, out float c) {
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_0.buffer.from_numpy(rand_array_of_floats(in_buffer_0.element_count))
-    in_buffer_0.grad_buffer.from_numpy(np.zeros(in_buffer_0.element_count, dtype=np.float32))  # type: ignore
+    in_buffer_0.grad_buffer.from_numpy(
+        np.zeros(in_buffer_0.element_count, dtype=np.float32))  # type: ignore
 
     # Same with input buffer 1.
     in_buffer_1 = kf.StructuredBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_1.buffer.from_numpy(rand_array_of_floats(in_buffer_1.element_count))
-    in_buffer_1.grad_buffer.from_numpy(np.zeros(in_buffer_1.element_count, dtype=np.float32))  # type: ignore
+    in_buffer_1.grad_buffer.from_numpy(
+        np.zeros(in_buffer_1.element_count, dtype=np.float32))  # type: ignore
 
     # Create empty output buffer with gradients initialized to 1 (as there is 1-1 correspondence between
     # output of user function and output of kernel)
@@ -65,7 +67,8 @@ void user_func(float a, float b, out float c) {
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     out_buffer.buffer.from_numpy(np.zeros(out_buffer.element_count, dtype=np.float32))
-    out_buffer.grad_buffer.from_numpy(np.ones(out_buffer.element_count, dtype=np.float32))  # type: ignore
+    out_buffer.grad_buffer.from_numpy(
+        np.ones(out_buffer.element_count, dtype=np.float32))  # type: ignore
 
     # Dispatch the forward kernel.
     kernel.dispatch(

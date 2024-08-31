@@ -144,7 +144,7 @@ class SlicedTensor(TensorType, BatchedType, TypeTranslator):
         return input_tensor.get_shape()[: -self.out_type.ndim]
 
     def broadcast(self, input_tensor: TensorRef, batch_size: tuple[int, ...]):
-        shape = batch_size + input_tensor.get_shape()[-self.out_type.ndim :]
+        shape = batch_size + input_tensor.get_shape()[-self.out_type.ndim:]
         logging.debug(
             f"Broadcasting sliced tensor ({self.out_type.ndim}D) from "
             f"{input_tensor.get_shape()} to {batch_size}"

@@ -1,5 +1,6 @@
 import pytest
-import copper.tests.helpers as helpers  # type: ignore (just here as example of having a test helpers module)
+# type: ignore (just here as example of having a test helpers module)
+import copper.tests.helpers as helpers
 from copper.util import broadcast_shapes
 
 
