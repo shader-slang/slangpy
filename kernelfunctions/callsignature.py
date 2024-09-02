@@ -63,7 +63,30 @@ class StructSlangTypeMarshal(BaseSlangTypeMarshal):
         self.value_shape = (1,)
 
 
+class TextureSlangTypeMarshal(BaseSlangTypeMarshal):
+    def __init__(self, slang_type: TypeReflection):
+        super().__init__(slang_type)
+        if slang_type.resource_shape == TypeReflection.ResourceShape.texture_2d:
+            self.container_shape = (None, None)
+        else:
+            raise ValueError(f"Unsupported texture shape {slang_type.resource_shape}")
+        self.resource_marshal = create_slang_type_marshal(slang_type.resource_result_type)
+        self.value_shape = self.resource_marshal.shape
+
+
+class StructuredBufferSlangTypeMarshal(BaseSlangTypeMarshal):
+    def __init__(self, slang_type: TypeReflection):
+        super().__init__(slang_type)
+        if slang_type.resource_shape == TypeReflection.ResourceShape.structured_buffer:
+            self.container_shape = (None,)
+        else:
+            raise ValueError(f"Unsupported texture shape {slang_type.resource_shape}")
+        self.resource_marshal = create_slang_type_marshal(slang_type.resource_result_type)
+        self.value_shape = self.resource_marshal.shape
+
 # Base class for marshalling python types
+
+
 class BasePythonTypeMarshal:
     def __init__(self, python_type: type):
         super().__init__()
@@ -115,7 +138,11 @@ def register_python_type(
 
 
 SLANG_MARSHALS_BY_FULL_NAME: dict[str, type[BaseSlangTypeMarshal]] = {}
-SLANG_MARSHALS_BY_NAME: dict[str, type[BaseSlangTypeMarshal]] = {}
+SLANG_MARSHALS_BY_NAME: dict[str, type[BaseSlangTypeMarshal]] = {
+    "__TextureImpl": TextureSlangTypeMarshal,
+    "StructuredBuffer": StructuredBufferSlangTypeMarshal,
+    "RWStructuredBuffer": StructuredBufferSlangTypeMarshal,
+}
 SLANG_MARSHALS_BY_KIND: dict[TypeReflection.Kind, type[BaseSlangTypeMarshal]] = {
     TypeReflection.Kind.scalar: ScalarSlangTypeMarshal,
     TypeReflection.Kind.vector: VectorSlangTypeMarshal,
@@ -191,6 +218,7 @@ class SignatureNode:
         if self.children is not None:
             fields_by_name = {x.name: x for x in slang_type.fields}
             for name, node in self.children.items():
+                node.param_index = self.param_index
                 node.apply_signature(
                     fields_by_name[name], f"{path}.{name}", input_transforms, output_transforms)
 
@@ -234,6 +262,15 @@ class SignatureNode:
         input_shape = self.python_marshal.shape
         param_shape = self.slang_marshall.shape
         if input_shape is not None:
+            # Optionally use the input remap to re-order input dimensions
+            if self.transform_inputs is not None:
+                if len(self.transform_inputs) != len(input_shape):
+                    raise ValueError(
+                        f"Input remap {self.transform_inputs} must have the same number of dimensions as the input shape {input_shape}"
+                    )
+                input_shape = [input_shape[i] for i in self.transform_inputs]
+
+            # Now assign out shapes, accounting for differing dimensionalities
             type_len = len(param_shape)
             input_len = len(input_shape)
             type_end = type_len - 1
@@ -270,10 +307,7 @@ class SignatureNode:
             return
 
         # Verify transforms match argument shape
-        if self.transform_inputs is not None and len(self.transform_inputs) == len(self.argument_shape):
-            raise ValueError(
-                f"Transform inputs {self.transform_inputs} must have the same number of dimensions as the argument shape {self.argument_shape}")
-        if self.transform_outputs is not None and len(self.transform_outputs) == len(self.argument_shape):
+        if self.transform_outputs is not None and len(self.transform_outputs) != len(self.argument_shape):
             raise ValueError(
                 f"Transform outputs {self.transform_outputs} must have the same number of dimensions as the argument shape {self.argument_shape}")
 

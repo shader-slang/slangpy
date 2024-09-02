@@ -30,22 +30,10 @@ class FakeBufferMarshall(BasePythonTypeMarshal):
 register_python_type(FakeBuffer, lambda x: FakeBufferMarshall(x),
                      lambda stream, x: stream.write(x.element_type.__name + "\n"))
 
+
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
-DOT_PRODUCT_SIGNATURE: list[TLooseShape] = [(3,), (3,), (1,)]
-
-# Second set of tests emulate the shape of the following slang function,
-# which has a 2nd parameter with with undefined dimension sizes
-# float4 read(int2 index, Slice<2,float4> array) { return array[index];}
-READ_SLICE_SIGNATURE: list[TLooseShape] = [(2,), (None, None, 4), (4,)]
-
-# Copy function designed to replicate situations in which we'd ideally
-# be able to infer a buffer size but can't due to absence of generics
-# void copy(int index, Slice<1,float4> from, Slice<1,float4> to) { to[index] = from[index];}
-COPY_AT_INDEX_SIGNATURE: list[TLooseShape] = [(1,), (None, 4), (None, 4)]
-
-
 def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any) -> Any:
     device = helpers.get_device(device_type)
 
@@ -60,6 +48,76 @@ def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any) -> Any
         sig, function.ast_functions[0].as_function(), CallMode.prim)
     assert match is not None
     apply_signature(match, function.ast_functions[0].as_function())
+    call_shape = calculate_and_apply_call_shape(match)
+
+    nodes: list[SignatureNode] = []
+    for node in match.values():
+        node.get_input_list(nodes)
+    return {
+        "call_shape": call_shape,
+        "type_shapes": [x.type_shape for x in nodes],
+        "arg_shapes": [x.argument_shape for x in nodes],
+    }
+
+# Second set of tests emulate the shape of the following slang function,
+# which has a 2nd parameter with with undefined dimension sizes
+# float4 read(int2 index, Slice<2,float4> array) { return array[index];}
+
+
+def read_slice(device_type: sgl.DeviceType, index: Any, texture: Any, result: Any,
+               input_transforms: Optional[dict[str, tuple[int, ...]]] = None,
+               ouput_transforms: Optional[dict[str, tuple[int, ...]]] = None,
+               ) -> Any:
+    device = helpers.get_device(device_type)
+
+    function = helpers.create_function_from_module(
+        device,
+        "read_slice",
+        r"float4 read_slice(int2 index, Texture2D<float4> texture) { return texture[index]; }",
+    )
+
+    sig = build_signature(index=index, texture=texture, _result=result)
+    match = match_signature(
+        sig, function.ast_functions[0].as_function(), CallMode.prim)
+    assert match is not None
+    apply_signature(match, function.ast_functions[0].as_function(
+    ), input_transforms, ouput_transforms)
+    call_shape = calculate_and_apply_call_shape(match)
+
+    nodes: list[SignatureNode] = []
+    for node in match.values():
+        node.get_input_list(nodes)
+    return {
+        "call_shape": call_shape,
+        "type_shapes": [x.type_shape for x in nodes],
+        "arg_shapes": [x.argument_shape for x in nodes],
+    }
+
+
+# Copy function designed to replicate situations in which we'd ideally
+# be able to infer a buffer size but can't due to absence of generics
+# void copy(int index, Slice<1,float4> from, Slice<1,float4> to) { to[index] = from[index];}
+COPY_AT_INDEX_SIGNATURE: list[TLooseShape] = [(1,), (None, 4), (None, 4)]
+
+
+def copy_at_index(device_type: sgl.DeviceType, index: Any, frombuffer: Any, tobuffer: Any,
+                  input_transforms: Optional[dict[str, tuple[int, ...]]] = None,
+                  ouput_transforms: Optional[dict[str, tuple[int, ...]]] = None,
+                  ) -> Any:
+    device = helpers.get_device(device_type)
+
+    function = helpers.create_function_from_module(
+        device,
+        "copy_at_index",
+        r"void copy_at_index(int index, StructuredBuffer<float4> fr, RWStructuredBuffer<float4> to) { to[index] = fr[index]; }",
+    )
+
+    sig = build_signature(index=index, fr=frombuffer, to=tobuffer)
+    match = match_signature(
+        sig, function.ast_functions[0].as_function(), CallMode.prim)
+    assert match is not None
+    apply_signature(match, function.ast_functions[0].as_function(
+    ), input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(match)
 
     nodes: list[SignatureNode] = []
@@ -204,7 +262,7 @@ def test_dotproduct_broadcast_result(device_type: sgl.DeviceType):
 def test_dotproduct_broadcast_invalid_result(device_type: sgl.DeviceType):
 
     # pass an output of the wrong shape resulting in error
-    with pytest.raises(ValueError, match=re.escape("Arg 2, PS[0] != IS[0], 1 != 3")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1, PS[0] != IS[0], 1 != 3")):
         shapes = dot_product(device_type, FakeBuffer((100, 3)),
                              FakeBuffer((3,)), FakeBuffer((3,)))
 
@@ -256,13 +314,15 @@ def test_dotproduct_big_tensors(device_type: sgl.DeviceType):
     assert not diff
 
 
-def test_readslice_scalar():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_readslice_scalar(device_type: sgl.DeviceType):
 
     # Scalar call to the read slice function, with a single index
     # and a single slice, and the result undefined.
-    shapes = calculate_argument_shapes(
-        READ_SLICE_SIGNATURE, [(2,), (256, 128, 4), None]
-    )
+    shapes = read_slice(device_type,
+                        FakeBuffer((2, )),
+                        FakeBuffer((256, 128, 4)),
+                        None)
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -274,12 +334,14 @@ def test_readslice_scalar():
     assert not diff
 
 
-def test_readslice_broadcast_slice():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_readslice_broadcast_slice(device_type: sgl.DeviceType):
 
     # Provide a buffer of 50 indices to sample against the 1 slice
-    shapes = calculate_argument_shapes(
-        READ_SLICE_SIGNATURE, [(50, 2), (256, 128, 4), None]
-    )
+    shapes = read_slice(device_type,
+                        FakeBuffer((50, 2)),
+                        FakeBuffer((256, 128, 4)),
+                        None)
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -291,12 +353,14 @@ def test_readslice_broadcast_slice():
     assert not diff
 
 
-def test_readslice_broadcast_index():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_readslice_broadcast_index(device_type: sgl.DeviceType):
 
     # Test the same index against 50 slices
-    shapes = calculate_argument_shapes(
-        READ_SLICE_SIGNATURE, [(2,), (50, 256, 128, 4), None]
-    )
+    shapes = read_slice(device_type,
+                        FakeBuffer((2, )),
+                        FakeBuffer((50, 256, 128, 4)),
+                        None)
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -308,12 +372,14 @@ def test_readslice_broadcast_index():
     assert not diff
 
 
-def test_readslice_vectorcall():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_readslice_vectorcall(device_type: sgl.DeviceType):
 
     # Test the 50 indices against 50 slices
-    shapes = calculate_argument_shapes(
-        READ_SLICE_SIGNATURE, [(50, 2), (50, 256, 128, 4), None]
-    )
+    shapes = read_slice(device_type,
+                        FakeBuffer((50, 2)),
+                        FakeBuffer((50, 256, 128, 4)),
+                        None)
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -325,33 +391,37 @@ def test_readslice_vectorcall():
     assert not diff
 
 
-def test_readslice_invalid_shape():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_readslice_invalid_shape(device_type: sgl.DeviceType):
 
     # Fail trying to pass a float3 buffer into the float4 slice
     with pytest.raises(ValueError, match=re.escape("Arg 1, PS[2] != IS[3], 4 != 3")):
-        shapes = calculate_argument_shapes(
-            READ_SLICE_SIGNATURE, [(50, 2), (50, 256, 128, 3), None]
-        )
+        shapes = read_slice(device_type,
+                            FakeBuffer((50, 2)),
+                            FakeBuffer((50, 256, 128, 3)),
+                            None)
 
 
-def test_readslice_invalid_broadcast():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_readslice_invalid_broadcast(device_type: sgl.DeviceType):
 
     # Fail trying to pass mismatched broadcast dimensions
     with pytest.raises(ValueError, match=re.escape("Arg 1, CS[0] != AS[0], 50 != 75")):
-        shapes = calculate_argument_shapes(
-            READ_SLICE_SIGNATURE, [(50, 2), (75, 256, 128, 4), None]
-        )
+        shapes = read_slice(device_type,
+                            FakeBuffer((50, 2)),
+                            FakeBuffer((75, 256, 128, 4)),
+                            None)
 
 
-def test_readslice_argument_map():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_readslice_argument_map(device_type: sgl.DeviceType):
 
     # Use argument mapping to allow 50 (4,256,128) buffers to be
     # passed as 50 (256,128,4) slices
-    shapes = calculate_argument_shapes(
-        READ_SLICE_SIGNATURE,
-        [(50, 2), (50, 4, 256, 128), None],
-        [None, (0, 2, 3, 1), None],
-    )
+    shapes = read_slice(device_type,
+                        FakeBuffer((50, 2)),
+                        FakeBuffer((50, 4, 256, 128)),
+                        None, input_transforms={"texture": (0, 2, 3, 1)})
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -363,16 +433,15 @@ def test_readslice_argument_map():
     assert not diff
 
 
-def test_readslice_function_map():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_readslice_function_map(device_type: sgl.DeviceType):
 
     # Use remapping to allow 1000 indices to be batch tested
     # against 50*(4,256,128), resulting in output of 50*(1000)
-    shapes = calculate_argument_shapes(
-        READ_SLICE_SIGNATURE,
-        [(1000, 2), (50, 256, 128, 4), None],
-        None,
-        [(1,), (0,), None],
-    )
+    shapes = read_slice(device_type,
+                        FakeBuffer((1000, 2)),
+                        FakeBuffer((50, 256, 128, 4)),
+                        None, ouput_transforms={"index": (1,), "texture": (0,)})
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -384,12 +453,14 @@ def test_readslice_function_map():
     assert not diff
 
 
-def test_copyatindex_both_buffers_defined():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_copyatindex_both_buffers_defined(device_type: sgl.DeviceType):
 
     # Call copy-at-index passing 2 fully defined buffers
-    shapes = calculate_argument_shapes(
-        COPY_AT_INDEX_SIGNATURE, [(50, 1), (100, 4), (100, 4)]
-    )
+    shapes = copy_at_index(device_type,
+                           FakeBuffer((50, 1)),
+                           FakeBuffer((100, 4)),
+                           FakeBuffer((100, 4)))
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -401,14 +472,16 @@ def test_copyatindex_both_buffers_defined():
     assert not diff
 
 
-def test_copyatindex_undersized_output():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_copyatindex_undersized_output(device_type: sgl.DeviceType):
 
     # Situation we'd ideally detect in which output
     # buffer will overrun as its too small, but we
     # need generics/IBuffer to do so.
-    shapes = calculate_argument_shapes(
-        COPY_AT_INDEX_SIGNATURE, [(50, 1), (100, 4), (10, 4)]
-    )
+    shapes = copy_at_index(device_type,
+                           FakeBuffer((50, 1)),
+                           FakeBuffer((100, 4)),
+                           FakeBuffer((10, 4)))
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -420,14 +493,16 @@ def test_copyatindex_undersized_output():
     assert not diff
 
 
-def test_copyatindex_undefined_output_size():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_copyatindex_undefined_output_size(device_type: sgl.DeviceType):
 
     # Output buffer size is undefined and can't be inferred.
     # This would ideally be solved with generics / IBuffer interface
     with pytest.raises(ValueError, match=re.escape("Arg 2 type shape is ambiguous")):
-        shapes = calculate_argument_shapes(
-            COPY_AT_INDEX_SIGNATURE, [(50, 1), (100, 4), (None, 4)]
-        )
+        shapes = copy_at_index(device_type,
+                               FakeBuffer((50, 1)),
+                               FakeBuffer((100, 4)),
+                               FakeBuffer((None, 4)))
 
 
 def test_indexers():

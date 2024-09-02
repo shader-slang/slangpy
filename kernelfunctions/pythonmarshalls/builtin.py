@@ -40,7 +40,7 @@ class NoneTypeMarshal(BasePythonTypeMarshal):
         super().__init__(type(None))
 
     def is_compatible(self, slang_type: TypeReflection) -> bool:
-        return slang_type.kind == TypeReflection.Kind.scalar
+        return True
 
 
 register_python_type(int, IntMarshal(), None)
