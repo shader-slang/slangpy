@@ -1,14 +1,13 @@
 # Simple loop to find / register all the sgl math types
 import sgl
 from kernelfunctions.callsignature import BasePythonTypeMarshal, register_python_type
-from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typemappings import is_valid_scalar_type_conversion
 
 
 class SGLMathTypeMarshal(BasePythonTypeMarshal):
     def __init__(self, sgl_type: type):
         super().__init__(sgl_type)
-        self.shape: TConcreteShape = sgl_type().shape
+        self.shape = sgl_type().shape
         self.element_type: type = sgl_type().element_type
         assert self.element_type in [int, float, bool]
 
@@ -24,7 +23,7 @@ class SGLVectorMarshal(SGLMathTypeMarshal):
         if not self.is_scalar_type_compatible(slang_type):
             return False
         if slang_type.kind == sgl.TypeReflection.Kind.vector:
-            return self.shape[0] == 1 or self.shape[0] == slang_type.col_count
+            return self.shape[0] == slang_type.col_count
         elif slang_type.kind == sgl.TypeReflection.Kind.scalar:
             return self.shape[0] == 1
         return False

@@ -14,11 +14,12 @@ TArgShapesResult = TypedDict(
     },
 )
 
-
 # Given the shapes of the parameters (inferred from reflection) and inputs (passed in by the user), calculates the
 # argument shapes and call shape.
 # All parameters must have a shape, however individual dimensions can have an undefined size (None)
 # Inputs can also be fully undefined
+
+
 def calculate_argument_shapes(
     param_type_shapes: list[TLooseShape],
     input_shapes: list[TLooseOrUndefinedShape],

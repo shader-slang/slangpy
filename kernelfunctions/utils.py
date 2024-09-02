@@ -3,11 +3,28 @@ from numpy import ndarray
 
 import sgl
 
+from kernelfunctions.callsignature import BasePythonTypeMarshal, register_python_type
+from kernelfunctions.typemappings import is_valid_scalar_type_conversion
+
 
 class ScalarRef:
     def __init__(self, init_value: Any):
         super().__init__()
         self.value = init_value
+
+
+class ScalarRefMarshall(BasePythonTypeMarshal):
+    def __init__(self, val: ScalarRef):
+        super().__init__(ScalarRef)
+        self.element_type = type(val.value)
+        self.shape = (1,)
+
+    def is_compatible(self, slang_type: sgl.TypeReflection) -> bool:
+        return slang_type.kind == sgl.TypeReflection.Kind.scalar and is_valid_scalar_type_conversion(slang_type.scalar_type, self.element_type)
+
+
+register_python_type(ScalarRef, lambda x: ScalarRefMarshall(x),
+                     lambda stream, x: stream.write(type(x.value).__name + "\n"))
 
 
 class ScalarDiffPair:

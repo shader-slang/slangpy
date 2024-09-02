@@ -1,7 +1,34 @@
 import re
+from typing import Any, Optional
 import pytest
+import sgl
+from kernelfunctions.callsignature import BasePythonTypeMarshal, CallMode, SignatureNode, apply_signature, build_signature, calculate_and_apply_call_shape, match_signature, register_python_type
 from kernelfunctions.shapes import TLooseShape, build_indexer, calculate_argument_shapes
 import deepdiff
+
+from kernelfunctions.tests import helpers
+from kernelfunctions.utils import floatRef
+
+# Dummy class that fakes a buffer of a given shape for testing
+
+
+class FakeBuffer:
+    def __init__(self, shape: tuple[Optional[int], ...]):
+        super().__init__()
+        self.shape = shape
+
+
+class FakeBufferMarshall(BasePythonTypeMarshal):
+    def __init__(self, val: FakeBuffer):
+        super().__init__(FakeBuffer)
+        self.shape = val.shape
+
+    def is_compatible(self, slang_type: sgl.TypeReflection) -> bool:
+        return True
+
+
+register_python_type(FakeBuffer, lambda x: FakeBufferMarshall(x),
+                     lambda stream, x: stream.write(x.element_type.__name + "\n"))
 
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
@@ -19,11 +46,38 @@ READ_SLICE_SIGNATURE: list[TLooseShape] = [(2,), (None, None, 4), (4,)]
 COPY_AT_INDEX_SIGNATURE: list[TLooseShape] = [(1,), (None, 4), (None, 4)]
 
 
-def test_dotproduct_scalar():
+def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any) -> Any:
+    device = helpers.get_device(device_type)
+
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers",
+        r"float add_numbers(float3 a, float3 b) { return dot(a,b);}",
+    )
+
+    sig = build_signature(a=a, b=b, _result=result)
+    match = match_signature(
+        sig, function.ast_functions[0].as_function(), CallMode.prim)
+    assert match is not None
+    apply_signature(match, function.ast_functions[0].as_function())
+    call_shape = calculate_and_apply_call_shape(match)
+
+    nodes: list[SignatureNode] = []
+    for node in match.values():
+        node.get_input_list(nodes)
+    return {
+        "call_shape": call_shape,
+        "type_shapes": [x.type_shape for x in nodes],
+        "arg_shapes": [x.argument_shape for x in nodes],
+    }
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_scalar(device_type: sgl.DeviceType):
 
     # really simple test case emulating slang function that takes
     # 2 x float3 and returns a float. Expecting a scalar call
-    shapes = calculate_argument_shapes(DOT_PRODUCT_SIGNATURE, [(3,), (3,), None])
+    shapes = dot_product(device_type, sgl.float3(), sgl.float3(), None)
     diff = deepdiff.DeepDiff(
         shapes,
         {"type_shapes": [[3], [3], [1]], "arg_shapes": [[], [], []], "call_shape": []},
@@ -35,20 +89,27 @@ def test_dotproduct_scalar():
     assert not diff
 
 
-def test_dotproduct_broadcast_a():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_scalar_floatref(device_type: sgl.DeviceType):
+
+    # exactly the same but explicitly specifying a float ref for output
+    shapes = dot_product(device_type, sgl.float3(), sgl.float3(), floatRef())
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {"type_shapes": [[3], [3], [1]], "arg_shapes": [[], [], []], "call_shape": []},
+    )
+    assert not diff
+
+    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
+    diff = deepdiff.DeepDiff(indexers, ["", "", ""])
+    assert not diff
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_broadcast_a(device_type: sgl.DeviceType):
 
     # emulates the same case but being passed a buffer for b
-    shapes = calculate_argument_shapes(
-        DOT_PRODUCT_SIGNATURE,
-        [
-            (3,),
-            (
-                100,
-                3,
-            ),
-            None,
-        ],
-    )
+    shapes = dot_product(device_type, sgl.float3(), FakeBuffer((100, 3)), None)
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -64,20 +125,11 @@ def test_dotproduct_broadcast_a():
     assert not diff
 
 
-def test_dotproduct_broadcast_b():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_broadcast_b(device_type: sgl.DeviceType):
 
     # emulates the same case but being passed a buffer for a
-    shapes = calculate_argument_shapes(
-        DOT_PRODUCT_SIGNATURE,
-        [
-            (
-                100,
-                3,
-            ),
-            (3,),
-            None,
-        ],
-    )
+    shapes = dot_product(device_type, FakeBuffer((100, 3)), sgl.float3(), None)
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -93,20 +145,11 @@ def test_dotproduct_broadcast_b():
     assert not diff
 
 
-def test_dotproduct_broadcast_b_from_buffer():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_broadcast_b_from_buffer(device_type: sgl.DeviceType):
 
-    # emulates the same case but being passed a buffer for a
-    shapes = calculate_argument_shapes(
-        DOT_PRODUCT_SIGNATURE,
-        [
-            (
-                100,
-                3,
-            ),
-            (1, 3),
-            None,
-        ],
-    )
+    # similar, but broadcasting b out of a 1D buffer instead
+    shapes = dot_product(device_type, FakeBuffer((100, 3)), FakeBuffer((1, 3)), None)
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -122,59 +165,30 @@ def test_dotproduct_broadcast_b_from_buffer():
     assert not diff
 
 
-def test_dotproduct_shape_error():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_shape_error(device_type: sgl.DeviceType):
 
     # attempt to pass a buffer of float4s for a, causes shape error
     with pytest.raises(ValueError, match=re.escape("Arg 0, PS[0] != IS[1], 3 != 4")):
-        calculate_argument_shapes(
-            DOT_PRODUCT_SIGNATURE,
-            [
-                (
-                    100,
-                    4,
-                ),
-                (3,),
-                None,
-            ],
-        )
+        dot_product(device_type, FakeBuffer((100, 4)), FakeBuffer((3,)), None)
 
 
-def test_dotproduct_broadcast_error():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_broadcast_error(device_type: sgl.DeviceType):
 
     # attempt to pass missmatching buffer sizes for a and b
     with pytest.raises(
         ValueError, match=re.escape("Arg 1, CS[0] != AS[0], 100 != 1000")
     ):
-        shapes = calculate_argument_shapes(
-            DOT_PRODUCT_SIGNATURE,
-            [
-                (
-                    100,
-                    3,
-                ),
-                (
-                    1000,
-                    3,
-                ),
-                None,
-            ],
-        )
+        dot_product(device_type, FakeBuffer((100, 3)), FakeBuffer((1000, 3)), None)
 
 
-def test_dotproduct_broadcast_result():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_broadcast_result(device_type: sgl.DeviceType):
 
     # pass an output, which is also broadcast so would in practice be a race condition
-    shapes = calculate_argument_shapes(
-        DOT_PRODUCT_SIGNATURE,
-        [
-            (
-                100,
-                3,
-            ),
-            (3,),
-            (1,),
-        ],
-    )
+    shapes = dot_product(device_type, FakeBuffer(
+        (100, 3)), FakeBuffer((3,)), sgl.float1())
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -186,42 +200,34 @@ def test_dotproduct_broadcast_result():
     assert not diff
 
 
-def test_dotproduct_broadcast_invalid_result():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_broadcast_invalid_result(device_type: sgl.DeviceType):
 
     # pass an output of the wrong shape resulting in error
     with pytest.raises(ValueError, match=re.escape("Arg 2, PS[0] != IS[0], 1 != 3")):
-        shapes = calculate_argument_shapes(
-            DOT_PRODUCT_SIGNATURE,
-            [
-                (
-                    100,
-                    3,
-                ),
-                (3,),
-                (3,),
-            ],
-        )
+        shapes = dot_product(device_type, FakeBuffer((100, 3)),
+                             FakeBuffer((3,)), FakeBuffer((3,)))
 
 
-def test_dotproduct_ambiguous_call_shape():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_ambiguous_call_shape(device_type: sgl.DeviceType):
 
     # Passing buffer for result with undefined size. In principle
     # this would broadcast to each entry of the buffer, but because
     # the size is undefined it will raise an error
     with pytest.raises(ValueError, match=re.escape("Call shape is ambiguous: [None]")):
-        shapes = calculate_argument_shapes(
-            DOT_PRODUCT_SIGNATURE, [(3,), (3,), (None, 1)]
-        )
+        dot_product(device_type, FakeBuffer((3,)),
+                    FakeBuffer((3,)), FakeBuffer((None, 1)))
 
 
-def test_dotproduct_infer_buffer_size():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_infer_buffer_size(device_type: sgl.DeviceType):
 
     # Passing buffer for result with undefined size. Because we
     # also pass a fixed size buffer for b, we can infer the call
     # shape, and thus the result buffer size
-    shapes = calculate_argument_shapes(
-        DOT_PRODUCT_SIGNATURE, [(3,), (100, 3), (None, 1)]
-    )
+    shapes = dot_product(device_type, FakeBuffer(
+        (3,)), FakeBuffer((100, 3)), FakeBuffer((None, 1)))
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -233,18 +239,17 @@ def test_dotproduct_infer_buffer_size():
     assert not diff
 
 
-def test_dotproduct_big_tensors():
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_big_tensors(device_type: sgl.DeviceType):
 
-    # Use remapping to allow 1000 indices to be batch tested
-    # against 50*(4,256,128), resulting in output of 50*(1000)
-    shapes = calculate_argument_shapes(
-        DOT_PRODUCT_SIGNATURE, [(8, 4, 2, 3), (8, 4, 2, 3), (8, 4, 2, 1)]
-    )
+    # Test some high dimensional tensors with some broadcasting
+    shapes = dot_product(device_type, FakeBuffer((8, 1, 2, 3)),
+                         FakeBuffer((8, 4, 2, 3)), FakeBuffer((8, 4, 2, 1)))
     diff = deepdiff.DeepDiff(
         shapes,
         {
             "type_shapes": [[3], [3], [1]],
-            "arg_shapes": [[8, 4, 2], [8, 4, 2], [8, 4, 2]],
+            "arg_shapes": [[8, 1, 2], [8, 4, 2], [8, 4, 2]],
             "call_shape": [8, 4, 2],
         },
     )

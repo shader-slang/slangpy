@@ -2,7 +2,7 @@ from typing import Any
 import pytest
 import kernelfunctions as kf
 import sgl
-from kernelfunctions.callsignature import CallMode, build_signature, build_signature_hash, match_signature, populate_slang_types
+from kernelfunctions.callsignature import CallMode, build_signature, build_signature_hash, match_signature, apply_signature
 import kernelfunctions.tests.helpers as helpers
 import kernelfunctions.translation as kftrans
 
@@ -55,8 +55,9 @@ INT2_MATCHES = ScalarMatchTest(
         "vector<int64_t,2>",
         "int2",
     ],
-    [int(1), int(-2), sgl.int1(10), sgl.int2(15)],
-    [float(1), sgl.float1(1.0), False, True, sgl.uint1(1), sgl.int3(1)],
+    [sgl.int2(15)],
+    [int(1), int(-2), sgl.int1(10), float(1), sgl.float1(1.0),
+     False, True, sgl.uint1(1), sgl.int3(1)],
 )
 
 TScalarTest = tuple[bool, str, Any, Any]
@@ -125,7 +126,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match is not None
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)
-        populate_slang_types(match, function.ast_functions[0].as_function())
+        apply_signature(match, function.ast_functions[0].as_function())
         assert match["a"].slang_marshall
         assert match["b"].slang_marshall
         assert match["a"].slang_marshall.name == calc_vector_name(slang_type_name)
@@ -137,7 +138,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match is not None
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)
-        populate_slang_types(match, function.ast_functions[0].as_function())
+        apply_signature(match, function.ast_functions[0].as_function())
         assert match["a"].slang_marshall
         assert match["b"].slang_marshall
         assert match["a"].slang_marshall.name == calc_vector_name(slang_type_name)
@@ -149,7 +150,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match is not None
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)
-        populate_slang_types(match, function.ast_functions[0].as_function())
+        apply_signature(match, function.ast_functions[0].as_function())
         assert match["a"].slang_marshall
         assert match["b"].slang_marshall
         assert match["a"].slang_marshall.name == calc_vector_name(slang_type_name)
@@ -194,7 +195,7 @@ void add_numbers(MyStruct v) {{ }}
         assert match["v"].children["a"].python_marshal.type == type(v0)
         assert match["v"].children["b"].python_marshal.type == type(v1)
 
-        populate_slang_types(match, function.ast_functions[0].as_function())
+        apply_signature(match, function.ast_functions[0].as_function())
         assert match["v"].children
         assert match["v"].slang_marshall
         assert match["v"].slang_marshall.name == "MyStruct"
