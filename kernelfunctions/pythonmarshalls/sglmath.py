@@ -1,7 +1,7 @@
 # Simple loop to find / register all the sgl math types
+from typing import Any
 import sgl
 from kernelfunctions.callsignature import BasePythonTypeMarshal, register_python_type
-from kernelfunctions.typemappings import is_valid_scalar_type_conversion
 
 
 class SGLMathTypeMarshal(BasePythonTypeMarshal):
@@ -11,34 +11,21 @@ class SGLMathTypeMarshal(BasePythonTypeMarshal):
         self.element_type: type = sgl_type().element_type
         assert self.element_type in [int, float, bool]
 
-    def is_scalar_type_compatible(self, slang_type: sgl.TypeReflection) -> bool:
-        return is_valid_scalar_type_conversion(slang_type.scalar_type, self.element_type)
+    def get_shape(self, value: Any) -> tuple[int | None, ...]:
+        return self.shape
+
+    def get_element_type(self, value: Any):
+        return type(value)
 
 
 class SGLVectorMarshal(SGLMathTypeMarshal):
     def __init__(self, sgl_type: type):
         super().__init__(sgl_type)
 
-    def is_compatible(self, slang_type: sgl.TypeReflection) -> bool:
-        if not self.is_scalar_type_compatible(slang_type):
-            return False
-        if slang_type.kind == sgl.TypeReflection.Kind.vector:
-            return self.shape[0] == slang_type.col_count
-        elif slang_type.kind == sgl.TypeReflection.Kind.scalar:
-            return self.shape[0] == 1
-        return False
-
 
 class SGLMatrixMarshal(SGLMathTypeMarshal):
     def __init__(self, sgl_type: type):
         super().__init__(sgl_type)
-
-    def is_compatible(self, slang_type: sgl.TypeReflection) -> bool:
-        if not self.is_scalar_type_compatible(slang_type):
-            return False
-        if slang_type.kind == sgl.TypeReflection.Kind.matrix:
-            return self.shape[0] == slang_type.row_count and self.shape[1] == slang_type.col_count
-        return False
 
 
 def _reg_sgl_math_type(sgl_type: type, marshall: BasePythonTypeMarshal):

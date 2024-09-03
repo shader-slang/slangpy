@@ -1,4 +1,5 @@
 import re
+from types import NoneType
 from typing import Any, Optional
 import pytest
 import sgl
@@ -19,15 +20,17 @@ class FakeBuffer:
 
 
 class FakeBufferMarshall(BasePythonTypeMarshal):
-    def __init__(self, val: FakeBuffer):
+    def __init__(self):
         super().__init__(FakeBuffer)
-        self.shape = val.shape
 
-    def is_compatible(self, slang_type: sgl.TypeReflection) -> bool:
-        return True
+    def get_shape(self, value: FakeBuffer) -> tuple[int | None, ...]:
+        return value.shape
+
+    def get_element_type(self, value: Any):
+        return NoneType
 
 
-register_python_type(FakeBuffer, lambda x: FakeBufferMarshall(x),
+register_python_type(FakeBuffer, FakeBufferMarshall(),
                      lambda stream, x: stream.write(x.element_type.__name + "\n"))
 
 

@@ -1,15 +1,17 @@
+from typing import Any
 from sgl import TypeReflection
 from kernelfunctions.callsignature import BasePythonTypeMarshal, register_python_type
-from kernelfunctions.typemappings import is_valid_scalar_type_conversion
 
 
 class BuiltInScalarMarshal(BasePythonTypeMarshal):
     def __init__(self, python_type: type):
         super().__init__(python_type)
-        self.shape = (1,)
 
-    def is_compatible(self, slang_type: TypeReflection) -> bool:
-        return slang_type.kind == TypeReflection.Kind.scalar and is_valid_scalar_type_conversion(slang_type.scalar_type, self.type)
+    def get_shape(self, value: Any):
+        return (1,)
+
+    def get_element_type(self, value: Any):
+        return type(value)
 
 
 class IntMarshal(BuiltInScalarMarshal):
@@ -31,16 +33,22 @@ class DictMarshall(BasePythonTypeMarshal):
     def __init__(self):
         super().__init__(dict)
 
-    def is_compatible(self, slang_type: TypeReflection) -> bool:
-        return slang_type.kind == TypeReflection.Kind.struct
+    def get_shape(self, value: Any):
+        return (1,)
+
+    def get_element_type(self, value: Any):
+        return type(value)
 
 
 class NoneTypeMarshal(BasePythonTypeMarshal):
     def __init__(self):
         super().__init__(type(None))
 
-    def is_compatible(self, slang_type: TypeReflection) -> bool:
-        return True
+    def get_shape(self, value: Any):
+        return None
+
+    def get_element_type(self, value: Any):
+        return type(value)
 
 
 register_python_type(int, IntMarshal(), None)

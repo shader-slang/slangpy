@@ -1,29 +1,37 @@
 from typing import Any, Optional
 from numpy import ndarray
-
 import sgl
-
 from kernelfunctions.callsignature import BasePythonTypeMarshal, register_python_type
-from kernelfunctions.typemappings import is_valid_scalar_type_conversion
 
 
 class ScalarRef:
+    """
+    Minimal class to hold a reference to a scalar value, allowing user to get outputs
+    from scalar inout/out arguments.
+    """
+
     def __init__(self, init_value: Any):
         super().__init__()
         self.value = init_value
 
 
 class ScalarRefMarshall(BasePythonTypeMarshal):
-    def __init__(self, value: ScalarRef):
-        super().__init__(value)
-        self.element_type = type(value.value)
-        self.shape = (1,)
+    """
+    Marshall for scalar ref (will be 1 per scalar element type)
+    """
 
-    def is_compatible(self, slang_type: sgl.TypeReflection) -> bool:
-        return slang_type.kind == sgl.TypeReflection.Kind.scalar and is_valid_scalar_type_conversion(slang_type.scalar_type, self.element_type)
+    def __init__(self):
+        super().__init__(ScalarRef)
+
+    def get_shape(self, value: ScalarRef) -> tuple[int | None, ...]:
+        return (1,)
+
+    def get_element_type(self, value: ScalarRef):
+        return type(value.value)
 
 
-register_python_type(ScalarRef, ScalarRefMarshall,
+register_python_type(ScalarRef,
+                     ScalarRefMarshall(),
                      lambda stream, x: stream.write(type(x.value).__name + "\n"))
 
 

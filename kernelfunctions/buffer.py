@@ -4,7 +4,8 @@ import sgl
 from kernelfunctions.shapes import TConcreteShape
 from .typemappings import TSGLVector, TPythonScalar
 
-ALL_SUPPORTED_TYPES = Union[TSGLVector, TPythonScalar, sgl.TypeLayoutReflection]
+ALL_SUPPORTED_TYPES = Union[Type[TSGLVector],
+                            Type[TPythonScalar], sgl.TypeLayoutReflection]
 
 
 def _calc_element_type_size(element_type: type) -> int:

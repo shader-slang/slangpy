@@ -1,10 +1,13 @@
 from enum import Enum
 import hashlib
 from io import StringIO
-from typing import Any, Callable, Optional, Union, cast
+from types import NoneType
+from typing import Any, Callable, Optional, Type, Union, cast
 from sgl import FunctionReflection, ModifierID, TypeReflection, VariableReflection
+import sgl
 
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape, TLooseOrUndefinedShape, TLooseShape
+from kernelfunctions.typemappings import TPythonScalar, TSGLVector, are_element_types_compatible, is_valid_scalar_type_conversion
 
 
 class CallMode(Enum):
@@ -59,9 +62,11 @@ class BasePythonTypeMarshal:
     def __init__(self, python_type: type):
         super().__init__()
         self.type = python_type
-        self.shape: TLooseOrUndefinedShape = None
 
-    def is_compatible(self, slang_type: TypeReflection) -> bool:
+    def get_shape(self, value: Any) -> TLooseOrUndefinedShape:
+        raise NotImplementedError()
+
+    def get_element_type(self, value: Any) -> Optional[Union[Type[TSGLVector], Type[TPythonScalar], sgl.TypeLayoutReflection]]:
         raise NotImplementedError()
 
     @property
@@ -110,6 +115,10 @@ SLANG_MARSHALS_BY_KIND: dict[TypeReflection.Kind, type[BaseSlangTypeMarshal]] = 
 
 
 def create_slang_type_marshal(slang_type: TypeReflection) -> BaseSlangTypeMarshal:
+    """
+    Looks up correct marshall for a given slang type using
+    first full name search, then base name search, then kind
+    """
     marshal = SLANG_MARSHALS_BY_FULL_NAME.get(slang_type.full_name, None)
     if marshal is not None:
         return marshal(slang_type)
@@ -131,6 +140,9 @@ class SignatureNode:
     def __init__(self, value: Any):
         super().__init__()
         self.python_marshal = PYTHON_TYPE_MARSHAL[(type(value))](value)
+        self.python_shape = self.python_marshal.get_shape(value)
+        self.element_type = self.python_marshal.get_element_type(value)
+
         self.children: Optional[dict[str, SignatureNode]] = None
         if isinstance(value, dict):
             self.children = {x: SignatureNode(y) for x, y in value.items()}
@@ -157,7 +169,7 @@ class SignatureNode:
 
         slang_type = slang_reflection.type if isinstance(
             slang_reflection, VariableReflection) else slang_reflection.return_type
-        if not self.python_marshal.is_compatible(slang_type):
+        if not are_element_types_compatible(self.element_type, slang_type):
             return False
         if self.children is not None:
             fields = slang_type.fields
@@ -269,7 +281,7 @@ class SignatureNode:
         - if end up with undefined type shape, bail
         """
         assert self.slang_marshall is not None
-        input_shape = self.python_marshal.shape
+        input_shape = self.python_shape
         param_shape = self.slang_marshall.shape
         if input_shape is not None:
             # Optionally use the input remap to re-order input dimensions

@@ -1,4 +1,5 @@
-from typing import Any, Literal, Type, Union
+from types import NoneType
+from typing import Any, Callable, Literal, Optional, Type, Union
 import sgl
 
 # This file contaains lots of utilities for handling the mappiong between python,
@@ -102,6 +103,7 @@ SLANG_FLOAT_TYPES = [
     sgl.TypeReflection.ScalarType.float32,
     sgl.TypeReflection.ScalarType.float64,
 ]
+SLANG_ALL_INT_TYPES = SLANG_INT_TYPES + SLANG_UINT_TYPES
 SLANG_SCALAR_TYPES = (
     SLANG_BOOL_TYPES + SLANG_INT_TYPES + SLANG_UINT_TYPES + SLANG_FLOAT_TYPES
 )
@@ -174,3 +176,81 @@ def is_valid_vector_type_conversion(
 ):
     valid_conversions = VALID_CONVERSIONS[dim][slang_scalar_type]
     return python_type in valid_conversions
+
+
+ELEMENT_TYPE_TO_SLANG_TYPE: dict[type, tuple[sgl.TypeReflection.Kind, int, int]] = {}
+
+
+def _reg_mapping(sgl_type: type, kind: sgl.TypeReflection.Kind, rows: int, cols: int):
+    ELEMENT_TYPE_TO_SLANG_TYPE[sgl_type] = (kind, rows, cols)
+
+
+def is_match_scalar(slang_type: sgl.TypeReflection, scalar_types: list[sgl.TypeReflection.ScalarType]):
+    return slang_type.kind == sgl.TypeReflection.Kind.scalar and slang_type.scalar_type in scalar_types
+
+
+def is_match_vector(slang_type: sgl.TypeReflection, scalar_types: list[sgl.TypeReflection.ScalarType], dim: int):
+    return slang_type.kind == sgl.TypeReflection.Kind.vector and slang_type.col_count == dim and slang_type.scalar_type in scalar_types
+
+
+def is_match_matrix(slang_type: sgl.TypeReflection, scalar_types: list[sgl.TypeReflection.ScalarType], rows: int, cols: int):
+    return slang_type.kind == sgl.TypeReflection.Kind.matrix and slang_type.row_count == rows and slang_type.col_count == cols and slang_type.scalar_type in scalar_types
+
+
+MATCHERS: dict[type, Callable[[sgl.TypeReflection], bool]] = {}
+
+# Register matchers for scalar types.
+MATCHERS[int] = lambda slang_type: is_match_scalar(slang_type, SLANG_ALL_INT_TYPES)
+MATCHERS[float] = lambda slang_type: is_match_scalar(slang_type, SLANG_FLOAT_TYPES)
+MATCHERS[bool] = lambda slang_type: is_match_scalar(slang_type, SLANG_BOOL_TYPES)
+
+# Register matchers sgl types.
+for sgl_pair in zip(["int", "float", "bool", "uint", "float16_t"], [SLANG_INT_TYPES, SLANG_FLOAT_TYPES, SLANG_BOOL_TYPES, SLANG_UINT_TYPES, SLANG_FLOAT_TYPES]):
+    # The scalar (i.e. float1) types
+    sgl_type: type = getattr(sgl.math, f"{sgl_pair[0]}1", None)  # type: ignore
+    if sgl_type is not None:
+        MATCHERS[sgl_type] = lambda slang_type, scalar_types=sgl_pair[1], dim=dim: is_match_scalar(
+            slang_type, scalar_types)
+
+    # Vector (i.e. float2) types
+    for dim in range(2, 5):
+        sgl_type: type = getattr(sgl.math, f"{sgl_pair[0]}{dim}", None)  # type: ignore
+        if sgl_type is not None:
+            MATCHERS[sgl_type] = lambda slang_type, scalar_types=sgl_pair[1], dim=dim: is_match_vector(
+                slang_type, scalar_types, dim)
+
+    # Quaternion type
+    MATCHERS[sgl.quatf] = lambda slang_type, scalar_types=sgl_pair[1], dim=dim: is_match_vector(
+        slang_type, scalar_types, 4)
+
+    # Matrix types (note: currently only floats, search for all in case we add them later)
+    for row in range(2, 5):
+        for col in range(2, 5):
+            sgl_type: type = getattr(
+                sgl.math, f"{sgl_pair[0]}{row}x{col}", None)  # type: ignore
+            if sgl_type is not None:
+                MATCHERS[sgl_type] = lambda slang_type, scalar_types=sgl_pair[1], rows=row, cols=col: is_match_matrix(
+                    slang_type, scalar_types, rows, cols)
+
+# Matcher for dict
+MATCHERS[dict] = lambda slang_type: slang_type.kind == sgl.TypeReflection.Kind.struct
+
+
+def are_element_types_compatible(
+        element_type: Optional[Union[Type[TSGLVector], Type[TPythonScalar], sgl.TypeReflection, sgl.TypeLayoutReflection]],
+        slang_type: sgl.TypeReflection
+):
+    """
+    Checks if a core element type is compatible with a slang type
+    """
+    if element_type is NoneType:
+        return True
+    elif isinstance(element_type, sgl.TypeReflection):
+        return element_type.full_name == slang_type.full_name
+    elif isinstance(element_type, sgl.TypeLayoutReflection):
+        return element_type.type.full_name == slang_type.full_name
+    elif isinstance(element_type, type):
+        matcher = MATCHERS.get(element_type, None)
+        if matcher is not None:
+            return matcher(slang_type)
+    return False
