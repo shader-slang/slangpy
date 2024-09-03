@@ -14,16 +14,16 @@ class ScalarRef:
 
 
 class ScalarRefMarshall(BasePythonTypeMarshal):
-    def __init__(self, val: ScalarRef):
-        super().__init__(ScalarRef)
-        self.element_type = type(val.value)
+    def __init__(self, value: ScalarRef):
+        super().__init__(value)
+        self.element_type = type(value.value)
         self.shape = (1,)
 
     def is_compatible(self, slang_type: sgl.TypeReflection) -> bool:
         return slang_type.kind == sgl.TypeReflection.Kind.scalar and is_valid_scalar_type_conversion(slang_type.scalar_type, self.element_type)
 
 
-register_python_type(ScalarRef, lambda x: ScalarRefMarshall(x),
+register_python_type(ScalarRef, ScalarRefMarshall,
                      lambda stream, x: stream.write(type(x.value).__name + "\n"))
 
 

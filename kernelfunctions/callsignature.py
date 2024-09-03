@@ -2,7 +2,7 @@ from enum import Enum
 import hashlib
 from io import StringIO
 from typing import Any, Callable, Optional, Union, cast
-from sgl import FunctionReflection, TypeReflection, VariableReflection
+from sgl import FunctionReflection, ModifierID, TypeReflection, VariableReflection
 
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape, TLooseOrUndefinedShape, TLooseShape
 
@@ -11,6 +11,20 @@ class CallMode(Enum):
     prim = 0
     bwds = 1
     fwds = 2
+
+
+class IOType(Enum):
+    none = 0
+    inn = 1
+    out = 2
+    inout = 3
+
+
+class AccessType(Enum):
+    none = 0
+    read = 1
+    write = 2
+    readwrite = 3
 
 
 # Result of building the signature for a set of args and kwargs
@@ -30,6 +44,7 @@ class BaseSlangTypeMarshal:
         self.name = slang_type.full_name
         self.value_shape: TLooseShape = ()
         self.container_shape: TLooseShape = ()
+        self.differentiable = False
 
     @property
     def shape(self):
@@ -39,54 +54,7 @@ class BaseSlangTypeMarshal:
         return self.name
 
 
-class ScalarSlangTypeMarshal(BaseSlangTypeMarshal):
-    def __init__(self, slang_type: TypeReflection):
-        super().__init__(slang_type)
-        self.value_shape = (1,)
-
-
-class VectorSlangTypeMarshal(BaseSlangTypeMarshal):
-    def __init__(self, slang_type: TypeReflection):
-        super().__init__(slang_type)
-        self.value_shape = (slang_type.col_count,)
-
-
-class MatrixSlangTypeMarshal(BaseSlangTypeMarshal):
-    def __init__(self, slang_type: TypeReflection):
-        super().__init__(slang_type)
-        self.value_shape = (slang_type.row_count, slang_type.col_count)
-
-
-class StructSlangTypeMarshal(BaseSlangTypeMarshal):
-    def __init__(self, slang_type: TypeReflection):
-        super().__init__(slang_type)
-        self.value_shape = (1,)
-
-
-class TextureSlangTypeMarshal(BaseSlangTypeMarshal):
-    def __init__(self, slang_type: TypeReflection):
-        super().__init__(slang_type)
-        if slang_type.resource_shape == TypeReflection.ResourceShape.texture_2d:
-            self.container_shape = (None, None)
-        else:
-            raise ValueError(f"Unsupported texture shape {slang_type.resource_shape}")
-        self.resource_marshal = create_slang_type_marshal(slang_type.resource_result_type)
-        self.value_shape = self.resource_marshal.shape
-
-
-class StructuredBufferSlangTypeMarshal(BaseSlangTypeMarshal):
-    def __init__(self, slang_type: TypeReflection):
-        super().__init__(slang_type)
-        if slang_type.resource_shape == TypeReflection.ResourceShape.structured_buffer:
-            self.container_shape = (None,)
-        else:
-            raise ValueError(f"Unsupported texture shape {slang_type.resource_shape}")
-        self.resource_marshal = create_slang_type_marshal(slang_type.resource_result_type)
-        self.value_shape = self.resource_marshal.shape
-
 # Base class for marshalling python types
-
-
 class BasePythonTypeMarshal:
     def __init__(self, python_type: type):
         super().__init__()
@@ -134,21 +102,11 @@ def register_python_type(
         PYTHON_TYPE_MARSHAL[python_type] = marshall
     PYTHON_SIGNATURE_HASH[python_type] = hash_fn
 
+
 # Create slang marshall for reflection type
-
-
 SLANG_MARSHALS_BY_FULL_NAME: dict[str, type[BaseSlangTypeMarshal]] = {}
-SLANG_MARSHALS_BY_NAME: dict[str, type[BaseSlangTypeMarshal]] = {
-    "__TextureImpl": TextureSlangTypeMarshal,
-    "StructuredBuffer": StructuredBufferSlangTypeMarshal,
-    "RWStructuredBuffer": StructuredBufferSlangTypeMarshal,
-}
-SLANG_MARSHALS_BY_KIND: dict[TypeReflection.Kind, type[BaseSlangTypeMarshal]] = {
-    TypeReflection.Kind.scalar: ScalarSlangTypeMarshal,
-    TypeReflection.Kind.vector: VectorSlangTypeMarshal,
-    TypeReflection.Kind.matrix: MatrixSlangTypeMarshal,
-    TypeReflection.Kind.struct: StructSlangTypeMarshal,
-}
+SLANG_MARSHALS_BY_NAME: dict[str, type[BaseSlangTypeMarshal]] = {}
+SLANG_MARSHALS_BY_KIND: dict[TypeReflection.Kind, type[BaseSlangTypeMarshal]] = {}
 
 
 def create_slang_type_marshal(slang_type: TypeReflection) -> BaseSlangTypeMarshal:
@@ -163,11 +121,13 @@ def create_slang_type_marshal(slang_type: TypeReflection) -> BaseSlangTypeMarsha
         return marshal(slang_type)
     raise ValueError(f"Unsupported slang type {slang_type.full_name}")
 
-# Node in a built signature tree, maintains a pairing of python+slang marshall,
-# and a potential set of child nodes
-
 
 class SignatureNode:
+    """
+    Node in a built signature tree, maintains a pairing of python+slang marshall,
+    and a potential set of child nodes
+    """
+
     def __init__(self, value: Any):
         super().__init__()
         self.python_marshal = PYTHON_TYPE_MARSHAL[(type(value))](value)
@@ -181,11 +141,20 @@ class SignatureNode:
         self.transform_inputs: TConcreteOrUndefinedShape = None
         self.transform_outputs: TConcreteOrUndefinedShape = None
         self.call_transform: Optional[list[int]] = None
+        self.io_type = IOType.none
+        self.no_diff = False
+        self.differentiable = False
+        self.prim_access = AccessType.none
+        self.bwds_access = (AccessType.none, AccessType.none)
+        self.fwds_access = (AccessType.none, AccessType.none)
 
-    # Check if compatible with a variable or function return type
     def is_compatible(
         self, slang_reflection: Union[VariableReflection, FunctionReflection]
     ) -> bool:
+        """
+        Check if the node is compatible with a slang reflection
+        """
+
         slang_type = slang_reflection.type if isinstance(
             slang_reflection, VariableReflection) else slang_reflection.return_type
         if not self.python_marshal.is_compatible(slang_type):
@@ -203,8 +172,6 @@ class SignatureNode:
                     return False
         return True
 
-    # Creates the slang marshall for the node, applies any options and
-    # calculates the argument/type shapes
     def apply_signature(
         self,
         slang_reflection: Union[VariableReflection, FunctionReflection],
@@ -212,13 +179,48 @@ class SignatureNode:
         input_transforms: Optional[dict[str, TConcreteShape]],
         output_transforms: Optional[dict[str, TConcreteShape]]
     ):
+        """
+        Apply a signature to the node, creating the slang marshall and calculating argument shapes
+        """
+        if isinstance(slang_reflection, VariableReflection):
+            # Function argument - check modifiers
+            if slang_reflection.has_modifier(ModifierID.inout):
+                self.io_type = IOType.inout
+            elif slang_reflection.has_modifier(ModifierID.out):
+                self.io_type = IOType.out
+            else:
+                self.io_type = IOType.inn
+            self.no_diff = slang_reflection.has_modifier(ModifierID.nodiff)
+        else:
+            # Just a return value - always out, and only differentiable if function is
+            self.io_type = IOType.out
+            self.no_diff = not slang_reflection.has_modifier(ModifierID.differentiable)
+
+        self._apply_signature(slang_reflection, path, input_transforms, output_transforms)
+
+    def _apply_signature(
+        self,
+        slang_reflection: Union[VariableReflection, FunctionReflection],
+        path: str,
+        input_transforms: Optional[dict[str, TConcreteShape]],
+        output_transforms: Optional[dict[str, TConcreteShape]]
+    ):
+        """
+        Internal function to recursively do the signature apply process
+        """
         slang_type = slang_reflection.type if isinstance(
             slang_reflection, VariableReflection) else slang_reflection.return_type
+
         self.slang_marshall = create_slang_type_marshal(slang_type)
+
+        self._calculate_differentiability()
+
         if self.children is not None:
             fields_by_name = {x.name: x for x in slang_type.fields}
             for name, node in self.children.items():
                 node.param_index = self.param_index
+                node.io_type = self.io_type
+                node.no_diff = self.no_diff
                 node.apply_signature(
                     fields_by_name[name], f"{path}.{name}", input_transforms, output_transforms)
 
@@ -230,13 +232,17 @@ class SignatureNode:
                     path, self.transform_outputs)
             self._calculate_argument_shape()
 
-    # Recursively populate flat list of argument nodes
-
     def get_input_list(self, args: list['SignatureNode']):
+        """
+        Recursively populate flat list of argument nodes
+        """
         self._get_input_list_recurse(args)
         return args
 
     def _get_input_list_recurse(self, args: list['SignatureNode']):
+        """
+        Internal recursive function to populate flat list of argument nodes
+        """
         if self.children is not None:
             for child in self.children.values():
                 child._get_input_list_recurse(args)
@@ -244,20 +250,24 @@ class SignatureNode:
             args.append(self)
 
     def write_call_data_pre_dispatch(self, call_data: dict[str, Any], value: Any):
+        """Writes value to call data dictionary pre-dispatch"""
         pass
 
     def read_call_data_post_dispatch(self, call_data: dict[str, Any], value: Any):
+        """Reads value from call data dictionary post-dispatch"""
         pass
 
     def __repr__(self):
         return self.python_marshal.__repr__()
 
-    # Verify / build concrete shaping
-    # - where both are defined they must match
-    # - where param is defined and input is not, set input to param
-    # - where input is defined and param is not, set param to input
-    # - if end up with undefined type shape, bail
     def _calculate_argument_shape(self):
+        """
+        Calculate the argument shape for the node
+        - where both are defined they must match
+        - where param is defined and input is not, set input to param
+        - where input is defined and param is not, set param to input
+        - if end up with undefined type shape, bail
+        """
         assert self.slang_marshall is not None
         input_shape = self.python_marshal.shape
         param_shape = self.slang_marshall.shape
@@ -323,10 +333,41 @@ class SignatureNode:
                 if self.transform_outputs[i] is not None:
                     self.call_transform[i] = self.transform_outputs[i]
 
+    def _calculate_differentiability(self):
+        """
+        Works out whether this node can be differentiated, then calculates the 
+        corresponding access types for primitive, backwards and forwards passes
+        """
 
-# Efficient function to build a sha256 hash that uniquiely identifies
-# a function call signature (by types and shapes).
+        assert self.slang_marshall is not None
+        self.differentiable = not self.no_diff and self.slang_marshall.differentiable
+
+        if self.differentiable:
+            if self.io_type == IOType.inout:
+                self.prim_access = AccessType.readwrite
+                self.bwds_access = (AccessType.read, AccessType.readwrite)
+            elif self.io_type == IOType.out:
+                self.prim_access = AccessType.write
+                self.bwds_access = (AccessType.none, AccessType.read)
+            else:
+                self.prim_access = AccessType.read
+                self.bwds_access = (AccessType.read, AccessType.write)
+        else:
+            if self.io_type == IOType.inout:
+                self.prim_access = AccessType.readwrite
+                self.bwds_access = (AccessType.read, AccessType.none)
+            elif self.io_type == IOType.out:
+                self.prim_access = AccessType.write
+                self.bwds_access = (AccessType.none, AccessType.none)
+            else:
+                self.prim_access = AccessType.read
+                self.bwds_access = (AccessType.read, AccessType.none)
+
+
 def build_signature_hash(*args: Any, **kwargs: Any) -> str:
+    """
+    Build a sha256 hash that uniquely identifies a function call signature
+    """
     stream = StringIO()
     stream.write("args\n")
     for x in args:
@@ -340,9 +381,12 @@ def build_signature_hash(*args: Any, **kwargs: Any) -> str:
     return hashlib.sha256(stream.getvalue().encode()).hexdigest()
 
 
-# Internal function that walks the value tree to build a hashable
-# buffer containing the types and shapes of the values.
 def _recurse_build_signature_hash(stream: StringIO, python_value: Any):
+    """
+    Internal recursive function to populate a string IO buffer
+    that'll be used to generate sha256 hash
+    """
+
     val_type = type(python_value)
     stream.write(val_type.__name__)
     stream.write("\n")
@@ -359,20 +403,26 @@ def _recurse_build_signature_hash(stream: StringIO, python_value: Any):
             _recurse_build_signature_hash(stream, value)
 
 
-# Builds the initial trees of signature nodes for a given set of
-# python arguments and keyword arguments.
 def build_signature(*args: Any, **kwargs: Any) -> TCallSignature:
+    """
+    Builds a basic call signature for a given set of python 
+    arguments and keyword arguments
+    """
     arg_signatures = [SignatureNode(x) for x in args]
     kwarg_signatures = {k: SignatureNode(v) for k, v in kwargs.items()}
     return (arg_signatures, kwarg_signatures)
 
 
-# Tests if a signature is compatible with a slang function
 def match_signature(
     signature: TCallSignature,
     function_reflection: FunctionReflection,
     call_mode: CallMode
 ) -> Union[None, TMatchedSignature]:
+    """
+    Attempts to efficiently match a signature to a slang function overload.
+    Returns a dictionary of matched argument nodes to parameter names.
+    """
+
     overload_parameters = [x for x in function_reflection.parameters]
 
     args = signature[0]
@@ -438,27 +488,31 @@ def match_signature(
         matched_params["_result"] = rval
     return matched_params  # type: ignore
 
-# Add slang type marshals to the signature nodes for a function it has been matched to
-
 
 def apply_signature(
         signature: TMatchedSignature,
         function_reflection: FunctionReflection,
         input_transforms: Optional[dict[str, TConcreteShape]] = None,
         output_transforms: Optional[dict[str, TConcreteShape]] = None):
-
+    """
+    Apply a matched signature to a slang function, adding slang type marshalls
+    to the signature nodes and performing other work that kicks in once
+    match has occured.
+    """
     for name, node in signature.items():
         reflection = function_reflection if name == "_result" else function_reflection.parameters[
             node.param_index]
         node.apply_signature(reflection, name, input_transforms, output_transforms)
 
-# Given the shapes of the parameters (inferred from reflection) and inputs (passed in by the user), calculates the
-# argument shapes and call shape.
-# All parameters must have a shape, however individual dimensions can have an undefined size (None)
-# Inputs can also be fully undefined
-
 
 def calculate_and_apply_call_shape(signature: TMatchedSignature) -> list[int]:
+    """
+    Given the shapes of the parameters (inferred from reflection) and inputs (passed in by the user), 
+    calculates the argument shapes and call shape.
+    All parameters must have a shape, however individual dimensions can have an undefined size (None).
+    Inputs can also be fully undefined.
+    """
+
     # Get all arguments that are to be written
     nodes: list[SignatureNode] = []
     for node in signature.values():
