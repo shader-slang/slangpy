@@ -382,3 +382,110 @@ read.vmap('array.batches','read.samples')
     .call(tensor_a, tensor_b)
 ```
 
+## Ambiguous output buffer sizes
+
+It is possible to construct situations in which a buffer size is obvious to the author, though not immediately derivable from signature.
+
+In this minimal function, the user has written a function that copies data at a given index from input to output:
+
+```
+xx.slang
+float4 copy_element(int index, StructuredBuffer<float4> input, StructuredBuffer<float4> output) 
+{
+    output[index] = input[index];
+}
+```
+
+```
+# Type shapes for arguments and return value
+# index_TS  = (1)
+# input_TS  = (N,4)
+# output_TS = (N,4)
+
+# Copy between 2 common buffer sizes
+# index_AS  = (100)
+# input_TS  = (512,4)
+# input_AS  = ()
+# output_TS = (512,4)
+# output_AS = ()
+# CS        = (100)
+indices = random_ints(count=100,max=512)
+inbuffer = tensor(512,4)
+outbuffer = tensor(512,4)
+copy_element(indices, inbuffer, outbuffer)
+
+# Undetectable buffer overrun, as slangpy can't
+# know copy_element will write to outbuffer
+# index_AS  = (100)
+# input_TS  = (512,4)
+# input_AS  = ()
+# output_TS = (256,4)
+# output_AS = ()
+# CS        = (100)
+indices = random_ints(count=100,max=512)
+inbuffer = tensor(512,4)
+outbuffer = tensor(256,4)
+copy_element(indices, inbuffer, outbuffer)
+
+# Ambiguous argument - slangpy can't allocate
+# output, as it has no way of knowing the size
+# index_AS  = (100)
+# input_TS  = (512,4)
+# input_AS  = ()
+# output_TS = ?
+# output_AS = ()
+# CS        = (100)
+indices = random_ints(count=100,max=512)
+inbuffer = tensor(512,4)
+outbuffer = TensorOutput()
+copy_element(indices, inbuffer, outbuffer)
+```
+
+If a user wishes for automatic buffer allocation or range checking in this case, they need to provide some mechanism to describe to slang py the link between input and output buffer sizes. Ideally, this would be done in the slang code, as it is where the actual logic is defined. To deal with this, the IBuffer interface designed by Sai is introduced, that has explicit dimension sizing:
+
+```
+float4 copy_element<let N:int>(int index, IBuffer<N,float4> input, IBuffer<N,float4> output) 
+{
+    output[index] = input[index];
+}
+```
+
+In the simplest case, a user could simply specify N:
+
+```
+inbuffer = tensor(512,4)
+copy_element.of(N=inbuffer.size[0])(...)
+```
+
+However we could attempt to automate this. To do so, slangpy would attempt a 'pre-pass' over the generic function to make all variables concrete. Slangpy should not understand the details of generics (it has no concept of 'N' in the above example). Ideally then we would be able to ask slang for a fully specialized function on the basis of only some known inputs. 
+
+```
+# Inputs with ambiguous out. Should be trivial to
+# still identify type shapes of indices and inbuffer.
+# index_AS  = (100)
+# input_TS  = (512,4)
+# output_TS = ?
+indices = random_ints(count=100,max=512)
+inbuffer = tensor(512,4)
+outbuffer = TensorOutput()
+
+# If we can ask slang for the signature of:
+#   copy_element(int2, Tensor<512,4>, Unknown)
+# Now have signature:
+#   copy_element(int, IBuffer<512,float4>, IBuffer<512,float4>)
+
+# Continue as usual
+# input_TS  = (512,4)
+# output_TS = (512,4)
+# etc
+copy_element(indices, inbuffer, outbuffer)
+```
+
+This does come with multiple additional challenges for either slangpy or slang:
+- The arguments may not be simple tensors - we need to handle structured buffers, tensors, textures etc, which may or may not have vector/matrix type elements.
+- In the context of broadcasting, a user may provide higher dimensionality tensors, so we need to communicate to slang only the dimensions relevant to the buffer.
+- This requires some knowledge of the generic copy_element function up front, meaning slangpy has to identify the unspecialized generic
+- Generic parameters may be part of higher level types in the context of class based functions
+- In some classic graphics situations the IBuffer dimension should just be a 'min size' restriction
+
+It's worth noting though that not all of these situations need solving immediately. Even if slangpy can only automate the process in 90% of cases and has to specify N in 10%, that's still a a win!
