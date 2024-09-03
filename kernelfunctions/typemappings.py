@@ -198,11 +198,15 @@ def is_match_matrix(slang_type: sgl.TypeReflection, scalar_types: list[sgl.TypeR
 
 
 MATCHERS: dict[type, Callable[[sgl.TypeReflection], bool]] = {}
+SHAPES: dict[type, tuple[int, ...]] = {}
 
 # Register matchers for scalar types.
 MATCHERS[int] = lambda slang_type: is_match_scalar(slang_type, SLANG_ALL_INT_TYPES)
 MATCHERS[float] = lambda slang_type: is_match_scalar(slang_type, SLANG_FLOAT_TYPES)
 MATCHERS[bool] = lambda slang_type: is_match_scalar(slang_type, SLANG_BOOL_TYPES)
+SHAPES[int] = (1,)
+SHAPES[float] = (1,)
+SHAPES[bool] = (1,)
 
 # Register matchers sgl types.
 for sgl_pair in zip(["int", "float", "bool", "uint", "float16_t"], [SLANG_INT_TYPES, SLANG_FLOAT_TYPES, SLANG_BOOL_TYPES, SLANG_UINT_TYPES, SLANG_FLOAT_TYPES]):
@@ -211,6 +215,7 @@ for sgl_pair in zip(["int", "float", "bool", "uint", "float16_t"], [SLANG_INT_TY
     if sgl_type is not None:
         MATCHERS[sgl_type] = lambda slang_type, scalar_types=sgl_pair[1], dim=dim: is_match_scalar(
             slang_type, scalar_types)
+        SHAPES[sgl_type] = (1,)
 
     # Vector (i.e. float2) types
     for dim in range(2, 5):
@@ -218,10 +223,12 @@ for sgl_pair in zip(["int", "float", "bool", "uint", "float16_t"], [SLANG_INT_TY
         if sgl_type is not None:
             MATCHERS[sgl_type] = lambda slang_type, scalar_types=sgl_pair[1], dim=dim: is_match_vector(
                 slang_type, scalar_types, dim)
+            SHAPES[sgl_type] = (dim,)
 
     # Quaternion type
     MATCHERS[sgl.quatf] = lambda slang_type, scalar_types=sgl_pair[1], dim=dim: is_match_vector(
         slang_type, scalar_types, 4)
+    SHAPES[sgl.quatf] = (4,)
 
     # Matrix types (note: currently only floats, search for all in case we add them later)
     for row in range(2, 5):
@@ -231,9 +238,11 @@ for sgl_pair in zip(["int", "float", "bool", "uint", "float16_t"], [SLANG_INT_TY
             if sgl_type is not None:
                 MATCHERS[sgl_type] = lambda slang_type, scalar_types=sgl_pair[1], rows=row, cols=col: is_match_matrix(
                     slang_type, scalar_types, rows, cols)
+                SHAPES[sgl_type] = (row, col)
 
 # Matcher for dict
-MATCHERS[dict] = lambda slang_type: slang_type.kind == sgl.TypeReflection.Kind.struct
+MATCHERS[dict] = lambda slang_type: slang_type.kind in [
+    sgl.TypeReflection.Kind.struct, sgl.TypeReflection.Kind.vector]
 
 
 def are_element_types_compatible(

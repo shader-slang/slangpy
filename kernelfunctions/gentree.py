@@ -1,23 +1,47 @@
 from enum import Enum
-from typing import Callable, Sequence, Union
+from typing import Callable, Union
 
 
 class NodeType(Enum):
-    assign = (1,)
-    call = (2,)
-    index = (3,)
+    assign = 1
+    call = 2
+    index = 3
     declare = 4
 
 
 TNodeOrValue = Union[str, "TNode"]
-TNodeArgs = tuple[TNodeOrValue, ...]
+TNodeArgs = list[TNodeOrValue]
 TNode = tuple[NodeType, TNodeArgs]
 
-TGenerator = Callable[[*TNodeArgs], str]
+TGenerator = Callable[[*tuple[TNodeOrValue]], str]
 
 
 def make_node(op: NodeType, *args: TNodeOrValue) -> TNode:
-    return (op, args)
+    return (op, list(args))
+
+
+def declare(typename: TNodeOrValue, varname: TNodeOrValue) -> TNode:
+    return make_node(NodeType.declare, typename, varname)
+
+
+def gen_declare(*args: TNodeOrValue):
+    return f"{eval(args[0])} {eval(args[1])}"
+
+
+def assign(lhs: TNode, rhs: TNode) -> TNode:
+    return make_node(NodeType.assign, lhs, rhs)
+
+
+def gen_assign(*args: TNodeOrValue):
+    return f"{eval(args[0])} = {eval(args[1])}"
+
+
+def index(array: TNode, idx: TNode) -> TNode:
+    return make_node(NodeType.index, array, idx)
+
+
+def gen_index(*args: TNodeOrValue):
+    return f"{eval(args[0])}[{eval(args[1])}]"
 
 
 def eval(node: TNodeOrValue):
@@ -25,18 +49,6 @@ def eval(node: TNodeOrValue):
         return node
     else:
         return GENERATORS[node[0]](*node[1])
-
-
-def gen_assign(*args: TNodeOrValue):
-    return f"{eval(args[0])} = {eval(args[1])}"
-
-
-def gen_declare(*args: TNodeOrValue):
-    return f"{eval(args[0])} {eval(args[1])}"
-
-
-def gen_index(*args: TNodeOrValue):
-    return f"{eval(args[0])}[{eval(args[1])}]"
 
 
 GENERATORS: dict[NodeType, TGenerator] = {

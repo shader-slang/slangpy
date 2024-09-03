@@ -3,11 +3,12 @@ from types import NoneType
 from typing import Any, Optional
 import pytest
 import sgl
-from kernelfunctions.callsignature import BasePythonTypeMarshal, CallMode, SignatureNode, apply_signature, build_signature, calculate_and_apply_call_shape, match_signature, register_python_type
-from kernelfunctions.shapes import TLooseShape, build_indexer, calculate_argument_shapes
+from kernelfunctions.callsignature import CallMode, SignatureNode, apply_signature, build_signature, calculate_and_apply_call_shape, match_signature
+from kernelfunctions.shapes import TLooseShape, build_indexer
 import deepdiff
 
 from kernelfunctions.tests import helpers
+from kernelfunctions.typeregistry import BasePythonTypeMarshal, register_python_type
 from kernelfunctions.utils import floatRef
 
 # Dummy class that fakes a buffer of a given shape for testing

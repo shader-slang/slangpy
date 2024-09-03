@@ -1,6 +1,7 @@
-from typing import Any
-from sgl import TypeReflection
-from kernelfunctions.callsignature import BasePythonTypeMarshal, register_python_type
+from typing import Any, Optional
+from kernelfunctions.codegen import declare
+from kernelfunctions.shapes import TConcreteShape
+from kernelfunctions.typeregistry import AccessType, BasePythonTypeMarshal, register_python_type
 
 
 class BuiltInScalarMarshal(BasePythonTypeMarshal):
@@ -9,9 +10,6 @@ class BuiltInScalarMarshal(BasePythonTypeMarshal):
 
     def get_shape(self, value: Any):
         return (1,)
-
-    def get_element_type(self, value: Any):
-        return type(value)
 
 
 class IntMarshal(BuiltInScalarMarshal):
@@ -36,19 +34,29 @@ class DictMarshall(BasePythonTypeMarshal):
     def get_shape(self, value: Any):
         return (1,)
 
-    def get_element_type(self, value: Any):
-        return type(value)
-
 
 class NoneTypeMarshal(BasePythonTypeMarshal):
+    """
+    None type occurs for basic return values when user hasn't provided a destination
+    """
+
     def __init__(self):
         super().__init__(type(None))
 
     def get_shape(self, value: Any):
         return None
 
-    def get_element_type(self, value: Any):
-        return type(value)
+    def is_writable(self, value: Any) -> bool:
+        return True
+
+    def declare_inputs(self,
+                       name: str, shape: TConcreteShape,
+                       primal_type: Optional[str], primal_access: AccessType,
+                       derivative_type: Optional[str], derivative_access: AccessType,
+                       out_inputs: list[Any]):
+        if primal_access == AccessType.write:
+            out_inputs.append(
+                declare(f"RWTensorBuffer<{primal_type},{max(len(shape),1)}>", f"{name}_primal"))
 
 
 register_python_type(int, IntMarshal(), None)

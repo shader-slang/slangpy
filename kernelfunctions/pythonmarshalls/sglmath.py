@@ -1,21 +1,17 @@
 # Simple loop to find / register all the sgl math types
 from typing import Any
 import sgl
-from kernelfunctions.callsignature import BasePythonTypeMarshal, register_python_type
+
+from kernelfunctions.typeregistry import BasePythonTypeMarshal, register_python_type
 
 
 class SGLMathTypeMarshal(BasePythonTypeMarshal):
     def __init__(self, sgl_type: type):
         super().__init__(sgl_type)
         self.shape = sgl_type().shape
-        self.element_type: type = sgl_type().element_type
-        assert self.element_type in [int, float, bool]
 
     def get_shape(self, value: Any) -> tuple[int | None, ...]:
         return self.shape
-
-    def get_element_type(self, value: Any):
-        return type(value)
 
 
 class SGLVectorMarshal(SGLMathTypeMarshal):

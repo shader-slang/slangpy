@@ -1,7 +1,6 @@
 import os
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, cast
 import numpy as np
-import numpy.typing as npt
 import sgl
 import hashlib
 
@@ -15,13 +14,12 @@ from kernelfunctions.function import (
 )
 from kernelfunctions.shapes import (
     TConcreteShape,
-    TLooseShape,
     build_indexer,
     calculate_argument_shapes,
 )
 import kernelfunctions.translation as kft
 import kernelfunctions.codegen as cg
-from kernelfunctions.utils import ScalarDiffPair, ScalarRef, is_differentiable_buffer
+from kernelfunctions.utils import ScalarDiffPair, ScalarRef
 
 TYPES = r"""
 int _idx<let N: int>(int[N] index, int[N] stride) {
