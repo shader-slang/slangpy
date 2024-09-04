@@ -3,7 +3,7 @@
 from typing import Union
 from sgl import TypeReflection
 
-from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_KIND, SLANG_MARSHALS_BY_SCALAR_TYPE, BaseSlangTypeMarshal, create_slang_type_marshal
+from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_KIND, SLANG_MARSHALS_BY_SCALAR_TYPE, AccessType, BaseSlangTypeMarshal, create_slang_type_marshal
 
 
 class ScalarSlangTypeMarshal(BaseSlangTypeMarshal):
@@ -17,6 +17,9 @@ class ScalarSlangTypeMarshal(BaseSlangTypeMarshal):
 
     def differentiate(self):
         return self if self.differentiable else None
+
+    def to_slang(self, access: AccessType):
+        return self.name
 
 
 class VectorSlangTypeMarshal(BaseSlangTypeMarshal):

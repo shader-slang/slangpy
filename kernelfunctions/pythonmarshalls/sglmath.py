@@ -10,7 +10,7 @@ class SGLMathTypeMarshal(BasePythonTypeMarshal):
         super().__init__(sgl_type)
         self.shape = sgl_type().shape
 
-    def get_shape(self, value: Any) -> tuple[int | None, ...]:
+    def get_element_shape(self, value: Any) -> tuple[int | None, ...]:
         return self.shape
 
 

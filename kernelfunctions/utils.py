@@ -1,7 +1,7 @@
 from typing import Any, Optional
 from numpy import ndarray
 import sgl
-from kernelfunctions.codegen import declare
+from kernelfunctions.codegen import CodeGen, declare
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import AccessType, BasePythonTypeMarshal, get_python_type_marshall, register_python_type
 
@@ -25,32 +25,14 @@ class ScalarRefMarshall(BasePythonTypeMarshal):
     def __init__(self):
         super().__init__(ScalarRef)
 
-    def get_shape(self, value: ScalarRef):
-        return get_python_type_marshall(value.value).get_shape(value.value)
+    def get_element_shape(self, value: ScalarRef):
+        return get_python_type_marshall(value.value).get_element_shape(value.value)
 
     def get_element_type(self, value: ScalarRef):
         return get_python_type_marshall(value.value).get_element_type(value.value)
 
     def is_writable(self, value: Any) -> bool:
         return True
-
-    def _buff_typename(self, typename: str, access: AccessType):
-        if access == AccessType.read:
-            return typename
-        else:
-            return f"RWStructuredBuffer<{typename}>"
-
-    def declare_inputs(self,
-                       name: str, shape: TConcreteShape,
-                       primal_type: Optional[str], primal_access: AccessType,
-                       derivative_type: Optional[str], derivative_access: AccessType,
-                       out_inputs: list[Any]):
-        assert len(shape) <= 1
-        assert derivative_access == AccessType.none
-        if primal_access != AccessType.none:
-            assert primal_type is not None
-            out_inputs.append(declare(self._buff_typename(
-                primal_type, primal_access), f"{name}_primal"))
 
 
 register_python_type(ScalarRef,
@@ -74,8 +56,8 @@ class ScalarDiffPairMarshall(BasePythonTypeMarshal):
     def __init__(self):
         super().__init__(ScalarDiffPair)
 
-    def get_shape(self, value: ScalarDiffPair):
-        return get_python_type_marshall(value.primal).get_shape(value.primal)
+    def get_element_shape(self, value: ScalarDiffPair):
+        return get_python_type_marshall(value.primal).get_element_shape(value.primal)
 
     def get_element_type(self, value: ScalarDiffPair):
         return get_python_type_marshall(value.primal).get_element_type(value.primal)
@@ -85,27 +67,6 @@ class ScalarDiffPairMarshall(BasePythonTypeMarshal):
 
     def is_differentiable(self, value: ScalarDiffPair) -> bool:
         return value.needs_grad
-
-    def _buff_typename(self, typename: str, access: AccessType):
-        if access == AccessType.read:
-            return typename
-        else:
-            return f"RWStructuredBuffer<{typename}>"
-
-    def declare_inputs(self,
-                       name: str, shape: TConcreteShape,
-                       primal_type: Optional[str], primal_access: AccessType,
-                       derivative_type: Optional[str], derivative_access: AccessType,
-                       out_inputs: list[Any]):
-        assert len(shape) <= 1
-        if primal_access != AccessType.none:
-            assert primal_type is not None
-            out_inputs.append(declare(self._buff_typename(
-                primal_type, primal_access), f"{name}_primal"))
-        if derivative_access != AccessType.none:
-            assert derivative_type is not None
-            out_inputs.append(declare(self._buff_typename(
-                derivative_type, derivative_access), f"{name}_derivative"))
 
 
 register_python_type(ScalarDiffPair,

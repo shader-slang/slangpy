@@ -24,7 +24,10 @@ class FakeBufferMarshall(BasePythonTypeMarshal):
     def __init__(self):
         super().__init__(FakeBuffer)
 
-    def get_shape(self, value: FakeBuffer) -> tuple[int | None, ...]:
+    def get_element_shape(self, value: FakeBuffer):
+        return ()
+
+    def get_container_shape(self, value: FakeBuffer):
         return value.shape
 
     def get_element_type(self, value: Any):
@@ -38,7 +41,10 @@ register_python_type(FakeBuffer, FakeBufferMarshall(),
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
-def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any) -> Any:
+def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any,
+                input_transforms: Optional[dict[str, tuple[int, ...]]] = None,
+                ouput_transforms: Optional[dict[str, tuple[int, ...]]] = None,
+                ) -> Any:
     device = helpers.get_device(device_type)
 
     function = helpers.create_function_from_module(
@@ -51,7 +57,8 @@ def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any) -> Any
     match = match_signature(
         sig, function.ast_functions[0].as_function(), CallMode.prim)
     assert match is not None
-    apply_signature(match, function.ast_functions[0].as_function())
+    apply_signature(match, function.ast_functions[0].as_function(
+    ), input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(match)
 
     nodes: list[SignatureNode] = []
@@ -319,6 +326,73 @@ def test_dotproduct_big_tensors(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_input_transform(device_type: sgl.DeviceType):
+
+    # Remapping inputs from big buffers
+    shapes = dot_product(device_type,
+                         FakeBuffer((8, 1, 2, 3)),
+                         FakeBuffer((4, 8, 2, 3)),
+                         None,
+                         input_transforms={"b": (1, 0, 2, 3)})
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {
+            "type_shapes": [[3], [3], [1]],
+            "arg_shapes": [[8, 1, 2], [8, 4, 2], [8, 4, 2]],
+            "call_shape": [8, 4, 2],
+        },
+    )
+    assert not diff
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_output_transform(device_type: sgl.DeviceType):
+
+    # Remapping outputs so buffers of length [10] and [5] can output [10,5]
+    shapes = dot_product(device_type,
+                         FakeBuffer((10, 3)),
+                         FakeBuffer((5, 3)),
+                         None,
+                         ouput_transforms={
+                             "a": (0,),
+                             "b": (1,)})
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {
+            "type_shapes": [[3], [3], [1]],
+            "arg_shapes": [[10], [5], [10, 5]],
+            "call_shape": [10, 5],
+        },
+    )
+    assert not diff
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_both_transform(device_type: sgl.DeviceType):
+
+    # Combine simple input and output transforms
+    shapes = dot_product(device_type,
+                         FakeBuffer((3, 10)),
+                         FakeBuffer((5, 3)),
+                         None,
+                         input_transforms={
+                             "a": (1, 0)
+                         },
+                         ouput_transforms={
+                             "a": (0,),
+                             "b": (1,)})
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {
+            "type_shapes": [[3], [3], [1]],
+            "arg_shapes": [[10], [5], [10, 5]],
+            "call_shape": [10, 5],
+        },
+    )
+    assert not diff
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_readslice_scalar(device_type: sgl.DeviceType):
 
     # Scalar call to the read slice function, with a single index
@@ -446,6 +520,28 @@ def test_readslice_function_map(device_type: sgl.DeviceType):
                         FakeBuffer((1000, 2)),
                         FakeBuffer((50, 256, 128, 4)),
                         None, ouput_transforms={"index": (1,), "texture": (0,)})
+    diff = deepdiff.DeepDiff(
+        shapes,
+        {
+            "type_shapes": [[2], [256, 128, 4], [4]],
+            "arg_shapes": [[1000], [50], [50, 1000]],
+            "call_shape": [50, 1000],
+        },
+    )
+    assert not diff
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_readslice_both_map(device_type: sgl.DeviceType):
+
+    # Use remapping to allow 1000 indices to be batch tested
+    # against 50*(4,256,128), resulting in output of 50*(1000)
+    shapes = read_slice(device_type,
+                        FakeBuffer((2, 1000)),
+                        FakeBuffer((50, 4, 256, 128)),
+                        None,
+                        input_transforms={"index": (1, 0), "texture": (0, 2, 3, 1)},
+                        ouput_transforms={"index": (1,), "texture": (0,)})
     diff = deepdiff.DeepDiff(
         shapes,
         {

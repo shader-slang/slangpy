@@ -1,7 +1,7 @@
-from typing import Any, Optional, Type, Union
+from typing import Optional, Type, Union
 import sgl
 
-from kernelfunctions.codegen import declare
+from kernelfunctions.codegen import CodeGen, declare
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import AccessType, BasePythonTypeMarshal, create_slang_type_marshal, get_python_type_marshall, register_python_type
 from .typemappings import TSGLVector, TPythonScalar
@@ -99,16 +99,19 @@ class BufferMarshall(BasePythonTypeMarshal):
     def __init__(self):
         super().__init__(StructuredBuffer)
 
-    def get_shape(self, value: StructuredBuffer):
+    def get_element_shape(self, value: StructuredBuffer):
         if isinstance(value.element_type, sgl.TypeLayoutReflection):
             slang_marshall = create_slang_type_marshal(value.element_type.type)
             element_shape = slang_marshall.value_shape
         else:
             python_marshall = get_python_type_marshall(value.element_type)
-            element_shape = python_marshall.get_shape(None)
+            element_shape = python_marshall.get_element_shape(None)
         assert element_shape
         assert not None in element_shape
-        return value.shape + element_shape
+        return element_shape
+
+    def get_container_shape(self, value: StructuredBuffer):
+        return value.shape
 
     def get_element_type(self, value: StructuredBuffer):
         return value.element_type
@@ -116,25 +119,15 @@ class BufferMarshall(BasePythonTypeMarshal):
     def is_differentiable(self, value: StructuredBuffer) -> bool:
         return value.requires_grad
 
-    def _buff_typename(self, typename: str, shape: TConcreteShape, access: AccessType):
+    def get_calldata_typename(self, typename: str, shape: TConcreteShape, access: AccessType):
         if access == AccessType.read:
             return f"TensorBuffer<{typename},{len(shape)}>"
         else:
             return f"RWTensorBuffer<{typename},{len(shape)}>"
 
-    def declare_inputs(self,
-                       name: str, shape: TConcreteShape,
-                       primal_type: Optional[str], primal_access: AccessType,
-                       derivative_type: Optional[str], derivative_access: AccessType,
-                       out_inputs: list[Any]):
-        if primal_access != AccessType.none:
-            assert primal_type is not None
-            out_inputs.append(declare(self._buff_typename(
-                primal_type, shape, primal_access), f"{name}_primal"))
-        if derivative_access != AccessType.none:
-            assert derivative_type is not None
-            out_inputs.append(declare(self._buff_typename(
-                derivative_type, shape, derivative_access), f"{name}_derivative"))
+    def get_indexer(self, transform: list[int], access: AccessType):
+        vals = ",".join(f"call_id[{x}]" for x in transform)
+        return f"[{{{vals}}}]"
 
 
 register_python_type(StructuredBuffer,

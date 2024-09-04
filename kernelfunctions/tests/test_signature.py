@@ -125,10 +125,10 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)
         apply_signature(match, function.ast_functions[0].as_function())
-        assert match["a"].slang_type
-        assert match["b"].slang_type
-        assert match["a"].slang_type.name == calc_vector_name(slang_type_name)
-        assert match["b"].slang_type.name == calc_vector_name(slang_type_name)
+        assert match["a"].slang_primal
+        assert match["b"].slang_primal
+        assert match["a"].slang_primal.name == calc_vector_name(slang_type_name)
+        assert match["b"].slang_primal.name == calc_vector_name(slang_type_name)
 
         sig = build_signature(a=v0, b=v1)
         match = match_signature(
@@ -137,10 +137,10 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)
         apply_signature(match, function.ast_functions[0].as_function())
-        assert match["a"].slang_type
-        assert match["b"].slang_type
-        assert match["a"].slang_type.name == calc_vector_name(slang_type_name)
-        assert match["b"].slang_type.name == calc_vector_name(slang_type_name)
+        assert match["a"].slang_primal
+        assert match["b"].slang_primal
+        assert match["a"].slang_primal.name == calc_vector_name(slang_type_name)
+        assert match["b"].slang_primal.name == calc_vector_name(slang_type_name)
 
         sig = build_signature(b=v1, a=v0)
         match = match_signature(
@@ -149,10 +149,10 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)
         apply_signature(match, function.ast_functions[0].as_function())
-        assert match["a"].slang_type
-        assert match["b"].slang_type
-        assert match["a"].slang_type.name == calc_vector_name(slang_type_name)
-        assert match["b"].slang_type.name == calc_vector_name(slang_type_name)
+        assert match["a"].slang_primal
+        assert match["b"].slang_primal
+        assert match["a"].slang_primal.name == calc_vector_name(slang_type_name)
+        assert match["b"].slang_primal.name == calc_vector_name(slang_type_name)
 
     else:
         sig = build_signature(v0, v1)
@@ -195,13 +195,13 @@ void add_numbers(MyStruct v) {{ }}
 
         apply_signature(match, function.ast_functions[0].as_function())
         assert match["v"].children
-        assert match["v"].slang_type
-        assert match["v"].slang_type.name == "MyStruct"
-        assert match["v"].children["a"].slang_type
-        assert match["v"].children["b"].slang_type
-        assert match["v"].children["a"].slang_type.name == calc_vector_name(
+        assert match["v"].slang_primal
+        assert match["v"].slang_primal.name == "MyStruct"
+        assert match["v"].children["a"].slang_primal
+        assert match["v"].children["b"].slang_primal
+        assert match["v"].children["a"].slang_primal.name == calc_vector_name(
             slang_type_name)
-        assert match["v"].children["b"].slang_type.name == calc_vector_name(
+        assert match["v"].children["b"].slang_primal.name == calc_vector_name(
             slang_type_name)
 
     else:

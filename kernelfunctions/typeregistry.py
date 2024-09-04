@@ -2,7 +2,7 @@ from enum import Enum
 from io import StringIO
 from typing import Any, Callable, Optional, Union
 from sgl import TypeLayoutReflection, TypeReflection, VariableReflection
-from kernelfunctions.codegen import declare
+from kernelfunctions.codegen import CodeGen, declare
 from kernelfunctions.shapes import TConcreteShape, TLooseOrUndefinedShape, TLooseShape
 from kernelfunctions.typemappings import TPythonScalar, TSGLVector
 
@@ -73,8 +73,11 @@ class BasePythonTypeMarshal:
         super().__init__()
         self.type = python_type
 
-    def get_shape(self, value: Any) -> TLooseOrUndefinedShape:
-        raise NotImplementedError()
+    def get_element_shape(self, value: Any) -> TLooseOrUndefinedShape:
+        return ()
+
+    def get_container_shape(self, value: Any) -> TLooseOrUndefinedShape:
+        return ()
 
     def get_element_type(self, value: Any) -> Optional[Union[type[TSGLVector], type[TPythonScalar], TypeLayoutReflection]]:
         return type(value)
@@ -85,16 +88,17 @@ class BasePythonTypeMarshal:
     def is_differentiable(self, value: Any) -> bool:
         return False
 
-    def declare_inputs(self,
-                       name: str, shape: TConcreteShape,
-                       primal_type: Optional[str], primal_access: AccessType,
-                       derivative_type: Optional[str], derivative_access: AccessType,
-                       out_inputs: list[Any]):
-        assert len(shape) <= 1
-        assert primal_access == AccessType.none or primal_access == AccessType.read
-        assert derivative_access == AccessType.none
-        if primal_type is not None:
-            out_inputs.append(declare(primal_type, f"{name}_primal"))
+    def get_calldata_typename(self, typename: str, shape: TLooseOrUndefinedShape, access: AccessType):
+        if access == AccessType.read:
+            return typename
+        else:
+            return f"RWStructuredBuffer<{typename}>"
+
+    def get_indexer(self, call_transform: list[int], access: AccessType):
+        if access == AccessType.read:
+            return ""
+        else:
+            return "[0]"
 
     @property
     def name(self):

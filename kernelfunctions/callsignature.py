@@ -1,7 +1,8 @@
 import hashlib
 from io import StringIO
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, TypedDict, Union, cast
 from sgl import FunctionReflection
+from kernelfunctions.codegen import CodeGen
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.signaturenode import CallMode, SignatureNode, TCallSignature, TMatchedSignature
 from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, AccessType, create_slang_type_marshal
@@ -124,7 +125,7 @@ def match_signature(
     # Need to add something to handle return value here
     if call_mode == CallMode.prim and rval is None:
         matched_rval = SignatureNode(None)
-        matched_rval.slang_type = create_slang_type_marshal(
+        matched_rval.slang_primal = create_slang_type_marshal(
             function_reflection.return_type)
 
     if rval is not None:
@@ -221,54 +222,17 @@ def calculate_and_apply_call_shape(signature: TMatchedSignature) -> list[int]:
     return verified_call_shape
 
 
-def generate_call_data_struct(call_shape: TConcreteShape, signature: TMatchedSignature, mode: CallMode):
-    inputs: list[Any] = []
-    generate_call_data_declarations(call_shape, signature, mode, inputs)
-    combined = "struct CallData {\n    " + \
-        (";\n    ").join(inputs) + ";\n}\nParameterBlock<CallData> call_data;\n"
-    return combined
-
-
-def generate_call_data_declarations(call_shape: TConcreteShape, signature: TMatchedSignature, mode: CallMode, out_inputs: list[Any]):
+def generate_code(call_shape: list[int], signature: TMatchedSignature, mode: CallMode, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
     nodes: list[SignatureNode] = []
+
     for node in signature.values():
         node.get_input_list(nodes)
 
     for node in nodes:
-        arg_name = node.path.replace(".", "__")
-        prim_type_name = node.slang_type.name
-        diff_type_name = None if node.slang_differential is None else node.slang_differential.name
-
-        if mode == CallMode.prim:
-            node.python_marshal.declare_inputs(node.path.replace(".", "__"),
-                                               # type: ignore (already checked)
-                                               node.argument_shape,
-                                               prim_type_name,
-                                               node.prim_access,
-                                               None,
-                                               AccessType.none,
-                                               out_inputs)
-        elif mode == CallMode.bwds:
-            node.python_marshal.declare_inputs(node.path.replace(".", "__"),
-                                               # type: ignore (already checked)
-                                               node.argument_shape,
-                                               prim_type_name,
-                                               node.bwds_access[0],
-                                               diff_type_name,
-                                               node.bwds_access[1],
-                                               out_inputs)
-        else:
-            node.python_marshal.declare_inputs(node.path.replace(".", "__"),
-                                               # type: ignore (already checked)
-                                               node.argument_shape,
-                                               prim_type_name,
-                                               node.fwds_access[0],
-                                               diff_type_name,
-                                               node.fwds_access[1],
-                                               out_inputs)
+        node.gen_code_for_input(mode, cg)
 
 
 '''
