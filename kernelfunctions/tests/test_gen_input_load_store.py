@@ -34,8 +34,8 @@ void store__result_primal(int[] call_id, in float val)
 }
 """.strip()
 
-    # bwds call is a bit pointless - no arguments are differentiable,
-    # we just end up loading the 2 primals
+    # bwds call, as result as assumed to be provided,
+    # the derivative can be loaded
     assert bwds == """
 void load_a_primal(int[] call_id, out vector<float,3> val)
 {
@@ -44,6 +44,10 @@ void load_a_primal(int[] call_id, out vector<float,3> val)
 void load_b_primal(int[] call_id, out vector<float,3> val)
 {
     val = call_data.b_primal;
+}
+void load__result_derivative(int[] call_id, out float val)
+{
+    val = call_data._result_derivative;
 }
 """.strip()
 
@@ -452,31 +456,43 @@ void store__result_primal(int[] call_id, in float val)
     # bwds call should now have:
     # - read-only primal buffer for a.x
     # - read-write derivative buffer for a.y
+    # - no derivative output for z
     # - floats a.y and a.z primals
     # - rw structured buffer to receive a.y derivative
     # - read-only primal buffer for b (it was not differentiable)
     # - read-only derivative buffer for result (it was only an output)
-    print(bwds)
     assert bwds == """
 void load_a__x_primal(int[] call_id, out float val)
 {
     val = call_data.a__x_primal[{call_id[0]}];
 }
-void store_a__x_derivative(int[] call_id, in float val)
-{
-    call_data.a__x_derivative[{call_id[0]}] = val;
-}
 void load_a__y_primal(int[] call_id, out float val)
 {
     val = call_data.a__y_primal;
+}
+void load_a__z_primal(int[] call_id, out float val)
+{
+    val = call_data.a__z_primal;
+}
+void load_a_primal(int[] call_id, out vector<float,3> val)
+{
+    load_a__x_primal(call_id, val.x);
+    load_a__y_primal(call_id, val.y);
+    load_a__z_primal(call_id, val.z);
+}
+void store_a__x_derivative(int[] call_id, in float val)
+{
+    call_data.a__x_derivative[{call_id[0]}] = val;
 }
 void store_a__y_derivative(int[] call_id, in float val)
 {
     call_data.a__y_derivative[0] = val;
 }
-void load_a__z_primal(int[] call_id, out float val)
+void store_a_derivative(int[] call_id, in vector<float,3> val)
 {
-    val = call_data.a__z_primal;
+    store_a__x_derivative(call_id, val.x);
+    store_a__y_derivative(call_id, val.y);
+    // z not writable
 }
 void load_b_primal(int[] call_id, out vector<float,3> val)
 {
@@ -563,4 +579,4 @@ void load__result_derivative(int[] call_id, out float val)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "-s"])
+    pytest.main([__file__, "-v"])

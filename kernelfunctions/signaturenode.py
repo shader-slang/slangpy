@@ -426,10 +426,10 @@ class SignatureNode:
 
         cgcode = cg.input_load_store
         if self.children is not None:
-            cgcode.append_line(func_def)
-            cgcode.begin_block()
             name_to_call = {name: child._gen_load_derivative(
                 mode, cg) for (name, child) in self.children.items()}
+            cgcode.append_line(func_def)
+            cgcode.begin_block()
             for (name, child) in self.children.items():
                 cgcode.append_statement(f"{name_to_call[name]}(call_id, val.{name})")
             cgcode.end_block()
@@ -455,10 +455,10 @@ class SignatureNode:
         cgcode = cg.input_load_store
 
         if self.children is not None:
+            name_to_call = {name: child._gen_store_primal(
+                mode, cg) for (name, child) in self.children.items()}
             cgcode.append_line(func_def)
             cgcode.begin_block()
-            name_to_call = {name: child._gen_load_primal(
-                mode, cg) for (name, child) in self.children.items()}
             for (name, child) in self.children.items():
                 cgcode.append_statement(f"{name_to_call[name]}(call_id, val.{name})")
             cgcode.end_block()
@@ -483,12 +483,16 @@ class SignatureNode:
         cgcode = cg.input_load_store
 
         if self.children is not None:
+            name_to_call = {name: child._gen_store_derivative(
+                mode, cg) for (name, child) in self.children.items()}
             cgcode.append_line(func_def)
             cgcode.begin_block()
-            name_to_call = {name: child._gen_load_derivative(
-                mode, cg) for (name, child) in self.children.items()}
             for (name, child) in self.children.items():
-                cgcode.append_statement(f"{name_to_call[name]}(call_id, val.{name})")
+                n = name_to_call[name]
+                if n is not None:
+                    cgcode.append_statement(f"{n}(call_id, val.{name})")
+                else:
+                    cgcode.append_line(f"// {name} not writable")
             cgcode.end_block()
         else:
             cgcode.append_line(func_def)

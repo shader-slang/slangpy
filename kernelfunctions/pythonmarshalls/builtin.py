@@ -31,6 +31,11 @@ class DictMarshall(BasePythonTypeMarshal):
     def __init__(self):
         super().__init__(dict)
 
+    def is_differentiable(self, value: Any) -> bool:
+        # a python struct always assumes it could have a differentiable version,
+        # which would be another struct
+        return True
+
     def get_shape(self, value: Any):
         return (1,)
 
@@ -42,6 +47,11 @@ class NoneTypeMarshal(BasePythonTypeMarshal):
 
     def __init__(self):
         super().__init__(type(None))
+
+    def is_differentiable(self, value: Any) -> bool:
+        # a None type is a request to auto-allocate a buffer, so it is by definition
+        # possible to differentiate, as we'd auto allocate a differentiable buffer!
+        return True
 
     def get_element_shape(self, value: Any):
         return None
