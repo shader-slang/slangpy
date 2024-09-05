@@ -19,7 +19,6 @@ def test_dotproduct_scalar(device_type: sgl.DeviceType):
     (prim, bwds, fwds) = code(dot_product(device_type, sgl.float3(), sgl.float3(), None))
 
     # primitive call should pass in 2 vectors and output a float
-    # print(prim)
     assert prim == """
 void load_a_primal(int[] call_id, out vector<float,3> val)
 {
@@ -37,7 +36,6 @@ void store__result_primal(int[] call_id, in float val)
 
     # bwds call is a bit pointless - no arguments are differentiable,
     # we just end up loading the 2 primals
-    # print(bwds)
     assert bwds == """
 void load_a_primal(int[] call_id, out vector<float,3> val)
 {
@@ -264,7 +262,6 @@ def test_dotproduct_broadcast_ND_buffer_input_transform(device_type: sgl.DeviceT
     # prim call should have
     # - 2 1D read-only tensor buffers of type float3
     # - 1 1D read-write tensor buffer of type float
-    print(prim)
     assert prim == """
 void load_a_primal(int[] call_id, out vector<float,3> val)
 {
@@ -361,7 +358,6 @@ void store__result_primal(int[] call_id, in float val)
     # bwds call should now have:
     # - primal reads and derivative stores for a and b from their correct call ids
     # - derivative write to both call ids for result
-    print(bwds)
     assert bwds == """
 void load_a_primal(int[] call_id, out vector<float,3> val)
 {
@@ -382,6 +378,186 @@ void store_b_derivative(int[] call_id, in vector<float,3> val)
 void load__result_derivative(int[] call_id, out float val)
 {
     val = call_data._result_derivative[{call_id[0],call_id[1]}];
+}
+""".strip()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_buffer_soa(device_type: sgl.DeviceType):
+
+    device = helpers.get_device(device_type)
+    buffer_0 = StructuredBuffer(
+        device=device,
+        element_type=float,
+        element_count=50,
+        requires_grad=True
+    )
+    buffer_1 = StructuredBuffer(
+        device=device,
+        element_type=sgl.float3,
+        element_count=50,
+        requires_grad=False
+    )
+    buffer_2 = StructuredBuffer(
+        device=device,
+        element_type=sgl.float1,
+        element_count=50,
+        requires_grad=True
+    )
+
+    # use a scalar ref should get a structured buffer for output
+    (prim, bwds, fwds) = code(dot_product(device_type,
+                                          {
+                                              'x': buffer_0,
+                                              'y': floatDiffPair(),
+                                              'z': 2.0
+                                          },
+                                          buffer_1,
+                                          buffer_2))
+
+    # prim call should have
+    # - 1D read only tensor buffer of floats for a.x
+    # - floats for a.y and a.z
+    # - 1D read only tensor buffer of float3s for b
+    # - 1 1D read-write tensor buffer of type float
+    assert prim == """
+void load_a__x_primal(int[] call_id, out float val)
+{
+    val = call_data.a__x_primal[{call_id[0]}];
+}
+void load_a__y_primal(int[] call_id, out float val)
+{
+    val = call_data.a__y_primal;
+}
+void load_a__z_primal(int[] call_id, out float val)
+{
+    val = call_data.a__z_primal;
+}
+void load_a_primal(int[] call_id, out vector<float,3> val)
+{
+    load_a__x_primal(call_id, val.x);
+    load_a__y_primal(call_id, val.y);
+    load_a__z_primal(call_id, val.z);
+}
+void load_b_primal(int[] call_id, out vector<float,3> val)
+{
+    val = call_data.b_primal[{call_id[0]}];
+}
+void store__result_primal(int[] call_id, in float val)
+{
+    call_data._result_primal[{call_id[0]}] = val;
+}
+""".strip()
+
+    # bwds call should now have:
+    # - read-only primal buffer for a.x
+    # - read-write derivative buffer for a.y
+    # - floats a.y and a.z primals
+    # - rw structured buffer to receive a.y derivative
+    # - read-only primal buffer for b (it was not differentiable)
+    # - read-only derivative buffer for result (it was only an output)
+    print(bwds)
+    assert bwds == """
+void load_a__x_primal(int[] call_id, out float val)
+{
+    val = call_data.a__x_primal[{call_id[0]}];
+}
+void store_a__x_derivative(int[] call_id, in float val)
+{
+    call_data.a__x_derivative[{call_id[0]}] = val;
+}
+void load_a__y_primal(int[] call_id, out float val)
+{
+    val = call_data.a__y_primal;
+}
+void store_a__y_derivative(int[] call_id, in float val)
+{
+    call_data.a__y_derivative[0] = val;
+}
+void load_a__z_primal(int[] call_id, out float val)
+{
+    val = call_data.a__z_primal;
+}
+void load_b_primal(int[] call_id, out vector<float,3> val)
+{
+    val = call_data.b_primal[{call_id[0]}];
+}
+void load__result_derivative(int[] call_id, out float val)
+{
+    val = call_data._result_derivative[{call_id[0]}];
+}
+""".strip()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dotproduct_broadcast_from_buffer(device_type: sgl.DeviceType):
+
+    device = helpers.get_device(device_type)
+    buffer_0 = StructuredBuffer(
+        device=device,
+        element_type=sgl.float3,
+        shape=(50, 10, 4),
+        requires_grad=True
+    )
+    buffer_1 = StructuredBuffer(
+        device=device,
+        element_type=sgl.float3,
+        shape=(50, 1, 4),
+        requires_grad=True
+    )
+    buffer_2 = floatDiffPair()
+
+    # use a scalar ref should get a structured buffer for output
+    (prim, bwds, fwds) = code(dot_product(device_type,
+                                          buffer_0,
+                                          buffer_1,
+                                          buffer_2))
+
+    # prim call should have
+    # - 2 1D read-only tensor buffers of type float3
+    #   - a reads all call ids, b's middle component is always 0
+    # - 1 1D read-write tensor buffer of type float
+    assert prim == """
+void load_a_primal(int[] call_id, out vector<float,3> val)
+{
+    val = call_data.a_primal[{call_id[0],call_id[1],call_id[2]}];
+}
+void load_b_primal(int[] call_id, out vector<float,3> val)
+{
+    val = call_data.b_primal[{call_id[0],0,call_id[2]}];
+}
+void store__result_primal(int[] call_id, in float val)
+{
+    call_data._result_primal[0] = val;
+}
+""".strip()
+
+    # bwds call should now have:
+    # - read-only primal buffer for a
+    # - read-write derivative buffer for a
+    # - read-only primal buffer for b (it was not differentiable)
+    # - read-only derivative buffer for result (it was only an output)
+    # - as with primal, b's middle component is always 0
+    assert bwds == """
+void load_a_primal(int[] call_id, out vector<float,3> val)
+{
+    val = call_data.a_primal[{call_id[0],call_id[1],call_id[2]}];
+}
+void store_a_derivative(int[] call_id, in vector<float,3> val)
+{
+    call_data.a_derivative[{call_id[0],call_id[1],call_id[2]}] = val;
+}
+void load_b_primal(int[] call_id, out vector<float,3> val)
+{
+    val = call_data.b_primal[{call_id[0],0,call_id[2]}];
+}
+void store_b_derivative(int[] call_id, in vector<float,3> val)
+{
+    call_data.b_derivative[{call_id[0],0,call_id[2]}] = val;
+}
+void load__result_derivative(int[] call_id, out float val)
+{
+    val = call_data._result_derivative;
 }
 """.strip()
 

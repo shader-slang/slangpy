@@ -4,7 +4,7 @@ from typing import Any, Optional
 import pytest
 import sgl
 from kernelfunctions.callsignature import CallMode, SignatureNode, apply_signature, build_signature, calculate_and_apply_call_shape, match_signature
-from kernelfunctions.shapes import TLooseShape, build_indexer
+from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
 from kernelfunctions.tests import helpers
@@ -153,10 +153,6 @@ def test_dotproduct_scalar(device_type: sgl.DeviceType):
     )
     assert not diff
 
-    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
-    diff = deepdiff.DeepDiff(indexers, ["", "", ""])
-    assert not diff
-
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_dotproduct_scalar_floatref(device_type: sgl.DeviceType):
@@ -167,10 +163,6 @@ def test_dotproduct_scalar_floatref(device_type: sgl.DeviceType):
         shapes,
         {"type_shapes": [[3], [3], [1]], "arg_shapes": [[], [], []], "call_shape": []},
     )
-    assert not diff
-
-    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
-    diff = deepdiff.DeepDiff(indexers, ["", "", ""])
     assert not diff
 
 
@@ -189,10 +181,6 @@ def test_dotproduct_broadcast_a(device_type: sgl.DeviceType):
     )
     assert not diff
 
-    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
-    diff = deepdiff.DeepDiff(indexers, ["", "call_id[0]", "call_id[0]"])
-    assert not diff
-
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_dotproduct_broadcast_b(device_type: sgl.DeviceType):
@@ -209,10 +197,6 @@ def test_dotproduct_broadcast_b(device_type: sgl.DeviceType):
     )
     assert not diff
 
-    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
-    diff = deepdiff.DeepDiff(indexers, ["call_id[0]", "", "call_id[0]"])
-    assert not diff
-
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_dotproduct_broadcast_b_from_buffer(device_type: sgl.DeviceType):
@@ -227,10 +211,6 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: sgl.DeviceType):
             "call_shape": [100],
         },
     )
-    assert not diff
-
-    indexers = [build_indexer(shapes["call_shape"], x) for x in shapes["arg_shapes"]]
-    diff = deepdiff.DeepDiff(indexers, ["call_id[0]", "0", "call_id[0]"])
     assert not diff
 
 
@@ -605,32 +585,5 @@ def test_copyatindex_undefined_output_size(device_type: sgl.DeviceType):
                                FakeBuffer((None, 4)))
 
 
-def test_indexers():
-    arg_shape = []
-    call_shape = [300, 200, 100, 10, 10]
-    indexer = build_indexer(call_shape, arg_shape)
-    assert indexer == ""
-
-    arg_shape = [100, 1, 1]
-    call_shape = [300, 200, 100, 10, 10]
-    indexer = build_indexer(call_shape, arg_shape)
-    assert indexer == "call_id[2], 0, 0"
-
-    arg_shape = [1, 10, 1]
-    call_shape = [300, 200, 100, 10, 10]
-    indexer = build_indexer(call_shape, arg_shape)
-    assert indexer == "0, call_id[3], 0"
-
-    arg_shape = [1, 1, 10]
-    call_shape = [300, 200, 100, 10, 10]
-    indexer = build_indexer(call_shape, arg_shape)
-    assert indexer == "0, 0, call_id[4]"
-
-    arg_shape = [300, 1, 1, 1, 10]
-    call_shape = [300, 200, 100, 10, 10]
-    indexer = build_indexer(call_shape, arg_shape)
-    assert indexer == "call_id[0], 0, 0, 0, call_id[4]"
-
-
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "-s"])
+    pytest.main([__file__, "-v"])

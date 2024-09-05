@@ -63,8 +63,8 @@ def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any, opts: 
     prim = CodeGen()
     bwds = CodeGen()
     fwds = CodeGen()
-    generate_code(call_shape, match, CallMode.prim, prim)
-    generate_code(call_shape, match, CallMode.bwds, bwds)
-    generate_code(call_shape, match, CallMode.fwds, fwds)
+    generate_code(call_shape, function, match, CallMode.prim, prim)
+    generate_code(call_shape, function, match, CallMode.bwds, bwds)
+    generate_code(call_shape, function, match, CallMode.fwds, fwds)
 
     return prim, bwds, fwds

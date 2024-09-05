@@ -4,7 +4,7 @@ import pytest
 import sgl
 import kernelfunctions as kf
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.utils import ScalarRef, diffPair, intRef
+from kernelfunctions.utils import diffPair, intRef
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

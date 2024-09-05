@@ -2,8 +2,7 @@ from enum import Enum
 from io import StringIO
 from typing import Any, Callable, Optional, Union
 from sgl import TypeLayoutReflection, TypeReflection, VariableReflection
-from kernelfunctions.codegen import CodeGen, declare
-from kernelfunctions.shapes import TConcreteShape, TLooseOrUndefinedShape, TLooseShape
+from kernelfunctions.shapes import TLooseOrUndefinedShape, TLooseShape
 from kernelfunctions.typemappings import TPythonScalar, TSGLVector
 
 
@@ -94,7 +93,7 @@ class BasePythonTypeMarshal:
         else:
             return f"RWStructuredBuffer<{typename}>"
 
-    def get_indexer(self, call_transform: list[int], access: AccessType):
+    def get_indexer(self, call_transform: list[Optional[int]], access: AccessType):
         if access == AccessType.read:
             return ""
         else:

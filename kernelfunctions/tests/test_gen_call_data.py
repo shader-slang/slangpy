@@ -140,6 +140,8 @@ def test_dotproduct_buffer(device_type: sgl.DeviceType):
     assert prim == """
 struct CallData
 {
+    int[1] _call_stride;
+    int[1] _call_dim;
     TensorBuffer<vector<float,3>,1> a_primal;
     TensorBuffer<vector<float,3>,1> b_primal;
     RWTensorBuffer<float,1> _result_primal;
@@ -155,6 +157,8 @@ ParameterBlock<CallData> call_data;
     assert bwds == """
 struct CallData
 {
+    int[1] _call_stride;
+    int[1] _call_dim;
     TensorBuffer<vector<float,3>,1> a_primal;
     RWTensorBuffer<vector<float,3>,1> a_derivative;
     TensorBuffer<vector<float,3>,1> b_primal;
@@ -205,6 +209,8 @@ def test_dotproduct_buffer_soa(device_type: sgl.DeviceType):
     assert prim == """
 struct CallData
 {
+    int[1] _call_stride;
+    int[1] _call_dim;
     TensorBuffer<float,1> a__x_primal;
     float a__y_primal;
     float a__z_primal;
@@ -224,6 +230,8 @@ ParameterBlock<CallData> call_data;
     assert bwds == """
 struct CallData
 {
+    int[1] _call_stride;
+    int[1] _call_dim;
     TensorBuffer<float,1> a__x_primal;
     RWTensorBuffer<float,1> a__x_derivative;
     float a__y_primal;

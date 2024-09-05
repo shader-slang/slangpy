@@ -1,8 +1,9 @@
 import hashlib
 from io import StringIO
-from typing import Any, Optional, TypedDict, Union, cast
+from typing import Any, Optional, Union, cast
 from sgl import FunctionReflection
 from kernelfunctions.codegen import CodeGen
+from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.signaturenode import CallMode, SignatureNode, TCallSignature, TMatchedSignature
 from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, AccessType, create_slang_type_marshal
@@ -123,10 +124,11 @@ def match_signature(
             return None
 
     # Need to add something to handle return value here
-    if call_mode == CallMode.prim and rval is None:
+    if call_mode == CallMode.prim and rval is None and function_reflection.return_type.name != "void":
         matched_rval = SignatureNode(None)
         matched_rval.slang_primal = create_slang_type_marshal(
             function_reflection.return_type)
+        rval = matched_rval
 
     if rval is not None:
         matched_params["_result"] = rval
@@ -219,20 +221,101 @@ def calculate_and_apply_call_shape(signature: TMatchedSignature) -> list[int]:
             raise ValueError(
                 f"Arg {node.param_index} shape is ambiguous: {node.argument_shape}")
 
+    # Populate the actual input transforms to be used in kernel
+    for node in nodes:
+        assert node.argument_shape is not None
+        assert node.call_transform is not None
+        if node.python_container_shape is not None:
+            node.loadstore_transform = [
+                None for x in range(len(node.python_container_shape))]
+            for i in range(len(node.python_container_shape)):
+                arg_dim_idx = i
+                if node.transform_inputs is not None:
+                    arg_dim_idx = node.transform_inputs[i]
+                if arg_dim_idx < len(node.call_transform):
+                    if node.python_container_shape[arg_dim_idx] is not None and node.python_container_shape[arg_dim_idx] > 1:
+                        node.loadstore_transform[i] = node.call_transform[arg_dim_idx]
+        else:
+            node.loadstore_transform = []
+
     return verified_call_shape
 
 
-def generate_code(call_shape: list[int], signature: TMatchedSignature, mode: CallMode, cg: CodeGen):
+def generate_code(call_shape: list[int], function: Function, signature: TMatchedSignature, mode: CallMode, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
     nodes: list[SignatureNode] = []
 
+    # Generate the header
+    cg.imports.append_statement(f'import "{function.module.name}"')
+
+    # Generate call data inputs if vector call
+    call_data_len = len(call_shape)
+    if call_data_len > 0:
+        cg.call_data.append_statement(f"int[{call_data_len}] _call_stride")
+        cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
+
+    # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
         node.get_input_list(nodes)
-
     for node in nodes:
-        node.gen_code_for_input(mode, cg)
+        node.gen_call_data_code(mode, cg)
+
+    # Generate the recursive load/store functions
+    for node in signature.values():
+        node.gen_load_store_code(mode, cg)
+
+    # Get sorted list of root parameters for trampoline function
+    root_params = sorted(signature.values(), key=lambda x: x.param_index)
+
+    # Generate the trampoline function
+    root_param_defs = [x._gen_trampoline_argument() for x in root_params]
+    root_param_defs = ", ".join(root_param_defs)
+    cg.trampoline.append_line("[Differentiable]")
+    cg.trampoline.append_line("void _trampoline(" + root_param_defs + ")")
+    cg.trampoline.begin_block()
+    cg.trampoline.append_indent()
+    if "_result" in signature:
+        cg.trampoline.append_code(f"_result = ")
+    cg.trampoline.append_code(
+        f"{function.name}(" + ", ".join(x.name for x in root_params if x.name != '_result') + ");\n")
+    cg.trampoline.end_block()
+    cg.trampoline.append_line("")
+
+    # Generate the main function
+    cg.kernel.append_line('[shader("compute")]')
+    cg.kernel.append_line("[numthreads(32, 1, 1)]")
+    cg.kernel.append_line("void main(uint3 dispatchThreadID: SV_DispatchThreadID)")
+    cg.kernel.begin_block()
+
+    # Loads / initializes call id (inserting dummy if not vector call)
+    if call_data_len > 0:
+        cg.kernel.append_statement(f"int[{call_data_len}] call_id")
+        for i in range(call_data_len):
+            cg.kernel.append_statement(
+                f"call_id[{i}] = (dispatchThreadID.x/call_data._call_stride[{i}]) % call_data._call_dim[{i}]")
+    else:
+        cg.kernel.append_statement("int[] call_id = {0}")
+
+    # For each trampoline parameter, define variable and potentially load it
+    for x in root_params:
+        cg.kernel.append_statement(f"{x.slang_primal.name} {x.variable_name}")
+        if x.prim_access == AccessType.read or x.prim_access == AccessType.readwrite:
+            cg.kernel.append_statement(
+                f"load_{x.variable_name}_primal(call_id,{x.variable_name})")
+
+    # Call the trampoline function
+    cg.kernel.append_statement(
+        "_trampoline(" + ", ".join(x.name for x in root_params) + ")")
+
+    # For each trampoline parameter, potentially store it
+    for x in root_params:
+        if x.prim_access == AccessType.write or x.prim_access == AccessType.readwrite:
+            cg.kernel.append_statement(
+                f"store_{x.variable_name}_primal(call_id,{x.variable_name})")
+
+    cg.kernel.end_block()
 
 
 '''

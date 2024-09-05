@@ -11,16 +11,19 @@ class CodeGenBlock:
     def dec_indent(self):
         self.indent = self.indent[:-4]
 
+    def append_indent(self):
+        self.append_code(self.indent)
+
     def append_code(self, code: str):
         self.code.append(code)
 
     def append_line(self, func_line: str):
-        self.append_code(self.indent)
+        self.append_indent()
         self.append_code(func_line)
         self.append_code("\n")
 
     def append_statement(self, func_line: str):
-        self.append_code(self.indent)
+        self.append_indent()
         self.append_code(func_line)
         self.append_code(";\n")
 
@@ -43,16 +46,34 @@ class CodeGen:
         self.call_data.append_line("struct CallData")
         self.call_data.begin_block()
         self.input_load_store = CodeGenBlock()
+        self.header = ""
+        self.kernel = CodeGenBlock()
+        self.imports = CodeGenBlock()
+        self.trampoline = CodeGenBlock()
 
-    def finish(self, call_data: bool = False, input_load_store: bool = False):
+    def finish(self, header: bool = False, call_data: bool = False, input_load_store: bool = False, kernel: bool = False, imports: bool = False, trampoline: bool = False):
         self.call_data.end_block()
         self.call_data.append_statement("ParameterBlock<CallData> call_data")
 
         all_code: list[str] = []
-        if input_load_store:
-            all_code = all_code + self.input_load_store.code
+        if header:
+            all_code = [self.header] + all_code
+            all_code.append("\n")
+        if imports:
+            all_code = all_code + self.imports.code
+            all_code.append("\n")
         if call_data:
             all_code = all_code + self.call_data.code
+            all_code.append("\n")
+        if input_load_store:
+            all_code = all_code + self.input_load_store.code
+            all_code.append("\n")
+        if trampoline:
+            all_code = all_code + self.trampoline.code
+            all_code.append("\n")
+        if kernel:
+            all_code = all_code + self.kernel.code
+            all_code.append("\n")
 
         return "".join(all_code)
 

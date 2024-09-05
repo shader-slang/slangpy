@@ -1,7 +1,6 @@
 from typing import Optional, Type, Union
 import sgl
 
-from kernelfunctions.codegen import CodeGen, declare
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import AccessType, BasePythonTypeMarshal, create_slang_type_marshal, get_python_type_marshall, register_python_type
 from .typemappings import TSGLVector, TPythonScalar
@@ -125,8 +124,8 @@ class BufferMarshall(BasePythonTypeMarshal):
         else:
             return f"RWTensorBuffer<{typename},{len(shape)}>"
 
-    def get_indexer(self, transform: list[int], access: AccessType):
-        vals = ",".join(f"call_id[{x}]" for x in transform)
+    def get_indexer(self, transform: list[Optional[int]], access: AccessType):
+        vals = ",".join(("0" if x is None else f"call_id[{x}]") for x in transform)
         return f"[{{{vals}}}]"
 
 
