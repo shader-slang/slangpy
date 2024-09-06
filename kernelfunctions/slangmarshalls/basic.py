@@ -4,7 +4,7 @@ from typing import Union
 from sgl import TypeReflection
 
 from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_KIND, SLANG_MARSHALS_BY_SCALAR_TYPE, create_slang_type_marshal
-from kernelfunctions.types import SlangMarshall, AccessType
+from kernelfunctions.types import SlangMarshall
 
 
 class ScalarSlangTypeMarshal(SlangMarshall):
@@ -19,8 +19,29 @@ class ScalarSlangTypeMarshal(SlangMarshall):
     def differentiate(self):
         return self if self.differentiable else None
 
-    def to_slang(self, access: AccessType):
-        return self.name
+    @property
+    def python_return_value_type(self) -> type:
+        if self.scalar_type == TypeReflection.ScalarType.bool:
+            return bool
+        elif self.scalar_type in [
+            TypeReflection.ScalarType.int8,
+            TypeReflection.ScalarType.int16,
+            TypeReflection.ScalarType.int32,
+            TypeReflection.ScalarType.int64,
+            TypeReflection.ScalarType.uint8,
+            TypeReflection.ScalarType.uint16,
+            TypeReflection.ScalarType.uint32,
+            TypeReflection.ScalarType.uint64,
+        ]:
+            return int
+        elif self.scalar_type in [
+            TypeReflection.ScalarType.float16,
+            TypeReflection.ScalarType.float32,
+            TypeReflection.ScalarType.float64,
+        ]:
+            return float
+        else:
+            raise ValueError(f"Unsupported scalar type {self.scalar_type}")
 
 
 class VectorSlangTypeMarshal(SlangMarshall):

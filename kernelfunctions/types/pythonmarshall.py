@@ -5,7 +5,7 @@ from numpy.typing import ArrayLike
 from sgl import Buffer, Device, ResourceUsage, TypeLayoutReflection
 
 from kernelfunctions.shapes import TLooseOrUndefinedShape
-from kernelfunctions.typemappings import TPythonScalar, TSGLVector
+from kernelfunctions.typemappings import TPythonScalar, TSGLVector, calc_element_type_size
 
 from .enums import AccessType
 
@@ -68,7 +68,7 @@ class PythonMarshal:
         else:
             return "[0]"
 
-    def primal_to_numpy(self):
+    def primal_to_numpy(self, value: Any):
         """
         Convert the primal value to a numpy array. Required for writable values that
         don't override the create_primal and read_primal methods.
@@ -82,7 +82,7 @@ class PythonMarshal:
         """
         raise NotImplementedError()
 
-    def derivative_to_numpy(self):
+    def derivative_to_numpy(self, value: Any):
         """
         Convert the derivative value to a numpy array. Required for writable values that
         don't override the create_derivative and read_derivative methods.
@@ -106,9 +106,9 @@ class PythonMarshal:
         else:
             buffer = device.create_buffer(
                 element_count=1,
-                struct_type=self.get_element_type(value),
+                struct_size=calc_element_type_size(self.get_element_type(value)),
                 usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
-            buffer.from_numpy(self.primal_to_numpy())
+            buffer.from_numpy(self.primal_to_numpy(value))
             return buffer
 
     def create_derivative_calldata(self, device: Device, value: Any, access: AccessType):
@@ -123,26 +123,36 @@ class PythonMarshal:
                 element_count=1,
                 struct_type=self.get_element_type(value),
                 usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
-            buffer.from_numpy(self.derivative_to_numpy())
+            buffer.from_numpy(self.derivative_to_numpy(value))
             return buffer
 
     def read_primal_calldata(self, device: Device, call_data: Any, access: AccessType, value: Any):
         """
-        Read back entry in call data for the primal value. Default behaviour is to do
-        nothing for read-mode, and read back a buffer filled from numpy array for write-mode.
+        Read back entry in call data for the primal value. Must be implemented for writable
+        types.
         """
-        if access != AccessType.read:
-            assert isinstance(call_data, Buffer)
-            self.primal_from_numpy(call_data.to_numpy())
+        raise NotImplementedError()
 
     def read_derivative_calldata(self, device: Device, call_data: Any, access: AccessType, value: Any):
         """
-        Read back entry in call data for the derivative value. Default behaviour is to do
-        nothing for read-mode, and read back a buffer filled from numpy array for write-mode.
+        Read back entry in call data for the derivative value. Must be implemented for writable
+        differentiable types.
         """
-        if access != AccessType.read:
-            assert isinstance(call_data, Buffer)
-            self.derivative_from_numpy(call_data.to_numpy())
+        raise NotImplementedError()
+
+    def allocate_return_value(self, device: Device, call_shape: list[int], element_type: Any):
+        """
+        Allocate a return value for this type. Only required for types that can be directly
+        allocated and returned from function calls.
+        """
+        raise NotImplementedError()
+
+    def as_return_value(self, value: Any):
+        """
+        Convert the allocated return value into the value returned to the user when calling a kernel
+        function. Default behaviour is just to return the value.
+        """
+        return value
 
     @property
     def name(self):

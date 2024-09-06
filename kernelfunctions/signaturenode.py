@@ -1,3 +1,4 @@
+from types import NoneType
 from typing import Any, Optional, Union, cast
 from sgl import Device, FunctionReflection, ModifierID, TypeReflection, VariableReflection
 
@@ -32,6 +33,7 @@ class SignatureNode:
         self.python_element_shape = self.python_marshal.get_element_shape(value)
         self.python_element_type = self.python_marshal.get_element_type(value)
         self.python_differentiable = self.python_marshal.is_differentiable(value)
+        self.python_writable = self.python_marshal.is_writable(value)
 
         # Calculate combined element and container shape
         python_shape = ()
@@ -132,6 +134,10 @@ class SignatureNode:
             self.io_type = IOType.out
             self.no_diff = not slang_reflection.has_modifier(ModifierID.differentiable)
         self.name = path
+
+        # Check writable
+        if self.io_type != IOType.inn and not self.python_writable:
+            raise ValueError(f"Arg {self.param_index} is not writable")
 
         # Apply the signature recursively
         self._apply_signature(slang_reflection, path, input_transforms, output_transforms)
@@ -238,12 +244,12 @@ class SignatureNode:
             derivative_access = self._get_derivative_access(mode)
 
             # Populate primal
-            if primal_access != AccessType.none:
+            if primal_access in [AccessType.write, AccessType.readwrite]:
                 self.python_marshal.read_primal_calldata(
                     device, call_data[self.variable_name + "_primal"], primal_access, value)
 
             # Populate derivative
-            if derivative_access != AccessType.none:
+            if derivative_access in [AccessType.write, AccessType.readwrite]:
                 self.python_marshal.read_derivative_calldata(
                     device, call_data[self.variable_name + "_derivative"], derivative_access, value)
 
@@ -370,6 +376,14 @@ class SignatureNode:
             return self.bwds_access[1]
         else:
             return self.fwds_access[1]
+
+    def allocate_output_buffer(self, device: Device):
+        if self.children is not None:
+            for child in self.children.values():
+                child.allocate_output_buffer(device)
+        else:
+            if self.python_marshal.type == NoneType:
+                pass
 
     def gen_call_data_code(self, mode: CallMode, cg: CodeGen):
         if self.children is not None:

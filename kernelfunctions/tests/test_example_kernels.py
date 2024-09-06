@@ -83,9 +83,9 @@ void user_func(float a, float b, out float c) {
     )
 
     # Read and validate forward kernel results (expecting c = a*a + b + 1)
-    in_data_0 = kf.to_numpy(in_buffer_0.buffer).view(np.float32)
-    in_data_1 = kf.to_numpy(in_buffer_1.buffer).view(np.float32)
-    out_data = kf.to_numpy(out_buffer.buffer).view(np.float32)
+    in_data_0 = in_buffer_0.buffer.to_numpy().view(np.float32)
+    in_data_1 = in_buffer_1.buffer.to_numpy().view(np.float32)
+    out_data = out_buffer.buffer.to_numpy().view(np.float32)
     eval_data = in_data_0 * in_data_0 + in_data_1 + 1
     assert np.allclose(out_data, eval_data)
 
@@ -105,8 +105,8 @@ void user_func(float a, float b, out float c) {
     )
 
     # Read and validate backward kernel results (expecting a_grad = 2*a, b_grad = 1)
-    in_grad_0 = kf.to_numpy(in_buffer_0.grad_buffer).view(np.float32)  # type: ignore
-    in_grad_1 = kf.to_numpy(in_buffer_1.grad_buffer).view(np.float32)  # type: ignore
+    in_grad_0 = in_buffer_0.grad_buffer.to_numpy().view(np.float32)  # type: ignore
+    in_grad_1 = in_buffer_1.grad_buffer.to_numpy().view(np.float32)  # type: ignore
     eval_grad_0 = 2 * in_data_0
     eval_grad_1 = np.ones(in_data_1.shape)
     assert np.allclose(in_grad_0, eval_grad_0)

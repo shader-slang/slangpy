@@ -4,7 +4,7 @@ from typing import Any
 
 from sgl import uint3
 
-from kernelfunctions.callsignature import apply_signature, build_signature, calculate_and_apply_call_shape, generate_code, match_signature, read_call_data_post_dispatch, write_calldata_pre_dispatch
+from kernelfunctions.callsignature import allocate_return_value, apply_signature, build_signature, calculate_and_apply_call_shape, create_return_value, generate_code, match_signature, read_call_data_post_dispatch, write_calldata_pre_dispatch
 from kernelfunctions.function import (
     Function,
     FunctionChainBase,
@@ -17,6 +17,7 @@ from kernelfunctions.shapes import (
 )
 
 import kernelfunctions.codegen as cg
+from kernelfunctions.signaturenode import SignatureNode
 from kernelfunctions.types import CallMode
 
 TYPES = r"""
@@ -72,8 +73,6 @@ class CallData:
         self.function = chain[0]
         self.chain = chain
         self.call_mode = CallMode.bwds if backwards else CallMode.prim
-        self.args = args
-        self.kwargs = kwargs
         self.input_transforms: dict[str, TConcreteShape] = {}
         self.outut_transforms: dict[str, TConcreteShape] = {}
         sets = {}
@@ -95,7 +94,7 @@ class CallData:
         self.sets = sets
 
         # Build the unbound signature from inputs
-        self.input_signature = build_signature(*self.args, **self.kwargs)
+        self.input_signature = build_signature(*args, **kwargs)
 
         # Attempt to match
         matched_signature = None
@@ -112,6 +111,12 @@ class CallData:
         if matched_signature is None or matched_overload is None:
             raise ValueError("No matching overload found")
 
+        # Inject a dummy node into both signatures if we need a result back
+        if self.call_mode == CallMode.prim and not "_result" in kwargs is None and matched_overload.return_type.name != "void":
+            rvalnode = SignatureNode(None)
+            self.input_signature[1]["_result"] = rvalnode
+            matched_signature["_result"] = rvalnode
+
         # Once matched, build the fully bound signature
         apply_signature(matched_signature, matched_overload,
                         self.input_transforms, self.outut_transforms)
@@ -122,6 +127,9 @@ class CallData:
 
         # calculate call shaping
         self.call_shape = calculate_and_apply_call_shape(self.signature)
+
+        # if necessary, create return value node
+        create_return_value(self.call_shape, self.signature, self.call_mode)
 
         # generate code
         codegen = cg.CodeGen()
@@ -156,6 +164,12 @@ class CallData:
         session = self.function.module.session
         device = session.device
 
+        # Allocate a return value if not provided in kw args
+        rv_node = self.signature.get("_result", None)
+        if self.call_mode == CallMode.prim and rv_node is not None and not "_result" in kwargs:
+            kwargs["_result"] = rv_node.python_marshal.allocate_return_value(
+                device, self.call_shape, rv_node.python_element_type)
+
         write_calldata_pre_dispatch(device, self.input_signature,
                                     self.call_mode, call_data, *args, **kwargs)
 
@@ -176,3 +190,8 @@ class CallData:
 
         read_call_data_post_dispatch(
             device, self.input_signature, self.call_mode, call_data, *args, **kwargs)
+
+        if self.call_mode == CallMode.prim and rv_node is not None:
+            return rv_node.python_marshal.as_return_value(kwargs["_result"])
+        else:
+            return None

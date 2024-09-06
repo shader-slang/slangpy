@@ -54,5 +54,9 @@ class SlangMarshall:
     def load_fields(self, slang_type: TypeReflection) -> dict[str, Union[VariableReflection, TypeReflection.ScalarType]]:
         raise NotImplementedError()
 
+    @property
+    def python_return_value_type(self) -> type:
+        raise NotImplementedError()
+
     def __repr__(self):
         return self.name

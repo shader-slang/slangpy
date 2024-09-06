@@ -1,6 +1,8 @@
 from typing import Any
 from kernelfunctions.typeregistry import register_python_type
 from kernelfunctions.types import PythonMarshal
+import numpy as np
+import numpy.typing as npt
 
 
 class BuiltInScalarMarshal(PythonMarshal):
@@ -15,15 +17,33 @@ class IntMarshal(BuiltInScalarMarshal):
     def __init__(self):
         super().__init__(int)
 
+    def primal_to_numpy(self, value: Any):
+        return np.array([value], dtype=np.int32)
+
+    def primal_from_numpy(self, value: npt.NDArray[np.int32]):
+        return value.view(np.int32)[0]
+
 
 class FloatMarshal(BuiltInScalarMarshal):
     def __init__(self):
         super().__init__(float)
 
+    def primal_to_numpy(self, value: Any):
+        return np.array([value], dtype=np.float32)
+
+    def primal_from_numpy(self, value: npt.NDArray[np.float32]):
+        return value.view(np.float32)[0]
+
 
 class BoolMarshal(BuiltInScalarMarshal):
     def __init__(self):
         super().__init__(bool)
+
+    def primal_to_numpy(self, value: Any):
+        return np.array([1 if value else 0], dtype=np.int32)
+
+    def primal_from_numpy(self, value: npt.NDArray[np.int32]):
+        return value.view(np.int32)[0] == 0
 
 
 class DictMarshall(PythonMarshal):

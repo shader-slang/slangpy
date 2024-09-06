@@ -1,8 +1,17 @@
 # Simple loop to find / register all the sgl math types
-from typing import Any
+from typing import Any, Type, cast
 import sgl
+from kernelfunctions.typemappings import TSGLVector
 from kernelfunctions.typeregistry import register_python_type
 from kernelfunctions.types import PythonMarshal
+import numpy as np
+import numpy.typing as npt
+
+ETYPE_TO_NP = {
+    int: np.int32,
+    float: np.float32,
+    bool: np.int32,
+}
 
 
 class SGLMathTypeMarshal(PythonMarshal):
@@ -18,10 +27,23 @@ class SGLVectorMarshal(SGLMathTypeMarshal):
     def __init__(self, sgl_type: type):
         super().__init__(sgl_type)
 
+    def primal_to_numpy(self, value: Any):
+        dt = ETYPE_TO_NP[self.type]
+        return np.array([value[i] for i in value.shape[0]], dtype=dt)
+
+    def primal_from_numpy(self, value: npt.NDArray[Any]) -> TSGLVector:
+        return self.type(list(value))
+
 
 class SGLMatrixMarshal(SGLMathTypeMarshal):
     def __init__(self, sgl_type: type):
         super().__init__(sgl_type)
+
+    def primal_to_numpy(self, value: Any):
+        return value.to_numpy()
+
+    def primal_from_numpy(self, value: npt.NDArray[Any]) -> Any:
+        return self.type(value)
 
 
 def _reg_sgl_math_type(sgl_type: type, marshall: PythonMarshal):

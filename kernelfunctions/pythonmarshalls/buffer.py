@@ -32,7 +32,10 @@ class BufferMarshall(PythonMarshal):
         return value.element_type
 
     def is_differentiable(self, value: StructuredBuffer) -> bool:
-        return value.requires_grad
+        return value.is_differentiable
+
+    def is_writable(self, value: StructuredBuffer) -> bool:
+        return value.is_writable
 
     def get_calldata_typename(self, typename: str, shape: TConcreteShape, access: AccessType):
         if access == AccessType.read:

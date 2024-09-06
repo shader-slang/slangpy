@@ -1,13 +1,16 @@
 import hashlib
 from io import StringIO
+from types import NoneType
 from typing import Any, Optional, Union, cast
-from sgl import Device, FunctionReflection
+from sgl import Device, FunctionReflection, TypeReflection
+from kernelfunctions.buffer import StructuredBuffer
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.signaturenode import SignatureNode, TCallSignature, TMatchedSignature
-from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, create_slang_type_marshal
+from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, create_slang_type_marshal, get_python_type_marshall
 from kernelfunctions.types import CallMode, AccessType
+from kernelfunctions.utils import ScalarRef
 
 
 def build_signature_hash(*args: Any, **kwargs: Any) -> str:
@@ -124,13 +127,6 @@ def match_signature(
         if param is None:
             return None
 
-    # Need to add something to handle return value here
-    if call_mode == CallMode.prim and rval is None and function_reflection.return_type.name != "void":
-        matched_rval = SignatureNode(None)
-        matched_rval.slang_primal = create_slang_type_marshal(
-            function_reflection.return_type)
-        rval = matched_rval
-
     if rval is not None:
         matched_params["_result"] = rval
     return matched_params  # type: ignore
@@ -242,6 +238,25 @@ def calculate_and_apply_call_shape(signature: TMatchedSignature) -> list[int]:
     return verified_call_shape
 
 
+def create_return_value(call_shape: list[int], signature: TMatchedSignature, mode: CallMode):
+    """
+    Create the return value for the call
+    """
+    if mode == CallMode.prim:
+        node = signature.get("_result")
+        if node is not None:
+            node.argument_shape = call_shape
+            node.call_transform = [i for i in range(len(call_shape))]
+            node.python_element_shape = node.slang_primal.value_shape
+            node.python_container_shape = tuple(call_shape)
+            node.python_element_type = node.slang_primal.python_return_value_type
+            if len(call_shape) == 0:
+                node.python_marshal = get_python_type_marshall(ScalarRef)
+            else:
+                node.python_marshal = get_python_type_marshall(StructuredBuffer)
+            node.python_shape = node.python_container_shape + node.python_element_shape
+
+
 def generate_code(call_shape: list[int], function: Function, signature: TMatchedSignature, mode: CallMode, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
@@ -322,6 +337,13 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     cg.kernel.end_block()
 
 
+def allocate_return_value(device: Device, call_shape: list[int], rv_node: SignatureNode) -> Any:
+    """
+    Allocate the return value for the call
+    """
+    return ScalarRef(0)
+
+
 def write_calldata_pre_dispatch(device: Device, call_signature: TCallSignature, mode: CallMode, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Write the call data for args + kwargs before dispatching
@@ -331,6 +353,7 @@ def write_calldata_pre_dispatch(device: Device, call_signature: TCallSignature, 
 
     for idx, value in enumerate(args):
         sig_args[idx].write_call_data_pre_dispatch(device, call_data, value, mode)
+
     for key, value in kwargs.items():
         sig_kwargs[key].write_call_data_pre_dispatch(device, call_data, value, mode)
 
@@ -343,9 +366,9 @@ def read_call_data_post_dispatch(device: Device, call_signature: TCallSignature,
     sig_kwargs = call_signature[1]
 
     for idx, value in enumerate(args):
-        sig_args[idx].read_call_data_post_dispatch(device, call_data, mode, value)
+        sig_args[idx].read_call_data_post_dispatch(device, call_data, value, mode)
     for key, value in kwargs.items():
-        sig_kwargs[key].read_call_data_post_dispatch(device, call_data, mode, value)
+        sig_kwargs[key].read_call_data_post_dispatch(device, call_data, value, mode)
 
 
 '''

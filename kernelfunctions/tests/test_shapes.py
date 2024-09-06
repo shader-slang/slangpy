@@ -9,7 +9,7 @@ import deepdiff
 
 from kernelfunctions.tests import helpers
 from kernelfunctions.typeregistry import PythonMarshal, register_python_type
-from kernelfunctions.utils import floatRef
+from kernelfunctions.utils import ScalarRef, floatRef
 
 # Dummy class that fakes a buffer of a given shape for testing
 
@@ -23,6 +23,9 @@ class FakeBuffer:
 class FakeBufferMarshall(PythonMarshal):
     def __init__(self):
         super().__init__(FakeBuffer)
+
+    def is_writable(self, value: Any) -> bool:
+        return True
 
     def get_element_shape(self, value: FakeBuffer):
         return ()
@@ -237,7 +240,7 @@ def test_dotproduct_broadcast_result(device_type: sgl.DeviceType):
 
     # pass an output, which is also broadcast so would in practice be a race condition
     shapes = dot_product(device_type, FakeBuffer(
-        (100, 3)), FakeBuffer((3,)), sgl.float1())
+        (100, 3)), FakeBuffer((3,)), ScalarRef(sgl.float1()))
     diff = deepdiff.DeepDiff(
         shapes,
         {

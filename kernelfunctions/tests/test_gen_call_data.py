@@ -19,10 +19,10 @@ def test_dotproduct_scalar(device_type: sgl.DeviceType):
     (prim, bwds, fwds) = code(dot_product(device_type, sgl.float3(), sgl.float3(), None))
 
     # primitive call should pass in 2 vectors and output a float
-    print(prim)
     assert prim == """
 struct CallData
 {
+    uint3 _thread_count;
     vector<float,3> a_primal;
     vector<float,3> b_primal;
     RWStructuredBuffer<float> _result_primal;
@@ -34,8 +34,10 @@ ParameterBlock<CallData> call_data;
     assert bwds == """
 struct CallData
 {
+    uint3 _thread_count;
     vector<float,3> a_primal;
     vector<float,3> b_primal;
+    float _result_derivative;
 }
 ParameterBlock<CallData> call_data;
 """.strip()
@@ -51,6 +53,7 @@ def test_dotproduct_scalar_ref(device_type: sgl.DeviceType):
     assert prim == """
 struct CallData
 {
+    uint3 _thread_count;
     vector<float,3> a_primal;
     vector<float,3> b_primal;
     RWStructuredBuffer<float> _result_primal;
@@ -62,6 +65,7 @@ ParameterBlock<CallData> call_data;
     assert bwds == """
 struct CallData
 {
+    uint3 _thread_count;
     vector<float,3> a_primal;
     vector<float,3> b_primal;
 }
@@ -82,6 +86,7 @@ def test_dotproduct_diff_pairs(device_type: sgl.DeviceType):
     assert prim == """
 struct CallData
 {
+    uint3 _thread_count;
     vector<float,3> a_primal;
     vector<float,3> b_primal;
     RWStructuredBuffer<float> _result_primal;
@@ -95,6 +100,7 @@ ParameterBlock<CallData> call_data;
     assert bwds == """
 struct CallData
 {
+    uint3 _thread_count;
     vector<float,3> a_primal;
     RWStructuredBuffer<vector<float,3>> a_derivative;
     vector<float,3> b_primal;
@@ -142,6 +148,7 @@ struct CallData
 {
     int[1] _call_stride;
     int[1] _call_dim;
+    uint3 _thread_count;
     TensorBuffer<vector<float,3>,1> a_primal;
     TensorBuffer<vector<float,3>,1> b_primal;
     RWTensorBuffer<float,1> _result_primal;
@@ -159,6 +166,7 @@ struct CallData
 {
     int[1] _call_stride;
     int[1] _call_dim;
+    uint3 _thread_count;
     TensorBuffer<vector<float,3>,1> a_primal;
     RWTensorBuffer<vector<float,3>,1> a_derivative;
     TensorBuffer<vector<float,3>,1> b_primal;
@@ -211,6 +219,7 @@ struct CallData
 {
     int[1] _call_stride;
     int[1] _call_dim;
+    uint3 _thread_count;
     TensorBuffer<float,1> a__x_primal;
     float a__y_primal;
     float a__z_primal;
@@ -232,6 +241,7 @@ struct CallData
 {
     int[1] _call_stride;
     int[1] _call_dim;
+    uint3 _thread_count;
     TensorBuffer<float,1> a__x_primal;
     RWTensorBuffer<float,1> a__x_derivative;
     float a__y_primal;

@@ -2,24 +2,10 @@ from typing import Optional, Type, Union
 import sgl
 
 from kernelfunctions.shapes import TConcreteShape
-from .typemappings import TSGLVector, TPythonScalar
+from .typemappings import TSGLVector, TPythonScalar, calc_element_type_size
 
 ALL_SUPPORTED_TYPES = Union[Type[TSGLVector],
                             Type[TPythonScalar], sgl.TypeLayoutReflection]
-
-
-def _calc_element_type_size(element_type: ALL_SUPPORTED_TYPES) -> int:
-    if isinstance(element_type, sgl.TypeLayoutReflection):
-        return element_type.size
-    elif element_type in (sgl.int1, sgl.uint1, sgl.float1, sgl.bool1, int, float, bool):
-        return 4
-    elif element_type in (sgl.int2, sgl.uint2, sgl.float2, sgl.bool2):
-        return 8
-    elif element_type in (sgl.int3, sgl.uint3, sgl.float3, sgl.bool3):
-        return 12
-    elif element_type in (sgl.int4, sgl.uint4, sgl.float4, sgl.bool4):
-        return 16
-    raise ValueError(f"Unsupported type: {element_type}")
 
 
 class StructuredBuffer:
@@ -70,8 +56,8 @@ class StructuredBuffer:
         self.grad_type = grad_type if grad_type is not None else self.element_type
         self.grad_usage = grad_usage if grad_usage is not None else self.usage
 
-        self.element_size = _calc_element_type_size(self.element_type)
-        self.grad_element_size = _calc_element_type_size(self.grad_type)
+        self.element_size = calc_element_type_size(self.element_type)
+        self.grad_element_size = calc_element_type_size(self.grad_type)
 
         self.buffer = device.create_buffer(
             element_count=self.element_count,
@@ -87,3 +73,11 @@ class StructuredBuffer:
             )
         else:
             self.grad_buffer = None
+
+    @property
+    def is_differentiable(self):
+        return self.requires_grad
+
+    @property
+    def is_writable(self):
+        return (self.usage & sgl.ResourceUsage.unordered_access) != 0

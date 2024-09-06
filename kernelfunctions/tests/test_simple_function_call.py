@@ -4,7 +4,7 @@ import pytest
 import sgl
 import kernelfunctions as kf
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.utils import diffPair, intRef
+from kernelfunctions.utils import diffPair, floatDiffPair, intRef
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -86,7 +86,7 @@ void add_numbers(int a, int b, out int c) {
 
     # Should fail, as pure python 'int' can't be used to receive output.
     with pytest.raises(
-        ValueError, match="Scalar value types can not be used for out arguments"
+        ValueError, match="Arg 2 is not writable"
     ):
         val_res: int = 0
         function(5, 10, val_res)
@@ -95,6 +95,26 @@ void add_numbers(int a, int b, out int c) {
     out_res = intRef()
     function(5, 10, out_res)
     assert out_res.value == 15
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_scalar_outparam_with_diffpair(device_type: sgl.DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers",
+        r"""
+void add_numbers(float a, float b, out float c) {
+    c = a+b;
+}
+""",
+    )
+
+    # Using a scalar output the function should be able to output a value.
+    out_res = floatDiffPair()
+    function(5.0, 10.0, out_res)
+    assert out_res.primal == 15.0
 
 
 def rand_array_of_ints(size: int):

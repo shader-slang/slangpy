@@ -97,6 +97,20 @@ MATCHERS[dict] = lambda slang_type: slang_type.kind in [
     sgl.TypeReflection.Kind.struct, sgl.TypeReflection.Kind.vector]
 
 
+def calc_element_type_size(element_type: Union[Type[TSGLVector], Type[TPythonScalar], sgl.TypeReflection, sgl.TypeLayoutReflection]) -> int:
+    if isinstance(element_type, sgl.TypeLayoutReflection):
+        return element_type.size
+    elif element_type in (sgl.int1, sgl.uint1, sgl.float1, sgl.bool1, int, float, bool):
+        return 4
+    elif element_type in (sgl.int2, sgl.uint2, sgl.float2, sgl.bool2):
+        return 8
+    elif element_type in (sgl.int3, sgl.uint3, sgl.float3, sgl.bool3):
+        return 12
+    elif element_type in (sgl.int4, sgl.uint4, sgl.float4, sgl.bool4):
+        return 16
+    raise ValueError(f"Unsupported type: {element_type}")
+
+
 def are_element_types_compatible(
         element_type: Optional[Union[Type[TSGLVector], Type[TPythonScalar], sgl.TypeReflection, sgl.TypeLayoutReflection]],
         slang_type: sgl.TypeReflection
