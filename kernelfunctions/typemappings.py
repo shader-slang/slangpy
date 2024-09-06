@@ -60,6 +60,17 @@ SHAPES[int] = (1,)
 SHAPES[float] = (1,)
 SHAPES[bool] = (1,)
 
+VEC_TYPES: dict[sgl.TypeReflection.ScalarType, list[Optional[Type[TSGLVector]]]] = {
+    x: [None]*5 for x in sgl.TypeReflection.ScalarType
+}
+
+
+def add_vec_types(scalar_type: list[sgl.TypeReflection.ScalarType], dim: int, vec_type: Type[TSGLVector]):
+    for st in scalar_type:
+        if VEC_TYPES[st][dim] is None:
+            VEC_TYPES[st][dim] = vec_type
+
+
 # Register matchers sgl types.
 for sgl_pair in zip(["int", "float", "bool", "uint", "float16_t"], [SLANG_INT_TYPES, SLANG_FLOAT_TYPES, SLANG_BOOL_TYPES, SLANG_UINT_TYPES, SLANG_FLOAT_TYPES]):
     # The scalar (i.e. float1) types
@@ -68,6 +79,7 @@ for sgl_pair in zip(["int", "float", "bool", "uint", "float16_t"], [SLANG_INT_TY
         MATCHERS[sgl_type] = lambda slang_type, scalar_types=sgl_pair[1], dim=1: is_match_scalar(
             slang_type, scalar_types)
         SHAPES[sgl_type] = (1,)
+        add_vec_types(sgl_pair[1], 1, sgl_type)
 
     # Vector (i.e. float2) types
     for dim in range(2, 5):
@@ -76,6 +88,7 @@ for sgl_pair in zip(["int", "float", "bool", "uint", "float16_t"], [SLANG_INT_TY
             MATCHERS[sgl_type] = lambda slang_type, scalar_types=sgl_pair[1], dim=dim: is_match_vector(
                 slang_type, scalar_types, dim)
             SHAPES[sgl_type] = (dim,)
+            add_vec_types(sgl_pair[1], dim, sgl_type)
 
     # Quaternion type
     MATCHERS[sgl.quatf] = lambda slang_type, scalar_types=sgl_pair[1], dim=dim: is_match_vector(

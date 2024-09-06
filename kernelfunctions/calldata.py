@@ -4,7 +4,7 @@ from typing import Any
 
 from sgl import uint3
 
-from kernelfunctions.callsignature import allocate_return_value, apply_signature, build_signature, calculate_and_apply_call_shape, create_return_value, generate_code, match_signature, read_call_data_post_dispatch, write_calldata_pre_dispatch
+from kernelfunctions.callsignature import apply_signature, build_signature, calculate_and_apply_call_shape, create_return_value, generate_code, match_signature, read_call_data_post_dispatch, write_calldata_pre_dispatch
 from kernelfunctions.function import (
     Function,
     FunctionChainBase,

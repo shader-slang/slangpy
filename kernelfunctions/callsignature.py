@@ -251,6 +251,7 @@ def create_return_value(call_shape: list[int], signature: TMatchedSignature, mod
         if node is not None:
             node.argument_shape = call_shape
             node.call_transform = [i for i in range(len(call_shape))]
+            node.loadstore_transform = [i for i in range(len(call_shape))]
             node.python_element_shape = node.slang_primal.value_shape
             node.python_container_shape = tuple(call_shape)
             node.python_element_type = node.slang_primal.python_return_value_type
@@ -406,13 +407,6 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
                 store_d(x)
 
     cg.kernel.end_block()
-
-
-def allocate_return_value(device: Device, call_shape: list[int], rv_node: SignatureNode) -> Any:
-    """
-    Allocate the return value for the call
-    """
-    return ScalarRef(0)
 
 
 def write_calldata_pre_dispatch(device: Device, call_signature: TCallSignature, mode: CallMode, call_data: dict[str, Any], *args: Any, **kwargs: Any):

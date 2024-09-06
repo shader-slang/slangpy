@@ -67,6 +67,13 @@ class BufferMarshall(PythonMarshal):
         assert call_data['buffer'] == value.grad_buffer
         assert call_data['strides'] == list(value.strides)
 
+    def allocate_return_value(self, device: Device, call_shape: list[int], element_type: Any):
+        return StructuredBuffer(
+            device=device,
+            shape=tuple(call_shape),
+            element_type=element_type,
+            requires_grad=True)
+
 
 register_python_type(StructuredBuffer,
                      BufferMarshall(),

@@ -253,5 +253,43 @@ void add_numbers_remap(int a, int b, out int c) {
     function.transform_output({"a": (1,), "b": (0,)})(a, b, c)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_returnvalue_buffer(device_type: sgl.DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers",
+        r"""
+int add_numbers(int a, int b) {
+    return a+b;
+}
+""",
+    )
+
+    a = kf.StructuredBuffer(
+        element_count=50,
+        device=device,
+        element_type=int,
+    )
+    a.buffer.from_numpy(rand_array_of_ints(a.element_count))
+
+    b = kf.StructuredBuffer(
+        element_count=50,
+        device=device,
+        element_type=int,
+    )
+    b.buffer.from_numpy(rand_array_of_ints(b.element_count))
+
+    # just verify it can be called with no exceptions
+    res: kf.StructuredBuffer = function(a, b)
+
+    a_data = a.buffer.to_numpy().view(np.int32)
+    b_data = b.buffer.to_numpy().view(np.int32)
+    res_data = res.buffer.to_numpy().view(np.int32)
+
+    assert np.all(res_data == a_data + b_data)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

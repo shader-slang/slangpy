@@ -24,6 +24,23 @@ SCALAR_TYPE_NAMES: dict[TypeReflection.ScalarType, str] = {
     TypeReflection.ScalarType.uint16: "uint16_t",
 }
 
+SCALAR_TYPE_TO_PYTHON: dict[TypeReflection.ScalarType, type] = {
+    TypeReflection.ScalarType.none: type(None),
+    TypeReflection.ScalarType.void: type(None),
+    TypeReflection.ScalarType.bool: bool,
+    TypeReflection.ScalarType.int32: int,
+    TypeReflection.ScalarType.uint32: int,
+    TypeReflection.ScalarType.int64: int,
+    TypeReflection.ScalarType.uint64: int,
+    TypeReflection.ScalarType.float16: float,
+    TypeReflection.ScalarType.float32: float,
+    TypeReflection.ScalarType.float64: float,
+    TypeReflection.ScalarType.int8: int,
+    TypeReflection.ScalarType.uint8: int,
+    TypeReflection.ScalarType.int16: int,
+    TypeReflection.ScalarType.uint16: int,
+}
+
 
 class SlangMarshall:
     def __init__(self, slang_type: Union[TypeReflection, TypeReflection.ScalarType]):

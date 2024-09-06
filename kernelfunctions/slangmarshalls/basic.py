@@ -3,8 +3,10 @@
 from typing import Union
 from sgl import TypeReflection
 
+from kernelfunctions.typemappings import VEC_TYPES
 from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_KIND, SLANG_MARSHALS_BY_SCALAR_TYPE, create_slang_type_marshal
 from kernelfunctions.types import SlangMarshall
+from kernelfunctions.types.slangmarshall import SCALAR_TYPE_TO_PYTHON
 
 
 class ScalarSlangTypeMarshal(SlangMarshall):
@@ -21,27 +23,7 @@ class ScalarSlangTypeMarshal(SlangMarshall):
 
     @property
     def python_return_value_type(self) -> type:
-        if self.scalar_type == TypeReflection.ScalarType.bool:
-            return bool
-        elif self.scalar_type in [
-            TypeReflection.ScalarType.int8,
-            TypeReflection.ScalarType.int16,
-            TypeReflection.ScalarType.int32,
-            TypeReflection.ScalarType.int64,
-            TypeReflection.ScalarType.uint8,
-            TypeReflection.ScalarType.uint16,
-            TypeReflection.ScalarType.uint32,
-            TypeReflection.ScalarType.uint64,
-        ]:
-            return int
-        elif self.scalar_type in [
-            TypeReflection.ScalarType.float16,
-            TypeReflection.ScalarType.float32,
-            TypeReflection.ScalarType.float64,
-        ]:
-            return float
-        else:
-            raise ValueError(f"Unsupported scalar type {self.scalar_type}")
+        return SCALAR_TYPE_TO_PYTHON[self.scalar_type]
 
 
 class VectorSlangTypeMarshal(SlangMarshall):
@@ -59,6 +41,12 @@ class VectorSlangTypeMarshal(SlangMarshall):
 
     def load_fields(self, slang_type: TypeReflection):
         return dict(zip(["x", "y", "z", "w"][:slang_type.col_count], [slang_type.scalar_type] * slang_type.col_count))
+
+    @property
+    def python_return_value_type(self) -> type:
+        t = VEC_TYPES[self.scalar_type][self.value_shape[0]]
+        assert t is not None
+        return t
 
 
 class MatrixSlangTypeMarshal(SlangMarshall):
