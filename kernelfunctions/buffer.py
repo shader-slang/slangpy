@@ -2,7 +2,6 @@ from typing import Optional, Type, Union
 import sgl
 
 from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.typeregistry import AccessType, BasePythonTypeMarshal, create_slang_type_marshal, get_python_type_marshall, register_python_type
 from .typemappings import TSGLVector, TPythonScalar
 
 ALL_SUPPORTED_TYPES = Union[Type[TSGLVector],
@@ -88,47 +87,3 @@ class StructuredBuffer:
             )
         else:
             self.grad_buffer = None
-
-
-class BufferMarshall(BasePythonTypeMarshal):
-    """
-    Marshall for scalar ref (will be 1 per scalar element type)
-    """
-
-    def __init__(self):
-        super().__init__(StructuredBuffer)
-
-    def get_element_shape(self, value: StructuredBuffer):
-        if isinstance(value.element_type, sgl.TypeLayoutReflection):
-            slang_marshall = create_slang_type_marshal(value.element_type.type)
-            element_shape = slang_marshall.value_shape
-        else:
-            python_marshall = get_python_type_marshall(value.element_type)
-            element_shape = python_marshall.get_element_shape(None)
-        assert element_shape
-        assert not None in element_shape
-        return element_shape
-
-    def get_container_shape(self, value: StructuredBuffer):
-        return value.shape
-
-    def get_element_type(self, value: StructuredBuffer):
-        return value.element_type
-
-    def is_differentiable(self, value: StructuredBuffer) -> bool:
-        return value.requires_grad
-
-    def get_calldata_typename(self, typename: str, shape: TConcreteShape, access: AccessType):
-        if access == AccessType.read:
-            return f"TensorBuffer<{typename},{len(shape)}>"
-        else:
-            return f"RWTensorBuffer<{typename},{len(shape)}>"
-
-    def get_indexer(self, transform: list[Optional[int]], access: AccessType):
-        vals = ",".join(("0" if x is None else f"call_id[{x}]") for x in transform)
-        return f"[{{{vals}}}]"
-
-
-register_python_type(StructuredBuffer,
-                     BufferMarshall(),
-                     lambda stream, x: stream.write(type(x.value).__name + "\n"))

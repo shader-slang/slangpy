@@ -1,10 +1,9 @@
-from typing import Any, Optional
-from kernelfunctions.codegen import CodeGen, declare
-from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.typeregistry import AccessType, BasePythonTypeMarshal, register_python_type
+from typing import Any
+from kernelfunctions.typeregistry import register_python_type
+from kernelfunctions.types import PythonMarshal
 
 
-class BuiltInScalarMarshal(BasePythonTypeMarshal):
+class BuiltInScalarMarshal(PythonMarshal):
     def __init__(self, python_type: type):
         super().__init__(python_type)
 
@@ -27,7 +26,7 @@ class BoolMarshal(BuiltInScalarMarshal):
         super().__init__(bool)
 
 
-class DictMarshall(BasePythonTypeMarshal):
+class DictMarshall(PythonMarshal):
     def __init__(self):
         super().__init__(dict)
 
@@ -40,7 +39,7 @@ class DictMarshall(BasePythonTypeMarshal):
         return (1,)
 
 
-class NoneTypeMarshal(BasePythonTypeMarshal):
+class NoneTypeMarshal(PythonMarshal):
     """
     None type occurs for basic return values when user hasn't provided a destination
     """

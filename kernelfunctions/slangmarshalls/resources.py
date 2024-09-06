@@ -1,9 +1,9 @@
 from sgl import TypeReflection
 from kernelfunctions.callsignature import create_slang_type_marshal
-from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_NAME, BaseSlangTypeMarshal
+from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_NAME, SlangMarshall
 
 
-class TextureSlangTypeMarshal(BaseSlangTypeMarshal):
+class TextureSlangTypeMarshal(SlangMarshall):
     def __init__(self, slang_type: TypeReflection):
         super().__init__(slang_type)
         if slang_type.resource_shape == TypeReflection.ResourceShape.texture_2d:
@@ -14,7 +14,7 @@ class TextureSlangTypeMarshal(BaseSlangTypeMarshal):
         self.value_shape = self.resource_marshal.shape
 
 
-class StructuredBufferSlangTypeMarshal(BaseSlangTypeMarshal):
+class StructuredBufferSlangTypeMarshal(SlangMarshall):
     def __init__(self, slang_type: TypeReflection):
         super().__init__(slang_type)
         if slang_type.resource_shape == TypeReflection.ResourceShape.structured_buffer:

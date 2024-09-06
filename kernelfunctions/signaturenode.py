@@ -1,24 +1,11 @@
-from enum import Enum
 from typing import Any, Optional, Union, cast
-from sgl import FunctionReflection, ModifierID, TypeReflection, VariableReflection
+from sgl import Device, FunctionReflection, ModifierID, TypeReflection, VariableReflection
 
 from kernelfunctions.codegen import CodeGen, declare
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
 from kernelfunctions.typemappings import are_element_types_compatible
-from kernelfunctions.typeregistry import AccessType, BaseSlangTypeMarshal, create_slang_type_marshal, get_python_type_marshall
-
-
-class CallMode(Enum):
-    prim = 0
-    bwds = 1
-    fwds = 2
-
-
-class IOType(Enum):
-    none = 0
-    inn = 1
-    out = 2
-    inout = 3
+from kernelfunctions.typeregistry import create_slang_type_marshal, get_python_type_marshall
+from kernelfunctions.types import AccessType, SlangMarshall, IOType, CallMode
 
 
 # Result of building the signature for a set of args and kwargs
@@ -55,7 +42,7 @@ class SignatureNode:
         self.python_shape = python_shape if len(python_shape) > 0 else None
 
         # Init internal data
-        self.slang_primal: BaseSlangTypeMarshal = None  # type: ignore
+        self.slang_primal: SlangMarshall = None  # type: ignore
         self.param_index = -1
         self.type_shape: Optional[list[int]] = None
         self.argument_shape: Optional[list[Optional[int]]] = None
@@ -220,13 +207,45 @@ class SignatureNode:
         if self.type_shape is not None:
             args.append(self)
 
-    def write_call_data_pre_dispatch(self, call_data: dict[str, Any], value: Any):
+    def write_call_data_pre_dispatch(self, device: Device, call_data: dict[str, Any], value: Any, mode: CallMode):
         """Writes value to call data dictionary pre-dispatch"""
-        pass
+        if self.children is not None:
+            for name, child in self.children.items():
+                child.write_call_data_pre_dispatch(device, call_data, value[name], mode)
+        else:
+            # Pick access types based on call mode.
+            primal_access = self._get_primal_access(mode)
+            derivative_access = self._get_derivative_access(mode)
 
-    def read_call_data_post_dispatch(self, call_data: dict[str, Any], value: Any):
+            # Populate primal
+            if primal_access != AccessType.none:
+                call_data[self.variable_name + "_primal"] = self.python_marshal.create_primal_calldata(
+                    device, value, primal_access)
+
+            # Populate derivative
+            if derivative_access != AccessType.none:
+                call_data[self.variable_name + "_derivative"] = self.python_marshal.create_derivative_calldata(
+                    device, value, derivative_access)
+
+    def read_call_data_post_dispatch(self, device: Device, call_data: dict[str, Any], value: Any, mode: CallMode):
         """Reads value from call data dictionary post-dispatch"""
-        pass
+        if self.children is not None:
+            for name, child in self.children.items():
+                child.write_call_data_pre_dispatch(device, call_data, value[name], mode)
+        else:
+            # Pick access types based on call mode.
+            primal_access = self._get_primal_access(mode)
+            derivative_access = self._get_derivative_access(mode)
+
+            # Populate primal
+            if primal_access != AccessType.none:
+                self.python_marshal.read_primal_calldata(
+                    device, call_data[self.variable_name + "_primal"], primal_access, value)
+
+            # Populate derivative
+            if derivative_access != AccessType.none:
+                self.python_marshal.read_derivative_calldata(
+                    device, call_data[self.variable_name + "_derivative"], derivative_access, value)
 
     def __repr__(self):
         return self.python_marshal.__repr__()
@@ -517,70 +536,3 @@ class SignatureNode:
         if self.slang_differential is None:
             arg_def = f"no_diff {arg_def}"
         return arg_def
-
-    def typename_primal(self):
-        """
-        Get the typename for the primal value
-        """
-        return self.slang_primal.name
-
-    def typename_derivative(self):
-        """
-        Get the typename for the derivative value
-        """
-        return self.slang_primal.name + ".Differential"
-
-    def valuename_primal(self):
-        """
-        Get the value name for the primal value
-        """
-        return self.name
-
-    def valuename_derivative(self):
-        """
-        Get the value name for the derivative value
-        """
-        return self.name + "_grad"
-
-    def declare_primal(self):
-        """
-        Declare the node in slang
-        """
-        return declare(self.typename_primal(), self.valuename_primal())
-
-    def declare_derivative(self):
-        """
-        Declare the node in slang
-        """
-        return declare(self.typename_derivative(), self.valuename_derivative())
-
-
-r"""
-
-So we load a node
-
-
-//within the load_val function could either be
-void load_val_primal(int[] call_id, out Type val) {
-    val = call_data.val[0];
-}
-void load_val_primal(int[] call_id, out Type val) {
-    load_x_primal(call_id, val.x);
-    load_y_primal(call_id, val.y);
-}
-
-
-mainkernel() {
-
-    //i have a set of signature nodes. for each one (for prim and deriv)
-    Type val_primal;
-    load_val_primal(call_id, val);
-
-    //i have a set of signature nodes. for each one (for prim and deriv)
-    Type_differential val_derivative;
-    load_val_derivative(call_id, val);
-}
-
-so its only the root that's different, we can certainly have special code for the root call of each one
-
-"""

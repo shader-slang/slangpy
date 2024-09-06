@@ -1,9 +1,8 @@
 from typing import Any, Optional
 from numpy import ndarray
 import sgl
-from kernelfunctions.codegen import CodeGen, declare
-from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.typeregistry import AccessType, BasePythonTypeMarshal, get_python_type_marshall, register_python_type
+from kernelfunctions.typeregistry import get_python_type_marshall, register_python_type
+from kernelfunctions.types import PythonMarshal
 
 
 class ScalarRef:
@@ -17,7 +16,7 @@ class ScalarRef:
         self.value = init_value
 
 
-class ScalarRefMarshall(BasePythonTypeMarshal):
+class ScalarRefMarshall(PythonMarshal):
     """
     Marshall for scalar ref (will be 1 per scalar element type)
     """
@@ -48,7 +47,7 @@ class ScalarDiffPair:
         self.needs_grad = needs_grad
 
 
-class ScalarDiffPairMarshall(BasePythonTypeMarshal):
+class ScalarDiffPairMarshall(PythonMarshal):
     """
     Marshall for scalar ref (will be 1 per scalar element type)
     """

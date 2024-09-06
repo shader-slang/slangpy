@@ -3,10 +3,11 @@
 from typing import Union
 from sgl import TypeReflection
 
-from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_KIND, SLANG_MARSHALS_BY_SCALAR_TYPE, AccessType, BaseSlangTypeMarshal, create_slang_type_marshal
+from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_KIND, SLANG_MARSHALS_BY_SCALAR_TYPE, create_slang_type_marshal
+from kernelfunctions.types import SlangMarshall, AccessType
 
 
-class ScalarSlangTypeMarshal(BaseSlangTypeMarshal):
+class ScalarSlangTypeMarshal(SlangMarshall):
     def __init__(self, slang_type: Union[TypeReflection, TypeReflection.ScalarType]):
         super().__init__(slang_type)
         self.value_shape = (1,)
@@ -22,7 +23,7 @@ class ScalarSlangTypeMarshal(BaseSlangTypeMarshal):
         return self.name
 
 
-class VectorSlangTypeMarshal(BaseSlangTypeMarshal):
+class VectorSlangTypeMarshal(SlangMarshall):
     def __init__(self, slang_type: TypeReflection):
         super().__init__(slang_type)
         self.value_shape = (slang_type.col_count,)
@@ -39,7 +40,7 @@ class VectorSlangTypeMarshal(BaseSlangTypeMarshal):
         return dict(zip(["x", "y", "z", "w"][:slang_type.col_count], [slang_type.scalar_type] * slang_type.col_count))
 
 
-class MatrixSlangTypeMarshal(BaseSlangTypeMarshal):
+class MatrixSlangTypeMarshal(SlangMarshall):
     def __init__(self, slang_type: TypeReflection):
         super().__init__(slang_type)
         self.value_shape = (slang_type.row_count, slang_type.col_count)
@@ -53,7 +54,7 @@ class MatrixSlangTypeMarshal(BaseSlangTypeMarshal):
         return self if self.differentiable else None
 
 
-class StructSlangTypeMarshal(BaseSlangTypeMarshal):
+class StructSlangTypeMarshal(SlangMarshall):
     def __init__(self, slang_type: TypeReflection):
         super().__init__(slang_type)
         self.value_shape = (1,)

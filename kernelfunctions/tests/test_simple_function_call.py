@@ -159,12 +159,12 @@ void add_numbers(int a, int b, out int c) {
     if isinstance(in_buffer_0, int):
         in_data_0 = np.array([in_buffer_0] * out_buffer_size)
     else:
-        in_data_0 = kf.to_numpy(in_buffer_0.buffer).view(np.int32)
+        in_data_0 = in_buffer_0.buffer.to_numpy().view(np.int32)
     if isinstance(in_buffer_1, int):
         in_data_1 = np.array([in_buffer_1] * out_buffer_size)
     else:
-        in_data_1 = kf.to_numpy(in_buffer_1.buffer).view(np.int32)
-    out_data = kf.to_numpy(out_buffer.buffer).view(np.int32)
+        in_data_1 = in_buffer_1.buffer.to_numpy().view(np.int32)
+    out_data = out_buffer.buffer.to_numpy().view(np.int32)
     for i in range(32):
         assert out_data[i] == in_data_0[i] + in_data_1[i]
 

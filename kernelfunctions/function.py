@@ -11,11 +11,11 @@ class FunctionChainBase:
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
         calldata = self._build_call_data(False, *args, **kwargs)
-        return calldata.call()
+        return calldata.call(*args, **kwargs)
 
     def backwards(self, *args: Any, **kwargs: Any) -> Any:
         calldata = self._build_call_data(True, *args, **kwargs)
-        return calldata.call()
+        return calldata.call(*args, **kwargs)
 
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)

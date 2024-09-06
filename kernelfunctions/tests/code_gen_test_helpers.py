@@ -10,7 +10,7 @@ from kernelfunctions.callsignature import apply_signature, build_signature, calc
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.signaturenode import CallMode
 from kernelfunctions.tests import helpers
-from kernelfunctions.typeregistry import BasePythonTypeMarshal, register_python_type
+from kernelfunctions.typeregistry import PythonMarshal, register_python_type
 
 
 class FakeBuffer:
@@ -19,7 +19,7 @@ class FakeBuffer:
         self.shape = shape
 
 
-class FakeBufferMarshall(BasePythonTypeMarshal):
+class FakeBufferMarshall(PythonMarshal):
     def __init__(self):
         super().__init__(FakeBuffer)
 

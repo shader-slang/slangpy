@@ -1,8 +1,5 @@
-from typing import Optional, Union
-import numpy as np
 import pytest
 import sgl
-import kernelfunctions as kf
 import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.utils import diffPair
 

@@ -1,11 +1,11 @@
 # Simple loop to find / register all the sgl math types
 from typing import Any
 import sgl
+from kernelfunctions.typeregistry import register_python_type
+from kernelfunctions.types import PythonMarshal
 
-from kernelfunctions.typeregistry import BasePythonTypeMarshal, register_python_type
 
-
-class SGLMathTypeMarshal(BasePythonTypeMarshal):
+class SGLMathTypeMarshal(PythonMarshal):
     def __init__(self, sgl_type: type):
         super().__init__(sgl_type)
         self.shape = sgl_type().shape
@@ -24,7 +24,7 @@ class SGLMatrixMarshal(SGLMathTypeMarshal):
         super().__init__(sgl_type)
 
 
-def _reg_sgl_math_type(sgl_type: type, marshall: BasePythonTypeMarshal):
+def _reg_sgl_math_type(sgl_type: type, marshall: PythonMarshal):
     if sgl_type is not None:
         register_python_type(
             sgl_type, marshall, lambda stream, x: stream.write(str(x) + "\n")

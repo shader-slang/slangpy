@@ -8,7 +8,7 @@ from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
 from kernelfunctions.tests import helpers
-from kernelfunctions.typeregistry import BasePythonTypeMarshal, register_python_type
+from kernelfunctions.typeregistry import PythonMarshal, register_python_type
 from kernelfunctions.utils import floatRef
 
 # Dummy class that fakes a buffer of a given shape for testing
@@ -20,7 +20,7 @@ class FakeBuffer:
         self.shape = shape
 
 
-class FakeBufferMarshall(BasePythonTypeMarshal):
+class FakeBufferMarshall(PythonMarshal):
     def __init__(self):
         super().__init__(FakeBuffer)
 

@@ -1,12 +1,13 @@
 import hashlib
 from io import StringIO
 from typing import Any, Optional, Union, cast
-from sgl import FunctionReflection
+from sgl import Device, FunctionReflection
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.signaturenode import CallMode, SignatureNode, TCallSignature, TMatchedSignature
-from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, AccessType, create_slang_type_marshal
+from kernelfunctions.signaturenode import SignatureNode, TCallSignature, TMatchedSignature
+from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, create_slang_type_marshal
+from kernelfunctions.types import CallMode, AccessType
 
 
 def build_signature_hash(*args: Any, **kwargs: Any) -> str:
@@ -120,7 +121,7 @@ def match_signature(
 
     # Check if all arguments have been handled
     for param in matched_params.values():
-        if arg is None:
+        if param is None:
             return None
 
     # Need to add something to handle return value here
@@ -255,6 +256,7 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     if call_data_len > 0:
         cg.call_data.append_statement(f"int[{call_data_len}] _call_stride")
         cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
+    cg.call_data.append_statement(f"uint3 _thread_count")
 
     # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
@@ -288,6 +290,8 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     cg.kernel.append_line("[numthreads(32, 1, 1)]")
     cg.kernel.append_line("void main(uint3 dispatchThreadID: SV_DispatchThreadID)")
     cg.kernel.begin_block()
+    cg.kernel.append_statement(
+        "if (any(dispatchThreadID >= call_data._thread_count)) return")
 
     # Loads / initializes call id (inserting dummy if not vector call)
     if call_data_len > 0:
@@ -316,6 +320,32 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
                 f"store_{x.variable_name}_primal(call_id,{x.variable_name})")
 
     cg.kernel.end_block()
+
+
+def write_calldata_pre_dispatch(device: Device, call_signature: TCallSignature, mode: CallMode, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+    """
+    Write the call data for args + kwargs before dispatching
+    """
+    sig_args = call_signature[0]
+    sig_kwargs = call_signature[1]
+
+    for idx, value in enumerate(args):
+        sig_args[idx].write_call_data_pre_dispatch(device, call_data, value, mode)
+    for key, value in kwargs.items():
+        sig_kwargs[key].write_call_data_pre_dispatch(device, call_data, value, mode)
+
+
+def read_call_data_post_dispatch(device: Device, call_signature: TCallSignature, mode: CallMode, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+    """
+    Read the call data for args + kwargs after dispatching
+    """
+    sig_args = call_signature[0]
+    sig_kwargs = call_signature[1]
+
+    for idx, value in enumerate(args):
+        sig_args[idx].read_call_data_post_dispatch(device, call_data, mode, value)
+    for key, value in kwargs.items():
+        sig_kwargs[key].read_call_data_post_dispatch(device, call_data, mode, value)
 
 
 '''

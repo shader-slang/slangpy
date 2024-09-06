@@ -1,7 +1,10 @@
+import hashlib
 import os
 from typing import Any
 
-from kernelfunctions.callsignature import apply_signature, build_signature, calculate_and_apply_call_shape, generate_code, match_signature
+from sgl import uint3
+
+from kernelfunctions.callsignature import apply_signature, build_signature, calculate_and_apply_call_shape, generate_code, match_signature, read_call_data_post_dispatch, write_calldata_pre_dispatch
 from kernelfunctions.function import (
     Function,
     FunctionChainBase,
@@ -12,8 +15,9 @@ from kernelfunctions.function import (
 from kernelfunctions.shapes import (
     TConcreteShape,
 )
-from kernelfunctions.signaturenode import CallMode
+
 import kernelfunctions.codegen as cg
+from kernelfunctions.types import CallMode
 
 TYPES = r"""
 int _idx<let N: int>(int[N] index, int[N] stride) {
@@ -91,14 +95,14 @@ class CallData:
         self.sets = sets
 
         # Build the unbound signature from inputs
-        unbound_signature = build_signature(*self.args, **self.kwargs)
+        self.input_signature = build_signature(*self.args, **self.kwargs)
 
         # Attempt to match
         matched_signature = None
         matched_overload = None
         for ast_function in self.function.ast_functions:
             match = match_signature(
-                unbound_signature, ast_function.as_function(), self.call_mode)
+                self.input_signature, ast_function.as_function(), self.call_mode)
             if match:
                 if matched_signature == None:
                     matched_signature = match
@@ -136,3 +140,39 @@ class CallData:
             "w",
         ) as f:
             f.write(self.code)
+
+        # Build new module and link it with the one that contains the function being called.
+        session = self.function.module.session
+        device = session.device
+        module = session.load_module_from_source(
+            hashlib.sha256(self.code.encode()).hexdigest()[0:16], self.code
+        )
+        ep = module.entry_point("main")
+        program = session.link_program([module, self.function.module], [ep])
+        self.kernel = device.create_compute_kernel(program)
+
+    def call(self, *args: Any, **kwargs: Any):
+        call_data = {}
+        session = self.function.module.session
+        device = session.device
+
+        write_calldata_pre_dispatch(device, self.input_signature,
+                                    self.call_mode, call_data, *args, **kwargs)
+
+        total_threads = 1
+        strides = []
+        for dim in reversed(self.call_shape):
+            strides.append(total_threads)
+            total_threads *= dim
+        strides.reverse()
+
+        if len(strides) > 0:
+            call_data["_call_stride"] = strides
+            call_data["_call_dim"] = self.call_shape
+        call_data["_thread_count"] = uint3(total_threads, 1, 1)
+
+        # Dispatch the kernel.
+        self.kernel.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
+
+        read_call_data_post_dispatch(
+            device, self.input_signature, self.call_mode, call_data, *args, **kwargs)
