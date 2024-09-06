@@ -135,10 +135,6 @@ class SignatureNode:
             self.no_diff = not slang_reflection.has_modifier(ModifierID.differentiable)
         self.name = path
 
-        # Check writable
-        if self.io_type != IOType.inn and not self.python_writable:
-            raise ValueError(f"Arg {self.param_index} is not writable")
-
         # Apply the signature recursively
         self._apply_signature(slang_reflection, path, input_transforms, output_transforms)
 

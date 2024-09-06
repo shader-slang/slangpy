@@ -21,7 +21,7 @@ class IntMarshal(BuiltInScalarMarshal):
         return np.array([value], dtype=np.int32)
 
     def primal_from_numpy(self, value: npt.NDArray[np.int32]):
-        return value.view(np.int32)[0]
+        return int(value.view(np.int32)[0])
 
 
 class FloatMarshal(BuiltInScalarMarshal):
@@ -32,7 +32,7 @@ class FloatMarshal(BuiltInScalarMarshal):
         return np.array([value], dtype=np.float32)
 
     def primal_from_numpy(self, value: npt.NDArray[np.float32]):
-        return value.view(np.float32)[0]
+        return float(value.view(np.float32)[0])
 
 
 class BoolMarshal(BuiltInScalarMarshal):
@@ -43,7 +43,7 @@ class BoolMarshal(BuiltInScalarMarshal):
         return np.array([1 if value else 0], dtype=np.int32)
 
     def primal_from_numpy(self, value: npt.NDArray[np.int32]):
-        return value.view(np.int32)[0] == 0
+        return bool(value.view(np.int32)[0] == 0)
 
 
 class DictMarshall(PythonMarshal):

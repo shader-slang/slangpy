@@ -49,7 +49,7 @@ def test_call_none_differentiable(device_type: sgl.DeviceType):
     res = function(a, b)
     assert res == python_eval_polynomial(a, b)
 
-    with pytest.raises(ValueError, match="Function is not differentiable"):
+    with pytest.raises(ValueError, match="No matching overload found"):
         function.backwards(a, b, res)
 
 

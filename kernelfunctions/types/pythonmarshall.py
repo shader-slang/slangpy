@@ -121,7 +121,7 @@ class PythonMarshal:
         else:
             buffer = device.create_buffer(
                 element_count=1,
-                struct_type=self.get_element_type(value),
+                struct_size=calc_element_type_size(self.get_element_type(value)),
                 usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
             buffer.from_numpy(self.derivative_to_numpy(value))
             return buffer
@@ -131,14 +131,14 @@ class PythonMarshal:
         Read back entry in call data for the primal value. Must be implemented for writable
         types.
         """
-        raise NotImplementedError()
+        raise ValueError("Cannot read back primal value for non-writable type")
 
     def read_derivative_calldata(self, device: Device, call_data: Any, access: AccessType, value: Any):
         """
         Read back entry in call data for the derivative value. Must be implemented for writable
         differentiable types.
         """
-        raise NotImplementedError()
+        raise ValueError("Cannot read back derivative value for non-writable type")
 
     def allocate_return_value(self, device: Device, call_shape: list[int], element_type: Any):
         """

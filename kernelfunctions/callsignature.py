@@ -2,7 +2,7 @@ import hashlib
 from io import StringIO
 from types import NoneType
 from typing import Any, Optional, Union, cast
-from sgl import Device, FunctionReflection, TypeReflection
+from sgl import Device, FunctionReflection, ModifierID, TypeReflection
 from kernelfunctions.buffer import StructuredBuffer
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.function import Function
@@ -71,6 +71,10 @@ def match_signature(
     Attempts to efficiently match a signature to a slang function overload.
     Returns a dictionary of matched argument nodes to parameter names.
     """
+
+    # Bail instantly if trying to call a non-differentiable function with a derivative call
+    if call_mode != CallMode.prim and not function_reflection.has_modifier(ModifierID.differentiable):
+        return None
 
     overload_parameters = [x for x in function_reflection.parameters]
 
@@ -317,22 +321,89 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     else:
         cg.kernel.append_statement("int[] call_id = {0}")
 
-    # For each trampoline parameter, define variable and potentially load it
-    for x in root_params:
-        cg.kernel.append_statement(f"{x.slang_primal.name} {x.variable_name}")
-        if x.prim_access == AccessType.read or x.prim_access == AccessType.readwrite:
+    def declare_p(x: SignatureNode, has_suffix: bool = False):
+        name = f"{x.variable_name}{'_p' if has_suffix else ''}"
+        cg.kernel.append_statement(f"{x.slang_primal.name} {name}")
+        return name
+
+    def declare_d(x: SignatureNode, has_suffix: bool = False):
+        name = f"{x.variable_name}{'_d' if has_suffix else ''}"
+        cg.kernel.append_statement(f"{x.slang_differential.name} {name}")
+        return name
+
+    def load_p(x: SignatureNode, has_suffix: bool = False):
+        n = declare_p(x, has_suffix)
+        cg.kernel.append_statement(
+            f"load_{x.variable_name}_primal(call_id,{n})")
+        return n
+
+    def load_d(x: SignatureNode, has_suffix: bool = False):
+        n = declare_d(x, has_suffix)
+        cg.kernel.append_statement(
+            f"load_{x.variable_name}_derivative(call_id,{n})")
+        return n
+
+    def store_p(x: SignatureNode, has_suffix: bool = False):
+        cg.kernel.append_statement(
+            f"store_{x.variable_name}_primal(call_id,{x.variable_name}{'_p' if has_suffix else ''})")
+
+    def store_d(x: SignatureNode, has_suffix: bool = False):
+        cg.kernel.append_statement(
+            f"store_{x.variable_name}_derivative(call_id,{x.variable_name}{'_d' if has_suffix else ''})")
+
+    def create_pair(x: SignatureNode, inc_derivative: bool):
+        p = load_p(x, True)
+        if not inc_derivative:
             cg.kernel.append_statement(
-                f"load_{x.variable_name}_primal(call_id,{x.variable_name})")
+                f"var {x.variable_name} = diffPair({p})")
+        else:
+            d = load_d(x, True)
+            cg.kernel.append_statement(
+                f"var {x.variable_name} = diffPair({p}, {d})")
+
+    def store_pair_derivative(x: SignatureNode):
+        cg.kernel.append_statement(
+            f"store_{x.variable_name}_derivative(call_id,{x.variable_name}.d)")
+
+    # Select either primals, derivatives or pairs for the trampoline function
+    names: list[str] = []
+    for x in root_params:
+        primal_access = x._get_primal_access(mode)
+        derivative_access = x._get_derivative_access(mode)
+        if primal_access != AccessType.none and derivative_access != AccessType.none:
+            assert not primal_access in [AccessType.write, AccessType.readwrite]
+            assert derivative_access in [AccessType.write, AccessType.readwrite]
+            create_pair(x, derivative_access == AccessType.readwrite)
+        else:
+            if primal_access == AccessType.read or primal_access == AccessType.readwrite:
+                load_p(x)
+            elif primal_access == AccessType.write:
+                declare_p(x)
+            if derivative_access == AccessType.read or derivative_access == AccessType.readwrite:
+                load_d(x)
+            elif derivative_access == AccessType.write:
+                declare_d(x)
+        if primal_access != AccessType.none or derivative_access != AccessType.none:
+            names.append(f"{x.variable_name}")
 
     # Call the trampoline function
+    fn = "_trampoline"
+    if mode == CallMode.bwds:
+        fn = f"bwd_diff({fn})"
     cg.kernel.append_statement(
-        "_trampoline(" + ", ".join(x.name for x in root_params) + ")")
+        f"{fn}(" + ", ".join(names) + ")")
 
-    # For each trampoline parameter, potentially store it
+    # For each writable trampoline parameter, potentially store it
     for x in root_params:
-        if x.prim_access == AccessType.write or x.prim_access == AccessType.readwrite:
-            cg.kernel.append_statement(
-                f"store_{x.variable_name}_primal(call_id,{x.variable_name})")
+        primal_access = x._get_primal_access(mode)
+        derivative_access = x._get_derivative_access(mode)
+        if primal_access != AccessType.none and derivative_access != AccessType.none:
+            store_pair_derivative(x)
+        else:
+            if primal_access == AccessType.write or primal_access == AccessType.readwrite:
+                store_p(x)
+            if derivative_access == AccessType.write or derivative_access == AccessType.readwrite:
+                store_d(x)
 
     cg.kernel.end_block()
 
@@ -369,85 +440,3 @@ def read_call_data_post_dispatch(device: Device, call_signature: TCallSignature,
         sig_args[idx].read_call_data_post_dispatch(device, call_data, value, mode)
     for key, value in kwargs.items():
         sig_kwargs[key].read_call_data_post_dispatch(device, call_data, value, mode)
-
-
-'''
-So lets assume we have general code that at any given level basically has a set of named
-variables. arguably that should be the case for the root as well. So in a simple case like
-
-add(a,b)
-
-we'd expect a node tree of 
-{
-    a: SignatureNode,
-    b: SignatureNode
-}
-
-you could argue that root should be a signature node really
-
-SignatureNode({
-    a: SignatureNode,
-    b: SignatureNode
-})
-
-So that node represents a set of values etc - it is the trampoline call and the arguments
-that feed into it?
-
-What if it was
-
-SignatureNode({
-    a: SignatureNode({
-        x: SignatureNode,
-        y: SignatureNode
-    }),
-    b: SignatureNode,
-})
-
-now to load a we have to call a function, and to store a we have to call a function.
-
-so for the simple example it was kind of
-
-main:
-    a = load_a()
-    b = load_b()
-    call(a,b)
-    store_a(a)
-    store_b(b)
-
-load_a:
-    return call_data.a
-
-store_a
-    call_data.a = a
-
-for the more complex example we need
-main:
-    a = load_a()
-    b = load_b()
-    call(a,b)
-    store_a(a)
-    store_b(b)
-
-load_a:
-    A a
-    a.x = load_x()
-    a.y = load_y()
-    return a
-
-store_a:
-    store_x(a.x)
-    store_y(a.y)
-
-So the only difference really is that the root node contains loads and stores into
-local variables and has a call, where the child nodes are building structures    
-
-SO I might need a slang FIELD marshall really, as it needs to know its type and name,
-because it'll want to know where to load from (maybe?). Then again maybe not.
-
-Arguably not, though it'd probably be useful to do so anyway to make it a bit
-more human readable
-
-In the context of types, you end up with just load_self, and store_self, and then
-it all just works
-
-'''

@@ -86,7 +86,7 @@ void add_numbers(int a, int b, out int c) {
 
     # Should fail, as pure python 'int' can't be used to receive output.
     with pytest.raises(
-        ValueError, match="Arg 2 is not writable"
+        ValueError, match="Cannot read back primal value for non-writable type"
     ):
         val_res: int = 0
         function(5, 10, val_res)

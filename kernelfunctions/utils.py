@@ -144,7 +144,7 @@ class ScalarDiffPairMarshall(PythonMarshal):
         For writing to a buffer, can just override the to_numpy function to get 
         the marshall for the value call its derivative_to_numpy
         """
-        return get_python_type_marshall(value.primal).derivative_to_numpy(value.grad)
+        return get_python_type_marshall(value.primal).primal_to_numpy(value.grad)
 
     def create_derivative_calldata(self, device: Device, value: ScalarDiffPair, access: AccessType):
         """
@@ -164,9 +164,9 @@ class ScalarDiffPairMarshall(PythonMarshal):
         if access != AccessType.read:
             assert isinstance(call_data, Buffer)
             numpy_value = call_data.to_numpy()
-            primal = get_python_type_marshall(
-                value.primal).derivative_from_numpy(numpy_value)
-            value.primal = primal
+            derivative = get_python_type_marshall(
+                value.grad).primal_from_numpy(numpy_value)
+            value.grad = derivative
 
 
 register_python_type(ScalarDiffPair,
