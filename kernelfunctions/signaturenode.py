@@ -382,13 +382,12 @@ class SignatureNode:
         access = self._get_access(mode, prim)
         if access != AccessType.none:
             slang = self.slang.get(prim)
-            cg.call_data.append_statement(
-                self.python_marshal.gen_calldata(
-                    self.python,
-                    slang.name,
-                    f"{self.variable_name}_{prim.name}",
-                    access)
-            )
+            self.python_marshal.gen_calldata(
+                cg.call_data,
+                self.python,
+                slang.name,
+                f"{self.variable_name}_{prim.name}",
+                access)
 
     def gen_load_store_code(self, mode: CallMode, cg: CodeGen):
         # Generate load store functions
@@ -419,11 +418,12 @@ class SignatureNode:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             assert self.loadstore_transform is not None
-            cgcode.append_statement(
-                self.python_marshal.gen_load(
-                    f"call_data.{self.variable_name}_{prim_name}",
-                    "val",
-                    self.loadstore_transform, access))
+            self.python_marshal.gen_load(
+                cgcode,
+                self.python,
+                f"call_data.{self.variable_name}_{prim_name}",
+                "val",
+                self.loadstore_transform, access)
             cgcode.end_block()
 
         return func_name
@@ -455,11 +455,12 @@ class SignatureNode:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             assert self.loadstore_transform is not None
-            cgcode.append_statement(
-                self.python_marshal.gen_store(
-                    f"call_data.{self.variable_name}_{prim_type}",
-                    "val",
-                    self.loadstore_transform, access))
+            self.python_marshal.gen_store(
+                cgcode,
+                self.python,
+                f"call_data.{self.variable_name}_{prim_type}",
+                "val",
+                self.loadstore_transform, access)
             cgcode.end_block()
         return func_name
 

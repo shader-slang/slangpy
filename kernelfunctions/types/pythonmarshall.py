@@ -89,32 +89,33 @@ class PythonMarshal:
         """
         return False
 
-    def gen_calldata(self, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
+    def gen_calldata(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
         """
         Declare the call data for this value. By default, read only values are stored as uniforms, and read-write
         values are stored as structured buffers with a single element.
         """
         if access == AccessType.read:
-            return cg.declare(type_name, variable_name)
+            cgb.append_statement(cg.declare(type_name, variable_name))
         else:
-            return cg.declare(f"RWStructuredBuffer<{type_name}>", variable_name)
+            cgb.append_statement(cg.declare(
+                f"RWStructuredBuffer<{type_name}>", variable_name))
 
-    def gen_load(self, from_call_data: str, to_variable: str, transform: list[Optional[int]], access: AccessType):
+    def gen_load(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, from_call_data: str, to_variable: str, transform: list[Optional[int]], access: AccessType):
         """
         Generate code to load the value from the call data. By default, read only values are simply copied
         from the uniform, and read-write values are copied from the first element of the structured buffer.
         """
         if access == AccessType.read:
-            return cg.assign(to_variable, from_call_data)
+            cgb.append_statement(cg.assign(to_variable, from_call_data))
         else:
-            return cg.assign(to_variable, f"{from_call_data}[0]")
+            cgb.append_statement(cg.assign(to_variable, f"{from_call_data}[0]"))
 
-    def gen_store(self, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
+    def gen_store(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
         """
         Generate code to store the value to the call data. By default, this assumes a writable value
         has a single element structured buffer to write to.
         """
-        return cg.assign(f"{to_call_data}[0]", from_variable)
+        cgb.append_statement(cg.assign(f"{to_call_data}[0]", from_variable))
 
     def primal_to_numpy(self, value: Any):
         """

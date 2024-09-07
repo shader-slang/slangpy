@@ -35,15 +35,17 @@ class BaseBufferMarshall(PythonMarshal):
     def is_writable(self, value: NDBuffer) -> bool:
         return value.is_writable
 
-    def gen_calldata(self, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
+    def gen_calldata(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
         """
         Call data either contains a read-only or read-write buffer.
         """
         assert desc.container_shape is not None
         if access == AccessType.read:
-            return cg.declare(f"TensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name)
+            cgb.append_statement(cg.declare(
+                f"TensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name))
         else:
-            return cg.declare(f"RWTensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name)
+            cgb.append_statement(cg.declare(
+                f"RWTensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name))
 
     def _transform_to_subscript(self, transform: list[Optional[int]]):
         """
@@ -54,17 +56,19 @@ class BaseBufferMarshall(PythonMarshal):
             ("0" if x is None else f"context.call_id[{x}]") for x in transform)
         return f"[{{{vals}}}]"
 
-    def gen_load(self, from_call_data: str, to_variable: str, transform: list[Optional[int]], access: AccessType):
+    def gen_load(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, from_call_data: str, to_variable: str, transform: list[Optional[int]], access: AccessType):
         """
         Load the value from the buffer into the variable.
         """
-        return cg.assign(to_variable, f"{from_call_data}{self._transform_to_subscript(transform)}")
+        cgb.append_statement(
+            cg.assign(to_variable, f"{from_call_data}{self._transform_to_subscript(transform)}"))
 
-    def gen_store(self, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
+    def gen_store(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
         """
         Store the value from the variable into the buffer.
         """
-        return cg.assign(f"{to_call_data}{self._transform_to_subscript(transform)}", from_variable)
+        cgb.append_statement(
+            cg.assign(f"{to_call_data}{self._transform_to_subscript(transform)}", from_variable))
 
     def create_primal_calldata(self, device: Device, value: NDBuffer, access: AccessType):
         return {
