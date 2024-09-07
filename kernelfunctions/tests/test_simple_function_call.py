@@ -98,6 +98,25 @@ void add_numbers(int a, int b, out int c) {
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_scalar_inoutparam(device_type: sgl.DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers",
+        r"""
+void add_numbers(inout int a) {
+    a += 10;
+}
+""",
+    )
+    # Using a scalar output the function should be able to output a value.
+    out_res = intRef(5)
+    function(out_res)
+    assert out_res.value == 15
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_scalar_outparam_with_diffpair(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)

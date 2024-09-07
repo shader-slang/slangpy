@@ -9,6 +9,8 @@ from kernelfunctions.typemappings import TPythonScalar, TSGLVector, calc_element
 
 from .enums import AccessType
 
+import kernelfunctions.codegen as cg
+
 
 class PythonMarshal:
     def __init__(self, python_type: type):
@@ -47,26 +49,32 @@ class PythonMarshal:
         """
         return False
 
-    def get_calldata_typename(self, typename: str, shape: TLooseOrUndefinedShape, access: AccessType):
+    def gen_calldata(self, slang_type_name: str, call_data_name: str, shape: TLooseOrUndefinedShape, access: AccessType):
         """
-        Get the typename that should be written to call data for this type.    
-        Default behaviour is to return the typename for read access and a buffer to
-        contain the type for write access.
+        Declare the call data for this value. By default, read only values are stored as uniforms, and read-write
+        values are stored as structured buffers with a single element.
         """
         if access == AccessType.read:
-            return typename
+            return cg.declare(slang_type_name, call_data_name)
         else:
-            return f"RWStructuredBuffer<{typename}>"
+            return cg.declare(f"RWStructuredBuffer<{slang_type_name}>", call_data_name)
 
-    def get_indexer(self, call_transform: list[Optional[int]], access: AccessType):
+    def gen_load(self, from_call_data: str, to_variable: str, transform: list[Optional[int]], access: AccessType):
         """
-        Get the index string that should be used to index into the buffer. Default
-        behaviour is no index for read access, and access element 0 for write access.
+        Generate code to load the value from the call data. By default, read only values are simply copied
+        from the uniform, and read-write values are copied from the first element of the structured buffer.
         """
         if access == AccessType.read:
-            return ""
+            return cg.assign(to_variable, from_call_data)
         else:
-            return "[0]"
+            return cg.assign(to_variable, f"{from_call_data}[0]")
+
+    def gen_store(self, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
+        """
+        Generate code to store the value to the call data. By default, this assumes a writable value
+        has a single element structured buffer to write to.
+        """
+        return cg.assign(f"{to_call_data}[0]", from_variable)
 
     def primal_to_numpy(self, value: Any):
         """

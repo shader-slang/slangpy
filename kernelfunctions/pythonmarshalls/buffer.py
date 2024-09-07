@@ -4,6 +4,7 @@ from kernelfunctions.buffer import StructuredBuffer
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import create_slang_type_marshal, get_python_type_marshall, register_python_type
 from kernelfunctions.types import AccessType, PythonMarshal
+import kernelfunctions.codegen as cg
 
 
 class BufferMarshall(PythonMarshal):
@@ -37,15 +38,35 @@ class BufferMarshall(PythonMarshal):
     def is_writable(self, value: StructuredBuffer) -> bool:
         return value.is_writable
 
-    def get_calldata_typename(self, typename: str, shape: TConcreteShape, access: AccessType):
+    def gen_calldata(self, slang_type_name: str, call_data_name: str, shape: TConcreteShape, access: AccessType):
+        """
+        Call data either contains a read-only or read-write buffer.
+        """
         if access == AccessType.read:
-            return f"TensorBuffer<{typename},{len(shape)}>"
+            return cg.declare(f"TensorBuffer<{slang_type_name},{len(shape)}>", call_data_name)
         else:
-            return f"RWTensorBuffer<{typename},{len(shape)}>"
+            return cg.declare(f"RWTensorBuffer<{slang_type_name},{len(shape)}>", call_data_name)
 
-    def get_indexer(self, transform: list[Optional[int]], access: AccessType):
-        vals = ",".join(("0" if x is None else f"call_id[{x}]") for x in transform)
+    def _transform_to_subscript(self, transform: list[Optional[int]]):
+        """
+        Generates the subscript to be passed into the [] operator when loading or storing
+        from the buffer.
+        """
+        vals = ",".join(
+            ("0" if x is None else f"context.call_id[{x}]") for x in transform)
         return f"[{{{vals}}}]"
+
+    def gen_load(self, from_call_data: str, to_variable: str, transform: list[Optional[int]], access: AccessType):
+        """
+        Load the value from the buffer into the variable.
+        """
+        return cg.assign(to_variable, f"{from_call_data}{self._transform_to_subscript(transform)}")
+
+    def gen_store(self, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
+        """
+        Store the value from the variable into the buffer.
+        """
+        return cg.assign(f"{to_call_data}{self._transform_to_subscript(transform)}", from_variable)
 
     def create_primal_calldata(self, device: Device, value: StructuredBuffer, access: AccessType):
         return {

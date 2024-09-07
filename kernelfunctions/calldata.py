@@ -139,7 +139,8 @@ class CallData:
 
         # store code
         self.code = codegen.finish(call_data=True, input_load_store=True,
-                                   header=True, kernel=True, imports=True, trampoline=True)
+                                   header=True, kernel=True, imports=True,
+                                   trampoline=True, context=True)
 
         # Write the shader to a file for debugging.
         os.makedirs(".temp", exist_ok=True)

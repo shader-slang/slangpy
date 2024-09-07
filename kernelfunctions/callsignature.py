@@ -278,6 +278,13 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
         cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
     cg.call_data.append_statement(f"uint3 _thread_count")
 
+    # Generate the context structure
+    cg.context.append_line(f"struct Context")
+    cg.context.begin_block()
+    cg.context.append_statement(f"uint3 thread_id")
+    cg.context.append_statement(f"int[{max(1,call_data_len)}] call_id")
+    cg.context.end_block()
+
     # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
         node.get_input_list(nodes)
@@ -314,13 +321,14 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
         "if (any(dispatchThreadID >= call_data._thread_count)) return")
 
     # Loads / initializes call id (inserting dummy if not vector call)
+    cg.kernel.append_statement("Context context")
+    cg.kernel.append_statement("context.thread_id = dispatchThreadID")
     if call_data_len > 0:
-        cg.kernel.append_statement(f"int[{call_data_len}] call_id")
         for i in range(call_data_len):
             cg.kernel.append_statement(
-                f"call_id[{i}] = (dispatchThreadID.x/call_data._call_stride[{i}]) % call_data._call_dim[{i}]")
+                f"context.call_id[{i}] = (dispatchThreadID.x/call_data._call_stride[{i}]) % call_data._call_dim[{i}]")
     else:
-        cg.kernel.append_statement("int[] call_id = {0}")
+        cg.kernel.append_statement("context.call_id = {0}")
 
     def declare_p(x: SignatureNode, has_suffix: bool = False):
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
@@ -335,22 +343,22 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     def load_p(x: SignatureNode, has_suffix: bool = False):
         n = declare_p(x, has_suffix)
         cg.kernel.append_statement(
-            f"load_{x.variable_name}_primal(call_id,{n})")
+            f"load_{x.variable_name}_primal(context,{n})")
         return n
 
     def load_d(x: SignatureNode, has_suffix: bool = False):
         n = declare_d(x, has_suffix)
         cg.kernel.append_statement(
-            f"load_{x.variable_name}_derivative(call_id,{n})")
+            f"load_{x.variable_name}_derivative(context,{n})")
         return n
 
     def store_p(x: SignatureNode, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"store_{x.variable_name}_primal(call_id,{x.variable_name}{'_p' if has_suffix else ''})")
+            f"store_{x.variable_name}_primal(context,{x.variable_name}{'_p' if has_suffix else ''})")
 
     def store_d(x: SignatureNode, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"store_{x.variable_name}_derivative(call_id,{x.variable_name}{'_d' if has_suffix else ''})")
+            f"store_{x.variable_name}_derivative(context,{x.variable_name}{'_d' if has_suffix else ''})")
 
     def create_pair(x: SignatureNode, inc_derivative: bool):
         p = load_p(x, True)
@@ -364,7 +372,7 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
 
     def store_pair_derivative(x: SignatureNode):
         cg.kernel.append_statement(
-            f"store_{x.variable_name}_derivative(call_id,{x.variable_name}.d)")
+            f"store_{x.variable_name}_derivative(context,{x.variable_name}.d)")
 
     # Select either primals, derivatives or pairs for the trampoline function
     names: list[str] = []

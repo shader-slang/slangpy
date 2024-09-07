@@ -50,8 +50,17 @@ class CodeGen:
         self.kernel = CodeGenBlock()
         self.imports = CodeGenBlock()
         self.trampoline = CodeGenBlock()
+        self.context = CodeGenBlock()
 
-    def finish(self, header: bool = False, call_data: bool = False, input_load_store: bool = False, kernel: bool = False, imports: bool = False, trampoline: bool = False):
+    def finish(self,
+               header: bool = False,
+               call_data: bool = False,
+               input_load_store: bool = False,
+               kernel: bool = False,
+               imports: bool = False,
+               trampoline: bool = False,
+               context: bool = False):
+
         self.call_data.end_block()
         self.call_data.append_statement("ParameterBlock<CallData> call_data")
 
@@ -61,6 +70,9 @@ class CodeGen:
             all_code.append("\n")
         if imports:
             all_code = all_code + self.imports.code
+            all_code.append("\n")
+        if context:
+            all_code = all_code + self.context.code
             all_code.append("\n")
         if call_data:
             all_code = all_code + self.call_data.code

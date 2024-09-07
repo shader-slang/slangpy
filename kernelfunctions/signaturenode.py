@@ -396,19 +396,14 @@ class SignatureNode:
             if primal_access != AccessType.none:
                 assert self.primal_type_name is not None
                 cgblock.append_statement(
-                    declare(
-                        self.python_marshal.get_calldata_typename(
-                            self.primal_type_name, self.python_container_shape, self._get_primal_access(mode)),
-                        f"{self.variable_name}_primal"
-                    )
+                    self.python_marshal.gen_calldata(
+                        self.primal_type_name, f"{self.variable_name}_primal", self.python_container_shape, primal_access)
                 )
             if derivative_access != AccessType.none:
                 assert self.derivative_type_name is not None
                 cgblock.append_statement(
-                    declare(
-                        self.python_marshal.get_calldata_typename(
-                            self.derivative_type_name, self.python_container_shape, self._get_derivative_access(mode)),
-                        f"{self.variable_name}_derivative")
+                    self.python_marshal.gen_calldata(
+                        self.derivative_type_name, f"{self.variable_name}_derivative", self.python_container_shape, derivative_access)
                 )
 
     def gen_load_store_code(self, mode: CallMode, cg: CodeGen):
@@ -419,11 +414,12 @@ class SignatureNode:
         self._gen_store_derivative(mode, cg)
 
     def _gen_load_primal(self, mode: CallMode, cg: CodeGen):
-        if not self._get_primal_access(mode) in [AccessType.read, AccessType.readwrite]:
+        access = self._get_primal_access(mode)
+        if not access in [AccessType.read, AccessType.readwrite]:
             return None
 
         func_name = f"load_{self.variable_name}_primal"
-        func_def = f"void {func_name}(int[] call_id, out {self.primal_type_name} val)"
+        func_def = f"void {func_name}(Context context, out {self.primal_type_name} val)"
 
         cgcode = cg.input_load_store
         if self.children is not None:
@@ -432,26 +428,28 @@ class SignatureNode:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             for (name, child) in self.children.items():
-                cgcode.append_statement(f"{name_to_call[name]}(call_id, val.{name})")
+                cgcode.append_statement(f"{name_to_call[name]}(context, val.{name})")
             cgcode.end_block()
         else:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             assert self.loadstore_transform is not None
-            primal_index = self.python_marshal.get_indexer(
-                self.loadstore_transform, AccessType.read)
             cgcode.append_statement(
-                f"val = call_data.{self.variable_name}_primal{primal_index}")
+                self.python_marshal.gen_load(
+                    f"call_data.{self.variable_name}_primal",
+                    "val",
+                    self.loadstore_transform, access))
             cgcode.end_block()
 
         return func_name
 
     def _gen_load_derivative(self, mode: CallMode, cg: CodeGen):
-        if not self._get_derivative_access(mode) in [AccessType.read, AccessType.readwrite]:
+        access = self._get_derivative_access(mode)
+        if not access in [AccessType.read, AccessType.readwrite]:
             return None
 
         func_name = f"load_{self.variable_name}_derivative"
-        func_def = f"void {func_name}(int[] call_id, out {self.derivative_type_name} val)"
+        func_def = f"void {func_name}(Context context, out {self.derivative_type_name} val)"
 
         cgcode = cg.input_load_store
         if self.children is not None:
@@ -460,26 +458,28 @@ class SignatureNode:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             for (name, child) in self.children.items():
-                cgcode.append_statement(f"{name_to_call[name]}(call_id, val.{name})")
+                cgcode.append_statement(f"{name_to_call[name]}(context, val.{name})")
             cgcode.end_block()
         else:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             assert self.loadstore_transform is not None
-            derivative_index = self.python_marshal.get_indexer(
-                self.loadstore_transform, AccessType.read)
             cgcode.append_statement(
-                f"val = call_data.{self.variable_name}_derivative{derivative_index}")
+                self.python_marshal.gen_load(
+                    f"call_data.{self.variable_name}_derivative",
+                    "val",
+                    self.loadstore_transform, access))
             cgcode.end_block()
 
         return func_name
 
     def _gen_store_primal(self, mode: CallMode, cg: CodeGen):
-        if not self._get_primal_access(mode) in [AccessType.write, AccessType.readwrite]:
+        access = self._get_primal_access(mode)
+        if not access in [AccessType.write, AccessType.readwrite]:
             return None
 
         func_name = f"store_{self.variable_name}_primal"
-        func_def = f"void {func_name}(int[] call_id, in {self.primal_type_name} val)"
+        func_def = f"void {func_name}(Context context, in {self.primal_type_name} val)"
 
         cgcode = cg.input_load_store
 
@@ -489,25 +489,27 @@ class SignatureNode:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             for (name, child) in self.children.items():
-                cgcode.append_statement(f"{name_to_call[name]}(call_id, val.{name})")
+                cgcode.append_statement(f"{name_to_call[name]}(context, val.{name})")
             cgcode.end_block()
         else:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             assert self.loadstore_transform is not None
-            primal_index = self.python_marshal.get_indexer(
-                self.loadstore_transform, AccessType.write)
             cgcode.append_statement(
-                f"call_data.{self.variable_name}_primal{primal_index} = val")
+                self.python_marshal.gen_store(
+                    f"call_data.{self.variable_name}_primal",
+                    "val",
+                    self.loadstore_transform, access))
             cgcode.end_block()
         return func_name
 
     def _gen_store_derivative(self, mode: CallMode, cg: CodeGen):
-        if not self._get_derivative_access(mode) in [AccessType.write, AccessType.readwrite]:
+        access = self._get_derivative_access(mode)
+        if not access in [AccessType.write, AccessType.readwrite]:
             return None
 
         func_name = f"store_{self.variable_name}_derivative"
-        func_def = f"void {func_name}(int[] call_id, in {self.derivative_type_name} val)"
+        func_def = f"void {func_name}(Context context, in {self.derivative_type_name} val)"
 
         cgcode = cg.input_load_store
 
@@ -519,7 +521,7 @@ class SignatureNode:
             for (name, child) in self.children.items():
                 n = name_to_call[name]
                 if n is not None:
-                    cgcode.append_statement(f"{n}(call_id, val.{name})")
+                    cgcode.append_statement(f"{n}(context, val.{name})")
                 else:
                     cgcode.append_line(f"// {name} not writable")
             cgcode.end_block()
@@ -527,10 +529,11 @@ class SignatureNode:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             assert self.loadstore_transform is not None
-            derivative_index = self.python_marshal.get_indexer(
-                self.loadstore_transform, AccessType.write)
             cgcode.append_statement(
-                f"call_data.{self.variable_name}_derivative{derivative_index} = val")
+                self.python_marshal.gen_store(
+                    f"call_data.{self.variable_name}_derivative",
+                    "val",
+                    self.loadstore_transform, access))
             cgcode.end_block()
 
         return func_name
