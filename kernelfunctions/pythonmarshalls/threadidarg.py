@@ -6,6 +6,7 @@ from sgl import Device
 from kernelfunctions.shapes import TConcreteShape, TLooseOrUndefinedShape
 from kernelfunctions.types import PythonMarshal, ThreadIdArg, AccessType
 import kernelfunctions.codegen as cg
+from kernelfunctions.types.pythonmarshall import PythonDescriptor
 from kernelfunctions.types.slangmarshall import SlangMarshall
 
 
@@ -27,7 +28,7 @@ class ThreadIdArgMarshal(PythonMarshal):
     def get_element_type(self, value: ThreadIdArg):
         return int
 
-    def gen_calldata(self, slang_type_name: str, call_data_name: str, shape: TConcreteShape, access: AccessType):
+    def gen_calldata(self, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
         return None
 
     def gen_load(self, from_call_data: str, to_variable: str, to_type: SlangMarshall, transform: list[Optional[int]], access: AccessType):

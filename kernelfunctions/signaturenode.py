@@ -5,9 +5,10 @@ from sgl import Device, FunctionReflection, ModifierID, TypeReflection, Variable
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
 from kernelfunctions.typemappings import are_element_types_compatible
-from kernelfunctions.typeregistry import create_slang_type_marshal, get_python_type_marshall
+from kernelfunctions.typeregistry import get_python_type_marshall
 from kernelfunctions.types import AccessType, IOType, CallMode
-
+from kernelfunctions.types.enums import PrimType
+from kernelfunctions.types.slangvalue import SlangValue
 
 # Result of building the signature for a set of args and kwargs
 # passed as part of a python call
@@ -16,36 +17,6 @@ TCallSignature = tuple[list['SignatureNode'], dict[str, 'SignatureNode']]
 # Result of matching a signature to a slang function, tuple
 # with set of positional arguments and optional return value
 TMatchedSignature = dict[str, 'SignatureNode']
-
-
-class SlangDescriptor:
-    def __init__(self,
-                 name: str,
-                 io_type: IOType,
-                 no_diff: bool,
-                 primal_type: Union[TypeReflection, TypeReflection.ScalarType]) -> NoneType:
-        super().__init__()
-        self.name = name
-        self.type = type
-        self.io_type = io_type
-        self.no_diff = no_diff
-        self.primal_type = primal_type
-        self.primal = create_slang_type_marshal(primal_type)
-        self.derivative = self.primal.differentiate()
-
-    def load_primal_fields(self):
-        if isinstance(self.primal_type, TypeReflection):
-            return self.primal.load_fields(self.primal_type)
-        else:
-            return None
-
-    @property
-    def primal_type_name(self):
-        return self.primal.name
-
-    @property
-    def derivative_type_name(self):
-        return self.derivative.name if self.derivative is not None else None
 
 
 class SignatureNode:
@@ -62,7 +33,7 @@ class SignatureNode:
         self.python = self.python_marshal.get_descriptor(value)
 
         # Init internal data
-        self.slang: SlangDescriptor = None  # type: ignore
+        self.slang: SlangValue = None  # type: ignore
         self.param_index = -1
         self.type_shape: Optional[list[int]] = None
         self.argument_shape: Optional[list[Optional[int]]] = None
@@ -169,12 +140,12 @@ class SignatureNode:
 
         # Get slang primal type marshall
         if isinstance(slang_reflection, TypeReflection.ScalarType):
-            self.slang = SlangDescriptor(name, io_type, no_diff, slang_reflection)
+            self.slang = SlangValue(name, io_type, no_diff, slang_reflection)
         elif isinstance(slang_reflection, FunctionReflection):
-            self.slang = SlangDescriptor(
+            self.slang = SlangValue(
                 name, io_type, no_diff, slang_reflection.return_type)
         else:
-            self.slang = SlangDescriptor(name, io_type, no_diff, slang_reflection.type)
+            self.slang = SlangValue(name, io_type, no_diff, slang_reflection.type)
 
         # Can now decide if differentiable
         self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
@@ -387,6 +358,9 @@ class SignatureNode:
         else:
             return self.fwds_access[1]
 
+    def _get_access(self, mode: CallMode, prim: PrimType) -> AccessType:
+        return self._get_primal_access(mode) if prim == PrimType.primal else self._get_derivative_access(mode)
+
     def allocate_output_buffer(self, device: Device):
         if self.children is not None:
             for child in self.children.values():
@@ -400,45 +374,42 @@ class SignatureNode:
             for child in self.children.values():
                 child.gen_call_data_code(mode, cg)
         else:
-            # Pick access types based on call mode.
-            primal_access = self._get_primal_access(mode)
-            derivative_access = self._get_derivative_access(mode)
-
-            # Check we have a call transform (if not, this can't be an actual input node)
             assert self.loadstore_transform is not None
-            cgblock = cg.call_data
-            if primal_access != AccessType.none:
-                assert self.slang.primal_type_name is not None
-                cgblock.append_statement(
-                    self.python_marshal.gen_calldata(
-                        self.slang.primal_type_name, f"{self.variable_name}_primal", self.python.container_shape, primal_access)
-                )
-            if derivative_access != AccessType.none:
-                assert self.slang.derivative_type_name is not None
-                cgblock.append_statement(
-                    self.python_marshal.gen_calldata(
-                        self.slang.derivative_type_name, f"{self.variable_name}_derivative", self.python.container_shape, derivative_access)
-                )
+            self._gen_call_data_code(mode, cg, PrimType.primal)
+            self._gen_call_data_code(mode, cg, PrimType.derivative)
+
+    def _gen_call_data_code(self, mode: CallMode, cg: CodeGen, prim: PrimType):
+        access = self._get_access(mode, prim)
+        if access != AccessType.none:
+            slang = self.slang.get(prim)
+            cg.call_data.append_statement(
+                self.python_marshal.gen_calldata(
+                    self.python,
+                    slang.name,
+                    f"{self.variable_name}_{prim.name}",
+                    access)
+            )
 
     def gen_load_store_code(self, mode: CallMode, cg: CodeGen):
         # Generate load store functions
-        self._gen_load_primal(mode, cg)
-        self._gen_load_derivative(mode, cg)
-        self._gen_store_primal(mode, cg)
-        self._gen_store_derivative(mode, cg)
+        self._gen_load(mode, cg, PrimType.primal)
+        self._gen_load(mode, cg, PrimType.derivative)
+        self._gen_store(mode, cg, PrimType.primal)
+        self._gen_store(mode, cg, PrimType.derivative)
 
-    def _gen_load_primal(self, mode: CallMode, cg: CodeGen):
-        access = self._get_primal_access(mode)
+    def _gen_load(self, mode: CallMode, cg: CodeGen, prim: PrimType):
+        access = self._get_access(mode, prim)
         if not access in [AccessType.read, AccessType.readwrite]:
             return None
 
-        func_name = f"load_{self.variable_name}_primal"
+        prim_name = prim.name
+        func_name = f"load_{self.variable_name}_{prim_name}"
         func_def = f"void {func_name}(Context context, out {self.slang.primal_type_name} val)"
 
         cgcode = cg.input_load_store
         if self.children is not None:
-            name_to_call = {name: child._gen_load_primal(
-                mode, cg) for (name, child) in self.children.items()}
+            name_to_call = {name: child._gen_load(
+                mode, cg, prim) for (name, child) in self.children.items()}
             cgcode.append_line(func_def)
             cgcode.begin_block()
             for (name, child) in self.children.items():
@@ -450,86 +421,27 @@ class SignatureNode:
             assert self.loadstore_transform is not None
             cgcode.append_statement(
                 self.python_marshal.gen_load(
-                    f"call_data.{self.variable_name}_primal",
+                    f"call_data.{self.variable_name}_{prim_name}",
                     "val",
                     self.loadstore_transform, access))
             cgcode.end_block()
 
         return func_name
 
-    def _gen_load_derivative(self, mode: CallMode, cg: CodeGen):
-        access = self._get_derivative_access(mode)
-        if not access in [AccessType.read, AccessType.readwrite]:
-            return None
-
-        func_name = f"load_{self.variable_name}_derivative"
-        func_def = f"void {func_name}(Context context, out {self.slang.derivative_type_name} val)"
-
-        cgcode = cg.input_load_store
-        if self.children is not None:
-            name_to_call = {name: child._gen_load_derivative(
-                mode, cg) for (name, child) in self.children.items()}
-            cgcode.append_line(func_def)
-            cgcode.begin_block()
-            for (name, child) in self.children.items():
-                cgcode.append_statement(f"{name_to_call[name]}(context, val.{name})")
-            cgcode.end_block()
-        else:
-            cgcode.append_line(func_def)
-            cgcode.begin_block()
-            assert self.loadstore_transform is not None
-            cgcode.append_statement(
-                self.python_marshal.gen_load(
-                    f"call_data.{self.variable_name}_derivative",
-                    "val",
-                    self.loadstore_transform, access))
-            cgcode.end_block()
-
-        return func_name
-
-    def _gen_store_primal(self, mode: CallMode, cg: CodeGen):
-        access = self._get_primal_access(mode)
+    def _gen_store(self, mode: CallMode, cg: CodeGen, prim: PrimType):
+        access = self._get_access(mode, prim)
         if not access in [AccessType.write, AccessType.readwrite]:
             return None
 
-        func_name = f"store_{self.variable_name}_primal"
-        func_def = f"void {func_name}(Context context, in {self.slang.primal_type_name} val)"
+        prim_type = prim.name
+        func_name = f"store_{self.variable_name}_{prim_type}"
+        func_def = f"void {func_name}(Context context, in {self.slang.get(prim).name} val)"
 
         cgcode = cg.input_load_store
 
         if self.children is not None:
-            name_to_call = {name: child._gen_store_primal(
-                mode, cg) for (name, child) in self.children.items()}
-            cgcode.append_line(func_def)
-            cgcode.begin_block()
-            for (name, child) in self.children.items():
-                cgcode.append_statement(f"{name_to_call[name]}(context, val.{name})")
-            cgcode.end_block()
-        else:
-            cgcode.append_line(func_def)
-            cgcode.begin_block()
-            assert self.loadstore_transform is not None
-            cgcode.append_statement(
-                self.python_marshal.gen_store(
-                    f"call_data.{self.variable_name}_primal",
-                    "val",
-                    self.loadstore_transform, access))
-            cgcode.end_block()
-        return func_name
-
-    def _gen_store_derivative(self, mode: CallMode, cg: CodeGen):
-        access = self._get_derivative_access(mode)
-        if not access in [AccessType.write, AccessType.readwrite]:
-            return None
-
-        func_name = f"store_{self.variable_name}_derivative"
-        func_def = f"void {func_name}(Context context, in {self.slang.derivative_type_name} val)"
-
-        cgcode = cg.input_load_store
-
-        if self.children is not None:
-            name_to_call = {name: child._gen_store_derivative(
-                mode, cg) for (name, child) in self.children.items()}
+            name_to_call = {name: child._gen_store(
+                mode, cg, prim) for (name, child) in self.children.items()}
             cgcode.append_line(func_def)
             cgcode.begin_block()
             for (name, child) in self.children.items():
@@ -545,21 +457,17 @@ class SignatureNode:
             assert self.loadstore_transform is not None
             cgcode.append_statement(
                 self.python_marshal.gen_store(
-                    f"call_data.{self.variable_name}_derivative",
+                    f"call_data.{self.variable_name}_{prim_type}",
                     "val",
                     self.loadstore_transform, access))
             cgcode.end_block()
-
         return func_name
 
+    def _gen_store_primal(self, mode: CallMode, cg: CodeGen):
+        return self._gen_store(mode, cg, PrimType.primal)
+
+    def _gen_store_derivative(self, mode: CallMode, cg: CodeGen):
+        return self._gen_store(mode, cg, PrimType.derivative)
+
     def _gen_trampoline_argument(self):
-        arg_def = f"{self.slang.primal.name} {self.slang.name}"
-        if self.slang.io_type == IOType.inout:
-            arg_def = f"inout {arg_def}"
-        elif self.slang.io_type == IOType.out:
-            arg_def = f"out {arg_def}"
-        elif self.slang.io_type == IOType.inn:
-            arg_def = f"in {arg_def}"
-        if not self.differentiable:
-            arg_def = f"no_diff {arg_def}"
-        return arg_def
+        return self.slang.gen_trampoline_argument(self.differentiable)

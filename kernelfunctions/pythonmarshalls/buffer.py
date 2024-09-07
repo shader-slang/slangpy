@@ -4,6 +4,7 @@ from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import create_slang_type_marshal, get_python_type_marshall, register_python_type
 from kernelfunctions.types import AccessType, PythonMarshal, NDDifferentiableBuffer, NDBuffer
 import kernelfunctions.codegen as cg
+from kernelfunctions.types.pythonmarshall import PythonDescriptor
 
 
 class BaseBufferMarshall(PythonMarshal):
@@ -34,14 +35,15 @@ class BaseBufferMarshall(PythonMarshal):
     def is_writable(self, value: NDBuffer) -> bool:
         return value.is_writable
 
-    def gen_calldata(self, slang_type_name: str, call_data_name: str, shape: TConcreteShape, access: AccessType):
+    def gen_calldata(self, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
         """
         Call data either contains a read-only or read-write buffer.
         """
+        assert desc.container_shape is not None
         if access == AccessType.read:
-            return cg.declare(f"TensorBuffer<{slang_type_name},{len(shape)}>", call_data_name)
+            return cg.declare(f"TensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name)
         else:
-            return cg.declare(f"RWTensorBuffer<{slang_type_name},{len(shape)}>", call_data_name)
+            return cg.declare(f"RWTensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name)
 
     def _transform_to_subscript(self, transform: list[Optional[int]]):
         """

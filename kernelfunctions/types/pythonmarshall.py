@@ -7,7 +7,7 @@ from sgl import Device, ResourceUsage, TypeLayoutReflection
 from kernelfunctions.shapes import TLooseOrUndefinedShape
 from kernelfunctions.typemappings import TPythonScalar, TSGLVector, calc_element_type_size
 
-from .enums import AccessType
+from .enums import AccessType, PrimType
 
 import kernelfunctions.codegen as cg
 
@@ -45,7 +45,8 @@ class PythonMarshal:
     def get_descriptor(self, value: Any) -> PythonDescriptor:
         """
         Return a descriptor for the given value. This is used to store information about the value
-        that is used in code generation.
+        that is used in code generation. This can normally be left alone, as it is populated
+        using the individual accessors below.
         """
         return PythonDescriptor(
             python_type=type(value),
@@ -88,15 +89,15 @@ class PythonMarshal:
         """
         return False
 
-    def gen_calldata(self, slang_type_name: str, call_data_name: str, shape: TLooseOrUndefinedShape, access: AccessType):
+    def gen_calldata(self, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
         """
         Declare the call data for this value. By default, read only values are stored as uniforms, and read-write
         values are stored as structured buffers with a single element.
         """
         if access == AccessType.read:
-            return cg.declare(slang_type_name, call_data_name)
+            return cg.declare(type_name, variable_name)
         else:
-            return cg.declare(f"RWStructuredBuffer<{slang_type_name}>", call_data_name)
+            return cg.declare(f"RWStructuredBuffer<{type_name}>", variable_name)
 
     def gen_load(self, from_call_data: str, to_variable: str, transform: list[Optional[int]], access: AccessType):
         """
