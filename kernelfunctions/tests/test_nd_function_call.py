@@ -1,7 +1,7 @@
 import pytest
 import sgl
 import kernelfunctions as kf
-from kernelfunctions.buffer import StructuredBuffer
+from kernelfunctions.types import NDDifferentiableBuffer
 import kernelfunctions.tests.helpers as helpers
 import numpy as np
 
@@ -21,9 +21,9 @@ void add_numbers_nd(float a, float b, out float c) {
 """,
     )
 
-    a = StructuredBuffer(device, element_type=float, shape=(2, 2))
-    b = StructuredBuffer(device, element_type=float, shape=(2, 2))
-    c = StructuredBuffer(device, element_type=float, shape=(2, 2))
+    a = NDDifferentiableBuffer(device, element_type=float, shape=(2, 2))
+    b = NDDifferentiableBuffer(device, element_type=float, shape=(2, 2))
+    c = NDDifferentiableBuffer(device, element_type=float, shape=(2, 2))
 
     # type: ignore (shape is a tuple)
     a_data = np.random.rand(*a.shape).astype(np.float32)

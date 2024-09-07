@@ -1,6 +1,6 @@
 import pytest
 import sgl
-from kernelfunctions.buffer import StructuredBuffer
+from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.tests import helpers
 from kernelfunctions.tests.code_gen_test_helpers import dot_product
@@ -108,19 +108,19 @@ void load__result_derivative(Context context, out float val)
 def test_dotproduct_buffer(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer_0 = StructuredBuffer(
+    buffer_0 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         element_count=50,
         requires_grad=True
     )
-    buffer_1 = StructuredBuffer(
+    buffer_1 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         element_count=50,
         requires_grad=False
     )
-    buffer_2 = StructuredBuffer(
+    buffer_2 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float1,
         element_count=50,
@@ -180,7 +180,7 @@ void load__result_derivative(Context context, out float val)
 def test_dotproduct_broadcast_ND_buffer(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer_0 = StructuredBuffer(
+    buffer_0 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         shape=(50, 10, 4),
@@ -242,7 +242,7 @@ void load__result_derivative(Context context, out float val)
 def test_dotproduct_broadcast_ND_buffer_input_transform(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer_0 = StructuredBuffer(
+    buffer_0 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         shape=(50, 10, 4),
@@ -310,19 +310,19 @@ void load__result_derivative(Context context, out float val)
 def test_dotproduct_broadcast_ND_buffer_output_transform(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer_0 = StructuredBuffer(
+    buffer_0 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         shape=(10,),
         requires_grad=True
     )
-    buffer_1 = StructuredBuffer(
+    buffer_1 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         shape=(5,),
         requires_grad=True
     )
-    buffer_2 = StructuredBuffer(
+    buffer_2 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float1,
         shape=(10, 5),
@@ -390,19 +390,19 @@ void load__result_derivative(Context context, out float val)
 def test_dotproduct_buffer_soa(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer_0 = StructuredBuffer(
+    buffer_0 = NDDifferentiableBuffer(
         device=device,
         element_type=float,
         element_count=50,
         requires_grad=True
     )
-    buffer_1 = StructuredBuffer(
+    buffer_1 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         element_count=50,
         requires_grad=False
     )
-    buffer_2 = StructuredBuffer(
+    buffer_2 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float1,
         element_count=50,
@@ -509,13 +509,13 @@ void load__result_derivative(Context context, out float val)
 def test_dotproduct_broadcast_from_buffer(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer_0 = StructuredBuffer(
+    buffer_0 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         shape=(50, 10, 4),
         requires_grad=True
     )
-    buffer_1 = StructuredBuffer(
+    buffer_1 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         shape=(50, 1, 4),

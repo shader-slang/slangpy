@@ -1,7 +1,7 @@
 import pytest
 import sgl
 import numpy as np
-from kernelfunctions.buffer import StructuredBuffer
+from kernelfunctions.types import NDDifferentiableBuffer
 import kernelfunctions.tests.helpers as helpers
 
 
@@ -39,10 +39,11 @@ void add_numbers(float2 a, float2 b, out float2 res) {
     a = sgl.float2(a_data[0], a_data[1])
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = StructuredBuffer(device=device, element_count=100, element_type=sgl.float2)
+    b = NDDifferentiableBuffer(device=device, element_count=100, element_type=sgl.float2)
     b.buffer.from_numpy(b_data)
 
-    res = StructuredBuffer(device=device, element_count=100, element_type=sgl.float2)
+    res = NDDifferentiableBuffer(
+        device=device, element_count=100, element_type=sgl.float2)
 
     function(a, b, res)
 

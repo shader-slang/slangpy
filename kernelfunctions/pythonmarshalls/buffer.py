@@ -1,21 +1,20 @@
 from typing import Any, Optional
 from sgl import Device, TypeLayoutReflection
-from kernelfunctions.buffer import StructuredBuffer
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import create_slang_type_marshal, get_python_type_marshall, register_python_type
-from kernelfunctions.types import AccessType, PythonMarshal
+from kernelfunctions.types import AccessType, PythonMarshal, NDDifferentiableBuffer, NDBuffer
 import kernelfunctions.codegen as cg
 
 
-class BufferMarshall(PythonMarshal):
+class BaseBufferMarshall(PythonMarshal):
     """
-    Marshall for scalar ref (will be 1 per scalar element type)
+    Base class for marshalling buffer types.
     """
 
-    def __init__(self):
-        super().__init__(StructuredBuffer)
+    def __init__(self, python_type: type[NDBuffer]):
+        super().__init__(python_type)
 
-    def get_element_shape(self, value: StructuredBuffer):
+    def get_element_shape(self, value: NDBuffer):
         if isinstance(value.element_type, TypeLayoutReflection):
             slang_marshall = create_slang_type_marshal(value.element_type.type)
             element_shape = slang_marshall.value_shape
@@ -26,16 +25,13 @@ class BufferMarshall(PythonMarshal):
         assert not None in element_shape
         return element_shape
 
-    def get_container_shape(self, value: StructuredBuffer):
+    def get_container_shape(self, value: NDBuffer):
         return value.shape
 
-    def get_element_type(self, value: StructuredBuffer):
+    def get_element_type(self, value: NDBuffer):
         return value.element_type
 
-    def is_differentiable(self, value: StructuredBuffer) -> bool:
-        return value.is_differentiable
-
-    def is_writable(self, value: StructuredBuffer) -> bool:
+    def is_writable(self, value: NDBuffer) -> bool:
         return value.is_writable
 
     def gen_calldata(self, slang_type_name: str, call_data_name: str, shape: TConcreteShape, access: AccessType):
@@ -68,34 +64,66 @@ class BufferMarshall(PythonMarshal):
         """
         return cg.assign(f"{to_call_data}{self._transform_to_subscript(transform)}", from_variable)
 
-    def create_primal_calldata(self, device: Device, value: StructuredBuffer, access: AccessType):
+    def create_primal_calldata(self, device: Device, value: NDBuffer, access: AccessType):
         return {
             "buffer": value.buffer,
             "strides": list(value.strides),
         }
 
-    def create_derivative_calldata(self, device: Device, value: StructuredBuffer, access: AccessType):
+    def read_primal_calldata(self, device: Device, call_data: Any, access: AccessType, value: NDBuffer):
+        assert call_data['buffer'] == value.buffer
+        assert call_data['strides'] == list(value.strides)
+
+    def allocate_return_value(self, device: Device, call_shape: list[int], element_type: Any):
+        return NDBuffer(
+            device=device,
+            shape=tuple(call_shape),
+            element_type=element_type)
+
+
+class NDBufferMarshall(BaseBufferMarshall):
+    """
+    Marshall for ND buffer type.
+    """
+
+    def __init__(self):
+        super().__init__(NDBuffer)
+
+
+register_python_type(NDBuffer,
+                     NDBufferMarshall(),
+                     lambda stream, x: stream.write(type(x.value).__name + "\n"))
+
+
+class NDDifferentiableBufferMarshall(BaseBufferMarshall):
+    """
+    Marshall for ND differentiable buffer type.
+    """
+
+    def __init__(self):
+        super().__init__(NDDifferentiableBuffer)
+
+    def is_differentiable(self, value: NDDifferentiableBuffer) -> bool:
+        return value.is_differentiable
+
+    def create_derivative_calldata(self, device: Device, value: NDDifferentiableBuffer, access: AccessType):
         return {
             "buffer": value.grad_buffer,
             "strides": list(value.strides),
         }
 
-    def read_primal_calldata(self, device: Device, call_data: Any, access: AccessType, value: StructuredBuffer):
-        assert call_data['buffer'] == value.buffer
-        assert call_data['strides'] == list(value.strides)
-
-    def read_derivative_calldata(self, device: Device, call_data: Any, access: AccessType, value: StructuredBuffer):
+    def read_derivative_calldata(self, device: Device, call_data: Any, access: AccessType, value: NDDifferentiableBuffer):
         assert call_data['buffer'] == value.grad_buffer
         assert call_data['strides'] == list(value.strides)
 
     def allocate_return_value(self, device: Device, call_shape: list[int], element_type: Any):
-        return StructuredBuffer(
+        return NDDifferentiableBuffer(
             device=device,
             shape=tuple(call_shape),
             element_type=element_type,
             requires_grad=True)
 
 
-register_python_type(StructuredBuffer,
-                     BufferMarshall(),
+register_python_type(NDDifferentiableBuffer,
+                     NDDifferentiableBufferMarshall(),
                      lambda stream, x: stream.write(type(x.value).__name + "\n"))

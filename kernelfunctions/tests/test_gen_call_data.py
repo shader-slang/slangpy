@@ -1,6 +1,6 @@
 import pytest
 import sgl
-from kernelfunctions.buffer import StructuredBuffer
+from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.tests import helpers
 from kernelfunctions.tests.code_gen_test_helpers import dot_product
@@ -115,19 +115,19 @@ ParameterBlock<CallData> call_data;
 def test_dotproduct_buffer(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer_0 = StructuredBuffer(
+    buffer_0 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         element_count=50,
         requires_grad=True
     )
-    buffer_1 = StructuredBuffer(
+    buffer_1 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         element_count=50,
         requires_grad=False
     )
-    buffer_2 = StructuredBuffer(
+    buffer_2 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float1,
         element_count=50,
@@ -180,19 +180,19 @@ ParameterBlock<CallData> call_data;
 def test_dotproduct_buffer_soa(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer_0 = StructuredBuffer(
+    buffer_0 = NDDifferentiableBuffer(
         device=device,
         element_type=float,
         element_count=50,
         requires_grad=True
     )
-    buffer_1 = StructuredBuffer(
+    buffer_1 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float3,
         element_count=50,
         requires_grad=False
     )
-    buffer_2 = StructuredBuffer(
+    buffer_2 = NDDifferentiableBuffer(
         device=device,
         element_type=sgl.float1,
         element_count=50,

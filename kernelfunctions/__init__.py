@@ -2,6 +2,6 @@
 
 from .function import Function
 from .calldata import CallData
-from .buffer import StructuredBuffer
+from .types.buffer import NDDifferentiableBuffer
 from .pythonmarshalls import *
 from .slangmarshalls import *

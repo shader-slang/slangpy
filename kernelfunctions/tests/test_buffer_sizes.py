@@ -1,6 +1,6 @@
 import pytest
 import sgl
-from kernelfunctions.buffer import StructuredBuffer
+from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.tests import helpers
 
 
@@ -9,7 +9,7 @@ def test_simple_int_buffer_elcount(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
 
-    buffer = StructuredBuffer(device, element_type=int, element_count=10)
+    buffer = NDDifferentiableBuffer(device, element_type=int, element_count=10)
     assert buffer.element_count == 10
     assert buffer.shape == (10,)
     assert buffer.element_type == int
@@ -23,7 +23,7 @@ def test_simple_int_buffer_shape(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
 
-    buffer = StructuredBuffer(device, element_type=int, shape=(10,))
+    buffer = NDDifferentiableBuffer(device, element_type=int, shape=(10,))
     assert buffer.element_count == 10
     assert buffer.shape == (10,)
     assert buffer.element_type == int
@@ -37,7 +37,7 @@ def test_2d_int_buffer(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
 
-    buffer = StructuredBuffer(device, element_type=int, shape=(10, 5))
+    buffer = NDDifferentiableBuffer(device, element_type=int, shape=(10, 5))
     assert buffer.element_count == 50
     assert buffer.shape == (10, 5)
     assert buffer.element_type == int
@@ -51,7 +51,7 @@ def test_3d_int_buffer(device_type: sgl.DeviceType):
 
     device = helpers.get_device(device_type)
 
-    buffer = StructuredBuffer(device, element_type=int, shape=(8, 10, 5))
+    buffer = NDDifferentiableBuffer(device, element_type=int, shape=(8, 10, 5))
     assert buffer.element_count == 400
     assert buffer.shape == (8, 10, 5)
     assert buffer.element_type == int

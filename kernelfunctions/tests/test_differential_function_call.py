@@ -1,6 +1,6 @@
 import pytest
 import sgl
-from kernelfunctions.buffer import StructuredBuffer
+from kernelfunctions.types import NDDifferentiableBuffer
 import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.utils import diffPair
 import numpy as np
@@ -142,7 +142,7 @@ def test_call_with_buffers(device_type: sgl.DeviceType):
         device, "polynomial", POLYNOMIAL_WITH_RETURN_VALUE_DOT_SLANG
     )
 
-    a = StructuredBuffer(
+    a = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float,
@@ -150,7 +150,7 @@ def test_call_with_buffers(device_type: sgl.DeviceType):
     )
     a.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    b = StructuredBuffer(
+    b = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float,
@@ -158,7 +158,7 @@ def test_call_with_buffers(device_type: sgl.DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    res: StructuredBuffer = kernel_eval_polynomial(a, b)
+    res: NDDifferentiableBuffer = kernel_eval_polynomial(a, b)
 
     a_data = a.buffer.to_numpy().view(np.float32)
     b_data = b.buffer.to_numpy().view(np.float32)
@@ -188,7 +188,7 @@ def test_vec3_call_with_buffers(device_type: sgl.DeviceType):
         device, "polynomial", POLYNOMIAL_V3
     )
 
-    a = StructuredBuffer(
+    a = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float3,
@@ -196,7 +196,7 @@ def test_vec3_call_with_buffers(device_type: sgl.DeviceType):
     )
     a.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    b = StructuredBuffer(
+    b = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float3,
@@ -204,7 +204,7 @@ def test_vec3_call_with_buffers(device_type: sgl.DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    res: StructuredBuffer = kernel_eval_polynomial(a, b)
+    res: NDDifferentiableBuffer = kernel_eval_polynomial(a, b)
 
     a_data = a.buffer.to_numpy().view(np.float32).reshape(-1, 3)
     b_data = b.buffer.to_numpy().view(np.float32).reshape(-1, 3)
@@ -234,7 +234,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
         device, "polynomial", POLYNOMIAL_V3
     )
 
-    a_x = StructuredBuffer(
+    a_x = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float1,
@@ -242,7 +242,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     )
     a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_y = StructuredBuffer(
+    a_y = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float1,
@@ -250,7 +250,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     )
     a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_z = StructuredBuffer(
+    a_z = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float1,
@@ -258,7 +258,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     )
     a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    b = StructuredBuffer(
+    b = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float3,
@@ -266,7 +266,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    res: StructuredBuffer = kernel_eval_polynomial({
+    res: NDDifferentiableBuffer = kernel_eval_polynomial({
         'x': a_x,
         'y': a_y,
         'z': a_z

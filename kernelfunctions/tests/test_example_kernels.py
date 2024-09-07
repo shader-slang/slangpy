@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 import sgl
 import kernelfunctions as kf
-from kernelfunctions.buffer import StructuredBuffer
+from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.tests import helpers
 from helpers import test_id
 # type: ignore (pytest fixture)
@@ -49,7 +49,7 @@ void user_func(float a, float b, out float c) {
     backwards_kernel = device.create_compute_kernel(backwards_program)
 
     # Create input buffer 0 with random numbers and an empty gradient buffer (ignored).
-    in_buffer_0 = kf.StructuredBuffer(
+    in_buffer_0 = kf.NDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_0.buffer.from_numpy(rand_array_of_floats(in_buffer_0.element_count))
@@ -57,7 +57,7 @@ void user_func(float a, float b, out float c) {
         np.zeros(in_buffer_0.element_count, dtype=np.float32))  # type: ignore
 
     # Same with input buffer 1.
-    in_buffer_1 = kf.StructuredBuffer(
+    in_buffer_1 = kf.NDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_1.buffer.from_numpy(rand_array_of_floats(in_buffer_1.element_count))
@@ -66,7 +66,7 @@ void user_func(float a, float b, out float c) {
 
     # Create empty output buffer with gradients initialized to 1 (as there is 1-1 correspondence between
     # output of user function and output of kernel)
-    out_buffer = kf.StructuredBuffer(
+    out_buffer = kf.NDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     out_buffer.buffer.from_numpy(np.zeros(out_buffer.element_count, dtype=np.float32))
@@ -125,7 +125,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
 
     kernel_eval_polynomial = device.create_compute_kernel(program)
 
-    a_x = StructuredBuffer(
+    a_x = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float1,
@@ -133,7 +133,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     )
     a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_y = StructuredBuffer(
+    a_y = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float1,
@@ -141,7 +141,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     )
     a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_z = StructuredBuffer(
+    a_z = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float1,
@@ -149,7 +149,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     )
     a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    b = StructuredBuffer(
+    b = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float3,
@@ -157,7 +157,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    res = StructuredBuffer(
+    res = NDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=sgl.float3,
