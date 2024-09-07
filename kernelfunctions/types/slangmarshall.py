@@ -6,7 +6,6 @@ from typing import Optional, Union
 from sgl import TypeReflection, VariableReflection
 
 from kernelfunctions.shapes import TLooseShape
-from kernelfunctions.types.enums import AccessType
 
 SCALAR_TYPE_NAMES: dict[TypeReflection.ScalarType, str] = {
     TypeReflection.ScalarType.none: "none",

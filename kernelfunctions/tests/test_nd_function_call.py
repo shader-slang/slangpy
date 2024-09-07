@@ -1,6 +1,5 @@
 import pytest
 import sgl
-import kernelfunctions as kf
 from kernelfunctions.types import NDDifferentiableBuffer
 import kernelfunctions.tests.helpers as helpers
 import numpy as np

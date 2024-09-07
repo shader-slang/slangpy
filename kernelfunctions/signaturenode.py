@@ -2,11 +2,11 @@ from types import NoneType
 from typing import Any, Optional, Union, cast
 from sgl import Device, FunctionReflection, ModifierID, TypeReflection, VariableReflection
 
-from kernelfunctions.codegen import CodeGen, declare
+from kernelfunctions.codegen import CodeGen
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
 from kernelfunctions.typemappings import are_element_types_compatible
 from kernelfunctions.typeregistry import create_slang_type_marshal, get_python_type_marshall
-from kernelfunctions.types import AccessType, SlangMarshall, IOType, CallMode
+from kernelfunctions.types import AccessType, IOType, CallMode
 
 
 # Result of building the signature for a set of args and kwargs
@@ -16,6 +16,36 @@ TCallSignature = tuple[list['SignatureNode'], dict[str, 'SignatureNode']]
 # Result of matching a signature to a slang function, tuple
 # with set of positional arguments and optional return value
 TMatchedSignature = dict[str, 'SignatureNode']
+
+
+class SlangDescriptor:
+    def __init__(self,
+                 name: str,
+                 io_type: IOType,
+                 no_diff: bool,
+                 primal_type: Union[TypeReflection, TypeReflection.ScalarType]) -> NoneType:
+        super().__init__()
+        self.name = name
+        self.type = type
+        self.io_type = io_type
+        self.no_diff = no_diff
+        self.primal_type = primal_type
+        self.primal = create_slang_type_marshal(primal_type)
+        self.derivative = self.primal.differentiate()
+
+    def load_primal_fields(self):
+        if isinstance(self.primal_type, TypeReflection):
+            return self.primal.load_fields(self.primal_type)
+        else:
+            return None
+
+    @property
+    def primal_type_name(self):
+        return self.primal.name
+
+    @property
+    def derivative_type_name(self):
+        return self.derivative.name if self.derivative is not None else None
 
 
 class SignatureNode:
@@ -28,23 +58,11 @@ class SignatureNode:
         super().__init__()
 
         # Get the python marshall for the value + load some basic info
-        self.python_marshal = get_python_type_marshall(value)
-        self.python_container_shape = self.python_marshal.get_container_shape(value)
-        self.python_element_shape = self.python_marshal.get_element_shape(value)
-        self.python_element_type = self.python_marshal.get_element_type(value)
-        self.python_differentiable = self.python_marshal.is_differentiable(value)
-        self.python_writable = self.python_marshal.is_writable(value)
-
-        # Calculate combined element and container shape
-        python_shape = ()
-        if self.python_container_shape is not None:
-            python_shape += self.python_container_shape
-        if self.python_element_shape is not None:
-            python_shape += self.python_element_shape
-        self.python_shape = python_shape if len(python_shape) > 0 else None
+        self.python_marshal = get_python_type_marshall(type(value))
+        self.python = self.python_marshal.get_descriptor(value)
 
         # Init internal data
-        self.slang_primal: SlangMarshall = None  # type: ignore
+        self.slang: SlangDescriptor = None  # type: ignore
         self.param_index = -1
         self.type_shape: Optional[list[int]] = None
         self.argument_shape: Optional[list[Optional[int]]] = None
@@ -52,17 +70,11 @@ class SignatureNode:
         self.transform_outputs: TConcreteOrUndefinedShape = None
         self.call_transform: Optional[list[int]] = None
         self.loadstore_transform: Optional[list[Optional[int]]] = None
-        self.io_type = IOType.none
-        self.no_diff = False
-        self.slang_differential = None
         self.prim_access = AccessType.none
         self.bwds_access = (AccessType.none, AccessType.none)
         self.fwds_access = (AccessType.none, AccessType.none)
-        self.name = ""
-        self.path = ""
         self.variable_name = ""
-        self.primal_type_name = ""
-        self.derivative_type_name: Optional[str] = None
+        self.differentiable = False
 
         # Create children if value is a dict
         self.children: Optional[dict[str, SignatureNode]] = None
@@ -85,7 +97,7 @@ class SignatureNode:
             # Check the element types are compatible first
             slang_type = slang_reflection.type if isinstance(
                 slang_reflection, VariableReflection) else slang_reflection.return_type
-            if not are_element_types_compatible(self.python_element_type, slang_type):
+            if not are_element_types_compatible(self.python.element_type, slang_type):
                 return False
 
             # Now check children
@@ -123,23 +135,29 @@ class SignatureNode:
         if isinstance(slang_reflection, VariableReflection):
             # Function argument - check modifiers
             if slang_reflection.has_modifier(ModifierID.inout):
-                self.io_type = IOType.inout
+                io_type = IOType.inout
             elif slang_reflection.has_modifier(ModifierID.out):
-                self.io_type = IOType.out
+                io_type = IOType.out
             else:
-                self.io_type = IOType.inn
-            self.no_diff = slang_reflection.has_modifier(ModifierID.nodiff)
+                io_type = IOType.inn
+            no_diff = slang_reflection.has_modifier(ModifierID.nodiff)
         else:
             # Just a return value - always out, and only differentiable if function is
-            self.io_type = IOType.out
-            self.no_diff = not slang_reflection.has_modifier(ModifierID.differentiable)
-        self.name = path
+            io_type = IOType.out
+            no_diff = not slang_reflection.has_modifier(ModifierID.differentiable)
+        name = path
 
         # Apply the signature recursively
-        self._apply_signature(slang_reflection, path, input_transforms, output_transforms)
+        self._apply_signature(
+            name, io_type, no_diff,
+            slang_reflection, path,
+            input_transforms, output_transforms)
 
     def _apply_signature(
         self,
+        name: str,
+        io_type: IOType,
+        no_diff: bool,
         slang_reflection: Union[VariableReflection, FunctionReflection, TypeReflection.ScalarType],
         path: str,
         input_transforms: Optional[dict[str, TConcreteShape]],
@@ -149,39 +167,36 @@ class SignatureNode:
         Internal function to recursively do the signature apply process
         """
 
-        # Store path
-        self.path = path
-
         # Get slang primal type marshall
         if isinstance(slang_reflection, TypeReflection.ScalarType):
-            self.slang_primal = create_slang_type_marshal(slang_reflection)
+            self.slang = SlangDescriptor(name, io_type, no_diff, slang_reflection)
+        elif isinstance(slang_reflection, FunctionReflection):
+            self.slang = SlangDescriptor(
+                name, io_type, no_diff, slang_reflection.return_type)
         else:
-            slang_type = slang_reflection.type if isinstance(
-                slang_reflection, VariableReflection) else slang_reflection.return_type
-            self.slang_primal = create_slang_type_marshal(slang_type)
+            self.slang = SlangDescriptor(name, io_type, no_diff, slang_reflection.type)
 
-        # Get slang differential type marshall from the primal
-        if not self.no_diff and self.python_differentiable:
-            self.slang_differential = self.slang_primal.differentiate()
+        # Can now decide if differentiable
+        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
 
         # Store some basic properties
-        self.variable_name = self.path.replace(".", "__")
-        self.primal_type_name = self.slang_primal.name
-        self.derivative_type_name = None if self.slang_differential is None else self.slang_differential.name
+        self.variable_name = path.replace(".", "__")
 
         # Calculate differentiability settings
         self._calculate_differentiability()
 
         # Recurse into children
         if self.children is not None:
-            fields_by_name = self.slang_primal.load_fields(slang_type)
+            fields_by_name = self.slang.load_primal_fields()
+            assert fields_by_name is not None
             for name, node in self.children.items():
                 node.param_index = self.param_index
-                node.io_type = self.io_type
-                node.no_diff = self.no_diff
-                node.name = name
                 node._apply_signature(
-                    fields_by_name[name], f"{path}.{name}", input_transforms, output_transforms)
+                    name, io_type, no_diff,
+                    fields_by_name[name],
+                    f"{path}.{name}",
+                    input_transforms,
+                    output_transforms)
 
         # If no children, this is an input, so calculate argument shape
         if self.children is None:
@@ -260,18 +275,17 @@ class SignatureNode:
         - where input is defined and param is not, set param to input
         - if end up with undefined type shape, bail
         """
-        assert self.slang_primal is not None
-        input_shape = self.python_shape
-        param_shape = self.slang_primal.shape
+        input_shape = self.python.shape
+        param_shape = self.slang.primal.shape
         if input_shape is not None:
             # Optionally use the input remap to re-order input dimensions
             if self.transform_inputs is not None:
-                if not self.python_container_shape:
+                if not self.python.container_shape:
                     raise ValueError(
                         f"Input transforms can only be applied to container types")
-                if len(self.transform_inputs) != len(self.python_container_shape):
+                if len(self.transform_inputs) != len(self.python.container_shape):
                     raise ValueError(
-                        f"Input remap {self.transform_inputs} is different to the container shape {self.python_container_shape}"
+                        f"Input remap {self.transform_inputs} is different to the container shape {self.python.container_shape}"
                     )
                 new_input_shape = list(input_shape)
                 for i in self.transform_inputs:
@@ -336,21 +350,21 @@ class SignatureNode:
         Works out whether this node can be differentiated, then calculates the 
         corresponding access types for primitive, backwards and forwards passes
         """
-        if self.slang_differential is not None:
-            if self.io_type == IOType.inout:
+        if self.differentiable:
+            if self.slang.io_type == IOType.inout:
                 self.prim_access = AccessType.readwrite
                 self.bwds_access = (AccessType.read, AccessType.readwrite)
-            elif self.io_type == IOType.out:
+            elif self.slang.io_type == IOType.out:
                 self.prim_access = AccessType.write
                 self.bwds_access = (AccessType.none, AccessType.read)
             else:
                 self.prim_access = AccessType.read
                 self.bwds_access = (AccessType.read, AccessType.write)
         else:
-            if self.io_type == IOType.inout:
+            if self.slang.io_type == IOType.inout:
                 self.prim_access = AccessType.readwrite
                 self.bwds_access = (AccessType.read, AccessType.none)
-            elif self.io_type == IOType.out:
+            elif self.slang.io_type == IOType.out:
                 self.prim_access = AccessType.write
                 self.bwds_access = (AccessType.none, AccessType.none)
             else:
@@ -394,16 +408,16 @@ class SignatureNode:
             assert self.loadstore_transform is not None
             cgblock = cg.call_data
             if primal_access != AccessType.none:
-                assert self.primal_type_name is not None
+                assert self.slang.primal_type_name is not None
                 cgblock.append_statement(
                     self.python_marshal.gen_calldata(
-                        self.primal_type_name, f"{self.variable_name}_primal", self.python_container_shape, primal_access)
+                        self.slang.primal_type_name, f"{self.variable_name}_primal", self.python.container_shape, primal_access)
                 )
             if derivative_access != AccessType.none:
-                assert self.derivative_type_name is not None
+                assert self.slang.derivative_type_name is not None
                 cgblock.append_statement(
                     self.python_marshal.gen_calldata(
-                        self.derivative_type_name, f"{self.variable_name}_derivative", self.python_container_shape, derivative_access)
+                        self.slang.derivative_type_name, f"{self.variable_name}_derivative", self.python.container_shape, derivative_access)
                 )
 
     def gen_load_store_code(self, mode: CallMode, cg: CodeGen):
@@ -419,7 +433,7 @@ class SignatureNode:
             return None
 
         func_name = f"load_{self.variable_name}_primal"
-        func_def = f"void {func_name}(Context context, out {self.primal_type_name} val)"
+        func_def = f"void {func_name}(Context context, out {self.slang.primal_type_name} val)"
 
         cgcode = cg.input_load_store
         if self.children is not None:
@@ -449,7 +463,7 @@ class SignatureNode:
             return None
 
         func_name = f"load_{self.variable_name}_derivative"
-        func_def = f"void {func_name}(Context context, out {self.derivative_type_name} val)"
+        func_def = f"void {func_name}(Context context, out {self.slang.derivative_type_name} val)"
 
         cgcode = cg.input_load_store
         if self.children is not None:
@@ -479,7 +493,7 @@ class SignatureNode:
             return None
 
         func_name = f"store_{self.variable_name}_primal"
-        func_def = f"void {func_name}(Context context, in {self.primal_type_name} val)"
+        func_def = f"void {func_name}(Context context, in {self.slang.primal_type_name} val)"
 
         cgcode = cg.input_load_store
 
@@ -509,7 +523,7 @@ class SignatureNode:
             return None
 
         func_name = f"store_{self.variable_name}_derivative"
-        func_def = f"void {func_name}(Context context, in {self.derivative_type_name} val)"
+        func_def = f"void {func_name}(Context context, in {self.slang.derivative_type_name} val)"
 
         cgcode = cg.input_load_store
 
@@ -539,13 +553,13 @@ class SignatureNode:
         return func_name
 
     def _gen_trampoline_argument(self):
-        arg_def = f"{self.slang_primal.name} {self.name}"
-        if self.io_type == IOType.inout:
+        arg_def = f"{self.slang.primal.name} {self.slang.name}"
+        if self.slang.io_type == IOType.inout:
             arg_def = f"inout {arg_def}"
-        elif self.io_type == IOType.out:
+        elif self.slang.io_type == IOType.out:
             arg_def = f"out {arg_def}"
-        elif self.io_type == IOType.inn:
+        elif self.slang.io_type == IOType.inn:
             arg_def = f"in {arg_def}"
-        if self.slang_differential is None:
+        if not self.differentiable:
             arg_def = f"no_diff {arg_def}"
         return arg_def

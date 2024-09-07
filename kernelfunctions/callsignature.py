@@ -1,13 +1,12 @@
 import hashlib
 from io import StringIO
-from types import NoneType
 from typing import Any, Optional, Union, cast
-from sgl import Device, FunctionReflection, ModifierID, TypeReflection
+from sgl import Device, FunctionReflection, ModifierID
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.signaturenode import SignatureNode, TCallSignature, TMatchedSignature
-from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, create_slang_type_marshal, get_python_type_marshall
+from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, get_python_type_marshall
 from kernelfunctions.types import CallMode, AccessType, NDDifferentiableBuffer
 from kernelfunctions.utils import ScalarRef
 
@@ -225,15 +224,16 @@ def calculate_and_apply_call_shape(signature: TMatchedSignature) -> list[int]:
     for node in nodes:
         assert node.argument_shape is not None
         assert node.call_transform is not None
-        if node.python_container_shape is not None:
+        if node.python.container_shape is not None:
             node.loadstore_transform = [
-                None for x in range(len(node.python_container_shape))]
-            for i in range(len(node.python_container_shape)):
+                None for x in range(len(node.python.container_shape))]
+            for i in range(len(node.python.container_shape)):
                 arg_dim_idx = i
                 if node.transform_inputs is not None:
                     arg_dim_idx = node.transform_inputs[i]
                 if arg_dim_idx < len(node.call_transform):
-                    if node.python_container_shape[arg_dim_idx] is not None and node.python_container_shape[arg_dim_idx] > 1:
+                    cont_shape = node.python.container_shape[arg_dim_idx]
+                    if cont_shape is not None and cont_shape > 1:
                         node.loadstore_transform[i] = node.call_transform[arg_dim_idx]
         else:
             node.loadstore_transform = []
@@ -248,17 +248,17 @@ def create_return_value(call_shape: list[int], signature: TMatchedSignature, mod
     if mode == CallMode.prim:
         node = signature.get("_result")
         if node is not None:
-            node.argument_shape = call_shape
+            node.argument_shape = call_shape  # type: ignore (valid)
             node.call_transform = [i for i in range(len(call_shape))]
             node.loadstore_transform = [i for i in range(len(call_shape))]
-            node.python_element_shape = node.slang_primal.value_shape
-            node.python_container_shape = tuple(call_shape)
-            node.python_element_type = node.slang_primal.python_return_value_type
+            node.python.element_shape = node.slang.primal.value_shape
+            node.python.container_shape = tuple(call_shape)
+            node.python.element_type = node.slang.primal.python_return_value_type
             if len(call_shape) == 0:
                 node.python_marshal = get_python_type_marshall(ScalarRef)
             else:
                 node.python_marshal = get_python_type_marshall(NDDifferentiableBuffer)
-            node.python_shape = node.python_container_shape + node.python_element_shape
+            node.python.shape = node.python.container_shape + node.python.element_shape  # type: ignore
 
 
 def generate_code(call_shape: list[int], function: Function, signature: TMatchedSignature, mode: CallMode, cg: CodeGen):
@@ -307,7 +307,7 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     if "_result" in signature:
         cg.trampoline.append_code(f"_result = ")
     cg.trampoline.append_code(
-        f"{function.name}(" + ", ".join(x.name for x in root_params if x.name != '_result') + ");\n")
+        f"{function.name}(" + ", ".join(x.slang.name for x in root_params if x.slang.name != '_result') + ");\n")
     cg.trampoline.end_block()
     cg.trampoline.append_line("")
 
@@ -331,12 +331,13 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
 
     def declare_p(x: SignatureNode, has_suffix: bool = False):
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang_primal.name} {name}")
+        cg.kernel.append_statement(f"{x.slang.primal.name} {name}")
         return name
 
     def declare_d(x: SignatureNode, has_suffix: bool = False):
+        assert x.slang.derivative is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang_differential.name} {name}")
+        cg.kernel.append_statement(f"{x.slang.derivative.name} {name}")
         return name
 
     def load_p(x: SignatureNode, has_suffix: bool = False):

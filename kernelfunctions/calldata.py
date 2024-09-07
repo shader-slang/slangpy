@@ -169,7 +169,7 @@ class CallData:
         rv_node = self.signature.get("_result", None)
         if self.call_mode == CallMode.prim and rv_node is not None and not "_result" in kwargs:
             kwargs["_result"] = rv_node.python_marshal.allocate_return_value(
-                device, self.call_shape, rv_node.python_element_type)
+                device, self.call_shape, rv_node.python.element_type)
 
         write_calldata_pre_dispatch(device, self.input_signature,
                                     self.call_mode, call_data, *args, **kwargs)

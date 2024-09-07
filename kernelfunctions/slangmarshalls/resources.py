@@ -1,6 +1,5 @@
 from sgl import TypeReflection
-from kernelfunctions.callsignature import create_slang_type_marshal
-from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_NAME, SlangMarshall
+from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_NAME, SlangMarshall, create_slang_type_marshal
 
 
 class TextureSlangTypeMarshal(SlangMarshall):

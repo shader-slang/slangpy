@@ -2,7 +2,7 @@
 from typing import Any, Optional, Union
 from numpy.typing import ArrayLike
 
-from sgl import Buffer, Device, ResourceUsage, TypeLayoutReflection
+from sgl import Device, ResourceUsage, TypeLayoutReflection
 
 from kernelfunctions.shapes import TLooseOrUndefinedShape
 from kernelfunctions.typemappings import TPythonScalar, TSGLVector, calc_element_type_size
@@ -12,10 +12,49 @@ from .enums import AccessType
 import kernelfunctions.codegen as cg
 
 
+class PythonDescriptor:
+    def __init__(self,
+                 python_type: type,
+                 element_shape: TLooseOrUndefinedShape,
+                 container_shape: TLooseOrUndefinedShape,
+                 element_type: Optional[Union[type[TSGLVector], type[TPythonScalar], TypeLayoutReflection]],
+                 writable: bool,
+                 differentiable: bool):
+        super().__init__()
+        self.type = python_type
+        self.element_shape = element_shape
+        self.container_shape = container_shape
+        self.element_type = element_type
+        self.writable = writable
+        self.differentiable = differentiable
+
+        # Calculate combined element and container shape
+        python_shape = ()
+        if self.container_shape is not None:
+            python_shape += self.container_shape
+        if self.element_shape is not None:
+            python_shape += self.element_shape
+        self.shape = python_shape if len(python_shape) > 0 else None
+
+
 class PythonMarshal:
     def __init__(self, python_type: type):
         super().__init__()
         self.type = python_type
+
+    def get_descriptor(self, value: Any) -> PythonDescriptor:
+        """
+        Return a descriptor for the given value. This is used to store information about the value
+        that is used in code generation.
+        """
+        return PythonDescriptor(
+            python_type=type(value),
+            element_shape=self.get_element_shape(value),
+            container_shape=self.get_container_shape(value),
+            element_type=self.get_element_type(value),
+            writable=self.is_writable(value),
+            differentiable=self.is_differentiable(value),
+        )
 
     def get_element_shape(self, value: Any) -> TLooseOrUndefinedShape:
         """

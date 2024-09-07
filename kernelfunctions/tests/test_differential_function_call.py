@@ -5,6 +5,8 @@ import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.utils import diffPair
 import numpy as np
 
+# pyright: reportOptionalMemberAccess=false, reportArgumentType=false
+
 POLYNOMIAL_OUT_PARAM = r"""
 [Differentiable]
 void polynomial(float a, float b, out float result) {

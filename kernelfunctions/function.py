@@ -1,7 +1,7 @@
 from typing import Any, Callable, Optional
 import sgl
 
-from kernelfunctions.shapes import TConcreteShape, TLooseShape
+from kernelfunctions.shapes import TConcreteShape
 
 
 class FunctionChainBase:
@@ -20,10 +20,10 @@ class FunctionChainBase:
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)
 
-    def transform_input(self, transforms: dict[str, TLooseShape]):
+    def transform_input(self, transforms: dict[str, TConcreteShape]):
         return FunctionChainInputTransform(self, transforms)
 
-    def transform_output(self, transforms: dict[str, TLooseShape]):
+    def transform_output(self, transforms: dict[str, TConcreteShape]):
         return FunctionChainOutputTransform(self, transforms)
 
     def debug_build_call_data(self, backwards: bool, *args: Any, **kwargs: Any):

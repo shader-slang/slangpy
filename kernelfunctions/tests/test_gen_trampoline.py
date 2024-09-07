@@ -4,7 +4,7 @@ from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.tests import helpers
 from kernelfunctions.tests.code_gen_test_helpers import dot_product
-from kernelfunctions.utils import diffPair, floatDiffPair, floatRef
+from kernelfunctions.utils import diffPair, floatDiffPair
 
 
 def code(cg: tuple[CodeGen, CodeGen, CodeGen]):

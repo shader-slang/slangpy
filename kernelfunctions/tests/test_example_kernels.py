@@ -5,9 +5,10 @@ import sgl
 import kernelfunctions as kf
 from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.tests import helpers
-from helpers import test_id
-# type: ignore (pytest fixture)
+from helpers import test_id  # type: ignore (pytest fixture)
 from kernelfunctions.tests.test_differential_function_call import python_eval_polynomial, python_eval_polynomial_a_deriv, python_eval_polynomial_b_deriv
+
+# pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 
 
 def rand_array_of_floats(size: int):
