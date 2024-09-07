@@ -1,9 +1,8 @@
 
-
-class ThreadIdArg:
+class WangHashArg:
     """
-    Request the thread id. eg
-    void myfunc(int3 input) { }
+    Request random uints using a wang hash function. eg
+    void myfunc(uint3 input) { }
     """
 
     def __init__(self, dims: int = 3):

@@ -207,13 +207,17 @@ class SignatureNode:
 
             # Populate primal
             if primal_access != AccessType.none:
-                call_data[self.variable_name + "_primal"] = self.python_marshal.create_primal_calldata(
+                cd = self.python_marshal.create_primal_calldata(
                     device, value, primal_access)
+                if cd is not None:
+                    call_data[self.variable_name + "_primal"] = cd
 
             # Populate derivative
             if derivative_access != AccessType.none:
-                call_data[self.variable_name + "_derivative"] = self.python_marshal.create_derivative_calldata(
+                cd = self.python_marshal.create_derivative_calldata(
                     device, value, derivative_access)
+                if cd is not None:
+                    call_data[self.variable_name + "_derivative"] = cd
 
     def read_call_data_post_dispatch(self, device: Device, call_data: dict[str, Any], value: Any, mode: CallMode):
         """Reads value from call data dictionary post-dispatch"""
@@ -227,13 +231,17 @@ class SignatureNode:
 
             # Populate primal
             if primal_access in [AccessType.write, AccessType.readwrite]:
-                self.python_marshal.read_primal_calldata(
-                    device, call_data[self.variable_name + "_primal"], primal_access, value)
+                cd = call_data.get(self.variable_name + "_primal")
+                if cd is not None:
+                    self.python_marshal.read_primal_calldata(
+                        device, cd, primal_access, value)
 
             # Populate derivative
             if derivative_access in [AccessType.write, AccessType.readwrite]:
-                self.python_marshal.read_derivative_calldata(
-                    device, call_data[self.variable_name + "_derivative"], derivative_access, value)
+                cd = call_data.get(self.variable_name + "_derivative")
+                if cd is not None:
+                    self.python_marshal.read_derivative_calldata(
+                        device, cd, derivative_access, value)
 
     def __repr__(self):
         return self.python_marshal.__repr__()

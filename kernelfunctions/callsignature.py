@@ -1,5 +1,6 @@
 import hashlib
 from io import StringIO
+from types import NoneType
 from typing import Any, Optional, Union, cast
 from sgl import Device, FunctionReflection, ModifierID
 from kernelfunctions.codegen import CodeGen
@@ -76,8 +77,8 @@ def match_signature(
 
     overload_parameters = [x for x in function_reflection.parameters]
 
-    args = signature[0]
-    kwargs = signature[1]
+    args = signature[0].copy()
+    kwargs = signature[1].copy()
     rval = None
     matched_rval: Optional[SignatureNode] = None
 
@@ -247,7 +248,7 @@ def create_return_value(call_shape: list[int], signature: TMatchedSignature, mod
     """
     if mode == CallMode.prim:
         node = signature.get("_result")
-        if node is not None:
+        if node is not None and node.python.type is NoneType:
             node.argument_shape = call_shape  # type: ignore (valid)
             node.call_transform = [i for i in range(len(call_shape))]
             node.loadstore_transform = [i for i in range(len(call_shape))]

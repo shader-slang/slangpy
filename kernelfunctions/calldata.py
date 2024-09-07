@@ -20,44 +20,6 @@ import kernelfunctions.codegen as cg
 from kernelfunctions.signaturenode import SignatureNode
 from kernelfunctions.types import CallMode
 
-TYPES = r"""
-int _idx<let N: int>(int[N] index, int[N] stride) {
-    int idx = 0;
-    for (int i = 0; i < N; i++) {
-        idx += index[i] * stride[i];
-    }
-    return idx;
-}
-
-struct TensorBuffer<T, let N : int> {
-    RWStructuredBuffer<T> buffer;
-    int[N] strides;
-    T get(int[N] index) {
-        return buffer[_idx(index, strides)];
-    }
-    __subscript(int[N] index)->T
-    {
-        get { return get(index); }
-    }
-}
-
-struct RWTensorBuffer<T, let N : int> {
-    RWStructuredBuffer<T> buffer;
-    int[N] strides;
-    T get(int[N] index) {
-        return buffer[_idx(index, strides)];
-    }
-    void set(int[N] index, T value) {
-        buffer[_idx(index, strides)] = value;
-    }
-    __subscript(int[N] index)->T
-    {
-        get { return get(index); }
-        set { set(index, newValue); }
-    }
-}
-"""
-
 
 class CallData:
     def __init__(
@@ -112,7 +74,7 @@ class CallData:
             raise ValueError("No matching overload found")
 
         # Inject a dummy node into both signatures if we need a result back
-        if self.call_mode == CallMode.prim and not "_result" in kwargs is None and matched_overload.return_type.name != "void":
+        if self.call_mode == CallMode.prim and not "_result" in kwargs and matched_overload.return_type.name != "void":
             rvalnode = SignatureNode(None)
             self.input_signature[1]["_result"] = rvalnode
             matched_signature["_result"] = rvalnode
@@ -133,14 +95,13 @@ class CallData:
 
         # generate code
         codegen = cg.CodeGen()
-        codegen.header = TYPES
         generate_code(self.call_shape, self.function,
                       self.signature, self.call_mode, codegen)
 
         # store code
         self.code = codegen.finish(call_data=True, input_load_store=True,
                                    header=True, kernel=True, imports=True,
-                                   trampoline=True, context=True)
+                                   trampoline=True, context=True, snippets=True)
 
         # Write the shader to a file for debugging.
         os.makedirs(".temp", exist_ok=True)

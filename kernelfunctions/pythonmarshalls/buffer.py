@@ -1,10 +1,47 @@
 from typing import Any, Optional
 from sgl import Device, TypeLayoutReflection
-from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import create_slang_type_marshal, get_python_type_marshall, register_python_type
 from kernelfunctions.types import AccessType, PythonMarshal, NDDifferentiableBuffer, NDBuffer
 import kernelfunctions.codegen as cg
 from kernelfunctions.types.pythonmarshall import PythonDescriptor
+
+TYPES = r"""
+int _idx<let N: int>(int[N] index, int[N] stride) {
+    int idx = 0;
+    for (int i = 0; i < N; i++) {
+        idx += index[i] * stride[i];
+    }
+    return idx;
+}
+
+struct TensorBuffer<T, let N : int> {
+    RWStructuredBuffer<T> buffer;
+    int[N] strides;
+    T get(int[N] index) {
+        return buffer[_idx(index, strides)];
+    }
+    __subscript(int[N] index)->T
+    {
+        get { return get(index); }
+    }
+}
+
+struct RWTensorBuffer<T, let N : int> {
+    RWStructuredBuffer<T> buffer;
+    int[N] strides;
+    T get(int[N] index) {
+        return buffer[_idx(index, strides)];
+    }
+    void set(int[N] index, T value) {
+        buffer[_idx(index, strides)] = value;
+    }
+    __subscript(int[N] index)->T
+    {
+        get { return get(index); }
+        set { set(index, newValue); }
+    }
+}
+"""
 
 
 class BaseBufferMarshall(PythonMarshal):
@@ -40,12 +77,13 @@ class BaseBufferMarshall(PythonMarshal):
         Call data either contains a read-only or read-write buffer.
         """
         assert desc.container_shape is not None
+        cgb.add_snippet("TensorBuffer", TYPES)  # ensure the types are declared
         if access == AccessType.read:
-            cgb.append_statement(cg.declare(
-                f"TensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name))
+            cgb.declare(
+                f"TensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name)
         else:
-            cgb.append_statement(cg.declare(
-                f"RWTensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name))
+            cgb.declare(
+                f"RWTensorBuffer<{type_name},{len(desc.container_shape)}>", variable_name)
 
     def _transform_to_subscript(self, transform: list[Optional[int]]):
         """
@@ -60,15 +98,15 @@ class BaseBufferMarshall(PythonMarshal):
         """
         Load the value from the buffer into the variable.
         """
-        cgb.append_statement(
-            cg.assign(to_variable, f"{from_call_data}{self._transform_to_subscript(transform)}"))
+        cgb.assign(
+            to_variable, f"{from_call_data}{self._transform_to_subscript(transform)}")
 
     def gen_store(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
         """
         Store the value from the variable into the buffer.
         """
-        cgb.append_statement(
-            cg.assign(f"{to_call_data}{self._transform_to_subscript(transform)}", from_variable))
+        cgb.assign(
+            f"{to_call_data}{self._transform_to_subscript(transform)}", from_variable)
 
     def create_primal_calldata(self, device: Device, value: NDBuffer, access: AccessType):
         return {

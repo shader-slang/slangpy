@@ -95,10 +95,9 @@ class PythonMarshal:
         values are stored as structured buffers with a single element.
         """
         if access == AccessType.read:
-            cgb.append_statement(cg.declare(type_name, variable_name))
+            cgb.declare(type_name, variable_name)
         else:
-            cgb.append_statement(cg.declare(
-                f"RWStructuredBuffer<{type_name}>", variable_name))
+            cgb.declare(f"RWStructuredBuffer<{type_name}>", variable_name)
 
     def gen_load(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, from_call_data: str, to_variable: str, transform: list[Optional[int]], access: AccessType):
         """
@@ -106,16 +105,16 @@ class PythonMarshal:
         from the uniform, and read-write values are copied from the first element of the structured buffer.
         """
         if access == AccessType.read:
-            cgb.append_statement(cg.assign(to_variable, from_call_data))
+            cgb.assign(to_variable, from_call_data)
         else:
-            cgb.append_statement(cg.assign(to_variable, f"{from_call_data}[0]"))
+            cgb.assign(to_variable, f"{from_call_data}[0]")
 
     def gen_store(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
         """
         Generate code to store the value to the call data. By default, this assumes a writable value
         has a single element structured buffer to write to.
         """
-        cgb.append_statement(cg.assign(f"{to_call_data}[0]", from_variable))
+        cgb.assign(f"{to_call_data}[0]", from_variable)
 
     def primal_to_numpy(self, value: Any):
         """
