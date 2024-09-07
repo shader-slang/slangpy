@@ -113,5 +113,45 @@ float3 rand_float(float3 input) {
     assert np.all(data >= 1.0) and np.all(data <= 2.0)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_rand_soa(device_type: sgl.DeviceType):
+
+    # Create function that just dumps input to output
+    device = helpers.get_device(device_type)
+    kernel_output_values = helpers.create_function_from_module(
+        device, "rand_float_soa", """
+struct Particle {
+    float3 pos;
+    float3 vel;
+};
+Particle dummy;
+Particle rand_float_soa(Particle input) {
+    return input;
+}
+"""
+    )
+
+    pt = [x for x in kernel_output_values.module.layout.globals_type_layout.element_type_layout.fields][0].type_layout
+
+    # Make buffer for results
+    results = NDBuffer(
+        element_count=16,
+        device=device,
+        element_type=pt
+    )
+
+    # Call function with 3D random arg
+    kernel_output_values({
+        'pos': RandFloatArg(-100.0, 100.0, 3),
+        'vel': RandFloatArg(0.0, np.pi*2.0, 3),
+    }, _result=results)
+
+    # Should get random numbers
+    data = results.buffer.to_numpy().view("float32")[0:16*6].reshape((-1, 6))
+    (pos, dir) = np.split(data, 2, axis=1)
+    assert np.all(pos >= -100.0) and np.all(pos <= 100.0)
+    assert np.all(dir >= 0) and np.all(dir <= np.pi*2)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
