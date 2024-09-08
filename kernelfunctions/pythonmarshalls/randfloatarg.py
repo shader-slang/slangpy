@@ -8,6 +8,7 @@ from kernelfunctions.pythonmarshalls.wanghasharg import wang_hash_code_gen
 from kernelfunctions.typeregistry import register_python_type
 from kernelfunctions.types import PythonMarshal, AccessType
 import kernelfunctions.codegen as cg
+from kernelfunctions.types.enums import PrimType
 from kernelfunctions.types.pythonmarshall import PythonDescriptor
 from kernelfunctions.types.randfloatarg import RandFloatArg
 
@@ -55,14 +56,15 @@ class RandFloatArgMarshal(PythonMarshal):
     def gen_store(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
         raise NotImplementedError()
 
-    def create_primal_calldata(self, device: Device, value: RandFloatArg, access: AccessType):
+    def create_calldata(self, device: Device, value: RandFloatArg, access: AccessType, prim: PrimType):
+        assert prim == PrimType.primal
         return {
             "min": value.min,
             "max": value.max,
         }
 
-    def read_primal_calldata(self, device: Device, call_data: Any, access: AccessType, value: RandFloatArg):
-        pass
+    def read_calldata(self, device: Device, call_data: Any, access: AccessType, prim: PrimType, value: RandFloatArg):
+        assert prim == PrimType.primal
 
 
 register_python_type(RandFloatArg, RandFloatArgMarshal(), None)

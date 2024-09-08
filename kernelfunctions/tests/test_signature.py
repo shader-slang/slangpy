@@ -124,7 +124,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match is not None
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)
-        apply_signature(match, function.ast_functions[0].as_function())
+        apply_signature(match, function.ast_functions[0].as_function(), CallMode.prim)
         assert match["a"].slang.primal
         assert match["b"].slang.primal
         assert match["a"].slang.primal.name == calc_vector_name(slang_type_name)
@@ -136,7 +136,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match is not None
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)
-        apply_signature(match, function.ast_functions[0].as_function())
+        apply_signature(match, function.ast_functions[0].as_function(), CallMode.prim)
         assert match["a"].slang.primal
         assert match["b"].slang.primal
         assert match["a"].slang.primal.name == calc_vector_name(slang_type_name)
@@ -148,7 +148,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
         assert match is not None
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)
-        apply_signature(match, function.ast_functions[0].as_function())
+        apply_signature(match, function.ast_functions[0].as_function(), CallMode.prim)
         assert match["a"].slang.primal
         assert match["b"].slang.primal
         assert match["a"].slang.primal.name == calc_vector_name(slang_type_name)
@@ -193,7 +193,7 @@ void add_numbers(MyStruct v) {{ }}
         assert match["v"].children["a"].python_marshal.type == type(v0)
         assert match["v"].children["b"].python_marshal.type == type(v1)
 
-        apply_signature(match, function.ast_functions[0].as_function())
+        apply_signature(match, function.ast_functions[0].as_function(), CallMode.prim)
         assert match["v"].children
         assert match["v"].slang.primal
         assert match["v"].slang.primal.name == "MyStruct"

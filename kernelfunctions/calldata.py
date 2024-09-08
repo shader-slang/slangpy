@@ -80,7 +80,7 @@ class CallData:
             matched_signature["_result"] = rvalnode
 
         # Once matched, build the fully bound signature
-        apply_signature(matched_signature, matched_overload,
+        apply_signature(matched_signature, matched_overload, self.call_mode,
                         self.input_transforms, self.outut_transforms)
 
         # store overload and signature
@@ -133,7 +133,7 @@ class CallData:
                 device, self.call_shape, rv_node.python.element_type)
 
         write_calldata_pre_dispatch(device, self.input_signature,
-                                    self.call_mode, call_data, *args, **kwargs)
+                                    call_data, *args, **kwargs)
 
         total_threads = 1
         strides = []
@@ -151,7 +151,7 @@ class CallData:
         self.kernel.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
 
         read_call_data_post_dispatch(
-            device, self.input_signature, self.call_mode, call_data, *args, **kwargs)
+            device, self.input_signature, call_data, *args, **kwargs)
 
         if self.call_mode == CallMode.prim and rv_node is not None:
             return rv_node.python_marshal.as_return_value(kwargs["_result"])

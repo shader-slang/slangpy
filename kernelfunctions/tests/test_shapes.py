@@ -61,7 +61,7 @@ def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any,
         sig, function.ast_functions[0].as_function(), CallMode.prim)
     assert match is not None
     apply_signature(match, function.ast_functions[0].as_function(
-    ), input_transforms, ouput_transforms)
+    ), CallMode.prim, input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(match)
 
     nodes: list[SignatureNode] = []
@@ -95,7 +95,7 @@ def read_slice(device_type: sgl.DeviceType, index: Any, texture: Any, result: An
         sig, function.ast_functions[0].as_function(), CallMode.prim)
     assert match is not None
     apply_signature(match, function.ast_functions[0].as_function(
-    ), input_transforms, ouput_transforms)
+    ), CallMode.prim, input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(match)
 
     nodes: list[SignatureNode] = []
@@ -131,7 +131,7 @@ def copy_at_index(device_type: sgl.DeviceType, index: Any, frombuffer: Any, tobu
         sig, function.ast_functions[0].as_function(), CallMode.prim)
     assert match is not None
     apply_signature(match, function.ast_functions[0].as_function(
-    ), input_transforms, ouput_transforms)
+    ), CallMode.prim, input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(match)
 
     nodes: list[SignatureNode] = []

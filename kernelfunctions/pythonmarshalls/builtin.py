@@ -4,6 +4,8 @@ from kernelfunctions.types import PythonMarshal
 import numpy as np
 import numpy.typing as npt
 
+from kernelfunctions.types.enums import PrimType
+
 
 class BuiltInScalarMarshal(PythonMarshal):
     def __init__(self, python_type: type):
@@ -17,10 +19,12 @@ class IntMarshal(BuiltInScalarMarshal):
     def __init__(self):
         super().__init__(int)
 
-    def primal_to_numpy(self, value: Any):
+    def to_numpy(self, value: Any, prim: PrimType):
+        assert prim == PrimType.primal
         return np.array([value], dtype=np.int32)
 
-    def primal_from_numpy(self, value: npt.NDArray[np.int32]):
+    def from_numpy(self, value: npt.NDArray[np.int32], prim: PrimType):
+        assert prim == PrimType.primal
         return int(value.view(np.int32)[0])
 
 
@@ -28,10 +32,12 @@ class FloatMarshal(BuiltInScalarMarshal):
     def __init__(self):
         super().__init__(float)
 
-    def primal_to_numpy(self, value: Any):
+    def to_numpy(self, value: Any, prim: PrimType):
+        assert prim == PrimType.primal
         return np.array([value], dtype=np.float32)
 
-    def primal_from_numpy(self, value: npt.NDArray[np.float32]):
+    def from_numpy(self, value: npt.NDArray[np.float32], prim: PrimType):
+        assert prim == PrimType.primal
         return float(value.view(np.float32)[0])
 
 
@@ -39,10 +45,12 @@ class BoolMarshal(BuiltInScalarMarshal):
     def __init__(self):
         super().__init__(bool)
 
-    def primal_to_numpy(self, value: Any):
+    def to_numpy(self, value: Any, prim: PrimType):
+        assert prim == PrimType.primal
         return np.array([1 if value else 0], dtype=np.int32)
 
-    def primal_from_numpy(self, value: npt.NDArray[np.int32]):
+    def from_numpy(self, value: npt.NDArray[np.int32], prim: PrimType):
+        assert prim == PrimType.primal
         return bool(value.view(np.int32)[0] == 0)
 
 

@@ -138,6 +138,7 @@ def match_signature(
 def apply_signature(
         signature: TMatchedSignature,
         function_reflection: FunctionReflection,
+        call_mode: CallMode,
         input_transforms: Optional[dict[str, TConcreteShape]] = None,
         output_transforms: Optional[dict[str, TConcreteShape]] = None):
     """
@@ -148,7 +149,8 @@ def apply_signature(
     for name, node in signature.items():
         reflection = function_reflection if name == "_result" else function_reflection.parameters[
             node.param_index]
-        node.apply_signature(reflection, name, input_transforms, output_transforms)
+        node.apply_signature(reflection, call_mode, name,
+                             input_transforms, output_transforms)
 
 
 def calculate_and_apply_call_shape(signature: TMatchedSignature) -> list[int]:
@@ -289,11 +291,11 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     for node in signature.values():
         node.get_input_list(nodes)
     for node in nodes:
-        node.gen_call_data_code(mode, cg)
+        node.gen_call_data_code(cg)
 
     # Generate the recursive load/store functions
     for node in signature.values():
-        node.gen_load_store_code(mode, cg)
+        node.gen_load_store_code(cg)
 
     # Get sorted list of root parameters for trampoline function
     root_params = sorted(signature.values(), key=lambda x: x.param_index)
@@ -378,8 +380,7 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     # Select either primals, derivatives or pairs for the trampoline function
     names: list[str] = []
     for x in root_params:
-        primal_access = x._get_primal_access(mode)
-        derivative_access = x._get_derivative_access(mode)
+        (primal_access, derivative_access) = x.access
         if primal_access != AccessType.none and derivative_access != AccessType.none:
             assert not primal_access in [AccessType.write, AccessType.readwrite]
             assert derivative_access in [AccessType.write, AccessType.readwrite]
@@ -405,8 +406,7 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
 
     # For each writable trampoline parameter, potentially store it
     for x in root_params:
-        primal_access = x._get_primal_access(mode)
-        derivative_access = x._get_derivative_access(mode)
+        (primal_access, derivative_access) = x.access
         if primal_access != AccessType.none and derivative_access != AccessType.none:
             store_pair_derivative(x)
         else:
@@ -418,7 +418,7 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     cg.kernel.end_block()
 
 
-def write_calldata_pre_dispatch(device: Device, call_signature: TCallSignature, mode: CallMode, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def write_calldata_pre_dispatch(device: Device, call_signature: TCallSignature, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Write the call data for args + kwargs before dispatching
     """
@@ -426,13 +426,13 @@ def write_calldata_pre_dispatch(device: Device, call_signature: TCallSignature, 
     sig_kwargs = call_signature[1]
 
     for idx, value in enumerate(args):
-        sig_args[idx].write_call_data_pre_dispatch(device, call_data, value, mode)
+        sig_args[idx].write_call_data_pre_dispatch(device, call_data, value)
 
     for key, value in kwargs.items():
-        sig_kwargs[key].write_call_data_pre_dispatch(device, call_data, value, mode)
+        sig_kwargs[key].write_call_data_pre_dispatch(device, call_data, value)
 
 
-def read_call_data_post_dispatch(device: Device, call_signature: TCallSignature, mode: CallMode, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def read_call_data_post_dispatch(device: Device, call_signature: TCallSignature, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Read the call data for args + kwargs after dispatching
     """
@@ -440,6 +440,6 @@ def read_call_data_post_dispatch(device: Device, call_signature: TCallSignature,
     sig_kwargs = call_signature[1]
 
     for idx, value in enumerate(args):
-        sig_args[idx].read_call_data_post_dispatch(device, call_data, value, mode)
+        sig_args[idx].read_call_data_post_dispatch(device, call_data, value)
     for key, value in kwargs.items():
-        sig_kwargs[key].read_call_data_post_dispatch(device, call_data, value, mode)
+        sig_kwargs[key].read_call_data_post_dispatch(device, call_data, value)

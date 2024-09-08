@@ -3,6 +3,7 @@ from sgl import Device, TypeLayoutReflection
 from kernelfunctions.typeregistry import create_slang_type_marshal, get_python_type_marshall, register_python_type
 from kernelfunctions.types import AccessType, PythonMarshal, NDDifferentiableBuffer, NDBuffer
 import kernelfunctions.codegen as cg
+from kernelfunctions.types.enums import PrimType
 from kernelfunctions.types.pythonmarshall import PythonDescriptor
 
 TYPES = r"""
@@ -108,15 +109,21 @@ class BaseBufferMarshall(PythonMarshal):
         cgb.assign(
             f"{to_call_data}{self._transform_to_subscript(transform)}", from_variable)
 
-    def create_primal_calldata(self, device: Device, value: NDBuffer, access: AccessType):
-        return {
-            "buffer": value.buffer,
-            "strides": list(value.strides),
-        }
+    def create_calldata(self, device: Device, value: NDBuffer, access: AccessType, prim: PrimType):
+        if prim == PrimType.primal:
+            return {
+                "buffer": value.buffer,
+                "strides": list(value.strides),
+            }
+        else:
+            raise NotImplementedError()
 
-    def read_primal_calldata(self, device: Device, call_data: Any, access: AccessType, value: NDBuffer):
-        assert call_data['buffer'] == value.buffer
-        assert call_data['strides'] == list(value.strides)
+    def read_calldata(self, device: Device, call_data: Any, access: AccessType, prim: PrimType, value: NDBuffer):
+        if prim == PrimType.primal:
+            assert call_data['buffer'] == value.buffer
+            assert call_data['strides'] == list(value.strides)
+        else:
+            raise NotImplementedError()
 
     def allocate_return_value(self, device: Device, call_shape: list[int], element_type: Any):
         return NDBuffer(
@@ -150,15 +157,21 @@ class NDDifferentiableBufferMarshall(BaseBufferMarshall):
     def is_differentiable(self, value: NDDifferentiableBuffer) -> bool:
         return value.is_differentiable
 
-    def create_derivative_calldata(self, device: Device, value: NDDifferentiableBuffer, access: AccessType):
-        return {
-            "buffer": value.grad_buffer,
-            "strides": list(value.strides),
-        }
+    def create_calldata(self, device: Device, value: NDDifferentiableBuffer, access: AccessType, prim: PrimType):
+        if prim == PrimType.primal:
+            return super().create_calldata(device, value, access, prim)
+        else:
+            return {
+                "buffer": value.grad_buffer,
+                "strides": list(value.strides),
+            }
 
-    def read_derivative_calldata(self, device: Device, call_data: Any, access: AccessType, value: NDDifferentiableBuffer):
-        assert call_data['buffer'] == value.grad_buffer
-        assert call_data['strides'] == list(value.strides)
+    def read_calldata(self, device: Device, call_data: Any, access: AccessType, prim: PrimType, value: NDDifferentiableBuffer):
+        if prim == PrimType.primal:
+            super().read_calldata(device, call_data, access, prim, value)
+        else:
+            assert call_data['buffer'] == value.grad_buffer
+            assert call_data['strides'] == list(value.strides)
 
     def allocate_return_value(self, device: Device, call_shape: list[int], element_type: Any):
         return NDDifferentiableBuffer(

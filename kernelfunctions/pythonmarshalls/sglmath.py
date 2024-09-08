@@ -7,6 +7,8 @@ from kernelfunctions.types import PythonMarshal
 import numpy as np
 import numpy.typing as npt
 
+from kernelfunctions.types.enums import PrimType
+
 ETYPE_TO_NP = {
     int: np.int32,
     float: np.float32,
@@ -28,10 +30,12 @@ class SGLVectorMarshal(SGLMathTypeMarshal):
         super().__init__(sgl_type)
         self.npt = ETYPE_TO_NP[sgl_type().element_type]  # type: ignore
 
-    def primal_to_numpy(self, value: TSGLVector):
+    def to_numpy(self, value: TSGLVector, prim: PrimType):
+        assert prim == PrimType.primal
         return np.array([value[i] for i in range(value.shape[0])], dtype=self.npt)
 
-    def primal_from_numpy(self, value: npt.NDArray[Any]) -> TSGLVector:
+    def from_numpy(self, value: npt.NDArray[Any], prim: PrimType) -> TSGLVector:
+        assert prim == PrimType.primal
         return self.type(list(value.view(self.npt)))
 
 
@@ -39,10 +43,12 @@ class SGLMatrixMarshal(SGLMathTypeMarshal):
     def __init__(self, sgl_type: type):
         super().__init__(sgl_type)
 
-    def primal_to_numpy(self, value: Any):
+    def to_numpy(self, value: Any, prim: PrimType):
+        assert prim == PrimType.primal
         return value.to_numpy()
 
-    def primal_from_numpy(self, value: npt.NDArray[Any]) -> Any:
+    def from_numpy(self, value: npt.NDArray[Any], prim: PrimType) -> Any:
+        assert prim == PrimType.primal
         return self.type(value)
 
 

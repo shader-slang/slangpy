@@ -2,7 +2,7 @@
 from typing import Any, Optional, Union
 from numpy.typing import ArrayLike
 
-from sgl import Device, ResourceUsage, TypeLayoutReflection
+from sgl import Buffer, Device, ResourceUsage, TypeLayoutReflection
 
 from kernelfunctions.shapes import TLooseOrUndefinedShape
 from kernelfunctions.typemappings import TPythonScalar, TSGLVector, calc_element_type_size
@@ -116,77 +116,57 @@ class PythonMarshal:
         """
         cgb.assign(f"{to_call_data}[0]", from_variable)
 
-    def primal_to_numpy(self, value: Any):
+    def to_numpy(self, value: Any, prim: PrimType) -> ArrayLike:
         """
-        Convert the primal value to a numpy array. Required for writable values that
-        don't override the create_primal and read_primal methods.
-        """
-        raise NotImplementedError()
-
-    def primal_from_numpy(self, data: ArrayLike) -> None:
-        """
-        Convert the primal value from a numpy array. Required for writable values that
-        don't override the create_primal and read_primal methods.
+        Convert value to a numpy array. Required for writable values that
+        don't override the create_ and read_ methods.
         """
         raise NotImplementedError()
 
-    def derivative_to_numpy(self, value: Any):
+    def from_numpy(self, data: ArrayLike, prim: PrimType) -> None:
         """
-        Convert the derivative value to a numpy array. Required for writable values that
-        don't override the create_derivative and read_derivative methods.
-        """
-        raise NotImplementedError()
-
-    def derivative_from_numpy(self, data: ArrayLike) -> None:
-        """
-        Convert the derivative value from a numpy array. Required for writable values that
-        don't override the create_derivative and read_derivative methods.
+        Convert value from a numpy array. Required for writable values that
+        don't override the create_ and read_ methods.
         """
         raise NotImplementedError()
 
-    def create_primal_calldata(self, device: Device, value: Any, access: AccessType):
+    def to_buffer(self, device: Device, value: Any, prim: PrimType) -> Any:
         """
-        Return entry in call data for the primal value. Default behaviour is to return
+        Allocate a buffer for the value and use from_numpy to fill it.
+        """
+        assert prim == PrimType.primal
+        buffer = device.create_buffer(
+            element_count=1,
+            struct_size=calc_element_type_size(self.get_element_type(value)),
+            usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        buffer.from_numpy(self.to_numpy(value, prim))
+        return buffer
+
+    def from_buffer(self, device: Device, buffer: Buffer, prim: PrimType) -> Any:
+        assert prim == PrimType.primal
+        numpy_value = buffer.to_numpy()
+        primal = self.from_numpy(numpy_value, PrimType.primal)
+        return primal
+
+    def create_calldata(self, device: Device, value: Any, access: AccessType, prim: PrimType):
+        """
+        Return entry in call data for the value. Default behaviour is to return
         the value for read-mode, and a buffer filled from numpy array for write-mode.
         """
-        if access == AccessType.read:
-            return value
+        if prim == PrimType.primal:
+            if access == AccessType.read:
+                return value
+            else:
+                return self.to_buffer(device, value, prim)
         else:
-            buffer = device.create_buffer(
-                element_count=1,
-                struct_size=calc_element_type_size(self.get_element_type(value)),
-                usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
-            buffer.from_numpy(self.primal_to_numpy(value))
-            return buffer
+            raise NotImplementedError()
 
-    def create_derivative_calldata(self, device: Device, value: Any, access: AccessType):
+    def read_calldata(self, device: Device, call_data: Any, access: AccessType, prim: PrimType, value: Any):
         """
-        Return entry in call data for the derivative value. Default behaviour is to return
-        the value for read-mode, and a buffer filled from numpy array for write-mode.
-        """
-        if access == AccessType.read:
-            return value
-        else:
-            buffer = device.create_buffer(
-                element_count=1,
-                struct_size=calc_element_type_size(self.get_element_type(value)),
-                usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
-            buffer.from_numpy(self.derivative_to_numpy(value))
-            return buffer
-
-    def read_primal_calldata(self, device: Device, call_data: Any, access: AccessType, value: Any):
-        """
-        Read back entry in call data for the primal value. Must be implemented for writable
+        Read back entry in call data for the value. Must be implemented for writable
         types.
         """
-        raise ValueError("Cannot read back primal value for non-writable type")
-
-    def read_derivative_calldata(self, device: Device, call_data: Any, access: AccessType, value: Any):
-        """
-        Read back entry in call data for the derivative value. Must be implemented for writable
-        differentiable types.
-        """
-        raise ValueError("Cannot read back derivative value for non-writable type")
+        raise ValueError("Cannot read back value for non-writable type")
 
     def allocate_return_value(self, device: Device, call_shape: list[int], element_type: Any):
         """

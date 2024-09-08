@@ -3,7 +3,7 @@ from numpy import ndarray
 from sgl import Buffer, Device
 from kernelfunctions.typeregistry import get_python_type_marshall, register_python_type
 from kernelfunctions.types import PythonMarshal
-from kernelfunctions.types.enums import AccessType
+from kernelfunctions.types.enums import AccessType, PrimType
 
 
 class ScalarRef:
@@ -35,33 +35,38 @@ class ScalarRefMarshall(PythonMarshal):
     def is_writable(self, value: ScalarRef) -> bool:
         return True
 
-    def primal_to_numpy(self, value: ScalarRef):
+    def to_numpy(self, value: ScalarRef, prim: PrimType):
         """
         For writing to a buffer, can just override the to_numpy function to get 
-        the marshall for the value call its primal_to_numpy
+        the marshall for the value call its to_numpy
         """
-        return get_python_type_marshall(value.value).primal_to_numpy(value.value)
+        assert prim == PrimType.primal
+        return get_python_type_marshall(value.value).to_numpy(value.value, prim)
 
-    def create_primal_calldata(self, device: Device, value: ScalarRef, access: AccessType):
+    def create_calldata(self, device: Device, value: ScalarRef, access: AccessType, prim: PrimType):
         """
-        Return entry in call data for the primal value. For write, can rely on default
+        Return entry in call data for the value. For write, can rely on default
         buffer behaviour, but for reading need to return inner value
         """
-        if access == AccessType.read:
-            return value.value
+        if prim == PrimType.primal:
+            if access == AccessType.read:
+                return value.value
+            else:
+                return get_python_type_marshall(value.value).to_buffer(device, value.value, prim)
         else:
-            return super().create_primal_calldata(device, value, access)
+            raise NotImplementedError()
 
-    def read_primal_calldata(self, device: Device, call_data: Any, access: AccessType, value: ScalarRef):
+    def read_calldata(self, device: Device, call_data: Any, access: AccessType, prim: PrimType, value: ScalarRef):
         """
         For readback, need to use the value's marshal to convert numpy array, then
         store the result in the value field.
         """
-        if access != AccessType.read:
-            assert isinstance(call_data, Buffer)
-            numpy_value = call_data.to_numpy()
-            primal = get_python_type_marshall(value.value).primal_from_numpy(numpy_value)
-            value.value = primal
+        if prim == PrimType.primal:
+            if access != AccessType.read:
+                value.value = get_python_type_marshall(
+                    value.value).from_buffer(device, call_data, prim)
+        else:
+            raise NotImplementedError()
 
     def allocate_return_value(self, device: Device, call_shape: list[int], element_type: Any):
         """
@@ -111,62 +116,35 @@ class ScalarDiffPairMarshall(PythonMarshal):
     def is_differentiable(self, value: ScalarDiffPair) -> bool:
         return value.needs_grad
 
-    def primal_to_numpy(self, value: ScalarDiffPair):
-        """
-        For writing to a buffer, can just override the to_numpy function to get 
-        the marshall for the value call its primal_to_numpy
-        """
-        return get_python_type_marshall(value.primal).primal_to_numpy(value.primal)
-
-    def create_primal_calldata(self, device: Device, value: ScalarDiffPair, access: AccessType):
+    def create_calldata(self, device: Device, value: ScalarDiffPair, access: AccessType, prim: PrimType):
         """
         Return entry in call data for the primal value. For write, can rely on default
         buffer behaviour, but for reading need to return inner value
         """
-        if access == AccessType.read:
-            return value.primal
+        if prim == PrimType.primal:
+            if access == AccessType.read:
+                return value.primal
+            else:
+                return get_python_type_marshall(value.primal).to_buffer(device, value.primal, PrimType.primal)
         else:
-            return super().create_primal_calldata(device, value, access)
+            if access == AccessType.read:
+                return value.grad
+            else:
+                return get_python_type_marshall(value.grad).to_buffer(device, value.grad, PrimType.primal)
 
-    def read_primal_calldata(self, device: Device, call_data: Any, access: AccessType, value: ScalarDiffPair):
+    def read_calldata(self, device: Device, call_data: Any, access: AccessType, prim: PrimType, value: ScalarDiffPair):
         """
         For readback, need to use the value's marshal to convert numpy array, then
         store the result in the value field.
         """
-        if access != AccessType.read:
-            assert isinstance(call_data, Buffer)
-            numpy_value = call_data.to_numpy()
-            primal = get_python_type_marshall(value.primal).primal_from_numpy(numpy_value)
-            value.primal = primal
-
-    def derivative_to_numpy(self, value: ScalarDiffPair):
-        """
-        For writing to a buffer, can just override the to_numpy function to get 
-        the marshall for the value call its derivative_to_numpy
-        """
-        return get_python_type_marshall(value.primal).primal_to_numpy(value.grad)
-
-    def create_derivative_calldata(self, device: Device, value: ScalarDiffPair, access: AccessType):
-        """
-        Return entry in call data for the derivative value. For write, can rely on default
-        buffer behaviour, but for reading need to return inner value
-        """
-        if access == AccessType.read:
-            return value.grad
+        if prim == PrimType.primal:
+            if access != AccessType.read:
+                value.primal = get_python_type_marshall(
+                    value.primal).from_buffer(device, call_data, PrimType.primal)
         else:
-            return super().create_derivative_calldata(device, value, access)
-
-    def read_derivative_calldata(self, device: Device, call_data: Any, access: AccessType, value: ScalarDiffPair):
-        """
-        For readback, need to use the value's marshal to convert numpy array, then
-        store the result in the value field.
-        """
-        if access != AccessType.read:
-            assert isinstance(call_data, Buffer)
-            numpy_value = call_data.to_numpy()
-            derivative = get_python_type_marshall(
-                value.grad).primal_from_numpy(numpy_value)
-            value.grad = derivative
+            if access != AccessType.read:
+                value.grad = get_python_type_marshall(value.grad).from_buffer(
+                    device, call_data, PrimType.primal)
 
 
 register_python_type(ScalarDiffPair,

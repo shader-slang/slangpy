@@ -24,5 +24,5 @@ class IOType(Enum):
 
 
 class PrimType(Enum):
-    primal = 0,
+    primal = 0
     derivative = 1

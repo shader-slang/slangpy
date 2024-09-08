@@ -41,9 +41,7 @@ class SignatureNode:
         self.transform_outputs: TConcreteOrUndefinedShape = None
         self.call_transform: Optional[list[int]] = None
         self.loadstore_transform: Optional[list[Optional[int]]] = None
-        self.prim_access = AccessType.none
-        self.bwds_access = (AccessType.none, AccessType.none)
-        self.fwds_access = (AccessType.none, AccessType.none)
+        self.access = (AccessType.none, AccessType.none)
         self.variable_name = ""
         self.differentiable = False
 
@@ -95,6 +93,7 @@ class SignatureNode:
     def apply_signature(
         self,
         slang_reflection: Union[VariableReflection, FunctionReflection],
+        mode: CallMode,
         path: str,
         input_transforms: Optional[dict[str, TConcreteShape]],
         output_transforms: Optional[dict[str, TConcreteShape]]
@@ -121,7 +120,7 @@ class SignatureNode:
         # Apply the signature recursively
         self._apply_signature(
             name, io_type, no_diff,
-            slang_reflection, path,
+            slang_reflection, mode, path,
             input_transforms, output_transforms)
 
     def _apply_signature(
@@ -130,6 +129,7 @@ class SignatureNode:
         io_type: IOType,
         no_diff: bool,
         slang_reflection: Union[VariableReflection, FunctionReflection, TypeReflection.ScalarType],
+        mode: CallMode,
         path: str,
         input_transforms: Optional[dict[str, TConcreteShape]],
         output_transforms: Optional[dict[str, TConcreteShape]]
@@ -154,7 +154,7 @@ class SignatureNode:
         self.variable_name = path.replace(".", "__")
 
         # Calculate differentiability settings
-        self._calculate_differentiability()
+        self._calculate_differentiability(mode)
 
         # Recurse into children
         if self.children is not None:
@@ -165,6 +165,7 @@ class SignatureNode:
                 node._apply_signature(
                     name, io_type, no_diff,
                     fields_by_name[name],
+                    mode,
                     f"{path}.{name}",
                     input_transforms,
                     output_transforms)
@@ -195,53 +196,39 @@ class SignatureNode:
         if self.type_shape is not None:
             args.append(self)
 
-    def write_call_data_pre_dispatch(self, device: Device, call_data: dict[str, Any], value: Any, mode: CallMode):
+    def write_call_data_pre_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
         """Writes value to call data dictionary pre-dispatch"""
         if self.children is not None:
             for name, child in self.children.items():
-                child.write_call_data_pre_dispatch(device, call_data, value[name], mode)
+                child.write_call_data_pre_dispatch(device, call_data, value[name])
         else:
-            # Pick access types based on call mode.
-            primal_access = self._get_primal_access(mode)
-            derivative_access = self._get_derivative_access(mode)
+            self._create_call_data(device, call_data, value, PrimType.primal)
+            self._create_call_data(device, call_data, value, PrimType.derivative)
 
-            # Populate primal
-            if primal_access != AccessType.none:
-                cd = self.python_marshal.create_primal_calldata(
-                    device, value, primal_access)
-                if cd is not None:
-                    call_data[self.variable_name + "_primal"] = cd
+    def _create_call_data(self, device: Device, call_data: dict[str, Any], value: Any, prim: PrimType):
+        access = self._get_access(prim)
+        if access != AccessType.none:
+            cd = self.python_marshal.create_calldata(
+                device, value, access, prim)
+            if cd is not None:
+                call_data[f"{self.variable_name}_{prim.name}"] = cd
 
-            # Populate derivative
-            if derivative_access != AccessType.none:
-                cd = self.python_marshal.create_derivative_calldata(
-                    device, value, derivative_access)
-                if cd is not None:
-                    call_data[self.variable_name + "_derivative"] = cd
-
-    def read_call_data_post_dispatch(self, device: Device, call_data: dict[str, Any], value: Any, mode: CallMode):
+    def read_call_data_post_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
         """Reads value from call data dictionary post-dispatch"""
         if self.children is not None:
             for name, child in self.children.items():
-                child.write_call_data_pre_dispatch(device, call_data, value[name], mode)
+                child.read_call_data_post_dispatch(device, call_data, value[name])
         else:
-            # Pick access types based on call mode.
-            primal_access = self._get_primal_access(mode)
-            derivative_access = self._get_derivative_access(mode)
+            self._read_call_data(device, call_data, value, PrimType.primal)
+            self._read_call_data(device, call_data, value, PrimType.derivative)
 
-            # Populate primal
-            if primal_access in [AccessType.write, AccessType.readwrite]:
-                cd = call_data.get(self.variable_name + "_primal")
-                if cd is not None:
-                    self.python_marshal.read_primal_calldata(
-                        device, cd, primal_access, value)
-
-            # Populate derivative
-            if derivative_access in [AccessType.write, AccessType.readwrite]:
-                cd = call_data.get(self.variable_name + "_derivative")
-                if cd is not None:
-                    self.python_marshal.read_derivative_calldata(
-                        device, cd, derivative_access, value)
+    def _read_call_data(self, device: Device, call_data: dict[str, Any], value: Any, prim: PrimType):
+        access = self._get_access(prim)
+        if access in [AccessType.write, AccessType.readwrite]:
+            cd = call_data.get(f"{self.variable_name}_{prim.name}")
+            if cd is not None:
+                self.python_marshal.read_calldata(
+                    device, cd, access, prim, value)
 
     def __repr__(self):
         return self.python_marshal.__repr__()
@@ -324,50 +311,47 @@ class SignatureNode:
                 if self.transform_outputs[i] is not None:
                     self.call_transform[i] = self.transform_outputs[i]
 
-    def _calculate_differentiability(self):
+    def _calculate_differentiability(self, mode: CallMode):
         """
-        Works out whether this node can be differentiated, then calculates the 
-        corresponding access types for primitive, backwards and forwards passes
+        Calculates access types based on differentiability, call mode and io type
         """
-        if self.differentiable:
-            if self.slang.io_type == IOType.inout:
-                self.prim_access = AccessType.readwrite
-                self.bwds_access = (AccessType.read, AccessType.readwrite)
-            elif self.slang.io_type == IOType.out:
-                self.prim_access = AccessType.write
-                self.bwds_access = (AccessType.none, AccessType.read)
-            else:
-                self.prim_access = AccessType.read
-                self.bwds_access = (AccessType.read, AccessType.write)
-        else:
-            if self.slang.io_type == IOType.inout:
-                self.prim_access = AccessType.readwrite
-                self.bwds_access = (AccessType.read, AccessType.none)
-            elif self.slang.io_type == IOType.out:
-                self.prim_access = AccessType.write
-                self.bwds_access = (AccessType.none, AccessType.none)
-            else:
-                self.prim_access = AccessType.read
-                self.bwds_access = (AccessType.read, AccessType.none)
-
-    def _get_primal_access(self, mode: CallMode) -> AccessType:
         if mode == CallMode.prim:
-            return self.prim_access
+            if self.differentiable:
+                if self.slang.io_type == IOType.inout:
+                    self.access = (AccessType.readwrite, AccessType.none)
+                elif self.slang.io_type == IOType.out:
+                    self.access = (AccessType.write, AccessType.none)
+                else:
+                    self.access = (AccessType.read, AccessType.none)
+            else:
+                if self.slang.io_type == IOType.inout:
+                    self.access = (AccessType.readwrite, AccessType.none)
+                elif self.slang.io_type == IOType.out:
+                    self.access = (AccessType.write, AccessType.none)
+                else:
+                    self.access = (AccessType.read, AccessType.none)
         elif mode == CallMode.bwds:
-            return self.bwds_access[0]
+            if self.differentiable:
+                if self.slang.io_type == IOType.inout:
+                    self.access = (AccessType.read, AccessType.readwrite)
+                elif self.slang.io_type == IOType.out:
+                    self.access = (AccessType.none, AccessType.read)
+                else:
+                    self.access = (AccessType.read, AccessType.write)
+            else:
+                if self.slang.io_type == IOType.inout:
+                    self.access = (AccessType.read, AccessType.none)
+                elif self.slang.io_type == IOType.out:
+                    self.access = (AccessType.none, AccessType.none)
+                else:
+                    self.access = (AccessType.read, AccessType.none)
         else:
-            return self.fwds_access[0]
+            # todo: fwds
+            self.access = (AccessType.none, AccessType.none)
 
-    def _get_derivative_access(self, mode: CallMode) -> AccessType:
-        if mode == CallMode.prim:
-            return AccessType.none
-        elif mode == CallMode.bwds:
-            return self.bwds_access[1]
-        else:
-            return self.fwds_access[1]
-
-    def _get_access(self, mode: CallMode, prim: PrimType) -> AccessType:
-        return self._get_primal_access(mode) if prim == PrimType.primal else self._get_derivative_access(mode)
+    def _get_access(self, prim: PrimType) -> AccessType:
+        idx: int = prim.value
+        return self.access[idx]
 
     def allocate_output_buffer(self, device: Device):
         if self.children is not None:
@@ -377,17 +361,17 @@ class SignatureNode:
             if self.python_marshal.type == NoneType:
                 pass
 
-    def gen_call_data_code(self, mode: CallMode, cg: CodeGen):
+    def gen_call_data_code(self, cg: CodeGen):
         if self.children is not None:
             for child in self.children.values():
-                child.gen_call_data_code(mode, cg)
+                child.gen_call_data_code(cg)
         else:
             assert self.loadstore_transform is not None
-            self._gen_call_data_code(mode, cg, PrimType.primal)
-            self._gen_call_data_code(mode, cg, PrimType.derivative)
+            self._gen_call_data_code(cg, PrimType.primal)
+            self._gen_call_data_code(cg, PrimType.derivative)
 
-    def _gen_call_data_code(self, mode: CallMode, cg: CodeGen, prim: PrimType):
-        access = self._get_access(mode, prim)
+    def _gen_call_data_code(self, cg: CodeGen, prim: PrimType):
+        access = self._get_access(prim)
         if access != AccessType.none:
             slang = self.slang.get(prim)
             self.python_marshal.gen_calldata(
@@ -397,15 +381,15 @@ class SignatureNode:
                 f"{self.variable_name}_{prim.name}",
                 access)
 
-    def gen_load_store_code(self, mode: CallMode, cg: CodeGen):
+    def gen_load_store_code(self, cg: CodeGen):
         # Generate load store functions
-        self._gen_load(mode, cg, PrimType.primal)
-        self._gen_load(mode, cg, PrimType.derivative)
-        self._gen_store(mode, cg, PrimType.primal)
-        self._gen_store(mode, cg, PrimType.derivative)
+        self._gen_load(cg, PrimType.primal)
+        self._gen_load(cg, PrimType.derivative)
+        self._gen_store(cg, PrimType.primal)
+        self._gen_store(cg, PrimType.derivative)
 
-    def _gen_load(self, mode: CallMode, cg: CodeGen, prim: PrimType):
-        access = self._get_access(mode, prim)
+    def _gen_load(self, cg: CodeGen, prim: PrimType):
+        access = self._get_access(prim)
         if not access in [AccessType.read, AccessType.readwrite]:
             return None
 
@@ -416,7 +400,7 @@ class SignatureNode:
         cgcode = cg.input_load_store
         if self.children is not None:
             name_to_call = {name: child._gen_load(
-                mode, cg, prim) for (name, child) in self.children.items()}
+                cg, prim) for (name, child) in self.children.items()}
             cgcode.append_line(func_def)
             cgcode.begin_block()
             for (name, child) in self.children.items():
@@ -436,8 +420,8 @@ class SignatureNode:
 
         return func_name
 
-    def _gen_store(self, mode: CallMode, cg: CodeGen, prim: PrimType):
-        access = self._get_access(mode, prim)
+    def _gen_store(self, cg: CodeGen, prim: PrimType):
+        access = self._get_access(prim)
         if not access in [AccessType.write, AccessType.readwrite]:
             return None
 
@@ -449,7 +433,7 @@ class SignatureNode:
 
         if self.children is not None:
             name_to_call = {name: child._gen_store(
-                mode, cg, prim) for (name, child) in self.children.items()}
+                cg, prim) for (name, child) in self.children.items()}
             cgcode.append_line(func_def)
             cgcode.begin_block()
             for (name, child) in self.children.items():
@@ -471,12 +455,6 @@ class SignatureNode:
                 self.loadstore_transform, access)
             cgcode.end_block()
         return func_name
-
-    def _gen_store_primal(self, mode: CallMode, cg: CodeGen):
-        return self._gen_store(mode, cg, PrimType.primal)
-
-    def _gen_store_derivative(self, mode: CallMode, cg: CodeGen):
-        return self._gen_store(mode, cg, PrimType.derivative)
 
     def _gen_trampoline_argument(self):
         return self.slang.gen_trampoline_argument(self.differentiable)

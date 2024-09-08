@@ -7,6 +7,7 @@ import sgl
 from kernelfunctions.typeregistry import register_python_type
 from kernelfunctions.types import PythonMarshal, AccessType
 import kernelfunctions.codegen as cg
+from kernelfunctions.types.enums import PrimType
 from kernelfunctions.types.pythonmarshall import PythonDescriptor
 from kernelfunctions.types.wanghasharg import WangHashArg
 
@@ -77,10 +78,12 @@ class WangHashArgMarshal(PythonMarshal):
     def gen_store(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, to_call_data: str, from_variable: str, transform: list[Optional[int]], access: AccessType):
         raise NotImplementedError()
 
-    def create_primal_calldata(self, device: Device, value: WangHashArg, access: AccessType):
+    def create_calldata(self, device: Device, value: WangHashArg, access: AccessType, prim: PrimType):
+        assert prim == PrimType.primal
         return None
 
-    def read_primal_calldata(self, device: Device, call_data: Any, access: AccessType, value: WangHashArg):
+    def read_calldata(self, device: Device, call_data: Any, access: AccessType, prim: PrimType, value: WangHashArg):
+        assert prim == PrimType.primal
         pass
 
 

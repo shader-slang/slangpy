@@ -56,15 +56,25 @@ def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any, opts: 
     match = match_signature(
         sig, function.ast_functions[0].as_function(), CallMode.prim)
     assert match is not None
-    apply_signature(match, function.ast_functions[0].as_function(
-    ), input_transforms=input_transform, output_transforms=output_transform)
-    call_shape = calculate_and_apply_call_shape(match)
+
+    astfunc = function.ast_functions[0].as_function()
 
     prim = CodeGen()
-    bwds = CodeGen()
-    fwds = CodeGen()
+    apply_signature(match, astfunc, CallMode.prim,
+                    input_transforms=input_transform, output_transforms=output_transform)
+    call_shape = calculate_and_apply_call_shape(match)
     generate_code(call_shape, function, match, CallMode.prim, prim)
+
+    bwds = CodeGen()
+    apply_signature(match, astfunc, CallMode.bwds,
+                    input_transforms=input_transform, output_transforms=output_transform)
+    call_shape = calculate_and_apply_call_shape(match)
     generate_code(call_shape, function, match, CallMode.bwds, bwds)
+
+    fwds = CodeGen()
+    apply_signature(match, astfunc, CallMode.fwds,
+                    input_transforms=input_transform, output_transforms=output_transform)
+    call_shape = calculate_and_apply_call_shape(match)
     generate_code(call_shape, function, match, CallMode.fwds, fwds)
 
     return prim, bwds, fwds
