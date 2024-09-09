@@ -2,14 +2,12 @@
 from typing import Any, Optional, Union
 from numpy.typing import ArrayLike
 
-from sgl import Buffer, Device, ResourceUsage, TypeLayoutReflection
+import kernelfunctions.codegen as cg
 
+from kernelfunctions.backend import Buffer, Device, ResourceUsage, TypeLayoutReflection
 from kernelfunctions.shapes import TLooseOrUndefinedShape
 from kernelfunctions.typemappings import TPythonScalar, TSGLVector, calc_element_type_size
-
-from .enums import AccessType, PrimType
-
-import kernelfunctions.codegen as cg
+from kernelfunctions.types.enums import AccessType, PrimType
 
 
 class PythonDescriptor:
@@ -137,7 +135,8 @@ class PythonMarshal:
         assert prim == PrimType.primal
         buffer = device.create_buffer(
             element_count=1,
-            struct_size=calc_element_type_size(self.get_element_type(value)),
+            struct_size=calc_element_type_size(
+                self.get_element_type(value)),  # type: ignore
             usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
         buffer.from_numpy(self.to_numpy(value, prim))
         return buffer

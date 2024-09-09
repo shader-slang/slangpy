@@ -1,6 +1,6 @@
 from typing import Any, Callable, Optional
-import sgl
 
+from kernelfunctions.backend import SlangModule, DeclReflection
 from kernelfunctions.shapes import TConcreteShape
 
 
@@ -97,9 +97,9 @@ class FunctionChainOutputTransform(FunctionChainBase):
 class Function(FunctionChainBase):
     def __init__(
         self,
-        module: sgl.SlangModule,
+        module: SlangModule,
         name: str,
-        ast_parent: Optional[sgl.DeclReflection] = None,
+        ast_parent: Optional[DeclReflection] = None,
     ) -> None:
         super().__init__(None)
         self.module = module
@@ -107,7 +107,7 @@ class Function(FunctionChainBase):
         if ast_parent is None:
             ast_parent = module.module_decl
         self.ast_functions = ast_parent.find_children_of_kind(
-            sgl.DeclReflection.Kind.func, name
+            DeclReflection.Kind.func, name
         )
         if len(self.ast_functions) == 0:
             raise ValueError(f"Function '{name}' not found in module {module.name}")

@@ -1,7 +1,6 @@
 
 
 import pytest
-import sgl
 from kernelfunctions.tests import helpers
 from kernelfunctions.types.buffer import NDBuffer
 from kernelfunctions.types.randfloatarg import RandFloatArg
@@ -9,10 +8,11 @@ from kernelfunctions.types.threadidarg import ThreadIdArg
 import numpy as np
 
 from kernelfunctions.types.wanghasharg import WangHashArg
+from kernelfunctions.backend import DeviceType, int3, uint3, float3
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_thread_id(device_type: sgl.DeviceType):
+def test_thread_id(device_type: DeviceType):
 
     # Create function that just dumps input to output
     device = helpers.get_device(device_type)
@@ -28,7 +28,7 @@ int3 thread_ids(int3 input) {
     results = NDBuffer(
         element_count=128,
         device=device,
-        element_type=sgl.int3
+        element_type=int3
     )
 
     # Call function with 3D thread arg. Pass results in, so it forces
@@ -42,7 +42,7 @@ int3 thread_ids(int3 input) {
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_wang_hash(device_type: sgl.DeviceType):
+def test_wang_hash(device_type: DeviceType):
 
     # Create function that just dumps input to output
     device = helpers.get_device(device_type)
@@ -58,7 +58,7 @@ uint3 wang_hashes(uint3 input) {
     results = NDBuffer(
         element_count=16,
         device=device,
-        element_type=sgl.uint3
+        element_type=uint3
     )
 
     # Call function with 3D wang hash arg
@@ -86,7 +86,7 @@ uint3 wang_hashes(uint3 input) {
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_rand_float(device_type: sgl.DeviceType):
+def test_rand_float(device_type: DeviceType):
 
     # Create function that just dumps input to output
     device = helpers.get_device(device_type)
@@ -102,7 +102,7 @@ float3 rand_float(float3 input) {
     results = NDBuffer(
         element_count=16,
         device=device,
-        element_type=sgl.float3
+        element_type=float3
     )
 
     # Call function with 3D random arg
@@ -114,7 +114,7 @@ float3 rand_float(float3 input) {
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_rand_soa(device_type: sgl.DeviceType):
+def test_rand_soa(device_type: DeviceType):
 
     # Create function that just dumps input to output
     device = helpers.get_device(device_type)
@@ -131,7 +131,15 @@ Particle rand_float_soa(Particle input) {
 """
     )
 
-    pt = [x for x in kernel_output_values.module.layout.globals_type_layout.element_type_layout.fields][0].type_layout
+    sgl_module = kernel_output_values.module
+
+    sb_layout = sgl_module.layout.get_type_layout(
+        sgl_module.layout.find_type_by_name("StructuredBuffer<Particle>"))
+    particle_layout = sb_layout.element_type_layout
+    print(particle_layout.size)
+
+    pt = kernel_output_values.module.layout.get_type_layout(
+        kernel_output_values.module.layout.find_type_by_name("Particle"))
 
     # Make buffer for results
     results = NDBuffer(

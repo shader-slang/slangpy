@@ -8,6 +8,6 @@ class RandFloatArg:
 
     def __init__(self, min: float, max: float, dim: int):
         super().__init__()
-        self.min = min
-        self.max = max
-        self.dim = dim
+        self.min = float(min)
+        self.max = float(max)
+        self.dim = int(dim)

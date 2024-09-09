@@ -1,12 +1,12 @@
 from pathlib import Path
 import numpy as np
 import pytest
-import sgl
 import kernelfunctions as kf
 from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.tests import helpers
 from helpers import test_id  # type: ignore (pytest fixture)
 from kernelfunctions.tests.test_differential_function_call import python_eval_polynomial, python_eval_polynomial_a_deriv, python_eval_polynomial_b_deriv
+from kernelfunctions.backend import DeviceType, float3, float1, uint3
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 
@@ -18,7 +18,7 @@ def rand_array_of_floats(size: int):
 # Verify a 'hard coded' example of a generated kernel compiles and runs
 # correctly.
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_buffered_scalar_function(test_id: str, device_type: sgl.DeviceType):
+def test_buffered_scalar_function(test_id: str, device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
@@ -76,7 +76,7 @@ void user_func(float a, float b, out float c) {
 
     # Dispatch the forward kernel.
     kernel.dispatch(
-        sgl.uint3(64, 1, 1),
+        uint3(64, 1, 1),
         {
             "call_data": {
                 "a": in_buffer_0.buffer,
@@ -95,7 +95,7 @@ void user_func(float a, float b, out float c) {
 
     # Dispatch the backward kernel.
     backwards_kernel.dispatch(
-        sgl.uint3(64, 1, 1),
+        uint3(64, 1, 1),
         {
             "call_data": {
                 "a": in_buffer_0.buffer,
@@ -118,7 +118,7 @@ void user_func(float a, float b, out float c) {
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
+def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     program = device.load_program(
@@ -129,7 +129,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     a_x = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float1,
+        element_type=float1,
         requires_grad=True,
     )
     a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
@@ -137,7 +137,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     a_y = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float1,
+        element_type=float1,
         requires_grad=True,
     )
     a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
@@ -145,7 +145,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     a_z = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float1,
+        element_type=float1,
         requires_grad=True,
     )
     a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
@@ -153,7 +153,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     b = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float3,
+        element_type=float3,
         requires_grad=True,
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
@@ -161,7 +161,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     res = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float3,
+        element_type=float3,
         requires_grad=True,
     )
 
@@ -180,7 +180,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     # Dispatch the kernel.
     self.kernel.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
 
-    kernel_eval_polynomial.dispatch(thread_count=sgl.uint3(32, 1, 1), )
+    kernel_eval_polynomial.dispatch(thread_count=uint3(32, 1, 1), )
 
     a_x_data = a_x.buffer.to_numpy().view(np.float32).reshape(-1, 1)
     a_y_data = a_y.buffer.to_numpy().view(np.float32).reshape(-1, 1)

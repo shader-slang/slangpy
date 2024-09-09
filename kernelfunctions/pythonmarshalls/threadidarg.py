@@ -2,11 +2,11 @@
 
 from typing import Any, Optional
 
-from sgl import Device
-import sgl
+import kernelfunctions.codegen as cg
+
+from kernelfunctions.backend import Device, int1, int2, int3
 from kernelfunctions.typeregistry import register_python_type
 from kernelfunctions.types import PythonMarshal, ThreadIdArg, AccessType
-import kernelfunctions.codegen as cg
 from kernelfunctions.types.enums import PrimType
 from kernelfunctions.types.pythonmarshall import PythonDescriptor
 
@@ -28,11 +28,11 @@ class ThreadIdArgMarshal(PythonMarshal):
 
     def get_element_type(self, value: ThreadIdArg):
         if value.dims == 1:
-            return sgl.int1
+            return int1
         elif value.dims == 2:
-            return sgl.int2
+            return int2
         elif value.dims == 3:
-            return sgl.int3
+            return int3
 
     def gen_calldata(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
         pass

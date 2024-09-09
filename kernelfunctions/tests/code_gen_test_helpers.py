@@ -4,8 +4,7 @@
 from types import NoneType
 from typing import Any, Optional
 
-import sgl
-
+from kernelfunctions.backend import DeviceType
 from kernelfunctions.callsignature import apply_signature, build_signature, calculate_and_apply_call_shape, generate_code, match_signature
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.signaturenode import CallMode
@@ -38,7 +37,7 @@ register_python_type(FakeBuffer, FakeBufferMarshall(),
 # Note that the return value is simply treated as a final 'out' parameter
 
 
-def dot_product(device_type: sgl.DeviceType, a: Any, b: Any, result: Any, opts: Optional[dict[str, Any]] = None):
+def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any, opts: Optional[dict[str, Any]] = None):
     device = helpers.get_device(device_type)
 
     function = helpers.create_function_from_module(

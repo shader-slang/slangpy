@@ -2,8 +2,7 @@
 
 from typing import Any, Optional
 
-from sgl import Device
-import sgl
+from kernelfunctions.backend import Device, float1, float2, float3
 from kernelfunctions.pythonmarshalls.wanghasharg import wang_hash_code_gen
 from kernelfunctions.typeregistry import register_python_type
 from kernelfunctions.types import PythonMarshal, AccessType
@@ -30,11 +29,11 @@ class RandFloatArgMarshal(PythonMarshal):
 
     def get_element_type(self, value: RandFloatArg):
         if value.dim == 1:
-            return sgl.float1
+            return float1
         elif value.dim == 2:
-            return sgl.float2
+            return float2
         elif value.dim == 3:
-            return sgl.float3
+            return float3
 
     def gen_calldata(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
         cgb.add_snippet("RandFloatArg", "struct RandFloatArg {float min; float max;}")

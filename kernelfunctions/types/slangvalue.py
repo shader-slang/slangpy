@@ -1,9 +1,9 @@
 from types import NoneType
 from typing import Union
-from sgl import TypeReflection
 
+from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import create_slang_type_marshal
-from .enums import IOType, PrimType
+from kernelfunctions.types.enums import IOType, PrimType
 
 
 class SlangValue:

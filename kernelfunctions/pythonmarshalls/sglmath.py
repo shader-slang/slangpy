@@ -1,13 +1,14 @@
-# Simple loop to find / register all the sgl math types
 from typing import Any
-import sgl
-from kernelfunctions.typemappings import TSGLVector
-from kernelfunctions.typeregistry import register_python_type
-from kernelfunctions.types import PythonMarshal
 import numpy as np
 import numpy.typing as npt
 
+import sgl
+
+from kernelfunctions.typemappings import TSGLVector
+from kernelfunctions.typeregistry import register_python_type
+from kernelfunctions.types import PythonMarshal
 from kernelfunctions.types.enums import PrimType
+
 
 ETYPE_TO_NP = {
     int: np.int32,

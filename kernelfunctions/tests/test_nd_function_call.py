@@ -1,12 +1,12 @@
 import pytest
-import sgl
+from kernelfunctions.backend import DeviceType
 from kernelfunctions.types import NDDifferentiableBuffer
 import kernelfunctions.tests.helpers as helpers
 import numpy as np
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_basic_3d_call(device_type: sgl.DeviceType):
+def test_basic_3d_call(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 

@@ -1,11 +1,11 @@
 import pytest
-import sgl
 from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.tests import helpers
+from kernelfunctions.backend import DeviceType
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_simple_int_buffer_elcount(device_type: sgl.DeviceType):
+def test_simple_int_buffer_elcount(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
@@ -19,7 +19,7 @@ def test_simple_int_buffer_elcount(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_simple_int_buffer_shape(device_type: sgl.DeviceType):
+def test_simple_int_buffer_shape(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
@@ -33,7 +33,7 @@ def test_simple_int_buffer_shape(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_2d_int_buffer(device_type: sgl.DeviceType):
+def test_2d_int_buffer(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
@@ -47,7 +47,7 @@ def test_2d_int_buffer(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_3d_int_buffer(device_type: sgl.DeviceType):
+def test_3d_int_buffer(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 

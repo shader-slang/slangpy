@@ -1,6 +1,7 @@
 from io import StringIO
 from typing import Any, Callable, Optional, Union
-from sgl import TypeReflection
+
+from kernelfunctions.backend import TypeReflection
 from kernelfunctions.types import PythonMarshal, SlangMarshall
 
 # Dictionary of python types to corresponding marshall

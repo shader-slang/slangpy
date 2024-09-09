@@ -3,7 +3,7 @@
 
 from typing import Optional, Union
 
-from sgl import TypeReflection, VariableReflection
+from kernelfunctions.backend import TypeReflection, VariableReflection
 
 from kernelfunctions.shapes import TLooseShape
 

@@ -2,9 +2,9 @@ import hashlib
 import os
 from typing import Any
 
-from sgl import uint3
+from kernelfunctions.backend import uint3
 
-from kernelfunctions.callsignature import apply_signature, build_signature, calculate_and_apply_call_shape, create_return_value, generate_code, match_signature, read_call_data_post_dispatch, write_calldata_pre_dispatch
+from kernelfunctions.callsignature import apply_signature, build_signature, calculate_and_apply_call_shape, create_return_value, generate_code, get_readable_func_string, get_readable_signature_string, match_signature, read_call_data_post_dispatch, write_calldata_pre_dispatch
 from kernelfunctions.function import (
     Function,
     FunctionChainBase,
@@ -69,9 +69,25 @@ class CallData:
                     matched_signature = match
                     matched_overload = ast_function.as_function()
                 else:
-                    raise ValueError("Amiguous call - multiple matching overloads found")
+                    err_text = f"""
+Multiple matching overloads found for function {self.function.name}.
+Input signature:
+{get_readable_signature_string(self.input_signature)}
+First match: {get_readable_func_string(matched_overload)}
+Second match: {get_readable_func_string(ast_function.as_function())}"""
+                    raise ValueError(err_text.strip())
+
         if matched_signature is None or matched_overload is None:
-            raise ValueError("No matching overload found")
+            olstrings = "\n".join([get_readable_func_string(
+                ast_function.as_function()), get_readable_func_string(matched_overload)])
+            err_text = f"""
+No matching overload found for function {self.function.name}.
+Input signature:
+{get_readable_signature_string(self.input_signature)}
+Overloads:
+{olstrings}
+"""
+            raise ValueError(err_text.strip())
 
         # Inject a dummy node into both signatures if we need a result back
         if self.call_mode == CallMode.prim and not "_result" in kwargs and matched_overload.return_type.name != "void":

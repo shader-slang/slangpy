@@ -1,5 +1,6 @@
 from typing import Any, Optional
-from sgl import Device, TypeLayoutReflection
+
+from kernelfunctions.backend import Device, TypeLayoutReflection
 from kernelfunctions.typeregistry import create_slang_type_marshal, get_python_type_marshall, register_python_type
 from kernelfunctions.types import AccessType, PythonMarshal, NDDifferentiableBuffer, NDBuffer
 import kernelfunctions.codegen as cg

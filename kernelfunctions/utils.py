@@ -1,6 +1,7 @@
 from typing import Any, Optional
 from numpy import ndarray
-from sgl import Buffer, Device
+
+from kernelfunctions.backend import Buffer, Device
 from kernelfunctions.typeregistry import get_python_type_marshall, register_python_type
 from kernelfunctions.types import PythonMarshal
 from kernelfunctions.types.enums import AccessType, PrimType

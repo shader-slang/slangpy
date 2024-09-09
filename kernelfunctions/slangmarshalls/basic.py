@@ -1,8 +1,8 @@
 
 
 from typing import Union
-from sgl import TypeReflection
 
+from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typemappings import VEC_TYPES
 from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_KIND, SLANG_MARSHALS_BY_SCALAR_TYPE, create_slang_type_marshal
 from kernelfunctions.types import SlangMarshall

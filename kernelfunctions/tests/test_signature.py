@@ -1,6 +1,6 @@
 from typing import Any
 import pytest
-import sgl
+from kernelfunctions.backend import DeviceType, float1, int1, int2, bool1, uint1, int3
 from kernelfunctions.callsignature import CallMode, build_signature, build_signature_hash, match_signature, apply_signature
 import kernelfunctions.tests.helpers as helpers
 
@@ -26,23 +26,23 @@ class ScalarMatchTest:
 INT_MATCHES = ScalarMatchTest(
     "int",
     ["int8_t", "int16_t", "int", "int64_t"],
-    [int(1), int(-2), sgl.int1(10)],
-    [float(1), sgl.float1(1.0), False, True, sgl.uint1(1)],
+    [int(1), int(-2), int1(10)],
+    [float(1), float1(1.0), False, True, uint1(1)],
 )
 UINT_MATCHES = ScalarMatchTest(
     "uint",
     ["uint8_t", "uint16_t", "uint", "uint64_t"],
-    [int(1), int(2), sgl.uint1(10)],
-    [float(1), sgl.float1(1.0), False, True, sgl.int1(1)],
+    [int(1), int(2), uint1(10)],
+    [float(1), float1(1.0), False, True, int1(1)],
 )
 FLOAT_MATCHES = ScalarMatchTest(
     "float",
     ["half", "float", "double"],
-    [float(1), sgl.float1(1.0)],
-    [int(1), sgl.int1(1), False, True],
+    [float(1), float1(1.0)],
+    [int(1), int1(1), False, True],
 )
 BOOL_MATCHES = ScalarMatchTest(
-    "bool", ["bool"], [False, True, sgl.bool1(True)], [int(1), sgl.int1(1), 0.7]
+    "bool", ["bool"], [False, True, bool1(True)], [int(1), int1(1), 0.7]
 )
 INT2_MATCHES = ScalarMatchTest(
     "int2",
@@ -53,9 +53,9 @@ INT2_MATCHES = ScalarMatchTest(
         "vector<int64_t,2>",
         "int2",
     ],
-    [sgl.int2(15)],
-    [int(1), int(-2), sgl.int1(10), float(1), sgl.float1(1.0),
-     False, True, sgl.uint1(1), sgl.int3(1)],
+    [int2(15)],
+    [int(1), int(-2), int1(10), float(1), float1(1.0),
+     False, True, uint1(1), int3(1)],
 )
 
 TScalarTest = tuple[bool, str, Any, Any]
@@ -95,7 +95,7 @@ def calc_vector_name(slang_type_name: str) -> str:
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("test", SCALAR_TESTS, ids=SCALAR_TEST_ID)
-def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest):
+def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
 
     device = helpers.get_device(device_type)
     succeed: bool = test[0]
@@ -163,7 +163,7 @@ def test_match_scalar_parameters(device_type: sgl.DeviceType, test: TScalarTest)
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("test", SCALAR_TESTS, ids=SCALAR_TEST_ID)
-def test_match_scalar_struct_fields(device_type: sgl.DeviceType, test: TScalarTest):
+def test_match_scalar_struct_fields(device_type: DeviceType, test: TScalarTest):
 
     device = helpers.get_device(device_type)
     succeed: bool = test[0]

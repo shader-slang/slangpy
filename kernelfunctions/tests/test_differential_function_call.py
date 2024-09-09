@@ -1,8 +1,8 @@
 import pytest
-import sgl
 from kernelfunctions.types import NDDifferentiableBuffer
 import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.utils import diffPair
+from kernelfunctions.backend import DeviceType, float3, float1
 import numpy as np
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
@@ -48,7 +48,7 @@ def python_eval_polynomial_b_deriv(a: float, b: float) -> float:
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_call_none_differentiable(device_type: sgl.DeviceType):
+def test_call_none_differentiable(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -65,7 +65,7 @@ def test_call_none_differentiable(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_call_with_none_diff_scalars(device_type: sgl.DeviceType):
+def test_call_with_none_diff_scalars(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -81,7 +81,7 @@ def test_call_with_none_diff_scalars(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_call_with_diff_scalars(device_type: sgl.DeviceType):
+def test_call_with_diff_scalars(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     kernel_eval_polynomial = helpers.create_function_from_module(
@@ -116,7 +116,7 @@ def test_call_with_diff_scalars(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_call_with_diff_pairs(device_type: sgl.DeviceType):
+def test_call_with_diff_pairs(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     kernel_eval_polynomial = helpers.create_function_from_module(
@@ -137,7 +137,7 @@ def test_call_with_diff_pairs(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_call_with_buffers(device_type: sgl.DeviceType):
+def test_call_with_buffers(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     kernel_eval_polynomial = helpers.create_function_from_module(
@@ -183,7 +183,7 @@ def test_call_with_buffers(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_vec3_call_with_buffers(device_type: sgl.DeviceType):
+def test_vec3_call_with_buffers(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     kernel_eval_polynomial = helpers.create_function_from_module(
@@ -193,7 +193,7 @@ def test_vec3_call_with_buffers(device_type: sgl.DeviceType):
     a = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float3,
+        element_type=float3,
         requires_grad=True,
     )
     a.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
@@ -201,7 +201,7 @@ def test_vec3_call_with_buffers(device_type: sgl.DeviceType):
     b = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float3,
+        element_type=float3,
         requires_grad=True,
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
@@ -229,7 +229,7 @@ def test_vec3_call_with_buffers(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
+def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     kernel_eval_polynomial = helpers.create_function_from_module(
@@ -239,7 +239,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     a_x = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float1,
+        element_type=float1,
         requires_grad=True,
     )
     a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
@@ -247,7 +247,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     a_y = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float1,
+        element_type=float1,
         requires_grad=True,
     )
     a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
@@ -255,7 +255,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     a_z = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float1,
+        element_type=float1,
         requires_grad=True,
     )
     a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
@@ -263,7 +263,7 @@ def test_vec3_call_with_buffers_soa(device_type: sgl.DeviceType):
     b = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=sgl.float3,
+        element_type=float3,
         requires_grad=True,
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))

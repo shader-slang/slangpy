@@ -1,21 +1,15 @@
 
 struct Particle {
-    float3 position;
+    float2 position;
     float angle;
 }
 
-uint wang_hash(uint seed)
-{
-    seed = (seed ^ 61) ^ (seed >> 16);
-    seed *= 9;
-    seed = seed ^ (seed >> 4);
-    seed *= 0x27d4eb2d;
-    seed = seed ^ (seed >> 15);
-    return seed;
+void init_particle(float2 position, float angle, out Particle particle) {
+    particle.position = position;
+    particle.angle = angle;
 }
 
-
-void init_random_particle(inout Particle particle, float2 min, float2 max) {
-    particle.position = float3(rand(), rand(), rand());
-    particle.angle = rand();
+void write_particle_pixels(Particle particle, RWTexture2D<float4> output) {
+    int2 pixel = int2(particle.position);
+    output[pixel] = float4(1.0, 1.0, 1.0, 1.0);
 }

@@ -1,4 +1,4 @@
-from sgl import TypeReflection
+from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import SLANG_MARSHALS_BY_NAME, SlangMarshall, create_slang_type_marshal
 
 

@@ -2,11 +2,11 @@
 
 from typing import Any, Optional
 
-from sgl import Device
-import sgl
+import kernelfunctions.codegen as cg
+
+from kernelfunctions.backend import Device, uint1, uint2, uint3
 from kernelfunctions.typeregistry import register_python_type
 from kernelfunctions.types import PythonMarshal, AccessType
-import kernelfunctions.codegen as cg
 from kernelfunctions.types.enums import PrimType
 from kernelfunctions.types.pythonmarshall import PythonDescriptor
 from kernelfunctions.types.wanghasharg import WangHashArg
@@ -57,11 +57,11 @@ class WangHashArgMarshal(PythonMarshal):
 
     def get_element_type(self, value: WangHashArg):
         if value.dims == 1:
-            return sgl.uint1
+            return uint1
         elif value.dims == 2:
-            return sgl.uint2
+            return uint2
         elif value.dims == 3:
-            return sgl.uint3
+            return uint3
 
     def gen_calldata(self, cgb: cg.CodeGenBlock, desc: PythonDescriptor, type_name: str, variable_name: str, access: AccessType):
         pass

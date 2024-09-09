@@ -2,7 +2,7 @@ import hashlib
 from io import StringIO
 from types import NoneType
 from typing import Any, Optional, Union, cast
-from sgl import Device, FunctionReflection, ModifierID
+from kernelfunctions.backend import Device, FunctionReflection, ModifierID, VariableReflection
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
@@ -443,3 +443,39 @@ def read_call_data_post_dispatch(device: Device, call_signature: TCallSignature,
         sig_args[idx].read_call_data_post_dispatch(device, call_data, value)
     for key, value in kwargs.items():
         sig_kwargs[key].read_call_data_post_dispatch(device, call_data, value)
+
+
+def get_readable_signature_string(call_signature: TCallSignature):
+    text: list[str] = []
+    for idx, arg in enumerate(call_signature[0]):
+        text.append(f"arg{idx}: ")
+        text.append(arg._recurse_str(1))
+        text.append("\n")
+    for key, arg in call_signature[1].items():
+        text.append(f"{key}: ")
+        text.append(arg._recurse_str(1))
+        text.append("\n")
+    return "".join(text)
+
+
+def get_readable_func_string(func_reflection: Optional[FunctionReflection]):
+    if func_reflection is None:
+        return ""
+
+    def get_modifiers(var_reflection: VariableReflection):
+        mods: list[str] = []
+        for x in ModifierID:
+            if var_reflection.has_modifier(x):
+                mods.append(x.name)
+        res = " ".join(mods)
+        if len(res) > 0:
+            res += " "
+        return res
+
+    text: list[str] = []
+    text.append(f"{func_reflection.return_type.full_name} {func_reflection.name}(")
+    parms = [
+        f"{get_modifiers(x)}{x.type.full_name} {x.name}" for x in func_reflection.parameters]
+    text.append(", ".join(parms))
+    text.append(")")
+    return "".join(text)

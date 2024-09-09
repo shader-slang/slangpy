@@ -1,7 +1,7 @@
 from types import NoneType
 from typing import Any, Optional, Union, cast
-from sgl import Device, FunctionReflection, ModifierID, TypeReflection, VariableReflection
 
+from kernelfunctions.backend import Device, FunctionReflection, ModifierID, TypeReflection, VariableReflection
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
 from kernelfunctions.typemappings import are_element_types_compatible
@@ -458,3 +458,14 @@ class SignatureNode:
 
     def _gen_trampoline_argument(self):
         return self.slang.gen_trampoline_argument(self.differentiable)
+
+    def __str__(self) -> str:
+        return self._recurse_str(0)
+
+    def _recurse_str(self, depth: int) -> str:
+        if self.children is not None:
+            child_strs = [
+                f"{'  ' * depth}{name}: {child._recurse_str(depth + 1)}" for name, child in self.children.items()]
+            return "\n" + "\n".join(child_strs)
+        else:
+            return f"{self.python_marshal}"

@@ -1,22 +1,22 @@
 from typing import Optional, Type, Union
-import sgl
+from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection
 
 from kernelfunctions.shapes import TConcreteShape
 from ..typemappings import TSGLVector, TPythonScalar, calc_element_type_size
 
 ALL_SUPPORTED_TYPES = Union[Type[TSGLVector],
-                            Type[TPythonScalar], sgl.TypeLayoutReflection]
+                            Type[TPythonScalar], TypeLayoutReflection]
 
 
 class NDBuffer:
     def __init__(
         self,
-        device: sgl.Device,
+        device: Device,
         element_type: ALL_SUPPORTED_TYPES,
         element_count: Optional[int] = None,
         shape: Optional[TConcreteShape] = None,
-        usage: sgl.ResourceUsage = sgl.ResourceUsage.shader_resource
-        | sgl.ResourceUsage.unordered_access,
+        usage: ResourceUsage = ResourceUsage.shader_resource
+        | ResourceUsage.unordered_access,
     ):
         super().__init__()
 
@@ -59,21 +59,21 @@ class NDBuffer:
 
     @property
     def is_writable(self):
-        return (self.usage & sgl.ResourceUsage.unordered_access) != 0
+        return (self.usage & ResourceUsage.unordered_access) != 0
 
 
 class NDDifferentiableBuffer(NDBuffer):
     def __init__(
         self,
-        device: sgl.Device,
+        device: Device,
         element_type: ALL_SUPPORTED_TYPES,
         element_count: Optional[int] = None,
         shape: Optional[TConcreteShape] = None,
-        usage: sgl.ResourceUsage = sgl.ResourceUsage.shader_resource
-        | sgl.ResourceUsage.unordered_access,
+        usage: ResourceUsage = ResourceUsage.shader_resource
+        | ResourceUsage.unordered_access,
         requires_grad: bool = False,
         grad_type: Optional[ALL_SUPPORTED_TYPES] = None,
-        grad_usage: Optional[sgl.ResourceUsage] = None,
+        grad_usage: Optional[ResourceUsage] = None,
     ):
         super().__init__(device, element_type, element_count, shape, usage)
 
@@ -97,4 +97,4 @@ class NDDifferentiableBuffer(NDBuffer):
 
     @property
     def is_writable(self):
-        return (self.usage & sgl.ResourceUsage.unordered_access) != 0
+        return (self.usage & ResourceUsage.unordered_access) != 0
