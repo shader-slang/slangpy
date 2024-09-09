@@ -121,10 +121,14 @@ void user_func(float a, float b, out float c) {
 def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
-    program = device.load_program(
-        str(Path(__file__).parent / "generated_tests/polynomial_soa.slang"), ["main"])
 
-    kernel_eval_polynomial = device.create_compute_kernel(program)
+    prim_program = device.load_program(
+        str(Path(__file__).parent / "generated_tests/polynomial_soa.slang"), ["main"])
+    kernel_eval_polynomial = device.create_compute_kernel(prim_program)
+
+    bwds_program = device.load_program(
+        str(Path(__file__).parent / "generated_tests/polynomial_soa_backwards.slang"), ["main"])
+    kernel_eval_polynomial_backwards = device.create_compute_kernel(bwds_program)
 
     a_x = NDDifferentiableBuffer(
         element_count=32,
@@ -165,22 +169,21 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         requires_grad=True,
     )
 
+    total_threads = 32
+
     call_data = {
-        'x': a_x.buffer,
-        'y': a_y.buffer,
-        'z': a_z.buffer,
-        'b': b.buffer,
-        'res': res.buffer
+        'a__x_primal': {'buffer': a_x.buffer, 'strides': list(a_x.strides)},
+        'a__y_primal': {'buffer': a_y.buffer, 'strides': list(a_y.strides)},
+        'a__z_primal': {'buffer': a_z.buffer, 'strides': list(a_z.strides)},
+        'b_primal': {'buffer': b.buffer, 'strides': list(b.strides)},
+        '_result_primal': {'buffer': res.buffer, 'strides': list(res.strides)},
+        '_call_stride': [1],
+        '_call_dim': [32],
+        '_thread_count': uint3(total_threads, 1, 1)
     }
 
-    call_data["_call_stride"] = [1]
-    call_data["_call_dim"] = [32]
-    call_data["_thread_count"] = uint3(total_threads, 1, 1)
-
     # Dispatch the kernel.
-    self.kernel.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
-
-    kernel_eval_polynomial.dispatch(thread_count=uint3(32, 1, 1), )
+    kernel_eval_polynomial.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
 
     a_x_data = a_x.buffer.to_numpy().view(np.float32).reshape(-1, 1)
     a_y_data = a_y.buffer.to_numpy().view(np.float32).reshape(-1, 1)
@@ -194,11 +197,24 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
     res.grad_buffer.from_numpy(np.ones(32*3, dtype=np.float32))
 
-    kernel_eval_polynomial.backwards({
-        'x': a_x,
-        'y': a_y,
-        'z': a_z
-    }, b, res)
+    call_data = {
+        'a__x_primal': {'buffer': a_x.buffer, 'strides': list(a_x.strides)},
+        'a__x_derivative': {'buffer': a_x.grad_buffer, 'strides': list(a_x.strides)},
+        'a__y_primal': {'buffer': a_y.buffer, 'strides': list(a_y.strides)},
+        'a__y_derivative': {'buffer': a_y.grad_buffer, 'strides': list(a_y.strides)},
+        'a__z_primal': {'buffer': a_z.buffer, 'strides': list(a_z.strides)},
+        'a__z_derivative': {'buffer': a_z.grad_buffer, 'strides': list(a_z.strides)},
+        'b_primal': {'buffer': b.buffer, 'strides': list(b.strides)},
+        'b_derivative': {'buffer': b.grad_buffer, 'strides': list(b.strides)},
+        '_result_derivative': {'buffer': res.grad_buffer, 'strides': list(res.strides)},
+        '_call_stride': [1],
+        '_call_dim': [32],
+        '_thread_count': uint3(total_threads, 1, 1)
+    }
+
+    kernel_eval_polynomial_backwards.dispatch(
+        uint3(total_threads, 1, 1), {"call_data": call_data})
+
     a_x_grad_data = a_x.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
     a_y_grad_data = a_y.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
     a_z_grad_data = a_z.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
