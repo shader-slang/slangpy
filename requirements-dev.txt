@@ -3,3 +3,4 @@ pre-commit
 pytest
 pytest-xdist
 numpy
+deepdiff
