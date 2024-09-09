@@ -1,5 +1,7 @@
 from typing import Any, Callable, Optional
-import sgl
+
+from kernelfunctions.backend import SlangModule, DeclReflection
+from kernelfunctions.shapes import TConcreteShape
 
 
 class FunctionChainBase:
@@ -9,14 +11,20 @@ class FunctionChainBase:
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
         calldata = self._build_call_data(False, *args, **kwargs)
-        return calldata.call()
+        return calldata.call(*args, **kwargs)
 
     def backwards(self, *args: Any, **kwargs: Any) -> Any:
         calldata = self._build_call_data(True, *args, **kwargs)
-        return calldata.call()
+        return calldata.call(*args, **kwargs)
 
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)
+
+    def transform_input(self, transforms: dict[str, TConcreteShape]):
+        return FunctionChainInputTransform(self, transforms)
+
+    def transform_output(self, transforms: dict[str, TConcreteShape]):
+        return FunctionChainOutputTransform(self, transforms)
 
     def debug_build_call_data(self, backwards: bool, *args: Any, **kwargs: Any):
         return self._build_call_data(backwards, *args, **kwargs)
@@ -40,7 +48,8 @@ class FunctionChainSet(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
         super().__init__(parent)
         self.props: Optional[dict[str, Any]] = None
-        self.callback: Optional[Callable] = None  # type: ignore (not decided on arguments yet)
+        # type: ignore (not decided on arguments yet)
+        self.callback: Optional[Callable] = None
 
         if len(args) > 0 and len(kwargs) > 0:
             raise ValueError(
@@ -66,15 +75,31 @@ class FunctionChainSet(FunctionChainBase):
             raise ValueError("Set requires at least one argument")
 
 
+class FunctionChainInputTransform(FunctionChainBase):
+    def __init__(
+        self, parent: FunctionChainBase, transforms: dict[str, TConcreteShape]
+    ) -> None:
+        super().__init__(parent)
+        self.transforms = transforms
+
+
+class FunctionChainOutputTransform(FunctionChainBase):
+    def __init__(
+        self, parent: FunctionChainBase, transforms: dict[str, TConcreteShape]
+    ) -> None:
+        super().__init__(parent)
+        self.transforms = transforms
+
+
 # A callable kernel function. This assumes the function is in the root
 # of the module, however a parent in the abstract syntax tree can be provided
 # to search for the function in a specific scope.
 class Function(FunctionChainBase):
     def __init__(
         self,
-        module: sgl.SlangModule,
+        module: SlangModule,
         name: str,
-        ast_parent: Optional[sgl.DeclReflection] = None,
+        ast_parent: Optional[DeclReflection] = None,
     ) -> None:
         super().__init__(None)
         self.module = module
@@ -82,7 +107,7 @@ class Function(FunctionChainBase):
         if ast_parent is None:
             ast_parent = module.module_decl
         self.ast_functions = ast_parent.find_children_of_kind(
-            sgl.DeclReflection.Kind.func, name
+            DeclReflection.Kind.func, name
         )
         if len(self.ast_functions) == 0:
             raise ValueError(f"Function '{name}' not found in module {module.name}")

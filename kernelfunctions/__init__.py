@@ -2,5 +2,8 @@
 
 from .function import Function
 from .calldata import CallData
-from .buffer import StructuredBuffer
-from .utils import is_differentiable_buffer, to_numpy
+from .types.buffer import NDDifferentiableBuffer
+from .pythonmarshalls import *
+from .slangmarshalls import *
+
+from .types import *

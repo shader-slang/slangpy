@@ -1,10 +1,11 @@
-from typing import Optional, Union
-import numpy as np
 import pytest
-import sgl
-import kernelfunctions as kf
+from kernelfunctions.types import NDDifferentiableBuffer
 import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.utils import diffPair
+from kernelfunctions.backend import DeviceType, float3, float1
+import numpy as np
+
+# pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 
 POLYNOMIAL_OUT_PARAM = r"""
 [Differentiable]
@@ -26,6 +27,13 @@ float polynomial(float a, float b) {
 }
 """
 
+POLYNOMIAL_V3 = r"""
+[Differentiable]
+float3 polynomial(float3 a, float3 b) {
+    return a * a + b + 1;
+}
+"""
+
 
 def python_eval_polynomial(a: float, b: float) -> float:
     return a * a + b + 1
@@ -40,7 +48,7 @@ def python_eval_polynomial_b_deriv(a: float, b: float) -> float:
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_call_none_differentiable(device_type: sgl.DeviceType):
+def test_call_none_differentiable(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -52,12 +60,12 @@ def test_call_none_differentiable(device_type: sgl.DeviceType):
     res = function(a, b)
     assert res == python_eval_polynomial(a, b)
 
-    with pytest.raises(ValueError, match="Function is not differentiable"):
+    with pytest.raises(ValueError, match="No matching overload found"):
         function.backwards(a, b, res)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_call_with_none_diff_scalars(device_type: sgl.DeviceType):
+def test_call_with_none_diff_scalars(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -73,7 +81,7 @@ def test_call_with_none_diff_scalars(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_call_with_diff_scalars(device_type: sgl.DeviceType):
+def test_call_with_diff_scalars(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     kernel_eval_polynomial = helpers.create_function_from_module(
@@ -108,7 +116,7 @@ def test_call_with_diff_scalars(device_type: sgl.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_call_with_diff_pairs(device_type: sgl.DeviceType):
+def test_call_with_diff_pairs(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     kernel_eval_polynomial = helpers.create_function_from_module(
@@ -126,6 +134,174 @@ def test_call_with_diff_pairs(device_type: sgl.DeviceType):
     assert a.grad == exprected_grad
     exprected_grad = python_eval_polynomial_b_deriv(a.primal, b.primal)
     assert b.grad == exprected_grad
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_call_with_buffers(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    kernel_eval_polynomial = helpers.create_function_from_module(
+        device, "polynomial", POLYNOMIAL_WITH_RETURN_VALUE_DOT_SLANG
+    )
+
+    a = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float,
+        requires_grad=True,
+    )
+    a.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    b = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float,
+        requires_grad=True,
+    )
+    b.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    res: NDDifferentiableBuffer = kernel_eval_polynomial(a, b)
+
+    a_data = a.buffer.to_numpy().view(np.float32)
+    b_data = b.buffer.to_numpy().view(np.float32)
+    expected = python_eval_polynomial(a_data, b_data)
+    res_data = res.buffer.to_numpy().view(np.float32)
+
+    assert np.allclose(res_data, expected)
+
+    res.grad_buffer.from_numpy(np.ones(res.shape, dtype=np.float32))
+
+    kernel_eval_polynomial.backwards(a, b, res)
+    a_grad_data = a.grad_buffer.to_numpy().view(np.float32)
+    b_grad_data = b.grad_buffer.to_numpy().view(np.float32)
+
+    exprected_grad = python_eval_polynomial_a_deriv(a_data, b_data)
+    assert np.allclose(a_grad_data, exprected_grad)
+
+    exprected_grad = python_eval_polynomial_b_deriv(a_data, b_data)
+    assert np.allclose(b_grad_data, exprected_grad)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_vec3_call_with_buffers(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    kernel_eval_polynomial = helpers.create_function_from_module(
+        device, "polynomial", POLYNOMIAL_V3
+    )
+
+    a = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float3,
+        requires_grad=True,
+    )
+    a.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
+
+    b = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float3,
+        requires_grad=True,
+    )
+    b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
+
+    res: NDDifferentiableBuffer = kernel_eval_polynomial(a, b)
+
+    a_data = a.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    b_data = b.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    expected = python_eval_polynomial(a_data, b_data)
+    res_data = res.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+
+    assert np.allclose(res_data, expected)
+
+    res.grad_buffer.from_numpy(np.ones(32*3, dtype=np.float32))
+
+    kernel_eval_polynomial.backwards(a, b, res)
+    a_grad_data = a.grad_buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    b_grad_data = b.grad_buffer.to_numpy().view(np.float32).reshape(-1, 3)
+
+    exprected_grad = python_eval_polynomial_a_deriv(a_data, b_data)
+    assert np.allclose(a_grad_data, exprected_grad)
+
+    exprected_grad = python_eval_polynomial_b_deriv(a_data, b_data)
+    assert np.allclose(b_grad_data, exprected_grad)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_vec3_call_with_buffers_soa(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    kernel_eval_polynomial = helpers.create_function_from_module(
+        device, "polynomial", POLYNOMIAL_V3
+    )
+
+    a_x = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float1,
+        requires_grad=True,
+    )
+    a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    a_y = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float1,
+        requires_grad=True,
+    )
+    a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    a_z = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float1,
+        requires_grad=True,
+    )
+    a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    b = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float3,
+        requires_grad=True,
+    )
+    b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
+
+    res: NDDifferentiableBuffer = kernel_eval_polynomial({
+        'x': a_x,
+        'y': a_y,
+        'z': a_z
+    }, b)
+
+    a_x_data = a_x.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_y_data = a_y.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_z_data = a_z.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_data = np.column_stack((a_x_data, a_y_data, a_z_data))
+    b_data = b.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    expected = python_eval_polynomial(a_data, b_data)
+    res_data = res.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+
+    assert np.allclose(res_data, expected)
+
+    res.grad_buffer.from_numpy(np.ones(32*3, dtype=np.float32))
+
+    kernel_eval_polynomial.backwards({
+        'x': a_x,
+        'y': a_y,
+        'z': a_z
+    }, b, res)
+    a_x_grad_data = a_x.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_y_grad_data = a_y.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_z_grad_data = a_z.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_grad_data = np.column_stack((a_x_grad_data, a_y_grad_data, a_z_grad_data))
+    b_grad_data = b.grad_buffer.to_numpy().view(np.float32).reshape(-1, 3)
+
+    exprected_grad = python_eval_polynomial_a_deriv(a_data, b_data)
+    assert np.allclose(a_grad_data, exprected_grad)
+
+    exprected_grad = python_eval_polynomial_b_deriv(a_data, b_data)
+    assert np.allclose(b_grad_data, exprected_grad)
 
 
 if __name__ == "__main__":
