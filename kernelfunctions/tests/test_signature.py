@@ -1,7 +1,7 @@
 from typing import Any
 import pytest
 from kernelfunctions.backend import DeviceType, float1, int1, int2, bool1, uint1, int3
-from kernelfunctions.callsignature import CallMode, build_signature, build_signature_hash, match_signature, apply_signature
+from kernelfunctions.callsignature import CallMode, build_signature, build_signature_hash, match_signatures, bind
 import kernelfunctions.tests.helpers as helpers
 
 
@@ -119,7 +119,7 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
     if succeed:
 
         sig = build_signature(v0, v1)
-        match = match_signature(
+        match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
         assert match is not None
         # assert match["a"].python_marshal.type == type(v0)
@@ -131,7 +131,7 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
         # assert match["b"].slang.primal.name == calc_vector_name(slang_type_name)
 
         sig = build_signature(a=v0, b=v1)
-        match = match_signature(
+        match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
         assert match is not None
         # assert match["a"].python_marshal.type == type(v0)
@@ -143,7 +143,7 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
         # assert match["b"].slang.primal.name == calc_vector_name(slang_type_name)
 
         sig = build_signature(b=v1, a=v0)
-        match = match_signature(
+        match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
         assert match is not None
         # assert match["a"].python_marshal.type == type(v0)
@@ -156,7 +156,7 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
 
     else:
         sig = build_signature(v0, v1)
-        match = match_signature(
+        match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
         assert match is None
 
@@ -185,7 +185,7 @@ void add_numbers(MyStruct v) {{ }}
 
     if succeed:
         sig = build_signature({"a": v0, "b": v1})
-        match = match_signature(
+        match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
         assert match is not None
         # assert match["v"].python_marshal.type == dict
@@ -206,7 +206,7 @@ void add_numbers(MyStruct v) {{ }}
 
     else:
         sig = build_signature({"a": v0, "b": v1})
-        match = match_signature(
+        match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
         assert match is None
 

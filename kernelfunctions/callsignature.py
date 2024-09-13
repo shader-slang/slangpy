@@ -65,7 +65,7 @@ def build_signature(*args: Any, **kwargs: Any):
     return PythonFunctionCall(*args, **kwargs)
 
 
-def match_signature(
+def match_signatures(
     signature: PythonFunctionCall,
     function: SlangFunction,
     call_mode: CallMode
@@ -147,7 +147,7 @@ def match_signature(
     return inverse_match  # type: ignore
 
 
-def apply_signature(
+def bind(
         signature: PythonFunctionCall,
         mapping: dict[PythonVariable, SlangVariable],
         call_mode: CallMode,

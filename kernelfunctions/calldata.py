@@ -4,7 +4,7 @@ from typing import Any
 
 from kernelfunctions.backend import uint3
 
-from kernelfunctions.callsignature import apply_signature, build_signature, calculate_and_apply_call_shape, create_return_value, generate_code, get_readable_func_string, get_readable_signature_string, match_signature, read_call_data_post_dispatch, write_calldata_pre_dispatch
+from kernelfunctions.callsignature import bind, build_signature, calculate_and_apply_call_shape, create_return_value, generate_code, get_readable_func_string, get_readable_signature_string, match_signatures, read_call_data_post_dispatch, write_calldata_pre_dispatch
 from kernelfunctions.function import (
     Function,
     FunctionChainBase,
@@ -18,7 +18,7 @@ from kernelfunctions.shapes import (
 
 import kernelfunctions.codegen as cg
 from kernelfunctions.types import CallMode
-from kernelfunctions.types.pythonvalue import PythonVariable
+from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonVariable
 
 
 class CallData:
@@ -56,62 +56,62 @@ class CallData:
         self.sets = sets
 
         # Build the unbound signature from inputs
-        input_signature = build_signature(*args, **kwargs)
+        python_call = PythonFunctionCall(*args, **kwargs)
 
-        # Attempt to match
+        # Attempt to match to a slang function overload
         python_to_slang_mapping = None
-        matched_overload = None
+        slang_function = None
         for overload in self.function.overloads:
-            match = match_signature(
-                input_signature, overload, self.call_mode)
+            match = match_signatures(
+                python_call, overload, self.call_mode)
             if match:
                 if python_to_slang_mapping == None:
                     python_to_slang_mapping = match
-                    matched_overload = overload
+                    slang_function = overload
                 else:
                     err_text = f"""
 Multiple matching overloads found for function {self.function.name}.
 Input signature:
-{get_readable_signature_string(input_signature)}
-First match: {get_readable_func_string(matched_overload)}
+{get_readable_signature_string(python_call)}
+First match: {get_readable_func_string(slang_function)}
 Second match: {get_readable_func_string(overload)}"""
                     raise ValueError(err_text.strip())
 
-        if python_to_slang_mapping is None or matched_overload is None:
+        if python_to_slang_mapping is None or slang_function is None:
             olstrings = "\n".join([get_readable_func_string(x)
                                   for x in self.function.overloads])
             err_text = f"""
 No matching overload found for function {self.function.name}.
 Input signature:
-{get_readable_signature_string(input_signature)}
+{get_readable_signature_string(python_call)}
 Overloads:
 {olstrings}
 """
             raise ValueError(err_text.strip())
 
         # Inject a dummy node into both signatures if we need a result back
-        if self.call_mode == CallMode.prim and not "_result" in kwargs and matched_overload.return_value is not None:
+        if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_value is not None:
             rvalnode = PythonVariable(None, None, "_result")
-            input_signature.kwargs["_result"] = rvalnode
-            python_to_slang_mapping[rvalnode] = matched_overload.return_value
+            python_call.kwargs["_result"] = rvalnode
+            python_to_slang_mapping[rvalnode] = slang_function.return_value
 
         # Once matched, build the fully bound signature
-        self.signature = apply_signature(input_signature, python_to_slang_mapping, self.call_mode,
-                                         self.input_transforms, self.outut_transforms)
+        self.bindings = bind(python_call, python_to_slang_mapping, self.call_mode,
+                             self.input_transforms, self.outut_transforms)
 
         # store overload and signature
-        self.overload = matched_overload
+        self.overload = slang_function
 
         # calculate call shaping
-        self.call_shape = calculate_and_apply_call_shape(self.signature)
+        self.call_shape = calculate_and_apply_call_shape(self.bindings)
 
         # if necessary, create return value node
-        create_return_value(self.call_shape, self.signature, self.call_mode)
+        create_return_value(self.call_shape, self.bindings, self.call_mode)
 
         # generate code
         codegen = cg.CodeGen()
         generate_code(self.call_shape, self.function,
-                      self.signature, self.call_mode, codegen)
+                      self.bindings, self.call_mode, codegen)
 
         # store code
         self.code = codegen.finish(call_data=True, input_load_store=True,
@@ -145,12 +145,12 @@ Overloads:
         device = session.device
 
         # Allocate a return value if not provided in kw args
-        rv_node = self.signature.kwargs.get("_result", None)
+        rv_node = self.bindings.kwargs.get("_result", None)
         if self.call_mode == CallMode.prim and rv_node is not None and not "_result" in kwargs:
             kwargs["_result"] = rv_node.python.create_output(
                 device, self.call_shape)
 
-        write_calldata_pre_dispatch(device, self.signature,
+        write_calldata_pre_dispatch(device, self.bindings,
                                     call_data, *args, **kwargs)
 
         total_threads = 1
@@ -169,7 +169,7 @@ Overloads:
         self.kernel.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
 
         read_call_data_post_dispatch(
-            device, self.signature, call_data, *args, **kwargs)
+            device, self.bindings, call_data, *args, **kwargs)
 
         if self.call_mode == CallMode.prim and rv_node is not None:
             return rv_node.python.read_output(device, kwargs["_result"])

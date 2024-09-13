@@ -2,7 +2,7 @@ import re
 from typing import Any, Optional
 import pytest
 from kernelfunctions.backend import DeviceType, float1, float3
-from kernelfunctions.callsignature import CallMode, BoundVariable, apply_signature, build_signature, calculate_and_apply_call_shape, match_signature
+from kernelfunctions.callsignature import CallMode, BoundVariable, bind, build_signature, calculate_and_apply_call_shape, match_signatures
 from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
@@ -29,10 +29,10 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     )
 
     sig = build_signature(a=a, b=b, _result=result)
-    match = match_signature(
+    match = match_signatures(
         sig, function.overloads[0], CallMode.prim)
     assert match is not None
-    tree = apply_signature(sig, match, CallMode.prim, input_transforms, ouput_transforms)
+    tree = bind(sig, match, CallMode.prim, input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(tree)
 
     nodes: list[BoundVariable] = []
@@ -62,10 +62,10 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     )
 
     sig = build_signature(index=index, texture=texture, _result=result)
-    match = match_signature(
+    match = match_signatures(
         sig, function.overloads[0], CallMode.prim)
     assert match is not None
-    tree = apply_signature(sig, match, CallMode.prim, input_transforms, ouput_transforms)
+    tree = bind(sig, match, CallMode.prim, input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(tree)
 
     nodes: list[BoundVariable] = []
@@ -97,10 +97,10 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
     )
 
     sig = build_signature(index=index, fr=frombuffer, to=tobuffer)
-    match = match_signature(
+    match = match_signatures(
         sig, function.overloads[0], CallMode.prim)
     assert match is not None
-    tree = apply_signature(sig, match, CallMode.prim, input_transforms, ouput_transforms)
+    tree = bind(sig, match, CallMode.prim, input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(tree)
 
     nodes: list[BoundVariable] = []
