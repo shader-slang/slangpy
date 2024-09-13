@@ -1,6 +1,7 @@
 
 
 from typing import Any, Optional, Sequence, TYPE_CHECKING
+import numpy.typing as npt
 
 from ..backend import Device
 from ..codegen import CodeGenBlock
@@ -15,6 +16,9 @@ class BaseType:
         super().__init__()
 
     def name(self) -> str:
+        raise NotImplementedError()
+
+    def has_derivative(self) -> bool:
         raise NotImplementedError()
 
     def differentiable(self, value: Any = None) -> bool:
@@ -51,4 +55,16 @@ class BaseType:
         raise NotImplementedError()
 
     def allocate_return_value(self, device: Device, input_value: 'BaseValue', slang_value: 'BaseValue', data: Any, access: tuple[AccessType, AccessType]):
+        raise NotImplementedError()
+
+    def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
+        raise NotImplementedError()
+
+    def read_output(self, device: Device, data: Any) -> Any:
+        raise NotImplementedError()
+
+    def to_numpy(self, value: Any) -> npt.NDArray[Any]:
+        raise NotImplementedError()
+
+    def from_numpy(self, array: npt.ArrayLike) -> Any:
         raise NotImplementedError()

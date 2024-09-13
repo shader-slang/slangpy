@@ -4,7 +4,8 @@ import pytest
 from kernelfunctions.backend import DeviceType, Device
 import kernelfunctions as kf
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.utils import diffPair, floatDiffPair, intRef
+from kernelfunctions.utils import diffPair, floatDiffPair
+from kernelfunctions.types import intRef
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

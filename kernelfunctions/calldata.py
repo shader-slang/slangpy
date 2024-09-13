@@ -144,7 +144,7 @@ Overloads:
         # Allocate a return value if not provided in kw args
         rv_node = self.signature.kwargs.get("_result", None)
         if self.call_mode == CallMode.prim and rv_node is not None and not "_result" in kwargs:
-            kwargs["_result"] = rv_node.python.allocate_return_value(
+            kwargs["_result"] = rv_node.python.create_output(
                 device, self.call_shape)
 
         write_calldata_pre_dispatch(device, self.signature,
@@ -169,6 +169,6 @@ Overloads:
             device, self.signature, call_data, *args, **kwargs)
 
         if self.call_mode == CallMode.prim and rv_node is not None:
-            return rv_node.python.as_return_value(kwargs["_result"])
+            return rv_node.python.read_output(device, kwargs["_result"])
         else:
             return None

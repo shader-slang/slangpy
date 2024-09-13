@@ -5,8 +5,8 @@ from sgl import FunctionReflection, ModifierID, VariableReflection
 
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import get_or_create_type
-from kernelfunctions.types.basevalue import BaseValue
-from kernelfunctions.types.enums import IOType, PrimType
+from kernelfunctions.types.basevalueimpl import BaseValueImpl
+from kernelfunctions.types.enums import IOType
 
 
 class SlangFunction:
@@ -21,7 +21,7 @@ class SlangFunction:
         self.differentiable = reflection.has_modifier(ModifierID.differentiable)
 
 
-class SlangValue(BaseValue):
+class SlangValue(BaseValueImpl):
     def __init__(self,
                  reflection: Union[FunctionReflection, VariableReflection, TypeReflection.ScalarType],
                  parent: Optional['SlangValue'] = None,
@@ -74,25 +74,6 @@ class SlangValue(BaseValue):
                 self.fields = None
         else:
             self.fields = None
-
-    def get(self, t: PrimType):
-        if t == PrimType.primal:
-            return self.primal
-        else:
-            assert self.derivative is not None
-            return self.derivative
-
-    @property
-    def primal_type_name(self):
-        return self.primal.name()
-
-    @property
-    def derivative_type_name(self):
-        return self.derivative.name() if self.derivative is not None else None
-
-    @property
-    def argument_declaration(self):
-        return f"{self.primal_type_name} {self.name}"
 
     def gen_trampoline_argument(self, differentiable: bool):
         arg_def = self.argument_declaration

@@ -9,7 +9,8 @@ import deepdiff
 
 from kernelfunctions.tests import helpers
 from kernelfunctions.typeregistry import PythonMarshal, register_python_type
-from kernelfunctions.utils import ScalarRef, floatRef
+from kernelfunctions.utils import ScalarRef
+from kernelfunctions.types.valueref import floatRef
 
 # Dummy class that fakes a buffer of a given shape for testing
 

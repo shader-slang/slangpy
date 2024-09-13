@@ -9,3 +9,5 @@ from .basetypeimpl import *
 from .valuetypeimpl import *
 from .pythonvalue import *
 from .slangvalue import *
+from .valueref import *
+from .valuereftype import *

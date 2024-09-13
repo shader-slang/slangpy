@@ -156,7 +156,8 @@ class SignatureNode:
             for name, child in self.children.items():
                 child.write_call_data_pre_dispatch(device, call_data, value[name])
         else:
-            call_data = self.python.create_calldata(device, self.access, value)
+            call_data[f"{self.variable_name}_primal"] = self.python.create_calldata(
+                device, self.access, value)
 
     def read_call_data_post_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
         """Reads value from call data dictionary post-dispatch"""
@@ -164,7 +165,8 @@ class SignatureNode:
             for name, child in self.children.items():
                 child.read_call_data_post_dispatch(device, call_data, value[name])
         else:
-            self.python.read_calldata(device, self.access, value, call_data)
+            self.python.read_calldata(device, self.access, value,
+                                      call_data[f"{self.variable_name}_primal"])
 
     def __repr__(self):
         return self.python.__repr__()
@@ -347,7 +349,7 @@ class SignatureNode:
 
         prim_name = prim.name
         func_name = f"store_{self.variable_name}_{prim_name}"
-        func_def = f"void {func_name}(Context context, in {self.slang.get(prim).name} val)"
+        func_def = f"void {func_name}(Context context, in {self.slang.get(prim).name()} val)"
 
         cgcode = cg.input_load_store
 

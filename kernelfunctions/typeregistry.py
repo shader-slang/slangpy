@@ -74,7 +74,7 @@ def create_slang_type_marshal(slang_type: Union[TypeReflection, TypeReflection.S
 
 
 # Dictionary of python types to corresponding base type
-PYTHON_TYPES: dict[type, BaseType] = {}
+PYTHON_TYPES: dict[type, Union[BaseType, Callable[[Any], BaseType]]] = {}
 
 # Slang types to corresponding base type
 SLANG_SCALAR_TYPES: dict[TypeReflection.ScalarType, BaseType] = {}
@@ -93,9 +93,14 @@ def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType
         raise ValueError(f"Unsupported slang type {slang_type}")
 
 
-def get_or_create_type(python_or_slang_type: Any):
+def get_or_create_type(python_or_slang_type: Any, value: Any = None):
     if isinstance(python_or_slang_type, type):
-        return PYTHON_TYPES[python_or_slang_type]
+        pt = PYTHON_TYPES[python_or_slang_type]
+        if callable(pt):
+            return pt(value)
+        else:
+            assert isinstance(pt, BaseType)
+            return pt
     elif isinstance(python_or_slang_type, TypeReflection):
         return _get_or_create_slang_type_reflection(python_or_slang_type)
     elif isinstance(python_or_slang_type, TypeLayoutReflection):

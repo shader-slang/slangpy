@@ -154,14 +154,6 @@ register_python_type(ScalarDiffPair,
                      lambda stream, x: stream.write(type(x.value).__name + "\n"))
 
 
-def intRef(init_value: int = 0) -> ScalarRef:
-    return ScalarRef(int(init_value))
-
-
-def floatRef(init_value: float = 0.0) -> ScalarRef:
-    return ScalarRef(float(init_value))
-
-
 def diffPair(
     p: Optional[Any] = None, d: Optional[Any] = None, needs_grad: bool = True
 ) -> ScalarDiffPair:

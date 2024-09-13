@@ -12,6 +12,8 @@ from kernelfunctions.types import CallMode, AccessType, NDDifferentiableBuffer
 from kernelfunctions.types.enums import IOType
 from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonValue
 from kernelfunctions.types.slangvalue import SlangFunction, SlangValue
+from kernelfunctions.types.valueref import ValueRef
+from kernelfunctions.types.valuereftype import ValueRefType
 from kernelfunctions.utils import ScalarRef
 
 
@@ -263,14 +265,14 @@ def create_return_value(call_shape: list[int], signature: SignatureCall, mode: C
     """
     if mode == CallMode.prim:
         node = signature.kwargs.get("_result")
-        if node is not None and node.python.type is NoneType:
+        if node is not None and node.python.primal_type_name == 'none':
             node.argument_shape = call_shape  # type: ignore (valid)
             node.call_transform = [i for i in range(len(call_shape))]
             node.loadstore_transform = [i for i in range(len(call_shape))]
             if len(call_shape) == 0:
-                node.python.set_type(get_or_create_type(ScalarRef))
+                node.python.set_type(ValueRefType(node.slang.primal))
             else:
-                node.python.set_type(get_or_create_type(NDDifferentiableBuffer))
+                node.python.set_type(get_or_create_type(type(NDDifferentiableBuffer)))
 
 
 def generate_code(call_shape: list[int], function: Function, signature: SignatureCall, mode: CallMode, cg: CodeGen):
@@ -343,13 +345,13 @@ def generate_code(call_shape: list[int], function: Function, signature: Signatur
 
     def declare_p(x: SignatureNode, has_suffix: bool = False):
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang.primal.name} {name}")
+        cg.kernel.append_statement(f"{x.slang.primal_type_name} {name}")
         return name
 
     def declare_d(x: SignatureNode, has_suffix: bool = False):
         assert x.slang.derivative is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang.derivative.name} {name}")
+        cg.kernel.append_statement(f"{x.slang.derivative_type_name} {name}")
         return name
 
     def load_p(x: SignatureNode, has_suffix: bool = False):
