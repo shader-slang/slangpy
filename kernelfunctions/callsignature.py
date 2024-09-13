@@ -2,13 +2,16 @@ import hashlib
 from io import StringIO
 from types import NoneType
 from typing import Any, Optional, Union, cast
-from kernelfunctions.backend import Device, FunctionReflection, ModifierID, VariableReflection
+from kernelfunctions.backend import Device
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.signaturenode import SignatureNode, TCallSignature, TMatchedSignature
-from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, get_python_type_marshall
+from kernelfunctions.signaturenode import SignatureCall, SignatureNode
+from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, get_or_create_type
 from kernelfunctions.types import CallMode, AccessType, NDDifferentiableBuffer
+from kernelfunctions.types.enums import IOType
+from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonValue
+from kernelfunctions.types.slangvalue import SlangFunction, SlangValue
 from kernelfunctions.utils import ScalarRef
 
 
@@ -51,34 +54,35 @@ def _recurse_build_signature_hash(stream: StringIO, python_value: Any):
             _recurse_build_signature_hash(stream, value)
 
 
-def build_signature(*args: Any, **kwargs: Any) -> TCallSignature:
+def build_signature(*args: Any, **kwargs: Any):
     """
     Builds a basic call signature for a given set of python 
     arguments and keyword arguments
     """
-    arg_signatures = [SignatureNode(x) for x in args]
-    kwarg_signatures = {k: SignatureNode(v) for k, v in kwargs.items()}
-    return (arg_signatures, kwarg_signatures)
+    # arg_signatures = [SignatureNode(x) for x in args]
+    # kwarg_signatures = {k: SignatureNode(v) for k, v in kwargs.items()}
+    # return (arg_signatures, kwarg_signatures)
+    return PythonFunctionCall(*args, **kwargs)
 
 
 def match_signature(
-    signature: TCallSignature,
-    function_reflection: FunctionReflection,
+    signature: PythonFunctionCall,
+    function: SlangFunction,
     call_mode: CallMode
-) -> Union[None, TMatchedSignature]:
+) -> Union[None, dict[PythonValue, SlangValue]]:
     """
     Attempts to efficiently match a signature to a slang function overload.
     Returns a dictionary of matched argument nodes to parameter names.
     """
 
     # Bail instantly if trying to call a non-differentiable function with a derivative call
-    if call_mode != CallMode.prim and not function_reflection.has_modifier(ModifierID.differentiable):
+    if call_mode != CallMode.prim and not function.differentiable:
         return None
 
-    overload_parameters = [x for x in function_reflection.parameters]
+    overload_parameters = function.parameters
 
-    args = signature[0].copy()
-    kwargs = signature[1].copy()
+    args = signature.args.copy()
+    kwargs = signature.kwargs.copy()
     rval = None
     matched_rval: Optional[SignatureNode] = None
 
@@ -89,12 +93,15 @@ def match_signature(
     if "_result" in kwargs:
         rval = kwargs["_result"]
         del kwargs["_result"]
-        if not rval.is_compatible(function_reflection):
+        if function.return_value is None:
+            raise ValueError(
+                f"Function {function.name} does not return a value, but one was provided")
+        if not rval.is_compatible(function.return_value):
             return None
-    elif call_mode != CallMode.prim and function_reflection.return_type is not None:
+    elif call_mode != CallMode.prim and function.return_value is not None:
         rval = args[-1]
         args = args[:-1]
-        if not rval.is_compatible(function_reflection):
+        if not rval.is_compatible(function.return_value):
             return None
 
     # If there are more positional arguments than parameters, it can't match.
@@ -103,8 +110,8 @@ def match_signature(
 
     # Dictionary of slang arguments and corresponding python arguments
     param_name_to_index = {x.name: i for i, x in enumerate(overload_parameters)}
-    matched_params: dict[str, Optional[SignatureNode]] = {
-        x.name: None for x in overload_parameters}
+    matched_params: dict[SlangValue, Optional[PythonValue]] = {
+        x: None for x in overload_parameters}
 
     # Positional arguments must all match perfectly
     for i, arg in enumerate(args):
@@ -112,7 +119,7 @@ def match_signature(
         if not arg.is_compatible(param):
             return None
         arg.param_index = i
-        matched_params[param.name] = arg
+        matched_params[param] = arg
 
     # Pair up kw arguments with slang arguments
     for name, arg in kwargs.items():
@@ -123,7 +130,7 @@ def match_signature(
         if not arg.is_compatible(param):
             return None
         arg.param_index = i
-        matched_params[param.name] = arg
+        matched_params[param] = arg
 
     # Check if all arguments have been handled
     for param in matched_params.values():
@@ -131,31 +138,37 @@ def match_signature(
             return None
 
     if rval is not None:
-        matched_params["_result"] = rval
-    return matched_params  # type: ignore
+        assert function.return_value is not None
+        matched_params[function.return_value] = rval
+
+    inverse_match = {
+        v: k for k, v in matched_params.items()}
+
+    return inverse_match  # type: ignore
 
 
 def apply_signature(
-        signature: TMatchedSignature,
-        function_reflection: FunctionReflection,
+        signature: PythonFunctionCall,
+        mapping: dict[PythonValue, SlangValue],
         call_mode: CallMode,
         input_transforms: Optional[dict[str, TConcreteShape]] = None,
-        output_transforms: Optional[dict[str, TConcreteShape]] = None):
+        output_transforms: Optional[dict[str, TConcreteShape]] = None) -> SignatureCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
     to the signature nodes and performing other work that kicks in once
     match has occured.
     """
-    for name, node in signature.items():
-        reflection = function_reflection if name == "_result" else function_reflection.parameters[
-            node.param_index]
-        node.apply_signature(reflection, call_mode, name,
-                             input_transforms, output_transforms)
+    res = SignatureCall()
+    res.args = [SignatureNode(x, mapping[x], call_mode, input_transforms,
+                              output_transforms) for x in signature.args]
+    res.kwargs = {k: SignatureNode(
+        v, mapping[v], call_mode, input_transforms, output_transforms) for k, v in signature.kwargs.items()}
+    return res
 
 
-def calculate_and_apply_call_shape(signature: TMatchedSignature) -> list[int]:
+def calculate_and_apply_call_shape(signature: SignatureCall) -> list[int]:
     """
-    Given the shapes of the parameters (inferred from reflection) and inputs (passed in by the user), 
+    Given the shapes of the parameters (inferred from slang) and inputs (passed in by the user), 
     calculates the argument shapes and call shape.
     All parameters must have a shape, however individual dimensions can have an undefined size (None).
     Inputs can also be fully undefined.
@@ -244,27 +257,23 @@ def calculate_and_apply_call_shape(signature: TMatchedSignature) -> list[int]:
     return verified_call_shape
 
 
-def create_return_value(call_shape: list[int], signature: TMatchedSignature, mode: CallMode):
+def create_return_value(call_shape: list[int], signature: SignatureCall, mode: CallMode):
     """
     Create the return value for the call
     """
     if mode == CallMode.prim:
-        node = signature.get("_result")
+        node = signature.kwargs.get("_result")
         if node is not None and node.python.type is NoneType:
             node.argument_shape = call_shape  # type: ignore (valid)
             node.call_transform = [i for i in range(len(call_shape))]
             node.loadstore_transform = [i for i in range(len(call_shape))]
-            node.python.element_shape = node.slang.primal.value_shape
-            node.python.container_shape = tuple(call_shape)
-            node.python.element_type = node.slang.primal.python_return_value_type
             if len(call_shape) == 0:
-                node.python_marshal = get_python_type_marshall(ScalarRef)
+                node.python.set_type(get_or_create_type(ScalarRef))
             else:
-                node.python_marshal = get_python_type_marshall(NDDifferentiableBuffer)
-            node.python.shape = node.python.container_shape + node.python.element_shape  # type: ignore
+                node.python.set_type(get_or_create_type(NDDifferentiableBuffer))
 
 
-def generate_code(call_shape: list[int], function: Function, signature: TMatchedSignature, mode: CallMode, cg: CodeGen):
+def generate_code(call_shape: list[int], function: Function, signature: SignatureCall, mode: CallMode, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
@@ -307,7 +316,7 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     cg.trampoline.append_line("void _trampoline(" + root_param_defs + ")")
     cg.trampoline.begin_block()
     cg.trampoline.append_indent()
-    if "_result" in signature:
+    if "_result" in signature.kwargs:
         cg.trampoline.append_code(f"_result = ")
     cg.trampoline.append_code(
         f"{function.name}(" + ", ".join(x.slang.name for x in root_params if x.slang.name != '_result') + ");\n")
@@ -418,12 +427,12 @@ def generate_code(call_shape: list[int], function: Function, signature: TMatched
     cg.kernel.end_block()
 
 
-def write_calldata_pre_dispatch(device: Device, call_signature: TCallSignature, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def write_calldata_pre_dispatch(device: Device, call_signature: SignatureCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Write the call data for args + kwargs before dispatching
     """
-    sig_args = call_signature[0]
-    sig_kwargs = call_signature[1]
+    sig_args = call_signature.args
+    sig_kwargs = call_signature.kwargs
 
     for idx, value in enumerate(args):
         sig_args[idx].write_call_data_pre_dispatch(device, call_data, value)
@@ -432,12 +441,12 @@ def write_calldata_pre_dispatch(device: Device, call_signature: TCallSignature, 
         sig_kwargs[key].write_call_data_pre_dispatch(device, call_data, value)
 
 
-def read_call_data_post_dispatch(device: Device, call_signature: TCallSignature, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def read_call_data_post_dispatch(device: Device, call_signature: SignatureCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Read the call data for args + kwargs after dispatching
     """
-    sig_args = call_signature[0]
-    sig_kwargs = call_signature[1]
+    sig_args = call_signature.args
+    sig_kwargs = call_signature.kwargs
 
     for idx, value in enumerate(args):
         sig_args[idx].read_call_data_post_dispatch(device, call_data, value)
@@ -445,37 +454,41 @@ def read_call_data_post_dispatch(device: Device, call_signature: TCallSignature,
         sig_kwargs[key].read_call_data_post_dispatch(device, call_data, value)
 
 
-def get_readable_signature_string(call_signature: TCallSignature):
+def get_readable_signature_string(call_signature: PythonFunctionCall):
     text: list[str] = []
-    for idx, arg in enumerate(call_signature[0]):
+    for idx, arg in enumerate(call_signature.args):
         text.append(f"arg{idx}: ")
         text.append(arg._recurse_str(1))
         text.append("\n")
-    for key, arg in call_signature[1].items():
+    for key, arg in call_signature.kwargs.items():
         text.append(f"{key}: ")
         text.append(arg._recurse_str(1))
         text.append("\n")
     return "".join(text)
 
 
-def get_readable_func_string(func_reflection: Optional[FunctionReflection]):
-    if func_reflection is None:
+def get_readable_func_string(slang_function: Optional[SlangFunction]):
+    if slang_function is None:
         return ""
 
-    def get_modifiers(var_reflection: VariableReflection):
+    def get_modifiers(val: SlangValue):
         mods: list[str] = []
-        for x in ModifierID:
-            if var_reflection.has_modifier(x):
-                mods.append(x.name)
-        res = " ".join(mods)
-        if len(res) > 0:
-            res += " "
-        return res
+        if val.io_type == IOType.inout:
+            mods.append("inout")
+        elif val.io_type == IOType.out:
+            mods.append("out")
+        if val.no_diff:
+            mods.append("nodiff")
+        return " ".join(mods)
 
     text: list[str] = []
-    text.append(f"{func_reflection.return_type.full_name} {func_reflection.name}(")
+    if slang_function.return_value is not None:
+        text.append(f"{slang_function.return_value.primal_type_name} ")
+    else:
+        text.append("void ")
+    text.append(slang_function.name)
     parms = [
-        f"{get_modifiers(x)}{x.type.full_name} {x.name}" for x in func_reflection.parameters]
+        f"{get_modifiers(x)}{x.primal_type_name} {x.name}" for x in slang_function.parameters]
     text.append(", ".join(parms))
     text.append(")")
     return "".join(text)

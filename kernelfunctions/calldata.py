@@ -17,8 +17,8 @@ from kernelfunctions.shapes import (
 )
 
 import kernelfunctions.codegen as cg
-from kernelfunctions.signaturenode import SignatureNode
 from kernelfunctions.types import CallMode
+from kernelfunctions.types.pythonvalue import PythonValue
 
 
 class CallData:
@@ -59,27 +59,27 @@ class CallData:
         self.input_signature = build_signature(*args, **kwargs)
 
         # Attempt to match
-        matched_signature = None
+        python_to_slang_mapping = None
         matched_overload = None
-        for ast_function in self.function.ast_functions:
+        for overload in self.function.overloads:
             match = match_signature(
-                self.input_signature, ast_function.as_function(), self.call_mode)
+                self.input_signature, overload, self.call_mode)
             if match:
-                if matched_signature == None:
-                    matched_signature = match
-                    matched_overload = ast_function.as_function()
+                if python_to_slang_mapping == None:
+                    python_to_slang_mapping = match
+                    matched_overload = overload
                 else:
                     err_text = f"""
 Multiple matching overloads found for function {self.function.name}.
 Input signature:
 {get_readable_signature_string(self.input_signature)}
 First match: {get_readable_func_string(matched_overload)}
-Second match: {get_readable_func_string(ast_function.as_function())}"""
+Second match: {get_readable_func_string(overload)}"""
                     raise ValueError(err_text.strip())
 
-        if matched_signature is None or matched_overload is None:
-            olstrings = "\n".join([get_readable_func_string(
-                ast_function.as_function()), get_readable_func_string(matched_overload)])
+        if python_to_slang_mapping is None or matched_overload is None:
+            olstrings = "\n".join([get_readable_func_string(x)
+                                  for x in self.function.overloads])
             err_text = f"""
 No matching overload found for function {self.function.name}.
 Input signature:
@@ -90,17 +90,16 @@ Overloads:
             raise ValueError(err_text.strip())
 
         # Inject a dummy node into both signatures if we need a result back
-        if self.call_mode == CallMode.prim and not "_result" in kwargs and matched_overload.return_type.name != "void":
-            rvalnode = SignatureNode(None)
-            self.input_signature[1]["_result"] = rvalnode
-            matched_signature["_result"] = rvalnode
+        if self.call_mode == CallMode.prim and not "_result" in kwargs and matched_overload.return_value is not None:
+            rvalnode = PythonValue(None, None, "_result")
+            self.input_signature.kwargs["_result"] = rvalnode
+            python_to_slang_mapping[rvalnode] = matched_overload.return_value
 
         # Once matched, build the fully bound signature
-        apply_signature(matched_signature, matched_overload, self.call_mode,
-                        self.input_transforms, self.outut_transforms)
+        self.signature = apply_signature(self.input_signature, python_to_slang_mapping, self.call_mode,
+                                         self.input_transforms, self.outut_transforms)
 
         # store overload and signature
-        self.signature = matched_signature
         self.overload = matched_overload
 
         # calculate call shaping
@@ -143,12 +142,12 @@ Overloads:
         device = session.device
 
         # Allocate a return value if not provided in kw args
-        rv_node = self.signature.get("_result", None)
+        rv_node = self.signature.kwargs.get("_result", None)
         if self.call_mode == CallMode.prim and rv_node is not None and not "_result" in kwargs:
-            kwargs["_result"] = rv_node.python_marshal.allocate_return_value(
-                device, self.call_shape, rv_node.python.element_type)
+            kwargs["_result"] = rv_node.python.allocate_return_value(
+                device, self.call_shape)
 
-        write_calldata_pre_dispatch(device, self.input_signature,
+        write_calldata_pre_dispatch(device, self.signature,
                                     call_data, *args, **kwargs)
 
         total_threads = 1
@@ -167,9 +166,9 @@ Overloads:
         self.kernel.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
 
         read_call_data_post_dispatch(
-            device, self.input_signature, call_data, *args, **kwargs)
+            device, self.signature, call_data, *args, **kwargs)
 
         if self.call_mode == CallMode.prim and rv_node is not None:
-            return rv_node.python_marshal.as_return_value(kwargs["_result"])
+            return rv_node.python.as_return_value(kwargs["_result"])
         else:
             return None

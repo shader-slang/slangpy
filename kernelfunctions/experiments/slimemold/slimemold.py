@@ -3,6 +3,7 @@
 import sgl
 from pathlib import Path
 import kernelfunctions as kf
+from kernelfunctions.utils import find_type_layout_for_buffer
 
 ROOT_DIR = Path(__file__).parent
 
@@ -33,13 +34,13 @@ class App:
         self.output_texture = None
 
         self.core_module = self.device.load_module("smcore.slang")
-        self.particle_type = self.core_module.layout.find_type_by_name("Particle")
-        self.particle_layout = self.core_module.layout.get_type_layout(self.particle_type)
+        self.particle_layout = find_type_layout_for_buffer(
+            self.core_module.layout, "Particle")
 
         self.particles: list[kf.NDBuffer] = []
         for i in range(0, 2):
             self.particles.append(kf.NDBuffer(
-                element_count=100,
+                element_count=1000,
                 device=self.device,
                 element_type=self.particle_layout,
             ))
@@ -87,7 +88,8 @@ class App:
             angle=kf.RandFloatArg(0, 2 * 3.14159, 1),
             particle=self.particles[self.read_idx])
 
-        data = self.particles[self.read_idx].buffer.to_numpy().view("float32")
+        data = sgl.BufferCursor(self.particle_layout,
+                                self.particles[self.read_idx].buffer)
         print(data)
 
     def on_keyboard_event(self, event: sgl.KeyboardEvent):

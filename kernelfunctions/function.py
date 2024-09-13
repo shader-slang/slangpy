@@ -2,6 +2,7 @@ from typing import Any, Callable, Optional
 
 from kernelfunctions.backend import SlangModule, DeclReflection
 from kernelfunctions.shapes import TConcreteShape
+from kernelfunctions.types.slangvalue import SlangFunction
 
 
 class FunctionChainBase:
@@ -106,8 +107,9 @@ class Function(FunctionChainBase):
         self.name = name
         if ast_parent is None:
             ast_parent = module.module_decl
-        self.ast_functions = ast_parent.find_children_of_kind(
+        ast_functions = ast_parent.find_children_of_kind(
             DeclReflection.Kind.func, name
         )
-        if len(self.ast_functions) == 0:
+        if len(ast_functions) == 0:
             raise ValueError(f"Function '{name}' not found in module {module.name}")
+        self.overloads = [SlangFunction(x.as_function()) for x in ast_functions]

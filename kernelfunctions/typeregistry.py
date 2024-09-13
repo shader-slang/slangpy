@@ -1,8 +1,11 @@
 from io import StringIO
 from typing import Any, Callable, Optional, Union
 
+from sgl import TypeLayoutReflection
+
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.types import PythonMarshal, SlangMarshall
+from kernelfunctions.types.basetype import BaseType
 
 # Dictionary of python types to corresponding marshall
 PYTHON_TYPE_MARSHAL: dict[type, PythonMarshal] = {}
@@ -37,12 +40,14 @@ def get_python_type_marshall(value: Any) -> PythonMarshal:
         return PYTHON_TYPE_MARSHAL[type(value)]
 
 
-# Create slang marshall for reflection type
+# Slang marshall TYPES by reflection type
 SLANG_MARSHALS_BY_FULL_NAME: dict[str, type[SlangMarshall]] = {}
 SLANG_MARSHALS_BY_NAME: dict[str, type[SlangMarshall]] = {}
 SLANG_MARSHALS_BY_KIND: dict[TypeReflection.Kind, type[SlangMarshall]] = {}
-SLANG_MARSHALS_BY_SCALAR_TYPE: dict[TypeReflection.ScalarType,
-                                    type[SlangMarshall]] = {}
+SLANG_MARSHALS_BY_SCALAR_TYPE: dict[TypeReflection.ScalarType, type[SlangMarshall]] = {}
+
+# Pre-allocated set of slang marshals that wrap up the simple python types
+SLANG_MARSHALS_BY_PYTHON_TYPE: dict[type[Any], SlangMarshall] = {}
 
 
 def create_slang_type_marshal(slang_type: Union[TypeReflection, TypeReflection.ScalarType]) -> SlangMarshall:
@@ -66,3 +71,35 @@ def create_slang_type_marshal(slang_type: Union[TypeReflection, TypeReflection.S
         if marshal is not None:
             return marshal(slang_type)
         raise ValueError(f"Unsupported slang type {slang_type}")
+
+
+# Dictionary of python types to corresponding base type
+PYTHON_TYPES: dict[type, BaseType] = {}
+
+# Slang types to corresponding base type
+SLANG_SCALAR_TYPES: dict[TypeReflection.ScalarType, BaseType] = {}
+SLANG_VECTOR_TYPES: dict[TypeReflection.ScalarType, list[BaseType]] = {}
+SLANG_MATRIX_TYPES: dict[TypeReflection.ScalarType, list[list[BaseType]]] = {}
+
+
+def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType:
+    if slang_type.kind == TypeReflection.Kind.scalar:
+        return SLANG_SCALAR_TYPES[slang_type.scalar_type]
+    elif slang_type.kind == TypeReflection.Kind.vector:
+        return SLANG_VECTOR_TYPES[slang_type.scalar_type][slang_type.col_count]
+    elif slang_type.kind == TypeReflection.Kind.matrix:
+        return SLANG_MATRIX_TYPES[slang_type.scalar_type][slang_type.row_count][slang_type.col_count]
+    else:
+        raise ValueError(f"Unsupported slang type {slang_type}")
+
+
+def get_or_create_type(python_or_slang_type: Any):
+    if isinstance(python_or_slang_type, type):
+        return PYTHON_TYPES[python_or_slang_type]
+    elif isinstance(python_or_slang_type, TypeReflection):
+        return _get_or_create_slang_type_reflection(python_or_slang_type)
+    elif isinstance(python_or_slang_type, TypeLayoutReflection):
+        return _get_or_create_slang_type_reflection(python_or_slang_type.type)
+    elif isinstance(python_or_slang_type, TypeReflection.ScalarType):
+        return SLANG_SCALAR_TYPES[python_or_slang_type]
+    raise ValueError(f"Unsupported type {python_or_slang_type}")

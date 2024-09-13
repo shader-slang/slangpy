@@ -1,22 +1,30 @@
 from types import NoneType
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, cast
 
-from kernelfunctions.backend import Device, FunctionReflection, ModifierID, TypeReflection, VariableReflection
+from kernelfunctions.backend import Device
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
-from kernelfunctions.typemappings import are_element_types_compatible
-from kernelfunctions.typeregistry import get_python_type_marshall
 from kernelfunctions.types import AccessType, IOType, CallMode
+from kernelfunctions.types.basevalue import BaseValue
 from kernelfunctions.types.enums import PrimType
+from kernelfunctions.types.pythonvalue import PythonValue
 from kernelfunctions.types.slangvalue import SlangValue
-
-# Result of building the signature for a set of args and kwargs
-# passed as part of a python call
-TCallSignature = tuple[list['SignatureNode'], dict[str, 'SignatureNode']]
 
 # Result of matching a signature to a slang function, tuple
 # with set of positional arguments and optional return value
-TMatchedSignature = dict[str, 'SignatureNode']
+TMatchedSignature = dict[str, BaseValue]
+
+TMatchedNodes = dict[str, 'SignatureNode']
+
+
+class SignatureCall:
+    def __init__(self) -> NoneType:
+        super().__init__()
+        self.args: list['SignatureNode'] = []
+        self.kwargs: dict[str, 'SignatureNode'] = {}
+
+    def values(self) -> list['SignatureNode']:
+        return self.args + list(self.kwargs.values())
 
 
 class SignatureNode:
@@ -25,15 +33,25 @@ class SignatureNode:
     and a potential set of child nodes
     """
 
-    def __init__(self, value: Any):
+    def __init__(self, python: PythonValue, slang: SlangValue,
+                 mode: CallMode,
+                 input_transforms: Optional[dict[str, TConcreteShape]] = None,
+                 output_transforms: Optional[dict[str, TConcreteShape]] = None,
+                 path: Optional[str] = None):
+
         super().__init__()
 
-        # Get the python marshall for the value + load some basic info
-        self.python_marshal = get_python_type_marshall(type(value))
-        self.python = self.python_marshal.get_descriptor(value)
+        # Store the python and slang marshall
+        self.python = python
+        self.slang = slang
 
-        # Init internal data
-        self.slang: SlangValue = None  # type: ignore
+        # Initialize path
+        if path is None:
+            self.path = self.slang.name
+        else:
+            self.path = f"{path}.{self.python.name}"
+
+        # Get the python marshall for the value + load some basic info
         self.param_index = -1
         self.type_shape: Optional[list[int]] = None
         self.argument_shape: Optional[list[Optional[int]]] = None
@@ -43,141 +61,77 @@ class SignatureNode:
         self.loadstore_transform: Optional[list[Optional[int]]] = None
         self.access = (AccessType.none, AccessType.none)
         self.variable_name = ""
-        self.differentiable = False
-
-        # Create children if value is a dict
-        self.children: Optional[dict[str, SignatureNode]] = None
-        if isinstance(value, dict):
-            self.children = {x: SignatureNode(y) for x, y in value.items()}
-
-    def is_compatible(
-        self, slang_reflection: Union[VariableReflection, FunctionReflection, TypeReflection.ScalarType]
-    ) -> bool:
-        """
-        Check if the node is compatible with a slang reflection
-        """
-        if isinstance(slang_reflection, TypeReflection.ScalarType):
-            # For scalars just verifying no children atm. This happens when accessing
-            # fields of vectors.
-            if self.children is not None:
-                return False
-            return True
-        else:
-            # Check the element types are compatible first
-            slang_type = slang_reflection.type if isinstance(
-                slang_reflection, VariableReflection) else slang_reflection.return_type
-            if not are_element_types_compatible(self.python.element_type, slang_type):
-                return False
-
-            # Now check children
-            if self.children is not None:
-                if slang_type.kind == TypeReflection.Kind.struct:
-                    fields = slang_type.fields
-                    if len(fields) != len(self.children):
-                        return False
-                    fields_by_name = {x.name: x for x in slang_type.fields}
-                    for name, node in self.children.items():
-                        childfield = fields_by_name.get(name, None)
-                        if childfield is None:
-                            return False
-                        if not node.is_compatible(childfield):
-                            return False
-                elif slang_type.kind == TypeReflection.Kind.vector:
-                    if len(self.children) != slang_type.col_count:
-                        return False
-                    for name, node in self.children.items():
-                        if not node.is_compatible(slang_type.scalar_type):
-                            return False
-            return True
-
-    def apply_signature(
-        self,
-        slang_reflection: Union[VariableReflection, FunctionReflection],
-        mode: CallMode,
-        path: str,
-        input_transforms: Optional[dict[str, TConcreteShape]],
-        output_transforms: Optional[dict[str, TConcreteShape]]
-    ):
-        """
-        Apply a signature to the node, creating the slang marshall and calculating argument shapes
-        """
-        # Initial setup from properties that are only defined at top level
-        if isinstance(slang_reflection, VariableReflection):
-            # Function argument - check modifiers
-            if slang_reflection.has_modifier(ModifierID.inout):
-                io_type = IOType.inout
-            elif slang_reflection.has_modifier(ModifierID.out):
-                io_type = IOType.out
-            else:
-                io_type = IOType.inn
-            no_diff = slang_reflection.has_modifier(ModifierID.nodiff)
-        else:
-            # Just a return value - always out, and only differentiable if function is
-            io_type = IOType.out
-            no_diff = not slang_reflection.has_modifier(ModifierID.differentiable)
-        name = path
-
-        # Apply the signature recursively
-        self._apply_signature(
-            name, io_type, no_diff,
-            slang_reflection, mode, path,
-            input_transforms, output_transforms)
-
-    def _apply_signature(
-        self,
-        name: str,
-        io_type: IOType,
-        no_diff: bool,
-        slang_reflection: Union[VariableReflection, FunctionReflection, TypeReflection.ScalarType],
-        mode: CallMode,
-        path: str,
-        input_transforms: Optional[dict[str, TConcreteShape]],
-        output_transforms: Optional[dict[str, TConcreteShape]]
-    ):
-        """
-        Internal function to recursively do the signature apply process
-        """
-
-        # Get slang primal type marshall
-        if isinstance(slang_reflection, TypeReflection.ScalarType):
-            self.slang = SlangValue(name, io_type, no_diff, slang_reflection)
-        elif isinstance(slang_reflection, FunctionReflection):
-            self.slang = SlangValue(
-                name, io_type, no_diff, slang_reflection.return_type)
-        else:
-            self.slang = SlangValue(name, io_type, no_diff, slang_reflection.type)
 
         # Can now decide if differentiable
         self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
 
         # Store some basic properties
-        self.variable_name = path.replace(".", "__")
+        self.variable_name = self.path.replace(".", "__")
 
         # Calculate differentiability settings
         self._calculate_differentiability(mode)
 
-        # Recurse into children
-        if self.children is not None:
-            fields_by_name = self.slang.load_primal_fields()
-            assert fields_by_name is not None
-            for name, node in self.children.items():
-                node.param_index = self.param_index
-                node._apply_signature(
-                    name, io_type, no_diff,
-                    fields_by_name[name],
-                    mode,
-                    f"{path}.{name}",
-                    input_transforms,
-                    output_transforms)
+        # Create children if python value has children
+        self.children: Optional[dict[str, SignatureNode]] = None
+        if python.fields is not None:
+            assert slang.fields is not None
+            self.children = {}
+            for name, child_python in python.fields.items():
+                child_slang = slang.fields[name]
+                self.children[name] = SignatureNode(
+                    child_python, child_slang, mode, input_transforms, output_transforms, self.path)
 
         # If no children, this is an input, so calculate argument shape
         if self.children is None:
             if input_transforms is not None:
-                self.transform_inputs = input_transforms.get(path, self.transform_inputs)
+                self.transform_inputs = input_transforms.get(
+                    self.path, self.transform_inputs)
             if output_transforms is not None:
                 self.transform_outputs = output_transforms.get(
-                    path, self.transform_outputs)
+                    self.path, self.transform_outputs)
             self._calculate_argument_shape()
+
+#
+#    def is_compatible(
+#        self, slang_value: SlangValue
+#    ) -> bool:
+#        """
+#        Check if the node is compatible with a slang value
+#        """
+#        if isinstance(slang_reflection, TypeReflection.ScalarType):
+#            # For scalars just verifying no children atm. This happens when accessing
+#            # fields of vectors.
+#            if self.children is not None:
+#                return False
+#            return True
+#        else:
+#            # Check the element types are compatible first
+#            slang_type = slang_reflection.type if isinstance(
+#                slang_reflection, VariableReflection) else slang_reflection.return_type
+#            if not are_element_types_compatible(self.python.element_type, slang_type):
+#                return False
+#
+#            # Now check children
+#            if self.children is not None:
+#                if slang_type.kind == TypeReflection.Kind.struct:
+#                    fields = slang_type.fields
+#                    if len(fields) != len(self.children):
+#                        return False
+#                    fields_by_name = {x.name: x for x in slang_type.fields}
+#                    for name, node in self.children.items():
+#                        childfield = fields_by_name.get(name, None)
+#                        if childfield is None:
+#                            return False
+#                        if not node.is_compatible(childfield):
+#                            return False
+#                elif slang_type.kind == TypeReflection.Kind.vector:
+#                    if len(self.children) != slang_type.col_count:
+#                        return False
+#                    for name, node in self.children.items():
+#                        if not node.is_compatible(slang_type.scalar_type):
+#                            return False
+#            return True
+#
 
     def get_input_list(self, args: list['SignatureNode']):
         """
@@ -202,16 +156,7 @@ class SignatureNode:
             for name, child in self.children.items():
                 child.write_call_data_pre_dispatch(device, call_data, value[name])
         else:
-            self._create_call_data(device, call_data, value, PrimType.primal)
-            self._create_call_data(device, call_data, value, PrimType.derivative)
-
-    def _create_call_data(self, device: Device, call_data: dict[str, Any], value: Any, prim: PrimType):
-        access = self._get_access(prim)
-        if access != AccessType.none:
-            cd = self.python_marshal.create_calldata(
-                device, value, access, prim)
-            if cd is not None:
-                call_data[f"{self.variable_name}_{prim.name}"] = cd
+            call_data = self.python.create_calldata(device, self.access, value)
 
     def read_call_data_post_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
         """Reads value from call data dictionary post-dispatch"""
@@ -219,19 +164,10 @@ class SignatureNode:
             for name, child in self.children.items():
                 child.read_call_data_post_dispatch(device, call_data, value[name])
         else:
-            self._read_call_data(device, call_data, value, PrimType.primal)
-            self._read_call_data(device, call_data, value, PrimType.derivative)
-
-    def _read_call_data(self, device: Device, call_data: dict[str, Any], value: Any, prim: PrimType):
-        access = self._get_access(prim)
-        if access in [AccessType.write, AccessType.readwrite]:
-            cd = call_data.get(f"{self.variable_name}_{prim.name}")
-            if cd is not None:
-                self.python_marshal.read_calldata(
-                    device, cd, access, prim, value)
+            self.python.read_calldata(device, self.access, value, call_data)
 
     def __repr__(self):
-        return self.python_marshal.__repr__()
+        return self.python.__repr__()
 
     def _calculate_argument_shape(self):
         """
@@ -242,7 +178,7 @@ class SignatureNode:
         - if end up with undefined type shape, bail
         """
         input_shape = self.python.shape
-        param_shape = self.slang.primal.shape
+        param_shape = self.slang.primal.shape()
         if input_shape is not None:
             # Optionally use the input remap to re-order input dimensions
             if self.transform_inputs is not None:
@@ -353,33 +289,16 @@ class SignatureNode:
         idx: int = prim.value
         return self.access[idx]
 
-    def allocate_output_buffer(self, device: Device):
-        if self.children is not None:
-            for child in self.children.values():
-                child.allocate_output_buffer(device)
-        else:
-            if self.python_marshal.type == NoneType:
-                pass
-
     def gen_call_data_code(self, cg: CodeGen):
         if self.children is not None:
             for child in self.children.values():
                 child.gen_call_data_code(cg)
         else:
             assert self.loadstore_transform is not None
-            self._gen_call_data_code(cg, PrimType.primal)
-            self._gen_call_data_code(cg, PrimType.derivative)
-
-    def _gen_call_data_code(self, cg: CodeGen, prim: PrimType):
-        access = self._get_access(prim)
-        if access != AccessType.none:
-            slang = self.slang.get(prim)
-            self.python_marshal.gen_calldata(
+            self.python.gen_calldata(
                 cg.call_data,
-                self.python,
-                slang.name,
-                f"{self.variable_name}_{prim.name}",
-                access)
+                self.variable_name,
+                self.access)
 
     def gen_load_store_code(self, cg: CodeGen):
         # Generate load store functions
@@ -410,12 +329,13 @@ class SignatureNode:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             assert self.loadstore_transform is not None
-            self.python_marshal.gen_load(
+            self.python.gen_load(
                 cgcode,
-                self.python,
                 f"call_data.{self.variable_name}_{prim_name}",
                 "val",
-                self.loadstore_transform, access)
+                self.loadstore_transform,
+                prim,
+                access)
             cgcode.end_block()
 
         return func_name
@@ -425,8 +345,8 @@ class SignatureNode:
         if not access in [AccessType.write, AccessType.readwrite]:
             return None
 
-        prim_type = prim.name
-        func_name = f"store_{self.variable_name}_{prim_type}"
+        prim_name = prim.name
+        func_name = f"store_{self.variable_name}_{prim_name}"
         func_def = f"void {func_name}(Context context, in {self.slang.get(prim).name} val)"
 
         cgcode = cg.input_load_store
@@ -447,12 +367,13 @@ class SignatureNode:
             cgcode.append_line(func_def)
             cgcode.begin_block()
             assert self.loadstore_transform is not None
-            self.python_marshal.gen_store(
+            self.python.gen_store(
                 cgcode,
-                self.python,
-                f"call_data.{self.variable_name}_{prim_type}",
                 "val",
-                self.loadstore_transform, access)
+                f"call_data.{self.variable_name}_{prim_name}",
+                self.loadstore_transform,
+                prim,
+                access)
             cgcode.end_block()
         return func_name
 
@@ -468,4 +389,4 @@ class SignatureNode:
                 f"{'  ' * depth}{name}: {child._recurse_str(depth + 1)}" for name, child in self.children.items()]
             return "\n" + "\n".join(child_strs)
         else:
-            return f"{self.python_marshal}"
+            return f"{self.python.name}"
