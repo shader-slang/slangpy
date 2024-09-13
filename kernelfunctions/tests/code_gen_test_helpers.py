@@ -5,7 +5,7 @@ from typing import Any, Optional
 from kernelfunctions.backend import DeviceType
 from kernelfunctions.callsignature import apply_signature, build_signature, calculate_and_apply_call_shape, generate_code, match_signature
 from kernelfunctions.codegen import CodeGen
-from kernelfunctions.signaturenode import CallMode
+from kernelfunctions.types.boundvariable import CallMode
 from kernelfunctions.tests import helpers
 
 # First set of tests emulate the shape of the following slang function
