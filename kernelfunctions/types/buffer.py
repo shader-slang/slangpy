@@ -1,18 +1,15 @@
-from typing import Optional, Type, Union
-from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection
+from typing import Any, Optional
+from kernelfunctions.backend import Device, ResourceUsage
 
 from kernelfunctions.shapes import TConcreteShape
-from ..typemappings import TSGLVector, TPythonScalar, calc_element_type_size
-
-ALL_SUPPORTED_TYPES = Union[Type[TSGLVector],
-                            Type[TPythonScalar], TypeLayoutReflection]
+from kernelfunctions.typeregistry import get_or_create_type
 
 
 class NDBuffer:
     def __init__(
         self,
         device: Device,
-        element_type: ALL_SUPPORTED_TYPES,
+        element_type: Any,
         element_count: Optional[int] = None,
         shape: Optional[TConcreteShape] = None,
         usage: ResourceUsage = ResourceUsage.shader_resource
@@ -39,7 +36,7 @@ class NDBuffer:
             self.element_count = element_count
             self.shape = (element_count,)
 
-        self.element_type = element_type
+        self.element_type = get_or_create_type(element_type)
         self.usage = usage
 
         strides = []
@@ -49,7 +46,7 @@ class NDBuffer:
             total *= dim
         self.strides = tuple(reversed(strides))
 
-        self.element_size = calc_element_type_size(self.element_type)
+        self.element_size = self.element_type.byte_size()
 
         self.buffer = device.create_buffer(
             element_count=self.element_count,
@@ -66,21 +63,22 @@ class NDDifferentiableBuffer(NDBuffer):
     def __init__(
         self,
         device: Device,
-        element_type: ALL_SUPPORTED_TYPES,
+        element_type: Any,
         element_count: Optional[int] = None,
         shape: Optional[TConcreteShape] = None,
         usage: ResourceUsage = ResourceUsage.shader_resource
         | ResourceUsage.unordered_access,
         requires_grad: bool = False,
-        grad_type: Optional[ALL_SUPPORTED_TYPES] = None,
+        grad_type: Any = None,
         grad_usage: Optional[ResourceUsage] = None,
     ):
         super().__init__(device, element_type, element_count, shape, usage)
 
         self.requires_grad = requires_grad
-        self.grad_type = grad_type if grad_type is not None else self.element_type
+        self.grad_type = get_or_create_type(
+            grad_type) if grad_type is not None else self.element_type
         self.grad_usage = grad_usage if grad_usage is not None else self.usage
-        self.grad_element_size = calc_element_type_size(self.grad_type)
+        self.grad_element_size = self.grad_type.byte_size()
 
         if self.requires_grad:
             self.grad_buffer = device.create_buffer(

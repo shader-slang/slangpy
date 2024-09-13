@@ -89,7 +89,7 @@ class DiffPairType(BaseTypeImpl):
                 else:
                     data.grad = self.derivative_type.from_numpy(npdata)  # type: ignore
 
-    def name(self) -> str:
+    def name(self, value: Any = None) -> str:
         return self.primal_type.name()
 
     def element_type(self, value: Optional[DiffPair] = None):

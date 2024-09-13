@@ -123,7 +123,7 @@ class ScalarType(ValueTypeImpl):
         self.python_type = SCALAR_TYPE_TO_PYTHON_TYPE[self.slang_type]
         self.bytes = SCALAR_TYPE_SIZES[self.slang_type]
 
-    def name(self) -> str:
+    def name(self, value: Any = None) -> str:
         return SCALAR_TYPE_NAMES[self.slang_type]
 
     def byte_size(self, value: Any = None) -> int:
@@ -178,7 +178,7 @@ class NoneValueType(ValueTypeImpl):
     def shape(self, value: Any = None):
         return None
 
-    def name(self) -> str:
+    def name(self, value: Any = None) -> str:
         return "none"
 
     def python_return_value_type(self, value: Any = None) -> type:
@@ -192,7 +192,7 @@ class VectorType(ValueTypeImpl):
         self.size = size
         self.python_type: type = NoneType
 
-    def name(self) -> str:
+    def name(self, value: Any = None) -> str:
         return f"vector<{self.et.name()},{self.size}>"
 
     def byte_size(self, value: Any = None) -> int:
@@ -237,7 +237,7 @@ class MatrixType(ValueTypeImpl):
         self.cols = cols
         self.python_type: type = NoneType
 
-    def name(self) -> str:
+    def name(self, value: Any = None) -> str:
         return f"matrix<{self.et.name()},{self.rows},{self.cols}>"
 
     def byte_size(self, value: Any = None) -> int:

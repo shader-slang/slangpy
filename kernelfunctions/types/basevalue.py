@@ -30,6 +30,14 @@ class BaseValue:
         raise NotImplementedError()
 
     @property
+    def primal_element_name(self):
+        raise NotImplementedError()
+
+    @property
+    def derivative_element_name(self):
+        raise NotImplementedError()
+
+    @property
     def argument_declaration(self):
         raise NotImplementedError()
 

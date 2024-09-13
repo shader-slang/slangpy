@@ -54,8 +54,11 @@ class NDBufferType(BaseTypeImpl):
         return False
 
     # Refs can be written to!
-    def is_writable(self, value: Any = None) -> bool:
-        return True
+    def is_writable(self, value: Optional[NDBuffer] = None) -> bool:
+        if value is not None:
+            return (value.usage & ResourceUsage.unordered_access) != 0
+        else:
+            return True  # to be allocated later for write!
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
@@ -64,7 +67,7 @@ class NDBufferType(BaseTypeImpl):
         cgb.add_snippet("TensorBuffer", TYPES)  # ensure the types are declared
         tf = _transform_to_subscript(transform)
         cgb.begin_struct(f"_{name}_call_data")
-        cgb.type_alias("primal_type", input_value.primal_type_name)
+        cgb.type_alias("primal_type", input_value.primal_element_name)
         if access[0] == AccessType.read:
             cgb.declare(f"TensorBuffer<primal_type,{len(transform)}>", "value")
             cgb.append_line(
@@ -92,8 +95,14 @@ class NDBufferType(BaseTypeImpl):
     def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDBuffer, result: Any) -> None:
         pass
 
-    def name(self) -> str:
-        return self.el_type.name()
+    def name(self, value: Any = None) -> str:
+        if value is not None:
+            if self.is_writable(value):
+                return f"TensorBuffer<{self.el_type.name()}>"
+            else:
+                return f"RWTensorBuffer<{self.el_type.name()}>"
+        else:
+            return "UnknownBufferName"
 
     def element_type(self, value: Optional[NDBuffer] = None):
         return self.el_type
@@ -143,14 +152,17 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
     # Refs can be written to!
     def is_writable(self, value: Any = None) -> bool:
-        return True
+        if value is not None:
+            return (value.usage & ResourceUsage.unordered_access) != 0
+        else:
+            return True  # to be allocated later for write!
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         cgb.add_snippet("TensorBuffer", TYPES)  # ensure the types are declared
         cgb.begin_struct(f"_{name}_call_data")
-        cgb.type_alias(f"primal_type", input_value.primal_type_name)
-        cgb.type_alias(f"derivative_type", input_value.derivative_type_name)
+        cgb.type_alias(f"primal_type", input_value.primal_element_name)
+        cgb.type_alias(f"derivative_type", input_value.derivative_element_name)
         tf = _transform_to_subscript(transform)
         for prim in PrimType:
             prim_name = prim.name
@@ -189,8 +201,14 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer, result: Any) -> None:
         pass
 
-    def name(self) -> str:
-        return self.el_type.name()
+    def name(self, value: Optional[NDDifferentiableBuffer] = None) -> str:
+        if value is not None:
+            if self.is_writable(value):
+                return f"TensorBuffer<{self.el_type.name()}>"
+            else:
+                return f"RWTensorBuffer<{self.el_type.name()}>"
+        else:
+            return "UnknownBufferName"
 
     def element_type(self, value: Optional[NDDifferentiableBuffer] = None):
         return self.el_type

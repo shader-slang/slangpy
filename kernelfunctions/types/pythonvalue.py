@@ -1,3 +1,4 @@
+import re
 from types import NoneType
 from typing import Any, Optional, Sequence
 
@@ -35,8 +36,23 @@ class PythonValue(BaseValueImpl):
             self.fields = None
 
     def is_compatible(self, other: 'BaseValue') -> bool:
-        return True
-        return str(self.primal.element_type()) == str(other.primal.element_type())
+        if self.primal_element_name == other.primal_element_name:
+            return True
+
+        stripped_primal_name = re.sub(
+            r"\d+_t", "", self.primal_element_name).replace("uint", "int")
+        stripped_other_name = re.sub(
+            r"\d+_t", "", other.primal_element_name).replace("uint", "int")
+
+        if stripped_primal_name == stripped_other_name:
+            return True
+
+        if stripped_primal_name == f"vector<{stripped_other_name},1>":
+            return True
+        if f"vector<{stripped_primal_name},1>" == stripped_other_name:
+            return True
+
+        return False
 
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
@@ -46,6 +62,13 @@ class PythonValue(BaseValueImpl):
         self.differentiable = self.primal.differentiable(value)
         self.has_derivative = self.primal.has_derivative(value)
         self.shape = self.primal.shape(value)
+        self.writable = self.primal.is_writable(value)
+        self._primal_type_name = self.primal.name(value)
+        self._derivative_type_name = self.derivative.name(
+            value) if self.derivative is not None else None
+        self._primal_element_name = self.primal.element_type(value).name(value)
+        self._derivative_element_name = self.derivative.element_type(
+            value).name(value) if self.derivative is not None else None
 
     def gen_calldata(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         return self.primal.gen_calldata(cgb, self, name, transform, access)
@@ -64,3 +87,19 @@ class PythonValue(BaseValueImpl):
 
     def read_output(self, device: Device, data: Any) -> Any:
         return self.primal.read_output(device, data)
+
+    @property
+    def primal_type_name(self):
+        return self._primal_type_name
+
+    @property
+    def derivative_type_name(self):
+        return self._derivative_type_name
+
+    @property
+    def primal_element_name(self):
+        return self._primal_element_name
+
+    @property
+    def derivative_element_name(self):
+        return self._derivative_element_name

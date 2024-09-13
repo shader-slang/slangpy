@@ -11,14 +11,6 @@ class BaseValueImpl(BaseValue):
         return True
 
     @property
-    def primal_type_name(self):
-        return self.primal.name()
-
-    @property
-    def derivative_type_name(self):
-        return self.derivative.name() if self.derivative is not None else None
-
-    @property
     def argument_declaration(self):
         return f"{self.primal_type_name} {self.name}"
 

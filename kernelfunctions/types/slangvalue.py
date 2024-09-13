@@ -86,3 +86,19 @@ class SlangValue(BaseValueImpl):
         if self.no_diff or not differentiable:
             arg_def = f"no_diff {arg_def}"
         return arg_def
+
+    @property
+    def primal_type_name(self):
+        return self.primal.name()
+
+    @property
+    def derivative_type_name(self):
+        return self.derivative.name() if self.derivative is not None else None
+
+    @property
+    def primal_element_name(self):
+        return self.primal.element_type().name()
+
+    @property
+    def derivative_element_type_name(self):
+        return self.derivative.element_type().name() if self.derivative is not None else None

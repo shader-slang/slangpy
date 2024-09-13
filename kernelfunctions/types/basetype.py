@@ -15,7 +15,7 @@ class BaseType:
     def __init__(self):
         super().__init__()
 
-    def name(self) -> str:
+    def name(self, value: Any = None) -> str:
         raise NotImplementedError()
 
     def has_derivative(self, value: Any = None) -> bool:

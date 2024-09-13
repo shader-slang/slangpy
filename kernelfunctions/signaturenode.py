@@ -94,48 +94,6 @@ class SignatureNode:
                     self.path, self.transform_outputs)
             self._calculate_argument_shape()
 
-#
-#    def is_compatible(
-#        self, slang_value: SlangValue
-#    ) -> bool:
-#        """
-#        Check if the node is compatible with a slang value
-#        """
-#        if isinstance(slang_reflection, TypeReflection.ScalarType):
-#            # For scalars just verifying no children atm. This happens when accessing
-#            # fields of vectors.
-#            if self.children is not None:
-#                return False
-#            return True
-#        else:
-#            # Check the element types are compatible first
-#            slang_type = slang_reflection.type if isinstance(
-#                slang_reflection, VariableReflection) else slang_reflection.return_type
-#            if not are_element_types_compatible(self.python.element_type, slang_type):
-#                return False
-#
-#            # Now check children
-#            if self.children is not None:
-#                if slang_type.kind == TypeReflection.Kind.struct:
-#                    fields = slang_type.fields
-#                    if len(fields) != len(self.children):
-#                        return False
-#                    fields_by_name = {x.name: x for x in slang_type.fields}
-#                    for name, node in self.children.items():
-#                        childfield = fields_by_name.get(name, None)
-#                        if childfield is None:
-#                            return False
-#                        if not node.is_compatible(childfield):
-#                            return False
-#                elif slang_type.kind == TypeReflection.Kind.vector:
-#                    if len(self.children) != slang_type.col_count:
-#                        return False
-#                    for name, node in self.children.items():
-#                        if not node.is_compatible(slang_type.scalar_type):
-#                            return False
-#            return True
-#
-
     def get_input_list(self, args: list['SignatureNode']):
         """
         Recursively populate flat list of argument nodes
@@ -305,7 +263,7 @@ class SignatureNode:
             assert self.loadstore_transform is not None
 
             # Raise error if attempting to write to non-writable type
-            if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.primal.is_writable():
+            if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.writable:
                 raise ValueError(
                     f"Cannot read back value for non-writable type")
 

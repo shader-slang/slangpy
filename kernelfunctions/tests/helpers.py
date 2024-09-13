@@ -116,6 +116,9 @@ class FakeBufferType(BaseTypeImpl):
     def __init__(self):
         super().__init__()
 
+    def name(self, value: Any = None) -> str:
+        return "FakeBuffer"
+
     def has_derivative(self, value: Any = None) -> bool:
         return False
 
