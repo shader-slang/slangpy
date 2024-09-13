@@ -6,8 +6,8 @@ from kernelfunctions.codegen import CodeGen
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.signaturenode import SignatureCall, SignatureNode
-from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, get_or_create_type
-from kernelfunctions.types import CallMode, AccessType, NDDifferentiableBuffer
+from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH
+from kernelfunctions.types import CallMode, AccessType
 from kernelfunctions.types.buffertype import NDDifferentiableBufferType
 from kernelfunctions.types.enums import IOType
 from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonValue

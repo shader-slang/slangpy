@@ -69,8 +69,8 @@ class DiffPairType(BaseTypeImpl):
                 if prim == PrimType.primal:
                     npdata = self.primal_type.to_numpy(value).view(dtype=np.uint8)
                 else:
-                    npdata = self.derivative_type.to_numpy(
-                        value).view(dtype=np.uint8)  # type: ignore
+                    npdata = self.derivative_type.to_numpy(  # type: ignore
+                        value).view(dtype=np.uint8)
                 res[prim_name] = device.create_buffer(
                     element_count=1, struct_size=npdata.size, data=npdata, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
         return res

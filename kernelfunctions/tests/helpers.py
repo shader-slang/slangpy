@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import hashlib
+from types import NoneType
 from typing import Any, Optional
 
 import pytest
@@ -11,6 +12,8 @@ from pathlib import Path
 from kernelfunctions.backend import (
     Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel,
     DeclReflection, TypeReflection)
+from kernelfunctions.typeregistry import PYTHON_TYPES
+from kernelfunctions.types.basetypeimpl import BaseTypeImpl
 
 SHADER_DIR = Path(__file__).parent
 
@@ -100,3 +103,33 @@ class FakeSlangType:
         self.row_count = row_count
         self.col_count = col_count
         self.scalar_type = scalar_type
+# Dummy class that fakes a buffer of a given shape for testing
+
+
+class FakeBuffer:
+    def __init__(self, shape: tuple[Optional[int], ...]):
+        super().__init__()
+        self.shape = shape
+
+
+class FakeBufferType(BaseTypeImpl):
+    def __init__(self):
+        super().__init__()
+
+    def has_derivative(self, value: Any = None) -> bool:
+        return False
+
+    def is_writable(self, value: Any) -> bool:
+        return True
+
+    def container_shape(self, value: FakeBuffer):
+        return value.shape
+
+    def shape(self, value: Any = None):
+        return value.shape
+
+    def element_type(self, value: Any):
+        return PYTHON_TYPES[NoneType]
+
+
+PYTHON_TYPES[FakeBuffer] = FakeBufferType()

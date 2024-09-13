@@ -1,7 +1,6 @@
 
 
 from typing import Any, Optional, Sequence
-import numpy as np
 
 from sgl import Device, ResourceUsage
 from kernelfunctions.codegen import CodeGenBlock

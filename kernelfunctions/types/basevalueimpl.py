@@ -1,8 +1,6 @@
 
-from typing import Optional
-from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.types.basevalue import BaseValue
-from kernelfunctions.types.enums import AccessType, PrimType
+from kernelfunctions.types.enums import PrimType
 
 
 class BaseValueImpl(BaseValue):

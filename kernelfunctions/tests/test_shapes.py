@@ -1,5 +1,4 @@
 import re
-from types import NoneType
 from typing import Any, Optional
 import pytest
 from kernelfunctions.backend import DeviceType, float1, float3
@@ -8,46 +7,15 @@ from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
 from kernelfunctions.tests import helpers
-from kernelfunctions.typeregistry import PYTHON_TYPES
 from kernelfunctions.types import floatRef
-from kernelfunctions.types.basetypeimpl import BaseTypeImpl
 from kernelfunctions.types.valueref import ValueRef
-
-# Dummy class that fakes a buffer of a given shape for testing
-
-
-class FakeBuffer:
-    def __init__(self, shape: tuple[Optional[int], ...]):
-        super().__init__()
-        self.shape = shape
-
-
-class FakeBufferType(BaseTypeImpl):
-    def __init__(self):
-        super().__init__()
-
-    def has_derivative(self, value: Any = None) -> bool:
-        return False
-
-    def is_writable(self, value: Any) -> bool:
-        return True
-
-    def container_shape(self, value: FakeBuffer):
-        return value.shape
-
-    def shape(self, value: Any = None):
-        return value.shape
-
-    def element_type(self, value: Any):
-        return PYTHON_TYPES[NoneType]
-
-
-PYTHON_TYPES[FakeBuffer] = FakeBufferType()
-
+from helpers import FakeBuffer
 
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
+
+
 def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
                 input_transforms: Optional[dict[str, tuple[int, ...]]] = None,
                 ouput_transforms: Optional[dict[str, tuple[int, ...]]] = None,

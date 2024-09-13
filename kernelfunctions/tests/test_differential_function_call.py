@@ -236,7 +236,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     )
 
     class Vec:
-        def __init__(self, x, y, z):
+        def __init__(self, x, y, z):  # type: ignore
             self.x = x
             self.y = y
             self.z = z

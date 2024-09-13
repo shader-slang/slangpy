@@ -80,7 +80,9 @@ class SignatureNode:
             for name, child_python in python.fields.items():
                 child_slang = slang.fields[name]
                 self.children[name] = SignatureNode(
-                    child_python, child_slang, mode, input_transforms, output_transforms, self.path)
+                    cast(PythonValue, child_python),
+                    cast(SlangValue, child_slang),
+                    mode, input_transforms, output_transforms, self.path)
 
         # If no children, this is an input, so calculate argument shape
         if self.children is None:

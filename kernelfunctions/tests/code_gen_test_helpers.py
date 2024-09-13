@@ -1,7 +1,5 @@
 # Dummy class that fakes a buffer of a given shape for testing
 
-
-from types import NoneType
 from typing import Any, Optional
 
 from kernelfunctions.backend import DeviceType
@@ -9,28 +7,6 @@ from kernelfunctions.callsignature import apply_signature, build_signature, calc
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.signaturenode import CallMode
 from kernelfunctions.tests import helpers
-from kernelfunctions.typeregistry import PythonMarshal, register_python_type
-
-
-class FakeBuffer:
-    def __init__(self, shape: tuple[Optional[int], ...]):
-        super().__init__()
-        self.shape = shape
-
-
-class FakeBufferMarshall(PythonMarshal):
-    def __init__(self):
-        super().__init__(FakeBuffer)
-
-    def get_shape(self, value: FakeBuffer) -> tuple[int | None, ...]:
-        return value.shape
-
-    def get_element_type(self, value: Any):
-        return NoneType
-
-
-register_python_type(FakeBuffer, FakeBufferMarshall(),
-                     lambda stream, x: stream.write(x.element_type.__name + "\n"))
 
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
