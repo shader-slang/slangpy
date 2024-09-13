@@ -1,6 +1,5 @@
 import hashlib
 from io import StringIO
-from types import NoneType
 from typing import Any, Optional, Union, cast
 from kernelfunctions.backend import Device
 from kernelfunctions.codegen import CodeGen
@@ -12,9 +11,7 @@ from kernelfunctions.types import CallMode, AccessType, NDDifferentiableBuffer
 from kernelfunctions.types.enums import IOType
 from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonValue
 from kernelfunctions.types.slangvalue import SlangFunction, SlangValue
-from kernelfunctions.types.valueref import ValueRef
 from kernelfunctions.types.valuereftype import ValueRefType
-from kernelfunctions.utils import ScalarRef
 
 
 def build_signature_hash(*args: Any, **kwargs: Any) -> str:
@@ -318,7 +315,7 @@ def generate_code(call_shape: list[int], function: Function, signature: Signatur
     cg.trampoline.append_line("void _trampoline(" + root_param_defs + ")")
     cg.trampoline.begin_block()
     cg.trampoline.append_indent()
-    if "_result" in signature.kwargs:
+    if any(x.path is '_result' for x in root_params):
         cg.trampoline.append_code(f"_result = ")
     cg.trampoline.append_code(
         f"{function.name}(" + ", ".join(x.slang.name for x in root_params if x.slang.name != '_result') + ");\n")
@@ -345,34 +342,34 @@ def generate_code(call_shape: list[int], function: Function, signature: Signatur
 
     def declare_p(x: SignatureNode, has_suffix: bool = False):
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang.primal_type_name} {name}")
+        cg.kernel.append_statement(f"_{x.variable_name}::primal_type {name}")
         return name
 
     def declare_d(x: SignatureNode, has_suffix: bool = False):
         assert x.slang.derivative is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang.derivative_type_name} {name}")
+        cg.kernel.append_statement(f"_{x.variable_name}::derivative_type {name}")
         return name
 
     def load_p(x: SignatureNode, has_suffix: bool = False):
         n = declare_p(x, has_suffix)
         cg.kernel.append_statement(
-            f"load_{x.variable_name}_primal(context,{n})")
+            f"_{x.variable_name}::load_primal(context,{n})")
         return n
 
     def load_d(x: SignatureNode, has_suffix: bool = False):
         n = declare_d(x, has_suffix)
         cg.kernel.append_statement(
-            f"load_{x.variable_name}_derivative(context,{n})")
+            f"_{x.variable_name}::load_derivative(context,{n})")
         return n
 
     def store_p(x: SignatureNode, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"store_{x.variable_name}_primal(context,{x.variable_name}{'_p' if has_suffix else ''})")
+            f"_{x.variable_name}::store_primal(context,{x.variable_name}{'_p' if has_suffix else ''})")
 
     def store_d(x: SignatureNode, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"store_{x.variable_name}_derivative(context,{x.variable_name}{'_d' if has_suffix else ''})")
+            f"_{x.variable_name}::store_derivative(context,{x.variable_name}{'_d' if has_suffix else ''})")
 
     def create_pair(x: SignatureNode, inc_derivative: bool):
         p = load_p(x, True)
@@ -386,7 +383,7 @@ def generate_code(call_shape: list[int], function: Function, signature: Signatur
 
     def store_pair_derivative(x: SignatureNode):
         cg.kernel.append_statement(
-            f"store_{x.variable_name}_derivative(context,{x.variable_name}.d)")
+            f"_{x.variable_name}::store_derivative(context,{x.variable_name}.d)")
 
     # Select either primals, derivatives or pairs for the trampoline function
     names: list[str] = []

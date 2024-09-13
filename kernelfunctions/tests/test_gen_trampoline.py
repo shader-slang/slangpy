@@ -3,7 +3,7 @@ from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.tests import helpers
 from kernelfunctions.tests.code_gen_test_helpers import dot_product
-from kernelfunctions.utils import diffPair, floatDiffPair
+from kernelfunctions.types import diffPair, floatDiffPair
 from kernelfunctions.backend import DeviceType, float3, float1
 
 

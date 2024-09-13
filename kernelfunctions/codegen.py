@@ -60,6 +60,16 @@ class CodeGenBlock:
         self.dec_indent()
         self.append_line("}")
 
+    def begin_struct(self, struct_name: str):
+        self.append_line(f"struct {struct_name}")
+        self.begin_block()
+
+    def end_struct(self):
+        self.end_block()
+
+    def type_alias(self, alias_name: str, type_name: str):
+        return self.append_statement(f"typealias {alias_name} = {type_name}")
+
     def diff_pair(self, primal: str, derivative: str = "0"):
         return self.append_statement(diff_pair(primal, derivative))
 
@@ -85,6 +95,7 @@ class CodeGenBlock:
 class CodeGen:
     def __init__(self):
         super().__init__()
+        self.call_data_structs = CodeGenBlock(self)
         self.call_data = CodeGenBlock(self)
         self.call_data.append_line("struct CallData")
         self.call_data.begin_block()
@@ -108,7 +119,8 @@ class CodeGen:
                imports: bool = False,
                trampoline: bool = False,
                context: bool = False,
-               snippets: bool = False):
+               snippets: bool = False,
+               call_data_structs: bool = False):
 
         self.call_data.end_block()
         self.call_data.append_statement("ParameterBlock<CallData> call_data")
@@ -122,6 +134,9 @@ class CodeGen:
             all_code.append("\n")
         if context:
             all_code = all_code + self.context.code
+            all_code.append("\n")
+        if call_data_structs:
+            all_code = all_code + self.call_data_structs.code
             all_code.append("\n")
         if call_data:
             all_code = all_code + self.call_data.code

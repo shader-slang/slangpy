@@ -1,7 +1,6 @@
 import pytest
-from kernelfunctions.types import NDDifferentiableBuffer
+from kernelfunctions.types import NDDifferentiableBuffer, diffPair
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.utils import diffPair
 from kernelfunctions.backend import DeviceType, float3, float1
 import numpy as np
 

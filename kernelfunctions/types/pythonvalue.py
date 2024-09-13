@@ -1,8 +1,9 @@
 from types import NoneType
 from typing import Any, Optional, Sequence
 
+from kernelfunctions.types.basevalue import BaseValue
 from kernelfunctions.types.basevalueimpl import BaseValueImpl
-from kernelfunctions.types.enums import AccessType, PrimType
+from kernelfunctions.types.enums import AccessType
 
 from ..backend import Device
 
@@ -33,6 +34,9 @@ class PythonValue(BaseValueImpl):
         else:
             self.fields = None
 
+    def is_compatible(self, other: 'BaseValue') -> bool:
+        return str(self.primal.element_type()) == str(other.primal.element_type())
+
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
         self.derivative = self.primal.differentiate(value)
@@ -41,14 +45,11 @@ class PythonValue(BaseValueImpl):
         self.differentiable = self.primal.differentiable(value)
         self.shape = self.primal.shape(value)
 
-    def gen_calldata(self, cgb: CodeGenBlock, name: str, access: tuple[AccessType, AccessType]):
-        return self.primal.gen_calldata(cgb, self, name, access)
+    def gen_calldata(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+        return self.primal.gen_calldata(cgb, self, name, transform, access)
 
-    def gen_load(self, cgb: CodeGenBlock, from_call_data: str, to_variable: str, transform: list[Optional[int]], prim: PrimType, access: AccessType):
-        return self.primal.gen_load(cgb, self, from_call_data, to_variable, transform, prim, access)
-
-    def gen_store(self, cgb: CodeGenBlock, from_variable: str, to_call_data: str, transform: list[Optional[int]], prim: PrimType, access: AccessType):
-        return self.primal.gen_store(cgb, self, from_variable, to_call_data, transform, prim, access)
+    def gen_load_store(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+        return self.primal.gen_load_store(cgb, self, name, transform, access)
 
     def create_calldata(self, device: Device, access: tuple[AccessType, AccessType], data: Any) -> Any:
         return self.primal.create_calldata(device, self, access, data)

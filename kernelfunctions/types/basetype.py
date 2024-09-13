@@ -18,7 +18,10 @@ class BaseType:
     def name(self) -> str:
         raise NotImplementedError()
 
-    def has_derivative(self) -> bool:
+    def has_derivative(self, value: Any = None) -> bool:
+        raise NotImplementedError()
+
+    def is_writable(self, value: Any = None) -> bool:
         raise NotImplementedError()
 
     def differentiable(self, value: Any = None) -> bool:
@@ -39,13 +42,10 @@ class BaseType:
     def python_return_value_type(self, value: Any = None) -> type:
         raise NotImplementedError()
 
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
-    def gen_load(self, cgb: CodeGenBlock, input_value: 'BaseValue', from_call_data: str, to_variable: str, transform: list[Optional[int]], prim: PrimType, access: AccessType):
-        raise NotImplementedError()
-
-    def gen_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', from_variable: str, to_call_data: str, transform: list[Optional[int]], prim: PrimType, access: AccessType):
+    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
     def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: Any) -> Any:

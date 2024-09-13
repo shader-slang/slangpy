@@ -4,8 +4,7 @@ import pytest
 from kernelfunctions.backend import DeviceType, Device
 import kernelfunctions as kf
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.utils import diffPair, floatDiffPair
-from kernelfunctions.types import intRef
+from kernelfunctions.types import intRef, diffPair, floatDiffPair
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -163,22 +162,22 @@ void add_numbers(int a, int b, out int c) {
         out_buffer_size = max(in_buffer_0_size, in_buffer_1_size)
 
     # Setup input buffers
-    in_buffer_0: Union[int, kf.NDDifferentiableBuffer]
+    in_buffer_0: Union[int, kf.NDBuffer]
     if in_buffer_0_size == 0:
         in_buffer_0 = int(rand_array_of_ints(1)[0])
     else:
-        in_buffer_0 = kf.NDDifferentiableBuffer(
+        in_buffer_0 = kf.NDBuffer(
             element_count=in_buffer_0_size,
             device=device,
             element_type=int,
         )
         in_buffer_0.buffer.from_numpy(rand_array_of_ints(in_buffer_0.element_count))
 
-    in_buffer_1: Union[int, kf.NDDifferentiableBuffer]
+    in_buffer_1: Union[int, kf.NDBuffer]
     if in_buffer_1_size == 0:
         in_buffer_1 = int(rand_array_of_ints(1)[0])
     else:
-        in_buffer_1 = kf.NDDifferentiableBuffer(
+        in_buffer_1 = kf.NDBuffer(
             element_count=in_buffer_1_size,
             device=device,
             element_type=int,
@@ -186,7 +185,7 @@ void add_numbers(int a, int b, out int c) {
         in_buffer_1.buffer.from_numpy(rand_array_of_ints(in_buffer_1.element_count))
 
     # Setup output buffer
-    out_buffer = kf.NDDifferentiableBuffer(
+    out_buffer = kf.NDBuffer(
         element_count=out_buffer_size,
         device=device,
         element_type=int,
@@ -249,21 +248,21 @@ void add_numbers_remap(int a, int b, out int c) {
 """,
     )
 
-    a = kf.NDDifferentiableBuffer(
+    a = kf.NDBuffer(
         element_count=100,
         device=device,
         element_type=int,
     )
     a.buffer.from_numpy(rand_array_of_ints(a.element_count))
 
-    b = kf.NDDifferentiableBuffer(
+    b = kf.NDBuffer(
         element_count=50,
         device=device,
         element_type=int,
     )
     b.buffer.from_numpy(rand_array_of_ints(b.element_count))
 
-    c = kf.NDDifferentiableBuffer(
+    c = kf.NDBuffer(
         element_count=50,
         device=device,
         element_type=int,
@@ -287,14 +286,14 @@ int add_numbers(int a, int b) {
 """,
     )
 
-    a = kf.NDDifferentiableBuffer(
+    a = kf.NDBuffer(
         element_count=50,
         device=device,
         element_type=int,
     )
     a.buffer.from_numpy(rand_array_of_ints(a.element_count))
 
-    b = kf.NDDifferentiableBuffer(
+    b = kf.NDBuffer(
         element_count=50,
         device=device,
         element_type=int,
@@ -302,7 +301,7 @@ int add_numbers(int a, int b) {
     b.buffer.from_numpy(rand_array_of_ints(b.element_count))
 
     # just verify it can be called with no exceptions
-    res: kf.NDDifferentiableBuffer = function(a, b)
+    res: kf.NDBuffer = function(a, b)
 
     a_data = a.buffer.to_numpy().view(np.int32)
     b_data = b.buffer.to_numpy().view(np.int32)

@@ -56,14 +56,14 @@ class CallData:
         self.sets = sets
 
         # Build the unbound signature from inputs
-        self.input_signature = build_signature(*args, **kwargs)
+        input_signature = build_signature(*args, **kwargs)
 
         # Attempt to match
         python_to_slang_mapping = None
         matched_overload = None
         for overload in self.function.overloads:
             match = match_signature(
-                self.input_signature, overload, self.call_mode)
+                input_signature, overload, self.call_mode)
             if match:
                 if python_to_slang_mapping == None:
                     python_to_slang_mapping = match
@@ -72,7 +72,7 @@ class CallData:
                     err_text = f"""
 Multiple matching overloads found for function {self.function.name}.
 Input signature:
-{get_readable_signature_string(self.input_signature)}
+{get_readable_signature_string(input_signature)}
 First match: {get_readable_func_string(matched_overload)}
 Second match: {get_readable_func_string(overload)}"""
                     raise ValueError(err_text.strip())
@@ -83,7 +83,7 @@ Second match: {get_readable_func_string(overload)}"""
             err_text = f"""
 No matching overload found for function {self.function.name}.
 Input signature:
-{get_readable_signature_string(self.input_signature)}
+{get_readable_signature_string(input_signature)}
 Overloads:
 {olstrings}
 """
@@ -92,11 +92,11 @@ Overloads:
         # Inject a dummy node into both signatures if we need a result back
         if self.call_mode == CallMode.prim and not "_result" in kwargs and matched_overload.return_value is not None:
             rvalnode = PythonValue(None, None, "_result")
-            self.input_signature.kwargs["_result"] = rvalnode
+            input_signature.kwargs["_result"] = rvalnode
             python_to_slang_mapping[rvalnode] = matched_overload.return_value
 
         # Once matched, build the fully bound signature
-        self.signature = apply_signature(self.input_signature, python_to_slang_mapping, self.call_mode,
+        self.signature = apply_signature(input_signature, python_to_slang_mapping, self.call_mode,
                                          self.input_transforms, self.outut_transforms)
 
         # store overload and signature
@@ -116,15 +116,18 @@ Overloads:
         # store code
         self.code = codegen.finish(call_data=True, input_load_store=True,
                                    header=True, kernel=True, imports=True,
-                                   trampoline=True, context=True, snippets=True)
+                                   trampoline=True, context=True, snippets=True,
+                                   call_data_structs=True)
 
         # Write the shader to a file for debugging.
         os.makedirs(".temp", exist_ok=True)
-        with open(
-            f".temp/{self.function.module.name}_{self.function.name}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang",
-            "w",
-        ) as f:
+        fn = f".temp/{self.function.module.name}_{self.function.name}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
+
+        with open(fn, "w",) as f:
             f.write(self.code)
+
+        # with open(fn,"r") as f:
+        #    self.code = f.read()
 
         # Build new module and link it with the one that contains the function being called.
         session = self.function.module.session

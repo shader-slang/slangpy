@@ -10,7 +10,7 @@ from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG
 from kernelfunctions.types.basetype import BaseType
 from kernelfunctions.types.basetypeimpl import BaseTypeImpl
 from kernelfunctions.types.basevalue import BaseValue
-from kernelfunctions.types.enums import AccessType, PrimType
+from kernelfunctions.types.enums import AccessType
 
 """
 Common functionality for basic value types such as int, float, vector, matrix etc that aren't
@@ -23,30 +23,42 @@ class ValueTypeImpl(BaseTypeImpl):
         super().__init__()
 
     # Values don't store a derivative - they're just a value
-    def has_derivative(self) -> bool:
+    def has_derivative(self, value: Any = None) -> bool:
+        return False
+
+    # Values are readonly
+    def is_writable(self, value: Any = None) -> bool:
         return False
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         assert access[0] == AccessType.read
         assert access[1] == AccessType.none
-        cgb.declare(input_value.primal_type_name, f"{name}_primal")
+        cgb.begin_struct(f"_{name}_call_data")
+        cgb.type_alias("primal_type", input_value.primal_type_name)
+        cgb.declare("primal_type", "value")
+        cgb.append_line(
+            "void load_primal(Context context, out primal_type value) { value = this.value; }")
+        cgb.end_struct()
 
     # Load should only ever be reading the primal directly from the call data
-    def gen_load(self, cgb: CodeGenBlock, input_value: 'BaseValue', from_call_data: str, to_variable: str, transform: list[Optional[int]], prim: PrimType, access: AccessType):
-        assert prim == PrimType.primal
-        assert access == AccessType.read
-        cgb.assign(to_variable, from_call_data)
+    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]],  access: tuple[AccessType, AccessType]):
+        assert access[0] == AccessType.read
+        assert access[1] == AccessType.none
 
-    # Never store anything
-    def gen_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', from_variable: str, to_call_data: str, transform: list[Optional[int]], prim: PrimType, access: AccessType):
-        pass
+        cgb.begin_struct(f"_{name}")
+        cgb.type_alias("primal_type", input_value.primal_type_name)
+        cgb.append_line(
+            f"static void load_primal(Context context, out primal_type value) {{ call_data.{name}.load_primal(context,value); }}")
+        cgb.end_struct()
 
     # Call data just returns the primal
     def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: Any) -> Any:
         assert access[0] == AccessType.read
         assert access[1] == AccessType.none
-        return data
+        return {
+            'value': data
+        }
 
     # Read back from call data does nothing
     def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
@@ -188,7 +200,7 @@ for x in TypeReflection.ScalarType:
     SLANG_VECTOR_TYPES[x] = [VectorType(SLANG_SCALAR_TYPES[x], i) for i in range(0, 5)]
     SLANG_MATRIX_TYPES[x] = []
     for rows in range(0, 5):
-        row: list[BaseType] = []
+        row = []
         for cols in range(0, 5):
             row.append(MatrixType(SLANG_SCALAR_TYPES[x], rows, cols))
         SLANG_MATRIX_TYPES[x].append(row)
