@@ -38,6 +38,8 @@ class PythonValue(BaseValueImpl):
     def is_compatible(self, other: 'BaseValue') -> bool:
         if self.primal_element_name == other.primal_element_name:
             return True
+        if self.primal_element_name == 'none' or other.primal_element_name == 'none':
+            return True
 
         stripped_primal_name = re.sub(
             r"\d+_t", "", self.primal_element_name).replace("uint", "int")

@@ -45,6 +45,8 @@ def get_or_create_type(python_or_slang_type: Any, value: Any = None):
         else:
             assert isinstance(pt, BaseType)
             return pt
+    elif isinstance(python_or_slang_type, BaseType):
+        return python_or_slang_type
     elif isinstance(python_or_slang_type, TypeReflection):
         return _get_or_create_slang_type_reflection(python_or_slang_type)
     elif isinstance(python_or_slang_type, TypeLayoutReflection):
