@@ -26,10 +26,8 @@ class BaseTypeImpl(BaseType):
     # Load should only ever be reading the primal directly from the call data
     def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]],  access: tuple[AccessType, AccessType]):
         cgb.begin_struct(f"_{name}")
-        if input_value.primal_type_name is not None:
-            cgb.type_alias(f"primal_type", input_value.primal_type_name)
-        if input_value.derivative_type_name is not None:
-            cgb.type_alias(f"derivative_type", input_value.derivative_type_name)
+        cgb.type_alias(f"primal_type", input_value.primal_type_name)
+        cgb.type_alias(f"derivative_type", input_value.derivative_type_name)
         for prim in PrimType:
             prim_name = prim.name
             prim_access = access[prim.value]

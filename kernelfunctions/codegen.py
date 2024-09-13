@@ -1,4 +1,7 @@
 
+from typing import Optional
+
+
 def diff_pair(primal: str, derivative: str = "0"):
     return f"diffPair({primal}, {derivative})"
 
@@ -67,8 +70,9 @@ class CodeGenBlock:
     def end_struct(self):
         self.end_block()
 
-    def type_alias(self, alias_name: str, type_name: str):
-        return self.append_statement(f"typealias {alias_name} = {type_name}")
+    def type_alias(self, alias_name: str, type_name: Optional[str]):
+        if type_name is not None:
+            return self.append_statement(f"typealias {alias_name} = {type_name}")
 
     def diff_pair(self, primal: str, derivative: str = "0"):
         return self.append_statement(diff_pair(primal, derivative))

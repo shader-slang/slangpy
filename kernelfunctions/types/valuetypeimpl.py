@@ -96,6 +96,22 @@ SCALAR_TYPE_TO_PYTHON_TYPE: dict[TypeReflection.ScalarType, type] = {
     TypeReflection.ScalarType.int16: int,
     TypeReflection.ScalarType.uint16: int,
 }
+SCALAR_TYPE_SIZES: dict[TypeReflection.ScalarType, int] = {
+    TypeReflection.ScalarType.none: 1,
+    TypeReflection.ScalarType.void: 1,
+    TypeReflection.ScalarType.bool: 4,
+    TypeReflection.ScalarType.int32: 4,
+    TypeReflection.ScalarType.uint32: 4,
+    TypeReflection.ScalarType.int64: 8,
+    TypeReflection.ScalarType.uint64: 8,
+    TypeReflection.ScalarType.float16: 2,
+    TypeReflection.ScalarType.float32: 4,
+    TypeReflection.ScalarType.float64: 8,
+    TypeReflection.ScalarType.int8: 1,
+    TypeReflection.ScalarType.uint8: 1,
+    TypeReflection.ScalarType.int16: 2,
+    TypeReflection.ScalarType.uint16: 2,
+}
 
 
 class ScalarType(ValueTypeImpl):
@@ -105,9 +121,13 @@ class ScalarType(ValueTypeImpl):
         self.diff = self.slang_type in [TypeReflection.ScalarType.float16,
                                         TypeReflection.ScalarType.float32, TypeReflection.ScalarType.float64]
         self.python_type = SCALAR_TYPE_TO_PYTHON_TYPE[self.slang_type]
+        self.bytes = SCALAR_TYPE_SIZES[self.slang_type]
 
     def name(self) -> str:
         return SCALAR_TYPE_NAMES[self.slang_type]
+
+    def byte_size(self, value: Any = None) -> int:
+        return self.bytes
 
     def shape(self, value: Any = None):
         return (1,)
@@ -147,6 +167,9 @@ class ScalarType(ValueTypeImpl):
         else:
             raise ValueError(f"Unsupported scalar type: {array.dtype}")
 
+    def python_return_value_type(self, value: Any = None) -> type:
+        return self.python_type
+
 
 class NoneValueType(ValueTypeImpl):
     def __init__(self, slang_type: TypeReflection.ScalarType):
@@ -157,6 +180,9 @@ class NoneValueType(ValueTypeImpl):
 
     def name(self) -> str:
         return "none"
+
+    def python_return_value_type(self, value: Any = None) -> type:
+        return NoneType
 
 
 class VectorType(ValueTypeImpl):
@@ -169,6 +195,9 @@ class VectorType(ValueTypeImpl):
     def name(self) -> str:
         return f"vector<{self.et.name()},{self.size}>"
 
+    def byte_size(self, value: Any = None) -> int:
+        return self.size * self.et.byte_size()
+
     def shape(self, value: Any = None):
         return (self.size,)
 
@@ -176,7 +205,11 @@ class VectorType(ValueTypeImpl):
         return self.et.differentiable(value)
 
     def differentiate(self, value: Any = None):
-        return self.et.differentiate(value)
+        et = self.et.differentiate(value)
+        if et is not None:
+            return VectorType(et, self.size)
+        else:
+            return None
 
     def to_numpy(self, value: Any) -> npt.NDArray[Any]:
         vals = [x for x in value]
@@ -192,6 +225,9 @@ class VectorType(ValueTypeImpl):
     def from_numpy(self, array: npt.NDArray[Any]) -> Any:
         return self.python_type(list(array))
 
+    def python_return_value_type(self, value: Any = None) -> type:
+        return self.python_type
+
 
 class MatrixType(ValueTypeImpl):
     def __init__(self, element_type: BaseType, rows: int, cols: int):
@@ -204,6 +240,9 @@ class MatrixType(ValueTypeImpl):
     def name(self) -> str:
         return f"matrix<{self.et.name()},{self.rows},{self.cols}>"
 
+    def byte_size(self, value: Any = None) -> int:
+        return self.rows * self.cols * self.et.byte_size()
+
     def shape(self, value: Any = None):
         return (self.rows, self.cols)
 
@@ -211,13 +250,20 @@ class MatrixType(ValueTypeImpl):
         return self.et.differentiable(value)
 
     def differentiate(self, value: Any = None):
-        return self.et.differentiate(value)
+        et = self.et.differentiate(value)
+        if et is not None:
+            return MatrixType(et, self.rows, self.cols)
+        else:
+            return None
 
     def to_numpy(self, value: Any) -> npt.NDArray[Any]:
         return value.to_numpy()
 
     def from_numpy(self, array: npt.NDArray[Any]) -> Any:
         return self.python_type(array)
+
+    def python_return_value_type(self, value: Any = None) -> type:
+        return self.python_type
 
 
 # Hook up all the basic slang scalar, vector and matrix types

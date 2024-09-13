@@ -36,6 +36,9 @@ class BaseType:
     def element_type(self, value: Any = None) -> 'BaseType':
         raise NotImplementedError()
 
+    def byte_size(self, value: Any = None) -> int:
+        raise NotImplementedError()
+
     def shape(self, value: Any = None) -> Sequence[Optional[int]]:
         raise NotImplementedError()
 

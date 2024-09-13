@@ -3,7 +3,7 @@
 from typing import Any, Optional, Sequence
 import numpy as np
 
-from sgl import Device
+from sgl import Device, ResourceUsage
 from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 from kernelfunctions.types.basetype import BaseType
@@ -118,9 +118,9 @@ class NDBufferType(BaseTypeImpl):
         return self.el_type.differentiate()
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
-        return None
+        return NDBuffer(device, self.el_type.python_return_value_type(), shape=tuple(call_shape), usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
-    def read_output(self, device: Device, data: NDBuffer) -> Any:
+    def read_output(self, device: Device, data: NDDifferentiableBuffer) -> Any:
         return data
 
 
@@ -174,14 +174,17 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     # Call data just returns the primal
 
     def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer) -> Any:
-        assert access[0] != AccessType.none
-        assert access[1] == AccessType.none
-        return {
-            'value': {
-                'buffer': data.buffer,
-                'strides': list(data.strides)
-            }
-        }
+        res = {}
+        for prim in PrimType:
+            prim_name = prim.name
+            prim_access = access[prim.value]
+            if prim_access != AccessType.none:
+                value = data.buffer if prim == PrimType.primal else data.grad_buffer
+                res[prim_name] = {
+                    'buffer': value,
+                    'strides': list(data.strides)
+                }
+        return res
 
     # Read back from call data does nothing
     def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer, result: Any) -> None:
@@ -212,7 +215,10 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         return self.el_type.differentiate()
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
-        return None
+        return NDDifferentiableBuffer(device, self.el_type.python_return_value_type(),
+                                      shape=tuple(call_shape),
+                                      requires_grad=True,
+                                      usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
     def read_output(self, device: Device, data: NDDifferentiableBuffer) -> Any:
         return data
