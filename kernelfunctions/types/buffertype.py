@@ -7,7 +7,7 @@ from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 from kernelfunctions.types.basetype import BaseType
 from kernelfunctions.types.basetypeimpl import BaseTypeImpl
-from kernelfunctions.types.basevalue import BaseValue
+from kernelfunctions.types.basevalue import BaseVariable
 from kernelfunctions.types.enums import AccessType, PrimType
 from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 
@@ -61,7 +61,7 @@ class NDBufferType(BaseTypeImpl):
             return True  # to be allocated later for write!
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         cgb.add_snippet("TensorBuffer", TYPES)  # ensure the types are declared
@@ -81,7 +81,7 @@ class NDBufferType(BaseTypeImpl):
         cgb.end_struct()
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDBuffer) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDBuffer) -> Any:
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         return {
@@ -92,7 +92,7 @@ class NDBufferType(BaseTypeImpl):
         }
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDBuffer, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDBuffer, result: Any) -> None:
         pass
 
     def name(self, value: Any = None) -> str:
@@ -158,7 +158,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
             return True  # to be allocated later for write!
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         cgb.add_snippet("TensorBuffer", TYPES)  # ensure the types are declared
         cgb.begin_struct(f"_{name}_call_data")
         cgb.type_alias(f"primal_type", input_value.primal_element_name)
@@ -184,7 +184,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer) -> Any:
         res = {}
         for prim in PrimType:
             prim_name = prim.name
@@ -198,7 +198,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         return res
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer, result: Any) -> None:
         pass
 
     def name(self, value: Optional[NDDifferentiableBuffer] = None) -> str:

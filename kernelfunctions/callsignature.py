@@ -5,13 +5,13 @@ from kernelfunctions.backend import Device
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.signaturenode import SignatureCall, SignatureNode
+from kernelfunctions.signaturenode import BoundCall, BoundVariable
 from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH
 from kernelfunctions.types import CallMode, AccessType
 from kernelfunctions.types.buffertype import NDDifferentiableBufferType
 from kernelfunctions.types.enums import IOType
-from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonValue
-from kernelfunctions.types.slangvalue import SlangFunction, SlangValue
+from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonVariable
+from kernelfunctions.types.slangvalue import SlangFunction, SlangVariable
 from kernelfunctions.types.valuereftype import ValueRefType
 
 
@@ -69,7 +69,7 @@ def match_signature(
     signature: PythonFunctionCall,
     function: SlangFunction,
     call_mode: CallMode
-) -> Union[None, dict[PythonValue, SlangValue]]:
+) -> Union[None, dict[PythonVariable, SlangVariable]]:
     """
     Attempts to efficiently match a signature to a slang function overload.
     Returns a dictionary of matched argument nodes to parameter names.
@@ -84,7 +84,7 @@ def match_signature(
     args = signature.args.copy()
     kwargs = signature.kwargs.copy()
     rval = None
-    matched_rval: Optional[SignatureNode] = None
+    matched_rval: Optional[BoundVariable] = None
 
     # Check for user providing return value. In all cases, it
     # can be explicitly passed as a keyword argument. With derivative
@@ -110,7 +110,7 @@ def match_signature(
 
     # Dictionary of slang arguments and corresponding python arguments
     param_name_to_index = {x.name: i for i, x in enumerate(overload_parameters)}
-    matched_params: dict[SlangValue, Optional[PythonValue]] = {
+    matched_params: dict[SlangVariable, Optional[PythonVariable]] = {
         x: None for x in overload_parameters}
 
     # Positional arguments must all match perfectly
@@ -149,24 +149,24 @@ def match_signature(
 
 def apply_signature(
         signature: PythonFunctionCall,
-        mapping: dict[PythonValue, SlangValue],
+        mapping: dict[PythonVariable, SlangVariable],
         call_mode: CallMode,
         input_transforms: Optional[dict[str, TConcreteShape]] = None,
-        output_transforms: Optional[dict[str, TConcreteShape]] = None) -> SignatureCall:
+        output_transforms: Optional[dict[str, TConcreteShape]] = None) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
     to the signature nodes and performing other work that kicks in once
     match has occured.
     """
-    res = SignatureCall()
-    res.args = [SignatureNode(x, mapping[x], call_mode, input_transforms,
+    res = BoundCall()
+    res.args = [BoundVariable(x, mapping[x], call_mode, input_transforms,
                               output_transforms) for x in signature.args]
-    res.kwargs = {k: SignatureNode(
+    res.kwargs = {k: BoundVariable(
         v, mapping[v], call_mode, input_transforms, output_transforms) for k, v in signature.kwargs.items()}
     return res
 
 
-def calculate_and_apply_call_shape(signature: SignatureCall) -> list[int]:
+def calculate_and_apply_call_shape(signature: BoundCall) -> list[int]:
     """
     Given the shapes of the parameters (inferred from slang) and inputs (passed in by the user), 
     calculates the argument shapes and call shape.
@@ -175,7 +175,7 @@ def calculate_and_apply_call_shape(signature: SignatureCall) -> list[int]:
     """
 
     # Get all arguments that are to be written
-    nodes: list[SignatureNode] = []
+    nodes: list[BoundVariable] = []
     for node in signature.values():
         node.get_input_list(nodes)
 
@@ -257,7 +257,7 @@ def calculate_and_apply_call_shape(signature: SignatureCall) -> list[int]:
     return verified_call_shape
 
 
-def create_return_value(call_shape: list[int], signature: SignatureCall, mode: CallMode):
+def create_return_value(call_shape: list[int], signature: BoundCall, mode: CallMode):
     """
     Create the return value for the call
     """
@@ -273,11 +273,11 @@ def create_return_value(call_shape: list[int], signature: SignatureCall, mode: C
                 node.python.set_type(NDDifferentiableBufferType(node.slang.primal))
 
 
-def generate_code(call_shape: list[int], function: Function, signature: SignatureCall, mode: CallMode, cg: CodeGen):
+def generate_code(call_shape: list[int], function: Function, signature: BoundCall, mode: CallMode, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
-    nodes: list[SignatureNode] = []
+    nodes: list[BoundVariable] = []
 
     # Generate the header
     cg.imports.append_statement(f'import "{function.module.name}"')
@@ -341,38 +341,38 @@ def generate_code(call_shape: list[int], function: Function, signature: Signatur
     else:
         cg.kernel.append_statement("context.call_id = {0}")
 
-    def declare_p(x: SignatureNode, has_suffix: bool = False):
+    def declare_p(x: BoundVariable, has_suffix: bool = False):
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
         cg.kernel.append_statement(f"_{x.variable_name}::primal_type {name}")
         return name
 
-    def declare_d(x: SignatureNode, has_suffix: bool = False):
+    def declare_d(x: BoundVariable, has_suffix: bool = False):
         assert x.slang.derivative is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
         cg.kernel.append_statement(f"_{x.variable_name}::derivative_type {name}")
         return name
 
-    def load_p(x: SignatureNode, has_suffix: bool = False):
+    def load_p(x: BoundVariable, has_suffix: bool = False):
         n = declare_p(x, has_suffix)
         cg.kernel.append_statement(
             f"_{x.variable_name}::load_primal(context,{n})")
         return n
 
-    def load_d(x: SignatureNode, has_suffix: bool = False):
+    def load_d(x: BoundVariable, has_suffix: bool = False):
         n = declare_d(x, has_suffix)
         cg.kernel.append_statement(
             f"_{x.variable_name}::load_derivative(context,{n})")
         return n
 
-    def store_p(x: SignatureNode, has_suffix: bool = False):
+    def store_p(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
             f"_{x.variable_name}::store_primal(context,{x.variable_name}{'_p' if has_suffix else ''})")
 
-    def store_d(x: SignatureNode, has_suffix: bool = False):
+    def store_d(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
             f"_{x.variable_name}::store_derivative(context,{x.variable_name}{'_d' if has_suffix else ''})")
 
-    def create_pair(x: SignatureNode, inc_derivative: bool):
+    def create_pair(x: BoundVariable, inc_derivative: bool):
         p = load_p(x, True)
         if not inc_derivative:
             cg.kernel.append_statement(
@@ -382,7 +382,7 @@ def generate_code(call_shape: list[int], function: Function, signature: Signatur
             cg.kernel.append_statement(
                 f"var {x.variable_name} = diffPair({p}, {d})")
 
-    def store_pair_derivative(x: SignatureNode):
+    def store_pair_derivative(x: BoundVariable):
         cg.kernel.append_statement(
             f"_{x.variable_name}::store_derivative(context,{x.variable_name}.d)")
 
@@ -427,7 +427,7 @@ def generate_code(call_shape: list[int], function: Function, signature: Signatur
     cg.kernel.end_block()
 
 
-def write_calldata_pre_dispatch(device: Device, call_signature: SignatureCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def write_calldata_pre_dispatch(device: Device, call_signature: BoundCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Write the call data for args + kwargs before dispatching
     """
@@ -441,7 +441,7 @@ def write_calldata_pre_dispatch(device: Device, call_signature: SignatureCall, c
         sig_kwargs[key].write_call_data_pre_dispatch(device, call_data, value)
 
 
-def read_call_data_post_dispatch(device: Device, call_signature: SignatureCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def read_call_data_post_dispatch(device: Device, call_signature: BoundCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Read the call data for args + kwargs after dispatching
     """
@@ -471,7 +471,7 @@ def get_readable_func_string(slang_function: Optional[SlangFunction]):
     if slang_function is None:
         return ""
 
-    def get_modifiers(val: SlangValue):
+    def get_modifiers(val: SlangVariable):
         mods: list[str] = []
         if val.io_type == IOType.inout:
             mods.append("inout")

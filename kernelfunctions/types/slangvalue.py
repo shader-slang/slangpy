@@ -5,7 +5,7 @@ from sgl import FunctionReflection, ModifierID, VariableReflection
 
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import get_or_create_type
-from kernelfunctions.types.basevalueimpl import BaseValueImpl
+from kernelfunctions.types.basevalueimpl import BaseVariableImpl
 from kernelfunctions.types.enums import IOType
 
 
@@ -14,17 +14,17 @@ class SlangFunction:
         super().__init__()
         self.name = reflection.name
         if reflection.return_type is not None and reflection.return_type.scalar_type != TypeReflection.ScalarType.void:
-            self.return_value = SlangValue(reflection)
+            self.return_value = SlangVariable(reflection)
         else:
             self.return_value = None
-        self.parameters = [SlangValue(a) for a in reflection.parameters]
+        self.parameters = [SlangVariable(a) for a in reflection.parameters]
         self.differentiable = reflection.has_modifier(ModifierID.differentiable)
 
 
-class SlangValue(BaseValueImpl):
+class SlangVariable(BaseVariableImpl):
     def __init__(self,
                  reflection: Union[FunctionReflection, VariableReflection, TypeReflection.ScalarType],
-                 parent: Optional['SlangValue'] = None,
+                 parent: Optional['SlangVariable'] = None,
                  name: Optional[str] = None):
         super().__init__()
 
@@ -66,9 +66,9 @@ class SlangValue(BaseValueImpl):
 
         if isinstance(slang_type, TypeReflection):
             if slang_type.kind == TypeReflection.Kind.struct:
-                self.fields = {f.name: SlangValue(f, self) for f in slang_type.fields}
+                self.fields = {f.name: SlangVariable(f, self) for f in slang_type.fields}
             elif slang_type.kind == TypeReflection.Kind.vector:
-                self.fields = {f: SlangValue(slang_type.scalar_type, self, f) for f in [
+                self.fields = {f: SlangVariable(slang_type.scalar_type, self, f) for f in [
                     "x", "y", "z", "w"][:slang_type.col_count]}
             else:
                 self.fields = None

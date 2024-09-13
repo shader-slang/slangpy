@@ -5,35 +5,28 @@ from kernelfunctions.backend import Device
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
 from kernelfunctions.types import AccessType, IOType, CallMode
-from kernelfunctions.types.basevalue import BaseValue
 from kernelfunctions.types.enums import PrimType
-from kernelfunctions.types.pythonvalue import PythonValue
-from kernelfunctions.types.slangvalue import SlangValue
-
-# Result of matching a signature to a slang function, tuple
-# with set of positional arguments and optional return value
-TMatchedSignature = dict[str, BaseValue]
-
-TMatchedNodes = dict[str, 'SignatureNode']
+from kernelfunctions.types.pythonvalue import PythonVariable
+from kernelfunctions.types.slangvalue import SlangVariable
 
 
-class SignatureCall:
+class BoundCall:
     def __init__(self) -> NoneType:
         super().__init__()
-        self.args: list['SignatureNode'] = []
-        self.kwargs: dict[str, 'SignatureNode'] = {}
+        self.args: list['BoundVariable'] = []
+        self.kwargs: dict[str, 'BoundVariable'] = {}
 
-    def values(self) -> list['SignatureNode']:
+    def values(self) -> list['BoundVariable']:
         return self.args + list(self.kwargs.values())
 
 
-class SignatureNode:
+class BoundVariable:
     """
     Node in a built signature tree, maintains a pairing of python+slang marshall,
     and a potential set of child nodes
     """
 
-    def __init__(self, python: PythonValue, slang: SlangValue,
+    def __init__(self, python: PythonVariable, slang: SlangVariable,
                  mode: CallMode,
                  input_transforms: Optional[dict[str, TConcreteShape]] = None,
                  output_transforms: Optional[dict[str, TConcreteShape]] = None,
@@ -73,15 +66,15 @@ class SignatureNode:
         self._calculate_differentiability(mode)
 
         # Create children if python value has children
-        self.children: Optional[dict[str, SignatureNode]] = None
+        self.children: Optional[dict[str, BoundVariable]] = None
         if python.fields is not None:
             assert slang.fields is not None
             self.children = {}
             for name, child_python in python.fields.items():
                 child_slang = slang.fields[name]
-                self.children[name] = SignatureNode(
-                    cast(PythonValue, child_python),
-                    cast(SlangValue, child_slang),
+                self.children[name] = BoundVariable(
+                    cast(PythonVariable, child_python),
+                    cast(SlangVariable, child_slang),
                     mode, input_transforms, output_transforms, self.path)
 
         # If no children, this is an input, so calculate argument shape
@@ -94,14 +87,14 @@ class SignatureNode:
                     self.path, self.transform_outputs)
             self._calculate_argument_shape()
 
-    def get_input_list(self, args: list['SignatureNode']):
+    def get_input_list(self, args: list['BoundVariable']):
         """
         Recursively populate flat list of argument nodes
         """
         self._get_input_list_recurse(args)
         return args
 
-    def _get_input_list_recurse(self, args: list['SignatureNode']):
+    def _get_input_list_recurse(self, args: list['BoundVariable']):
         """
         Internal recursive function to populate flat list of argument nodes
         """

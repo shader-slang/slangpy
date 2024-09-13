@@ -3,7 +3,7 @@
 from typing import Any, Optional, Sequence
 from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.types.basetype import BaseType
-from kernelfunctions.types.basevalue import BaseValue
+from kernelfunctions.types.basevalue import BaseVariable
 from kernelfunctions.types.enums import AccessType, PrimType
 
 
@@ -24,7 +24,7 @@ class BaseTypeImpl(BaseType):
         return tuple(self.container_shape(value)) + tuple(self.element_type(value).shape())
 
     # Load should only ever be reading the primal directly from the call data
-    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]],  access: tuple[AccessType, AccessType]):
+    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]],  access: tuple[AccessType, AccessType]):
         cgb.begin_struct(f"_{name}")
         cgb.type_alias(f"primal_type", input_value.primal_element_name)
         cgb.type_alias(f"derivative_type", input_value.derivative_element_name)

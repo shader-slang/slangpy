@@ -2,7 +2,7 @@ import re
 from typing import Any, Optional
 import pytest
 from kernelfunctions.backend import DeviceType, float1, float3
-from kernelfunctions.callsignature import CallMode, SignatureNode, apply_signature, build_signature, calculate_and_apply_call_shape, match_signature
+from kernelfunctions.callsignature import CallMode, BoundVariable, apply_signature, build_signature, calculate_and_apply_call_shape, match_signature
 from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
@@ -35,7 +35,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     tree = apply_signature(sig, match, CallMode.prim, input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(tree)
 
-    nodes: list[SignatureNode] = []
+    nodes: list[BoundVariable] = []
     for node in tree.values():
         node.get_input_list(nodes)
     return {
@@ -68,7 +68,7 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     tree = apply_signature(sig, match, CallMode.prim, input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(tree)
 
-    nodes: list[SignatureNode] = []
+    nodes: list[BoundVariable] = []
     for node in tree.values():
         node.get_input_list(nodes)
     return {
@@ -103,7 +103,7 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
     tree = apply_signature(sig, match, CallMode.prim, input_transforms, ouput_transforms)
     call_shape = calculate_and_apply_call_shape(tree)
 
-    nodes: list[SignatureNode] = []
+    nodes: list[BoundVariable] = []
     for node in tree.values():
         node.get_input_list(nodes)
     return {

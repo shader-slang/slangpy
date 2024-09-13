@@ -2,8 +2,8 @@ import re
 from types import NoneType
 from typing import Any, Optional, Sequence
 
-from kernelfunctions.types.basevalue import BaseValue
-from kernelfunctions.types.basevalueimpl import BaseValueImpl
+from kernelfunctions.types.basevalue import BaseVariable
+from kernelfunctions.types.basevalueimpl import BaseVariableImpl
 from kernelfunctions.types.enums import AccessType
 
 from ..backend import Device
@@ -16,14 +16,14 @@ from kernelfunctions.types.basetype import BaseType
 class PythonFunctionCall:
     def __init__(self, *args: Any, **kwargs: Any) -> NoneType:
         super().__init__()
-        self.args = [PythonValue(x, None, None) for x in args]
-        self.kwargs = {n: PythonValue(v, None, n) for n, v in kwargs.items()}
+        self.args = [PythonVariable(x, None, None) for x in args]
+        self.kwargs = {n: PythonVariable(v, None, n) for n, v in kwargs.items()}
 
 
-class PythonValue(BaseValueImpl):
+class PythonVariable(BaseVariableImpl):
     def __init__(self,
                  value: Any,
-                 parent: Optional['PythonValue'],
+                 parent: Optional['PythonVariable'],
                  name: Optional[str]):
         super().__init__()
 
@@ -31,11 +31,11 @@ class PythonValue(BaseValueImpl):
         self.set_type(get_or_create_type(type(value), value), value)
 
         if isinstance(value, dict):
-            self.fields = {n: PythonValue(v, self, n) for n, v in value.items()}
+            self.fields = {n: PythonVariable(v, self, n) for n, v in value.items()}
         else:
             self.fields = None
 
-    def is_compatible(self, other: 'BaseValue') -> bool:
+    def is_compatible(self, other: 'BaseVariable') -> bool:
         if self.primal_element_name == other.primal_element_name:
             return True
         if self.primal_element_name == 'none' or other.primal_element_name == 'none':

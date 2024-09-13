@@ -1,13 +1,13 @@
 
-from kernelfunctions.types.basevalue import BaseValue
+from kernelfunctions.types.basevalue import BaseVariable
 from kernelfunctions.types.enums import PrimType
 
 
-class BaseValueImpl(BaseValue):
+class BaseVariableImpl(BaseVariable):
     def __init__(self):
         super().__init__()
 
-    def is_compatible(self, other: 'BaseValue') -> bool:
+    def is_compatible(self, other: 'BaseVariable') -> bool:
         return True
 
     @property

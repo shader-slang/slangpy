@@ -18,7 +18,7 @@ from kernelfunctions.shapes import (
 
 import kernelfunctions.codegen as cg
 from kernelfunctions.types import CallMode
-from kernelfunctions.types.pythonvalue import PythonValue
+from kernelfunctions.types.pythonvalue import PythonVariable
 
 
 class CallData:
@@ -91,7 +91,7 @@ Overloads:
 
         # Inject a dummy node into both signatures if we need a result back
         if self.call_mode == CallMode.prim and not "_result" in kwargs and matched_overload.return_value is not None:
-            rvalnode = PythonValue(None, None, "_result")
+            rvalnode = PythonVariable(None, None, "_result")
             input_signature.kwargs["_result"] = rvalnode
             python_to_slang_mapping[rvalnode] = matched_overload.return_value
 

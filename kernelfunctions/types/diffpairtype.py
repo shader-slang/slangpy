@@ -8,7 +8,7 @@ from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 from kernelfunctions.types.basetype import BaseType
 from kernelfunctions.types.basetypeimpl import BaseTypeImpl
-from kernelfunctions.types.basevalue import BaseValue
+from kernelfunctions.types.basevalue import BaseVariable
 from kernelfunctions.types.enums import AccessType, PrimType
 from kernelfunctions.types.diffpair import DiffPair
 
@@ -30,7 +30,7 @@ class DiffPairType(BaseTypeImpl):
         return True
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         cgb.begin_struct(f"_{name}_call_data")
         cgb.type_alias(f"primal_type", input_value.primal_type_name)
         cgb.type_alias(f"derivative_type", input_value.derivative_type_name)
@@ -52,7 +52,7 @@ class DiffPairType(BaseTypeImpl):
         cgb.end_struct()
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: DiffPair) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: DiffPair) -> Any:
         res = {}
         for prim in PrimType:
             prim_name = prim.name
@@ -76,7 +76,7 @@ class DiffPairType(BaseTypeImpl):
         return res
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: DiffPair, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: DiffPair, result: Any) -> None:
         for prim in PrimType:
             prim_name = prim.name
             prim_access = access[prim.value]

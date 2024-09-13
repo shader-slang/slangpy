@@ -8,7 +8,7 @@ from ..codegen import CodeGenBlock
 from .enums import AccessType
 
 if TYPE_CHECKING:
-    from .basevalue import BaseValue
+    from .basevalue import BaseVariable
 
 
 class BaseType:
@@ -45,19 +45,19 @@ class BaseType:
     def python_return_value_type(self, value: Any = None) -> type:
         raise NotImplementedError()
 
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
-    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
-    def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: Any) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any) -> Any:
         raise NotImplementedError()
 
-    def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
         raise NotImplementedError()
 
-    def allocate_return_value(self, device: Device, input_value: 'BaseValue', slang_value: 'BaseValue', data: Any, access: tuple[AccessType, AccessType]):
+    def allocate_return_value(self, device: Device, input_value: 'BaseVariable', slang_value: 'BaseVariable', data: Any, access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
