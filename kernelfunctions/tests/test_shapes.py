@@ -8,8 +8,10 @@ from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
 from kernelfunctions.tests import helpers
-from kernelfunctions.typeregistry import PythonMarshal, register_python_type
+from kernelfunctions.typeregistry import PYTHON_TYPES
 from kernelfunctions.types import floatRef
+from kernelfunctions.types.basetypeimpl import BaseTypeImpl
+from kernelfunctions.types.valueref import ValueRef
 
 # Dummy class that fakes a buffer of a given shape for testing
 
@@ -20,25 +22,27 @@ class FakeBuffer:
         self.shape = shape
 
 
-class FakeBufferMarshall(PythonMarshal):
+class FakeBufferType(BaseTypeImpl):
     def __init__(self):
-        super().__init__(FakeBuffer)
+        super().__init__()
+
+    def has_derivative(self, value: Any = None) -> bool:
+        return False
 
     def is_writable(self, value: Any) -> bool:
         return True
 
-    def get_element_shape(self, value: FakeBuffer):
-        return ()
-
-    def get_container_shape(self, value: FakeBuffer):
+    def container_shape(self, value: FakeBuffer):
         return value.shape
 
-    def get_element_type(self, value: Any):
-        return NoneType
+    def shape(self, value: Any = None):
+        return value.shape
+
+    def element_type(self, value: Any):
+        return PYTHON_TYPES[NoneType]
 
 
-register_python_type(FakeBuffer, FakeBufferMarshall(),
-                     lambda stream, x: stream.write(x.element_type.__name + "\n"))
+PYTHON_TYPES[FakeBuffer] = FakeBufferType()
 
 
 # First set of tests emulate the shape of the following slang function
@@ -58,14 +62,13 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
 
     sig = build_signature(a=a, b=b, _result=result)
     match = match_signature(
-        sig, function.ast_functions[0].as_function(), CallMode.prim)
+        sig, function.overloads[0], CallMode.prim)
     assert match is not None
-    apply_signature(match, function.ast_functions[0].as_function(
-    ), CallMode.prim, input_transforms, ouput_transforms)
-    call_shape = calculate_and_apply_call_shape(match)
+    tree = apply_signature(sig, match, CallMode.prim, input_transforms, ouput_transforms)
+    call_shape = calculate_and_apply_call_shape(tree)
 
     nodes: list[SignatureNode] = []
-    for node in match.values():
+    for node in tree.values():
         node.get_input_list(nodes)
     return {
         "call_shape": call_shape,
@@ -92,14 +95,13 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
 
     sig = build_signature(index=index, texture=texture, _result=result)
     match = match_signature(
-        sig, function.ast_functions[0].as_function(), CallMode.prim)
+        sig, function.overloads[0], CallMode.prim)
     assert match is not None
-    apply_signature(match, function.ast_functions[0].as_function(
-    ), CallMode.prim, input_transforms, ouput_transforms)
-    call_shape = calculate_and_apply_call_shape(match)
+    tree = apply_signature(sig, match, CallMode.prim, input_transforms, ouput_transforms)
+    call_shape = calculate_and_apply_call_shape(tree)
 
     nodes: list[SignatureNode] = []
-    for node in match.values():
+    for node in tree.values():
         node.get_input_list(nodes)
     return {
         "call_shape": call_shape,
@@ -128,14 +130,13 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
 
     sig = build_signature(index=index, fr=frombuffer, to=tobuffer)
     match = match_signature(
-        sig, function.ast_functions[0].as_function(), CallMode.prim)
+        sig, function.overloads[0], CallMode.prim)
     assert match is not None
-    apply_signature(match, function.ast_functions[0].as_function(
-    ), CallMode.prim, input_transforms, ouput_transforms)
-    call_shape = calculate_and_apply_call_shape(match)
+    tree = apply_signature(sig, match, CallMode.prim, input_transforms, ouput_transforms)
+    call_shape = calculate_and_apply_call_shape(tree)
 
     nodes: list[SignatureNode] = []
-    for node in match.values():
+    for node in tree.values():
         node.get_input_list(nodes)
     return {
         "call_shape": call_shape,
@@ -240,7 +241,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 
     # pass an output, which is also broadcast so would in practice be a race condition
     shapes = dot_product(device_type, FakeBuffer(
-        (100, 3)), FakeBuffer((3,)), ScalarRef(float1()))
+        (100, 3)), FakeBuffer((3,)), ValueRef(float1()))
     diff = deepdiff.DeepDiff(
         shapes,
         {

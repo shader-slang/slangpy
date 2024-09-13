@@ -48,6 +48,7 @@ class SignatureNode:
         # Initialize path
         if path is None:
             self.path = self.slang.name
+            self.python.name = self.slang.name
         else:
             self.path = f"{path}.{self.python.name}"
 
@@ -63,7 +64,7 @@ class SignatureNode:
         self.variable_name = ""
 
         # Can now decide if differentiable
-        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
+        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable and self.python.has_derivative
 
         # Store some basic properties
         self.variable_name = self.path.replace(".", "__")
@@ -156,8 +157,10 @@ class SignatureNode:
             for name, child in self.children.items():
                 child.write_call_data_pre_dispatch(device, call_data, value[name])
         else:
-            call_data[self.variable_name] = self.python.create_calldata(
+            cd_val = self.python.create_calldata(
                 device, self.access, value)
+            if cd_val is not None:
+                call_data[self.variable_name] = cd_val
 
     def read_call_data_post_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
         """Reads value from call data dictionary post-dispatch"""
@@ -165,8 +168,9 @@ class SignatureNode:
             for name, child in self.children.items():
                 child.read_call_data_post_dispatch(device, call_data, value[name])
         else:
-            self.python.read_calldata(device, self.access, value,
-                                      call_data[self.variable_name])
+            cd_val = call_data.get(self.variable_name, None)
+            if cd_val is not None:
+                self.python.read_calldata(device, self.access, value, cd_val)
 
     def __repr__(self):
         return self.python.__repr__()
@@ -299,7 +303,7 @@ class SignatureNode:
             assert self.loadstore_transform is not None
 
             # Raise error if attempting to write to non-writable type
-            if self.slang.io_type != IOType.inn and not self.python.primal.is_writable():
+            if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.primal.is_writable():
                 raise ValueError(
                     f"Cannot read back value for non-writable type")
 
@@ -312,12 +316,7 @@ class SignatureNode:
             cg.call_data.declare(f"_{self.variable_name}_call_data", self.variable_name)
 
     def gen_load_store_code(self, cg: CodeGen):
-        # Generate load store functions
         self._gen_load_store(cg, PrimType.primal)
-        # self._gen_load(cg, PrimType.derivative)
-        # self._gen_store(cg, PrimType.primal)
-        # self._gen_store(cg, PrimType.derivative)
-        pass
 
     def _gen_load_store(self, cg: CodeGen, prim: PrimType):
 
@@ -345,43 +344,6 @@ class SignatureNode:
                 self.loadstore_transform,
                 self.access)
 
-        return func_name
-
-    def _gen_store(self, cg: CodeGen, prim: PrimType):
-        access = self._get_access(prim)
-        if not access in [AccessType.write, AccessType.readwrite]:
-            return None
-
-        prim_name = prim.name
-        func_name = f"store_{self.variable_name}_{prim_name}"
-        func_def = f"void {func_name}(Context context, in {self.slang.get(prim).name()} val)"
-
-        cgcode = cg.input_load_store
-
-        if self.children is not None:
-            name_to_call = {name: child._gen_store(
-                cg, prim) for (name, child) in self.children.items()}
-            cgcode.append_line(func_def)
-            cgcode.begin_block()
-            for (name, child) in self.children.items():
-                n = name_to_call[name]
-                if n is not None:
-                    cgcode.append_statement(f"{n}(context, val.{name})")
-                else:
-                    cgcode.append_line(f"// {name} not writable")
-            cgcode.end_block()
-        else:
-            cgcode.append_line(func_def)
-            cgcode.begin_block()
-            assert self.loadstore_transform is not None
-            self.python.gen_store(
-                cgcode,
-                "val",
-                f"call_data.{self.variable_name}_{prim_name}",
-                self.loadstore_transform,
-                prim,
-                access)
-            cgcode.end_block()
         return func_name
 
     def _gen_trampoline_argument(self):

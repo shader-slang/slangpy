@@ -1,7 +1,7 @@
 import pytest
 from kernelfunctions.backend import DeviceType, float2
 import numpy as np
-from kernelfunctions.types import NDDifferentiableBuffer
+from kernelfunctions.types import NDBuffer
 import kernelfunctions.tests.helpers as helpers
 
 
@@ -39,10 +39,10 @@ void add_numbers(float2 a, float2 b, out float2 res) {
     a = float2(a_data[0], a_data[1])
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = NDDifferentiableBuffer(device=device, element_count=100, element_type=float2)
+    b = NDBuffer(device=device, element_count=100, element_type=float2)
     b.buffer.from_numpy(b_data)
 
-    res = NDDifferentiableBuffer(
+    res = NDBuffer(
         device=device, element_count=100, element_type=float2)
 
     function(a, b, res)

@@ -120,7 +120,7 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
 
         sig = build_signature(v0, v1)
         match = match_signature(
-            sig, function.ast_functions[0].as_function(), CallMode.prim)
+            sig, function.overloads[0], CallMode.prim)
         assert match is not None
         assert match["a"].python_marshal.type == type(v0)
         assert match["b"].python_marshal.type == type(v1)

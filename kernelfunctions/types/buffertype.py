@@ -3,14 +3,14 @@
 from typing import Any, Optional, Sequence
 import numpy as np
 
-from sgl import Buffer, Device, ResourceUsage
+from sgl import Device
 from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 from kernelfunctions.types.basetype import BaseType
 from kernelfunctions.types.basetypeimpl import BaseTypeImpl
 from kernelfunctions.types.basevalue import BaseValue
 from kernelfunctions.types.enums import AccessType, PrimType
-from kernelfunctions.types.buffer import NDBuffer
+from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 
 TYPES = r"""
 int _idx<let N: int>(int[N] index, int[N] stride) {
@@ -78,23 +78,7 @@ class NDBufferType(BaseTypeImpl):
                 f"void store_primal(Context context, in primal_type value) {{ this.value{tf} = value; }}")
         cgb.end_struct()
 
-    # Load should only ever be reading the primal directly from the call data
-    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]],  access: tuple[AccessType, AccessType]):
-        assert access[0] != AccessType.none
-        assert access[1] == AccessType.none
-
-        cgb.begin_struct(f"_{name}")
-        cgb.type_alias("primal_type", input_value.primal_type_name)
-        if access[0] in [AccessType.read, AccessType.readwrite]:
-            cgb.append_line(
-                f"static void load_primal(Context context, out primal_type value) {{ call_data.{name}.load_primal(context,value); }}")
-        if access[0] in [AccessType.write, AccessType.readwrite]:
-            cgb.append_line(
-                f"static void store_primal(Context context, in primal_type value) {{ call_data.{name}.store_primal(context,value); }}")
-        cgb.end_struct()
-
     # Call data just returns the primal
-
     def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDBuffer) -> Any:
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
@@ -116,8 +100,16 @@ class NDBufferType(BaseTypeImpl):
         return self.el_type
 
     def container_shape(self, value: Optional[NDBuffer] = None):
-        assert value is not None
-        return value.shape
+        if value is not None:
+            return value.shape
+        else:
+            return None
+
+    def shape(self, value: Any = None):
+        if value is not None:
+            return super().shape(value)
+        else:
+            return None
 
     def differentiable(self, value: Optional[NDBuffer] = None):
         return self.el_type.differentiable()
@@ -138,3 +130,97 @@ def create_vr_type_for_value(value: Any):
 
 
 PYTHON_TYPES[NDBuffer] = create_vr_type_for_value
+
+
+class NDDifferentiableBufferType(BaseTypeImpl):
+
+    def __init__(self, element_type: BaseType):
+        super().__init__()
+        self.el_type = element_type
+
+    # Values don't store a derivative - they're just a value
+    def has_derivative(self, value: Any = None) -> bool:
+        return True
+
+    # Refs can be written to!
+    def is_writable(self, value: Any = None) -> bool:
+        return True
+
+    # Call data can only be read access to primal, and simply declares it as a variable
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+        cgb.add_snippet("TensorBuffer", TYPES)  # ensure the types are declared
+        cgb.begin_struct(f"_{name}_call_data")
+        cgb.type_alias(f"primal_type", input_value.primal_type_name)
+        cgb.type_alias(f"derivative_type", input_value.derivative_type_name)
+        tf = _transform_to_subscript(transform)
+        for prim in PrimType:
+            prim_name = prim.name
+            prim_access = access[prim.value]
+            if prim_access == AccessType.none:
+                continue
+            if prim_access == AccessType.read:
+                cgb.declare(f"TensorBuffer<{prim_name}_type,{len(transform)}>", prim_name)
+                cgb.append_line(
+                    f"void load_{prim_name}(Context context, out {prim_name}_type value) {{ value = this.{prim_name}{tf}; }}")
+            else:
+                cgb.declare(
+                    f"RWTensorBuffer<{prim_name}_type,{len(transform)}>", prim_name)
+                cgb.append_line(
+                    f"void load_{prim_name}(Context context, out {prim_name}_type value) {{ value = this.{prim_name}{tf}; }}")
+                cgb.append_line(
+                    f"void store_{prim_name}(Context context, in {prim_name}_type value) {{ this.{prim_name}{tf} = value; }}")
+        cgb.end_struct()
+
+    # Call data just returns the primal
+
+    def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer) -> Any:
+        assert access[0] != AccessType.none
+        assert access[1] == AccessType.none
+        return {
+            'value': {
+                'buffer': data.buffer,
+                'strides': list(data.strides)
+            }
+        }
+
+    # Read back from call data does nothing
+    def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer, result: Any) -> None:
+        pass
+
+    def name(self) -> str:
+        return self.el_type.name()
+
+    def element_type(self, value: Optional[NDDifferentiableBuffer] = None):
+        return self.el_type
+
+    def container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
+        if value is not None:
+            return value.shape
+        else:
+            return None
+
+    def shape(self, value: Any = None):
+        if value is not None:
+            return super().shape(value)
+        else:
+            return None
+
+    def differentiable(self, value: Optional[NDDifferentiableBuffer] = None):
+        return self.el_type.differentiable()
+
+    def differentiate(self, value: Optional[NDDifferentiableBuffer] = None):
+        return self.el_type.differentiate()
+
+    def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
+        return None
+
+    def read_output(self, device: Device, data: NDDifferentiableBuffer) -> Any:
+        return data
+
+
+def create_gradvr_type_for_value(value: Any):
+    assert isinstance(value, NDDifferentiableBuffer)
+    return NDDifferentiableBufferType(get_or_create_type(value.element_type))
+
+
+PYTHON_TYPES[NDDifferentiableBuffer] = create_gradvr_type_for_value

@@ -1,6 +1,8 @@
 
+from typing import Optional
+from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.types.basevalue import BaseValue
-from kernelfunctions.types.enums import PrimType
+from kernelfunctions.types.enums import AccessType, PrimType
 
 
 class BaseValueImpl(BaseValue):
@@ -35,4 +37,7 @@ class BaseValueImpl(BaseValue):
                 f"{'  ' * depth}{name}: {child._recurse_str(depth + 1)}" for name, child in self.fields.items()]
             return "\n" + "\n".join(child_strs)
         else:
-            return f"{self.name}"
+            if self.name == "":
+                return f"{self.primal.name()}"
+            else:
+                return f"{self.primal.name()} ({self.name})"

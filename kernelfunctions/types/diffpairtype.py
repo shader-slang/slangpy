@@ -32,12 +32,13 @@ class DiffPairType(BaseTypeImpl):
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         cgb.begin_struct(f"_{name}_call_data")
+        cgb.type_alias(f"primal_type", input_value.primal_type_name)
+        cgb.type_alias(f"derivative_type", input_value.derivative_type_name)
         for prim in PrimType:
             prim_name = prim.name
             prim_access = access[prim.value]
             if prim_access == AccessType.none:
                 continue
-            cgb.type_alias(f"{prim_name}_type", input_value.primal_type_name)
             if prim_access == AccessType.read:
                 cgb.declare(f"{prim_name}_type", prim_name)
                 cgb.append_line(
@@ -48,23 +49,6 @@ class DiffPairType(BaseTypeImpl):
                     f"void load_{prim_name}(Context context, out {prim_name}_type value) {{ value = this.{prim_name}[0]; }}")
                 cgb.append_line(
                     f"void store_{prim_name}(Context context, in {prim_name}_type value) {{ this.{prim_name}[0] = value; }}")
-        cgb.end_struct()
-
-    # Load should only ever be reading the primal directly from the call data
-    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]],  access: tuple[AccessType, AccessType]):
-        cgb.begin_struct(f"_{name}")
-        for prim in PrimType:
-            prim_name = prim.name
-            prim_access = access[prim.value]
-            if prim_access == AccessType.none:
-                continue
-            cgb.type_alias(f"{prim_name}_type", input_value.primal_type_name)
-            if prim_access in [AccessType.read, AccessType.readwrite]:
-                cgb.append_line(
-                    f"static void load_{prim_name}(Context context, out {prim_name}_type value) {{ call_data.{name}.load_{prim_name}(context,value); }}")
-            if prim_access in [AccessType.write, AccessType.readwrite]:
-                cgb.append_line(
-                    f"static void store_{prim_name}(Context context, in {prim_name}_type value) {{ call_data.{name}.store_{prim_name}(context,value); }}")
         cgb.end_struct()
 
     # Call data just returns the primal

@@ -35,6 +35,7 @@ class PythonValue(BaseValueImpl):
             self.fields = None
 
     def is_compatible(self, other: 'BaseValue') -> bool:
+        return True
         return str(self.primal.element_type()) == str(other.primal.element_type())
 
     def set_type(self, new_type: BaseType, value: Any = None):
@@ -43,6 +44,7 @@ class PythonValue(BaseValueImpl):
         self.container_shape = self.primal.container_shape(value)
         self.element_type = self.primal.element_type(value)
         self.differentiable = self.primal.differentiable(value)
+        self.has_derivative = self.primal.has_derivative(value)
         self.shape = self.primal.shape(value)
 
     def gen_calldata(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):

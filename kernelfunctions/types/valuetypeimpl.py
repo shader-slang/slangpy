@@ -1,5 +1,6 @@
 
 
+from types import NoneType
 from typing import Any, Optional
 import numpy.typing as npt
 import numpy as np
@@ -22,6 +23,10 @@ class ValueTypeImpl(BaseTypeImpl):
     def __init__(self):
         super().__init__()
 
+    # A value is its own element
+    def element_type(self, value: Any = None):
+        return self
+
     # Values don't store a derivative - they're just a value
     def has_derivative(self, value: Any = None) -> bool:
         return False
@@ -32,33 +37,24 @@ class ValueTypeImpl(BaseTypeImpl):
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        assert access[0] == AccessType.read
+        assert not access[0] in [AccessType.readwrite, AccessType.write]
         assert access[1] == AccessType.none
         cgb.begin_struct(f"_{name}_call_data")
         cgb.type_alias("primal_type", input_value.primal_type_name)
         cgb.declare("primal_type", "value")
-        cgb.append_line(
-            "void load_primal(Context context, out primal_type value) { value = this.value; }")
-        cgb.end_struct()
-
-    # Load should only ever be reading the primal directly from the call data
-    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]],  access: tuple[AccessType, AccessType]):
-        assert access[0] == AccessType.read
-        assert access[1] == AccessType.none
-
-        cgb.begin_struct(f"_{name}")
-        cgb.type_alias("primal_type", input_value.primal_type_name)
-        cgb.append_line(
-            f"static void load_primal(Context context, out primal_type value) {{ call_data.{name}.load_primal(context,value); }}")
+        if access[0] == AccessType.read:
+            cgb.append_line(
+                "void load_primal(Context context, out primal_type value) { value = this.value; }")
         cgb.end_struct()
 
     # Call data just returns the primal
     def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: Any) -> Any:
-        assert access[0] == AccessType.read
+        assert not access[0] in [AccessType.readwrite, AccessType.write]
         assert access[1] == AccessType.none
-        return {
-            'value': data
-        }
+        if access[0] == AccessType.read:
+            return {
+                'value': data
+            }
 
     # Read back from call data does nothing
     def read_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
@@ -113,9 +109,6 @@ class ScalarType(ValueTypeImpl):
     def name(self) -> str:
         return SCALAR_TYPE_NAMES[self.slang_type]
 
-    def element_type(self, value: Any = None):
-        return self
-
     def shape(self, value: Any = None):
         return (1,)
 
@@ -155,14 +148,26 @@ class ScalarType(ValueTypeImpl):
             raise ValueError(f"Unsupported scalar type: {array.dtype}")
 
 
+class NoneValueType(ValueTypeImpl):
+    def __init__(self, slang_type: TypeReflection.ScalarType):
+        super().__init__()
+
+    def shape(self, value: Any = None):
+        return None
+
+    def name(self) -> str:
+        return "none"
+
+
 class VectorType(ValueTypeImpl):
     def __init__(self, element_type: BaseType, size: int):
         super().__init__()
         self.et = element_type
         self.size = size
+        self.python_type: type = NoneType
 
-    def element_type(self, value: Any = None):
-        return self.et
+    def name(self) -> str:
+        return f"vector<{self.et.name()},{self.size}>"
 
     def shape(self, value: Any = None):
         return (self.size,)
@@ -173,6 +178,20 @@ class VectorType(ValueTypeImpl):
     def differentiate(self, value: Any = None):
         return self.et.differentiate(value)
 
+    def to_numpy(self, value: Any) -> npt.NDArray[Any]:
+        vals = [x for x in value]
+        if value.element_type == int:
+            return np.array(vals, dtype=np.int32)
+        elif value.element_type == float:
+            return np.array(vals, dtype=np.float32)
+        elif value.element_type == bool:
+            return np.array([1 if x else 0 for x in vals], dtype=np.uint8)
+        else:
+            raise ValueError(f"Unsupported scalar type: {type(value)}")
+
+    def from_numpy(self, array: npt.NDArray[Any]) -> Any:
+        return self.python_type(list(array))
+
 
 class MatrixType(ValueTypeImpl):
     def __init__(self, element_type: BaseType, rows: int, cols: int):
@@ -180,9 +199,10 @@ class MatrixType(ValueTypeImpl):
         self.et = element_type
         self.rows = rows
         self.cols = cols
+        self.python_type: type = NoneType
 
-    def element_type(self, value: Any = None):
-        return self.et
+    def name(self) -> str:
+        return f"matrix<{self.et.name()},{self.rows},{self.cols}>"
 
     def shape(self, value: Any = None):
         return (self.rows, self.cols)
@@ -192,6 +212,12 @@ class MatrixType(ValueTypeImpl):
 
     def differentiate(self, value: Any = None):
         return self.et.differentiate(value)
+
+    def to_numpy(self, value: Any) -> npt.NDArray[Any]:
+        return value.to_numpy()
+
+    def from_numpy(self, array: npt.NDArray[Any]) -> Any:
+        return self.python_type(array)
 
 
 # Hook up all the basic slang scalar, vector and matrix types
@@ -204,6 +230,12 @@ for x in TypeReflection.ScalarType:
         for cols in range(0, 5):
             row.append(MatrixType(SLANG_SCALAR_TYPES[x], rows, cols))
         SLANG_MATRIX_TYPES[x].append(row)
+
+# Overwrite void and none with none type
+SLANG_SCALAR_TYPES[TypeReflection.ScalarType.none] = NoneValueType(
+    TypeReflection.ScalarType.none)
+SLANG_SCALAR_TYPES[TypeReflection.ScalarType.void] = NoneValueType(
+    TypeReflection.ScalarType.void)
 
 # Point built in python types at their slang equivalents
 PYTHON_TYPES[type(None)] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.none]
@@ -222,10 +254,14 @@ for pair in zip(["int", "float", "bool", "uint", "float16_t"], [TypeReflection.S
     for dim in range(1, 5):
         vec_type: type = getattr(math, f"{base_name}{dim}")
         if vec_type is not None:
-            PYTHON_TYPES[vec_type] = SLANG_VECTOR_TYPES[slang_scalar_type][dim]
+            t = SLANG_VECTOR_TYPES[slang_scalar_type][dim]
+            t.python_type = vec_type  # type: ignore
+            PYTHON_TYPES[vec_type] = t
 
     for row in range(2, 5):
         for col in range(2, 5):
             mat_type: type = getattr(math, f"float{row}x{col}", None)  # type: ignore
             if mat_type is not None:
-                PYTHON_TYPES[mat_type] = SLANG_MATRIX_TYPES[slang_scalar_type][row][col]
+                t = SLANG_MATRIX_TYPES[slang_scalar_type][row][col]
+                t.python_type = mat_type  # type: ignore
+                PYTHON_TYPES[mat_type] = t

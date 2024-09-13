@@ -8,6 +8,7 @@ from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.signaturenode import SignatureCall, SignatureNode
 from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH, get_or_create_type
 from kernelfunctions.types import CallMode, AccessType, NDDifferentiableBuffer
+from kernelfunctions.types.buffertype import NDDifferentiableBufferType
 from kernelfunctions.types.enums import IOType
 from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonValue
 from kernelfunctions.types.slangvalue import SlangFunction, SlangValue
@@ -269,7 +270,7 @@ def create_return_value(call_shape: list[int], signature: SignatureCall, mode: C
             if len(call_shape) == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:
-                node.python.set_type(get_or_create_type(type(NDDifferentiableBuffer)))
+                node.python.set_type(NDDifferentiableBufferType(node.slang.primal))
 
 
 def generate_code(call_shape: list[int], function: Function, signature: SignatureCall, mode: CallMode, cg: CodeGen):

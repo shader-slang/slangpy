@@ -45,23 +45,7 @@ class ValueRefType(BaseTypeImpl):
                 "void store_primal(Context context, in primal_type value) { this.value[0] = value; }")
         cgb.end_struct()
 
-    # Load should only ever be reading the primal directly from the call data
-    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseValue', name: str, transform: list[Optional[int]],  access: tuple[AccessType, AccessType]):
-        assert access[0] != AccessType.none
-        assert access[1] == AccessType.none
-
-        cgb.begin_struct(f"_{name}")
-        cgb.type_alias("primal_type", input_value.primal_type_name)
-        if access[0] in [AccessType.read, AccessType.readwrite]:
-            cgb.append_line(
-                f"static void load_primal(Context context, out primal_type value) {{ call_data.{name}.load_primal(context,value); }}")
-        if access[0] in [AccessType.write, AccessType.readwrite]:
-            cgb.append_line(
-                f"static void store_primal(Context context, in primal_type value) {{ call_data.{name}.store_primal(context,value); }}")
-        cgb.end_struct()
-
     # Call data just returns the primal
-
     def create_calldata(self, device: Device, input_value: 'BaseValue', access: tuple[AccessType, AccessType], data: ValueRef) -> Any:
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
