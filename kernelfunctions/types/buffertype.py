@@ -64,31 +64,21 @@ class NDBufferType(BaseTypeImpl):
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
-        cgb.add_snippet("TensorBuffer", TYPES)  # ensure the types are declared
-        tf = _transform_to_subscript(transform)
-        cgb.begin_struct(f"_{name}_call_data")
-        cgb.type_alias("primal_type", input_value.primal_element_name)
         if access[0] == AccessType.read:
-            cgb.declare(f"TensorBuffer<primal_type,{len(transform)}>", "value")
-            cgb.append_line(
-                f"void load_primal(Context context, out primal_type value) {{ value = this.value{tf}; }}")
+            cgb.type_alias(
+                f"_{name}", f"TensorBuffer<{input_value.primal_element_name},{len(transform)}>")
         else:
-            cgb.declare(f"RWTensorBuffer<primal_type,{len(transform)}>", "value")
-            cgb.append_line(
-                f"void load_primal(Context context, out primal_type value) {{ value = this.value{tf}; }}")
-            cgb.append_line(
-                f"void store_primal(Context context, in primal_type value) {{ this.value{tf} = value; }}")
-        cgb.end_struct()
+            cgb.type_alias(
+                f"_{name}", f"RWTensorBuffer<{input_value.primal_element_name},{len(transform)}>")
 
     # Call data just returns the primal
+
     def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDBuffer) -> Any:
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         return {
-            'value': {
-                'buffer': data.buffer,
-                'strides': list(data.strides)
-            }
+            'buffer': data.buffer,
+            'strides': list(data.strides)
         }
 
     # Read back from call data does nothing
@@ -159,28 +149,28 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        cgb.add_snippet("TensorBuffer", TYPES)  # ensure the types are declared
-        cgb.begin_struct(f"_{name}_call_data")
-        cgb.type_alias(f"primal_type", input_value.primal_element_name)
-        cgb.type_alias(f"derivative_type", input_value.derivative_element_name)
-        tf = _transform_to_subscript(transform)
-        for prim in PrimType:
-            prim_name = prim.name
-            prim_access = access[prim.value]
-            if prim_access == AccessType.none:
-                continue
-            if prim_access == AccessType.read:
-                cgb.declare(f"TensorBuffer<{prim_name}_type,{len(transform)}>", prim_name)
-                cgb.append_line(
-                    f"void load_{prim_name}(Context context, out {prim_name}_type value) {{ value = this.{prim_name}{tf}; }}")
-            else:
-                cgb.declare(
-                    f"RWTensorBuffer<{prim_name}_type,{len(transform)}>", prim_name)
-                cgb.append_line(
-                    f"void load_{prim_name}(Context context, out {prim_name}_type value) {{ value = this.{prim_name}{tf}; }}")
-                cgb.append_line(
-                    f"void store_{prim_name}(Context context, in {prim_name}_type value) {{ this.{prim_name}{tf} = value; }}")
-        cgb.end_struct()
+        prim_el = input_value.primal_element_name
+        deriv_el = input_value.derivative_element_name
+        if deriv_el is None:
+            deriv_el = prim_el
+        dim = len(transform)
+
+        if access[0] == AccessType.none:
+            primal_storage = f'NoneType<{prim_el}>'
+        elif access[0] == AccessType.read:
+            primal_storage = f"TensorBuffer<{prim_el},{dim}>"
+        else:
+            primal_storage = f"RWTensorBuffer<{prim_el},{dim}>"
+
+        if access[1] == AccessType.none:
+            deriv_storage = f'NoneType<{deriv_el}>'
+        elif access[1] == AccessType.read:
+            deriv_storage = f"TensorBuffer<{deriv_el},{dim}>"
+        else:
+            deriv_storage = f"RWTensorBuffer<{deriv_el},{dim}>"
+
+        tn = f"BaseDiffPair<{prim_el},{deriv_el},{primal_storage},{deriv_storage}>"
+        cgb.type_alias(f"_{name}", tn)
 
     # Call data just returns the primal
 

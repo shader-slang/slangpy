@@ -31,48 +31,51 @@ class DiffPairType(BaseTypeImpl):
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        cgb.begin_struct(f"_{name}_call_data")
-        cgb.type_alias(f"primal_type", input_value.primal_type_name)
-        cgb.type_alias(f"derivative_type", input_value.derivative_type_name)
-        for prim in PrimType:
-            prim_name = prim.name
-            prim_access = access[prim.value]
-            if prim_access == AccessType.none:
-                continue
-            if prim_access == AccessType.read:
-                cgb.declare(f"{prim_name}_type", prim_name)
-                cgb.append_line(
-                    f"void load_{prim_name}(Context context, out {prim_name}_type value) {{ value = this.{prim_name}; }}")
-            else:
-                cgb.declare(f"RWStructuredBuffer<{prim_name}_type>", prim_name)
-                cgb.append_line(
-                    f"void load_{prim_name}(Context context, out {prim_name}_type value) {{ value = this.{prim_name}[0]; }}")
-                cgb.append_line(
-                    f"void store_{prim_name}(Context context, in {prim_name}_type value) {{ this.{prim_name}[0] = value; }}")
-        cgb.end_struct()
+        prim_el = input_value.primal_element_name
+        deriv_el = input_value.derivative_element_name
+        if deriv_el is None:
+            deriv_el = prim_el
+
+        if access[0] == AccessType.none:
+            primal_storage = f'NoneType<{prim_el}>'
+        elif access[0] == AccessType.read:
+            primal_storage = f"ValueType<{prim_el}>"
+        else:
+            primal_storage = f"RWValueRef<{prim_el}>"
+
+        if access[1] == AccessType.none:
+            deriv_storage = f'NoneType<{deriv_el}>'
+        elif access[1] == AccessType.read:
+            deriv_storage = f"ValueType<{deriv_el}>"
+        else:
+            deriv_storage = f"RWValueRef<{deriv_el}>"
+
+        tn = f"BaseDiffPair<{prim_el},{deriv_el},{primal_storage},{deriv_storage}>"
+        cgb.type_alias(f"_{name}", tn)
+
+    def get_type(self, prim: PrimType):
+        return self.primal_type if prim == PrimType.primal else self.derivative_type
 
     # Call data just returns the primal
     def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: DiffPair) -> Any:
         res = {}
+
         for prim in PrimType:
             prim_name = prim.name
             prim_access = access[prim.value]
-            if prim_access == AccessType.none:
-                continue
-            value = data.primal if prim == PrimType.primal else data.grad
-            if prim_access == AccessType.read:
-                if prim == PrimType.primal:
-                    res[prim_name] = data.primal
-                else:
-                    res[prim_name] = data.grad
-            else:
-                if prim == PrimType.primal:
-                    npdata = self.primal_type.to_numpy(value).view(dtype=np.uint8)
-                else:
-                    npdata = self.derivative_type.to_numpy(  # type: ignore
-                        value).view(dtype=np.uint8)
-                res[prim_name] = device.create_buffer(
-                    element_count=1, struct_size=npdata.size, data=npdata, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+            prim_data = data.get(prim)
+            prim_type = self.get_type(prim)
+            if prim_access in [AccessType.write, AccessType.readwrite]:
+                npdata = prim_type.to_numpy(prim_data).view(dtype=np.uint8)
+                res[prim_name] = {
+                    'value': device.create_buffer(
+                        element_count=1,
+                        struct_size=npdata.size,
+                        data=npdata,
+                        usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)}
+            elif prim_access == AccessType.read:
+                res[prim_name] = {'value': prim_data}
+
         return res
 
     # Read back from call data does nothing
@@ -80,14 +83,11 @@ class DiffPairType(BaseTypeImpl):
         for prim in PrimType:
             prim_name = prim.name
             prim_access = access[prim.value]
+            prim_type = self.get_type(prim)
             if prim_access in [AccessType.write, AccessType.readwrite]:
-                value = result[prim_name]
-                assert isinstance(value, Buffer)
-                npdata = value.to_numpy()
-                if prim == PrimType.primal:
-                    data.primal = self.primal_type.from_numpy(npdata)
-                else:
-                    data.grad = self.derivative_type.from_numpy(npdata)  # type: ignore
+                assert isinstance(result[prim_name]['value'], Buffer)
+                npdata = result[prim_name]['value'].to_numpy()
+                data.set(prim, prim_type.from_numpy(npdata))
 
     def name(self, value: Any = None) -> str:
         return self.primal_type.name()

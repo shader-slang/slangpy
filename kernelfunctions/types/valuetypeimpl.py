@@ -39,13 +39,7 @@ class ValueTypeImpl(BaseTypeImpl):
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         assert not access[0] in [AccessType.readwrite, AccessType.write]
         assert access[1] == AccessType.none
-        cgb.begin_struct(f"_{name}_call_data")
-        cgb.type_alias("primal_type", input_value.primal_type_name)
-        cgb.declare("primal_type", "value")
-        if access[0] == AccessType.read:
-            cgb.append_line(
-                "void load_primal(Context context, out primal_type value) { value = this.value; }")
-        cgb.end_struct()
+        cgb.type_alias(f"_{name}", f"ValueType<{input_value.primal_type_name}>")
 
     # Call data just returns the primal
     def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any) -> Any:

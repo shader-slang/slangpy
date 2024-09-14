@@ -20,6 +20,8 @@ import kernelfunctions.codegen as cg
 from kernelfunctions.types import CallMode
 from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonVariable
 
+SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
+
 
 class CallData:
     def __init__(

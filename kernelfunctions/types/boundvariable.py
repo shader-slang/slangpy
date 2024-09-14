@@ -266,10 +266,11 @@ class BoundVariable:
                 self.variable_name,
                 self.loadstore_transform,
                 self.access)
-            cg.call_data.declare(f"_{self.variable_name}_call_data", self.variable_name)
+            cg.call_data.declare(f"_{self.variable_name}", self.variable_name)
 
     def gen_load_store_code(self, cg: CodeGen):
-        self._gen_load_store(cg, PrimType.primal)
+        # self._gen_load_store(cg, PrimType.primal)
+        pass
 
     def _gen_load_store(self, cg: CodeGen, prim: PrimType):
 

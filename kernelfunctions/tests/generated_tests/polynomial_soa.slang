@@ -52,59 +52,6 @@ float3 polynomial(float3 a, float3 b) {
 //------------------------------------------------------------------------------------------
 // Generated code
 
-struct a__x_calldata {
-    TensorBuffer<float, 1> primal;
-}
-struct result_calldata {
-    RWTensorBuffer<vector<float, 3>, 1> _result_primal;
-}
-
-struct a__x_access {
-    typealias Result = float;
-
-    static void load(int[] call_id, out Result val) {
-        val = call_data.a__x_primal[{call_id[0]}];
-    }
-}
-
-struct a_access {
-    typealias Result = float3;
-
-    void load(int[] call_id, out Result val) {
-        a__x_access::load(call_id, val.x);
-    }
-}
-
-struct bwds_a__x_access {
-    typealias Result = DifferentialPair<float>;
-
-    static void load(int[] call_id, out Result val) {
-        val = call_data.a__x_primal[ { call_id[0] }];
-    }
-}
-
-struct bwds_a_access {
-    typealias Result = DifferentialPair<float3>;
-
-    void load(int[] call_id, out Result val) {
-        bwds_a__x_access::Result a__x;
-        bwds_a__x_access::load(call_id, a__x);
-
-    }
-}
-
-struct bwds_a_calldata {
-    TensorBuffer<float, 1> primal;
-    RWTensorBuffer<vector<float, 3>, 1> derivative;
-}
-
-struct bwds_result_calldata {
-    TensorBuffer<float, 1> derivative;
-}
-
-
-
-
 struct CallData
 {
     int[1] _call_stride;

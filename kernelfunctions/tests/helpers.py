@@ -12,6 +12,7 @@ from pathlib import Path
 from kernelfunctions.backend import (
     Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel,
     DeclReflection, TypeReflection)
+from kernelfunctions.calldata import SLANG_PATH
 from kernelfunctions.typeregistry import PYTHON_TYPES
 from kernelfunctions.types.basetypeimpl import BaseTypeImpl
 
@@ -47,7 +48,7 @@ def get_device(type: DeviceType, use_cache: bool = True) -> Device:
         enable_debug_layers=True,
         compiler_options=SlangCompilerOptions(
             {
-                "include_paths": [SHADER_DIR],
+                "include_paths": [SHADER_DIR, SLANG_PATH],
                 "debug_info": SlangDebugInfoLevel.standard,
             }
         ),

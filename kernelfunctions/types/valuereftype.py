@@ -31,21 +31,13 @@ class ValueRefType(BaseTypeImpl):
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
-        cgb.begin_struct(f"_{name}_call_data")
-        cgb.type_alias("primal_type", input_value.primal_type_name)
         if access[0] == AccessType.read:
-            cgb.declare("primal_type", "value")
-            cgb.append_line(
-                "void load_primal(Context context, out primal_type value) { value = this.value; }")
+            cgb.type_alias(f"_{name}", f"ValueRef<{input_value.primal_type_name}>")
         else:
-            cgb.declare(f"RWStructuredBuffer<primal_type>", "value")
-            cgb.append_line(
-                "void load_primal(Context context, out primal_type value) { value = this.value[0]; }")
-            cgb.append_line(
-                "void store_primal(Context context, in primal_type value) { this.value[0] = value; }")
-        cgb.end_struct()
+            cgb.type_alias(f"_{name}", f"RWValueRef<{input_value.primal_type_name}>")
 
     # Call data just returns the primal
+
     def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: ValueRef) -> Any:
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none

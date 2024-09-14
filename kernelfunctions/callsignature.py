@@ -280,6 +280,7 @@ def generate_code(call_shape: list[int], function: Function, signature: BoundCal
     nodes: list[BoundVariable] = []
 
     # Generate the header
+    cg.imports.append_statement(f'import "slangpy"')
     cg.imports.append_statement(f'import "{function.module.name}"')
 
     # Generate call data inputs if vector call
@@ -290,10 +291,13 @@ def generate_code(call_shape: list[int], function: Function, signature: BoundCal
     cg.call_data.append_statement(f"uint3 _thread_count")
 
     # Generate the context structure
-    cg.context.append_line(f"struct Context")
+    cg.context.append_line(f"struct Context: IContext")
     cg.context.begin_block()
     cg.context.append_statement(f"uint3 thread_id")
     cg.context.append_statement(f"int[{max(1,call_data_len)}] call_id")
+    cg.context.append_line("uint3 get_thread_id() { return thread_id; }")
+    cg.context.append_line("int get_call_id(int dim) { return call_id[dim]; }")
+
     cg.context.end_block()
 
     # Generate call data definitions for all inputs to the kernel
@@ -355,22 +359,22 @@ def generate_code(call_shape: list[int], function: Function, signature: BoundCal
     def load_p(x: BoundVariable, has_suffix: bool = False):
         n = declare_p(x, has_suffix)
         cg.kernel.append_statement(
-            f"_{x.variable_name}::load_primal(context,{n})")
+            f"call_data.{x.variable_name}.load_primal(context,{n})")
         return n
 
     def load_d(x: BoundVariable, has_suffix: bool = False):
         n = declare_d(x, has_suffix)
         cg.kernel.append_statement(
-            f"_{x.variable_name}::load_derivative(context,{n})")
+            f"call_data.{x.variable_name}.load_derivative(context,{n})")
         return n
 
     def store_p(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"_{x.variable_name}::store_primal(context,{x.variable_name}{'_p' if has_suffix else ''})")
+            f"call_data.{x.variable_name}.store_primal(context,{x.variable_name}{'_p' if has_suffix else ''})")
 
     def store_d(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"_{x.variable_name}::store_derivative(context,{x.variable_name}{'_d' if has_suffix else ''})")
+            f"call_data.{x.variable_name}.store_derivative(context,{x.variable_name}{'_d' if has_suffix else ''})")
 
     def create_pair(x: BoundVariable, inc_derivative: bool):
         p = load_p(x, True)
@@ -384,7 +388,7 @@ def generate_code(call_shape: list[int], function: Function, signature: BoundCal
 
     def store_pair_derivative(x: BoundVariable):
         cg.kernel.append_statement(
-            f"_{x.variable_name}::store_derivative(context,{x.variable_name}.d)")
+            f"call_data.{x.variable_name}.store_derivative(context,{x.variable_name}.d)")
 
     # Select either primals, derivatives or pairs for the trampoline function
     names: list[str] = []
