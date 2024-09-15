@@ -12,3 +12,4 @@ from .valueref import *
 from .valuereftype import *
 from .diffpair import *
 from .diffpairtype import *
+from .structtype import *

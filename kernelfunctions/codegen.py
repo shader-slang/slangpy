@@ -45,6 +45,9 @@ class CodeGenBlock:
     def append_code(self, code: str):
         self.code.append(code)
 
+    def empty_line(self):
+        self.append_code("\n")
+
     def append_line(self, func_line: str):
         self.append_indent()
         self.append_code(func_line)

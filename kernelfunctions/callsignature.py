@@ -302,13 +302,7 @@ def generate_code(call_shape: list[int], function: Function, signature: BoundCal
 
     # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
-        node.get_input_list(nodes)
-    for node in nodes:
         node.gen_call_data_code(cg)
-
-    # Generate the recursive load/store functions
-    for node in signature.values():
-        node.gen_load_store_code(cg)
 
     # Get sorted list of root parameters for trampoline function
     root_params = sorted(signature.values(), key=lambda x: x.param_index)

@@ -124,7 +124,7 @@ class ScalarType(ValueTypeImpl):
         return self.bytes
 
     def shape(self, value: Any = None):
-        return (1,)
+        return ()
 
     def differentiable(self, value: Any = None):
         return self.diff

@@ -121,7 +121,7 @@ def test_dotproduct_scalar(device_type: DeviceType):
     shapes = dot_product(device_type, float3(), float3(), None)
     diff = deepdiff.DeepDiff(
         shapes,
-        {"type_shapes": [[3], [3], [1]], "arg_shapes": [[], [], []], "call_shape": []},
+        {"type_shapes": [[3], [3], []], "arg_shapes": [[], [], []], "call_shape": []},
     )
     assert not diff
 
@@ -133,7 +133,7 @@ def test_dotproduct_scalar_floatref(device_type: DeviceType):
     shapes = dot_product(device_type, float3(), float3(), floatRef())
     diff = deepdiff.DeepDiff(
         shapes,
-        {"type_shapes": [[3], [3], [1]], "arg_shapes": [[], [], []], "call_shape": []},
+        {"type_shapes": [[3], [3], []], "arg_shapes": [[], [], []], "call_shape": []},
     )
     assert not diff
 
@@ -146,7 +146,7 @@ def test_dotproduct_broadcast_a(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[], [100], [100]],
             "call_shape": [100],
         },
@@ -162,7 +162,7 @@ def test_dotproduct_broadcast_b(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[100], [], [100]],
             "call_shape": [100],
         },
@@ -178,7 +178,7 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[100], [1], [100]],
             "call_shape": [100],
         },
@@ -190,7 +190,7 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
 def test_dotproduct_shape_error(device_type: DeviceType):
 
     # attempt to pass a buffer of float4s for a, causes shape error
-    with pytest.raises(ValueError, match=re.escape("Arg 0, PS[0] != IS[1], 3 != 4")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1, PS[0] != IS[1], 3 != 4")):
         dot_product(device_type, FakeBuffer((100, 4)), FakeBuffer((3,)), None)
 
 
@@ -199,7 +199,7 @@ def test_dotproduct_broadcast_error(device_type: DeviceType):
 
     # attempt to pass missmatching buffer sizes for a and b
     with pytest.raises(
-        ValueError, match=re.escape("Arg 1, CS[0] != AS[0], 100 != 1000")
+        ValueError, match=re.escape("Arg -1, CS[0] != AS[0], 100 != 1000")
     ):
         dot_product(device_type, FakeBuffer((100, 3)), FakeBuffer((1000, 3)), None)
 
@@ -213,8 +213,8 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
-            "arg_shapes": [[100], [], []],
+            "type_shapes": [[3], [3], []],
+            "arg_shapes": [[100], [], [1]],
             "call_shape": [100],
         },
     )
@@ -225,7 +225,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 def test_dotproduct_broadcast_invalid_result(device_type: DeviceType):
 
     # pass an output of the wrong shape resulting in error
-    with pytest.raises(ValueError, match=re.escape("Arg -1, PS[0] != IS[0], 1 != 3")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1, CS[0] != AS[0], 100 != 3")):
         shapes = dot_product(device_type, FakeBuffer((100, 3)),
                              FakeBuffer((3,)), FakeBuffer((3,)))
 
@@ -236,7 +236,7 @@ def test_dotproduct_ambiguous_call_shape(device_type: DeviceType):
     # Passing buffer for result with undefined size. In principle
     # this would broadcast to each entry of the buffer, but because
     # the size is undefined it will raise an error
-    with pytest.raises(ValueError, match=re.escape("Call shape is ambiguous: [None]")):
+    with pytest.raises(ValueError, match=re.escape("Call shape is ambiguous: [None, 1]")):
         dot_product(device_type, FakeBuffer((3,)),
                     FakeBuffer((3,)), FakeBuffer((None, 1)))
 
@@ -252,9 +252,9 @@ def test_dotproduct_infer_buffer_size(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
-            "arg_shapes": [[], [100], [100]],
-            "call_shape": [100],
+            "type_shapes": [[3], [3], []],
+            "arg_shapes": [[], [100], [100, 1]],
+            "call_shape": [100, 1],
         },
     )
     assert not diff
@@ -269,9 +269,9 @@ def test_dotproduct_big_tensors(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
-            "arg_shapes": [[8, 1, 2], [8, 4, 2], [8, 4, 2]],
-            "call_shape": [8, 4, 2],
+            "type_shapes": [[3], [3], []],
+            "arg_shapes": [[8, 1, 2], [8, 4, 2], [8, 4, 2, 1]],
+            "call_shape": [8, 4, 2, 1],
         },
     )
     assert not diff
@@ -289,7 +289,7 @@ def test_dotproduct_input_transform(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[8, 1, 2], [8, 4, 2], [8, 4, 2]],
             "call_shape": [8, 4, 2],
         },
@@ -311,7 +311,7 @@ def test_dotproduct_output_transform(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[10], [5], [10, 5]],
             "call_shape": [10, 5],
         },
@@ -336,7 +336,7 @@ def test_dotproduct_both_transform(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[10], [5], [10, 5]],
             "call_shape": [10, 5],
         },

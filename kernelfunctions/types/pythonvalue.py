@@ -36,6 +36,16 @@ class PythonVariable(BaseVariableImpl):
             self.fields = None
 
     def is_compatible(self, other: 'BaseVariable') -> bool:
+        if self.fields is not None:
+            if other.fields is None:
+                return False
+            for field in self.fields:
+                if field not in other.fields:
+                    return False
+                if not self.fields[field].is_compatible(other.fields[field]):
+                    return False
+            return True
+
         if self.primal_element_name == other.primal_element_name:
             return True
         if self.primal_element_name == 'none' or other.primal_element_name == 'none':

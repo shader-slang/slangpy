@@ -107,8 +107,11 @@ class BoundVariable:
     def write_call_data_pre_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
         """Writes value to call data dictionary pre-dispatch"""
         if self.children is not None:
+            res = {}
             for name, child in self.children.items():
-                child.write_call_data_pre_dispatch(device, call_data, value[name])
+                child.write_call_data_pre_dispatch(device, res, value[name])
+            if len(res) > 0:
+                call_data[self.variable_name] = res
         else:
             cd_val = self.python.create_calldata(
                 device, self.access, value)
@@ -119,7 +122,9 @@ class BoundVariable:
         """Reads value from call data dictionary post-dispatch"""
         if self.children is not None:
             for name, child in self.children.items():
-                child.read_call_data_post_dispatch(device, call_data, value[name])
+                child_cd = call_data.get(child.variable_name, None)
+                if child_cd is not None:
+                    child.read_call_data_post_dispatch(device, child_cd, value[name])
         else:
             cd_val = call_data.get(self.variable_name, None)
             if cd_val is not None:
@@ -248,12 +253,59 @@ class BoundVariable:
         idx: int = prim.value
         return self.access[idx]
 
-    def gen_call_data_code(self, cg: CodeGen):
+    def gen_call_data_code(self, cg: CodeGen, depth: int = 0):
         if self.children is not None:
-            for child in self.children.values():
-                child.gen_call_data_code(cg)
+            names: list[tuple[str, str]] = []
+            for field, variable in self.children.items():
+                variable_name = variable.gen_call_data_code(cg, depth+1)
+                if variable_name is not None:
+                    names.append((field, variable_name))
+
+            cgb = cg.call_data_structs
+
+            if self.access[1] == AccessType.none:
+                cgb.begin_struct(
+                    f"_{self.variable_name}: IValueCallData<{self.slang.primal_type_name}>")
+            else:
+                cgb.begin_struct(
+                    f"_{self.variable_name}: ICallData<{self.slang.primal_type_name},{self.slang.derivative_type_name}>")
+
+            for name in names:
+                cgb.declare(f"_{name[1]}", name[1])
+
+            for prim in PrimType:
+                if self.access[prim.value] == AccessType.none:
+                    continue
+
+                prim_name = prim.name
+                prim_type_name = self.slang.primal_type_name if prim == PrimType.primal else self.slang.derivative_type_name
+
+                cgb.empty_line()
+                cgb.type_alias(f"{prim_name}_type", prim_type_name)
+
+                cgb.empty_line()
+                cgb.append_line(
+                    f"void load_{prim_name}(IContext context, out {prim_name}_type value)")
+                cgb.begin_block()
+                for name in names:
+                    cgb.declare(f"_{name[1]}::{prim_name}_type", f"{name[0]}")
+                    cgb.append_statement(f"{name[1]}.load_{prim_name}(context,{name[0]})")
+                    cgb.assign(f"value.{name[0]}", f"{name[0]}")
+                cgb.end_block()
+
+                cgb.empty_line()
+                cgb.append_line(
+                    f"void store_{prim_name}(IContext context, in {prim_name}_type value)")
+                cgb.begin_block()
+                for name in names:
+                    cgb.append_statement(
+                        f"{name[1]}.store_{prim_name}(context,value.{name[0]})")
+                cgb.end_block()
+
+            cgb.end_struct()
         else:
-            assert self.loadstore_transform is not None
+            if self.loadstore_transform is None:
+                return None
 
             # Raise error if attempting to write to non-writable type
             if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.writable:
@@ -266,39 +318,9 @@ class BoundVariable:
                 self.variable_name,
                 self.loadstore_transform,
                 self.access)
+        if depth == 0:
             cg.call_data.declare(f"_{self.variable_name}", self.variable_name)
-
-    def gen_load_store_code(self, cg: CodeGen):
-        # self._gen_load_store(cg, PrimType.primal)
-        pass
-
-    def _gen_load_store(self, cg: CodeGen, prim: PrimType):
-
-        prim_name = prim.name
-        func_name = f"load_{self.variable_name}_{prim_name}"
-        func_def = f"void {func_name}(Context context, out {self.slang.primal_type_name} val)"
-
-        cgcode = cg.input_load_store
-        if self.children is not None:
-            access = self._get_access(prim)
-            if not access in [AccessType.read, AccessType.readwrite]:
-                return None
-            name_to_call = {name: child._gen_load_store(
-                cg, prim) for (name, child) in self.children.items()}
-            cgcode.append_line(func_def)
-            cgcode.begin_block()
-            for (name, child) in self.children.items():
-                cgcode.append_statement(f"{name_to_call[name]}(context, val.{name})")
-            cgcode.end_block()
-        else:
-            assert self.loadstore_transform is not None
-            self.python.gen_load_store(
-                cgcode,
-                self.variable_name,
-                self.loadstore_transform,
-                self.access)
-
-        return func_name
+        return self.variable_name
 
     def _gen_trampoline_argument(self):
         return self.slang.gen_trampoline_argument(self.differentiable)
