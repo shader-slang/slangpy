@@ -53,9 +53,8 @@ INT2_MATCHES = ScalarMatchTest(
         "vector<int64_t,2>",
         "int2",
     ],
-    [int2(15)],
-    [int(1), int(-2), int1(10), float(1), float1(1.0),
-     False, True, uint1(1), int3(1)],
+    [int2(15), int(1), int(-2), int1(10), uint1(1), int3(1)],
+    [float(1), float1(1.0), False, True],
 )
 
 TScalarTest = tuple[bool, str, Any, Any]

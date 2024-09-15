@@ -1,4 +1,6 @@
 from typing import Any, Optional
+
+from sgl import TypeLayoutReflection
 from kernelfunctions.backend import Device, ResourceUsage
 
 from kernelfunctions.shapes import TConcreteShape
@@ -46,7 +48,12 @@ class NDBuffer:
             total *= dim
         self.strides = tuple(reversed(strides))
 
-        self.element_size = self.element_type.byte_size()
+        if isinstance(element_type, TypeLayoutReflection):
+            self.element_size = element_type.size
+            self.element_stride = element_type.stride
+        else:
+            self.element_size = self.element_type.byte_size()
+            self.element_stride = self.element_size
 
         self.buffer = device.create_buffer(
             element_count=self.element_count,
@@ -74,16 +81,24 @@ class NDDifferentiableBuffer(NDBuffer):
     ):
         super().__init__(device, element_type, element_count, shape, usage)
 
+        if grad_type is None:
+            grad_type = element_type
+
         self.requires_grad = requires_grad
-        self.grad_type = get_or_create_type(
-            grad_type) if grad_type is not None else self.element_type
+        self.grad_type = get_or_create_type(grad_type)
         self.grad_usage = grad_usage if grad_usage is not None else self.usage
-        self.grad_element_size = self.grad_type.byte_size()
+
+        if isinstance(grad_type, TypeLayoutReflection):
+            self.grad_size = grad_type.size
+            self.grad_stride = grad_type.stride
+        else:
+            self.grad_size = self.grad_type.byte_size()
+            self.grad_stride = self.grad_size
 
         if self.requires_grad:
             self.grad_buffer = device.create_buffer(
                 element_count=self.element_count,
-                struct_size=self.grad_element_size,
+                struct_size=self.grad_size,
                 usage=self.grad_usage,
             )
         else:
