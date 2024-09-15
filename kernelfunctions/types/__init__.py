@@ -13,3 +13,5 @@ from .valuereftype import *
 from .diffpair import *
 from .diffpairtype import *
 from .structtype import *
+from .texturetype import *
+from .structuredbuffertype import *

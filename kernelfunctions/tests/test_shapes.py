@@ -516,9 +516,9 @@ def test_copyatindex_both_buffers_defined(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[1], [100, 4], [100, 4]],
-            "arg_shapes": [[50], [], []],
-            "call_shape": [50],
+            "type_shapes": [[], [100, 4], [100, 4]],
+            "arg_shapes": [[50, 1], [], []],
+            "call_shape": [50, 1],
         },
     )
     assert not diff
@@ -537,9 +537,9 @@ def test_copyatindex_undersized_output(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[1], [100, 4], [10, 4]],
-            "arg_shapes": [[50], [], []],
-            "call_shape": [50],
+            "type_shapes": [[], [100, 4], [10, 4]],
+            "arg_shapes": [[50, 1], [], []],
+            "call_shape": [50, 1],
         },
     )
     assert not diff
@@ -550,7 +550,7 @@ def test_copyatindex_undefined_output_size(device_type: DeviceType):
 
     # Output buffer size is undefined and can't be inferred.
     # This would ideally be solved with generics / IBuffer interface
-    with pytest.raises(ValueError, match=re.escape("Arg 2 type shape is ambiguous")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1 type shape is ambiguous")):
         shapes = copy_at_index(device_type,
                                FakeBuffer((50, 1)),
                                FakeBuffer((100, 4)),
