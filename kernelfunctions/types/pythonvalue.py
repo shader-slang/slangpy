@@ -46,15 +46,18 @@ class PythonVariable(BaseVariableImpl):
                     return False
             return True
 
-        if self.primal_element_name == other.primal_element_name:
+        el_name = self.root_element_name
+        other_name = other.root_element_name
+
+        if el_name == other_name:
             return True
-        if self.primal_element_name == 'none' or other.primal_element_name == 'none':
+        if el_name == 'none' or other_name == 'none':
             return True
 
         stripped_primal_name = re.sub(
-            r"\d+_t", "", self.primal_element_name).replace("uint", "int")
+            r"\d+_t", "", el_name).replace("uint", "int")
         stripped_other_name = re.sub(
-            r"\d+_t", "", other.primal_element_name).replace("uint", "int")
+            r"\d+_t", "", other_name).replace("uint", "int")
 
         if stripped_primal_name == stripped_other_name:
             return True
@@ -78,6 +81,7 @@ class PythonVariable(BaseVariableImpl):
         self._primal_type_name = self.primal.name(value)
         self._derivative_type_name = self.derivative.name(
             value) if self.derivative is not None else None
+        self._root_element_name = self._find_bottom_level_element(value).name(value)
         self._primal_element_name = self.primal.element_type(value).name(value)
         self._derivative_element_name = self.derivative.element_type(
             value).name(value) if self.derivative is not None else None
@@ -115,3 +119,7 @@ class PythonVariable(BaseVariableImpl):
     @property
     def derivative_element_name(self):
         return self._derivative_element_name
+
+    @property
+    def root_element_name(self):
+        return self._root_element_name

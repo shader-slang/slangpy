@@ -280,8 +280,8 @@ def generate_code(call_shape: list[int], function: Function, signature: BoundCal
     nodes: list[BoundVariable] = []
 
     # Generate the header
-    cg.imports.append_statement(f'import "slangpy"')
-    cg.imports.append_statement(f'import "{function.module.name}"')
+    cg.add_import("slangpy")
+    cg.add_import(function.module.name)
 
     # Generate call data inputs if vector call
     call_data_len = len(call_shape)

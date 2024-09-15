@@ -50,10 +50,6 @@ class ValueTypeImpl(BaseTypeImpl):
                 'value': data
             }
 
-    # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
-        pass
-
 
 """
 Mapping of type reflection enum to slang type name
@@ -195,6 +191,9 @@ class VectorType(ValueTypeImpl):
     def shape(self, value: Any = None):
         return (self.size,)
 
+    def element_type(self, value: Any = None):
+        return self.et
+
     def differentiable(self, value: Any = None):
         return self.et.differentiable(value)
 
@@ -239,6 +238,9 @@ class MatrixType(ValueTypeImpl):
 
     def shape(self, value: Any = None):
         return (self.rows, self.cols)
+
+    def element_type(self, value: Any = None):
+        return self.et
 
     def differentiable(self, value: Any = None):
         return self.et.differentiable(value)

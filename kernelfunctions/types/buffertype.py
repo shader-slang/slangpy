@@ -113,7 +113,11 @@ class NDBufferType(BaseTypeImpl):
         return self.el_type.differentiable()
 
     def differentiate(self, value: Optional[NDBuffer] = None):
-        return self.el_type.differentiate()
+        et = self.el_type.differentiate()
+        if et is not None:
+            return NDBufferType(et)
+        else:
+            return None
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
         return NDBuffer(device, self.el_type.python_return_value_type(), shape=tuple(call_shape), usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
@@ -215,11 +219,15 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             return None
 
-    def differentiable(self, value: Optional[NDDifferentiableBuffer] = None):
+    def differentiable(self, value: Optional[NDBuffer] = None):
         return self.el_type.differentiable()
 
-    def differentiate(self, value: Optional[NDDifferentiableBuffer] = None):
-        return self.el_type.differentiate()
+    def differentiate(self, value: Optional[NDBuffer] = None):
+        et = self.el_type.differentiate()
+        if et is not None:
+            return NDDifferentiableBufferType(et)
+        else:
+            return None
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
         return NDDifferentiableBuffer(device, self.el_type.python_return_value_type(),

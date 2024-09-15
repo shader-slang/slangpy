@@ -1,6 +1,10 @@
 
+from typing import TYPE_CHECKING, Any
 from kernelfunctions.types.basevalue import BaseVariable
 from kernelfunctions.types.enums import PrimType
+
+if TYPE_CHECKING:
+    from kernelfunctions.types.basetype import BaseType
 
 
 class BaseVariableImpl(BaseVariable):
@@ -31,3 +35,12 @@ class BaseVariableImpl(BaseVariable):
                 return f"{self.primal.name()}"
             else:
                 return f"{self.primal.name()} ({self.name})"
+
+    def _find_bottom_level_element(self, value: Any = None) -> 'BaseType':
+        t = self.primal
+        while True:
+            c = t.element_type(value)
+            if c is None or c is t:
+                return c
+            t = c
+        return t

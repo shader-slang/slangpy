@@ -38,6 +38,10 @@ class BaseVariable:
         raise NotImplementedError()
 
     @property
+    def root_element_name(self):
+        raise NotImplementedError()
+
+    @property
     def argument_declaration(self):
         raise NotImplementedError()
 
