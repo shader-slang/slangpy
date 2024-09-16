@@ -2,45 +2,12 @@
 
 from typing import Any, Optional, Sequence
 
-from sgl import Device, ResourceUsage
-from kernelfunctions.core.codegen import CodeGenBlock
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType, PrimType
+
+from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
+
+from kernelfunctions.backend import Device, ResourceUsage
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
-from kernelfunctions.core.basetype import BaseType
-from kernelfunctions.core.basetypeimpl import BaseTypeImpl
-from kernelfunctions.core.basevariable import BaseVariable
-from kernelfunctions.core.enums import AccessType, PrimType
-from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
-
-TYPES = r"""
-int _idx<let N: int>(int[N] index, int[N] stride) {
-    int idx = 0;
-    for (int i = 0; i < N; i++) { idx += index[i] * stride[i]; }
-    return idx;
-}
-struct TensorBuffer<T, let N : int> {
-    RWStructuredBuffer<T> buffer;
-    int[N] strides;
-    T get(int[N] index) { return buffer[_idx(index, strides)]; }
-    __subscript(int[N] index)->T { get { return get(index); } }
-}
-struct RWTensorBuffer<T, let N : int> {
-    RWStructuredBuffer<T> buffer;
-    int[N] strides;
-    T get(int[N] index) { return buffer[_idx(index, strides)]; }
-    void set(int[N] index, T value) { buffer[_idx(index, strides)] = value; }
-    __subscript(int[N] index)->T { get { return get(index); } set { set(index, newValue); } }
-}
-"""
-
-
-def _transform_to_subscript(transform: list[Optional[int]]):
-    """
-    Generates the subscript to be passed into the [] operator when loading or storing
-    from the buffer.
-    """
-    vals = ",".join(
-        ("0" if x is None else f"context.call_id[{x}]") for x in transform)
-    return f"[{{{vals}}}]"
 
 
 class NDBufferType(BaseTypeImpl):

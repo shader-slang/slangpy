@@ -3,14 +3,12 @@
 from typing import Any, Optional, Sequence
 import numpy as np
 
-from sgl import Buffer, Device, ResourceUsage
-from kernelfunctions.core.codegen import CodeGenBlock
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType
+
+from kernelfunctions.types import ValueRef
+
+from kernelfunctions.backend import Buffer, Device, ResourceUsage
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
-from kernelfunctions.core.basetype import BaseType
-from kernelfunctions.core.basetypeimpl import BaseTypeImpl
-from kernelfunctions.core.basevariable import BaseVariable
-from kernelfunctions.core.enums import AccessType
-from kernelfunctions.types.valueref import ValueRef
 
 
 class ValueRefType(BaseTypeImpl):

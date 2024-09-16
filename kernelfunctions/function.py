@@ -1,8 +1,9 @@
 from typing import Any, Callable, Optional
 
+from kernelfunctions.core import SlangFunction
+
 from kernelfunctions.backend import SlangModule, DeclReflection
 from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.core.slangvariable import SlangFunction
 
 
 class FunctionChainBase:

@@ -2,9 +2,21 @@ import hashlib
 import os
 from typing import Any
 
+from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen
+
 from kernelfunctions.backend import uint3
 
-from kernelfunctions.callsignature import bind, build_signature, calculate_and_apply_call_shape, create_return_value, generate_code, get_readable_func_string, get_readable_signature_string, match_signatures, read_call_data_post_dispatch, write_calldata_pre_dispatch
+from kernelfunctions.callsignature import (
+    bind,
+    calculate_and_apply_call_shape,
+    create_return_value, generate_code,
+    get_readable_func_string,
+    get_readable_signature_string,
+    match_signatures,
+    read_call_data_post_dispatch,
+    write_calldata_pre_dispatch
+)
+
 from kernelfunctions.function import (
     Function,
     FunctionChainBase,
@@ -12,13 +24,11 @@ from kernelfunctions.function import (
     FunctionChainOutputTransform,
     FunctionChainSet,
 )
+
 from kernelfunctions.shapes import (
     TConcreteShape,
 )
 
-import kernelfunctions.core.codegen as cg
-from kernelfunctions.types import CallMode
-from kernelfunctions.core.pythonvariable import PythonFunctionCall, PythonVariable
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
 
@@ -111,7 +121,7 @@ Overloads:
         create_return_value(self.call_shape, self.bindings, self.call_mode)
 
         # generate code
-        codegen = cg.CodeGen()
+        codegen = CodeGen()
         generate_code(self.call_shape, self.function,
                       self.bindings, self.call_mode, codegen)
 

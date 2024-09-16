@@ -1,10 +1,9 @@
 from io import StringIO
 from typing import Any, Callable, Optional, Union
 
-from sgl import TypeLayoutReflection
-
-from kernelfunctions.backend import TypeReflection
 from kernelfunctions.core.basetype import BaseType
+
+from kernelfunctions.backend import TypeReflection, TypeLayoutReflection
 
 # Dictionary of python types to corresponding hash functions
 PYTHON_SIGNATURE_HASH: dict[type, Optional[Callable[[StringIO, Any], Any]]] = {

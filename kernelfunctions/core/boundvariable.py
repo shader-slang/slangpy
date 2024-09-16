@@ -1,14 +1,13 @@
 from types import NoneType
 from typing import Any, Optional, cast
 
-from kernelfunctions.core.enums import PrimType
-from kernelfunctions.core.pythonvariable import PythonVariable
-from kernelfunctions.core.slangvariable import SlangVariable
-
 from kernelfunctions.backend import Device
-from kernelfunctions.core.codegen import CodeGen
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
-from kernelfunctions.core.enums import AccessType, IOType, CallMode
+
+from .enums import PrimType, AccessType, IOType, CallMode
+from .pythonvariable import PythonVariable
+from .slangvariable import SlangVariable
+from .codegen import CodeGen
 
 
 class BoundCall:

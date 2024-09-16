@@ -1,11 +1,11 @@
 from types import NoneType
 from typing import Optional, Union
 
-from kernelfunctions.core.basevalueimpl import BaseVariableImpl
-from kernelfunctions.core.enums import IOType
-
 from kernelfunctions.backend import FunctionReflection, ModifierID, VariableReflection, TypeReflection
 from kernelfunctions.typeregistry import get_or_create_type
+
+from .basevalueimpl import BaseVariableImpl
+from .enums import IOType
 
 
 class SlangFunction:

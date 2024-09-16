@@ -1,9 +1,9 @@
 from typing import Optional, TYPE_CHECKING
 
-from kernelfunctions.core.enums import PrimType
+from .enums import PrimType
 
 if TYPE_CHECKING:
-    from kernelfunctions.core.basetype import BaseType
+    from .basetype import BaseType
 
 
 class BaseVariable:

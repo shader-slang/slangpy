@@ -2,14 +2,14 @@ import re
 from types import NoneType
 from typing import Any, Optional, Sequence
 
-from kernelfunctions.core.basevariable import BaseVariable
-from kernelfunctions.core.basevalueimpl import BaseVariableImpl
-from kernelfunctions.core.enums import AccessType
-from kernelfunctions.core.basetype import BaseType
-
 from kernelfunctions.backend import Device
-from kernelfunctions.core.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import get_or_create_type
+
+from .basevariable import BaseVariable
+from .basevalueimpl import BaseVariableImpl
+from .enums import AccessType
+from .basetype import BaseType
+from .codegen import CodeGenBlock
 
 
 class PythonFunctionCall:

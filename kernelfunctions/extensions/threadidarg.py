@@ -2,12 +2,10 @@
 
 from typing import Optional
 
-from sgl import TypeReflection
-from kernelfunctions.core.codegen import CodeGenBlock
+from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, PythonVariable
+
+from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
-from kernelfunctions.core.basetypeimpl import BaseTypeImpl
-from kernelfunctions.core.enums import AccessType
-from kernelfunctions.core.pythonvariable import PythonVariable
 
 
 class ThreadIdArg:

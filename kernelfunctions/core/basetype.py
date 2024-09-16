@@ -4,13 +4,13 @@ from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 import numpy.typing as npt
 
-from kernelfunctions.core.enums import AccessType
-
 from kernelfunctions.backend import Device
-from kernelfunctions.core.codegen import CodeGenBlock
+
+from .enums import AccessType
+from .codegen import CodeGenBlock
 
 if TYPE_CHECKING:
-    from kernelfunctions.core.basevariable import BaseVariable
+    from .basevariable import BaseVariable
 
 
 class BaseType:
