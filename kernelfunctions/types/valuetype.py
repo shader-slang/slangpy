@@ -19,7 +19,7 @@ writable and don't store an additional derivative.
 """
 
 
-class ValueTypeImpl(BaseTypeImpl):
+class ValueType(BaseTypeImpl):
     def __init__(self):
         super().__init__()
 
@@ -104,7 +104,7 @@ SCALAR_TYPE_SIZES: dict[TypeReflection.ScalarType, int] = {
 }
 
 
-class ScalarType(ValueTypeImpl):
+class ScalarType(ValueType):
     def __init__(self, slang_type: TypeReflection.ScalarType):
         super().__init__()
         self.slang_type = slang_type
@@ -161,7 +161,7 @@ class ScalarType(ValueTypeImpl):
         return self.python_type
 
 
-class NoneValueType(ValueTypeImpl):
+class NoneValueType(ValueType):
     def __init__(self, slang_type: TypeReflection.ScalarType):
         super().__init__()
 
@@ -175,7 +175,7 @@ class NoneValueType(ValueTypeImpl):
         return NoneType
 
 
-class VectorType(ValueTypeImpl):
+class VectorType(ValueType):
     def __init__(self, element_type: BaseType, size: int):
         super().__init__()
         self.et = element_type
@@ -222,7 +222,7 @@ class VectorType(ValueTypeImpl):
         return self.python_type
 
 
-class MatrixType(ValueTypeImpl):
+class MatrixType(ValueType):
     def __init__(self, element_type: BaseType, rows: int, cols: int):
         super().__init__()
         self.et = element_type
