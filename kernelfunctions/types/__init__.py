@@ -12,6 +12,6 @@ from .valueref import *
 from .valuereftype import *
 from .diffpair import *
 from ..bindings.diffpairtype import *
-from .structtype import *
-from .texturetype import *
-from .structuredbuffertype import *
+from ..bindings.structtype import *
+from ..bindings.texturetype import *
+from ..bindings.structuredbuffertype import *
