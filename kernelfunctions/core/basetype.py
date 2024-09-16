@@ -5,7 +5,7 @@ import numpy.typing as npt
 
 from ..backend import Device
 from ..codegen import CodeGenBlock
-from ..types.enums import AccessType
+from .enums import AccessType
 
 if TYPE_CHECKING:
     from .basevariable import BaseVariable

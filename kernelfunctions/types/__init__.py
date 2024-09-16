@@ -1,4 +1,4 @@
-from .enums import *
+from ..core.enums import *
 from .buffer import *
 from .buffertype import *
 from .threadidarg import *

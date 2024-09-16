@@ -6,7 +6,7 @@ from sgl import TypeReflection
 from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
 from kernelfunctions.core.basetypeimpl import BaseTypeImpl
-from kernelfunctions.types.enums import AccessType
+from kernelfunctions.core.enums import AccessType
 from kernelfunctions.core.pythonvariable import PythonVariable
 
 

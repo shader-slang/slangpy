@@ -11,7 +11,7 @@ from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG
 from kernelfunctions.core.basetype import BaseType
 from kernelfunctions.core.basetypeimpl import BaseTypeImpl
 from kernelfunctions.core.basevariable import BaseVariable
-from kernelfunctions.types.enums import AccessType
+from kernelfunctions.core.enums import AccessType
 
 """
 Common functionality for basic value types such as int, float, vector, matrix etc that aren't

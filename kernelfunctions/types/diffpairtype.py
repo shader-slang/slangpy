@@ -9,7 +9,7 @@ from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 from kernelfunctions.core.basetype import BaseType
 from kernelfunctions.core.basetypeimpl import BaseTypeImpl
 from kernelfunctions.core.basevariable import BaseVariable
-from kernelfunctions.types.enums import AccessType, PrimType
+from kernelfunctions.core.enums import AccessType, PrimType
 from kernelfunctions.types.diffpair import DiffPair
 
 

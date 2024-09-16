@@ -4,7 +4,7 @@ from typing import Any, Optional, Sequence
 
 from kernelfunctions.core.basevariable import BaseVariable
 from kernelfunctions.core.basevalueimpl import BaseVariableImpl
-from kernelfunctions.types.enums import AccessType
+from kernelfunctions.core.enums import AccessType
 
 from ..backend import Device
 
