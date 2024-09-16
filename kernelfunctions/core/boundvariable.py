@@ -7,7 +7,7 @@ from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
 from kernelfunctions.types import AccessType, IOType, CallMode
 from kernelfunctions.types.enums import PrimType
 from kernelfunctions.core.pythonvariable import PythonVariable
-from kernelfunctions.types.slangvariable import SlangVariable
+from kernelfunctions.core.slangvariable import SlangVariable
 
 
 class BoundCall:

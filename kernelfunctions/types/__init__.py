@@ -7,7 +7,7 @@ from ..core.basetype import *
 from ..core.basetypeimpl import *
 from .valuetype import *
 from ..core.pythonvariable import *
-from .slangvariable import *
+from ..core.slangvariable import *
 from .valueref import *
 from .valuereftype import *
 from .diffpair import *

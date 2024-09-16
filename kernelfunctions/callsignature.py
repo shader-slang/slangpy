@@ -11,7 +11,7 @@ from kernelfunctions.types import CallMode, AccessType
 from kernelfunctions.types.buffertype import NDDifferentiableBufferType
 from kernelfunctions.types.enums import IOType
 from kernelfunctions.core.pythonvariable import PythonFunctionCall, PythonVariable
-from kernelfunctions.types.slangvariable import SlangFunction, SlangVariable
+from kernelfunctions.core.slangvariable import SlangFunction, SlangVariable
 from kernelfunctions.types.valuereftype import ValueRefType
 
 
