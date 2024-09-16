@@ -185,7 +185,7 @@ class VectorType(ValueType):
     def byte_size(self, value: Any = None) -> int:
         return self.size * self.et.byte_size()
 
-    def shape(self, value: Any = None):
+    def container_shape(self, value: Any = None):
         return (self.size,)
 
     def element_type(self, value: Any = None):
@@ -233,7 +233,7 @@ class MatrixType(ValueType):
     def byte_size(self, value: Any = None) -> int:
         return self.rows * self.cols * self.et.byte_size()
 
-    def shape(self, value: Any = None):
+    def container_shape(self, value: Any = None):
         return (self.rows, self.cols)
 
     def element_type(self, value: Any = None):

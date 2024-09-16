@@ -345,13 +345,13 @@ def generate_code(call_shape: list[int], function: Function, signature: BoundCal
 
     def declare_p(x: BoundVariable, has_suffix: bool = False):
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
-        cg.kernel.append_statement(f"_{x.variable_name}::primal_type {name}")
+        cg.kernel.append_statement(f"{x.slang.primal_type_name} {name}")
         return name
 
     def declare_d(x: BoundVariable, has_suffix: bool = False):
         assert x.slang.derivative is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
-        cg.kernel.append_statement(f"_{x.variable_name}::derivative_type {name}")
+        cg.kernel.append_statement(f"{x.slang.derivative_type_name} {name}")
         return name
 
     def load_p(x: BoundVariable, has_suffix: bool = False):
