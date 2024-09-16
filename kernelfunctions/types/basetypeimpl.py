@@ -4,7 +4,7 @@ from typing import Any, Optional, Sequence
 
 from sgl import Device
 from kernelfunctions.types.basetype import BaseType
-from kernelfunctions.types.basevalue import BaseVariable
+from kernelfunctions.types.basevariable import BaseVariable
 from kernelfunctions.types.enums import AccessType
 
 

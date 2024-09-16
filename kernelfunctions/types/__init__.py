@@ -6,8 +6,8 @@ from .wanghasharg import *
 from .basetype import *
 from .basetypeimpl import *
 from .valuetypeimpl import *
-from .pythonvalue import *
-from .slangvalue import *
+from .pythonvariable import *
+from .slangvariable import *
 from .valueref import *
 from .valuereftype import *
 from .diffpair import *

@@ -10,8 +10,8 @@ from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH
 from kernelfunctions.types import CallMode, AccessType
 from kernelfunctions.types.buffertype import NDDifferentiableBufferType
 from kernelfunctions.types.enums import IOType
-from kernelfunctions.types.pythonvalue import PythonFunctionCall, PythonVariable
-from kernelfunctions.types.slangvalue import SlangFunction, SlangVariable
+from kernelfunctions.types.pythonvariable import PythonFunctionCall, PythonVariable
+from kernelfunctions.types.slangvariable import SlangFunction, SlangVariable
 from kernelfunctions.types.valuereftype import ValueRefType
 
 

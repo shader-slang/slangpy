@@ -2,7 +2,7 @@ import re
 from types import NoneType
 from typing import Any, Optional, Sequence
 
-from kernelfunctions.types.basevalue import BaseVariable
+from kernelfunctions.types.basevariable import BaseVariable
 from kernelfunctions.types.basevalueimpl import BaseVariableImpl
 from kernelfunctions.types.enums import AccessType
 

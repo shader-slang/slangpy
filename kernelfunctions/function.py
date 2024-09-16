@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional
 
 from kernelfunctions.backend import SlangModule, DeclReflection
 from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.types.slangvalue import SlangFunction
+from kernelfunctions.types.slangvariable import SlangFunction
 
 
 class FunctionChainBase:

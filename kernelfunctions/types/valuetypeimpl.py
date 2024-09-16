@@ -10,7 +10,7 @@ from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_VECTOR_TYPES
 from kernelfunctions.types.basetype import BaseType
 from kernelfunctions.types.basetypeimpl import BaseTypeImpl
-from kernelfunctions.types.basevalue import BaseVariable
+from kernelfunctions.types.basevariable import BaseVariable
 from kernelfunctions.types.enums import AccessType
 
 """

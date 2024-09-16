@@ -8,7 +8,7 @@ from ..codegen import CodeGenBlock
 from .enums import AccessType
 
 if TYPE_CHECKING:
-    from .basevalue import BaseVariable
+    from .basevariable import BaseVariable
 
 
 class BaseType:
