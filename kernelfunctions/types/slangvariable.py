@@ -5,7 +5,7 @@ from sgl import FunctionReflection, ModifierID, VariableReflection
 
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import get_or_create_type
-from kernelfunctions.types.basevalueimpl import BaseVariableImpl
+from kernelfunctions.core.basevalueimpl import BaseVariableImpl
 from kernelfunctions.types.enums import IOType
 
 

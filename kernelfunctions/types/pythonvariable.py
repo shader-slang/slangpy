@@ -2,8 +2,8 @@ import re
 from types import NoneType
 from typing import Any, Optional, Sequence
 
-from kernelfunctions.types.basevariable import BaseVariable
-from kernelfunctions.types.basevalueimpl import BaseVariableImpl
+from kernelfunctions.core.basevariable import BaseVariable
+from kernelfunctions.core.basevalueimpl import BaseVariableImpl
 from kernelfunctions.types.enums import AccessType
 
 from ..backend import Device

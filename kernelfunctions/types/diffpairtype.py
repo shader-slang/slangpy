@@ -8,7 +8,7 @@ from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 from kernelfunctions.core.basetype import BaseType
 from kernelfunctions.core.basetypeimpl import BaseTypeImpl
-from kernelfunctions.types.basevariable import BaseVariable
+from kernelfunctions.core.basevariable import BaseVariable
 from kernelfunctions.types.enums import AccessType, PrimType
 from kernelfunctions.types.diffpair import DiffPair
 

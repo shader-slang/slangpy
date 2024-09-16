@@ -3,7 +3,7 @@ from typing import Optional, TYPE_CHECKING
 from kernelfunctions.types.enums import PrimType
 
 if TYPE_CHECKING:
-    from ..core.basetype import BaseType
+    from .basetype import BaseType
 
 
 class BaseVariable:
