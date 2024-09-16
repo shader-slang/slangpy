@@ -4,7 +4,7 @@ from typing import Optional, Union
 from kernelfunctions.backend import FunctionReflection, ModifierID, VariableReflection, TypeReflection
 from kernelfunctions.typeregistry import get_or_create_type
 
-from .basevalueimpl import BaseVariableImpl
+from .basevariableimpl import BaseVariableImpl
 from .enums import IOType
 
 

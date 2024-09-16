@@ -6,7 +6,7 @@ from kernelfunctions.backend import Device
 from kernelfunctions.typeregistry import get_or_create_type
 
 from .basevariable import BaseVariable
-from .basevalueimpl import BaseVariableImpl
+from .basevariableimpl import BaseVariableImpl
 from .enums import AccessType
 from .basetype import BaseType
 from .codegen import CodeGenBlock
