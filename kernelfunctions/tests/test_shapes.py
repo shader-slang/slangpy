@@ -425,7 +425,7 @@ def test_readslice_vectorcall(device_type: DeviceType):
 def test_readslice_invalid_shape(device_type: DeviceType):
 
     # Fail trying to pass a float3 buffer into the float4 slice
-    with pytest.raises(ValueError, match=re.escape("Arg 1, PS[2] != IS[3], 4 != 3")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1, PS[2] != IS[3], 4 != 3")):
         shapes = read_slice(device_type,
                             FakeBuffer((50, 2)),
                             FakeBuffer((50, 256, 128, 3)),
@@ -436,7 +436,7 @@ def test_readslice_invalid_shape(device_type: DeviceType):
 def test_readslice_invalid_broadcast(device_type: DeviceType):
 
     # Fail trying to pass mismatched broadcast dimensions
-    with pytest.raises(ValueError, match=re.escape("Arg 1, CS[0] != AS[0], 50 != 75")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1, CS[0] != AS[0], 50 != 75")):
         shapes = read_slice(device_type,
                             FakeBuffer((50, 2)),
                             FakeBuffer((75, 256, 128, 4)),
