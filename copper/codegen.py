@@ -29,15 +29,17 @@ class SlangCodeGen:
         self.emit(f"// {text}")
 
     def begin_block(self, text: str = ""):
-        self.emit(f"{text}{{")
+        if text:
+            self.emit(text)
         self.indent()
 
     def end_block(self, text: str = ""):
         self.dedent()
-        self.emit(f"}}{text}")
+        if text:
+            self.emit(text)
 
     def namespace(self, name: str):
-        self.begin_block(f"namespace {name} ")
+        self.begin_block(f"namespace {name} {{")
 
     def code(self):
         return "\n".join(self.output)
