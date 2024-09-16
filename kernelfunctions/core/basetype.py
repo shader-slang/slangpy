@@ -7,7 +7,7 @@ import numpy.typing as npt
 from kernelfunctions.core.enums import AccessType
 
 from kernelfunctions.backend import Device
-from kernelfunctions.codegen import CodeGenBlock
+from kernelfunctions.core.codegen import CodeGenBlock
 
 if TYPE_CHECKING:
     from kernelfunctions.core.basevariable import BaseVariable

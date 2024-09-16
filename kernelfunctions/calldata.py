@@ -16,7 +16,7 @@ from kernelfunctions.shapes import (
     TConcreteShape,
 )
 
-import kernelfunctions.codegen as cg
+import kernelfunctions.core.codegen as cg
 from kernelfunctions.types import CallMode
 from kernelfunctions.core.pythonvariable import PythonFunctionCall, PythonVariable
 

@@ -6,9 +6,9 @@ from kernelfunctions.core.pythonvariable import PythonVariable
 from kernelfunctions.core.slangvariable import SlangVariable
 
 from kernelfunctions.backend import Device
-from kernelfunctions.codegen import CodeGen
+from kernelfunctions.core.codegen import CodeGen
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
-from kernelfunctions.types import AccessType, IOType, CallMode
+from kernelfunctions.core.enums import AccessType, IOType, CallMode
 
 
 class BoundCall:

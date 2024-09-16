@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from kernelfunctions.backend import DeviceType
 from kernelfunctions.callsignature import bind, build_signature, calculate_and_apply_call_shape, generate_code, match_signatures
-from kernelfunctions.codegen import CodeGen
+from kernelfunctions.core.codegen import CodeGen
 from kernelfunctions.core.boundvariable import CallMode
 from kernelfunctions.tests import helpers
 

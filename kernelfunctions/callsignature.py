@@ -2,7 +2,7 @@ import hashlib
 from io import StringIO
 from typing import Any, Optional, Union, cast
 from kernelfunctions.backend import Device
-from kernelfunctions.codegen import CodeGen
+from kernelfunctions.core.codegen import CodeGen
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.core.boundvariable import BoundCall, BoundVariable
