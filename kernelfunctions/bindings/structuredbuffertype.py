@@ -6,7 +6,7 @@ from sgl import Buffer, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES
 import kernelfunctions.typeregistry as tr
 from kernelfunctions.core.basetype import BaseType
-from kernelfunctions.types.valuetype import ValueType
+from kernelfunctions.bindings.valuetype import ValueType
 
 
 class StructuredBufferType(ValueType):
