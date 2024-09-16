@@ -6,7 +6,7 @@ from kernelfunctions.codegen import CodeGen
 from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
 from kernelfunctions.types import AccessType, IOType, CallMode
 from kernelfunctions.types.enums import PrimType
-from kernelfunctions.types.pythonvariable import PythonVariable
+from kernelfunctions.core.pythonvariable import PythonVariable
 from kernelfunctions.types.slangvariable import SlangVariable
 
 

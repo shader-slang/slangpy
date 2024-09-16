@@ -18,7 +18,7 @@ from kernelfunctions.shapes import (
 
 import kernelfunctions.codegen as cg
 from kernelfunctions.types import CallMode
-from kernelfunctions.types.pythonvariable import PythonFunctionCall, PythonVariable
+from kernelfunctions.core.pythonvariable import PythonFunctionCall, PythonVariable
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
 
