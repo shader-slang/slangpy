@@ -1,6 +1,6 @@
 from ..core.enums import *
 from .buffer import *
-from .buffertype import *
+from ..bindings.buffertype import *
 from .threadidarg import *
 from .wanghasharg import *
 from ..core.basetype import *

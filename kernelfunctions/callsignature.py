@@ -8,7 +8,7 @@ from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.core.boundvariable import BoundCall, BoundVariable
 from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH
 from kernelfunctions.types import CallMode, AccessType
-from kernelfunctions.types.buffertype import NDDifferentiableBufferType
+from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
 from kernelfunctions.core.enums import IOType
 from kernelfunctions.core.pythonvariable import PythonFunctionCall, PythonVariable
 from kernelfunctions.core.slangvariable import SlangFunction, SlangVariable
