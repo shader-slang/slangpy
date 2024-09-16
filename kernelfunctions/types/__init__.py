@@ -9,7 +9,7 @@ from .valuetype import *
 from ..core.pythonvariable import *
 from ..core.slangvariable import *
 from .valueref import *
-from .valuereftype import *
+from ..bindings.valuereftype import *
 from .diffpair import *
 from ..bindings.diffpairtype import *
 from ..bindings.structtype import *

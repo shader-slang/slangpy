@@ -12,7 +12,7 @@ from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
 from kernelfunctions.core.enums import IOType
 from kernelfunctions.core.pythonvariable import PythonFunctionCall, PythonVariable
 from kernelfunctions.core.slangvariable import SlangFunction, SlangVariable
-from kernelfunctions.types.valuereftype import ValueRefType
+from kernelfunctions.bindings.valuereftype import ValueRefType
 
 
 def build_signature_hash(*args: Any, **kwargs: Any) -> str:
