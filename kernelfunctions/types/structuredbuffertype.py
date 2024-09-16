@@ -6,10 +6,10 @@ from sgl import Buffer, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES
 import kernelfunctions.typeregistry as tr
 from kernelfunctions.types.basetype import BaseType
-from kernelfunctions.types.valuetypeimpl import ValueTypeImpl
+from kernelfunctions.types.valuetype import ValueType
 
 
-class StructuredBufferType(ValueTypeImpl):
+class StructuredBufferType(ValueType):
 
     def __init__(self, element_type: BaseType):
         super().__init__()

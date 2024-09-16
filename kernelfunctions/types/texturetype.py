@@ -5,10 +5,10 @@ from typing import Any, Optional
 from sgl import Buffer, Texture, TypeReflection
 import kernelfunctions.typeregistry as tr
 from kernelfunctions.types.basetype import BaseType
-from kernelfunctions.types.valuetypeimpl import ValueTypeImpl
+from kernelfunctions.types.valuetype import ValueType
 
 
-class TextureType(ValueTypeImpl):
+class TextureType(ValueType):
 
     def __init__(self, element_type: BaseType, writable: bool, base_texture_type_name: str, texture_shape: int):
         super().__init__()

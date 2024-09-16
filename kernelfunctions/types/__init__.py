@@ -5,7 +5,7 @@ from .threadidarg import *
 from .wanghasharg import *
 from .basetype import *
 from .basetypeimpl import *
-from .valuetypeimpl import *
+from .valuetype import *
 from .pythonvariable import *
 from .slangvariable import *
 from .valueref import *

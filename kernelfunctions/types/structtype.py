@@ -6,10 +6,10 @@ from sgl import TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES
 import kernelfunctions.typeregistry as tr
 from kernelfunctions.types.basetype import BaseType
-from kernelfunctions.types.valuetypeimpl import ValueTypeImpl
+from kernelfunctions.types.valuetype import ValueType
 
 
-class StructType(ValueTypeImpl):
+class StructType(ValueType):
 
     def __init__(self, struct_name: str):
         super().__init__()
