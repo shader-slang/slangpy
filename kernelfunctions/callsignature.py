@@ -5,7 +5,7 @@ from kernelfunctions.backend import Device
 from kernelfunctions.codegen import CodeGen
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.types.boundvariable import BoundCall, BoundVariable
+from kernelfunctions.core.boundvariable import BoundCall, BoundVariable
 from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH
 from kernelfunctions.types import CallMode, AccessType
 from kernelfunctions.types.buffertype import NDDifferentiableBufferType
