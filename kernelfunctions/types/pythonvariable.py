@@ -10,7 +10,7 @@ from ..backend import Device
 
 from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import get_or_create_type
-from kernelfunctions.types.basetype import BaseType
+from kernelfunctions.core.basetype import BaseType
 
 
 class PythonFunctionCall:

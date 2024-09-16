@@ -4,7 +4,7 @@ from typing import Any, Optional
 from sgl import Device, TypeReflection
 from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
-from kernelfunctions.types.basetypeimpl import BaseTypeImpl
+from kernelfunctions.core.basetypeimpl import BaseTypeImpl
 from kernelfunctions.types.enums import AccessType
 from kernelfunctions.types.pythonvariable import PythonVariable
 

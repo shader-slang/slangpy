@@ -5,10 +5,10 @@ import numpy.typing as npt
 
 from ..backend import Device
 from ..codegen import CodeGenBlock
-from .enums import AccessType
+from ..types.enums import AccessType
 
 if TYPE_CHECKING:
-    from .basevariable import BaseVariable
+    from ..types.basevariable import BaseVariable
 
 
 class BaseType:

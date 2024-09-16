@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from sgl import Buffer, Texture, TypeReflection
 import kernelfunctions.typeregistry as tr
-from kernelfunctions.types.basetype import BaseType
+from kernelfunctions.core.basetype import BaseType
 from kernelfunctions.types.valuetype import ValueType
 
 

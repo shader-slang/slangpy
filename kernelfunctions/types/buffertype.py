@@ -5,8 +5,8 @@ from typing import Any, Optional, Sequence
 from sgl import Device, ResourceUsage
 from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
-from kernelfunctions.types.basetype import BaseType
-from kernelfunctions.types.basetypeimpl import BaseTypeImpl
+from kernelfunctions.core.basetype import BaseType
+from kernelfunctions.core.basetypeimpl import BaseTypeImpl
 from kernelfunctions.types.basevariable import BaseVariable
 from kernelfunctions.types.enums import AccessType, PrimType
 from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer

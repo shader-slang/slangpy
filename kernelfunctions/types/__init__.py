@@ -3,8 +3,8 @@ from .buffer import *
 from .buffertype import *
 from .threadidarg import *
 from .wanghasharg import *
-from .basetype import *
-from .basetypeimpl import *
+from ..core.basetype import *
+from ..core.basetypeimpl import *
 from .valuetype import *
 from .pythonvariable import *
 from .slangvariable import *

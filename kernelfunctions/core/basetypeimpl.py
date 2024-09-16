@@ -4,8 +4,8 @@ from typing import Any, Optional, Sequence
 
 from sgl import Device
 from .basetype import BaseType
-from .basevariable import BaseVariable
-from .enums import AccessType
+from ..types.basevariable import BaseVariable
+from ..types.enums import AccessType
 
 
 class BaseTypeImpl(BaseType):
