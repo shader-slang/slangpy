@@ -1,49 +1,21 @@
 import re
-from types import NoneType
 from typing import Any, Optional
 import pytest
 from kernelfunctions.backend import DeviceType, float1, float3
-from kernelfunctions.callsignature import CallMode, SignatureNode, apply_signature, build_signature, calculate_and_apply_call_shape, match_signature
+from kernelfunctions.callsignature import CallMode, BoundVariable, bind, build_signature, calculate_and_apply_call_shape, match_signatures
 from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
 from kernelfunctions.tests import helpers
-from kernelfunctions.typeregistry import PythonMarshal, register_python_type
-from kernelfunctions.utils import ScalarRef, floatRef
-
-# Dummy class that fakes a buffer of a given shape for testing
-
-
-class FakeBuffer:
-    def __init__(self, shape: tuple[Optional[int], ...]):
-        super().__init__()
-        self.shape = shape
-
-
-class FakeBufferMarshall(PythonMarshal):
-    def __init__(self):
-        super().__init__(FakeBuffer)
-
-    def is_writable(self, value: Any) -> bool:
-        return True
-
-    def get_element_shape(self, value: FakeBuffer):
-        return ()
-
-    def get_container_shape(self, value: FakeBuffer):
-        return value.shape
-
-    def get_element_type(self, value: Any):
-        return NoneType
-
-
-register_python_type(FakeBuffer, FakeBufferMarshall(),
-                     lambda stream, x: stream.write(x.element_type.__name + "\n"))
-
+from kernelfunctions.types import floatRef
+from kernelfunctions.types.valueref import ValueRef
+from helpers import FakeBuffer
 
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
+
+
 def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
                 input_transforms: Optional[dict[str, tuple[int, ...]]] = None,
                 ouput_transforms: Optional[dict[str, tuple[int, ...]]] = None,
@@ -57,15 +29,14 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     )
 
     sig = build_signature(a=a, b=b, _result=result)
-    match = match_signature(
-        sig, function.ast_functions[0].as_function(), CallMode.prim)
+    match = match_signatures(
+        sig, function.overloads[0], CallMode.prim)
     assert match is not None
-    apply_signature(match, function.ast_functions[0].as_function(
-    ), CallMode.prim, input_transforms, ouput_transforms)
-    call_shape = calculate_and_apply_call_shape(match)
+    tree = bind(sig, match, CallMode.prim, input_transforms, ouput_transforms)
+    call_shape = calculate_and_apply_call_shape(tree)
 
-    nodes: list[SignatureNode] = []
-    for node in match.values():
+    nodes: list[BoundVariable] = []
+    for node in tree.values():
         node.get_input_list(nodes)
     return {
         "call_shape": call_shape,
@@ -91,15 +62,14 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     )
 
     sig = build_signature(index=index, texture=texture, _result=result)
-    match = match_signature(
-        sig, function.ast_functions[0].as_function(), CallMode.prim)
+    match = match_signatures(
+        sig, function.overloads[0], CallMode.prim)
     assert match is not None
-    apply_signature(match, function.ast_functions[0].as_function(
-    ), CallMode.prim, input_transforms, ouput_transforms)
-    call_shape = calculate_and_apply_call_shape(match)
+    tree = bind(sig, match, CallMode.prim, input_transforms, ouput_transforms)
+    call_shape = calculate_and_apply_call_shape(tree)
 
-    nodes: list[SignatureNode] = []
-    for node in match.values():
+    nodes: list[BoundVariable] = []
+    for node in tree.values():
         node.get_input_list(nodes)
     return {
         "call_shape": call_shape,
@@ -127,15 +97,14 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
     )
 
     sig = build_signature(index=index, fr=frombuffer, to=tobuffer)
-    match = match_signature(
-        sig, function.ast_functions[0].as_function(), CallMode.prim)
+    match = match_signatures(
+        sig, function.overloads[0], CallMode.prim)
     assert match is not None
-    apply_signature(match, function.ast_functions[0].as_function(
-    ), CallMode.prim, input_transforms, ouput_transforms)
-    call_shape = calculate_and_apply_call_shape(match)
+    tree = bind(sig, match, CallMode.prim, input_transforms, ouput_transforms)
+    call_shape = calculate_and_apply_call_shape(tree)
 
-    nodes: list[SignatureNode] = []
-    for node in match.values():
+    nodes: list[BoundVariable] = []
+    for node in tree.values():
         node.get_input_list(nodes)
     return {
         "call_shape": call_shape,
@@ -152,7 +121,7 @@ def test_dotproduct_scalar(device_type: DeviceType):
     shapes = dot_product(device_type, float3(), float3(), None)
     diff = deepdiff.DeepDiff(
         shapes,
-        {"type_shapes": [[3], [3], [1]], "arg_shapes": [[], [], []], "call_shape": []},
+        {"type_shapes": [[3], [3], []], "arg_shapes": [[], [], []], "call_shape": []},
     )
     assert not diff
 
@@ -164,7 +133,7 @@ def test_dotproduct_scalar_floatref(device_type: DeviceType):
     shapes = dot_product(device_type, float3(), float3(), floatRef())
     diff = deepdiff.DeepDiff(
         shapes,
-        {"type_shapes": [[3], [3], [1]], "arg_shapes": [[], [], []], "call_shape": []},
+        {"type_shapes": [[3], [3], []], "arg_shapes": [[], [], []], "call_shape": []},
     )
     assert not diff
 
@@ -177,7 +146,7 @@ def test_dotproduct_broadcast_a(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[], [100], [100]],
             "call_shape": [100],
         },
@@ -193,7 +162,7 @@ def test_dotproduct_broadcast_b(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[100], [], [100]],
             "call_shape": [100],
         },
@@ -209,7 +178,7 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[100], [1], [100]],
             "call_shape": [100],
         },
@@ -221,7 +190,7 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
 def test_dotproduct_shape_error(device_type: DeviceType):
 
     # attempt to pass a buffer of float4s for a, causes shape error
-    with pytest.raises(ValueError, match=re.escape("Arg 0, PS[0] != IS[1], 3 != 4")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1, PS[0] != IS[1], 3 != 4")):
         dot_product(device_type, FakeBuffer((100, 4)), FakeBuffer((3,)), None)
 
 
@@ -230,7 +199,7 @@ def test_dotproduct_broadcast_error(device_type: DeviceType):
 
     # attempt to pass missmatching buffer sizes for a and b
     with pytest.raises(
-        ValueError, match=re.escape("Arg 1, CS[0] != AS[0], 100 != 1000")
+        ValueError, match=re.escape("Arg -1, CS[0] != AS[0], 100 != 1000")
     ):
         dot_product(device_type, FakeBuffer((100, 3)), FakeBuffer((1000, 3)), None)
 
@@ -240,12 +209,12 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 
     # pass an output, which is also broadcast so would in practice be a race condition
     shapes = dot_product(device_type, FakeBuffer(
-        (100, 3)), FakeBuffer((3,)), ScalarRef(float1()))
+        (100, 3)), FakeBuffer((3,)), ValueRef(float1()))
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
-            "arg_shapes": [[100], [], []],
+            "type_shapes": [[3], [3], []],
+            "arg_shapes": [[100], [], [1]],
             "call_shape": [100],
         },
     )
@@ -256,7 +225,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 def test_dotproduct_broadcast_invalid_result(device_type: DeviceType):
 
     # pass an output of the wrong shape resulting in error
-    with pytest.raises(ValueError, match=re.escape("Arg -1, PS[0] != IS[0], 1 != 3")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1, CS[0] != AS[0], 100 != 3")):
         shapes = dot_product(device_type, FakeBuffer((100, 3)),
                              FakeBuffer((3,)), FakeBuffer((3,)))
 
@@ -267,7 +236,7 @@ def test_dotproduct_ambiguous_call_shape(device_type: DeviceType):
     # Passing buffer for result with undefined size. In principle
     # this would broadcast to each entry of the buffer, but because
     # the size is undefined it will raise an error
-    with pytest.raises(ValueError, match=re.escape("Call shape is ambiguous: [None]")):
+    with pytest.raises(ValueError, match=re.escape("Call shape is ambiguous: [None, 1]")):
         dot_product(device_type, FakeBuffer((3,)),
                     FakeBuffer((3,)), FakeBuffer((None, 1)))
 
@@ -283,9 +252,9 @@ def test_dotproduct_infer_buffer_size(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
-            "arg_shapes": [[], [100], [100]],
-            "call_shape": [100],
+            "type_shapes": [[3], [3], []],
+            "arg_shapes": [[], [100], [100, 1]],
+            "call_shape": [100, 1],
         },
     )
     assert not diff
@@ -300,9 +269,9 @@ def test_dotproduct_big_tensors(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
-            "arg_shapes": [[8, 1, 2], [8, 4, 2], [8, 4, 2]],
-            "call_shape": [8, 4, 2],
+            "type_shapes": [[3], [3], []],
+            "arg_shapes": [[8, 1, 2], [8, 4, 2], [8, 4, 2, 1]],
+            "call_shape": [8, 4, 2, 1],
         },
     )
     assert not diff
@@ -320,7 +289,7 @@ def test_dotproduct_input_transform(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[8, 1, 2], [8, 4, 2], [8, 4, 2]],
             "call_shape": [8, 4, 2],
         },
@@ -342,7 +311,7 @@ def test_dotproduct_output_transform(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[10], [5], [10, 5]],
             "call_shape": [10, 5],
         },
@@ -367,7 +336,7 @@ def test_dotproduct_both_transform(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], [1]],
+            "type_shapes": [[3], [3], []],
             "arg_shapes": [[10], [5], [10, 5]],
             "call_shape": [10, 5],
         },
@@ -456,7 +425,7 @@ def test_readslice_vectorcall(device_type: DeviceType):
 def test_readslice_invalid_shape(device_type: DeviceType):
 
     # Fail trying to pass a float3 buffer into the float4 slice
-    with pytest.raises(ValueError, match=re.escape("Arg 1, PS[2] != IS[3], 4 != 3")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1, PS[2] != IS[3], 4 != 3")):
         shapes = read_slice(device_type,
                             FakeBuffer((50, 2)),
                             FakeBuffer((50, 256, 128, 3)),
@@ -467,7 +436,7 @@ def test_readslice_invalid_shape(device_type: DeviceType):
 def test_readslice_invalid_broadcast(device_type: DeviceType):
 
     # Fail trying to pass mismatched broadcast dimensions
-    with pytest.raises(ValueError, match=re.escape("Arg 1, CS[0] != AS[0], 50 != 75")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1, CS[0] != AS[0], 50 != 75")):
         shapes = read_slice(device_type,
                             FakeBuffer((50, 2)),
                             FakeBuffer((75, 256, 128, 4)),
@@ -547,9 +516,9 @@ def test_copyatindex_both_buffers_defined(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[1], [100, 4], [100, 4]],
-            "arg_shapes": [[50], [], []],
-            "call_shape": [50],
+            "type_shapes": [[], [100, 4], [100, 4]],
+            "arg_shapes": [[50, 1], [], []],
+            "call_shape": [50, 1],
         },
     )
     assert not diff
@@ -568,9 +537,9 @@ def test_copyatindex_undersized_output(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[1], [100, 4], [10, 4]],
-            "arg_shapes": [[50], [], []],
-            "call_shape": [50],
+            "type_shapes": [[], [100, 4], [10, 4]],
+            "arg_shapes": [[50, 1], [], []],
+            "call_shape": [50, 1],
         },
     )
     assert not diff
@@ -581,7 +550,7 @@ def test_copyatindex_undefined_output_size(device_type: DeviceType):
 
     # Output buffer size is undefined and can't be inferred.
     # This would ideally be solved with generics / IBuffer interface
-    with pytest.raises(ValueError, match=re.escape("Arg 2 type shape is ambiguous")):
+    with pytest.raises(ValueError, match=re.escape("Arg -1 type shape is ambiguous")):
         shapes = copy_at_index(device_type,
                                FakeBuffer((50, 1)),
                                FakeBuffer((100, 4)),

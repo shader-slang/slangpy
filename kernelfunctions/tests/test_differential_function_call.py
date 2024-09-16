@@ -1,7 +1,6 @@
 import pytest
-from kernelfunctions.types import NDDifferentiableBuffer
+from kernelfunctions.types import NDDifferentiableBuffer, diffPair
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.utils import diffPair
 from kernelfunctions.backend import DeviceType, float3, float1
 import numpy as np
 
@@ -235,6 +234,12 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     kernel_eval_polynomial = helpers.create_function_from_module(
         device, "polynomial", POLYNOMIAL_V3
     )
+
+    class Vec:
+        def __init__(self, x, y, z):  # type: ignore
+            self.x = x
+            self.y = y
+            self.z = z
 
     a_x = NDDifferentiableBuffer(
         element_count=32,

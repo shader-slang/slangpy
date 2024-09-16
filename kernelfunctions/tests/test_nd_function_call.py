@@ -1,6 +1,6 @@
 import pytest
 from kernelfunctions.backend import DeviceType
-from kernelfunctions.types import NDDifferentiableBuffer
+from kernelfunctions.types import NDBuffer
 import kernelfunctions.tests.helpers as helpers
 import numpy as np
 
@@ -20,9 +20,9 @@ void add_numbers_nd(float a, float b, out float c) {
 """,
     )
 
-    a = NDDifferentiableBuffer(device, element_type=float, shape=(2, 2))
-    b = NDDifferentiableBuffer(device, element_type=float, shape=(2, 2))
-    c = NDDifferentiableBuffer(device, element_type=float, shape=(2, 2))
+    a = NDBuffer(device, element_type=float, shape=(2, 2))
+    b = NDBuffer(device, element_type=float, shape=(2, 2))
+    c = NDBuffer(device, element_type=float, shape=(2, 2))
 
     # type: ignore (shape is a tuple)
     a_data = np.random.rand(*a.shape).astype(np.float32)

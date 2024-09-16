@@ -1,4 +1,7 @@
 
+from typing import Optional
+
+
 def diff_pair(primal: str, derivative: str = "0"):
     return f"diffPair({primal}, {derivative})"
 
@@ -30,6 +33,9 @@ class CodeGenBlock:
         self.code: list[str] = []
         self.indent = ""
 
+    def add_import(self, import_name: str):
+        self.gen.add_import(import_name)
+
     def inc_indent(self):
         self.indent += "    "
 
@@ -41,6 +47,9 @@ class CodeGenBlock:
 
     def append_code(self, code: str):
         self.code.append(code)
+
+    def empty_line(self):
+        self.append_code("\n")
 
     def append_line(self, func_line: str):
         self.append_indent()
@@ -59,6 +68,17 @@ class CodeGenBlock:
     def end_block(self):
         self.dec_indent()
         self.append_line("}")
+
+    def begin_struct(self, struct_name: str):
+        self.append_line(f"struct {struct_name}")
+        self.begin_block()
+
+    def end_struct(self):
+        self.end_block()
+
+    def type_alias(self, alias_name: str, type_name: Optional[str]):
+        if type_name is not None:
+            return self.append_statement(f"typealias {alias_name} = {type_name}")
 
     def diff_pair(self, primal: str, derivative: str = "0"):
         return self.append_statement(diff_pair(primal, derivative))
@@ -85,13 +105,14 @@ class CodeGenBlock:
 class CodeGen:
     def __init__(self):
         super().__init__()
+        self.call_data_structs = CodeGenBlock(self)
         self.call_data = CodeGenBlock(self)
         self.call_data.append_line("struct CallData")
         self.call_data.begin_block()
         self.input_load_store = CodeGenBlock(self)
         self.header = ""
         self.kernel = CodeGenBlock(self)
-        self.imports = CodeGenBlock(self)
+        self.imports: set[str] = set()
         self.trampoline = CodeGenBlock(self)
         self.context = CodeGenBlock(self)
         self.snippets: dict[str, str] = {}
@@ -99,6 +120,9 @@ class CodeGen:
     def add_snippet(self, name: str, code: str):
         if not name in self.snippets:
             self.snippets[name] = code
+
+    def add_import(self, import_name: str):
+        self.imports.add(import_name)
 
     def finish(self,
                header: bool = False,
@@ -108,7 +132,8 @@ class CodeGen:
                imports: bool = False,
                trampoline: bool = False,
                context: bool = False,
-               snippets: bool = False):
+               snippets: bool = False,
+               call_data_structs: bool = False):
 
         self.call_data.end_block()
         self.call_data.append_statement("ParameterBlock<CallData> call_data")
@@ -118,10 +143,13 @@ class CodeGen:
             all_code = [self.header] + all_code
             all_code.append("\n")
         if imports:
-            all_code = all_code + self.imports.code
+            all_code = all_code + [f'import "{x}";\n' for x in self.imports]
             all_code.append("\n")
         if context:
             all_code = all_code + self.context.code
+            all_code.append("\n")
+        if call_data_structs:
+            all_code = all_code + self.call_data_structs.code
             all_code.append("\n")
         if call_data:
             all_code = all_code + self.call_data.code

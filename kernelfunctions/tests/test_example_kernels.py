@@ -228,5 +228,159 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     assert np.allclose(b_grad_data, exprected_grad)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_vec3_nested_calldata_soa(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+
+    prim_program = device.load_program(
+        str(Path(__file__).parent / "nested_types.slang"), ["main"])
+    kernel_eval_polynomial = device.create_compute_kernel(prim_program)
+
+    a_x = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float1,
+        requires_grad=True,
+    )
+    a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    a_y = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float1,
+        requires_grad=True,
+    )
+    a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    a_z = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float1,
+        requires_grad=True,
+    )
+    a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    b = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float3,
+        requires_grad=True,
+    )
+    b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
+
+    res = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float3,
+        requires_grad=True,
+    )
+
+    total_threads = 32
+
+    call_data = {
+        'a': {
+            'x': {'primal': {'buffer': a_x.buffer, 'strides': list(a_x.strides)}},
+            'y': {'primal': {'buffer': a_y.buffer, 'strides': list(a_y.strides)}},
+            'z': {'primal': {'buffer': a_z.buffer, 'strides': list(a_z.strides)}}
+        },
+        'b': {'primal': {'buffer': b.buffer, 'strides': list(b.strides)}},
+        '_result': {'primal': {'buffer': res.buffer, 'strides': list(res.strides)}},
+        '_call_stride': [1],
+        '_call_dim': [32],
+        '_thread_count': uint3(total_threads, 1, 1)
+    }
+
+    # Dispatch the kernel.
+    kernel_eval_polynomial.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
+
+    a_x_data = a_x.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_y_data = a_y.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_z_data = a_z.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_data = np.column_stack((a_x_data, a_y_data, a_z_data))
+    b_data = b.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    expected = python_eval_polynomial(a_data, b_data)
+    res_data = res.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+
+    assert np.allclose(res_data, expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+
+    prim_program = device.load_program(
+        str(Path(__file__).parent / "nested_types_generics.slang"), ["main"])
+    kernel_eval_polynomial = device.create_compute_kernel(prim_program)
+
+    a_x = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float1,
+        requires_grad=True,
+    )
+    a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    a_y = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float1,
+        requires_grad=True,
+    )
+    a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    a_z = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float1,
+        requires_grad=True,
+    )
+    a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
+
+    b = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float3,
+        requires_grad=True,
+    )
+    b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
+
+    res = NDDifferentiableBuffer(
+        element_count=32,
+        device=device,
+        element_type=float3,
+        requires_grad=True,
+    )
+
+    total_threads = 32
+
+    call_data = {
+        'a': {
+            'x': {'buffer': a_x.buffer, 'strides': list(a_x.strides)},
+            'y': {'buffer': a_y.buffer, 'strides': list(a_y.strides)},
+            'z': {'buffer': a_z.buffer, 'strides': list(a_z.strides)}
+        },
+        'b': {'buffer': b.buffer, 'strides': list(b.strides)},
+        '_result': {'buffer': res.buffer, 'strides': list(res.strides)},
+        '_call_stride': [1],
+        '_call_dim': [32],
+        '_thread_count': uint3(total_threads, 1, 1)
+    }
+
+    # Dispatch the kernel.
+    kernel_eval_polynomial.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
+
+    a_x_data = a_x.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_y_data = a_y.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_z_data = a_z.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_data = np.column_stack((a_x_data, a_y_data, a_z_data))
+    b_data = b.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    expected = python_eval_polynomial(a_data, b_data)
+    res_data = res.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+
+    assert np.allclose(res_data, expected)
+
+
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

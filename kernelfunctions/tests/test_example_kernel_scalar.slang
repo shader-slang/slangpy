@@ -1,3 +1,12 @@
+
+
+struct CallData_a
+{
+    typealias Result = float;
+    Result primal;
+    Result load() { return primal; }
+}
+
 struct CallData {
     RWStructuredBuffer<float> a;
     RWStructuredBuffer<float.Differential> a_grad;
