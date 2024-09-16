@@ -1,6 +1,6 @@
 from typing import Optional, TYPE_CHECKING
 
-from kernelfunctions.types.enums import PrimType
+from .enums import PrimType
 
 if TYPE_CHECKING:
     from .basetype import BaseType

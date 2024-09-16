@@ -1,10 +1,11 @@
 
 from typing import TYPE_CHECKING, Any
-from kernelfunctions.types.basevalue import BaseVariable
-from kernelfunctions.types.enums import PrimType
+
+from .basevariable import BaseVariable
+from .enums import PrimType
 
 if TYPE_CHECKING:
-    from kernelfunctions.types.basetype import BaseType
+    from .basetype import BaseType
 
 
 class BaseVariableImpl(BaseVariable):

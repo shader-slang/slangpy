@@ -2,12 +2,10 @@
 
 from typing import Any, Optional
 
-from sgl import Device, TypeReflection
-from kernelfunctions.codegen import CodeGenBlock
+from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, PythonVariable
+
+from kernelfunctions.backend import Device, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
-from kernelfunctions.types.basetypeimpl import BaseTypeImpl
-from kernelfunctions.types.enums import AccessType
-from kernelfunctions.types.pythonvalue import PythonVariable
 
 
 class RandFloatArg:

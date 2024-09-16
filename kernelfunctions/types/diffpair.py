@@ -1,7 +1,7 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.types.enums import PrimType
+from kernelfunctions.core import PrimType
 
 
 class DiffPair:

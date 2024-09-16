@@ -1,6 +1,6 @@
 import pytest
 from kernelfunctions.types import NDDifferentiableBuffer
-from kernelfunctions.codegen import CodeGen
+from kernelfunctions.core.codegen import CodeGen
 from kernelfunctions.tests import helpers
 from kernelfunctions.tests.code_gen_test_helpers import dot_product
 from kernelfunctions.types import diffPair, floatDiffPair

@@ -14,7 +14,7 @@ from kernelfunctions.backend import (
     DeclReflection, TypeReflection)
 from kernelfunctions.calldata import SLANG_PATH
 from kernelfunctions.typeregistry import PYTHON_TYPES
-from kernelfunctions.types.basetypeimpl import BaseTypeImpl
+from kernelfunctions.core.basetypeimpl import BaseTypeImpl
 
 SHADER_DIR = Path(__file__).parent
 

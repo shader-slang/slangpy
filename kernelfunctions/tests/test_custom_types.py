@@ -3,11 +3,11 @@
 import pytest
 from kernelfunctions.tests import helpers
 from kernelfunctions.types.buffer import NDBuffer
-from kernelfunctions.types.randfloatarg import RandFloatArg
-from kernelfunctions.types.threadidarg import ThreadIdArg
+from kernelfunctions.extensions.randfloatarg import RandFloatArg
+from kernelfunctions.extensions.threadidarg import ThreadIdArg
 import numpy as np
 
-from kernelfunctions.types.wanghasharg import WangHashArg
+from kernelfunctions.extensions.wanghasharg import WangHashArg
 from kernelfunctions.backend import DeviceType, int3, uint3, float3
 
 

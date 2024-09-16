@@ -2,13 +2,15 @@
 
 from typing import Any, Optional
 
-from sgl import Buffer, Texture, TypeReflection
-import kernelfunctions.typeregistry as tr
-from kernelfunctions.types.basetype import BaseType
-from kernelfunctions.types.valuetypeimpl import ValueTypeImpl
+from kernelfunctions.core import BaseType
+
+from kernelfunctions.backend import Buffer, Texture, TypeReflection
+from kernelfunctions.typeregistry import SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
+
+from .valuetype import ValueType
 
 
-class TextureType(ValueTypeImpl):
+class TextureType(ValueType):
 
     def __init__(self, element_type: BaseType, writable: bool, base_texture_type_name: str, texture_shape: int):
         super().__init__()
@@ -55,10 +57,10 @@ def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType
     assert slang_type.kind == TypeReflection.Kind.resource
     if slang_type.resource_shape.name == "texture_2d":
         return Texture2DType(
-            element_type=tr.get_or_create_type(slang_type.resource_result_type),
+            element_type=get_or_create_type(slang_type.resource_result_type),
             writable=slang_type.resource_access == TypeReflection.ResourceAccess.read_write)
     else:
         raise ValueError(f"Unsupported slang type {slang_type}")
 
 
-tr.SLANG_STRUCT_TYPES_BY_NAME['__TextureImpl'] = _get_or_create_slang_type_reflection
+SLANG_STRUCT_TYPES_BY_NAME['__TextureImpl'] = _get_or_create_slang_type_reflection

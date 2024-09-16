@@ -2,14 +2,15 @@
 
 from typing import Any, Optional
 
-from sgl import Buffer, TypeReflection
-from kernelfunctions.typeregistry import PYTHON_TYPES
-import kernelfunctions.typeregistry as tr
-from kernelfunctions.types.basetype import BaseType
-from kernelfunctions.types.valuetypeimpl import ValueTypeImpl
+from kernelfunctions.core import BaseType
+
+from kernelfunctions.backend import Buffer, TypeReflection
+from kernelfunctions.typeregistry import SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
+
+from .valuetype import ValueType
 
 
-class StructuredBufferType(ValueTypeImpl):
+class StructuredBufferType(ValueType):
 
     def __init__(self, element_type: BaseType):
         super().__init__()
@@ -56,14 +57,14 @@ class RWStructuredBufferType(StructuredBufferType):
 def _get_or_create_ro_slang_type_reflection(slang_type: TypeReflection) -> BaseType:
     assert isinstance(slang_type, TypeReflection)
     assert slang_type.kind == TypeReflection.Kind.resource
-    return StructuredBufferType(element_type=tr.get_or_create_type(slang_type.resource_result_type))
+    return StructuredBufferType(element_type=get_or_create_type(slang_type.resource_result_type))
 
 
 def _get_or_create_rw_slang_type_reflection(slang_type: TypeReflection) -> BaseType:
     assert isinstance(slang_type, TypeReflection)
     assert slang_type.kind == TypeReflection.Kind.resource
-    return RWStructuredBufferType(element_type=tr.get_or_create_type(slang_type.resource_result_type))
+    return RWStructuredBufferType(element_type=get_or_create_type(slang_type.resource_result_type))
 
 
-tr.SLANG_STRUCT_TYPES_BY_NAME['StructuredBuffer'] = _get_or_create_ro_slang_type_reflection
-tr.SLANG_STRUCT_TYPES_BY_NAME['RWStructuredBuffer'] = _get_or_create_rw_slang_type_reflection
+SLANG_STRUCT_TYPES_BY_NAME['StructuredBuffer'] = _get_or_create_ro_slang_type_reflection
+SLANG_STRUCT_TYPES_BY_NAME['RWStructuredBuffer'] = _get_or_create_rw_slang_type_reflection

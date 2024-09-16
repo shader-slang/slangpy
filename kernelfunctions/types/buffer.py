@@ -1,7 +1,6 @@
 from typing import Any, Optional
 
-from sgl import TypeLayoutReflection
-from kernelfunctions.backend import Device, ResourceUsage
+from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection
 
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import get_or_create_type

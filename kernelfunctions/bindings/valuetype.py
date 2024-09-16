@@ -5,13 +5,10 @@ from typing import Any, Optional
 import numpy.typing as npt
 import numpy as np
 
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType
+
 from kernelfunctions.backend import TypeReflection, math, Device
-from kernelfunctions.codegen import CodeGenBlock
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_VECTOR_TYPES
-from kernelfunctions.types.basetype import BaseType
-from kernelfunctions.types.basetypeimpl import BaseTypeImpl
-from kernelfunctions.types.basevalue import BaseVariable
-from kernelfunctions.types.enums import AccessType
 
 """
 Common functionality for basic value types such as int, float, vector, matrix etc that aren't
@@ -19,7 +16,7 @@ writable and don't store an additional derivative.
 """
 
 
-class ValueTypeImpl(BaseTypeImpl):
+class ValueType(BaseTypeImpl):
     def __init__(self):
         super().__init__()
 
@@ -104,7 +101,7 @@ SCALAR_TYPE_SIZES: dict[TypeReflection.ScalarType, int] = {
 }
 
 
-class ScalarType(ValueTypeImpl):
+class ScalarType(ValueType):
     def __init__(self, slang_type: TypeReflection.ScalarType):
         super().__init__()
         self.slang_type = slang_type
@@ -161,7 +158,7 @@ class ScalarType(ValueTypeImpl):
         return self.python_type
 
 
-class NoneValueType(ValueTypeImpl):
+class NoneValueType(ValueType):
     def __init__(self, slang_type: TypeReflection.ScalarType):
         super().__init__()
 
@@ -175,7 +172,7 @@ class NoneValueType(ValueTypeImpl):
         return NoneType
 
 
-class VectorType(ValueTypeImpl):
+class VectorType(ValueType):
     def __init__(self, element_type: BaseType, size: int):
         super().__init__()
         self.et = element_type
@@ -222,7 +219,7 @@ class VectorType(ValueTypeImpl):
         return self.python_type
 
 
-class MatrixType(ValueTypeImpl):
+class MatrixType(ValueType):
     def __init__(self, element_type: BaseType, rows: int, cols: int):
         super().__init__()
         self.et = element_type
