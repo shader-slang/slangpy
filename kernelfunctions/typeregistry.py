@@ -1,7 +1,7 @@
 from io import StringIO
 from typing import Any, Callable, Optional, Union
 
-from kernelfunctions.core.basetype import BaseType
+from kernelfunctions.core import BaseType
 
 from kernelfunctions.backend import TypeReflection, TypeLayoutReflection
 

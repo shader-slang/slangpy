@@ -1,5 +1,5 @@
 from typing import Union
-from sgl import ProgramLayout, TypeLayoutReflection, TypeReflection
+from kernelfunctions.backend import ProgramLayout, TypeLayoutReflection, TypeReflection
 
 
 def find_type_layout_for_buffer(program_layout: ProgramLayout, slang_type: Union[str, TypeReflection, TypeLayoutReflection]):
