@@ -2,10 +2,11 @@
 
 from typing import Any, Optional, Sequence
 
-from sgl import Device
-from .basetype import BaseType
-from .basevariable import BaseVariable
-from .enums import AccessType
+from kernelfunctions.core.basetype import BaseType
+from kernelfunctions.core.basevariable import BaseVariable
+from kernelfunctions.core.enums import AccessType
+
+from kernelfunctions.backend import Device
 
 
 class BaseTypeImpl(BaseType):

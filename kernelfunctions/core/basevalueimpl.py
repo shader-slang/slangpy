@@ -1,5 +1,6 @@
 
 from typing import TYPE_CHECKING, Any
+
 from kernelfunctions.core.basevariable import BaseVariable
 from kernelfunctions.core.enums import PrimType
 
