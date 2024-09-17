@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional
 
 from kernelfunctions.core import SlangFunction
 
-from kernelfunctions.backend import SlangModule, DeclReflection
+from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection
 from kernelfunctions.shapes import TConcreteShape
 
 
@@ -101,16 +101,45 @@ class Function(FunctionChainBase):
         self,
         module: SlangModule,
         name: str,
-        ast_parent: Optional[DeclReflection] = None,
+        type_parent: Optional[str] = None,
+        type_reflection: Optional[TypeReflection] = None,
+        func_reflections: Optional[list[FunctionReflection]] = None,
     ) -> None:
         super().__init__(None)
         self.module = module
         self.name = name
-        if ast_parent is None:
-            ast_parent = module.module_decl
-        ast_functions = ast_parent.find_children_of_kind(
-            DeclReflection.Kind.func, name
-        )
-        if len(ast_functions) == 0:
-            raise ValueError(f"Function '{name}' not found in module {module.name}")
-        self.overloads = [SlangFunction(x.as_function()) for x in ast_functions]
+
+        # If type parent supplied by name, look it up
+        if type_parent is not None:
+            type_reflection = module.layout.find_type_by_name(type_parent)
+            if type_reflection is None:
+                raise ValueError(
+                    f"Type '{type_parent}' not found in module {module.name}")
+
+        # If function reflections not supplied, look up either from type or module
+        if func_reflections is None:
+            if type_reflection is None:
+                # With no type parent, use the module's ast to find functions
+                ast_functions = module.module_decl.find_children_of_kind(
+                    DeclReflection.Kind.func, name
+                )
+                if len(ast_functions) == 0:
+                    raise ValueError(
+                        f"Function '{name}' not found in module {module.name}")
+                func_reflections = [x.as_function() for x in ast_functions]
+            else:
+                # With a type parent, look up the function in the type
+                func_reflection = module.layout.find_function_by_name_in_type(
+                    type_reflection, name
+                )
+                if func_reflection is None:
+                    raise ValueError(
+                        f"Function '{name}' not found in type '{type_parent}' in module {module.name}"
+                    )
+                func_reflections = [func_reflection]
+
+        # Store type parent name if found
+        self.type_parent = type_reflection.full_name if type_reflection is not None else None
+
+        # Build and store overloads
+        self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]

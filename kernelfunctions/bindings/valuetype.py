@@ -1,7 +1,7 @@
 
 
 from types import NoneType
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 import numpy.typing as npt
 import numpy as np
 
@@ -34,18 +34,25 @@ class ValueType(BaseTypeImpl):
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        assert not access[0] in [AccessType.readwrite, AccessType.write]
-        assert access[1] == AccessType.none
-        cgb.type_alias(f"_{name}", f"ValueType<{input_value.primal_type_name}>")
+        if access[0] in [AccessType.read, AccessType.readwrite]:
+            cgb.type_alias(f"_{name}", f"ValueType<{input_value.primal_type_name}>")
+        else:
+            cgb.type_alias(f"_{name}", f"NoneType<{input_value.primal_type_name}>")
 
     # Call data just returns the primal
     def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any) -> Any:
-        assert not access[0] in [AccessType.readwrite, AccessType.write]
-        assert access[1] == AccessType.none
-        if access[0] == AccessType.read:
+        if access[0] in [AccessType.read, AccessType.readwrite]:
             return {
                 'value': data
             }
+
+    # No need to create any buffers for output data, as we're read only!
+    def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
+        pass
+
+    # Return the input as output, as it was by definition not changed
+    def read_output(self, device: Device, data: Any) -> Any:
+        return data
 
 
 """

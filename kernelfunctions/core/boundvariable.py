@@ -130,6 +130,20 @@ class BoundVariable:
             if cd_val is not None:
                 self.python.read_calldata(device, self.access, value, cd_val)
 
+    def read_output(self, device: Device, data: Any):
+        """Reads output from function for a return value"""
+        if self.children is not None:
+            assert isinstance(data, dict)
+            res = {}
+            for name, child in self.children.items():
+                child_data = data.get(child.python.name, None)
+                if child_data is not None:
+                    res[name] = child.read_output(device, child_data)
+            return res
+        else:
+            if self.access[0] in [AccessType.write, AccessType.readwrite]:
+                return self.python.read_output(device, data)
+
     def __repr__(self):
         return self.python.__repr__()
 
@@ -309,8 +323,9 @@ class BoundVariable:
 
             # Raise error if attempting to write to non-writable type
             if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.writable:
-                raise ValueError(
-                    f"Cannot read back value for non-writable type")
+                if depth == 0:
+                    raise ValueError(
+                        f"Cannot read back value for non-writable type")
 
             # Generate call data
             self.python.gen_calldata(
@@ -318,6 +333,7 @@ class BoundVariable:
                 self.variable_name,
                 self.loadstore_transform,
                 self.access)
+
         if depth == 0:
             cg.call_data.declare(f"_{self.variable_name}", self.variable_name)
         return self.variable_name

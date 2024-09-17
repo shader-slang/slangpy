@@ -25,6 +25,7 @@ PYTHON_TYPES: dict[type, TTypeLookup] = {}
 SLANG_SCALAR_TYPES: dict[TypeReflection.ScalarType, BaseType] = {}
 SLANG_VECTOR_TYPES: dict[TypeReflection.ScalarType, list[BaseType]] = {}
 SLANG_MATRIX_TYPES: dict[TypeReflection.ScalarType, list[list[BaseType]]] = {}
+SLANG_ARRAY_TYPE: BaseType = TTypeLookup  # type: ignore
 SLANG_STRUCT_TYPES_BY_FULL_NAME: dict[str, TTypeLookup] = {}
 SLANG_STRUCT_TYPES_BY_NAME: dict[str, TTypeLookup] = {}
 SLANG_STRUCT_BASE_TYPE: TTypeLookup = None  # type: ignore
@@ -37,6 +38,8 @@ def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> TTypeLoo
         res = SLANG_VECTOR_TYPES[slang_type.scalar_type][slang_type.col_count]
     elif slang_type.kind == TypeReflection.Kind.matrix:
         res = SLANG_MATRIX_TYPES[slang_type.scalar_type][slang_type.row_count][slang_type.col_count]
+    elif slang_type.kind == TypeReflection.Kind.array:
+        res = SLANG_ARRAY_TYPE
     elif slang_type.kind == TypeReflection.Kind.struct:
         res = SLANG_STRUCT_TYPES_BY_FULL_NAME.get(slang_type.full_name)
         if res is None:

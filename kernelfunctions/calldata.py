@@ -184,6 +184,6 @@ Overloads:
             device, self.bindings, call_data, *args, **kwargs)
 
         if self.call_mode == CallMode.prim and rv_node is not None:
-            return rv_node.python.read_output(device, kwargs["_result"])
+            return rv_node.read_output(device, kwargs["_result"])
         else:
             return None
