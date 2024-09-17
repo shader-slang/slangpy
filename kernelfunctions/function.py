@@ -1,9 +1,17 @@
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Protocol
 
 from kernelfunctions.core import SlangFunction
 
 from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection
 from kernelfunctions.shapes import TConcreteShape
+
+
+class IThis(Protocol):
+    def get_this(self) -> Any:
+        ...
+
+    def update_this(self, value: Any) -> None:
+        ...
 
 
 class FunctionChainBase:
@@ -27,6 +35,9 @@ class FunctionChainBase:
 
     def transform_output(self, transforms: dict[str, TConcreteShape]):
         return FunctionChainOutputTransform(self, transforms)
+
+    def instance(self, this: IThis):
+        return FunctionChainThis(self, this)
 
     def debug_build_call_data(self, backwards: bool, *args: Any, **kwargs: Any):
         return self._build_call_data(backwards, *args, **kwargs)
@@ -93,9 +104,16 @@ class FunctionChainOutputTransform(FunctionChainBase):
         self.transforms = transforms
 
 
+class FunctionChainThis(FunctionChainBase):
+    def __init__(self, parent: FunctionChainBase, this: IThis) -> None:
+        super().__init__(parent)
+        self.this = this
+
 # A callable kernel function. This assumes the function is in the root
 # of the module, however a parent in the abstract syntax tree can be provided
 # to search for the function in a specific scope.
+
+
 class Function(FunctionChainBase):
     def __init__(
         self,

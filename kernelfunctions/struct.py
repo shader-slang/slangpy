@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from kernelfunctions.backend import TypeReflection
 
@@ -18,6 +18,7 @@ class Struct:
         if type_reflection is None:
             raise ValueError(f"Type '{name}' not found in module {device_module.name}")
         self.type = get_or_create_type(type_reflection)
+        self.fields = {f.name: get_or_create_type(f.type) for f in type_reflection.fields}
 
     def __getattr__(self, name: str):
 

@@ -220,6 +220,15 @@ class VectorType(ValueType):
             raise ValueError(f"Unsupported scalar type: {type(value)}")
 
     def from_numpy(self, array: npt.NDArray[Any]) -> Any:
+        value = self.python_type()
+        if value.element_type == int:
+            array = array.view(dtype=np.int32)
+        elif value.element_type == float:
+            array = array.view(dtype=np.float32)
+        elif value.element_type == bool:
+            array = array.view(dtype=np.uint8)
+        else:
+            raise ValueError(f"Unsupported scalar type: {type(value)}")
         return self.python_type(list(array))
 
     def python_return_value_type(self, value: Any = None) -> type:

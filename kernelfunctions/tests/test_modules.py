@@ -1,12 +1,10 @@
 import pytest
-from sgl import float2, float3
-from kernelfunctions.backend import DeviceType, DeclReflection
+from kernelfunctions.backend import DeviceType, float2, float3
 from kernelfunctions.function import Function
 from kernelfunctions.module import Module
 from kernelfunctions.struct import Struct
 import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.types.buffer import NDBuffer
-from kernelfunctions.types.valueref import ValueRef
 from kernelfunctions.utils import find_type_layout_for_buffer
 import numpy as np
 

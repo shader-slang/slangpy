@@ -1,6 +1,6 @@
 import hashlib
 import os
-from typing import Any
+from typing import Any, Optional
 
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen
 
@@ -23,6 +23,8 @@ from kernelfunctions.function import (
     FunctionChainInputTransform,
     FunctionChainOutputTransform,
     FunctionChainSet,
+    FunctionChainThis,
+    IThis,
 )
 
 from kernelfunctions.shapes import (
@@ -49,6 +51,7 @@ class CallData:
         self.call_mode = CallMode.bwds if backwards else CallMode.prim
         self.input_transforms: dict[str, TConcreteShape] = {}
         self.outut_transforms: dict[str, TConcreteShape] = {}
+        self.this: Optional[IThis] = None
         sets = {}
         for item in chain:
             if isinstance(item, FunctionChainSet):
@@ -64,8 +67,14 @@ class CallData:
                 self.input_transforms.update(item.transforms)
             if isinstance(item, FunctionChainOutputTransform):
                 self.outut_transforms.update(item.transforms)
+            if isinstance(item, FunctionChainThis):
+                self.this = item.this
 
         self.sets = sets
+
+        # If 'this' is specified, inject as first argument
+        if self.this is not None:
+            args = (self.this.get_this(),) + args
 
         # Build the unbound signature from inputs
         python_call = PythonFunctionCall(*args, **kwargs)
@@ -162,6 +171,10 @@ Overloads:
             kwargs["_result"] = rv_node.python.create_output(
                 device, self.call_shape)
 
+        # If 'this' is specified, inject as first argument
+        if self.this is not None:
+            args = (self.this.get_this(),) + args
+
         write_calldata_pre_dispatch(device, self.bindings,
                                     call_data, *args, **kwargs)
 
@@ -182,6 +195,10 @@ Overloads:
 
         read_call_data_post_dispatch(
             device, self.bindings, call_data, *args, **kwargs)
+
+        # If 'this' specified, let it know call is done
+        if self.this is not None:
+            self.this.update_this(args[0])
 
         if self.call_mode == CallMode.prim and rv_node is not None:
             return rv_node.read_output(device, kwargs["_result"])

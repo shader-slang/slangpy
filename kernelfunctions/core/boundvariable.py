@@ -121,10 +121,10 @@ class BoundVariable:
     def read_call_data_post_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
         """Reads value from call data dictionary post-dispatch"""
         if self.children is not None:
+            cd_val = call_data.get(self.variable_name, None)
             for name, child in self.children.items():
-                child_cd = call_data.get(child.variable_name, None)
-                if child_cd is not None:
-                    child.read_call_data_post_dispatch(device, child_cd, value[name])
+                if child.variable_name in cd_val:
+                    child.read_call_data_post_dispatch(device, cd_val, value[name])
         else:
             cd_val = call_data.get(self.variable_name, None)
             if cd_val is not None:
