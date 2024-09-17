@@ -130,7 +130,7 @@ struct RWTensorBuffer<T, let N : int> : IValueCallData<T>
         }
     }
 
-    void store_primal<let VD : int>(IContext context, out vector<primal_type, VD> value) {
+    void store_primal<let VD : int>(IContext context, in vector<primal_type, VD> value) {
         int idx = 0;
         for (int i = 0; i < N - 1; i++) { idx += context.get_call_id(i) * strides[i]; }
 
