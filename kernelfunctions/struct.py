@@ -27,6 +27,18 @@ class Struct:
     def get_struct_layout(self):
         return find_type_layout_for_buffer(self.device_module.layout, self.name)
 
+    @property
+    def layout(self):
+        return self.device_module.layout
+
+    @property
+    def session(self):
+        return self.device_module.session
+
+    @property
+    def device(self):
+        return self.session.device
+
     def __getattr__(self, name: str):
 
         if not '<' in self.name and not '<' in name:

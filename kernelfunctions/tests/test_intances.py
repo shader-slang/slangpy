@@ -1,6 +1,6 @@
 from typing import Any
 import pytest
-from sgl import Buffer, BufferCursor, Device, ResourceUsage
+from sgl import Buffer, Device, ResourceUsage
 from kernelfunctions.backend import DeviceType, float2, float3, math
 from kernelfunctions.extensions.randfloatarg import RandFloatArg
 from kernelfunctions.instance import InstanceList, InstanceListBuffer, InstanceListDifferentiableBuffer
@@ -340,6 +340,46 @@ def test_custom_instance_list(device_type: DeviceType):
     data = particles._data['position'].data
     for i in range(0, len(data)):
         assert data[i] == 10
+
+
+class ExtendedInstanceList(InstanceList):
+    def __init__(self, struct: Struct):
+        super().__init__(struct)
+        self.position = NDDifferentiableBuffer(struct.device, float2, 1000)
+        self.velocity = NDDifferentiableBuffer(struct.device, float2, 1000)
+        self.size = 0.5
+        self.material = {
+            'color': float3(1, 1, 1),
+            'emission': float3(0, 0, 0)
+        }
+
+    def update(self):
+        self.update_position(1.0/60.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_extended_instance_list(device_type: DeviceType):
+    # Use test system helper to load a slangpy module from a file
+    m = load_module(device_type, "test_modules.slang")
+    assert m is not None
+
+    # Get particle and material structs
+    Particle = m.Particle
+    assert isinstance(Particle, Struct)
+
+    # Create storage for particles in a simple buffer
+    particles = ExtendedInstanceList(Particle)
+
+    # Call the slang constructor on all particles in the buffer,
+    # assigning each a constant starting position and a random velocity
+    particles.construct(position=float2(10, 10), velocity=float2(0, 1))
+
+    # Call custom update function which internally calls update_position
+    particles.update()
+
+    # Check the buffer has been correctly updated
+    data = particles.position.primal_to_numpy().view(dtype=np.float32).reshape(-1, 2)
+    assert np.allclose(data, [10, 10+1.0/60.0])
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

@@ -49,8 +49,7 @@ class InstanceList:
             return super().__setattr__(name, value)
         if isinstance(self._data, dict) and self._struct.fields is not None and name in self._struct.fields:
             self._data[name] = value
-        raise AttributeError(
-            f"Instance of '{self._struct.name}' has no attribute '{name}'")
+        return super().__setattr__(name, value)
 
     def _try_load_func(self, name: str):
         try:
@@ -89,7 +88,7 @@ class InstanceListBuffer(InstanceList):
 
 
 class InstanceListDifferentiableBuffer(InstanceList):
-    def __init__(self, struct: Struct, shape: tuple[int, ...], data: Optional[NDBuffer] = None):
+    def __init__(self, struct: Struct, shape: tuple[int, ...], data: Optional[NDDifferentiableBuffer] = None):
         if data is None:
             data = NDDifferentiableBuffer(struct.device_module.session.device,
                                           element_type=struct, shape=shape, requires_grad=True)
@@ -102,7 +101,7 @@ class InstanceListDifferentiableBuffer(InstanceList):
         return self._data.shape
 
     @property
-    def buffer(self) -> NDDifferentiableBuffer:
+    def buffer(self):
         return self._data
 
     def primal_to_numpy(self):
