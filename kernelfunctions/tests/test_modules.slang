@@ -1,6 +1,6 @@
 import "slangpy";
 
-struct Material {
+struct Material : IDifferentiable {
     float3 color;
     float3 emission;
 
@@ -10,7 +10,7 @@ struct Material {
     }
 };
 
-struct Particle {
+struct Particle : IDifferentiable {
 
     float2 position;
     float2 velocity;
@@ -39,6 +39,7 @@ struct Particle {
         this.size = 0.5;
     }
 
+    [Differentiable]
     float2 calc_next_position(float dt) {
         return position + velocity * dt;
     }

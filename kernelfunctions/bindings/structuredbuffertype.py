@@ -94,9 +94,12 @@ class RWStructuredBufferType(StructuredBufferType):
         return True
 
     def differentiate(self, value: Optional[Buffer] = None):
-        el_diff = self.element_type(value).differentiate()
-        if el_diff is not None:
-            return RWStructuredBufferType(el_diff)
+        if self._el_type is not None:
+            el_diff = self._el_type.differentiate()
+            if el_diff is not None:
+                return StructuredBufferType(el_diff)
+            else:
+                return None
         else:
             return None
 

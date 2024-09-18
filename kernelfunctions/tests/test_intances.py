@@ -1,14 +1,13 @@
 from typing import Any
 import pytest
-from sgl import Buffer, Device, ResourceUsage
+from sgl import Buffer, BufferCursor, Device, ResourceUsage
 from kernelfunctions.backend import DeviceType, float2, float3, math
 from kernelfunctions.extensions.randfloatarg import RandFloatArg
-from kernelfunctions.function import Function
-from kernelfunctions.instance import InstanceList, InstanceListBuffer
+from kernelfunctions.instance import InstanceList, InstanceListBuffer, InstanceListDifferentiableBuffer
 from kernelfunctions.module import Module
 from kernelfunctions.struct import Struct
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.types.buffer import NDBuffer
+from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 from kernelfunctions.types.valueref import ValueRef, floatRef
 from kernelfunctions.utils import find_type_layout_for_buffer
 import numpy as np
@@ -341,6 +340,66 @@ def test_custom_instance_list(device_type: DeviceType):
     data = particles._data['position'].data
     for i in range(0, len(data)):
         assert data[i] == 10
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_backwards_diff(device_type: DeviceType):
+    # Use test system helper to load a slangpy module from a file
+    m = load_module(device_type, "test_modules.slang")
+    assert m is not None
+
+    # Get particle struct
+    Particle = m.Particle
+    assert isinstance(Particle, Struct)
+
+    # Create storage for particles in a simple buffer
+    particles = InstanceListDifferentiableBuffer(Particle, shape=(1000,))
+
+    # Call the slang constructor on all particles in the buffer,
+    # assigning each a constant starting position and a random velocity
+    particles.construct(position=float2(10, 10),
+                        velocity=RandFloatArg(min=-1, max=1, dim=2))
+
+    # Get next position of particles (automatically returns differentiable buffer of correct size)
+    next_positions = particles.calc_next_position(dt=1.0/60.0)
+
+    # Init the gradients of next positions to 1 for the backwards pass
+    next_positions.grad_from_numpy(np.ones((1000, 2), dtype=np.float32))
+
+    # Make a buffer of 1000 identical dts, so we can get back the unique grads for each one
+    dts = NDDifferentiableBuffer(m.device, float, 1000, requires_grad=True)
+    dts.primal_from_numpy(np.full((1000,), 1.0/60.0, dtype=np.float32))
+
+    # Backwards pass
+    particles.calc_next_position.bwds_diff(dt=dts, _result=next_positions)
+
+    # Read back all primals and gradients we ended up with into numpy arrays
+    particle_primals = particles.primal_to_numpy().view(dtype=np.float32).reshape(-1, 11)
+    particle_grads = particles.grad_to_numpy().view(dtype=np.float32).reshape(-1, 11)
+    dt_grads = dts.grad_to_numpy().view(dtype=np.float32)
+    next_positions = next_positions.primal_to_numpy().view(dtype=np.float32).reshape(-1, 2)
+
+    for particle_idx in range(0, len(particle_primals)):
+        pos = particle_primals[particle_idx][0:2]
+        vel = particle_primals[particle_idx][2:4]
+        next_pos = next_positions[particle_idx]
+
+        # Expect particle to have moved by 1/60th of its velocity
+        # q = p + vel * dt
+        expected_pos = pos + vel * 1.0/60.0
+        assert np.allclose(next_pos, expected_pos)
+
+        # dq/dp = 10
+        pos_grad = particle_grads[particle_idx][0:2]
+        assert np.allclose(pos_grad, [1, 1])
+
+        # dq/dv = dt
+        vel_grad = particle_grads[particle_idx][2:4]
+        assert np.allclose(vel_grad, [1.0/60.0, 1.0/60.0])
+
+        # dq/ddt = v
+        dt_grad = dt_grads[particle_idx]
+        assert np.allclose(dt_grad, vel[0]+vel[1])
 
 
 if __name__ == "__main__":

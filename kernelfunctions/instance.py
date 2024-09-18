@@ -3,7 +3,8 @@
 from typing import Any, Optional
 from kernelfunctions.function import Function, FunctionChainBase
 from kernelfunctions.struct import Struct
-from kernelfunctions.types.buffer import NDBuffer
+from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
+import numpy.typing as npt
 
 
 class InstanceList:
@@ -75,3 +76,43 @@ class InstanceListBuffer(InstanceList):
     @property
     def shape(self):
         return self._data.shape
+
+    @property
+    def buffer(self) -> NDBuffer:
+        return self._data
+
+    def to_numpy(self):
+        return self.buffer.to_numpy()
+
+    def from_numpy(self, data: npt.ArrayLike):
+        self.buffer.from_numpy(data)
+
+
+class InstanceListDifferentiableBuffer(InstanceList):
+    def __init__(self, struct: Struct, shape: tuple[int, ...], data: Optional[NDBuffer] = None):
+        if data is None:
+            data = NDDifferentiableBuffer(struct.device_module.session.device,
+                                          element_type=struct, shape=shape, requires_grad=True)
+        super().__init__(struct, data)
+        if data is None:
+            data = {}
+
+    @property
+    def shape(self):
+        return self._data.shape
+
+    @property
+    def buffer(self) -> NDDifferentiableBuffer:
+        return self._data
+
+    def primal_to_numpy(self):
+        return self.buffer.primal_to_numpy()
+
+    def primal_from_numpy(self, data: npt.ArrayLike):
+        self.buffer.primal_from_numpy(data)
+
+    def grad_to_numpy(self):
+        return self.buffer.grad_to_numpy()
+
+    def grad_from_numpy(self, data: npt.ArrayLike):
+        self.buffer.grad_from_numpy(data)

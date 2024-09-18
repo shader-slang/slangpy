@@ -5,7 +5,7 @@ from kernelfunctions.backend import TypeReflection
 from kernelfunctions.backend import SlangModule
 from kernelfunctions.function import Function
 from kernelfunctions.typeregistry import get_or_create_type
-from kernelfunctions.utils import try_find_function_overloads_via_ast, try_find_type_via_ast
+from kernelfunctions.utils import find_type_layout_for_buffer, try_find_function_overloads_via_ast, try_find_type_via_ast
 
 
 class Struct:
@@ -23,6 +23,9 @@ class Struct:
                 f.type) for f in type_reflection.fields}
         else:
             self.fields = None
+
+    def get_struct_layout(self):
+        return find_type_layout_for_buffer(self.device_module.layout, self.name)
 
     def __getattr__(self, name: str):
 

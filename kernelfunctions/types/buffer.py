@@ -1,11 +1,16 @@
 from typing import Any, Optional
 
+from sgl import TypeReflection
+
 from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, SlangModule
 
+from kernelfunctions.core.basetype import BaseType
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.struct import Struct
 from kernelfunctions.typeregistry import get_or_create_type
 from kernelfunctions.utils import find_type_layout_for_buffer
+
+import numpy.typing as npt
 
 
 class NDBuffer:
@@ -76,6 +81,12 @@ class NDBuffer:
     def is_writable(self):
         return (self.usage & ResourceUsage.unordered_access) != 0
 
+    def to_numpy(self):
+        return self.buffer.to_numpy()
+
+    def from_numpy(self, data: npt.ArrayLike):
+        self.buffer.from_numpy(data)
+
 
 class NDDifferentiableBuffer(NDBuffer):
     def __init__(
@@ -94,7 +105,22 @@ class NDDifferentiableBuffer(NDBuffer):
         super().__init__(device, element_type, element_count, shape, usage, slang_module)
 
         if grad_type is None:
-            grad_type = element_type
+            if isinstance(element_type, BaseType):
+                grad_type = element_type.differentiate()
+            elif isinstance(element_type, Struct):
+                grad_type = find_type_layout_for_buffer(
+                    element_type.device_module.layout, element_type.name+".Differential")
+            elif isinstance(element_type, str):
+                if slang_module is None:
+                    raise ValueError(
+                        "slang_module must be provided to resolve string based element types")
+                grad_type = find_type_layout_for_buffer(
+                    slang_module.layout, element_type+".Differential")
+            elif isinstance(element_type, (TypeLayoutReflection, TypeReflection)):
+                if slang_module is not None:
+                    grad_type = element_type.name+".Differential"
+            if grad_type is None:
+                grad_type = element_type
 
         self.requires_grad = requires_grad
 
@@ -122,3 +148,17 @@ class NDDifferentiableBuffer(NDBuffer):
     @property
     def is_writable(self):
         return (self.usage & ResourceUsage.unordered_access) != 0
+
+    def primal_to_numpy(self):
+        return self.to_numpy()
+
+    def primal_from_numpy(self, data: npt.ArrayLike):
+        self.from_numpy(data)
+
+    def grad_to_numpy(self):
+        assert self.grad is not None
+        return self.grad.to_numpy()
+
+    def grad_from_numpy(self, data: npt.ArrayLike):
+        assert self.grad is not None
+        self.grad.from_numpy(data)
