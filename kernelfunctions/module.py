@@ -59,18 +59,22 @@ class Module:
                 DeclReflection.Kind.func, name)
             if len(func_decls) > 0:
                 return Function(self.device_module, name, func_reflections=[x.as_function() for x in func_decls])
-        else:
-            # Generics need slang's type resolution
 
-            # Search for name as a fully qualified child struct
-            slang_struct = self.device_module.layout.find_type_by_name(name)
-            if slang_struct is not None:
-                return Struct(self.device_module, name, slang_struct)
+        # If resolution by name failed, could be generic or some basic type like 'float2[2]',
+        # so ask slang to generate it
 
-            # Search for name as a child of this struct
-            slang_function = self.device_module.layout.find_function_by_name(name)
-            if slang_function is not None:
-                return Function(self.device_module, name, func_reflections=[slang_function])
+        # Search for name as a fully qualified child struct
+        slang_struct = self.device_module.layout.find_type_by_name(name)
+        if slang_struct is not None:
+            return Struct(self.device_module, name, slang_struct)
+
+        # Search for name as a child of this struct
+        slang_function = self.device_module.layout.find_function_by_name(name)
+        if slang_function is not None:
+            return Function(self.device_module, name, func_reflections=[slang_function])
 
         raise AttributeError(
             f"Type '{self.device_module.name}' has no attribute '{name}'")
+
+    def __getitem__(self, name: str):
+        return self.__getattr__(name)

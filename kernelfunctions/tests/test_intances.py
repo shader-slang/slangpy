@@ -1,8 +1,10 @@
 from typing import Any
 import pytest
-from kernelfunctions.backend import DeviceType, float2, float3
+from sgl import Buffer, Device, ResourceUsage
+from kernelfunctions.backend import DeviceType, float2, float3, math
+from kernelfunctions.extensions.randfloatarg import RandFloatArg
 from kernelfunctions.function import Function
-from kernelfunctions.instance import Instance
+from kernelfunctions.instance import InstanceList, InstanceListBuffer
 from kernelfunctions.module import Module
 from kernelfunctions.struct import Struct
 import kernelfunctions.tests.helpers as helpers
@@ -10,11 +12,12 @@ from kernelfunctions.types.buffer import NDBuffer
 from kernelfunctions.types.valueref import ValueRef, floatRef
 from kernelfunctions.utils import find_type_layout_for_buffer
 import numpy as np
+import numpy.typing as npt
 
 
-def load_test_module(device_type: DeviceType):
+def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Module:
     device = helpers.get_device(device_type)
-    return Module(device.load_module("test_modules.slang"))
+    return Module(device.load_module(name))
 
 
 class ThisType:
@@ -35,7 +38,7 @@ class ThisType:
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_this_interface(device_type: DeviceType):
-    m = load_test_module(device_type)
+    m = load_module(device_type)
     assert m is not None
 
     # Get particle struct
@@ -74,7 +77,7 @@ def test_this_interface(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_this_interface_soa(device_type: DeviceType):
-    m = load_test_module(device_type)
+    m = load_module(device_type)
     assert m is not None
 
     # Get particle struct
@@ -106,7 +109,7 @@ def test_this_interface_soa(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_loose_instance_as_buffer(device_type: DeviceType):
-    m = load_test_module(device_type)
+    m = load_module(device_type)
     assert m is not None
 
     # Get particle struct
@@ -120,7 +123,7 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     buffer = NDBuffer(m.device, particle_type_layout, 1)
 
     # Create a tiny wrapper around the buffer to provide the this interface
-    instance = Instance(Particle, buffer)
+    instance = InstanceList(Particle, buffer)
     instance.construct(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
@@ -148,7 +151,7 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_loose_instance_soa(device_type: DeviceType):
-    m = load_test_module(device_type)
+    m = load_module(device_type)
     assert m is not None
 
     # Get particle struct
@@ -157,7 +160,7 @@ def test_loose_instance_soa(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create a tiny wrapper around the buffer to provide the this interface
-    instance = Instance(Particle, {
+    instance = InstanceList(Particle, {
         "position": NDBuffer(m.device, float2, 1),
         "velocity": ValueRef(float2(9999)),
         "size": floatRef(9999),
@@ -185,6 +188,159 @@ def test_loose_instance_soa(device_type: DeviceType):
     assert len(data) == 2
     assert data[0] == 0.0
     assert data[1] == 1.0
+
+
+def particle_update_positions(data: npt.NDArray[np.float32], dt: float):
+    for i in range(0, len(data)):
+        data[i][0] += data[i][2] * dt
+        data[i][1] += data[i][3] * dt
+
+
+def get_particle_quads(data: npt.NDArray[np.float32]):
+    results = np.ndarray((len(data), 4, 2), dtype=np.float32)
+    for i in range(0, len(data)):
+        pos = float2(data[i][0:2])
+        vel = float2(data[i][2:4])
+        size = data[i][4]
+        if (math.length(vel) < 0.01):
+            vel = float2(0, 1)
+
+        up = math.normalize(vel)
+        right = float2(-up.y, up.x)
+        center = pos
+
+        quad = [
+            center + (right + up) * size,
+            center + (-right + up) * size,
+            center + (-right - up) * size,
+            center + (right - up) * size
+        ]
+        for vertex in range(0, 4):
+            results[i][vertex] = [quad[vertex].x, quad[vertex].y]
+    return results
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_instance_to_function(device_type: DeviceType):
+    # Use test system helper to load a slangpy module from a file
+    m = load_module(device_type, "test_modules.slang")
+    assert m is not None
+
+    # Get particle struct
+    Particle = m.Particle
+    assert isinstance(Particle, Struct)
+
+    # Create storage for particles in a simple buffer
+    particles = InstanceListBuffer(Particle, shape=(1000,))
+
+    # Call the slang constructor on all particles in the buffer,
+    # assigning each a constant starting position and a random velocity
+    particles.construct(position=float2(10, 10),
+                        velocity=RandFloatArg(min=-1, max=1, dim=2))
+    expected_particles = particles._data.buffer.to_numpy().view(dtype=np.float32).reshape(-1, 11)
+
+    # Call the slang function 'Particle::update_position' to update them
+    # and do the same for the python version
+    particles.update_position(dt=1.0/60.0)
+    particle_update_positions(expected_particles, 1.0/60.0)
+
+    # Check the numpy buffer and the slang buffer are the same
+    particle_data = particles._data.buffer.to_numpy().view(dtype=np.float32).reshape(-1, 11)
+    assert np.allclose(particle_data, expected_particles)
+
+    # Define a 'Quad' type which is just an array of float2s, and make a buffer for them
+    Quad = m['float2[4]']
+    assert isinstance(Quad, Struct)
+    quads = InstanceListBuffer(Quad, particles.shape)
+
+    # Call the slang function 'get_particle_quad' which takes particles and returns quads
+    m.get_particle_quad(particles, _result=quads)
+    expected_quads = get_particle_quads(expected_particles)
+
+    # Read out all the quads as numpy arrays of floats
+    quad_data = quads._data.buffer.to_numpy().view(dtype=np.float32).reshape(-1, 4, 2)
+    assert np.allclose(quad_data, expected_quads)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_nested_instance_to_function(device_type: DeviceType):
+    # Use test system helper to load a slangpy module from a file
+    m = load_module(device_type, "test_modules.slang")
+    assert m is not None
+
+    # Get particle and material structs
+    Particle = m.Particle
+    assert isinstance(Particle, Struct)
+
+    # Get particle struct
+    Material = m.Material
+    assert isinstance(Material, Struct)
+
+    # Create storage for particles in a simple buffer
+    particles = InstanceList(Particle, {
+        'position': NDBuffer(m.device, float2, 1000),
+        'velocity': float2(0, 0),
+        'size': 0.5,
+        'material': InstanceListBuffer(Material, shape=(1000,))
+    })
+
+    # Call the slang constructor on all particles in the buffer,
+    # assigning each a constant starting position and a random velocity
+    particles.construct(position=float2(10, 10), velocity=float2(0, 0))
+
+    # Check colors are white and emission is black!
+    material_data = particles._data['material']._data.buffer.to_numpy().view(
+        dtype=np.float32).reshape(-1, 6)
+    for i in range(0, len(material_data)):
+        material_data[i][0] = 1
+        material_data[i][1] = 1
+        material_data[i][2] = 1
+        material_data[i][3] = 0
+        material_data[i][4] = 0
+        material_data[i][5] = 0
+
+
+class CustomInstanceList:
+    def __init__(self, device: Device, data: list[float2]):
+        super().__init__()
+        self.device = device
+        self.data = data
+
+    def get_this(self) -> Any:
+        device_buffer = self.device.create_buffer(element_count=len(
+            self.data), struct_size=8, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        np_data = np.array([[v.x, v.y] for v in self.data], dtype=np.float32)
+        device_buffer.from_numpy(np_data)
+        return device_buffer
+
+    def update_this(self, value: Buffer) -> None:
+        np_data = value.to_numpy().view(dtype=np.float32).reshape(-1, 2)
+        self.data = [float2(v[0], v[1]) for v in np_data]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_custom_instance_list(device_type: DeviceType):
+    # Use test system helper to load a slangpy module from a file
+    m = load_module(device_type, "test_modules.slang")
+    assert m is not None
+
+    # Get particle and material structs
+    Particle = m.Particle
+    assert isinstance(Particle, Struct)
+
+    # Create storage for particles in a simple buffer
+    particles = InstanceList(Particle, {
+        'position': CustomInstanceList(m.device, [float2(x, x) for x in [1, 2, 3, 4]]),
+    })
+
+    # Call the slang constructor on all particles in the buffer,
+    # assigning each a constant starting position and a random velocity
+    particles.construct(position=float2(10, 10), velocity=float2(0, 0))
+
+    # Get particl data
+    data = particles._data['position'].data
+    for i in range(0, len(data)):
+        assert data[i] == 10
 
 
 if __name__ == "__main__":

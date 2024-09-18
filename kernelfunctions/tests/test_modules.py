@@ -1,4 +1,5 @@
 import pytest
+from sgl import Device
 from kernelfunctions.backend import DeviceType, float2, float3
 from kernelfunctions.function import Function
 from kernelfunctions.module import Module
@@ -7,6 +8,9 @@ import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.types.buffer import NDBuffer
 from kernelfunctions.utils import find_type_layout_for_buffer
 import numpy as np
+
+
+Device
 
 
 def load_test_module(device_type: DeviceType):
@@ -130,8 +134,6 @@ def test_read_back_with_global_func(device_type: DeviceType):
     particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
     assert particle_type_layout is not None
 
-    quad_type_layout = find_type_layout_for_buffer(m.device_module.layout, "float2[4]")
-
     # Create and init a buffer of particles
     buffer = NDBuffer(m.device, particle_type_layout, 1)
     Particle.__init(float2(0, 0), float2(0, 0.2), _result=buffer)
@@ -140,6 +142,7 @@ def test_read_back_with_global_func(device_type: DeviceType):
     Particle.update_position(buffer, 0.5)
 
     # Get quad of all particles
+    quad_type_layout = find_type_layout_for_buffer(m.device_module.layout, "float2[4]")
     results = NDBuffer(m.device, quad_type_layout, 1)
     m.get_particle_quad(buffer, _result=results)
 

@@ -3,9 +3,10 @@
 from typing import Any, Optional
 from kernelfunctions.function import Function, FunctionChainBase
 from kernelfunctions.struct import Struct
+from kernelfunctions.types.buffer import NDBuffer
 
 
-class Instance:
+class InstanceList:
     def __init__(self, struct: Struct, data: Optional[Any] = None):
         super().__init__()
         if data is None:
@@ -32,7 +33,7 @@ class Instance:
         if name in self._loaded_functions:
             return self._loaded_functions[name]
 
-        if isinstance(self._data, dict) and name in self._struct.fields:
+        if isinstance(self._data, dict) and self._struct.fields is not None and name in self._struct.fields:
             return self._data.get(name)
 
         func = self._try_load_func(name)
@@ -45,7 +46,7 @@ class Instance:
     def __setattr__(self, name: str, value: Any) -> None:
         if name in ['_data', '_struct', '_loaded_functions', '_init']:
             return super().__setattr__(name, value)
-        if isinstance(self._data, dict) and name in self._struct.fields:
+        if isinstance(self._data, dict) and self._struct.fields is not None and name in self._struct.fields:
             self._data[name] = value
         raise AttributeError(
             f"Instance of '{self._struct.name}' has no attribute '{name}'")
@@ -60,3 +61,17 @@ class Instance:
                 return func
         except AttributeError as e:
             return None
+
+
+class InstanceListBuffer(InstanceList):
+    def __init__(self, struct: Struct, shape: tuple[int, ...], data: Optional[NDBuffer] = None):
+        if data is None:
+            data = NDBuffer(struct.device_module.session.device,
+                            element_type=struct, shape=shape)
+        super().__init__(struct, data)
+        if data is None:
+            data = {}
+
+    @property
+    def shape(self):
+        return self._data.shape

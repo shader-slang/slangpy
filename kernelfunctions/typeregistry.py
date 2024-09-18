@@ -60,7 +60,7 @@ def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> TTypeLoo
 def get_or_create_type(python_or_slang_type: Any, value: Any = None) -> BaseType:
     res: Optional[TTypeLookup] = None
     if isinstance(python_or_slang_type, type):
-        res = PYTHON_TYPES[python_or_slang_type]
+        res = PYTHON_TYPES.get(python_or_slang_type)
     elif isinstance(python_or_slang_type, BaseType):
         res = python_or_slang_type
     elif isinstance(python_or_slang_type, TypeReflection):

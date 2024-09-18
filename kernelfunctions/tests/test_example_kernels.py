@@ -54,7 +54,7 @@ void user_func(float a, float b, out float c) {
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_0.buffer.from_numpy(rand_array_of_floats(in_buffer_0.element_count))
-    in_buffer_0.grad_buffer.from_numpy(
+    in_buffer_0.grad.buffer.from_numpy(
         np.zeros(in_buffer_0.element_count, dtype=np.float32))  # type: ignore
 
     # Same with input buffer 1.
@@ -62,7 +62,7 @@ void user_func(float a, float b, out float c) {
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_1.buffer.from_numpy(rand_array_of_floats(in_buffer_1.element_count))
-    in_buffer_1.grad_buffer.from_numpy(
+    in_buffer_1.grad.buffer.from_numpy(
         np.zeros(in_buffer_1.element_count, dtype=np.float32))  # type: ignore
 
     # Create empty output buffer with gradients initialized to 1 (as there is 1-1 correspondence between
@@ -71,7 +71,7 @@ void user_func(float a, float b, out float c) {
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     out_buffer.buffer.from_numpy(np.zeros(out_buffer.element_count, dtype=np.float32))
-    out_buffer.grad_buffer.from_numpy(
+    out_buffer.grad.buffer.from_numpy(
         np.ones(out_buffer.element_count, dtype=np.float32))  # type: ignore
 
     # Dispatch the forward kernel.
@@ -99,18 +99,18 @@ void user_func(float a, float b, out float c) {
         {
             "call_data": {
                 "a": in_buffer_0.buffer,
-                "a_grad": in_buffer_0.grad_buffer,
+                "a_grad": in_buffer_0.grad.buffer,
                 "b": in_buffer_1.buffer,
-                "b_grad": in_buffer_1.grad_buffer,
+                "b_grad": in_buffer_1.grad.buffer,
                 "c": out_buffer.buffer,
-                "c_grad": out_buffer.grad_buffer,
+                "c_grad": out_buffer.grad.buffer,
             }
         },
     )
 
     # Read and validate backward kernel results (expecting a_grad = 2*a, b_grad = 1)
-    in_grad_0 = in_buffer_0.grad_buffer.to_numpy().view(np.float32)  # type: ignore
-    in_grad_1 = in_buffer_1.grad_buffer.to_numpy().view(np.float32)  # type: ignore
+    in_grad_0 = in_buffer_0.grad.buffer.to_numpy().view(np.float32)  # type: ignore
+    in_grad_1 = in_buffer_1.grad.buffer.to_numpy().view(np.float32)  # type: ignore
     eval_grad_0 = 2 * in_data_0
     eval_grad_1 = np.ones(in_data_1.shape)
     assert np.allclose(in_grad_0, eval_grad_0)
@@ -195,18 +195,18 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res.grad_buffer.from_numpy(np.ones(32*3, dtype=np.float32))
+    res.grad.buffer.from_numpy(np.ones(32*3, dtype=np.float32))
 
     call_data = {
         'a__x_primal': {'buffer': a_x.buffer, 'strides': list(a_x.strides)},
-        'a__x_derivative': {'buffer': a_x.grad_buffer, 'strides': list(a_x.strides)},
+        'a__x_derivative': {'buffer': a_x.grad.buffer, 'strides': list(a_x.strides)},
         'a__y_primal': {'buffer': a_y.buffer, 'strides': list(a_y.strides)},
-        'a__y_derivative': {'buffer': a_y.grad_buffer, 'strides': list(a_y.strides)},
+        'a__y_derivative': {'buffer': a_y.grad.buffer, 'strides': list(a_y.strides)},
         'a__z_primal': {'buffer': a_z.buffer, 'strides': list(a_z.strides)},
-        'a__z_derivative': {'buffer': a_z.grad_buffer, 'strides': list(a_z.strides)},
+        'a__z_derivative': {'buffer': a_z.grad.buffer, 'strides': list(a_z.strides)},
         'b_primal': {'buffer': b.buffer, 'strides': list(b.strides)},
-        'b_derivative': {'buffer': b.grad_buffer, 'strides': list(b.strides)},
-        '_result_derivative': {'buffer': res.grad_buffer, 'strides': list(res.strides)},
+        'b_derivative': {'buffer': b.grad.buffer, 'strides': list(b.strides)},
+        '_result_derivative': {'buffer': res.grad.buffer, 'strides': list(res.strides)},
         '_call_stride': [1],
         '_call_dim': [32],
         '_thread_count': uint3(total_threads, 1, 1)
@@ -215,11 +215,11 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     kernel_eval_polynomial_backwards.dispatch(
         uint3(total_threads, 1, 1), {"call_data": call_data})
 
-    a_x_grad_data = a_x.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
-    a_y_grad_data = a_y.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
-    a_z_grad_data = a_z.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_x_grad_data = a_x.grad.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_y_grad_data = a_y.grad.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_z_grad_data = a_z.grad.buffer.to_numpy().view(np.float32).reshape(-1, 1)
     a_grad_data = np.column_stack((a_x_grad_data, a_y_grad_data, a_z_grad_data))
-    b_grad_data = b.grad_buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    b_grad_data = b.grad.buffer.to_numpy().view(np.float32).reshape(-1, 3)
 
     exprected_grad = python_eval_polynomial_a_deriv(a_data, b_data)
     assert np.allclose(a_grad_data, exprected_grad)

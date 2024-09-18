@@ -51,6 +51,22 @@ struct ValueType<T> : IValueCallData<T>
     void store_primal(IContext context, in T value) {};
 }
 
+struct StructuredBufferType<T> : IValueCallData<T>
+{
+    typealias primal_type = T;
+    StructuredBuffer<primal_type> value;
+    void load_primal(IContext context, out primal_type value) { value = this.value[context.get_call_id(0)]; }
+    void store_primal(IContext context, in T value) {};
+}
+
+struct RWStructuredBufferType<T> : IValueCallData<T>
+{
+    typealias primal_type = T;
+    RWStructuredBuffer<primal_type> value;
+    void load_primal(IContext context, out primal_type value) { value = this.value[context.get_call_id(0)]; }
+    void store_primal(IContext context, in T value) { this.value[context.get_call_id(0)] = value; };
+}
+
 struct ValueRef<T> : IValueCallData<T>
 {
     typealias primal_type = T;

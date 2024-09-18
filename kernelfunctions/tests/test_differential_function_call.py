@@ -60,7 +60,7 @@ def test_call_none_differentiable(device_type: DeviceType):
     assert res == python_eval_polynomial(a, b)
 
     with pytest.raises(ValueError, match="No matching overload found"):
-        function.backwards(a, b, res)
+        function.bwds_diff(a, b, res)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -76,7 +76,7 @@ def test_call_with_none_diff_scalars(device_type: DeviceType):
     res = function(a, b)
     assert res == python_eval_polynomial(a, b)
 
-    function.backwards(a, b, res)
+    function.bwds_diff(a, b, res)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -96,18 +96,18 @@ def test_call_with_diff_scalars(device_type: DeviceType):
     res_diff = diffPair(d=1.0)
 
     a_diff = diffPair(p=a)
-    kernel_eval_polynomial.backwards(a_diff, b, res_diff)
+    kernel_eval_polynomial.bwds_diff(a_diff, b, res_diff)
     exprected_grad = python_eval_polynomial_a_deriv(a, b)
     assert a_diff.grad == exprected_grad
 
     b_diff = diffPair(p=b)
-    kernel_eval_polynomial.backwards(a, b_diff, res_diff)
+    kernel_eval_polynomial.bwds_diff(a, b_diff, res_diff)
     exprected_grad = python_eval_polynomial_b_deriv(a, b)
     assert b_diff.grad == exprected_grad
 
     a_diff = diffPair(p=a)
     b_diff = diffPair(p=b)
-    kernel_eval_polynomial.backwards(a_diff, b_diff, res_diff)
+    kernel_eval_polynomial.bwds_diff(a_diff, b_diff, res_diff)
     exprected_grad = python_eval_polynomial_a_deriv(a, b)
     assert a_diff.grad == exprected_grad
     exprected_grad = python_eval_polynomial_b_deriv(a, b)
@@ -128,7 +128,7 @@ def test_call_with_diff_pairs(device_type: DeviceType):
     expected = python_eval_polynomial(a.primal, b.primal)
     assert res == expected
 
-    kernel_eval_polynomial.backwards(a, b, diffPair(d=1.0))
+    kernel_eval_polynomial.bwds_diff(a, b, diffPair(d=1.0))
     exprected_grad = python_eval_polynomial_a_deriv(a.primal, b.primal)
     assert a.grad == exprected_grad
     exprected_grad = python_eval_polynomial_b_deriv(a.primal, b.primal)
@@ -168,11 +168,11 @@ def test_call_with_buffers(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res.grad_buffer.from_numpy(np.ones(res.shape, dtype=np.float32))
+    res.grad.buffer.from_numpy(np.ones(res.shape, dtype=np.float32))
 
-    kernel_eval_polynomial.backwards(a, b, res)
-    a_grad_data = a.grad_buffer.to_numpy().view(np.float32)
-    b_grad_data = b.grad_buffer.to_numpy().view(np.float32)
+    kernel_eval_polynomial.bwds_diff(a, b, res)
+    a_grad_data = a.grad.buffer.to_numpy().view(np.float32)
+    b_grad_data = b.grad.buffer.to_numpy().view(np.float32)
 
     exprected_grad = python_eval_polynomial_a_deriv(a_data, b_data)
     assert np.allclose(a_grad_data, exprected_grad)
@@ -214,11 +214,11 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res.grad_buffer.from_numpy(np.ones(32*3, dtype=np.float32))
+    res.grad.buffer.from_numpy(np.ones(32*3, dtype=np.float32))
 
-    kernel_eval_polynomial.backwards(a, b, res)
-    a_grad_data = a.grad_buffer.to_numpy().view(np.float32).reshape(-1, 3)
-    b_grad_data = b.grad_buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    kernel_eval_polynomial.bwds_diff(a, b, res)
+    a_grad_data = a.grad.buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    b_grad_data = b.grad.buffer.to_numpy().view(np.float32).reshape(-1, 3)
 
     exprected_grad = python_eval_polynomial_a_deriv(a_data, b_data)
     assert np.allclose(a_grad_data, exprected_grad)
@@ -289,18 +289,18 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res.grad_buffer.from_numpy(np.ones(32*3, dtype=np.float32))
+    res.grad.buffer.from_numpy(np.ones(32*3, dtype=np.float32))
 
-    kernel_eval_polynomial.backwards({
+    kernel_eval_polynomial.bwds_diff({
         'x': a_x,
         'y': a_y,
         'z': a_z
     }, b, res)
-    a_x_grad_data = a_x.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
-    a_y_grad_data = a_y.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
-    a_z_grad_data = a_z.grad_buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_x_grad_data = a_x.grad.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_y_grad_data = a_y.grad.buffer.to_numpy().view(np.float32).reshape(-1, 1)
+    a_z_grad_data = a_z.grad.buffer.to_numpy().view(np.float32).reshape(-1, 1)
     a_grad_data = np.column_stack((a_x_grad_data, a_y_grad_data, a_z_grad_data))
-    b_grad_data = b.grad_buffer.to_numpy().view(np.float32).reshape(-1, 3)
+    b_grad_data = b.grad.buffer.to_numpy().view(np.float32).reshape(-1, 3)
 
     exprected_grad = python_eval_polynomial_a_deriv(a_data, b_data)
     assert np.allclose(a_grad_data, exprected_grad)

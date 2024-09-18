@@ -23,7 +23,7 @@ class FunctionChainBase:
         calldata = self._build_call_data(False, *args, **kwargs)
         return calldata.call(*args, **kwargs)
 
-    def backwards(self, *args: Any, **kwargs: Any) -> Any:
+    def bwds_diff(self, *args: Any, **kwargs: Any) -> Any:
         calldata = self._build_call_data(True, *args, **kwargs)
         return calldata.call(*args, **kwargs)
 
