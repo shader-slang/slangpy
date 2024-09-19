@@ -151,7 +151,9 @@ class NDDifferentiableBufferType(BaseTypeImpl):
             prim_name = prim.name
             prim_access = access[prim.value]
             if prim_access != AccessType.none:
-                value = data.buffer if prim == PrimType.primal else data.grad_buffer
+                ndbuffer = data if prim == PrimType.primal else data.grad
+                assert ndbuffer is not None
+                value = ndbuffer.buffer if prim == PrimType.primal else ndbuffer.buffer
                 res[prim_name] = {
                     'buffer': value,
                     'strides': list(data.strides)

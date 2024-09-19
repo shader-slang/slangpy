@@ -1,6 +1,6 @@
 import hashlib
 import os
-from typing import Any
+from typing import Any, Optional
 
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen
 
@@ -23,6 +23,8 @@ from kernelfunctions.function import (
     FunctionChainInputTransform,
     FunctionChainOutputTransform,
     FunctionChainSet,
+    FunctionChainThis,
+    IThis,
 )
 
 from kernelfunctions.shapes import (
@@ -31,6 +33,28 @@ from kernelfunctions.shapes import (
 
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
+
+
+def unpack_arg(arg: Any) -> Any:
+    if hasattr(arg, "get_this"):
+        arg = arg.get_this()
+    if isinstance(arg, dict):
+        arg = {k: unpack_arg(v) for k, v in arg.items()}
+    if isinstance(arg, list):
+        arg = [unpack_arg(v) for v in arg]
+    return arg
+
+
+def pack_arg(arg: Any, unpacked_arg: Any):
+    if hasattr(arg, "update_this"):
+        arg.update_this(unpacked_arg)
+    if isinstance(arg, dict):
+        for k, v in arg.items():
+            pack_arg(v, unpacked_arg[k])
+    if isinstance(arg, list):
+        for i, v in enumerate(arg):
+            pack_arg(v, unpacked_arg[i])
+    return arg
 
 
 class CallData:
@@ -49,6 +73,7 @@ class CallData:
         self.call_mode = CallMode.bwds if backwards else CallMode.prim
         self.input_transforms: dict[str, TConcreteShape] = {}
         self.outut_transforms: dict[str, TConcreteShape] = {}
+        self.this: Optional[IThis] = None
         sets = {}
         for item in chain:
             if isinstance(item, FunctionChainSet):
@@ -64,11 +89,21 @@ class CallData:
                 self.input_transforms.update(item.transforms)
             if isinstance(item, FunctionChainOutputTransform):
                 self.outut_transforms.update(item.transforms)
+            if isinstance(item, FunctionChainThis):
+                self.this = item.this
 
         self.sets = sets
 
+        # If 'this' is specified, inject as first argument
+        if self.this is not None:
+            args = (self.this,) + args
+
+        # Build 'unpacked' args (that handle IThis)
+        unpacked_args = tuple([unpack_arg(x) for x in args])
+        unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
+
         # Build the unbound signature from inputs
-        python_call = PythonFunctionCall(*args, **kwargs)
+        python_call = PythonFunctionCall(*unpacked_args, **unpacked_kwargs)
 
         # Attempt to match to a slang function overload
         python_to_slang_mapping = None
@@ -162,8 +197,16 @@ Overloads:
             kwargs["_result"] = rv_node.python.create_output(
                 device, self.call_shape)
 
+        # If 'this' is specified, inject as first argument
+        if self.this is not None:
+            args = (self.this,) + args
+
+        # Build 'unpacked' args (that handle IThis)
+        unpacked_args = tuple([unpack_arg(x) for x in args])
+        unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
+
         write_calldata_pre_dispatch(device, self.bindings,
-                                    call_data, *args, **kwargs)
+                                    call_data, *unpacked_args, **unpacked_kwargs)
 
         total_threads = 1
         strides = []
@@ -181,9 +224,15 @@ Overloads:
         self.kernel.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
 
         read_call_data_post_dispatch(
-            device, self.bindings, call_data, *args, **kwargs)
+            device, self.bindings, call_data, *unpacked_args, **unpacked_kwargs)
+
+        # Push updated 'this' values back to original objects
+        for (i, arg) in enumerate(args):
+            pack_arg(arg, unpacked_args[i])
+        for (k, arg) in kwargs.items():
+            pack_arg(arg, unpacked_kwargs[k])
 
         if self.call_mode == CallMode.prim and rv_node is not None:
-            return rv_node.python.read_output(device, kwargs["_result"])
+            return rv_node.read_output(device, kwargs["_result"])
         else:
             return None

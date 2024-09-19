@@ -48,6 +48,10 @@ class PythonVariable(BaseVariableImpl):
         el_name = self.root_element_name
         other_name = other.root_element_name
 
+        # None is 'wildcard'
+        if el_name is None or other_name is None:
+            return True
+
         if el_name == other_name:
             return True
         if el_name == 'none' or other_name == 'none':
@@ -80,10 +84,17 @@ class PythonVariable(BaseVariableImpl):
         self._primal_type_name = self.primal.name(value)
         self._derivative_type_name = self.derivative.name(
             value) if self.derivative is not None else None
-        self._root_element_name = self._find_bottom_level_element(value).name(value)
-        self._primal_element_name = self.primal.element_type(value).name(value)
-        self._derivative_element_name = self.derivative.element_type(
-            value).name(value) if self.derivative is not None else None
+
+        def _get_name(el_type: Optional[BaseType], value: Any, default: Any = None):
+            return el_type.name(value) if el_type is not None else default
+
+        self._root_element_name = _get_name(self._find_bottom_level_element(value), value)
+        self._primal_element_name = _get_name(self.primal.element_type(value), value)
+        if self.derivative is not None:
+            self._derivative_element_name = _get_name(
+                self.derivative.element_type(value), value)
+        else:
+            self._derivative_element_name = None
 
     def gen_calldata(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         return self.primal.gen_calldata(cgb, self, name, transform, access)

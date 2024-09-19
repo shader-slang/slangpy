@@ -40,7 +40,7 @@ PYTHON_TYPES[dict] = StructType(struct_name='dict')
 def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType:
     assert isinstance(slang_type, TypeReflection)
     assert slang_type.kind == TypeReflection.Kind.struct
-    return StructType(struct_name=slang_type.name)
+    return StructType(struct_name=slang_type.full_name)
 
 
 tr.SLANG_STRUCT_BASE_TYPE = _get_or_create_slang_type_reflection
