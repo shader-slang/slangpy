@@ -95,11 +95,6 @@ struct BaseDiffPair<PT, DT, PrimalValue: IValueCallData<PT>, DerivativeValue: IV
     void store_derivative(IContext context, in DT value) { derivative.store_primal(context, value); }
 }
 
-typealias RORODiffPair<PT,DT> = BaseDiffPair<PT, DT, ValueRef<PT>, ValueRef<DT>>;
-typealias RWRODiffPair<PT,DT> = BaseDiffPair<PT, DT, RWValueRef<PT>, ValueRef<DT>>;
-typealias RORWDiffPair<PT,DT> = BaseDiffPair<PT, DT, ValueRef<PT>, RWValueRef<DT>>;
-typealias RWRWDiffPair<PT,DT> = BaseDiffPair<PT, DT, RWValueRef<PT>, RWValueRef<DT>>;
-
 struct TensorBuffer<T, let N : int> : IValueCallData<T>
 {
     typealias primal_type = T;
@@ -112,7 +107,17 @@ struct TensorBuffer<T, let N : int> : IValueCallData<T>
     __subscript(int[N] index)->T { get { return get(index); } }
 
     void load_primal(IContext context, out primal_type value) { value = buffer[_idx(context, strides)]; }
-    void store_primal(IContext context, in T value) {};
+    void store_primal(IContext context, in primal_type value) {};
+
+    void load_primal<let VD : int>(IContext context, out vector<primal_type, VD> value) {
+        int idx = 0;
+        for (int i = 0; i < N-1; i++) { idx += context.get_call_id(i) * strides[i]; }
+
+        for (int vi = 0; vi < VD; vi++) {
+            value[vi] = buffer[idx];
+            idx += strides[N-1];
+        }
+    }
 }
 
 struct RWTensorBuffer<T, let N : int> : IValueCallData<T>
@@ -130,4 +135,24 @@ struct RWTensorBuffer<T, let N : int> : IValueCallData<T>
 
     void load_primal(IContext context, out primal_type value) { value = buffer[_idx(context, strides)]; }
     void store_primal(IContext context, in primal_type value) { buffer[_idx(context, strides)] = value; }
+
+    void load_primal<let VD : int>(IContext context, out vector<primal_type, VD> value) {
+        int idx = 0;
+        for (int i = 0; i < N - 1; i++) { idx += context.get_call_id(i) * strides[i]; }
+
+        for (int vi = 0; vi < VD; vi++) {
+            value[vi] = buffer[idx];
+            idx += strides[N - 1];
+        }
+    }
+
+    void store_primal<let VD : int>(IContext context, in vector<primal_type, VD> value) {
+        int idx = 0;
+        for (int i = 0; i < N - 1; i++) { idx += context.get_call_id(i) * strides[i]; }
+
+        for (int vi = 0; vi < VD; vi++) {
+            buffer[idx] = value[vi];
+            idx += strides[N - 1];
+        }
+    }
 }
