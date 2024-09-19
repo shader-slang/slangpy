@@ -12,6 +12,12 @@ from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 
 
 def generate_differential_pair(name: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: str):
+    assert primal_storage
+    assert deriv_storage
+    assert primal_target
+    if deriv_target is None:
+        deriv_target = primal_target
+
     DIFF_PAIR_CODE = f"""
 struct _{name}
 {{
@@ -52,14 +58,14 @@ class DiffPairType(BaseTypeImpl):
         binding = input_value.binding
 
         if access[0] == AccessType.none:
-            primal_storage = f'NoneType<{prim_el}>'
+            primal_storage = f'NoneType'
         elif access[0] == AccessType.read:
             primal_storage = f"ValueType<{prim_el}>"
         else:
             primal_storage = f"RWValueRef<{prim_el}>"
 
         if access[1] == AccessType.none:
-            deriv_storage = f'NoneType<{deriv_el}>'
+            deriv_storage = f'NoneType'
         elif access[1] == AccessType.read:
             deriv_storage = f"ValueType<{deriv_el}>"
         else:

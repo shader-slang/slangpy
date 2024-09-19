@@ -271,21 +271,16 @@ class BoundVariable:
 
     def gen_call_data_code(self, cg: CodeGen, depth: int = 0):
         if self.children is not None:
-            names: list[tuple[str, str]] = []
+            names: list[tuple[str, str, str]] = []
             for field, variable in self.children.items():
                 variable_name = variable.gen_call_data_code(cg, depth+1)
                 if variable_name is not None:
-                    names.append((field, variable_name))
+                    names.append(
+                        (field, variable_name, variable.slang.primal_type_name, variable.slang.derivative_type_name))
 
             cgb = cg.call_data_structs
 
-            if self.access[1] == AccessType.none:
-                cgb.begin_struct(
-                    f"_{self.variable_name}: IValueCallData<{self.slang.primal_type_name}>")
-            else:
-                cgb.begin_struct(
-                    f"_{self.variable_name}: ICallData<{self.slang.primal_type_name},{self.slang.derivative_type_name}>")
-
+            cgb.begin_struct(f"_{self.variable_name}")
             for name in names:
                 cgb.declare(f"_{name[1]}", name[1])
 
@@ -297,21 +292,20 @@ class BoundVariable:
                 prim_type_name = self.slang.primal_type_name if prim == PrimType.primal else self.slang.derivative_type_name
 
                 cgb.empty_line()
-                cgb.type_alias(f"{prim_name}_type", prim_type_name)
 
                 cgb.empty_line()
                 cgb.append_line(
-                    f"void load_{prim_name}(IContext context, out {prim_name}_type value)")
+                    f"void load_{prim_name}(IContext context, out {prim_type_name} value)")
                 cgb.begin_block()
                 for name in names:
-                    cgb.declare(f"_{name[1]}::{prim_name}_type", f"{name[0]}")
+                    cgb.declare(name[2], name[0])
                     cgb.append_statement(f"{name[1]}.load_{prim_name}(context,{name[0]})")
                     cgb.assign(f"value.{name[0]}", f"{name[0]}")
                 cgb.end_block()
 
                 cgb.empty_line()
                 cgb.append_line(
-                    f"void store_{prim_name}(IContext context, in {prim_name}_type value)")
+                    f"void store_{prim_name}(IContext context, in {prim_type_name} value)")
                 cgb.begin_block()
                 for name in names:
                     cgb.append_statement(

@@ -214,7 +214,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
         shapes,
         {
             "type_shapes": [[3], [3], []],
-            "arg_shapes": [[100], [], [1]],
+            "arg_shapes": [[100], [], []],
             "call_shape": [100],
         },
     )

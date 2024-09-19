@@ -130,14 +130,14 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         binding = input_value.binding
 
         if access[0] == AccessType.none:
-            primal_storage = f'NoneType<{prim_el}>'
+            primal_storage = f'NoneType'
         elif access[0] == AccessType.read:
             primal_storage = f"TensorBuffer<{prim_el},{dim}>"
         else:
             primal_storage = f"RWTensorBuffer<{prim_el},{dim}>"
 
         if access[1] == AccessType.none:
-            deriv_storage = f'NoneType<{deriv_el}>'
+            deriv_storage = f'NoneType'
         elif access[1] == AccessType.read:
             deriv_storage = f"TensorBuffer<{deriv_el},{dim}>"
         else:

@@ -1,14 +1,14 @@
 import "slangpy";
 import "wanghasharg";
 
-struct RandFloatArg<let N : int> : IValueCallData<vector<float, N>> {
-    typealias primal_type = vector<float, N>;
+struct RandFloatArg<let N : int>  {
+    typealias T = vector<float, N>;
 
     uint seed;
     float min;
     float max;
 
-    void load_primal(IContext context, out primal_type value) {
+    void load_primal(IContext context, out T value) {
         var tid = context.get_thread_id();
         var hash = tid.x ^ seed;
         for (int i = 0; i < N; i++) {
@@ -16,5 +16,5 @@ struct RandFloatArg<let N : int> : IValueCallData<vector<float, N>> {
             value[i] = lerp(min,max, saturate((hash % 1000000) / 1000000.0f));
         }
     }
-    void store_primal(IContext context, in primal_type value) {};
+    void store_primal(IContext context, in T value) {};
 }
