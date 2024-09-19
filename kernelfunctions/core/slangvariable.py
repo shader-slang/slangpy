@@ -9,7 +9,7 @@ from .enums import IOType
 
 
 class SlangFunction:
-    def __init__(self, reflection: FunctionReflection) -> NoneType:
+    def __init__(self, reflection: FunctionReflection, this_reflection: Optional[TypeReflection] = None) -> NoneType:
         super().__init__()
         self.name = reflection.name
         if reflection.return_type is not None and reflection.return_type.scalar_type != TypeReflection.ScalarType.void:
@@ -17,14 +17,26 @@ class SlangFunction:
         else:
             self.return_value = None
         self.parameters = [SlangVariable(a) for a in reflection.parameters]
+
+        # Handle 'this' parameter for class methods UNLESS an init/static function
+        if this_reflection is not None and self.name != "$init" and not reflection.has_modifier(ModifierID.static):
+            iot = IOType.inn
+            if reflection.has_modifier(ModifierID.mutating):
+                iot = IOType.inout
+            self.this = SlangVariable(this_reflection, name="_this", iotype_override=iot)
+            self.parameters.insert(0, self.this)
+        else:
+            self.this = None
+
         self.differentiable = reflection.has_modifier(ModifierID.differentiable)
 
 
 class SlangVariable(BaseVariableImpl):
     def __init__(self,
-                 reflection: Union[FunctionReflection, VariableReflection, TypeReflection.ScalarType],
+                 reflection: Union[TypeReflection, FunctionReflection, VariableReflection, TypeReflection.ScalarType],
                  parent: Optional['SlangVariable'] = None,
-                 name: Optional[str] = None):
+                 name: Optional[str] = None,
+                 iotype_override: Optional[IOType] = None,):
         super().__init__()
 
         if parent is not None:
@@ -40,7 +52,7 @@ class SlangVariable(BaseVariableImpl):
                 assert name is None
                 slang_type = reflection.type
                 self.name = reflection.name
-        if isinstance(reflection, VariableReflection):
+        elif isinstance(reflection, VariableReflection):
             # Function argument - check modifiers
             slang_type = reflection.type
             self.name = reflection.name
@@ -57,6 +69,15 @@ class SlangVariable(BaseVariableImpl):
             self.name = "_result"
             io_type = IOType.out
             no_diff = not reflection.has_modifier(ModifierID.differentiable)
+        elif isinstance(reflection, TypeReflection):
+            # Just a type
+            slang_type = reflection
+            self.name = name if name is not None else ""
+            io_type = IOType.inn
+            no_diff = False
+
+        if iotype_override is not None:
+            io_type = iotype_override
 
         self.io_type = io_type
         self.no_diff = no_diff

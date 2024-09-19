@@ -5,11 +5,8 @@ import enum
 from typing import Optional, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..types.base import ScalarKind
-    from ..types.interfaces import SlangType
-    from ..types.func import SlangFunc
+    from ..reflection import ScalarKind, SlangType, SlangFunc
     from ..invokables import InvokableSlangFunc
-    from ..variable import Variable
 
 
 class TensorLayer:
@@ -143,11 +140,14 @@ class TensorRef:
     def is_empty(self) -> bool:
         raise NotImplementedError
 
-    def get_dtype(self) -> ScalarKind:
+    def get_dtype(self) -> SlangType:
         raise NotImplementedError
 
     def get_shape(self) -> tuple[int, ...]:
         raise NotImplementedError
+
+    def get_ndim(self) -> int:
+        return len(self.get_shape())
 
     def get_strides(self) -> tuple[int, ...]:
         raise NotImplementedError

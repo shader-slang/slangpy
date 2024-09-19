@@ -1,24 +1,19 @@
 from __future__ import annotations
 
-from .types.base import Modifier, VoidType
-
-from .types.interfaces import BatchedType, CodegenType
-from .types.func import SlangFunc
-from .types.typeutil import is_flattenable, is_empty_type
-from .variable import Variable, AssignmentCursor
+from .reflection import Modifier, VoidType, SlangFunc
+from .reflection import is_flattenable, is_empty_type
+from .marshalling import Variable, wrap
+from .marshalling.struct import Struct
 from .codegen import SlangCodeGen
 from .util import broadcast_shapes
 
-from .layers import Program, Kernel, TensorRef, compute_layer, tensor_layer, tensor_ref
+from .layers import Program, Kernel, compute_layer, tensor_ref
 
 import math
 import logging
 
 from collections import OrderedDict
-from typing import Any, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .types.struct import Struct
+from typing import Any, Optional
 
 kernel_template = """
 import Plugins.NeuralMaterialOptimizer.slangtorch;
@@ -32,9 +27,16 @@ struct ShaderData
 {{
     // Metadata
     BatchSize batchSize;
-    {parameter_block}
+    ArgReader args;
 }};
 ConstantBuffer<ShaderData> data;
+
+void trampoline(BatchIndex idx)
+{
+    var args = data.args.read(idx);
+    {function_call}
+    data.args.write(args);
+}
 
 [numthreads(256, 1, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
@@ -43,9 +45,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         return;
     let batchIdx = BatchIndex(data.batchSize, dispatchThreadId.x);
 
-    var args = {read_args};
-    {call_expression}
-    {write_results}
+    trampoline(batchIdx);
 }}
 """
 
@@ -54,44 +54,46 @@ class SpecializedSlangFunc:
     def __init__(
         self,
         ref_prog: Program,
-        func_name: str,
-        root_var: Variable,
+        root: InvokableSlangFunc,
+        wrappers: tuple[Variable, ...],
         have_return: bool,
-        print_enabled: bool,
     ):
         super().__init__()
         self.ref_prog = ref_prog
-        self.func_name = func_name
-        self.root_var = root_var
+        self.root = root
+        self.wrappers = wrappers
         self.have_return = have_return
         self.kernel: Optional[Kernel] = None
         self.backward_cache = []
         self.buffer_cache = {}
         self.is_method = False
-        self.max_batch_dim = None
-        self.print_enabled = print_enabled
+        self.max_batch_dim = 4  # TODO
 
     def create_kernel(self):
-        args_name = f"data.{self.root_var.name}"
-
         definition_gen = SlangCodeGen()
-        emitted = set()
-        for var in self.root_var.nodes():
-            if isinstance(var.type, CodegenType) and var.type not in emitted:
-                var.type.define_type(definition_gen)
-                emitted.add(var.type)
+        definition_gen.begin_block('struct FunctionArguments {')
+        for p in self.root.func_params:
+            definition_gen.emit(f"{p.type} {p.name}")
+        definition_gen.end_block()
+        definition_gen.begin_block('struct ArgReader : Variable<FunctionArguments> {')
+        for param, wrapper in zip(self.root.func_params, self.wrappers):
+            wrapper.declare(definition_gen, param.name)
 
-        param_gen = SlangCodeGen(1)
-        param_gen.blank_line()
-        param_gen.emit("// Parameters")
-        self.root_var.declare(param_gen)
+        definition_gen.begin_block('FunctionArguments read(BatchIndex idx) {')
+        definition_gen.emit('FunctionAguments result;')
+        for param, wrapper in zip(self.root.func_params, self.wrappers):
+            if param.is_in():
+                definition_gen.emit(f"result.{param.name} = {param.name}.read(idx);")
+        definition_gen.emit('return result;')
+        definition_gen.end_block()
+        definition_gen.begin_block('void write(BatchIndex idx, FunctionArguments args) {')
+        for param, wrapper in zip(self.root.func_params, self.wrappers):
+            if param.is_out():
+                definition_gen.emit(f"{param.name}.write(idx, args.{param.name});")
+        definition_gen.end_block()
 
-        write_gen = SlangCodeGen(1)
-        write_gen.blank_line()
-        self.root_var.write(args_name, "args", write_gen)
-
-        call_base = self.func_name
-        call_args = ["args." + var.name for var in self.root_var.children.values()]
+        call_base = self.root.func_name
+        call_args = ["args." + param.name for param in self.root.func_params]
 
         # Because function return values require much the same handling as out parameters,
         # we add the function return value as an out parameter at the end of the parameter
@@ -107,20 +109,14 @@ class SpecializedSlangFunc:
         wrapper_code = kernel_template.format(
             max_batch_dim=self.max_batch_dim,
             definitions=definition_gen.code(),
-            parameter_block=param_gen.code(),
-            read_args=self.root_var.read(args_name),
-            call_expression=call_expression,
-            write_results=write_gen.code(),
+            function_call=call_expression,
         )
 
         if logging.root.isEnabledFor(logging.DEBUG):
-            logging.debug(f"Shader code for {self.func_name}:")
+            logging.debug(f"Shader code for {self.root.func_name}:")
             logging.debug(wrapper_code)
 
-            logging.debug("Corresponding parameter block:")
-            logging.debug(repr(self.root_var))
-
-        logging.debug(f"Compiling kernel for {self.func_name}...")
+        logging.debug(f"Compiling kernel for {self.root.func_name}...")
         prog = compute_layer().extend_program(
             self.ref_prog, "KfWrapper", wrapper_code, entry_point="main"
         )
@@ -131,46 +127,19 @@ class SpecializedSlangFunc:
         self.call(values)
 
     def call(self, values: list[Any]):
-        batched_inputs: list[tuple[Variable, Any, tuple[int, ...]]] = []
-        for var, val in zip(self.root_var.nodes(), values):
-            if isinstance(var.translator, BatchedType):
-                size = var.translator.infer_batch_size(val)
-                batched_inputs.append((var, val, size))
-        batch_size = broadcast_shapes([size for _, _, size in batched_inputs])
-
-        if logging.root.isEnabledFor(logging.DEBUG):
-            logging.debug(f"Derived batch size {batch_size} from batched variables:")
-            for var, val, size in batched_inputs:
-                prefix = ""
-                if isinstance(val, TensorRef):
-                    if val.is_empty():
-                        prefix = f"Empty tensor -> "
-                    else:
-                        dtype = val.get_dtype().to_slang_type()
-                        prefix = f"tensor.{dtype}{list(val.get_shape())} -> "
-                logging.debug(
-                    f"    {var.get_root_path_string()} ({var.type.to_slang_type()}): {prefix}{list(size)}"
-                )
+        sizes = [var.batch_size(value) for var, value in zip(self.wrappers, values)]
+        batch_size = broadcast_shapes(sizes)
 
         if batch_size is None:
             lines = []
             lines.append(
-                f"Could not invoke slang function {self.func_name} because "
+                f"Could not invoke slang function {self.root.func_name} because "
                 "the batch sizes could not be broadcast together.\n"
-                "Below are the tensors that were mapped to function inputs "
-                "and their inferred batch sizes:"
+                "Below are the inferred batch sizes for each parameter:"
             )
-            for var, value, shape in batched_inputs:
-                var_str = (
-                    f"    {var.get_root_path_string()} ({var.type.to_slang_type()}): "
-                )
-                if isinstance(value, TensorRef):
-                    shape_str = (
-                        f"Tensor shape {list(value.get_shape())} -> batch size {shape}"
-                    )
-                else:
-                    shape_str = f"Batch size {shape}"
-                lines.append(var_str + shape_str)
+            for param, value, shape in zip(self.root.func_params, values, sizes):
+                lines.append(f"    {param.type} {param.name}: "
+                             f"{type(value).__name__} -> {list(shape)}")
 
             raise ValueError("\n".join(lines))
 
@@ -191,58 +160,10 @@ class SpecializedSlangFunc:
             self.max_batch_dim - len(batch_size)
         ) + list(batch_size)
 
-        for var, value in zip(self.root_var.nodes(), values):
-            if not var.is_leaf:
-                continue
-
-            shader_var = block[self.root_var.name]
-            for p in var.path():
-                shader_var = shader_var[p]
-
-            if isinstance(var.translator, BatchedType):
-                value = var.translator.broadcast(value, batch_size)
-
-            if var.is_out:
-                assert isinstance(value, TensorRef)
-
-            if isinstance(value, TensorRef):
-                shader_var.set_tensor(value, var.is_in, var.is_out)
-            elif value is not None:
-                shader_var.set(value)
+        for param, var, value in zip(self.root.func_params, self.wrappers, values):
+            var.assign(block['args'][param.name], value, batch_size)
 
         self.kernel.dispatch(batch_count)
-
-
-"""
-class StructReturnValue(dict[str, Any]):
-    def __getattr__(self, name: str):
-        if name in self:
-            return self.__getitem__(name)
-        else:
-            raise AttributeError
-
-    def __setattr__(self, name: str, value: Any):
-        return self.__setitem__(name, value)
-
-    def __repr__(self):
-        def recurse(val: Any):
-            if isinstance(val, list):
-                return '[' + ', '.join(recurse(v) for v in val) + ']'
-            elif isinstance(val, dict):
-                return '{' + ', '.join(k + ': ' + recurse(v) for k, v in val.items()) + '}'
-            elif tensor_layer().is_tensor(val):
-                return 'tensor.' + str(tensor_layer().wrap_tensor(val).get_dtype()) + str(list(val.shape))
-            else:
-                return repr(val)
-
-        return recurse(self)
-
-    @staticmethod
-    def is_compatible(type: SlangType):
-        if isinstance(type, StructType):
-            return all(StructReturnValue.is_compatible(v) for v in type.members.values())
-        return is_flattenable(type)
-"""
 
 
 class InvokableSlangFunc:
@@ -268,16 +189,15 @@ class InvokableSlangFunc:
             # if not StructReturnValue.is_compatible(self.func.return_type):
             if not is_flattenable(self.func.return_type):
                 raise ValueError(
-                    f"Return type {self.func.return_type.to_slang_type()} of "
+                    f"Return type {self.func.return_type} of "
                     f"function {self.func_name} is not compatible with tensors"
                 )
 
             self.func_params.append(self.func.get_return_param())
             self.have_return = True
 
-        self.specializations: list[tuple[str, SpecializedSlangFunc]] = []
+        self.specializations: list[tuple[tuple[Variable, ...], SpecializedSlangFunc]] = []
         self.d_func = None
-        self.print_enabled = False
 
     def differentiate(self) -> InvokableSlangFunc:
         if self.d_func is None:
@@ -321,16 +241,11 @@ class InvokableSlangFunc:
 
         return param_map
 
-    def specialize(self, root_var: Variable) -> SpecializedSlangFunc:
-        translations = [var for var in root_var.leaves() if var.translator is not None]
-        instance_key = ",".join(
-            f"{var.get_root_path_string()}:{repr(var.translator)}"
-            for var in translations
-        )
+    def specialize(self, wrappers: tuple[Variable, ...]) -> SpecializedSlangFunc:
         specialized_fun = None
-        logging.debug(f"Specializing {self.func_name} with key {instance_key}")
+        logging.debug(f"Specializing {self.func_name}")
         for key, fun in self.specializations:
-            if key == instance_key:
+            if key == wrappers:
                 specialized_fun = fun
                 break
 
@@ -339,12 +254,11 @@ class InvokableSlangFunc:
 
             specialized_fun = SpecializedSlangFunc(
                 self.ref_prog,
-                self.func_name,
-                root_var,
-                self.have_return,
-                self.print_enabled,
+                self,
+                wrappers,
+                self.have_return
             )
-            self.specializations.append((instance_key, specialized_fun))
+            self.specializations.append((wrappers, specialized_fun))
 
         return specialized_fun
 
@@ -359,12 +273,11 @@ class InvokableSlangFunc:
             # inputs.append(tensor_ref() if is_flattenable(self.func.return_type) else StructReturnValue())
             inputs.append(tensor_ref())
 
-        assignments = AssignmentCursor.from_function(self)
-        for param, val in zip(self.func_params, inputs):
-            assignments[param.name] = val
-        vars, values = assignments.finalize()
-
-        tensor_layer().wrap_kernel_call(self, vars, values)
+        # TODO: Begin hook
+        wrapped = [wrap(p.type, v, p.modifiers) for p, v in zip(self.func_params, inputs)]
+        vars, values = zip(*wrapped)
+        self.specialize(vars)(values)
+        # TODO: End hook
 
         if self.have_return:
             return inputs[-1]
@@ -389,13 +302,13 @@ class InvokableSlangMethod:
         )
         if Modifier.NoDiffThis in self.method.func_modifiers:
             self_modifier += " no_diff"
-        self_param = f"{self_modifier} {struct.to_slang_type()} self"
+        self_param = f"{self_modifier} {struct} self"
         param_definition = ", ".join([self_param] + params)
         param_use = ", ".join(p.name for p in self.method.params)
 
         prefix = "return " if not isinstance(return_type, VoidType) else ""
         code = (
-            f"{return_type.to_slang_type()} {func_name}({param_definition}) {{\n"
+            f"{return_type} {func_name}({param_definition}) {{\n"
             f"    {prefix}self.{self.method.name}({param_use});\n"
             "}\n"
         )

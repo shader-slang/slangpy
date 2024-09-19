@@ -71,16 +71,11 @@ def create_function_from_module(
 
     names = func_name.split(".")
 
-    node = module.module_decl
-    while len(names) > 1:
-        name = names.pop(0)
-        node = node.find_first_child_of_kind(DeclReflection.Kind.struct, name)
-        if node is None:
-            raise ValueError(f"Struct '{name}' not found in module {module.name}")
-
-    name = names.pop(0)
-    function = kernelfunctions.Function(module, name, node)
-
+    if len(names) == 1:
+        function = kernelfunctions.Function(module, names[0])
+    else:
+        type_name = "::".join(names[:-1])
+        function = kernelfunctions.Function(module, names[-1], type_parent=type_name)
     return function
 
 

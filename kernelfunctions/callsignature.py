@@ -320,8 +320,23 @@ def generate_code(call_shape: list[int], function: Function, signature: BoundCal
     cg.trampoline.append_indent()
     if any(x.path is '_result' for x in root_params):
         cg.trampoline.append_code(f"_result = ")
+
+    # Get function name, if it's the init function, use the result type
+    func_name = function.name
+    if func_name == "$init":
+        results = [x for x in root_params if x.path == '_result']
+        assert len(results) == 1
+        func_name = results[0].slang.primal_element_name
+    elif len(root_params) > 0 and root_params[0].path == '_this':
+        func_name = f'_this.{func_name}'
+
+    # Get the parameters that are not the result or this reference
+    normal_params = [x for x in root_params if x.path != '_result' and x.path != '_this']
+
+    # Internal call to the actual function
     cg.trampoline.append_code(
-        f"{function.name}(" + ", ".join(x.slang.name for x in root_params if x.slang.name != '_result') + ");\n")
+        f"{func_name}(" + ", ".join(x.path for x in normal_params) + ");\n")
+
     cg.trampoline.end_block()
     cg.trampoline.append_line("")
 
@@ -489,6 +504,7 @@ def get_readable_func_string(slang_function: Optional[SlangFunction]):
     else:
         text.append("void ")
     text.append(slang_function.name)
+    text.append("(")
     parms = [
         f"{get_modifiers(x)}{x.primal_type_name} {x.name}" for x in slang_function.parameters]
     text.append(", ".join(parms))
