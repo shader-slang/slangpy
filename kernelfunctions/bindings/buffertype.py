@@ -2,6 +2,7 @@
 
 from typing import Any, Optional, Sequence
 
+from kernelfunctions.bindings.diffpairtype import generate_differential_pair
 from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType, PrimType
 
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
@@ -126,6 +127,8 @@ class NDDifferentiableBufferType(BaseTypeImpl):
             deriv_el = prim_el
         dim = len(transform)
 
+        binding = input_value.binding
+
         if access[0] == AccessType.none:
             primal_storage = f'NoneType<{prim_el}>'
         elif access[0] == AccessType.read:
@@ -140,8 +143,11 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             deriv_storage = f"RWTensorBuffer<{deriv_el},{dim}>"
 
-        tn = f"BaseDiffPair<{prim_el},{deriv_el},{primal_storage},{deriv_storage}>"
-        cgb.type_alias(f"_{name}", tn)
+        primal_target = binding.slang.primal_type_name
+        deriv_target = binding.slang.derivative_type_name
+
+        cgb.append_code(generate_differential_pair(name, primal_storage,
+                        deriv_storage, primal_target, deriv_target))
 
     # Call data just returns the primal
 

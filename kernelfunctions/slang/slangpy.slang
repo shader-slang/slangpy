@@ -36,11 +36,10 @@ interface IValueCallData<T>
     void store_primal(IContext context, in T value);
 }
 
-struct NoneType<T> : IValueCallData<T>
+struct NoneType
 {
-    typealias primal_type = T;
-    void load_primal(IContext context, out primal_type value) { value = primal_type();}
-    void store_primal(IContext context, in T value) {};
+    void load_primal<T>(IContext context, out T value) { value = T();}
+    void store_primal<T>(IContext context, in T value) {};
 }
 
 struct ValueType<T> : IValueCallData<T>
@@ -95,21 +94,18 @@ struct BaseDiffPair<PT, DT, PrimalValue: IValueCallData<PT>, DerivativeValue: IV
     void store_derivative(IContext context, in DT value) { derivative.store_primal(context, value); }
 }
 
-struct TensorBuffer<T, let N : int> : IValueCallData<T>
+struct TensorBuffer<T, let N : int>
 {
-    typealias primal_type = T;
-    typealias derivative_type = T;
-
     RWStructuredBuffer<T> buffer;
     int[N] strides;
 
     T get(int[N] index) { return buffer[_idx(index, strides)]; }
     __subscript(int[N] index)->T { get { return get(index); } }
 
-    void load_primal(IContext context, out primal_type value) { value = buffer[_idx(context, strides)]; }
-    void store_primal(IContext context, in primal_type value) {};
+    void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides)]; }
+    void store_primal(IContext context, in T value) {};
 
-    void load_primal<let VD : int>(IContext context, out vector<primal_type, VD> value) {
+    void load_primal<let VD : int>(IContext context, out vector<T, VD> value) {
         int idx = 0;
         for (int i = 0; i < N-1; i++) { idx += context.get_call_id(i) * strides[i]; }
 
@@ -118,13 +114,12 @@ struct TensorBuffer<T, let N : int> : IValueCallData<T>
             idx += strides[N-1];
         }
     }
+
+    void store_primal<let VD : int>(IContext context, out vector<T, VD> value) {}
 }
 
-struct RWTensorBuffer<T, let N : int> : IValueCallData<T>
+struct RWTensorBuffer<T, let N : int>
 {
-    typealias primal_type = T;
-    typealias derivative_type = T;
-
     RWStructuredBuffer<T> buffer;
     int[N] strides;
 
@@ -133,10 +128,10 @@ struct RWTensorBuffer<T, let N : int> : IValueCallData<T>
 
     __subscript(int[N] index)->T { get { return get(index); } set { set(index, newValue); } }
 
-    void load_primal(IContext context, out primal_type value) { value = buffer[_idx(context, strides)]; }
-    void store_primal(IContext context, in primal_type value) { buffer[_idx(context, strides)] = value; }
+    void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides)]; }
+    void store_primal(IContext context, in T value) { buffer[_idx(context, strides)] = value; }
 
-    void load_primal<let VD : int>(IContext context, out vector<primal_type, VD> value) {
+    void load_primal<let VD : int>(IContext context, out vector<T, VD> value) {
         int idx = 0;
         for (int i = 0; i < N - 1; i++) { idx += context.get_call_id(i) * strides[i]; }
 
@@ -146,7 +141,7 @@ struct RWTensorBuffer<T, let N : int> : IValueCallData<T>
         }
     }
 
-    void store_primal<let VD : int>(IContext context, in vector<primal_type, VD> value) {
+    void store_primal<let VD : int>(IContext context, in vector<T, VD> value) {
         int idx = 0;
         for (int i = 0; i < N - 1; i++) { idx += context.get_call_id(i) * strides[i]; }
 

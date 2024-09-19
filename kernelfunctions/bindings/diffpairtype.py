@@ -11,6 +11,21 @@ from kernelfunctions.backend import Buffer, Device, ResourceUsage
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 
 
+def generate_differential_pair(name: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: str):
+    DIFF_PAIR_CODE = f"""
+struct _{name}
+{{
+    {primal_storage} primal;
+    {deriv_storage} derivative;
+    void load_primal(IContext context, out {primal_target} value) {{ primal.load_primal(context, value); }}
+    void store_primal(IContext context, in {primal_target} value) {{ primal.store_primal(context, value); }}
+    void load_derivative(IContext context, out {deriv_target} value) {{ derivative.load_primal(context, value); }}
+    void store_derivative(IContext context, in {deriv_target} value) {{ derivative.store_primal(context, value); }}
+}}
+"""
+    return DIFF_PAIR_CODE
+
+
 class DiffPairType(BaseTypeImpl):
 
     def __init__(self, primal_type: BaseType, derivative_type: Optional[BaseType] = None):
@@ -34,6 +49,8 @@ class DiffPairType(BaseTypeImpl):
         if deriv_el is None:
             deriv_el = prim_el
 
+        binding = input_value.binding
+
         if access[0] == AccessType.none:
             primal_storage = f'NoneType<{prim_el}>'
         elif access[0] == AccessType.read:
@@ -48,8 +65,11 @@ class DiffPairType(BaseTypeImpl):
         else:
             deriv_storage = f"RWValueRef<{deriv_el}>"
 
-        tn = f"BaseDiffPair<{prim_el},{deriv_el},{primal_storage},{deriv_storage}>"
-        cgb.type_alias(f"_{name}", tn)
+        primal_target = binding.slang.primal_type_name
+        deriv_target = binding.slang.derivative_type_name
+
+        cgb.append_code(generate_differential_pair(name, primal_storage,
+                        deriv_storage, primal_target, deriv_target))
 
     def get_type(self, prim: PrimType):
         return self.primal_type if prim == PrimType.primal else self.derivative_type
