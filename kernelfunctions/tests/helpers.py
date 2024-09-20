@@ -11,7 +11,7 @@ from pathlib import Path
 
 from kernelfunctions.backend import (
     Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel,
-    DeclReflection, TypeReflection)
+    TypeReflection)
 from kernelfunctions.calldata import SLANG_PATH
 from kernelfunctions.typeregistry import PYTHON_TYPES
 from kernelfunctions.core.basetypeimpl import BaseTypeImpl

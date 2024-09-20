@@ -69,7 +69,7 @@ struct RWValueRef<T>
     void store_primal(IContext context, in T value) { this.value[0] = value; }
 }
 
-struct TensorBuffer<T, let N : int>
+struct NDBuffer<T, let N : int>
 {
     RWStructuredBuffer<T> buffer;
     int[N] strides;

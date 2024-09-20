@@ -1,4 +1,3 @@
-import re
 from typing import Any, Optional
 import pytest
 from kernelfunctions.backend import DeviceType, float1, float3
@@ -9,7 +8,7 @@ import deepdiff
 from kernelfunctions.tests import helpers
 from kernelfunctions.types import floatRef
 from kernelfunctions.types.valueref import ValueRef
-from helpers import FakeBuffer
+from kernelfunctions.tests.helpers import FakeBuffer
 
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }

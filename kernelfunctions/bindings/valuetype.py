@@ -4,7 +4,6 @@ from types import NoneType
 from typing import Any, Optional, Sequence
 import numpy.typing as npt
 import numpy as np
-from sgl import bool1, float1, int1, uint1
 
 from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType
 
@@ -323,7 +322,7 @@ for pair in zip(["int", "float", "bool", "uint", "float16_t"], [TypeReflection.S
                 PYTHON_TYPES[mat_type] = t
 
 # Map the 1D vectors to scalars
-PYTHON_TYPES[int1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.int32]
-PYTHON_TYPES[uint1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
-PYTHON_TYPES[bool1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.bool]
-PYTHON_TYPES[float1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
+PYTHON_TYPES[math.int1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.int32]
+PYTHON_TYPES[math.uint1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
+PYTHON_TYPES[math.bool1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.bool]
+PYTHON_TYPES[math.float1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]

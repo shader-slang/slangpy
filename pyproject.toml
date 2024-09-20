@@ -16,7 +16,7 @@ dynamic = ["version"]
 py-modules = ["kernelfunctions", "copper"]
 
 [tool.pyright]
-include = ["./kernelfunctions","./copper"]
+include = ["./kernelfunctions"]
 extraPaths = ["./tests"]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

@@ -10,6 +10,7 @@ from kernelfunctions.callsignature import (
     bind,
     calculate_and_apply_call_shape,
     create_return_value, generate_code,
+    generate_tree_info_string,
     get_readable_func_string,
     get_readable_signature_string,
     match_signatures,
@@ -174,6 +175,9 @@ Overloads:
         #   self.code = f.read()
 
         with open(fn, "w",) as f:
+            f.write("/*\n")
+            f.write(generate_tree_info_string(self.bindings))
+            f.write("\n*/\n")
             f.write(self.code)
 
         # Build new module and link it with the one that contains the function being called.

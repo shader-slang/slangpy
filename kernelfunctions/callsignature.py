@@ -192,31 +192,32 @@ COLS = [
     ("Input Shape", 20),
     ("Argument Shape", 20),
     ("Type Shape", 20),
+    ("Transform", 20),
 ]
 
 
-def generate_argument_info_header(signature: BoundCall) -> str:
+def generate_argument_info_header_columns(signature: BoundCall) -> list[str]:
     """
     Generate a header string that describes the arguments
     """
     text: list[str] = []
     for name, width in COLS:
-        text.append(name.ljust(width))
-    return "".join(text)
+        text.append(name)
+    text.append("")  # extra column for error highlight
+    return text
 
 
 def clip_string(s: Any, width: int) -> str:
     width -= 2
     s = str(s)
     s = s.replace("None", "?").replace("none", "?")
-    s = str(s).ljust(width)
     if len(s) > width:
         s = s[:width-3] + "..."
     s += '  '
     return s
 
 
-def generate_argument_info_string(variable: BoundVariable, indent: int, highlight_variable: Optional[BoundVariable] = None) -> str:
+def generate_argument_info_columns(variable: BoundVariable, indent: int, highlight_variable: Optional[BoundVariable] = None) -> list[str]:
     """
     Generate a string that describes the argument
     """
@@ -236,33 +237,45 @@ def generate_argument_info_string(variable: BoundVariable, indent: int, highligh
             text.append(clip_string(variable.argument_shape, width))
         elif name == "Type Shape":
             text.append(clip_string(variable.type_shape, width))
+        elif name == "Transform":
+            text.append(clip_string(variable.loadstore_transform, width))
     if variable == highlight_variable:
         text.append(" <---")
-    return "".join(text)
+    else:
+        text.append("")
+    return text
+
+
+def generate_tree_info_table(call: BoundCall, highlight_variable: Optional[BoundVariable] = None) -> list[list[str]]:
+    """
+    Generate a string that describes the argument
+    """
+    lines: list[list[str]] = []
+    lines.append(generate_argument_info_header_columns(call))
+    for variable in call.args:
+        _generate_tree_info_table(lines, variable, 0, highlight_variable)
+    for variable in call.kwargs.values():
+        _generate_tree_info_table(lines, variable, 0, highlight_variable)
+    return lines
+
+
+def _generate_tree_info_table(lines: list[list[str]], variable: BoundVariable, indent: int, highlight_variable: Optional[BoundVariable] = None):
+    """
+    Generate a string that describes the argument
+    """
+    lines.append(generate_argument_info_columns(variable, indent, highlight_variable))
+    if variable.children is not None:
+        for name, child in variable.children.items():
+            _generate_tree_info_table(lines, child, indent + 1, highlight_variable)
 
 
 def generate_tree_info_string(call: BoundCall, highlight_variable: Optional[BoundVariable] = None) -> str:
-    """
-    Generate a string that describes the argument
-    """
-    lines: list[str] = []
-    lines.append(generate_argument_info_header(call))
-    for variable in call.args:
-        _generate_tree_info_string(lines, variable, 0, highlight_variable)
-    for variable in call.kwargs.values():
-        _generate_tree_info_string(lines, variable, 0, highlight_variable)
-    return "\n".join(lines)
-
-
-def _generate_tree_info_string(lines: list[str], variable: BoundVariable, indent: int, highlight_variable: Optional[BoundVariable] = None) -> str:
-    """
-    Generate a string that describes the argument
-    """
-    lines.append(generate_argument_info_string(variable, indent, highlight_variable))
-    if variable.children is not None:
-        for name, child in variable.children.items():
-            lines.append(_generate_tree_info_string(
-                lines, child, indent + 1, highlight_variable))
+    table = generate_tree_info_table(call, highlight_variable)
+    col_widths = [max(len(x)+2 for x in col) for col in zip(*table)]
+    text: list[str] = []
+    for row in table:
+        text.append("".join(x.ljust(width) for x, width in zip(row, col_widths)))
+    return "\n".join(text)
 
 
 def generate_call_shape_error_string(signature: BoundCall, call_shape: list[int | None], message: str, highlight_variable: Optional[BoundVariable] = None) -> str:

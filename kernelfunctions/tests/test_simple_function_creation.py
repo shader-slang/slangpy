@@ -37,14 +37,14 @@ def test_create_in_type(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     module = device.load_module_from_source(
-        "simple_function_return_value", SIMPLE_FUNCTION_IN_TYPE_RETURN_VALUE
+        "simple_function_create_in_type", SIMPLE_FUNCTION_IN_TYPE_RETURN_VALUE
     )
     function = kf.Function(
         module,
         "add_numbers",
-        module.module_decl.find_first_child_of_kind(
+        type_reflection=module.module_decl.find_first_child_of_kind(
             DeclReflection.Kind.struct, "MyStruct"
-        ),
+        ).as_type(),
     )
     assert function.module == module
     assert function.name == "add_numbers"
