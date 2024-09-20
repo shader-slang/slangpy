@@ -287,7 +287,7 @@ class BoundVariable:
 
     def gen_call_data_code(self, cg: CodeGen, depth: int = 0):
         if self.children is not None:
-            names: list[tuple[str, str, str]] = []
+            names: list[tuple[Any, ...]] = []
             for field, variable in self.children.items():
                 variable_name = variable.gen_call_data_code(cg, depth+1)
                 if variable_name is not None:

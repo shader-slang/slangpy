@@ -1,12 +1,14 @@
 
 
-from typing import Any, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 from kernelfunctions.backend import Device
 
 from .basetype import BaseType
-from .basevariable import BaseVariable
 from .enums import AccessType
+
+if TYPE_CHECKING:
+    from .basevariable import BaseVariable
 
 
 class BaseTypeImpl(BaseType):

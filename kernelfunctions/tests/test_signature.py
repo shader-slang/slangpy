@@ -1,7 +1,7 @@
 from typing import Any
 import pytest
 from kernelfunctions.backend import DeviceType, float1, int1, int2, bool1, uint1, int3
-from kernelfunctions.callsignature import CallMode, build_signature, build_signature_hash, match_signatures, bind
+from kernelfunctions.callsignature import CallMode, build_signature, build_signature_hash, match_signatures
 import kernelfunctions.tests.helpers as helpers
 
 

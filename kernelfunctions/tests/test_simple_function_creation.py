@@ -42,9 +42,9 @@ def test_create_in_type(device_type: DeviceType):
     function = kf.Function(
         module,
         "add_numbers",
-        module.module_decl.find_first_child_of_kind(
+        type_reflection=module.module_decl.find_first_child_of_kind(
             DeclReflection.Kind.struct, "MyStruct"
-        ),
+        ).as_type(),
     )
     assert function.module == module
     assert function.name == "add_numbers"

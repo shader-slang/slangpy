@@ -11,7 +11,7 @@ from kernelfunctions.backend import Buffer, Device, ResourceUsage
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 
 
-def generate_differential_pair(name: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: str):
+def generate_differential_pair(name: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: Optional[str]):
     assert primal_storage
     assert deriv_storage
     assert primal_target
@@ -71,6 +71,7 @@ class DiffPairType(BaseTypeImpl):
         else:
             deriv_storage = f"RWValueRef<{deriv_el}>"
 
+        assert binding is not None
         primal_target = binding.slang.primal_type_name
         deriv_target = binding.slang.derivative_type_name
 
@@ -90,6 +91,7 @@ class DiffPairType(BaseTypeImpl):
             prim_data = data.get(prim)
             prim_type = self.get_type(prim)
             if prim_access in [AccessType.write, AccessType.readwrite]:
+                assert prim_type is not None
                 npdata = prim_type.to_numpy(prim_data).view(dtype=np.uint8)
                 res[prim_name] = {
                     'value': device.create_buffer(
@@ -110,6 +112,7 @@ class DiffPairType(BaseTypeImpl):
             prim_type = self.get_type(prim)
             if prim_access in [AccessType.write, AccessType.readwrite]:
                 assert isinstance(result[prim_name]['value'], Buffer)
+                assert prim_type is not None
                 npdata = result[prim_name]['value'].to_numpy()
                 data.set(prim, prim_type.from_numpy(npdata))
 

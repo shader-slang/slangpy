@@ -1,3 +1,4 @@
+# pyright: reportWildcardImportFromLibrary=false
 
 try:
     from sgl import *

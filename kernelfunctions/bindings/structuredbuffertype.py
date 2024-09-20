@@ -2,15 +2,10 @@
 
 from typing import Any, Optional
 
-from sgl import Device
+from kernelfunctions.core import BaseType, BaseVariable, CodeGenBlock, AccessType
 
-from kernelfunctions.core import BaseType
-
-from kernelfunctions.backend import Buffer, TypeReflection
-from kernelfunctions.core.basevariable import BaseVariable
-from kernelfunctions.core.codegen import CodeGenBlock
-from kernelfunctions.core.enums import AccessType
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
+from kernelfunctions.backend import Device, Buffer, TypeReflection
+from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
 from .valuetype import ValueType
 

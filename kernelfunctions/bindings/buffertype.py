@@ -44,6 +44,7 @@ class NDBufferType(BaseTypeImpl):
     def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDBuffer) -> Any:
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
+        assert input_value.binding is not None
         return {
             'buffer': data.buffer,
             'strides': list(data.strides),
@@ -144,6 +145,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             deriv_storage = f"RWTensorBuffer<{deriv_el},{dim}>"
 
+        assert binding is not None
         primal_target = binding.slang.primal_type_name
         deriv_target = binding.slang.derivative_type_name
 
@@ -153,6 +155,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     # Call data just returns the primal
 
     def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer) -> Any:
+        assert input_value.binding is not None
         res = {}
         for prim in PrimType:
             prim_name = prim.name

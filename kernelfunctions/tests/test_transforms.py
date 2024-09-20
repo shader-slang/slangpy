@@ -1,7 +1,5 @@
 import pytest
-from sgl import float3
-from kernelfunctions.backend import DeviceType, float2
-from kernelfunctions.function import Function
+from kernelfunctions.backend import DeviceType, float3
 from kernelfunctions.module import Module
 import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.types.buffer import NDBuffer
