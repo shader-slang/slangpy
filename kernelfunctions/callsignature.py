@@ -356,7 +356,7 @@ def calculate_and_apply_call_shape(signature: BoundCall) -> list[int]:
         assert node.call_transform is not None
         if node.python.container_shape is not None:
             node.loadstore_transform = [
-                None for x in range(len(node.python.container_shape))]
+                x for x in range(len(node.python.container_shape))]
             for i in range(len(node.python.container_shape)):
                 arg_dim_idx = i
                 if node.transform_inputs is not None:

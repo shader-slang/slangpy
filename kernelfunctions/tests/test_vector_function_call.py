@@ -119,7 +119,6 @@ void add_numbers_vecreadwrite(float2 a, float2 b, out float2 res) {
     assert np.allclose(expected, actual)
 
 
-# @pytest.mark.skip(reason="Not supporting vector indexing of diff pairs yet")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_float_buffer_against_vector_diffpair(device_type: DeviceType):
 

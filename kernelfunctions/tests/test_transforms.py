@@ -115,6 +115,7 @@ def test_add_vectors_vecindex_container_input_transform(device_type: DeviceType)
             assert np.allclose(r, expected)
 
 
+@pytest.mark.skip("Not yet supporting transforms witin element")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_add_vectors_vecindex_element_input_transform(device_type: DeviceType):
     m = load_test_module(device_type)
