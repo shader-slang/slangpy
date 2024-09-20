@@ -207,26 +207,41 @@ def test_add_vectors_vecindex_element_input_transform(device_type: DeviceType):
             b = b_data[i, j]
             assert a == b
 
-# @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-# def test_dotproduct_output_transform(device_type: DeviceType):
-#
-#    # Remapping outputs so buffers of length [10] and [5] can output [10,5]
-#    shapes = dot_product(device_type,
-#                         FakeBuffer((10, 3)),
-#                         FakeBuffer((5, 3)),
-#                         None,
-#                         ouput_transforms={
-#                             "a": (0,),
-#                             "b": (1,)})
-#    diff = deepdiff.DeepDiff(
-#        shapes,
-#        {
-#            "type_shapes": [[3], [3], []],
-#            "arg_shapes": [[10], [5], [10, 5]],
-#            "call_shape": [10, 5],
-#        },
-#    )
-#    assert not diff
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_add_vectors_basic_output_transform(device_type: DeviceType):
+    m = load_test_module(device_type)
+
+    # Test the output transform, where we take 2 1D buffers with different
+    # sizes and braodcast each to a different dimension.
+
+    a = NDBuffer(device=m.device, shape=(5,), element_type=float3)
+    b = NDBuffer(device=m.device, shape=(10,), element_type=float3)
+
+    a_data = np.random.rand(5, 3).astype(np.float32)
+    b_data = np.random.rand(10, 3).astype(np.float32)
+
+    a.from_numpy(a_data)
+    b.from_numpy(b_data)
+
+    func = m.add_vectors.transform_output({
+        'a': (0,),
+        'b': (1,)
+    }).as_func()
+
+    res: NDBuffer = func(a, b)
+
+    assert res.shape == (5, 10)
+
+    res_data = res.buffer.to_numpy().view(np.float32).reshape(5, 10, 3)
+
+    for i in range(5):
+        for j in range(10):
+            a = a_data[i]
+            b = b_data[j]
+            expected = a + b
+            r = res_data[i, j]
+            assert np.allclose(r, expected)
 
 
 if __name__ == "__main__":
