@@ -80,7 +80,7 @@ def test_add_vectors_basic_input_transform(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_vecindex_container_input_transform(device_type: DeviceType):
+def test_add_vectors_vecindex_inputcontainer_input_transform(device_type: DeviceType):
     m = load_test_module(device_type)
 
     # Test remapping when one of the inputs is an 3D buffer of floats
@@ -113,6 +113,64 @@ def test_add_vectors_vecindex_container_input_transform(device_type: DeviceType)
             expected = a + b
             r = res_data[i, j]
             assert np.allclose(r, expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_copy_vectors_vecindex_inputcontainer_input_transform(device_type: DeviceType):
+    m = load_test_module(device_type)
+
+    # Test remapping when one of the inputs is an 3D buffer of floats
+    # instead of 2D buffer of float3s. In this case, the remapping
+    # involves only the lower 2 dimensions (i.e. those of the container)
+
+    inn = NDBuffer(device=m.device, shape=(2, 3, 3), element_type=float)
+    out = NDBuffer(device=m.device, shape=(3, 2), element_type=float3)
+
+    inn_data = np.random.rand(2, 3, 3).astype(np.float32)
+    inn.from_numpy(inn_data)
+
+    func = m.copy_vectors.transform_input({
+        'input': (1, 0, 2),
+    }).as_func()
+
+    func(inn, out)
+
+    out_data = out.buffer.to_numpy().view(np.float32).reshape(3, 2, 3)
+
+    for i in range(3):
+        for j in range(2):
+            inn = inn_data[j, i]
+            out = out_data[i, j]
+            assert np.allclose(inn, out)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: DeviceType):
+    m = load_test_module(device_type)
+
+    # Test remapping when one of the inputs is an 3D buffer of floats
+    # instead of 2D buffer of float3s. In this case, the remapping
+    # involves only the lower 2 dimensions (i.e. those of the container)
+
+    inn = NDBuffer(device=m.device, shape=(2, 3, 3), element_type=float)
+    out = NDBuffer(device=m.device, shape=(3, 2), element_type=float3)
+
+    inn_data = np.random.rand(2, 3, 3).astype(np.float32)
+    inn.from_numpy(inn_data)
+
+    func = m.copy_vectors.transform_input({
+        'output': (1, 0),
+    }).as_func()
+
+    func(inn, out)
+
+    out_data = out.buffer.to_numpy().view(np.float32).reshape(3, 2, 3)
+
+    for i in range(2):
+        for j in range(3):
+            inn = inn_data[i, j]
+            out = out_data[j, i]
+            assert np.allclose(inn, out)
 
 
 @pytest.mark.skip("Not yet supporting transforms witin element")
