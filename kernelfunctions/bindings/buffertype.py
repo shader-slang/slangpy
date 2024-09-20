@@ -2,6 +2,7 @@
 
 from typing import Any, Optional, Sequence
 
+from kernelfunctions.bindings.diffpairtype import generate_differential_pair
 from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType, PrimType
 
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
@@ -45,7 +46,8 @@ class NDBufferType(BaseTypeImpl):
         assert access[1] == AccessType.none
         return {
             'buffer': data.buffer,
-            'strides': list(data.strides)
+            'strides': list(data.strides),
+            'transform': input_value.binding.loadstore_transform
         }
 
     # Read back from call data does nothing
@@ -126,22 +128,27 @@ class NDDifferentiableBufferType(BaseTypeImpl):
             deriv_el = prim_el
         dim = len(transform)
 
+        binding = input_value.binding
+
         if access[0] == AccessType.none:
-            primal_storage = f'NoneType<{prim_el}>'
+            primal_storage = f'NoneType'
         elif access[0] == AccessType.read:
             primal_storage = f"TensorBuffer<{prim_el},{dim}>"
         else:
             primal_storage = f"RWTensorBuffer<{prim_el},{dim}>"
 
         if access[1] == AccessType.none:
-            deriv_storage = f'NoneType<{deriv_el}>'
+            deriv_storage = f'NoneType'
         elif access[1] == AccessType.read:
             deriv_storage = f"TensorBuffer<{deriv_el},{dim}>"
         else:
             deriv_storage = f"RWTensorBuffer<{deriv_el},{dim}>"
 
-        tn = f"BaseDiffPair<{prim_el},{deriv_el},{primal_storage},{deriv_storage}>"
-        cgb.type_alias(f"_{name}", tn)
+        primal_target = binding.slang.primal_type_name
+        deriv_target = binding.slang.derivative_type_name
+
+        cgb.append_code(generate_differential_pair(name, primal_storage,
+                        deriv_storage, primal_target, deriv_target))
 
     # Call data just returns the primal
 
@@ -156,7 +163,8 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                 value = ndbuffer.buffer if prim == PrimType.primal else ndbuffer.buffer
                 res[prim_name] = {
                     'buffer': value,
-                    'strides': list(data.strides)
+                    'strides': list(data.strides),
+                    'transform': input_value.binding.loadstore_transform
                 }
         return res
 

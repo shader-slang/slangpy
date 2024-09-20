@@ -93,9 +93,9 @@ def test_float_buffer_against_vector_readwrite(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
         device,
-        "add_numbers",
+        "add_numbers_vecreadwrite",
         r"""
-void add_numbers(float2 a, float2 b, out float2 res) {
+void add_numbers_vecreadwrite(float2 a, float2 b, out float2 res) {
     res = a + b;
 }
 """,
@@ -119,16 +119,15 @@ void add_numbers(float2 a, float2 b, out float2 res) {
     assert np.allclose(expected, actual)
 
 
-@pytest.mark.skip(reason="Not supporting vector indexing of diff pairs yet")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_float_buffer_against_vector_diffpair(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
         device,
-        "add_numbers",
+        "add_numbers_diffpair",
         r"""
-void add_numbers(float2 a, float2 b, out float2 res) {
+void add_numbers_diffpair(float2 a, float2 b, out float2 res) {
     res = a + b;
 }
 """,

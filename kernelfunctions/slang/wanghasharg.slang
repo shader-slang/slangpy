@@ -10,12 +10,12 @@ uint wang_hash(uint seed)
     return seed;
 }
 
-struct WangHashArg<let N : int> : IValueCallData<vector<uint,N>> {
-    typealias primal_type = vector<uint, N>;
+struct WangHashArg<let N : int> {
+    typealias T = vector<uint, N>;
 
     uint seed;
 
-    void load_primal(IContext context, out primal_type value) {
+    void load_primal(IContext context, out T value) {
         var tid = context.get_thread_id();
         var hash = tid.x ^ seed; 
         for (int i = 0; i < N; i++) {
@@ -23,5 +23,5 @@ struct WangHashArg<let N : int> : IValueCallData<vector<uint,N>> {
             value[i] = hash;
         }
     }
-    void store_primal(IContext context, in primal_type value) {};
+    void store_primal(IContext context, in T value) {};
 }

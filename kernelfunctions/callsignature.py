@@ -14,6 +14,7 @@ from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
 from kernelfunctions.bindings.valuereftype import ValueRefType
 
 from kernelfunctions.backend import Device
+from kernelfunctions.core.boundvariable import BoundVariableException
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH
@@ -143,6 +144,7 @@ def match_signatures(
 
     if rval is not None:
         assert function.return_value is not None
+        rval.param_index = len(overload_parameters)
         matched_params[function.return_value] = rval
 
     inverse_match = {
@@ -162,12 +164,121 @@ def bind(
     to the signature nodes and performing other work that kicks in once
     match has occured.
     """
+
+    # First bind things
     res = BoundCall()
     res.args = [BoundVariable(x, mapping[x], call_mode, input_transforms,
                               output_transforms) for x in signature.args]
     res.kwargs = {k: BoundVariable(
         v, mapping[v], call_mode, input_transforms, output_transforms) for k, v in signature.kwargs.items()}
+
+    # Do argument work as 2nd pass, as it lets us return more useful errors
+    try:
+        for arg in res.args:
+            arg.calculate_argument_shapes()
+        for arg in res.kwargs.values():
+            arg.calculate_argument_shapes()
+    except BoundVariableException as e:
+        raise ValueError(generate_call_shape_error_string(res, [], e.message, e.variable))
+
     return res
+
+
+COLS = [
+    ("Idx", 6),
+    ("Name", 15),
+    ("Input Type", 35),
+    ("Output Type", 35),
+    ("Input Shape", 20),
+    ("Argument Shape", 20),
+    ("Type Shape", 20),
+]
+
+
+def generate_argument_info_header(signature: BoundCall) -> str:
+    """
+    Generate a header string that describes the arguments
+    """
+    text: list[str] = []
+    for name, width in COLS:
+        text.append(name.ljust(width))
+    return "".join(text)
+
+
+def clip_string(s: Any, width: int) -> str:
+    width -= 2
+    s = str(s)
+    s = s.replace("None", "?").replace("none", "?")
+    s = str(s).ljust(width)
+    if len(s) > width:
+        s = s[:width-3] + "..."
+    s += '  '
+    return s
+
+
+def generate_argument_info_string(variable: BoundVariable, indent: int, highlight_variable: Optional[BoundVariable] = None) -> str:
+    """
+    Generate a string that describes the argument
+    """
+    text: list[str] = []
+    for name, width in COLS:
+        if name == "Idx":
+            text.append(clip_string(variable.param_index, width))
+        elif name == "Name":
+            text.append(clip_string(variable.variable_name, width))
+        elif name == "Input Type":
+            text.append(clip_string(variable.python.primal_type_name, width))
+        elif name == "Output Type":
+            text.append(clip_string(variable.slang.primal_type_name, width))
+        elif name == "Input Shape":
+            text.append(clip_string(variable.python.shape, width))
+        elif name == "Argument Shape":
+            text.append(clip_string(variable.argument_shape, width))
+        elif name == "Type Shape":
+            text.append(clip_string(variable.type_shape, width))
+    if variable == highlight_variable:
+        text.append(" <---")
+    return "".join(text)
+
+
+def generate_tree_info_string(call: BoundCall, highlight_variable: Optional[BoundVariable] = None) -> str:
+    """
+    Generate a string that describes the argument
+    """
+    lines: list[str] = []
+    lines.append(generate_argument_info_header(call))
+    for variable in call.args:
+        _generate_tree_info_string(lines, variable, 0, highlight_variable)
+    for variable in call.kwargs.values():
+        _generate_tree_info_string(lines, variable, 0, highlight_variable)
+    return "\n".join(lines)
+
+
+def _generate_tree_info_string(lines: list[str], variable: BoundVariable, indent: int, highlight_variable: Optional[BoundVariable] = None) -> str:
+    """
+    Generate a string that describes the argument
+    """
+    lines.append(generate_argument_info_string(variable, indent, highlight_variable))
+    if variable.children is not None:
+        for name, child in variable.children.items():
+            lines.append(_generate_tree_info_string(
+                lines, child, indent + 1, highlight_variable))
+
+
+def generate_call_shape_error_string(signature: BoundCall, call_shape: list[int | None], message: str, highlight_variable: Optional[BoundVariable] = None) -> str:
+    """
+    Generate a string that describes the argument
+    """
+    lines: list[str] = []
+    lines.append(f"Error: {message}")
+    if highlight_variable is not None:
+        lines.append(f"Variable: {highlight_variable.variable_name}")
+    lines.append(f"Calculated call shape: {call_shape}".replace("None", "?"))
+
+    header = "\n".join(lines)
+    header += "\n"
+    header += generate_tree_info_string(signature, highlight_variable)
+    return header
 
 
 def calculate_and_apply_call_shape(signature: BoundCall) -> list[int]:
@@ -213,8 +324,7 @@ def calculate_and_apply_call_shape(signature: BoundCall) -> list[int]:
                     pass  # call dim already set and arg dim is 1 so can be broadcast
                 elif arg_dim_size is not None and call_dim_size != arg_dim_size:
                     raise ValueError(
-                        f"Arg {node.param_index}, CS[{call_dim_idx}] != AS[{arg_dim_idx}], {call_dim_size} != {arg_dim_size}"
-                    )
+                        generate_call_shape_error_string(signature, call_shape, f"Dimension mismatch between call shape and argument shape: {call_dim_size} != {arg_dim_size}", node))
                 call_shape[call_dim_idx] = call_dim_size
 
     # Assign the call shape to any fully undefined argument shapes
@@ -246,7 +356,7 @@ def calculate_and_apply_call_shape(signature: BoundCall) -> list[int]:
         assert node.call_transform is not None
         if node.python.container_shape is not None:
             node.loadstore_transform = [
-                None for x in range(len(node.python.container_shape))]
+                x for x in range(len(node.python.container_shape))]
             for i in range(len(node.python.container_shape)):
                 arg_dim_idx = i
                 if node.transform_inputs is not None:

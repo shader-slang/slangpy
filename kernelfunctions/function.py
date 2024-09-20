@@ -1,9 +1,12 @@
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 
 from kernelfunctions.core import SlangFunction
 
 from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection
 from kernelfunctions.shapes import TConcreteShape
+
+if TYPE_CHECKING:
+    from kernelfunctions.struct import Struct
 
 
 class IThis(Protocol):
@@ -55,6 +58,12 @@ class FunctionChainBase:
             current = current.parent
         chain.reverse()
         return CallData(chain, backwards, *args, **kwargs)
+
+    def as_func(self) -> 'FunctionChainBase':
+        return self
+
+    def as_struct(self) -> 'Struct':
+        raise ValueError("Cannot convert a function to a struct")
 
 
 class FunctionChainSet(FunctionChainBase):

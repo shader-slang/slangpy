@@ -76,7 +76,7 @@ class StructuredBufferType(ValueType):
         elif access[0] in (AccessType.write, AccessType.readwrite):
             cgb.type_alias(f"_{name}", f"RWStructuredBufferType<{el_name}>")
         else:
-            cgb.type_alias(f"_{name}", f"NoneType<{el_name}>")
+            cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
     def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any) -> Any:

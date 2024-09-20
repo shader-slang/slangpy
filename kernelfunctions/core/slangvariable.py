@@ -12,31 +12,45 @@ class SlangFunction:
     def __init__(self, reflection: FunctionReflection, this_reflection: Optional[TypeReflection] = None) -> NoneType:
         super().__init__()
         self.name = reflection.name
-        if reflection.return_type is not None and reflection.return_type.scalar_type != TypeReflection.ScalarType.void:
-            self.return_value = SlangVariable(reflection)
-        else:
-            self.return_value = None
-        self.parameters = [SlangVariable(a) for a in reflection.parameters]
+
+        # Start with empty paramter list
+        self.parameters = []
 
         # Handle 'this' parameter for class methods UNLESS an init/static function
         if this_reflection is not None and self.name != "$init" and not reflection.has_modifier(ModifierID.static):
             iot = IOType.inn
             if reflection.has_modifier(ModifierID.mutating):
                 iot = IOType.inout
-            self.this = SlangVariable(this_reflection, name="_this", iotype_override=iot)
-            self.parameters.insert(0, self.this)
+            self.this = SlangVariable(this_reflection, index=-1,
+                                      name="_this", iotype_override=iot)
+            self.parameters.append(self.this)
         else:
             self.this = None
 
+        # Read function parameters from reflection info
+        reflection_parameters = [x for x in reflection.parameters]
+
+        # Append function parameters
+        self.parameters += [SlangVariable(a, index=i)
+                            for i, a in enumerate(reflection_parameters)]
+
+        # Add return value
+        if reflection.return_type is not None and reflection.return_type.scalar_type != TypeReflection.ScalarType.void:
+            self.return_value = SlangVariable(reflection, index=len(self.parameters))
+        else:
+            self.return_value = None
+
+        # Record if function is differentiable
         self.differentiable = reflection.has_modifier(ModifierID.differentiable)
 
 
 class SlangVariable(BaseVariableImpl):
     def __init__(self,
                  reflection: Union[TypeReflection, FunctionReflection, VariableReflection, TypeReflection.ScalarType],
+                 index: int,
                  parent: Optional['SlangVariable'] = None,
                  name: Optional[str] = None,
-                 iotype_override: Optional[IOType] = None,):
+                 iotype_override: Optional[IOType] = None) -> NoneType:
         super().__init__()
 
         if parent is not None:
@@ -79,6 +93,7 @@ class SlangVariable(BaseVariableImpl):
         if iotype_override is not None:
             io_type = iotype_override
 
+        self.param_index = index
         self.io_type = io_type
         self.no_diff = no_diff
         self.primal = get_or_create_type(slang_type)
@@ -86,9 +101,10 @@ class SlangVariable(BaseVariableImpl):
 
         if isinstance(slang_type, TypeReflection):
             if slang_type.kind == TypeReflection.Kind.struct:
-                self.fields = {f.name: SlangVariable(f, self) for f in slang_type.fields}
+                self.fields = {f.name: SlangVariable(
+                    f, index, self) for f in slang_type.fields}
             elif slang_type.kind == TypeReflection.Kind.vector:
-                self.fields = {f: SlangVariable(slang_type.scalar_type, self, f) for f in [
+                self.fields = {f: SlangVariable(slang_type.scalar_type, index, self, f) for f in [
                     "x", "y", "z", "w"][:slang_type.col_count]}
             else:
                 self.fields = None

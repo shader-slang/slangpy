@@ -1,5 +1,4 @@
 import pytest
-from sgl import Device
 from kernelfunctions.backend import DeviceType, float2, float3
 from kernelfunctions.function import Function
 from kernelfunctions.module import Module
@@ -8,9 +7,6 @@ import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.types.buffer import NDBuffer
 from kernelfunctions.utils import find_type_layout_for_buffer
 import numpy as np
-
-
-Device
 
 
 def load_test_module(device_type: DeviceType):

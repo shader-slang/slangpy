@@ -65,11 +65,11 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID)
     Context context;
     context.thread_id = dispatchThreadID;
     context.call_id[0] = (dispatchThreadID.x/call_data._call_stride[0]) % call_data._call_dim[0];
-    _a::primal_type a;
-    call_data.a.load_primal(context,a);
-    _b::primal_type b;
-    call_data.b.load_primal(context,b);
-    __result::primal_type _result;
+    float3 a;
+    call_data.a.load_primal(context, a);
+    float3 b;
+    call_data.b.load_primal(context, b);
+    float3 _result;
     _trampoline(a, b, _result);
     call_data._result.store_primal(context,_result);
 }

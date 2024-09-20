@@ -170,11 +170,11 @@ Overloads:
         os.makedirs(".temp", exist_ok=True)
         fn = f".temp/{self.function.module.name}_{self.function.name}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
 
+        # with open(fn,"r") as f:
+        #   self.code = f.read()
+
         with open(fn, "w",) as f:
             f.write(self.code)
-
-        # with open(fn,"r") as f:
-        #    self.code = f.read()
 
         # Build new module and link it with the one that contains the function being called.
         session = self.function.module.session

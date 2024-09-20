@@ -4,6 +4,7 @@ from types import NoneType
 from typing import Any, Optional, Sequence
 import numpy.typing as npt
 import numpy as np
+from sgl import bool1, float1, int1, uint1
 
 from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType
 
@@ -37,7 +38,7 @@ class ValueType(BaseTypeImpl):
         if access[0] in [AccessType.read, AccessType.readwrite]:
             cgb.type_alias(f"_{name}", f"ValueType<{input_value.primal_type_name}>")
         else:
-            cgb.type_alias(f"_{name}", f"NoneType<{input_value.primal_type_name}>")
+            cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
     def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any) -> Any:
@@ -320,3 +321,9 @@ for pair in zip(["int", "float", "bool", "uint", "float16_t"], [TypeReflection.S
                 t = SLANG_MATRIX_TYPES[slang_scalar_type][row][col]
                 t.python_type = mat_type  # type: ignore
                 PYTHON_TYPES[mat_type] = t
+
+# Map the 1D vectors to scalars
+PYTHON_TYPES[int1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.int32]
+PYTHON_TYPES[uint1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
+PYTHON_TYPES[bool1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.bool]
+PYTHON_TYPES[float1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
