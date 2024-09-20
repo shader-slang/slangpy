@@ -173,14 +173,24 @@ def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: Devi
             assert np.allclose(inn, out)
 
 
-@pytest.mark.skip("Not yet supporting transforms witin element")
+# @pytest.mark.skip("Not yet supporting transforms witin element")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_add_vectors_vecindex_element_input_transform(device_type: DeviceType):
     m = load_test_module(device_type)
 
     # Test remapping when one of the inputs is an 3D buffer of floats
-    # instead of 2D buffer of float3s. In this more complex case we're
-    # actually remapping the innermost dimension of the container
+    # instead of 2D buffer of float3s.
+
+    # The current problem with this case is that we're asking to remap
+    # a dimension within A that is at the element level of the inputs
+    # to the slang function. i.e. the slang function is:
+    # copy_vectors(float3 A, float3 B)
+
+    # A is a (3,2) buffer of floats, so we're effectively asking to swizzle
+    # around the load the elements of a single float3 value from A.
+
+    # Currently, the transform code works at the container level, so this
+    # is broken!
 
     m = load_test_module(device_type)
 
