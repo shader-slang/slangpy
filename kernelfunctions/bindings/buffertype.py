@@ -46,7 +46,8 @@ class NDBufferType(BaseTypeImpl):
         assert access[1] == AccessType.none
         return {
             'buffer': data.buffer,
-            'strides': list(data.strides)
+            'strides': list(data.strides),
+            'transform': input_value.binding.loadstore_transform
         }
 
     # Read back from call data does nothing
@@ -162,7 +163,8 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                 value = ndbuffer.buffer if prim == PrimType.primal else ndbuffer.buffer
                 res[prim_name] = {
                     'buffer': value,
-                    'strides': list(data.strides)
+                    'strides': list(data.strides),
+                    'transform': input_value.binding.loadstore_transform
                 }
         return res
 

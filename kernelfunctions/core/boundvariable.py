@@ -10,6 +10,13 @@ from .slangvariable import SlangVariable
 from .codegen import CodeGen
 
 
+class BoundVariableException(Exception):
+    def __init__(self, message: str, variable: 'BoundVariable') -> NoneType:
+        super().__init__(message)
+        self.message = message
+        self.variable = variable
+
+
 class BoundCall:
     def __init__(self) -> NoneType:
         super().__init__()
@@ -48,7 +55,8 @@ class BoundVariable:
             self.path = f"{path}.{self.python.name}"
 
         # Get the python marshall for the value + load some basic info
-        self.param_index = -1
+        self.python.param_index = slang.param_index
+        self.param_index = slang.param_index
         self.type_shape: Optional[list[int]] = None
         self.argument_shape: Optional[list[Optional[int]]] = None
         self.transform_inputs: TConcreteOrUndefinedShape = None
@@ -67,6 +75,14 @@ class BoundVariable:
         # Calculate differentiability settings
         self._calculate_differentiability(mode)
 
+        # Store transforms
+        if input_transforms is not None:
+            self.transform_inputs = input_transforms.get(
+                self.path, self.transform_inputs)
+        if output_transforms is not None:
+            self.transform_outputs = output_transforms.get(
+                self.path, self.transform_outputs)
+
         # Create children if python value has children
         self.children: Optional[dict[str, BoundVariable]] = None
         if python.fields is not None:
@@ -79,14 +95,14 @@ class BoundVariable:
                     cast(SlangVariable, child_slang),
                     mode, input_transforms, output_transforms, self.path)
 
-        # If no children, this is an input, so calculate argument shape
-        if self.children is None:
-            if input_transforms is not None:
-                self.transform_inputs = input_transforms.get(
-                    self.path, self.transform_inputs)
-            if output_transforms is not None:
-                self.transform_outputs = output_transforms.get(
-                    self.path, self.transform_outputs)
+    def calculate_argument_shapes(self):
+        """
+        Recursively calculate argument shapes for the node
+        """
+        if self.children is not None:
+            for child in self.children.values():
+                child.calculate_argument_shapes()
+        else:
             self._calculate_argument_shape()
 
     def get_input_list(self, args: list['BoundVariable']):
@@ -163,11 +179,11 @@ class BoundVariable:
             # Optionally use the input remap to re-order input dimensions
             if self.transform_inputs is not None:
                 if not self.python.container_shape:
-                    raise ValueError(
-                        f"Input transforms can only be applied to container types")
+                    raise BoundVariableException(
+                        f"Input transforms can only be applied to container types", self)
                 if len(self.transform_inputs) != len(self.python.container_shape):
-                    raise ValueError(
-                        f"Input remap {self.transform_inputs} is different to the container shape {self.python.container_shape}"
+                    raise BoundVariableException(
+                        f"Input remap {self.transform_inputs} is different to the container shape {self.python.container_shape}", self
                     )
                 new_input_shape = list(input_shape)
                 for i in self.transform_inputs:
@@ -187,8 +203,8 @@ class BoundVariable:
                 input_dim_size = input_shape[input_dim_idx]
                 if param_dim_size is not None and input_dim_size is not None:
                     if param_dim_size != input_dim_size:
-                        raise ValueError(
-                            f"Arg {self.param_index}, PS[{param_dim_idx}] != IS[{input_dim_idx}], {param_dim_size} != {input_dim_size}"
+                        raise BoundVariableException(
+                            f"Dimension mismatch between slang parameter shape and input shape, {param_dim_size} != {input_dim_size}", self
                         )
                     new_param_type_shape.append(param_dim_size)
                 elif param_dim_size is not None:
@@ -211,9 +227,9 @@ class BoundVariable:
             return
 
         # Verify transforms match argument shape
-        if self.transform_outputs is not None and len(self.transform_outputs) != len(self.argument_shape):
-            raise ValueError(
-                f"Transform outputs {self.transform_outputs} must have the same number of dimensions as the argument shape {self.argument_shape}")
+        if self.transform_outputs is not None and len(self.transform_outputs) > len(self.argument_shape):
+            raise BoundVariableException(
+                f"Transform outputs {self.transform_outputs} must have the same number of dimensions as the argument shape {self.argument_shape}", self)
 
         # Define a default function transform which basically maps argument
         # dimensions to call dimensions 1-1, with a bit of extra work to handle

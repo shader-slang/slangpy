@@ -3,7 +3,7 @@ from typing import Any, Optional
 from kernelfunctions.backend import TypeReflection
 
 from kernelfunctions.backend import SlangModule
-from kernelfunctions.function import Function
+from kernelfunctions.function import Function, FunctionChainBase
 from kernelfunctions.typeregistry import get_or_create_type
 from kernelfunctions.utils import find_type_layout_for_buffer, try_find_function_overloads_via_ast, try_find_type_via_ast
 
@@ -80,3 +80,9 @@ class Struct:
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         raise AttributeError(f"Type '{self.name}' is not callable")
+
+    def as_func(self) -> 'FunctionChainBase':
+        raise ValueError("Cannot convert a struct to a function")
+
+    def as_struct(self) -> 'Struct':
+        return self
