@@ -34,7 +34,7 @@ class NDBufferType(BaseTypeImpl):
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
             cgb.type_alias(
-                f"_{name}", f"TensorBuffer<{input_value.primal_element_name},{len(transform)}>")
+                f"_{name}", f"NDBuffer<{input_value.primal_element_name},{len(transform)}>")
         else:
             cgb.type_alias(
                 f"_{name}", f"RWTensorBuffer<{input_value.primal_element_name},{len(transform)}>")
@@ -57,7 +57,7 @@ class NDBufferType(BaseTypeImpl):
     def name(self, value: Any = None) -> str:
         if value is not None:
             if self.is_writable(value):
-                return f"TensorBuffer<{self.el_type.name()}>"
+                return f"NDBuffer<{self.el_type.name()}>"
             else:
                 return f"RWTensorBuffer<{self.el_type.name()}>"
         else:
@@ -133,14 +133,14 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         if access[0] == AccessType.none:
             primal_storage = f'NoneType'
         elif access[0] == AccessType.read:
-            primal_storage = f"TensorBuffer<{prim_el},{dim}>"
+            primal_storage = f"NDBuffer<{prim_el},{dim}>"
         else:
             primal_storage = f"RWTensorBuffer<{prim_el},{dim}>"
 
         if access[1] == AccessType.none:
             deriv_storage = f'NoneType'
         elif access[1] == AccessType.read:
-            deriv_storage = f"TensorBuffer<{deriv_el},{dim}>"
+            deriv_storage = f"NDBuffer<{deriv_el},{dim}>"
         else:
             deriv_storage = f"RWTensorBuffer<{deriv_el},{dim}>"
 
@@ -175,7 +175,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def name(self, value: Optional[NDDifferentiableBuffer] = None) -> str:
         if value is not None:
             if self.is_writable(value):
-                return f"TensorBuffer<{self.el_type.name()}>"
+                return f"NDBuffer<{self.el_type.name()}>"
             else:
                 return f"RWTensorBuffer<{self.el_type.name()}>"
         else:

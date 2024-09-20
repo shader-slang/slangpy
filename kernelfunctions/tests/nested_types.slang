@@ -3,7 +3,7 @@ int _idx<let N : int>(int[N] index, int[N] stride) {
     for (int i = 0; i < N; i++) { idx += index[i] * stride[i]; }
     return idx;
 }
-struct TensorBuffer<T, let N : int> {
+struct NDBuffer<T, let N : int> {
     RWStructuredBuffer<T> buffer;
     int[N] strides;
     T get(int[N] index) { return buffer[_idx(index, strides)]; }
@@ -27,21 +27,21 @@ struct _a__x
 {
     typealias primal_type = float;
     typealias derivative_type = float;
-    TensorBuffer<primal_type, 1> primal;
+    NDBuffer<primal_type, 1> primal;
     void load_primal(Context context, out primal_type value) { value = this.primal[ { context.call_id[0] }]; }
 }
 struct _a__y
 {
     typealias primal_type = float;
     typealias derivative_type = float;
-    TensorBuffer<primal_type, 1> primal;
+    NDBuffer<primal_type, 1> primal;
     void load_primal(Context context, out primal_type value) { value = this.primal[ { context.call_id[0] }]; }
 }
 struct _a__z
 {
     typealias primal_type = float;
     typealias derivative_type = float;
-    TensorBuffer<primal_type, 1> primal;
+    NDBuffer<primal_type, 1> primal;
     void load_primal(Context context, out primal_type value) { value = this.primal[ { context.call_id[0] }]; }
 }
 
@@ -65,7 +65,7 @@ struct _b
 {
     typealias primal_type = float3;
     typealias derivative_type = float3;
-    TensorBuffer<primal_type,1> primal;
+    NDBuffer<primal_type,1> primal;
     void load_primal(Context context, out primal_type value) { value = this.primal[{context.call_id[0]}]; }
 }
 

@@ -10,9 +10,9 @@ struct Context : IContext
     int get_call_id(int dim) { return call_id[dim]; }
 }
 
-typealias _a__x = TensorBuffer<float, 1>;
-typealias _a__y = TensorBuffer<float, 1>;
-typealias _a__z = TensorBuffer<float, 1>;
+typealias _a__x = NDBuffer<float, 1>;
+typealias _a__y = NDBuffer<float, 1>;
+typealias _a__z = NDBuffer<float, 1>;
 
 struct _a
 {
@@ -30,7 +30,7 @@ struct _a
      }
 }
 
-typealias _b = TensorBuffer<float3, 1>;
+typealias _b = NDBuffer<float3, 1>;
 typealias __result = RWTensorBuffer<float3, 1>;
 
 struct CallData
