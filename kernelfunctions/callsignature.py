@@ -372,7 +372,8 @@ def create_return_value_binding(call_dimensionality: int, signature: BoundCall, 
     if mode == CallMode.prim:
         node = signature.kwargs.get("_result")
         if node is not None and node.python.primal_type_name == 'none':
-            node.transform = [i for i in range(call_dimensionality)]
+            node.transform = [i for i in range(
+                call_dimensionality+len(node.slang.primal.shape()))]
             if call_dimensionality == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:

@@ -47,11 +47,6 @@ class BoundVariable:
         self.python.binding = self
         self.slang.binding = self
 
-        # If it was an untyped container, combine python+slang to get shape
-        if self.python.element_type is None:
-            self.python.dimensionality = len(self.python.container_shape) + \
-                len(self.slang.primal.shape())
-
         # Initialize path
         if path is None:
             self.path = self.slang.name
@@ -63,15 +58,10 @@ class BoundVariable:
         self.python.param_index = slang.param_index
         self.param_index = slang.param_index
         self.access = (AccessType.none, AccessType.none)
-        self.variable_name = ""
+        self.variable_name = self.path.replace(".", "__")
 
         # Can now decide if differentiable
         self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable and self.python.has_derivative
-
-        # Store some basic properties
-        self.variable_name = self.path.replace(".", "__")
-
-        # Calculate differentiability settings
         self._calculate_differentiability(mode)
 
         # Store transforms
