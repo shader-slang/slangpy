@@ -47,6 +47,10 @@ class BoundVariable:
         self.python.binding = self
         self.slang.binding = self
 
+        # If it was an untyped container, combine python+slang to get shape
+        if self.python.element_type is None:
+            self.python.shape = self.python.container_shape + self.slang.primal.shape()
+
         # Initialize path
         if path is None:
             self.path = self.slang.name
@@ -164,8 +168,15 @@ class BoundVariable:
             for name, child in self.children.items():
                 child.populate_call_shape(call_shape, value[name])
         else:
+            # Get concrete primal shape
             shape = self.python.primal.shape(value)
-            assert shape is not None
+
+            # For untyped containers, combine container shape with slang shape instead
+            if shape == None:
+                shape = tuple(self.python.primal.container_shape(value)) + \
+                    tuple(self.slang.primal.shape())
+
+            assert not (None in shape)
             assert self.transform is not None
             assert len(shape) == len(self.transform)
 

@@ -31,10 +31,8 @@ class StructuredBufferType(ValueType):
     def shape(self, value: Optional[Buffer] = None):
         if self._el_type is not None:
             return super().shape(value)
-        elif value is not None:
-            return self.container_shape(value) + (None,)
         else:
-            return (None, None)
+            return None
 
     def element_type(self, value: Any = None):
         return self._el_type
