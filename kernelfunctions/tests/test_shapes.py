@@ -157,10 +157,10 @@ def test_dotproduct_broadcast_a(device_type: DeviceType):
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "call_shape": [],
+            "call_shape": [100],
             "node_call_dims": [0, 1, None],
-            "node_transforms": [[0], [0], []],
-            "python_shapes": [(3,), (100, 3,), ()],
+            "node_transforms": [[1], [0, 1], [0]],
+            "python_shapes": [(3,), (100, 3,), (None,)],
         }
     )
     assert not diff

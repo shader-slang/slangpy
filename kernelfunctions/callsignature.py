@@ -232,8 +232,8 @@ def _gen_type_shape_string(variable: BoundVariable) -> str:
 
 
 def _gen_python_shape_string(variable: BoundVariable) -> str:
-    if variable.python.shape is not None:
-        return str(list(variable.python.shape))
+    if variable.python.dimensionality is not None:
+        return str([None]*variable.python.dimensionality)
     else:
         return "None"
 

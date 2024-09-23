@@ -49,8 +49,8 @@ class BoundVariable:
 
         # If it was an untyped container, combine python+slang to get shape
         if self.python.element_type is None:
-            self.python.shape = tuple(self.python.container_shape) + \
-                tuple(self.slang.primal.shape())
+            self.python.dimensionality = len(self.python.container_shape) + \
+                len(self.slang.primal.shape())
 
         # Initialize path
         if path is None:
@@ -207,20 +207,18 @@ class BoundVariable:
 
     def _calculate_transform(self):
         # Get shape of inputs and parameter
-        input_shape = self.python.shape
+        input_dim = self.python.dimensionality
         param_shape = self.slang.primal.shape()
 
         # Check if we have input
-        if input_shape is not None:
-            # Read input dimensionality and default to 1-1 mapping of input->call dimension
-            input_dim = len(input_shape)
+        if input_dim is not None:
 
             # If user transform was provided use it, otherwise just store a transform
             # of correct size but with all undefined values
             if self.transform is not None:
                 if len(self.transform) != input_dim:
                     raise BoundVariableException(
-                        f"Output transforms {self.transform} must have the same number of dimensions as the input shape {input_shape}", self)
+                        f"Output transforms {self.transform} must have the same number of dimensions as the input {input_dim}", self)
             else:
                 self.transform = [None] * input_dim  # type: ignore
 
