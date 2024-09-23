@@ -59,7 +59,7 @@ def test_add_vectors_basic_input_transform(device_type: DeviceType):
     b.from_numpy(b_data)
 
     func = m.add_vectors.transform_output({
-        'a': (1, 0),
+        'a': (1, 0, 2),
     }).as_func()
 
     res: NDBuffer = func(a, b)
@@ -157,7 +157,7 @@ def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: Devi
     inn.from_numpy(inn_data)
 
     func = m.copy_vectors.transform_output({
-        'output': (1, 0),
+        'output': (1, 0, 2),
     }).as_func()
 
     func(inn, out)

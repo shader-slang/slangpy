@@ -8,7 +8,6 @@ from kernelfunctions.backend import uint3
 
 from kernelfunctions.callsignature import (
     bind,
-    calculate_and_apply_call_shape,
     calculate_call_dimensionality,
     calculate_call_shape,
     create_return_value_binding,
@@ -216,7 +215,7 @@ Overloads:
 
         # Allocate a return value if not provided in kw args
         rv_node = self.bindings.kwargs.get("_result", None)
-        if self.call_mode == CallMode.prim and rv_node is not None and not "_result" in kwargs:
+        if self.call_mode == CallMode.prim and rv_node is not None and kwargs.get("_result", None) is None:
             kwargs["_result"] = rv_node.python.create_output(
                 device, self.call_shape)
             unpacked_kwargs["_result"] = kwargs["_result"]

@@ -49,7 +49,8 @@ class BoundVariable:
 
         # If it was an untyped container, combine python+slang to get shape
         if self.python.element_type is None:
-            self.python.shape = self.python.container_shape + self.slang.primal.shape()
+            self.python.shape = tuple(self.python.container_shape) + \
+                tuple(self.slang.primal.shape())
 
         # Initialize path
         if path is None:
@@ -75,7 +76,7 @@ class BoundVariable:
 
         # Store transforms
         self.call_dimensionality = None
-        self.transform = None
+        self.transform: Optional[list[Optional[int]]] = None
         if output_transforms is not None:
             t = output_transforms.get(self.path)
             if t is not None:
@@ -167,7 +168,7 @@ class BoundVariable:
         if self.children is not None:
             for name, child in self.children.items():
                 child.populate_call_shape(call_shape, value[name])
-        else:
+        elif value is not None:
             # Get concrete primal shape
             shape = self.python.primal.shape(value)
 
@@ -217,15 +218,14 @@ class BoundVariable:
             # If user transform was provided use it, otherwise just store a transform
             # of correct size but with all undefined values
             if self.transform is not None:
-                if len(self.transform) > input_dim:
+                if len(self.transform) != input_dim:
                     raise BoundVariableException(
                         f"Output transforms {self.transform} must have the same number of dimensions as the input shape {input_shape}", self)
-                if len(self.transform) < input_dim:
-                    self.transform += [None] * (input_dim - len(self.transform))
             else:
-                self.transform = [None] * input_dim
+                self.transform = [None] * input_dim  # type: ignore
 
             # Dimensionality is the highest output dimension minus parameter shape
+            assert self.transform is not None
             dim_count = len(self.transform)
             for x in self.transform:
                 if x is not None:

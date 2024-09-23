@@ -349,7 +349,7 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
 def calculate_call_shape(call_dimensionality: int, signature: BoundCall, *args: Any, **kwargs: Any):
 
     try:
-        call_shape = [None] * call_dimensionality
+        call_shape: list[Optional[int]] = [None] * call_dimensionality
         sig_args = signature.args
         sig_kwargs = signature.kwargs
 
@@ -363,96 +363,6 @@ def calculate_call_shape(call_dimensionality: int, signature: BoundCall, *args: 
             signature, [], e.message, e.variable))
 
     return call_shape
-
-
-def calculate_and_apply_call_shape(signature: BoundCall) -> list[int]:
-    """
-    Given the shapes of the parameters (inferred from slang) and inputs (passed in by the user), 
-    calculates the argument shapes and call shape.
-    All parameters must have a shape, however individual dimensions can have an undefined size (None).
-    Inputs can also be fully undefined.
-    """
-
-    # Get all arguments that are to be written
-    nodes: list[BoundVariable] = []
-    for node in signature.values():
-        node.get_input_list(nodes)
-
-    # Find the highest dimension in the mappings. Note: for a purely scalar
-    # call, highest dimensionality can be 0, so we start at -1.
-    highest_output_dimensionality = -1
-    for node in nodes:
-        if node.call_transform is not None:
-            for i in node.call_transform:
-                highest_output_dimensionality = max(highest_output_dimensionality, i)
-
-    # Call shape has the number of dimensions that the largest argument has
-    call_shape: list[Optional[int]] = [
-        None for _ in range(highest_output_dimensionality + 1)
-    ]
-
-    # Numpy rules for calculating broadcast dimension sizes, with additional
-    # rules for handling undefined dimensions
-    for node in nodes:
-        if node.argument_shape is not None:
-            assert node.call_transform is not None
-            for arg_dim_idx in range(len(node.argument_shape)):
-                call_dim_idx = node.call_transform[arg_dim_idx]
-                arg_dim_size = node.argument_shape[arg_dim_idx]
-                call_dim_size = call_shape[call_dim_idx]
-                if call_dim_size is None:
-                    call_dim_size = arg_dim_size
-                elif call_dim_size == 1:
-                    call_dim_size = arg_dim_size
-                elif arg_dim_size == 1:
-                    pass  # call dim already set and arg dim is 1 so can be broadcast
-                elif arg_dim_size is not None and call_dim_size != arg_dim_size:
-                    raise ValueError(
-                        generate_call_shape_error_string(signature, call_shape, f"Dimension mismatch between call shape and argument shape: {call_dim_size} != {arg_dim_size}", node))
-                call_shape[call_dim_idx] = call_dim_size
-
-    # Assign the call shape to any fully undefined argument shapes
-    for node in nodes:
-        if node.argument_shape is None:
-            node.argument_shape = call_shape
-            node.call_transform = [i for i in range(len(call_shape))]
-
-    # Raise an error if the call shape is still undefined
-    if None in call_shape:
-        raise ValueError(f"Call shape is ambiguous: {call_shape}")
-    verified_call_shape = cast(list[int], call_shape)
-
-    # Populate any still-undefined argument shapes from the call shape
-    for node in nodes:
-        assert node.argument_shape is not None
-        assert node.call_transform is not None
-        for arg_dim_idx in range(len(node.argument_shape)):
-            call_dim_idx = node.call_transform[arg_dim_idx]
-            if node.argument_shape[arg_dim_idx] is None:
-                node.argument_shape[arg_dim_idx] = verified_call_shape[call_dim_idx]
-        if None in node.argument_shape:
-            raise ValueError(
-                f"Arg {node.param_index} shape is ambiguous: {node.argument_shape}")
-
-    # Populate the actual input transforms to be used in kernel
-    for node in nodes:
-        assert node.argument_shape is not None
-        assert node.call_transform is not None
-        if node.python.container_shape is not None:
-            node.loadstore_transform = [
-                x for x in range(len(node.python.container_shape))]
-            for i in range(len(node.python.container_shape)):
-                arg_dim_idx = i
-                if node.transform_inputs is not None:
-                    arg_dim_idx = node.transform_inputs[i]
-                if arg_dim_idx < len(node.call_transform):
-                    cont_shape = node.python.container_shape[arg_dim_idx]
-                    if cont_shape is not None and cont_shape > 1:
-                        node.loadstore_transform[i] = node.call_transform[arg_dim_idx]
-        else:
-            node.loadstore_transform = []
-
-    return verified_call_shape
 
 
 def create_return_value_binding(call_dimensionality: int, signature: BoundCall, mode: CallMode):

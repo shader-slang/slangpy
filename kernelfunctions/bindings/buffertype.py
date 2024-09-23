@@ -73,7 +73,7 @@ class NDBufferType(BaseTypeImpl):
             assert len(value.shape) == self.dims
             return value.shape
         else:
-            return None
+            return [None]*self.dims
 
     def shape(self, value: Any = None):
         if value is not None:
@@ -201,7 +201,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         if value is not None:
             return super().shape(value)
         else:
-            return None
+            return [None]*self.dims
 
     def differentiable(self, value: Optional[NDBuffer] = None):
         return self.el_type.differentiable()

@@ -1,18 +1,23 @@
 from typing import Any, Optional
 import pytest
 from kernelfunctions.backend import DeviceType, float1, float3
-from kernelfunctions.callsignature import CallMode, BoundVariable, bind, build_signature, calculate_and_apply_call_shape, match_signatures
+from kernelfunctions.callsignature import CallMode, BoundVariable, bind, build_signature, calculate_call_shape, match_signatures
 from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
 from kernelfunctions.tests import helpers
 from kernelfunctions.types import floatRef
+from kernelfunctions.types.buffer import NDBuffer
 from kernelfunctions.types.valueref import ValueRef
 from kernelfunctions.tests.helpers import FakeBuffer
 
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
+
+
+def make_buffer(device_type: DeviceType, shape: tuple[int, ...]):
+    return NDBuffer(device=helpers.get_device(device_type), shape=shape, element_type=float)
 
 
 def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
@@ -27,20 +32,17 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
         r"float add_numbers(float3 a, float3 b) { return dot(a,b);}",
     )
 
-    sig = build_signature(a=a, b=b, _result=result)
-    match = match_signatures(
-        sig, function.overloads[0], CallMode.prim)
-    assert match is not None
-    tree = bind(sig, match, CallMode.prim, input_transforms, ouput_transforms)
-    call_shape = calculate_and_apply_call_shape(tree)
+    call_data = function._build_call_data(False, a=a, b=b, _result=result)
+    call_data.call(a=a, b=b, _result=result)
 
     nodes: list[BoundVariable] = []
-    for node in tree.values():
+    for node in call_data.bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": call_shape,
-        "type_shapes": [x.type_shape for x in nodes],
-        "arg_shapes": [x.argument_shape for x in nodes],
+        "call_shape": call_data.call_shape,
+        "node_call_dims": [x.call_dimensionality for x in nodes],
+        "node_transforms": [x.transform for x in nodes],
+        "python_shapes": [x.python.shape for x in nodes]
     }
 
 # Second set of tests emulate the shape of the following slang function,
@@ -120,7 +122,12 @@ def test_dotproduct_scalar(device_type: DeviceType):
     shapes = dot_product(device_type, float3(), float3(), None)
     diff = deepdiff.DeepDiff(
         shapes,
-        {"type_shapes": [[3], [3], []], "arg_shapes": [[], [], []], "call_shape": []},
+        {
+            "call_shape": [],
+            "node_call_dims": [0, 0, None],
+            "node_transforms": [[0], [0], []],
+            "python_shapes": [(3,), (3,), ()],
+        },
     )
     assert not diff
 
@@ -132,7 +139,12 @@ def test_dotproduct_scalar_floatref(device_type: DeviceType):
     shapes = dot_product(device_type, float3(), float3(), floatRef())
     diff = deepdiff.DeepDiff(
         shapes,
-        {"type_shapes": [[3], [3], []], "arg_shapes": [[], [], []], "call_shape": []},
+        {
+            "call_shape": [],
+            "node_call_dims": [0, 0, 0],
+            "node_transforms": [[0], [0], []],
+            "python_shapes": [(3,), (3,), ()],
+        }
     )
     assert not diff
 
@@ -141,14 +153,15 @@ def test_dotproduct_scalar_floatref(device_type: DeviceType):
 def test_dotproduct_broadcast_a(device_type: DeviceType):
 
     # emulates the same case but being passed a buffer for b
-    shapes = dot_product(device_type, float3(), FakeBuffer((100, 3)), None)
+    shapes = dot_product(device_type, float3(), make_buffer(device_type, (100, 3)), None)
     diff = deepdiff.DeepDiff(
         shapes,
         {
-            "type_shapes": [[3], [3], []],
-            "arg_shapes": [[], [100], [100]],
-            "call_shape": [100],
-        },
+            "call_shape": [],
+            "node_call_dims": [0, 1, None],
+            "node_transforms": [[0], [0], []],
+            "python_shapes": [(3,), (100, 3,), ()],
+        }
     )
     assert not diff
 
