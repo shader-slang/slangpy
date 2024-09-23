@@ -13,9 +13,10 @@ from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 
 class NDBufferType(BaseTypeImpl):
 
-    def __init__(self, element_type: BaseType):
+    def __init__(self, element_type: BaseType, dims: int):
         super().__init__()
         self.el_type = element_type
+        self.dims = dims
 
     # Values don't store a derivative - they're just a value
     def has_derivative(self, value: Any = None) -> bool:
@@ -34,10 +35,10 @@ class NDBufferType(BaseTypeImpl):
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
             cgb.type_alias(
-                f"_{name}", f"NDBuffer<{input_value.primal_element_name},{len(transform)}>")
+                f"_{name}", f"NDBuffer<{input_value.primal_element_name},{self.dims}>")
         else:
             cgb.type_alias(
-                f"_{name}", f"RWTensorBuffer<{input_value.primal_element_name},{len(transform)}>")
+                f"_{name}", f"RWTensorBuffer<{input_value.primal_element_name},{self.dims}>")
 
     # Call data just returns the primal
 
@@ -48,7 +49,7 @@ class NDBufferType(BaseTypeImpl):
         return {
             'buffer': data.buffer,
             'strides': list(data.strides),
-            'transform': input_value.binding.loadstore_transform
+            'transform': input_value.binding.transform[0:self.dims]
         }
 
     # Read back from call data does nothing
@@ -69,6 +70,7 @@ class NDBufferType(BaseTypeImpl):
 
     def container_shape(self, value: Optional[NDBuffer] = None):
         if value is not None:
+            assert len(value.shape) == self.dims
             return value.shape
         else:
             return None
@@ -85,7 +87,7 @@ class NDBufferType(BaseTypeImpl):
     def differentiate(self, value: Optional[NDBuffer] = None):
         et = self.el_type.differentiate()
         if et is not None:
-            return NDBufferType(et)
+            return NDBufferType(et, self.dims)
         else:
             return None
 
@@ -98,7 +100,7 @@ class NDBufferType(BaseTypeImpl):
 
 def create_vr_type_for_value(value: Any):
     assert isinstance(value, NDBuffer)
-    return NDBufferType(get_or_create_type(value.element_type))
+    return NDBufferType(get_or_create_type(value.element_type), len(value.shape))
 
 
 PYTHON_TYPES[NDBuffer] = create_vr_type_for_value
@@ -106,9 +108,10 @@ PYTHON_TYPES[NDBuffer] = create_vr_type_for_value
 
 class NDDifferentiableBufferType(BaseTypeImpl):
 
-    def __init__(self, element_type: BaseType):
+    def __init__(self, element_type: BaseType, dims: int):
         super().__init__()
         self.el_type = element_type
+        self.dims = dims
 
     # Values don't store a derivative - they're just a value
     def has_derivative(self, value: Any = None) -> bool:
@@ -127,7 +130,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         deriv_el = input_value.derivative_element_name
         if deriv_el is None:
             deriv_el = prim_el
-        dim = len(transform)
+        dim = self.dims
 
         binding = input_value.binding
 
@@ -167,7 +170,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                 res[prim_name] = {
                     'buffer': value,
                     'strides': list(data.strides),
-                    'transform': input_value.binding.loadstore_transform
+                    'transform': input_value.binding.transform[0:self.dims]
                 }
         return res
 
@@ -189,6 +192,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
     def container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
         if value is not None:
+            assert len(value.shape) == self.dims
             return value.shape
         else:
             return None
@@ -205,7 +209,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def differentiate(self, value: Optional[NDBuffer] = None):
         et = self.el_type.differentiate()
         if et is not None:
-            return NDDifferentiableBufferType(et)
+            return NDDifferentiableBufferType(et, self.dims)
         else:
             return None
 
@@ -221,7 +225,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
 def create_gradvr_type_for_value(value: Any):
     assert isinstance(value, NDDifferentiableBuffer)
-    return NDDifferentiableBufferType(get_or_create_type(value.element_type))
+    return NDDifferentiableBufferType(get_or_create_type(value.element_type), len(value.shape))
 
 
 PYTHON_TYPES[NDDifferentiableBuffer] = create_gradvr_type_for_value

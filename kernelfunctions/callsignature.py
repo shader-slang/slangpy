@@ -175,9 +175,9 @@ def bind(
     # Do argument work as 2nd pass, as it lets us return more useful errors
     try:
         for arg in res.args:
-            arg.calculate_argument_shapes()
+            arg.calculate_transform()
         for arg in res.kwargs.values():
-            arg.calculate_argument_shapes()
+            arg.calculate_transform()
     except BoundVariableException as e:
         raise ValueError(generate_call_shape_error_string(res, [], e.message, e.variable))
 
@@ -217,6 +217,27 @@ def clip_string(s: Any, width: int) -> str:
     return s
 
 
+def _gen_arg_shape_string(variable: BoundVariable) -> str:
+    if variable.call_dimensionality is not None:
+        return str([None]*variable.call_dimensionality)
+    else:
+        return "None"
+
+
+def _gen_type_shape_string(variable: BoundVariable) -> str:
+    if variable.slang is not None:
+        return str(list(variable.slang.primal.shape()))
+    else:
+        return "None"
+
+
+def _gen_python_shape_string(variable: BoundVariable) -> str:
+    if variable.python.shape is not None:
+        return str(list(variable.python.shape))
+    else:
+        return "None"
+
+
 def generate_argument_info_columns(variable: BoundVariable, indent: int, highlight_variable: Optional[BoundVariable] = None) -> list[str]:
     """
     Generate a string that describes the argument
@@ -232,13 +253,13 @@ def generate_argument_info_columns(variable: BoundVariable, indent: int, highlig
         elif name == "Output Type":
             text.append(clip_string(variable.slang.primal_type_name, width))
         elif name == "Input Shape":
-            text.append(clip_string(variable.python.shape, width))
+            text.append(clip_string(_gen_python_shape_string(variable), width))
         elif name == "Argument Shape":
-            text.append(clip_string(variable.argument_shape, width))
+            text.append(clip_string(_gen_arg_shape_string(variable), width))
         elif name == "Type Shape":
-            text.append(clip_string(variable.type_shape, width))
+            text.append(clip_string(_gen_type_shape_string(variable), width))
         elif name == "Transform":
-            text.append(clip_string(variable.loadstore_transform, width))
+            text.append(clip_string(variable.transform, width))
     if variable == highlight_variable:
         text.append(" <---")
     else:
@@ -292,6 +313,56 @@ def generate_call_shape_error_string(signature: BoundCall, call_shape: list[int 
     header += "\n"
     header += generate_tree_info_string(signature, highlight_variable)
     return header
+
+
+def calculate_call_dimensionality(signature: BoundCall) -> int:
+    """
+    Calculate the dimensionality of the call
+    """
+    dimensionality = 0
+    nodes: list[BoundVariable] = []
+    for node in signature.values():
+        node.get_input_list(nodes)
+    for input in nodes:
+        if input.call_dimensionality is not None:
+            dimensionality = max(dimensionality, input.call_dimensionality)
+    return dimensionality
+
+
+def finalize_transforms(call_dimensionality: int, signature: BoundCall):
+    try:
+        nodes: list[BoundVariable] = []
+        for node in signature.values():
+            node.get_input_list(nodes)
+        for input in nodes:
+            if input.call_dimensionality is not None:
+                assert input.transform is not None
+                for i in range(len(input.transform)):
+                    if input.transform[i] is None:
+                        input.transform[i] = i + call_dimensionality - \
+                            input.call_dimensionality
+    except BoundVariableException as e:
+        raise ValueError(generate_call_shape_error_string(
+            signature, [], e.message, e.variable))
+
+
+def calculate_call_shape(call_dimensionality: int, signature: BoundCall, *args: Any, **kwargs: Any):
+
+    try:
+        call_shape = [None] * call_dimensionality
+        sig_args = signature.args
+        sig_kwargs = signature.kwargs
+
+        for idx, value in enumerate(args):
+            sig_args[idx].populate_call_shape(call_shape, value)
+
+        for key, value in kwargs.items():
+            sig_kwargs[key].populate_call_shape(call_shape, value)
+    except BoundVariableException as e:
+        raise ValueError(generate_call_shape_error_string(
+            signature, [], e.message, e.variable))
+
+    return call_shape
 
 
 def calculate_and_apply_call_shape(signature: BoundCall) -> list[int]:
@@ -384,23 +455,22 @@ def calculate_and_apply_call_shape(signature: BoundCall) -> list[int]:
     return verified_call_shape
 
 
-def create_return_value(call_shape: list[int], signature: BoundCall, mode: CallMode):
+def create_return_value_binding(call_dimensionality: int, signature: BoundCall, mode: CallMode):
     """
     Create the return value for the call
     """
     if mode == CallMode.prim:
         node = signature.kwargs.get("_result")
         if node is not None and node.python.primal_type_name == 'none':
-            node.argument_shape = call_shape  # type: ignore (valid)
-            node.call_transform = [i for i in range(len(call_shape))]
-            node.loadstore_transform = [i for i in range(len(call_shape))]
-            if len(call_shape) == 0:
+            node.transform = [i for i in range(call_dimensionality)]
+            if call_dimensionality == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:
-                node.python.set_type(NDDifferentiableBufferType(node.slang.primal))
+                node.python.set_type(NDDifferentiableBufferType(
+                    node.slang.primal, call_dimensionality))
 
 
-def generate_code(call_shape: list[int], function: Function, signature: BoundCall, mode: CallMode, cg: CodeGen):
+def generate_code(call_dimensionality: int, function: Function, signature: BoundCall, mode: CallMode, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
@@ -411,7 +481,7 @@ def generate_code(call_shape: list[int], function: Function, signature: BoundCal
     cg.add_import(function.module.name)
 
     # Generate call data inputs if vector call
-    call_data_len = len(call_shape)
+    call_data_len = call_dimensionality
     if call_data_len > 0:
         cg.call_data.append_statement(f"int[{call_data_len}] _call_stride")
         cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")

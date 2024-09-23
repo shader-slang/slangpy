@@ -28,7 +28,7 @@ def test_copy_values_basic_input_transform(device_type: DeviceType):
 
     # Call function, which should copy to output with dimensions flipped
     func = m.copy_values.as_func()
-    func = func.transform_input({
+    func = func.transform_output({
         'input': (1, 0),
     })
     func(a, b)
@@ -58,7 +58,7 @@ def test_add_vectors_basic_input_transform(device_type: DeviceType):
     a.from_numpy(a_data)
     b.from_numpy(b_data)
 
-    func = m.add_vectors.transform_input({
+    func = m.add_vectors.transform_output({
         'a': (1, 0),
     }).as_func()
 
@@ -94,7 +94,7 @@ def test_add_vectors_vecindex_inputcontainer_input_transform(device_type: Device
     a.from_numpy(a_data)
     b.from_numpy(b_data)
 
-    func = m.add_vectors.transform_input({
+    func = m.add_vectors.transform_output({
         'a': (1, 0, 2),
     }).as_func()
 
@@ -127,7 +127,7 @@ def test_copy_vectors_vecindex_inputcontainer_input_transform(device_type: Devic
     inn_data = np.random.rand(2, 3, 3).astype(np.float32)
     inn.from_numpy(inn_data)
 
-    func = m.copy_vectors.transform_input({
+    func = m.copy_vectors.transform_output({
         'input': (1, 0, 2),
     }).as_func()
 
@@ -156,7 +156,7 @@ def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: Devi
     inn_data = np.random.rand(2, 3, 3).astype(np.float32)
     inn.from_numpy(inn_data)
 
-    func = m.copy_vectors.transform_input({
+    func = m.copy_vectors.transform_output({
         'output': (1, 0),
     }).as_func()
 
@@ -171,7 +171,6 @@ def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: Devi
             assert np.allclose(inn, out)
 
 
-@pytest.mark.skip("Not yet supporting transforms witin element")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_add_vectors_vecindex_element_input_transform(device_type: DeviceType):
     m = load_test_module(device_type)
@@ -202,7 +201,7 @@ def test_add_vectors_vecindex_element_input_transform(device_type: DeviceType):
 
     # Call function, which should copy to output with dimensions flipped
     func = m.copy_vectors.as_func()
-    func = func.transform_input({
+    func = func.transform_output({
         'input': (1, 0),
     })
     func(a, b)
@@ -233,8 +232,8 @@ def test_add_vectors_basic_output_transform(device_type: DeviceType):
     b.from_numpy(b_data)
 
     func = m.add_vectors.transform_output({
-        'a': (0,),
-        'b': (1,)
+        'a': (0, 2),
+        'b': (1, 2)
     }).as_func()
 
     res: NDBuffer = func(a, b)

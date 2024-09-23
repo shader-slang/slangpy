@@ -9,7 +9,10 @@ from kernelfunctions.backend import uint3
 from kernelfunctions.callsignature import (
     bind,
     calculate_and_apply_call_shape,
-    create_return_value, generate_code,
+    calculate_call_dimensionality,
+    calculate_call_shape,
+    create_return_value_binding,
+    finalize_transforms, generate_code,
     generate_tree_info_string,
     get_readable_func_string,
     get_readable_signature_string,
@@ -151,14 +154,18 @@ Overloads:
         self.overload = slang_function
 
         # calculate call shaping
-        self.call_shape = calculate_and_apply_call_shape(self.bindings)
+        self.call_dimensionality = calculate_call_dimensionality(self.bindings)
 
         # if necessary, create return value node
-        create_return_value(self.call_shape, self.bindings, self.call_mode)
+        create_return_value_binding(self.call_dimensionality,
+                                    self.bindings, self.call_mode)
+
+        # once overall dimensionality is known, individual binding transforms can be made concrete
+        finalize_transforms(self.call_dimensionality, self.bindings)
 
         # generate code
         codegen = CodeGen()
-        generate_code(self.call_shape, self.function,
+        generate_code(self.call_dimensionality, self.function,
                       self.bindings, self.call_mode, codegen)
 
         # store code
@@ -195,12 +202,6 @@ Overloads:
         session = self.function.module.session
         device = session.device
 
-        # Allocate a return value if not provided in kw args
-        rv_node = self.bindings.kwargs.get("_result", None)
-        if self.call_mode == CallMode.prim and rv_node is not None and not "_result" in kwargs:
-            kwargs["_result"] = rv_node.python.create_output(
-                device, self.call_shape)
-
         # If 'this' is specified, inject as first argument
         if self.this is not None:
             args = (self.this,) + args
@@ -208,6 +209,17 @@ Overloads:
         # Build 'unpacked' args (that handle IThis)
         unpacked_args = tuple([unpack_arg(x) for x in args])
         unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
+
+        # Calculate call shape
+        self.call_shape = calculate_call_shape(
+            self.call_dimensionality, self.bindings, *unpacked_args, **unpacked_kwargs)
+
+        # Allocate a return value if not provided in kw args
+        rv_node = self.bindings.kwargs.get("_result", None)
+        if self.call_mode == CallMode.prim and rv_node is not None and not "_result" in kwargs:
+            kwargs["_result"] = rv_node.python.create_output(
+                device, self.call_shape)
+            unpacked_kwargs["_result"] = kwargs["_result"]
 
         write_calldata_pre_dispatch(device, self.bindings,
                                     call_data, *unpacked_args, **unpacked_kwargs)
