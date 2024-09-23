@@ -2,11 +2,11 @@
 
 This builds on the thoughts in the BroadCastShapes.md doc, now having attempted to write it in a few different ways.
 
-This refined overview from broadcastshapes.md is the foundation of overloads. For a given slangpy function call, we define an N dimensional **call shape, CS** and call index, *call_idx*. This shape is always inferred regardless of whether explicit mappings were provided.
+This refined overview from broadcastshapes.md is the foundation of overloads. For a given slangpy function call, we define an N dimensional **call shape, CS** and **call index, call_idx**. This shape is always inferred regardless of whether explicit mappings were provided.
 
-The kernel shape is analogous to the 'num threads' used to disaptch a classic compute kernel, and the call index is analogous to the thread_id passed to the entry point.
+The call shape is analogous to the `num_threads` used to dispatch a classic compute kernel, and the call index is analogous to the `thread_id` passed to the entry point.
 
-Most types, even vectors can be thought of as a container with an element type. The itself container has a shape, and an element type (which may also be a container) has a shape. For any type therefore, the overall shape can be defined as:
+Most types, even vectors can be thought of as a container with an element type. The container itself has a shape, and an element type (which may also be a container) has a shape. For any type therefore, the overall shape can be defined as:
 
 `shape = container_shape + element_type.shape`
 
@@ -18,7 +18,7 @@ Each slang type has an implicit shape, (the **type shape, TS**), that can be det
 - `StructuredBuffer<float4>` 1D container with element `vector<float,4>`
 - `float4[]` 1D container with element `vector<float,4>`
 
-The job of an overload system in the case of slangpy is to take the input shapes/element types from python arguments, and match them against shapes/element types of slang parameters.
+The job of an overload system in the case of slangpy is to take the input shapes/element types from Python **arguments**, and match them against shapes/element types of Slang **parameters**.
 
 ## Slang Function Declaration Parameters
 
@@ -40,9 +40,9 @@ Can be said to have parameter information:
 - `myparticle`: element=`Particle`, shape=`[]`
 - `_retval`: element=`float`, shape=`[]`
 
-Note how the array can be broken down in 2 steps to its core type + combined shape.
+Note how the array can be broken down in 2 steps to its lead element type + full shape.
 
-Even in the event that the user wishes to provide a nested type to the particle parameter, the struct's fields provide similarly concrete dimensionality and element type.
+Even in the event that the user wishes to provide a nested type for the particle parameter, the struct's fields provide similarly concrete dimensionality and element type.
 
 So, for a none-generic slang function declaration, really the only ambiguities can be the size of given dimensions. Dimensionality and type are always fully resolvable.
 
@@ -62,14 +62,14 @@ Additionally, it's critical the Python side is seen as 2 very independent phases
 
 For performance, kernel re-use is key - we do not want to have to generate a new kernel for different sized buffers. As a result, at the point of generation we must assume the dimensionality of a buffer is concrete but not its size.
 
-This complex semi-psuedocode call shows a host of problems:
+This complex semi-psuedocode call shows a fairly tricky situation to break down:
 
 ```
 # Define various contains
 vectors = NDBuffer(eltype=float, shape=(10,10,3))
 array = StructuredBuffer(elsize=8*10, elcount=10)
 texture = Texture2D(eltype=float, width=128, height=256)
-positions = NDBuffer(eltype=float3, shape=(10))
+positions = NDBuffer(eltype=float3, shape=(10,))
 velocity = float3(0,1,0)
 
 # Call function, passing nested type for particle and expecting 
@@ -94,7 +94,7 @@ If we want to push resolution fully into Slang whilst maintaining the current fe
 
 ## Pairing Slang + Python / kernel gen
 
-The interesting observation is that this process has much more in common with the constraint based solving in a generic compiler than classical overload resolution, as the shape of some parameters can be defined through resolution of others.
+The interesting observation is that this process has much more in common with the constraint based solving in a generic compiler than classical overload resolution, as the shape of some parameters is often defined through resolution of others.
 
 A first pass compatibility check for overload resolution can just match leaf element types against leaf element types. If an overload has any elements that can not be paired (including within nested structures), it is by definition not a candidate. 
 
@@ -111,8 +111,8 @@ Once a potential overload is found, the number of dimensions that correspond to 
 - `result`: element=`float`, shape=`[?,?]`
 
 The 3 key pieces of information required for kernel gen are now known:
-- The uniforms (defined predominantly by python type, with some use of slang when element types are ambiguous)
-- The call shape (inferred from above)
+- The resource types (defined predominantly by python type)
+- The call dimensionality (inferred from above)
 - The load/store target types (defined by slang parameters)
 
 It is *sometimes* possible to reject an overload due to shapes at this point. For example, if a `vector<float3>` is being passed to a `float[10]`, the relevant dimensions are concrete and incompatible. However in most situations, shape compatibility can't be resolved up front.
@@ -123,7 +123,7 @@ For robust overload resolution, slangpy must run the above logic against **all**
 
 At call time, all input containers have concrete shapes, which allows decisions about what is to be broadcast and what the actual call dimensions are.
 
-Inserting 'N' for a broadcast dimension, and X,Y for shapes dimensions:
+Inserting 'N' for a broadcast dimension, and X,Y for shaped dimensions:
 - `vectors`: element=`float`, shape=`[X,Y]`
 - `array`: element=`?`, shape=`[N,Y]`
 - `texture`: element=`float`, shape=`[N,N]`
@@ -141,15 +141,15 @@ Then at point of kernel call, this is resolved further to:
     - `velocity`: element=`float`, shape=`[N,N]`
 - `result`: element=`float`, shape=`[10,10]`
 
-In this case, all parameters agree on X and Y. If not, numpy broadcast rules would have been breached and the user is informed of an error.
+In this case, all parameters agree on X and Y. If they do not, numpy broadcast rules would have been breached and the user is informed of an error.
 
 With both overall call shape, and the individual shape information for each argument, it is now possible to populate uniforms that allow for any combination of loads/stores that the container types support.
 
 ## Remapping
 
-Whilst syntax can vary, the ability to remap dimensions of input shape to specific dimensions of the call shape makes everything a **lot** more complex!
+The ability to remap dimensions of input shape to specific dimensions of the call shape makes everything a **lot** more complex!
 
-In the simplest situation, the user provides remapping for argument shapes that map to dimensions of the call shape that would exist in the absence of any remapping. For example, in the earlier case, the call shape is determined to be of dimensionality 2. If no argument dimensions are mapped to call dimensions outside of the range 0-1, the impact upon code gen will be 0 - all changes can be accounted for with uniforms.
+In the simplest situation, the user overrides how input dimensions map to **existing** call dimensions. For example, in the earlier case, the call shape is determined to be of dimensionality 2. If no input dimensions are mapped to call dimensions outside of the range 0-1, the impact upon code gen will be 0 - all changes can be accounted for with uniforms.
 
 The first stage of complexity arises with a more complex remapping commonly seen with batch training:
 
@@ -172,7 +172,7 @@ Results in
 - `result`: element=`float`, shape=`call_shape`
 - `call_shape`=`[?]`
 
-With the 'map' modification, this would pass kernel gen fine, with a call shape of `[?]`, but fail at call time on finding the dimension sizes are not compatible.
+Without the 'map' instruction, this would pass kernel gen fine, with a call shape of `[?]`, but fail at call time on finding the dimension sizes are not compatible.
 
 The broadcast projects (a) to the 2nd dimension, giving
 - `a`: element=`float`, shape=`[100]`, mapped=`[?,100]`
@@ -180,7 +180,7 @@ The broadcast projects (a) to the 2nd dimension, giving
 - `result`: element=`float`, shape=`call_shape`
 - `call_shape`=`[?,?]`
 
-i.e. the simply mapping of (a) has adjusted the call shape, and thus had impacts for how all other arguments are mapped / broadcast.
+Mapping `a` has adjusted the call shape, and thus had impacts for how all other arguments are mapped / broadcast.
 
 This introduces a question though of how mapping should work when the inputs are float3s instead of floats. To obtain the same result, the mapping command becomes more complex:
 
@@ -197,21 +197,18 @@ b = NDArray(eltype=float3, elcount=50)
 res = module.map(a=(1,2), b=(0,2)).multiply(a,b)
 ```
 
-To handle this situation, we have to go right back to pre-element-strip and analyse the full shapes of the python types.
-
-Results in
+To handle this situation, we have to go right back to before consuming element dimensions, and analyse the full shapes of the python types:
 - `a`: element=`float`, shape=`[100,3]`, mapped=`[?,100,3]`
 - `b`: element=`float`, shape=`[50,3]`, mapped=`[50,?,3]`
 - `result`: element=`float`, shape=`call_shape`
 
-Which can then be stripped and finalized to:
+Which can then be stripped using Slang parameter types and finalized to:
 - `a`: element=`float`, shape=`[100,3]`, mapped=`[?,100]`
 - `b`: element=`float`, shape=`[50,3]`, mapped=`[50,?]`
 - `result`: element=`float`, shape=`call_shape`
 - `call_shape` = `[?,?]`
 
-
-This becomes even more complex once sub-kernel level indexing is introduced, such as interpretting a float tensor as a float3 input.
+This becomes more complex once sub-kernel level indexing is introduced, such as interpretting a float tensor as a float3 input.
 
 ```
 xx.slang
@@ -241,8 +238,9 @@ Element sizes can now be stripped safely, and the final call shape be calculated
 - `result`: element=`float`, shape=`call_shape`
 - `call_shape`=`[?,?]`
 
-The call shape is now valid, and the kernel will be called the correct number of times, but the slang side types need to be able to *invent* an extra dimension when sampling `a` - it needs to treat a call id of `[10,20]` as 3 calls with ids `[10,20,0]`, `[10,20,1]` and `[10,20,2]`. Only then can it correct load from `[0,10,20]`, `[1,10,20]` and `[2,10,20]`
+The call shape is now valid, and the kernel will be called the correct number of times, but the slang side types need to be able to *invent* an extra dimension when sampling `a` - it needs to treat a call id of `[10,20]` as 3 calls with ids `[10,20,0]`, `[10,20,1]` and `[10,20,2]`. Only then can it correctly load a `float3` from `[0,10,20]`, `[1,10,20]` and `[2,10,20]`
 
+Conceptually this process would even allow remapping of sub-element properties, such as the `z` component of `b` in the above example. From a kernel generation/call perspective this has no impact, however would result in the need for cleverer Slang container types.
 
 ## Overload resolution process
 
@@ -257,7 +255,7 @@ The upshot of all this is that the overload/kernel gen process has the following
 The call process is then
 1. Calculate shape, and then mapped shape for all inputs
 2. Validate broadcasting rules
-3. Setup uniforms with enough information to apply broadcasting+mapping rules in kernel
+3. Setup uniforms with enough information to apply broadcasting+mapping rules in kernel *(Q: for NDBuffers, can this be encoded purely in stride/offset?)*
 4. Allocate buffers to match call shape where necessary
 5. Dispatch kernel
 
