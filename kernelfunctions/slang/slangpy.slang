@@ -45,14 +45,21 @@ struct ValueType<T>
 struct StructuredBufferType<T>
 {
     StructuredBuffer<T> value;
+
     void load_primal(IContext context, out T value) { value = this.value[context.get_call_id(0)]; }
     void store_primal(IContext context, in T value) {};
+
+    void load_primal(IContext context, out StructuredBuffer<T> value) { value = this.value; }
+    void store_primal(IContext context, in StructuredBuffer<T> value) {};
 }
 
 struct RWStructuredBufferType<T> {
     RWStructuredBuffer<T> value;
     void load_primal(IContext context, out T value) { value = this.value[context.get_call_id(0)]; }
     void store_primal(IContext context, in T value) { this.value[context.get_call_id(0)] = value; };
+
+    void load_primal(IContext context, out RWStructuredBuffer<T> value) { value = this.value; }
+    void store_primal(IContext context, in RWStructuredBuffer<T> value) {};
 }
 
 struct ValueRef<T>

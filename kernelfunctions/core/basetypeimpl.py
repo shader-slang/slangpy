@@ -38,3 +38,6 @@ class BaseTypeImpl(BaseType):
 
     def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
         pass
+
+    def update_from_bound_type(self, bound_type: 'BaseType'):
+        pass

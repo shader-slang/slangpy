@@ -73,3 +73,6 @@ class BaseType:
 
     def from_numpy(self, array: npt.ArrayLike) -> Any:
         raise NotImplementedError()
+
+    def update_from_bound_type(self, bound_type: 'BaseType'):
+        raise NotImplementedError()

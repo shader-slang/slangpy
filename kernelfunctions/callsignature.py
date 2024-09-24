@@ -335,12 +335,14 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
         for node in signature.values():
             node.get_input_list(nodes)
         for input in nodes:
-            if input.call_dimensionality is not None:
-                assert input.transform is not None
-                for i in range(len(input.transform)):
-                    if input.transform[i] is None:
-                        input.transform[i] = i + call_dimensionality - \
-                            input.call_dimensionality
+            if input.call_dimensionality is None:
+                raise BoundVariableException(
+                    "Unresolved call dimensionality for argument", input)
+            assert input.transform is not None
+            for i in range(len(input.transform)):
+                if input.transform[i] is None:
+                    input.transform[i] = i + call_dimensionality - \
+                        input.call_dimensionality
     except BoundVariableException as e:
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
@@ -372,13 +374,14 @@ def create_return_value_binding(call_dimensionality: int, signature: BoundCall, 
     if mode == CallMode.prim:
         node = signature.kwargs.get("_result")
         if node is not None and node.python.primal_type_name == 'none':
+            node.call_dimensionality = call_dimensionality
             node.transform = [i for i in range(
-                call_dimensionality+len(node.slang.primal.shape()))]
+                node.call_dimensionality+len(node.slang.primal.shape()))]
             if call_dimensionality == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:
                 node.python.set_type(NDDifferentiableBufferType(
-                    node.slang.primal, call_dimensionality, True))
+                    node.slang.primal, node.call_dimensionality, True))
 
 
 def generate_code(call_dimensionality: int, function: Function, signature: BoundCall, mode: CallMode, cg: CodeGen):

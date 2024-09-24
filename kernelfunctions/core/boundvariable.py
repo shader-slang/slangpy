@@ -54,6 +54,9 @@ class BoundVariable:
         else:
             self.path = f"{path}.{self.python.name}"
 
+        # Allow python info to complete any missing type info from bound slang variable
+        self.python.update_from_slang_type(self.slang.primal)
+
         # Get the python marshall for the value + load some basic info
         self.python.param_index = slang.param_index
         self.param_index = slang.param_index
@@ -108,7 +111,7 @@ class BoundVariable:
         if self.children is not None:
             for child in self.children.values():
                 child._get_input_list_recurse(args)
-        if self.transform is not None:
+        else:
             args.append(self)
 
     def write_call_data_pre_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
