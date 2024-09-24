@@ -81,6 +81,16 @@ struct NDBuffer<T, let N : int>
     void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides, transform)]; }
     void store_primal(IContext context, in T value) {};
 
+    void load_primal<let BN : int>(IContext context, out NDBuffer<T, BN> value) { 
+        value.buffer = buffer;
+        //TODO: Do this properly - it's wrong
+        for(int i = 0; i < N; i++) { 
+            value.strides[i] = strides[i]; 
+            value.transform[i] = transform[i];
+        }
+    }
+    void store_primal<let BN : int>(IContext context, in NDBuffer<T, BN> value) {};
+
     void load_primal<let VD : int>(IContext context, out vector<T, VD> value) {
 
         int call_id[N];
