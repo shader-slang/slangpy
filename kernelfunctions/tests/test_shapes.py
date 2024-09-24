@@ -1,5 +1,6 @@
 from typing import Any, Optional
 import pytest
+from sgl import float4
 from kernelfunctions.backend import DeviceType, float1, float3
 from kernelfunctions.callsignature import CallMode, BoundVariable, bind, build_signature, calculate_call_shape, match_signatures
 from kernelfunctions.shapes import TLooseShape
@@ -22,6 +23,15 @@ def make_int_buffer(device_type: DeviceType, shape: tuple[int, ...]):
 
 def make_float_buffer(device_type: DeviceType, shape: tuple[int, ...]):
     return NDBuffer(device=helpers.get_device(device_type), shape=shape, element_type=float)
+
+
+def make_vec4_buffer(device_type: DeviceType, shape: tuple[int, ...]):
+    return NDBuffer(device=helpers.get_device(device_type), shape=shape, element_type=float4)
+
+
+def make_vec4_raw_buffer(device_type: DeviceType, count: int):
+    nd = make_vec4_buffer(device_type, (count,))
+    return nd.buffer
 
 
 def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
@@ -531,9 +541,9 @@ def test_copyatindex_both_buffers_defined(device_type: DeviceType):
 
     # Call copy-at-index passing 2 fully defined buffers
     shapes = copy_at_index(device_type,
-                           make_float_buffer(device_type, (50, 1)),
-                           make_float_buffer(device_type, (100, 4)),
-                           make_float_buffer(device_type, (100, 4)))
+                           make_int_buffer(device_type, (50,)),
+                           make_vec4_raw_buffer(device_type, 100),
+                           make_vec4_raw_buffer(device_type, 100))
     diff = deepdiff.DeepDiff(
         shapes,
         {

@@ -20,7 +20,7 @@ struct NDBuffer<T, let N : int> {
         get { return get(index); }
     }
 }
-struct RWTensorBuffer<T, let N : int> {
+struct RWNDBuffer<T, let N : int> {
     RWStructuredBuffer<T> buffer;
     int[N] strides;
     T get(int[N] index) {
@@ -55,13 +55,13 @@ struct CallData
     int[1] _call_dim;
     uint3 _thread_count;
     NDBuffer<float,1> a__x_primal;
-    RWTensorBuffer<float,1> a__x_derivative;
+    RWNDBuffer<float,1> a__x_derivative;
     NDBuffer<float,1> a__y_primal;
-    RWTensorBuffer<float,1> a__y_derivative;
+    RWNDBuffer<float,1> a__y_derivative;
     NDBuffer<float,1> a__z_primal;
-    RWTensorBuffer<float,1> a__z_derivative;
+    RWNDBuffer<float,1> a__z_derivative;
     NDBuffer<vector<float,3>,1> b_primal;
-    RWTensorBuffer<vector<float,3>,1> b_derivative;
+    RWNDBuffer<vector<float,3>,1> b_derivative;
     NDBuffer<vector<float,3>,1> _result_derivative;
 }
 ParameterBlock<CallData> call_data;

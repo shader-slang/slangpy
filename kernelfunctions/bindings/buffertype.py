@@ -38,7 +38,7 @@ class NDBufferType(BaseTypeImpl):
                 f"_{name}", f"NDBuffer<{input_value.primal_element_name},{self.dims}>")
         else:
             cgb.type_alias(
-                f"_{name}", f"RWTensorBuffer<{input_value.primal_element_name},{self.dims}>")
+                f"_{name}", f"RWNDBuffer<{input_value.primal_element_name},{self.dims}>")
 
     # Call data just returns the primal
 
@@ -60,7 +60,7 @@ class NDBufferType(BaseTypeImpl):
         if not self.writable:
             return f"NDBuffer<{self.el_type.name()},{self.dims}>"
         else:
-            return f"RWTensorBuffer<{self.el_type.name()},{self.dims}>"
+            return f"RWNDBuffer<{self.el_type.name()},{self.dims}>"
 
     def element_type(self, value: Optional[NDBuffer] = None):
         return self.el_type
@@ -134,14 +134,14 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         elif access[0] == AccessType.read:
             primal_storage = f"NDBuffer<{prim_el},{dim}>"
         else:
-            primal_storage = f"RWTensorBuffer<{prim_el},{dim}>"
+            primal_storage = f"RWNDBuffer<{prim_el},{dim}>"
 
         if access[1] == AccessType.none:
             deriv_storage = f'NoneType'
         elif access[1] == AccessType.read:
             deriv_storage = f"NDBuffer<{deriv_el},{dim}>"
         else:
-            deriv_storage = f"RWTensorBuffer<{deriv_el},{dim}>"
+            deriv_storage = f"RWNDBuffer<{deriv_el},{dim}>"
 
         assert binding is not None
         primal_target = binding.slang.primal_type_name
@@ -177,7 +177,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         if not self.writable:
             return f"NDBuffer<{self.el_type.name()},{self.dims}>"
         else:
-            return f"RWTensorBuffer<{self.el_type.name()},{self.dims}>"
+            return f"RWNDBuffer<{self.el_type.name()},{self.dims}>"
 
     def element_type(self, value: Optional[NDDifferentiableBuffer] = None):
         return self.el_type

@@ -71,7 +71,7 @@ struct RWValueRef<T>
 
 struct NDBuffer<T, let N : int>
 {
-    RWStructuredBuffer<T> buffer;
+    StructuredBuffer<T> buffer;
     int[N] strides;
     int[N] transform;
 
@@ -80,6 +80,11 @@ struct NDBuffer<T, let N : int>
 
     void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides, transform)]; }
     void store_primal(IContext context, in T value) {};
+
+    void load_primal(IContext context, out StructuredBuffer<T> value) {
+        value = buffer;
+    }
+    void store_primal(IContext context, in StructuredBuffer<T> value) {};
 
     void load_primal<let BN : int>(IContext context, out NDBuffer<T, BN> value) { 
         value.buffer = buffer;
@@ -105,7 +110,7 @@ struct NDBuffer<T, let N : int>
     void store_primal<let VD : int>(IContext context, out vector<T, VD> value) {}
 }
 
-struct RWTensorBuffer<T, let N : int>
+struct RWNDBuffer<T, let N : int>
 {
     RWStructuredBuffer<T> buffer;
     int[N] strides;

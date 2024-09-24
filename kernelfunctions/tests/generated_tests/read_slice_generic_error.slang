@@ -1,8 +1,8 @@
 /*
 Idx  Name       Input Type                 Output Type          Input Shape  Argument Shape  Type Shape  Transform      
-0    index      RWTensorBuffer<int,1>      vector<int,2>        [?]          []              [2]         [1]            
-1    texture    RWTensorBuffer<float,3>    NDBuffer<float,2>    [?, ?, ?]    [?]             [?, ?]      [0, 1, 2]      
-2    _result    RWTensorBuffer<float,1>    float                [?]          ?               []          [0]            
+0    index      RWNDBuffer<int,1>      vector<int,2>        [?]          []              [2]         [1]            
+1    texture    RWNDBuffer<float,3>    NDBuffer<float,2>    [?, ?, ?]    [?]             [?, ?]      [0, 1, 2]      
+2    _result    RWNDBuffer<float,1>    float                [?]          ?               []          [0]            
 */
 
 
@@ -21,7 +21,7 @@ typealias _texture = NDBuffer<float,3>;
 
 struct __result
 {
-    RWTensorBuffer<float,1> primal;
+    RWNDBuffer<float,1> primal;
     NoneType derivative;
     void load_primal(IContext context, out float value) { primal.load_primal(context, value); }
     void store_primal(IContext context, in float value) { primal.store_primal(context, value); }
