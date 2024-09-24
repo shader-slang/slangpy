@@ -64,7 +64,7 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     function = helpers.create_function_from_module(
         device,
         "read_slice",
-        r"float4 read_slice(int2 index, Texture2D<float4> texture) { return texture[index]; }",
+        r"""import "slangpy"; float read_slice(int2 index, NDBuffer<float,2> texture) { return texture[{index.x,index.y}]; }""",
     )
 
     if transforms is not None:
@@ -92,8 +92,7 @@ COPY_AT_INDEX_SIGNATURE: list[TLooseShape] = [(1,), (None, 4), (None, 4)]
 
 
 def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer: Any,
-                  input_transforms: Optional[dict[str, tuple[int, ...]]] = None,
-                  ouput_transforms: Optional[dict[str, tuple[int, ...]]] = None,
+                  transforms: Optional[dict[str, tuple[int, ...]]] = None
                   ) -> Any:
     device = helpers.get_device(device_type)
 
@@ -102,6 +101,23 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
         "copy_at_index",
         r"void copy_at_index(int index, StructuredBuffer<float4> fr, RWStructuredBuffer<float4> to) { to[index] = fr[index]; }",
     )
+
+    if transforms is not None:
+        function = function.transform_output(transforms)
+
+    call_data = function._build_call_data(
+        False, index=index, fr=frombuffer, to=tobuffer)
+    call_data.call(index=index, fr=frombuffer, to=tobuffer)
+
+    nodes: list[BoundVariable] = []
+    for node in call_data.bindings.kwargs.values():
+        node.get_input_list(nodes)
+    return {
+        "call_shape": call_data.call_shape,
+        "node_call_dims": [x.call_dimensionality for x in nodes],
+        "node_transforms": [x.transform for x in nodes],
+        "python_dims": [x.python.dimensionality for x in nodes]
+    }
 
     sig = build_signature(index=index, fr=frombuffer, to=tobuffer)
     match = match_signatures(
@@ -354,7 +370,7 @@ def test_readslice_scalar(device_type: DeviceType):
     # Scalar call to the read slice function, with a single index
     # and a single slice, and the result undefined.
     shapes = read_slice(device_type,
-                        make_float_buffer(device_type, (2, )),
+                        make_int_buffer(device_type, (2, )),
                         make_float_buffer(device_type, (256, 128, 4)),
                         None)
     diff = deepdiff.DeepDiff(
@@ -563,4 +579,4 @@ def test_copyatindex_undefined_output_size(device_type: DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])
