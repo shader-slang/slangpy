@@ -39,7 +39,7 @@ class WangHashArgType(BaseTypeImpl):
     def gen_calldata(self, cgb: CodeGenBlock, input_value: PythonVariable, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         if access[0] == AccessType.read:
             cgb.add_import("wanghasharg")
-            cgb.type_alias(f"_{name}", f"WangHashArg<{input_value.shape[0]}>")
+            cgb.type_alias(f"_{name}", input_value.primal_type_name)
 
     def create_calldata(self, device: Device, input_value: PythonVariable, access: tuple[AccessType, AccessType], data: WangHashArg) -> Any:
         if access[0] == AccessType.read:

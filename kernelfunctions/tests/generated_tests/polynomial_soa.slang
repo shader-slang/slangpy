@@ -23,7 +23,7 @@ struct NDBuffer<T, let N : int> {
     }
 }
 
-struct RWTensorBuffer<T, let N : int> {
+struct RWNDBuffer<T, let N : int> {
     RWStructuredBuffer<T> buffer;
     int[N] strides;
     T get(int[N] index) {
@@ -61,7 +61,7 @@ struct CallData
     NDBuffer<float,1> a__y_primal;
     NDBuffer<float,1> a__z_primal;
     NDBuffer<vector<float,3>,1> b_primal;
-    RWTensorBuffer<vector<float,3>,1> _result_primal;
+    RWNDBuffer<vector<float,3>,1> _result_primal;
 }
 ParameterBlock<CallData> call_data;
 

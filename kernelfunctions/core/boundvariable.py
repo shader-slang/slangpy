@@ -2,7 +2,7 @@ from types import NoneType
 from typing import Any, Optional, cast
 
 from kernelfunctions.backend import Device
-from kernelfunctions.shapes import TConcreteOrUndefinedShape, TConcreteShape
+from kernelfunctions.shapes import TConcreteShape
 
 from .enums import PrimType, AccessType, IOType, CallMode
 from .pythonvariable import PythonVariable
@@ -54,34 +54,26 @@ class BoundVariable:
         else:
             self.path = f"{path}.{self.python.name}"
 
+        # Allow python info to complete any missing type info from bound slang variable
+        self.python.update_from_slang_type(self.slang.primal)
+
         # Get the python marshall for the value + load some basic info
         self.python.param_index = slang.param_index
         self.param_index = slang.param_index
-        self.type_shape: Optional[list[int]] = None
-        self.argument_shape: Optional[list[Optional[int]]] = None
-        self.transform_inputs: TConcreteOrUndefinedShape = None
-        self.transform_outputs: TConcreteOrUndefinedShape = None
-        self.call_transform: Optional[list[int]] = None
-        self.loadstore_transform: Optional[list[Optional[int]]] = None
         self.access = (AccessType.none, AccessType.none)
-        self.variable_name = ""
+        self.variable_name = self.path.replace(".", "__")
 
         # Can now decide if differentiable
         self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable and self.python.has_derivative
-
-        # Store some basic properties
-        self.variable_name = self.path.replace(".", "__")
-
-        # Calculate differentiability settings
         self._calculate_differentiability(mode)
 
         # Store transforms
-        if input_transforms is not None:
-            self.transform_inputs = input_transforms.get(
-                self.path, self.transform_inputs)
+        self.call_dimensionality = None
+        self.transform: Optional[list[Optional[int]]] = None
         if output_transforms is not None:
-            self.transform_outputs = output_transforms.get(
-                self.path, self.transform_outputs)
+            t = output_transforms.get(self.path)
+            if t is not None:
+                self.transform = list(t)
 
         # Create children if python value has children
         self.children: Optional[dict[str, BoundVariable]] = None
@@ -95,15 +87,15 @@ class BoundVariable:
                     cast(SlangVariable, child_slang),
                     mode, input_transforms, output_transforms, self.path)
 
-    def calculate_argument_shapes(self):
+    def calculate_transform(self):
         """
         Recursively calculate argument shapes for the node
         """
         if self.children is not None:
             for child in self.children.values():
-                child.calculate_argument_shapes()
+                child.calculate_transform()
         else:
-            self._calculate_argument_shape()
+            self._calculate_transform()
 
     def get_input_list(self, args: list['BoundVariable']):
         """
@@ -119,7 +111,7 @@ class BoundVariable:
         if self.children is not None:
             for child in self.children.values():
                 child._get_input_list_recurse(args)
-        if self.type_shape is not None:
+        else:
             args.append(self)
 
     def write_call_data_pre_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
@@ -162,86 +154,85 @@ class BoundVariable:
             if self.access[0] in [AccessType.write, AccessType.readwrite]:
                 return self.python.read_output(device, data)
 
+    def populate_call_shape(self, call_shape: list[Optional[int]], value: Any):
+        """
+        Recursively calculate call shape for the node
+        """
+        if self.children is not None:
+            for name, child in self.children.items():
+                child.populate_call_shape(call_shape, value[name])
+        elif value is not None:
+            # Get concrete primal shape
+            shape = self.python.primal.shape(value)
+
+            # For untyped containers, combine container shape with slang shape instead
+            if shape == None:
+                shape = tuple(self.python.primal.container_shape(value)) + \
+                    tuple(self.slang.primal.shape())
+
+            assert not (None in shape)
+            assert self.transform is not None
+            assert len(shape) == len(self.transform)
+
+            for i in range(len(self.transform)):
+                # Get value shape and corresponding index in the overall call shape
+                shape_dim = shape[i]
+                call_idx = self.transform[i]
+                assert shape_dim is not None
+                assert call_idx is not None
+
+                # Not interested in dimensionality for sub-kernel elements
+                if call_idx >= len(call_shape):
+                    continue
+
+                # Apply shape, failing if we find mismatch
+                if call_shape[call_idx] is None:
+                    call_shape[call_idx] = shape_dim
+                elif call_shape[call_idx] != shape_dim:
+                    if call_shape[call_idx] != 1 and shape_dim != 1:
+                        raise BoundVariableException(
+                            f"Shape mismatch for {self.variable_name} between input and output", self)
+                    if shape_dim != 1:
+                        call_shape[call_idx] = shape_dim
+
     def __repr__(self):
         return self.python.__repr__()
 
-    def _calculate_argument_shape(self):
-        """
-        Calculate the argument shape for the node
-        - where both are defined they must match
-        - where param is defined and input is not, set input to param
-        - where input is defined and param is not, set param to input
-        - if end up with undefined type shape, bail
-        """
-        input_shape = self.python.shape
+    def _calculate_transform(self):
+        # Get shape of inputs and parameter
+        input_dim = self.python.dimensionality
         param_shape = self.slang.primal.shape()
-        if input_shape is not None:
-            # Optionally use the input remap to re-order input dimensions
-            if self.transform_inputs is not None:
-                if not self.python.container_shape:
-                    raise BoundVariableException(
-                        f"Input transforms can only be applied to container types", self)
-                if len(self.transform_inputs) != len(self.python.container_shape):
-                    raise BoundVariableException(
-                        f"Input remap {self.transform_inputs} is different to the container shape {self.python.container_shape}", self
-                    )
-                new_input_shape = list(input_shape)
-                for i in self.transform_inputs:
-                    new_input_shape[i] = input_shape[self.transform_inputs[i]]
-                input_shape = new_input_shape
 
-            # Now assign out shapes, accounting for differing dimensionalities
-            type_len = len(param_shape)
-            input_len = len(input_shape)
-            type_end = type_len - 1
-            input_end = input_len - 1
-            new_param_type_shape: list[int] = []
-            for i in range(type_len):
-                param_dim_idx = type_end - i
-                input_dim_idx = input_end - i
-                param_dim_size = param_shape[param_dim_idx]
-                input_dim_size = input_shape[input_dim_idx]
-                if param_dim_size is not None and input_dim_size is not None:
-                    if param_dim_size != input_dim_size:
-                        raise BoundVariableException(
-                            f"Dimension mismatch between slang parameter shape and input shape, {param_dim_size} != {input_dim_size}", self
-                        )
-                    new_param_type_shape.append(param_dim_size)
-                elif param_dim_size is not None:
-                    new_param_type_shape.append(param_dim_size)
-                elif input_dim_size is not None:
-                    new_param_type_shape.append(input_dim_size)
-                else:
-                    raise ValueError(f"Arg {self.param_index} type shape is ambiguous")
-            new_param_type_shape.reverse()
-            self.type_shape = new_param_type_shape
-            self.argument_shape = list(input_shape[: input_len - type_len])
+        # Check if we have input
+        if input_dim is not None:
+
+            # If user transform was provided use it, otherwise just store a transform
+            # of correct size but with all undefined values
+            if self.transform is not None:
+                if len(self.transform) != input_dim:
+                    raise BoundVariableException(
+                        f"Output transforms {self.transform} must have the same number of dimensions as the input {input_dim}", self)
+            else:
+                self.transform = [None] * input_dim  # type: ignore
+
+            # Dimensionality is the highest output dimension minus parameter shape
+            assert self.transform is not None
+            dim_count = len(self.transform)
+            for x in self.transform:
+                if x is not None:
+                    dim_count = max(dim_count, x+1)
+            self.call_dimensionality = dim_count - len(param_shape)
+
+            # TODO: At this point, could perform some degree of shape matching, given
+            # final transform is known and potentially have concrete shape info. Would
+            # need to know which dimensions were concrete vs not though.
+
         else:
-            # If input not defined, parameter shape is the argument shape
-            if None in param_shape:
-                raise ValueError(f"Arg {self.param_index} type shape is ambiguous")
-            self.type_shape = list(cast(TConcreteShape, param_shape))
-            self.argument_shape = None
-
-        if self.argument_shape is None:
-            return
-
-        # Verify transforms match argument shape
-        if self.transform_outputs is not None and len(self.transform_outputs) > len(self.argument_shape):
-            raise BoundVariableException(
-                f"Transform outputs {self.transform_outputs} must have the same number of dimensions as the argument shape {self.argument_shape}", self)
-
-        # Define a default function transform which basically maps argument
-        # dimensions to call dimensions 1-1, with a bit of extra work to handle
-        # arguments that aren't the same size or shapes that aren't defined.
-        # This is effectively what numpy does.
-        self.call_transform = [i for i in range(len(self.argument_shape))]
-
-        # Inject any custom transforms
-        if self.transform_outputs is not None:
-            for i in range(len(self.argument_shape)):
-                if self.transform_outputs[i] is not None:
-                    self.call_transform[i] = self.transform_outputs[i]
+            if self.transform:
+                raise BoundVariableException(
+                    f"Output transforms can only be applied to variables with well defined input shape", self)
+            self.transform = None
+            self.call_dimensionality = None
 
     def _calculate_differentiability(self, mode: CallMode):
         """
@@ -330,7 +321,7 @@ class BoundVariable:
 
             cgb.end_struct()
         else:
-            if self.loadstore_transform is None:
+            if self.transform is None:
                 return None
 
             # Raise error if attempting to write to non-writable type
@@ -343,7 +334,7 @@ class BoundVariable:
             self.python.gen_calldata(
                 cg.call_data_structs,
                 self.variable_name,
-                self.loadstore_transform,
+                self.transform,  # type: ignore
                 self.access)
 
         if depth == 0:

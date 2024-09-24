@@ -12,6 +12,10 @@ from .basetype import BaseType
 from .codegen import CodeGenBlock
 
 
+def _get_name(el_type: Optional[BaseType], value: Any, default: Any = None):
+    return el_type.name(value) if el_type is not None else default
+
+
 class PythonFunctionCall:
     def __init__(self, *args: Any, **kwargs: Any) -> NoneType:
         super().__init__()
@@ -75,26 +79,34 @@ class PythonVariable(BaseVariableImpl):
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
         self.derivative = self.primal.differentiate(value)
-        self.container_shape = self.primal.container_shape(value)
         self.element_type = self.primal.element_type(value)
         self.differentiable = self.primal.differentiable(value)
         self.has_derivative = self.primal.has_derivative(value)
-        self.shape = self.primal.shape(value)
+
+        primal_shape = self.primal.shape(value)
+        self.dimensionality = len(primal_shape) if primal_shape is not None else None
+
         self.writable = self.primal.is_writable(value)
+
         self._primal_type_name = self.primal.name(value)
         self._derivative_type_name = self.derivative.name(
             value) if self.derivative is not None else None
 
-        def _get_name(el_type: Optional[BaseType], value: Any, default: Any = None):
-            return el_type.name(value) if el_type is not None else default
-
-        self._root_element_name = _get_name(self._find_bottom_level_element(value), value)
+        self._leaf_element_name = _get_name(self._find_bottom_level_element(value), value)
         self._primal_element_name = _get_name(self.primal.element_type(value), value)
         if self.derivative is not None:
             self._derivative_element_name = _get_name(
                 self.derivative.element_type(value), value)
         else:
             self._derivative_element_name = None
+
+    def update_from_slang_type(self, slang_type: BaseType):
+        if self.dimensionality is None:
+            self.primal.update_from_bound_type(slang_type)
+            primal_shape = self.primal.shape()
+            self.dimensionality = len(primal_shape) if primal_shape is not None else None
+            self._primal_type_name = self.primal.name()
+            self._primal_element_name = _get_name(self.primal.element_type(), None)
 
     def gen_calldata(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         return self.primal.gen_calldata(cgb, self, name, transform, access)
@@ -132,4 +144,4 @@ class PythonVariable(BaseVariableImpl):
 
     @property
     def root_element_name(self):
-        return self._root_element_name
+        return self._leaf_element_name

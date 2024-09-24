@@ -39,7 +39,7 @@ class ThreadIdArgType(BaseTypeImpl):
     def gen_calldata(self, cgb: CodeGenBlock, input_value: PythonVariable, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         if access[0] == AccessType.read:
             cgb.add_import("threadidarg")
-            cgb.type_alias(f"_{name}", f"ThreadIdArg<{input_value.shape[0]}>")
+            cgb.type_alias(f"_{name}", input_value.primal_type_name)
 
 
 PYTHON_TYPES[ThreadIdArg] = ThreadIdArgType()

@@ -31,7 +31,7 @@ struct _a
 }
 
 typealias _b = NDBuffer<float3, 1>;
-typealias __result = RWTensorBuffer<float3, 1>;
+typealias __result = RWNDBuffer<float3, 1>;
 
 struct CallData
 {

@@ -9,7 +9,7 @@ struct NDBuffer<T, let N : int> {
     T get(int[N] index) { return buffer[_idx(index, strides)]; }
     __subscript(int[N] index)->T { get { return get(index); } }
 }
-struct RWTensorBuffer<T, let N : int> {
+struct RWNDBuffer<T, let N : int> {
     RWStructuredBuffer<T> buffer;
     int[N] strides;
     T get(int[N] index) { return buffer[_idx(index, strides)]; }
@@ -73,7 +73,7 @@ struct __result
 {
     typealias primal_type = float3;
     typealias derivative_type = float3;
-    RWTensorBuffer<primal_type,1> primal;
+    RWNDBuffer<primal_type,1> primal;
     void load_primal(Context context, out primal_type value) { value = this.primal[{context.call_id[0]}]; }
     void store_primal(Context context, in primal_type value) { this.primal[{context.call_id[0]}] = value; }
 }

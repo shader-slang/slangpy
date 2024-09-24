@@ -265,7 +265,7 @@ void add_numbers_remap(int a, int b, out int c) {
     b.buffer.from_numpy(rand_array_of_ints(b.element_count))
 
     c = kf.NDBuffer(
-        element_count=50,
+        shape=(50, 100),
         device=device,
         element_type=int,
     )

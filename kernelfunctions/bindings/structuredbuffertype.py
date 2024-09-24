@@ -2,6 +2,8 @@
 
 from typing import Any, Optional
 
+from sgl import ResourceUsage
+
 from kernelfunctions.core import BaseType, BaseVariable, CodeGenBlock, AccessType
 
 from kernelfunctions.backend import Device, Buffer, TypeReflection
@@ -31,10 +33,8 @@ class StructuredBufferType(ValueType):
     def shape(self, value: Optional[Buffer] = None):
         if self._el_type is not None:
             return super().shape(value)
-        elif value is not None:
-            return self.container_shape(value) + (None,)
         else:
-            return (None, None)
+            return None
 
     def element_type(self, value: Any = None):
         return self._el_type
@@ -80,10 +80,28 @@ class StructuredBufferType(ValueType):
                 'value': data
             }
 
+    def update_from_bound_type(self, bound_type: 'BaseType'):
+        while True:
+            stshape = bound_type.shape()
+            if stshape is None or None in stshape:
+                next_type = bound_type.element_type()
+                if next_type == bound_type:
+                    raise ValueError("Cannot resolve shape")
+                bound_type = next_type
+            else:
+                break
+        self._el_type = bound_type
+
 
 class RWStructuredBufferType(StructuredBufferType):
-    def __init__(self, element_type: BaseType):
+    def __init__(self, element_type: Optional[BaseType]):
         super().__init__(element_type=element_type)
+
+    def name(self, value: Optional[Buffer] = None) -> str:
+        if self._el_type is not None:
+            return f"RWStructuredBuffer<{self._el_type.name()}>"
+        else:
+            return "RWStructuredBuffer<Unknown>"
 
     def is_writable(self, value: Optional[Buffer] = None) -> bool:
         return True
@@ -114,4 +132,15 @@ def _get_or_create_rw_slang_type_reflection(slang_type: TypeReflection) -> BaseT
 SLANG_STRUCT_TYPES_BY_NAME['StructuredBuffer'] = _get_or_create_ro_slang_type_reflection
 SLANG_STRUCT_TYPES_BY_NAME['RWStructuredBuffer'] = _get_or_create_rw_slang_type_reflection
 
-PYTHON_TYPES[Buffer] = StructuredBufferType(None)
+
+def _get_or_create_python_type(value: Buffer):
+    assert isinstance(value, Buffer)
+    # TODO: Read usage correctly when SGL supports it
+    usage = ResourceUsage.unordered_access
+    if (usage & ResourceUsage.unordered_access.value) != 0:
+        return RWStructuredBufferType(None)
+    else:
+        return StructuredBufferType(None)
+
+
+PYTHON_TYPES[Buffer] = _get_or_create_python_type

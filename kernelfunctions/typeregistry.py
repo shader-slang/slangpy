@@ -31,6 +31,21 @@ SLANG_STRUCT_TYPES_BY_NAME: dict[str, TTypeLookup] = {}
 SLANG_STRUCT_BASE_TYPE: TTypeLookup = None  # type: ignore
 
 
+def _get_or_create_slang_type_by_name(name: str) -> TTypeLookup:
+    res = SLANG_STRUCT_TYPES_BY_FULL_NAME.get(name)
+    if res is None:
+        res = SLANG_STRUCT_TYPES_BY_NAME.get(name)
+    if res is None:
+        gstart = name.find("<")
+        if gstart != -1:
+            res = SLANG_STRUCT_TYPES_BY_NAME.get(name[:gstart])
+    if callable(res):
+        res = res(name)
+    if res is None:
+        res = SLANG_STRUCT_BASE_TYPE
+    return res
+
+
 def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> TTypeLookup:
     if slang_type.kind == TypeReflection.Kind.scalar:
         res = SLANG_SCALAR_TYPES[slang_type.scalar_type]
@@ -69,6 +84,8 @@ def get_or_create_type(python_or_slang_type: Any, value: Any = None) -> BaseType
         res = _get_or_create_slang_type_reflection(python_or_slang_type.type)
     elif isinstance(python_or_slang_type, TypeReflection.ScalarType):
         res = SLANG_SCALAR_TYPES[python_or_slang_type]
+    elif isinstance(python_or_slang_type, str):
+        res = _get_or_create_slang_type_by_name(python_or_slang_type)
     if callable(res):
         res = res(value)
     if res is None:

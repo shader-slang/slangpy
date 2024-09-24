@@ -45,14 +45,21 @@ struct ValueType<T>
 struct StructuredBufferType<T>
 {
     StructuredBuffer<T> value;
+
     void load_primal(IContext context, out T value) { value = this.value[context.get_call_id(0)]; }
     void store_primal(IContext context, in T value) {};
+
+    void load_primal(IContext context, out StructuredBuffer<T> value) { value = this.value; }
+    void store_primal(IContext context, in StructuredBuffer<T> value) {};
 }
 
 struct RWStructuredBufferType<T> {
     RWStructuredBuffer<T> value;
     void load_primal(IContext context, out T value) { value = this.value[context.get_call_id(0)]; }
     void store_primal(IContext context, in T value) { this.value[context.get_call_id(0)] = value; };
+
+    void load_primal(IContext context, out RWStructuredBuffer<T> value) { value = this.value; }
+    void store_primal(IContext context, in RWStructuredBuffer<T> value) {};
 }
 
 struct ValueRef<T>
@@ -71,7 +78,7 @@ struct RWValueRef<T>
 
 struct NDBuffer<T, let N : int>
 {
-    RWStructuredBuffer<T> buffer;
+    StructuredBuffer<T> buffer;
     int[N] strides;
     int[N] transform;
 
@@ -81,20 +88,36 @@ struct NDBuffer<T, let N : int>
     void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides, transform)]; }
     void store_primal(IContext context, in T value) {};
 
+    void load_primal(IContext context, out StructuredBuffer<T> value) {
+        value = buffer;
+    }
+    void store_primal(IContext context, in StructuredBuffer<T> value) {};
+
+    void load_primal<let BN : int>(IContext context, out NDBuffer<T, BN> value) { 
+        value.buffer = buffer;
+        //TODO: Do this properly - it's wrong
+        for(int i = 0; i < N; i++) { 
+            value.strides[i] = strides[i]; 
+            value.transform[i] = transform[i];
+        }
+    }
+    void store_primal<let BN : int>(IContext context, in NDBuffer<T, BN> value) {};
+
     void load_primal<let VD : int>(IContext context, out vector<T, VD> value) {
-        int idx = 0;
-        for (int i = 0; i < N-1; i++) { idx += context.get_call_id(transform[i]) * strides[i]; }
+
+        int call_id[N];
+        for (int i = 0; i < N - 1; i++) { call_id[i] = context.get_call_id(i); }
 
         for (int vi = 0; vi < VD; vi++) {
-            value[vi] = buffer[idx];
-            idx += strides[N-1];
+            call_id[N - 1] = vi;
+            value[vi] = buffer[_idx(call_id, strides, transform)];
         }
     }
 
     void store_primal<let VD : int>(IContext context, out vector<T, VD> value) {}
 }
 
-struct RWTensorBuffer<T, let N : int>
+struct RWNDBuffer<T, let N : int>
 {
     RWStructuredBuffer<T> buffer;
     int[N] strides;
@@ -109,22 +132,23 @@ struct RWTensorBuffer<T, let N : int>
     void store_primal(IContext context, in T value) { buffer[_idx(context, strides, transform)] = value; }
 
     void load_primal<let VD : int>(IContext context, out vector<T, VD> value) {
-        int idx = 0;
-        for (int i = 0; i < N - 1; i++) { idx += context.get_call_id(transform[i]) * strides[i]; }
 
+        int call_id[N];
+        for (int i = 0; i < N-1; i++) { call_id[i] = context.get_call_id(i); }
+        
         for (int vi = 0; vi < VD; vi++) {
-            value[vi] = buffer[idx];
-            idx += strides[N - 1];
+            call_id[N - 1] = vi;
+            value[vi] = buffer[_idx(call_id, strides, transform)];
         }
     }
 
     void store_primal<let VD : int>(IContext context, in vector<T, VD> value) {
-        int idx = 0;
-        for (int i = 0; i < N - 1; i++) { idx += context.get_call_id(transform[i]) * strides[i]; }
+        int call_id[N];
+        for (int i = 0; i < N - 1; i++) { call_id[i] = context.get_call_id(i); }
 
         for (int vi = 0; vi < VD; vi++) {
-            buffer[idx] = value[vi];
-            idx += strides[N - 1];
+            call_id[N - 1] = vi;
+            buffer[_idx(call_id, strides, transform)] = value[vi];
         }
     }
 }
