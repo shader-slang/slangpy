@@ -47,7 +47,7 @@ def parse_generic_signature(name: str):
     # Find start of generic arguments, return name if not found
     argument_start = name.find("<")
     if argument_start == -1:
-        return name
+        return (name, [])
 
     type_name = name[:argument_start].strip()
 
