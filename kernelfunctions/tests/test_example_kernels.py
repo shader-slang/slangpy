@@ -15,8 +15,21 @@ def rand_array_of_floats(size: int):
     return np.random.rand(size).astype(np.float32)
 
 
+@pytest.mark.skip(reason="Test for slang issue")
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_read_slice_error(test_id: str, device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+
+    prim_program = device.load_program(
+        str(Path(__file__).parent / "generated_tests/read_slice_generic_error.slang"), ["main"])
+
+    assert prim_program is not None
+
 # Verify a 'hard coded' example of a generated kernel compiles and runs
 # correctly.
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_buffered_scalar_function(test_id: str, device_type: DeviceType):
 
