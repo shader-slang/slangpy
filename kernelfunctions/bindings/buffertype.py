@@ -2,32 +2,32 @@
 
 from typing import Any, Optional, Sequence
 
+from sgl import TypeReflection
+
 from kernelfunctions.bindings.diffpairtype import generate_differential_pair
 from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType, PrimType
 
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
 from kernelfunctions.backend import Device, ResourceUsage
-from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
+from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
+from kernelfunctions.utils import parse_generic_signature
 
 
 class NDBufferType(BaseTypeImpl):
 
-    def __init__(self, element_type: BaseType, dims: int):
+    def __init__(self, element_type: BaseType, dims: int, writable: bool):
         super().__init__()
         self.el_type = element_type
         self.dims = dims
+        self.writable = writable
 
     # Values don't store a derivative - they're just a value
     def has_derivative(self, value: Any = None) -> bool:
         return False
 
-    # Refs can be written to!
     def is_writable(self, value: Optional[NDBuffer] = None) -> bool:
-        if value is not None:
-            return (value.usage & ResourceUsage.unordered_access) != 0
-        else:
-            return True  # to be allocated later for write!
+        return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
@@ -57,29 +57,20 @@ class NDBufferType(BaseTypeImpl):
         pass
 
     def name(self, value: Any = None) -> str:
-        if value is not None:
-            if self.is_writable(value):
-                return f"NDBuffer<{self.el_type.name()}>"
-            else:
-                return f"RWTensorBuffer<{self.el_type.name()}>"
+        if not self.writable:
+            return f"NDBuffer<{self.el_type.name()},{self.dims}>"
         else:
-            return "UnknownBufferName"
+            return f"RWTensorBuffer<{self.el_type.name()},{self.dims}>"
 
     def element_type(self, value: Optional[NDBuffer] = None):
         return self.el_type
 
-    def container_shape(self, value: Optional[NDBuffer] = None):
+    def container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
         if value is not None:
             assert len(value.shape) == self.dims
             return value.shape
         else:
             return [None]*self.dims
-
-    def shape(self, value: Any = None):
-        if value is not None:
-            return super().shape(value)
-        else:
-            return None
 
     def differentiable(self, value: Optional[NDBuffer] = None):
         return self.el_type.differentiable()
@@ -87,7 +78,7 @@ class NDBufferType(BaseTypeImpl):
     def differentiate(self, value: Optional[NDBuffer] = None):
         et = self.el_type.differentiate()
         if et is not None:
-            return NDBufferType(et, self.dims)
+            return NDBufferType(et, self.dims, self.writable)
         else:
             return None
 
@@ -98,31 +89,35 @@ class NDBufferType(BaseTypeImpl):
         return data
 
 
-def create_vr_type_for_value(value: Any):
+def create_vr_type_for_value(value: NDBuffer):
     assert isinstance(value, NDBuffer)
-    return NDBufferType(get_or_create_type(value.element_type), len(value.shape))
+    return NDBufferType(get_or_create_type(value.element_type), len(value.shape), (value.usage & ResourceUsage.unordered_access) != 0)
+
+
+def create_vr_type_for_slang(value: TypeReflection):
+    assert isinstance(value, TypeReflection)
+    name, args = parse_generic_signature(value.full_name)
+    return NDBufferType(get_or_create_type(args[0]), int(args[1]), name.startswith("RW"))
 
 
 PYTHON_TYPES[NDBuffer] = create_vr_type_for_value
+SLANG_STRUCT_TYPES_BY_NAME["NDBuffer"] = create_vr_type_for_slang
 
 
 class NDDifferentiableBufferType(BaseTypeImpl):
 
-    def __init__(self, element_type: BaseType, dims: int):
+    def __init__(self, element_type: BaseType, dims: int, writable: bool):
         super().__init__()
         self.el_type = element_type
         self.dims = dims
+        self.writable = writable
 
     # Values don't store a derivative - they're just a value
     def has_derivative(self, value: Any = None) -> bool:
         return True
 
-    # Refs can be written to!
     def is_writable(self, value: Any = None) -> bool:
-        if value is not None:
-            return (value.usage & ResourceUsage.unordered_access) != 0
-        else:
-            return True  # to be allocated later for write!
+        return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
@@ -179,13 +174,10 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         pass
 
     def name(self, value: Optional[NDDifferentiableBuffer] = None) -> str:
-        if value is not None:
-            if self.is_writable(value):
-                return f"NDBuffer<{self.el_type.name()}>"
-            else:
-                return f"RWTensorBuffer<{self.el_type.name()}>"
+        if not self.writable:
+            return f"NDBuffer<{self.el_type.name()},{self.dims}>"
         else:
-            return "UnknownBufferName"
+            return f"RWTensorBuffer<{self.el_type.name()},{self.dims}>"
 
     def element_type(self, value: Optional[NDDifferentiableBuffer] = None):
         return self.el_type
@@ -195,12 +187,6 @@ class NDDifferentiableBufferType(BaseTypeImpl):
             assert len(value.shape) == self.dims
             return value.shape
         else:
-            return None
-
-    def shape(self, value: Any = None):
-        if value is not None:
-            return super().shape(value)
-        else:
             return [None]*self.dims
 
     def differentiable(self, value: Optional[NDBuffer] = None):
@@ -209,7 +195,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def differentiate(self, value: Optional[NDBuffer] = None):
         et = self.el_type.differentiate()
         if et is not None:
-            return NDDifferentiableBufferType(et, self.dims)
+            return NDDifferentiableBufferType(et, self.dims, self.writable)
         else:
             return None
 
@@ -225,7 +211,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
 def create_gradvr_type_for_value(value: Any):
     assert isinstance(value, NDDifferentiableBuffer)
-    return NDDifferentiableBufferType(get_or_create_type(value.element_type), len(value.shape))
+    return NDDifferentiableBufferType(get_or_create_type(value.element_type), len(value.shape), (value.usage & ResourceUsage.unordered_access) != 0)
 
 
 PYTHON_TYPES[NDDifferentiableBuffer] = create_gradvr_type_for_value

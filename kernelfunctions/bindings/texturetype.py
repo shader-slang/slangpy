@@ -18,7 +18,7 @@ class TextureType(ValueType):
         self._writable = writable
         self._texture_shape = texture_shape
         self._base_texture_type_name = base_texture_type_name
-        self._tex_type_name = f"{self._prefix()}{self._base_texture_type_name}{self._el_type.name()}"
+        self._tex_type_name = f"{self._prefix()}{self._base_texture_type_name}<{self._el_type.name()}>"
 
     def _prefix(self):
         return "RW" if self._writable else ""

@@ -8,7 +8,8 @@ import numpy as np
 from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType
 
 from kernelfunctions.backend import TypeReflection, math, Device
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_VECTOR_TYPES
+from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
+from kernelfunctions.utils import parse_generic_signature
 
 """
 Common functionality for basic value types such as int, float, vector, matrix etc that aren't
@@ -278,6 +279,7 @@ class MatrixType(ValueType):
 # Hook up all the basic slang scalar, vector and matrix types
 for x in TypeReflection.ScalarType:
     SLANG_SCALAR_TYPES[x] = ScalarType(x)
+    SLANG_STRUCT_TYPES_BY_NAME[SCALAR_TYPE_NAMES[x]] = SLANG_SCALAR_TYPES[x]
     SLANG_VECTOR_TYPES[x] = [VectorType(SLANG_SCALAR_TYPES[x], i) for i in range(0, 5)]
     SLANG_MATRIX_TYPES[x] = []
     for rows in range(0, 5):
@@ -326,3 +328,16 @@ PYTHON_TYPES[math.int1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.int32]
 PYTHON_TYPES[math.uint1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
 PYTHON_TYPES[math.bool1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.bool]
 PYTHON_TYPES[math.float1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
+
+
+def create_vector_type_for_slang(value: TypeReflection):
+    assert isinstance(value, str)
+    name, args = parse_generic_signature(value)
+    assert name == "vector"
+    el_type = get_or_create_type(args[0])
+    assert isinstance(el_type, ScalarType)
+    dim = int(args[1])
+    return SLANG_VECTOR_TYPES[el_type.slang_type][dim]
+
+
+SLANG_STRUCT_TYPES_BY_NAME["vector"] = create_vector_type_for_slang

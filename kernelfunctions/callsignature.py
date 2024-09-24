@@ -378,7 +378,7 @@ def create_return_value_binding(call_dimensionality: int, signature: BoundCall, 
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:
                 node.python.set_type(NDDifferentiableBufferType(
-                    node.slang.primal, call_dimensionality))
+                    node.slang.primal, call_dimensionality, True))
 
 
 def generate_code(call_dimensionality: int, function: Function, signature: BoundCall, mode: CallMode, cg: CodeGen):
