@@ -97,7 +97,7 @@ class SlangVariable(BaseVariableImpl):
         self.io_type = io_type
         self.no_diff = no_diff
         self.primal = get_or_create_type(slang_type)
-        self.derivative = self.primal.differentiate()
+        self.derivative = self.primal.derivative
 
         if isinstance(slang_type, TypeReflection):
             if slang_type.kind == TypeReflection.Kind.struct:

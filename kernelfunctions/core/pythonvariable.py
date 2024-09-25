@@ -78,7 +78,7 @@ class PythonVariable(BaseVariableImpl):
 
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
-        self.derivative = self.primal.differentiate(value)
+        self.derivative = self.primal.derivative
         self.element_type = self.primal.element_type
         self.differentiable = self.primal.differentiable
         self.has_derivative = self.primal.has_derivative(value)

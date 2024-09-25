@@ -36,8 +36,9 @@ class ArrayType(ValueType):
     def differentiable(self):
         return self.et.differentiable
 
-    def differentiate(self, value: Optional[list[Any]] = None):
-        et = self.et.differentiate(value)
+    @property
+    def derivative(self):
+        et = self.et.derivative
         if et is not None:
             return ArrayType(et, self.ec)
         else:

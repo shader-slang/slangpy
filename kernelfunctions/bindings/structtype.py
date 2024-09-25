@@ -26,7 +26,8 @@ class StructType(ValueType):
     def differentiable(self):
         return True
 
-    def differentiate(self, value: Any = None):
+    @property
+    def derivative(self):
         return self
 
     def has_derivative(self, value: Any = None) -> bool:

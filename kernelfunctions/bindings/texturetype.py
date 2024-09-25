@@ -4,7 +4,7 @@ from typing import Optional
 
 from kernelfunctions.core import BaseType
 
-from kernelfunctions.backend import Buffer, Texture, TypeReflection
+from kernelfunctions.backend import Texture, TypeReflection
 from kernelfunctions.typeregistry import SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
 from .valuetype import ValueType
@@ -47,8 +47,9 @@ class Texture2DType(TextureType):
         else:
             return (None, None)
 
-    def differentiate(self, value: Optional[Buffer] = None):
-        el_diff = self.element_type.differentiate()
+    @property
+    def derivative(self):
+        el_diff = self.element_type.derivative
         if el_diff is not None:
             return Texture2DType(el_diff, self._writable)
         else:

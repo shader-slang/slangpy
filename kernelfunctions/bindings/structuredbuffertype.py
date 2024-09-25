@@ -48,9 +48,10 @@ class StructuredBufferType(ValueType):
         else:
             return False
 
-    def differentiate(self, value: Optional[Buffer] = None):
+    @property
+    def derivative(self):
         if self._el_type is not None:
-            el_diff = self._el_type.differentiate()
+            el_diff = self._el_type.derivative
             if el_diff is not None:
                 return StructuredBufferType(el_diff)
             else:
@@ -110,9 +111,10 @@ class RWStructuredBufferType(StructuredBufferType):
     def is_writable(self) -> bool:
         return True
 
-    def differentiate(self, value: Optional[Buffer] = None):
+    @property
+    def derivative(self):
         if self._el_type is not None:
-            el_diff = self._el_type.differentiate()
+            el_diff = self._el_type.derivative
             if el_diff is not None:
                 return StructuredBufferType(el_diff)
             else:

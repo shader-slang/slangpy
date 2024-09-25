@@ -32,7 +32,8 @@ class BaseType:
     def differentiable(self) -> bool:
         raise NotImplementedError()
 
-    def differentiate(self, value: Any = None) -> Optional['BaseType']:
+    @property
+    def derivative(self) -> Optional['BaseType']:
         raise NotImplementedError()
 
     def container_shape(self, value: Any = None) -> Sequence[Optional[int]]:

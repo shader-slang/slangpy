@@ -129,8 +129,9 @@ class DiffPairType(BaseTypeImpl):
     def differentiable(self):
         return self.primal_type.differentiable
 
-    def differentiate(self, value: Optional[DiffPair] = None):
-        return self.primal_type.differentiate()
+    @property
+    def derivative(self):
+        return self.primal_type.derivative
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
         return DiffPair(None, None)

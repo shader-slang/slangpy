@@ -80,8 +80,9 @@ class NDBufferType(BaseTypeImpl):
     def differentiable(self):
         return self.el_type.differentiable
 
-    def differentiate(self, value: Optional[NDBuffer] = None):
-        et = self.el_type.differentiate()
+    @property
+    def derivative(self):
+        et = self.el_type
         if et is not None:
             return NDBufferType(et, self.dims, self.writable)
         else:
@@ -198,8 +199,9 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def differentiable(self):
         return self.el_type.differentiable
 
-    def differentiate(self, value: Optional[NDBuffer] = None):
-        et = self.el_type.differentiate()
+    @property
+    def derivative(self):
+        et = self.el_type.derivative
         if et is not None:
             return NDDifferentiableBufferType(et, self.dims, self.writable)
         else:

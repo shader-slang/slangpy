@@ -26,7 +26,8 @@ class BaseTypeImpl(BaseType):
     def differentiable(self):
         return False
 
-    def differentiate(self, value: Any = None):
+    @property
+    def derivative(self):
         return None
 
     def container_shape(self, value: Any = None) -> Sequence[Optional[int]]:

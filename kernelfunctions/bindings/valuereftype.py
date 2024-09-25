@@ -71,8 +71,9 @@ class ValueRefType(BaseTypeImpl):
     def differentiable(self):
         return self.value_type.differentiable
 
-    def differentiate(self, value: Optional[ValueRef] = None):
-        return self.value_type.differentiate()
+    @property
+    def derivative(self):
+        return self.value_type.derivative
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
         return ValueRef(None)

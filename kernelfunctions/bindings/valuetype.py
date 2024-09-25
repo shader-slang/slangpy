@@ -135,7 +135,8 @@ class ScalarType(ValueType):
     def differentiable(self):
         return self.diff
 
-    def differentiate(self, value: Any = None):
+    @property
+    def derivative(self):
         return self if self.diff else None
 
     def to_numpy(self, value: Any) -> npt.NDArray[Any]:
@@ -211,8 +212,9 @@ class VectorType(ValueType):
     def differentiable(self):
         return self.et.differentiable
 
-    def differentiate(self, value: Any = None):
-        et = self.et.differentiate(value)
+    @property
+    def derivative(self):
+        et = self.et.derivative
         if et is not None:
             return VectorType(et, self.size)
         else:
@@ -271,8 +273,9 @@ class MatrixType(ValueType):
     def differentiable(self):
         return self.et.differentiable
 
-    def differentiate(self, value: Any = None):
-        et = self.et.differentiate(value)
+    @property
+    def derivative(self):
+        et = self.et.derivative
         if et is not None:
             return MatrixType(et, self.rows, self.cols)
         else:
