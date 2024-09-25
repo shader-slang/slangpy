@@ -31,7 +31,8 @@ class WangHashArgType(BaseTypeImpl):
     def shape(self, value: Optional[WangHashArg] = None):
         return (self.dims,)
 
-    def element_type(self, value: Optional[WangHashArg] = None):
+    @property
+    def element_type(self):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
 
     def gen_calldata(self, cgb: CodeGenBlock, input_value: BoundVariable, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):

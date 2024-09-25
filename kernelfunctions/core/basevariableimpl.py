@@ -40,7 +40,7 @@ class BaseVariableImpl(BaseVariable):
     def _find_bottom_level_element(self, value: Any = None) -> 'BaseType':
         t = self.primal
         while True:
-            c = t.element_type(value)
+            c = t.element_type
             if c is None or c is t:
                 return c
             t = c

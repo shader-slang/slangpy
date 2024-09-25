@@ -64,7 +64,8 @@ class NDBufferType(BaseTypeImpl):
         else:
             return f"RWNDBuffer<{self.el_type.name},{self.dims}>"
 
-    def element_type(self, value: Optional[NDBuffer] = None):
+    @property
+    def element_type(self):
         return self.el_type
 
     def container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
@@ -179,7 +180,8 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             return f"RWNDBuffer<{self.el_type.name},{self.dims}>"
 
-    def element_type(self, value: Optional[NDDifferentiableBuffer] = None):
+    @property
+    def element_type(self):
         return self.el_type
 
     def container_shape(self, value: Optional[NDDifferentiableBuffer] = None):

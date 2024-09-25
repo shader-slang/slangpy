@@ -1,6 +1,6 @@
 
 
-from typing import Any, Optional
+from typing import Optional
 
 from kernelfunctions.core import BaseType
 
@@ -27,11 +27,12 @@ class TextureType(ValueType):
     def name(self) -> str:
         return self._tex_type_name
 
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self._el_type
 
     def differentiable(self, value: Optional[Buffer] = None):
-        return self.element_type(value).differentiable()
+        return self.element_type.differentiable()
 
 
 class Texture2DType(TextureType):
@@ -46,7 +47,7 @@ class Texture2DType(TextureType):
             return (None, None)
 
     def differentiate(self, value: Optional[Buffer] = None):
-        el_diff = self.element_type(value).differentiate()
+        el_diff = self.element_type.differentiate()
         if el_diff is not None:
             return Texture2DType(el_diff, self._writable)
         else:

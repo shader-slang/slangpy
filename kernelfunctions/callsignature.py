@@ -364,7 +364,7 @@ def calculate_call_shape(call_dimensionality: int, signature: BoundCall, *args: 
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
 
-    return call_shape
+    return cast(list[int], call_shape)
 
 
 def create_return_value_binding(call_dimensionality: int, signature: BoundCall, mode: CallMode):

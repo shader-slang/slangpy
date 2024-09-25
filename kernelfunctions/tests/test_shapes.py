@@ -2,7 +2,7 @@ from typing import Any, Optional
 import pytest
 from sgl import float4
 from kernelfunctions.backend import DeviceType, float1, float3
-from kernelfunctions.callsignature import CallMode, BoundVariable, bind, build_signature, calculate_call_shape, match_signatures
+from kernelfunctions.callsignature import CallMode, BoundVariable, bind, build_signature, match_signatures
 from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
@@ -10,7 +10,6 @@ from kernelfunctions.tests import helpers
 from kernelfunctions.types import floatRef
 from kernelfunctions.types.buffer import NDBuffer
 from kernelfunctions.types.valueref import ValueRef
-from kernelfunctions.tests.helpers import FakeBuffer
 
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
@@ -456,7 +455,7 @@ def test_readslice_argument_map(device_type: DeviceType):
     shapes = read_slice(device_type,
                         make_float_buffer(device_type, (50, 2)),
                         make_float_buffer(device_type, (50, 4, 256, 128)),
-                        None, input_transforms={"texture": (0, 2, 3, 1)})
+                        None, transforms={"texture": (0, 2, 3, 1)})
     diff = deepdiff.DeepDiff(
         shapes,
         {
@@ -477,30 +476,7 @@ def test_readslice_function_map(device_type: DeviceType):
     shapes = read_slice(device_type,
                         make_float_buffer(device_type, (1000, 2)),
                         make_float_buffer(device_type, (50, 256, 128, 4)),
-                        None, ouput_transforms={"index": (1,), "texture": (0,)})
-    diff = deepdiff.DeepDiff(
-        shapes,
-        {
-            "type_shapes": [[2], [256, 128, 4], [4]],
-            "arg_shapes": [[1000], [50], [50, 1000]],
-            "call_shape": [50, 1000],
-        },
-    )
-    assert not diff
-
-
-@pytest.mark.skip(reason="Awaiting slang fix")
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_readslice_both_map(device_type: DeviceType):
-
-    # Use remapping to allow 1000 indices to be batch tested
-    # against 50*(4,256,128), resulting in output of 50*(1000)
-    shapes = read_slice(device_type,
-                        make_float_buffer(device_type, (2, 1000)),
-                        make_float_buffer(device_type, (50, 4, 256, 128)),
-                        None,
-                        input_transforms={"index": (1, 0), "texture": (0, 2, 3, 1)},
-                        ouput_transforms={"index": (1,), "texture": (0,)})
+                        None, transforms={"index": (1,), "texture": (0,)})
     diff = deepdiff.DeepDiff(
         shapes,
         {

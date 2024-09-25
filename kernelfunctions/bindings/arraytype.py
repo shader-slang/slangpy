@@ -28,7 +28,8 @@ class ArrayType(ValueType):
     def container_shape(self, value: Optional[list[Any]] = None):
         return (self.ec,)
 
-    def element_type(self, value: Optional[list[Any]] = None):
+    @property
+    def element_type(self):
         return self.et
 
     def differentiable(self, value: Optional[list[Any]] = None):

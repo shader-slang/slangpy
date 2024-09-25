@@ -128,7 +128,8 @@ class FakeBufferType(BaseTypeImpl):
     def shape(self, value: Any = None):
         return value.shape
 
-    def element_type(self, value: Any):
+    @property
+    def element_type(self):
         return PYTHON_TYPES[NoneType]
 
 

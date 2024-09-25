@@ -22,7 +22,8 @@ class ValueType(BaseTypeImpl):
         super().__init__()
 
     # A value is its own element
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self
 
     # Values don't store a derivative - they're just a value
@@ -200,7 +201,8 @@ class VectorType(ValueType):
     def container_shape(self, value: Any = None):
         return (self.size,)
 
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self.et
 
     def differentiable(self, value: Any = None):
@@ -258,7 +260,8 @@ class MatrixType(ValueType):
     def container_shape(self, value: Any = None):
         return (self.rows, self.cols)
 
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self.et
 
     def differentiable(self, value: Any = None):

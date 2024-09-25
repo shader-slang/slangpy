@@ -117,8 +117,9 @@ class DiffPairType(BaseTypeImpl):
     def name(self) -> str:
         return self.primal_type.name
 
-    def element_type(self, value: Optional[DiffPair] = None):
-        return self.primal_type.element_type()
+    @property
+    def element_type(self):
+        return self.primal_type.element_type
 
     def shape(self, value: Optional[DiffPair] = None):
         return self.primal_type.shape()

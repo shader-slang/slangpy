@@ -79,7 +79,7 @@ class PythonVariable(BaseVariableImpl):
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
         self.derivative = self.primal.differentiate(value)
-        self.element_type = self.primal.element_type(value)
+        self.element_type = self.primal.element_type
         self.differentiable = self.primal.differentiable(value)
         self.has_derivative = self.primal.has_derivative(value)
 
@@ -92,10 +92,10 @@ class PythonVariable(BaseVariableImpl):
         self._derivative_type_name = self.derivative.name if self.derivative is not None else None
 
         self._leaf_element_name = _get_name(self._find_bottom_level_element(value), value)
-        self._primal_element_name = _get_name(self.primal.element_type(value), value)
+        self._primal_element_name = _get_name(self.primal.element_type, value)
         if self.derivative is not None:
             self._derivative_element_name = _get_name(
-                self.derivative.element_type(value), value)
+                self.derivative.element_type, value)
         else:
             self._derivative_element_name = None
 
@@ -105,7 +105,7 @@ class PythonVariable(BaseVariableImpl):
             primal_shape = self.primal.shape()
             self.dimensionality = len(primal_shape) if primal_shape is not None else None
             self._primal_type_name = self.primal.name
-            self._primal_element_name = _get_name(self.primal.element_type(), None)
+            self._primal_element_name = _get_name(self.primal.element_type, None)
 
     def gen_calldata(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         assert self.binding is not None

@@ -31,7 +31,7 @@ class BaseTypeImpl(BaseType):
         return ()
 
     def shape(self, value: Any = None):
-        return tuple(self.container_shape(value)) + tuple(self.element_type(value).shape())
+        return tuple(self.container_shape(value)) + tuple(self.element_type.shape())
 
     def create_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
         pass

@@ -34,7 +34,8 @@ class RandFloatArgType(BaseTypeImpl):
     def shape(self, value: Optional[RandFloatArg] = None):
         return (self.dims,)
 
-    def element_type(self, value: Optional[RandFloatArg] = None):
+    @property
+    def element_type(self):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
 
     def gen_calldata(self, cgb: CodeGenBlock, input_value: BoundVariable, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):

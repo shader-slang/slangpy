@@ -36,7 +36,8 @@ class BaseType:
     def container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
         raise NotImplementedError()
 
-    def element_type(self, value: Any = None) -> 'BaseType':
+    @property
+    def element_type(self) -> 'BaseType':
         raise NotImplementedError()
 
     def byte_size(self, value: Any = None) -> int:

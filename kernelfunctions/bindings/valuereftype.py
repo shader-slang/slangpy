@@ -59,8 +59,9 @@ class ValueRefType(BaseTypeImpl):
     def name(self) -> str:
         return self.value_type.name
 
-    def element_type(self, value: Optional[ValueRef] = None):
-        return self.value_type.element_type()
+    @property
+    def element_type(self):
+        return self.value_type.element_type
 
     def shape(self, value: Optional[ValueRef] = None):
         return self.value_type.shape()

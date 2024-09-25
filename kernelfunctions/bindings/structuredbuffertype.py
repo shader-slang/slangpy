@@ -37,7 +37,8 @@ class StructuredBufferType(ValueType):
         else:
             return None
 
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self._el_type
 
     def differentiable(self, value: Optional[Buffer] = None):
@@ -84,7 +85,7 @@ class StructuredBufferType(ValueType):
         while True:
             stshape = bound_type.shape()
             if stshape is None or None in stshape:
-                next_type = bound_type.element_type()
+                next_type = bound_type.element_type
                 if next_type == bound_type:
                     raise ValueError("Cannot resolve shape")
                 bound_type = next_type
