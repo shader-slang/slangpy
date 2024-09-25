@@ -39,10 +39,10 @@ class NDBufferType(BaseTypeImpl):
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
             cgb.type_alias(
-                f"_{name}", f"NDBuffer<{input_value.python.primal_element_name},{self.dims}>")
+                f"_{name}", f"NDBuffer<{self.el_type.name},{self.dims}>")
         else:
             cgb.type_alias(
-                f"_{name}", f"RWNDBuffer<{input_value.python.primal_element_name},{self.dims}>")
+                f"_{name}", f"RWNDBuffer<{self.el_type.name},{self.dims}>")
 
     # Call data just returns the primal
 

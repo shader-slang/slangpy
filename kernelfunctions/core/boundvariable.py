@@ -44,8 +44,6 @@ class BoundVariable:
         # Store the python and slang marshall
         self.python = python
         self.slang = slang
-        self.python.binding = self
-        self.slang.binding = self
 
         # Initialize path
         if path is None:

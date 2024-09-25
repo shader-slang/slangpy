@@ -4,7 +4,6 @@ from .enums import PrimType
 
 if TYPE_CHECKING:
     from .basetype import BaseType
-    from .boundvariable import BoundVariable
 
 
 class BaseVariable:
@@ -15,7 +14,6 @@ class BaseVariable:
         self.primal: 'BaseType' = None  # type: ignore (init in constructor)
         self.derivative: Optional['BaseType'] = None
         self.fields: Optional[dict[str, 'BaseVariable']] = None
-        self.binding: Optional['BoundVariable'] = None
 
     def __repr__(self) -> str:
         return self._recurse_str(0)
