@@ -25,15 +25,15 @@ class StructuredBufferType(ValueType):
         else:
             return "StructuredBuffer<Unknown>"
 
-    def container_shape(self, value: Optional[Buffer] = None):
+    def get_container_shape(self, value: Optional[Buffer] = None):
         if value is not None:
             return (int(value.desc.size/value.desc.struct_size),)
         else:
             return (None,)
 
-    def shape(self, value: Optional[Buffer] = None):
+    def get_shape(self, value: Optional[Buffer] = None):
         if self._el_type is not None:
-            return super().shape(value)
+            return super().get_shape(value)
         else:
             return None
 
@@ -88,7 +88,7 @@ class StructuredBufferType(ValueType):
 
     def update_from_bound_type(self, bound_type: 'BaseType'):
         while True:
-            stshape = bound_type.shape()
+            stshape = bound_type.get_shape()
             if stshape is None or None in stshape:
                 next_type = bound_type.element_type
                 if next_type == bound_type:

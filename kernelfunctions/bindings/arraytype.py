@@ -17,15 +17,15 @@ class ArrayType(ValueType):
     def name(self) -> str:
         return f"{self.et.name}[{self.ec}]"
 
-    def byte_size(self, value: Optional[list[Any]] = None) -> int:
+    def get_byte_size(self, value: Optional[list[Any]] = None) -> int:
         if self.ec is not None:
-            return self.ec * self.et.byte_size()
+            return self.ec * self.et.get_byte_size()
         elif value is not None:
-            return len(value) * self.et.byte_size()
+            return len(value) * self.et.get_byte_size()
         else:
             raise ValueError("Array size must be known to compute byte size")
 
-    def container_shape(self, value: Optional[list[Any]] = None):
+    def get_container_shape(self, value: Optional[list[Any]] = None):
         return (self.ec,)
 
     @property

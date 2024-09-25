@@ -19,7 +19,7 @@ class StructType(ValueType):
     def name(self) -> str:
         return self.struct_name
 
-    def shape(self, value: Any = None):
+    def get_shape(self, value: Any = None):
         return (1,)
 
     @property

@@ -69,7 +69,7 @@ class NDBufferType(BaseTypeImpl):
     def element_type(self):
         return self.el_type
 
-    def container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
+    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
         if value is not None:
             assert len(value.shape) == self.dims
             return value.shape
@@ -189,7 +189,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def element_type(self):
         return self.el_type
 
-    def container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
+    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
         if value is not None:
             assert len(value.shape) == self.dims
             return value.shape

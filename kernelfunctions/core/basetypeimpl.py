@@ -30,11 +30,11 @@ class BaseTypeImpl(BaseType):
     def derivative(self):
         return None
 
-    def container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
+    def get_container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
         return ()
 
-    def shape(self, value: Any = None):
-        return tuple(self.container_shape(value)) + tuple(self.element_type.shape())
+    def get_shape(self, value: Any = None):
+        return tuple(self.get_container_shape(value)) + tuple(self.element_type.get_shape())
 
     def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
         pass

@@ -31,7 +31,7 @@ class RandFloatArgType(BaseTypeImpl):
     def name(self) -> str:
         return f"RandFloatArg<{self.dims}>"
 
-    def shape(self, value: Optional[RandFloatArg] = None):
+    def get_shape(self, value: Optional[RandFloatArg] = None):
         return (self.dims,)
 
     @property

@@ -122,10 +122,10 @@ class BoundVariable:
                 call_data[self.variable_name] = res
         else:
             # Get concrete primal shape
-            shape = self.python.primal.shape(value)
+            shape = self.python.primal.get_shape(value)
 
             # Get call shape + append slang primal shape
-            full_cs = call_shape + list(self.slang.primal.shape())
+            full_cs = call_shape + list(self.slang.primal.get_shape())
 
             # Broadcast occurs if the shape of the input is different from the shape of the output
             broadcast = []
@@ -177,7 +177,7 @@ class BoundVariable:
                 child.populate_call_shape(call_shape, value[name])
         elif value is not None:
             # Get concrete primal shape
-            shape = self.python.primal.shape(value)
+            shape = self.python.primal.get_shape(value)
 
             assert not (None in shape)
             assert self.transform is not None
@@ -210,7 +210,7 @@ class BoundVariable:
     def _calculate_transform(self):
         # Get shape of inputs and parameter
         input_dim = self.python.dimensionality
-        param_shape = self.slang.primal.shape()
+        param_shape = self.slang.primal.get_shape()
 
         # Check if we have input
         if input_dim is not None:

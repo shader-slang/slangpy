@@ -30,11 +30,11 @@ class PythonVariable(BaseVariableImpl):
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
         self.derivative = self.primal.derivative
-        primal_shape = self.primal.shape(value)
+        primal_shape = self.primal.get_shape(value)
         self.dimensionality = len(primal_shape) if primal_shape is not None else None
 
     def update_from_slang_type(self, slang_type: BaseType):
         if self.dimensionality is None:
             self.primal.update_from_bound_type(slang_type)
-            primal_shape = self.primal.shape()
+            primal_shape = self.primal.get_shape()
             self.dimensionality = len(primal_shape) if primal_shape is not None else None

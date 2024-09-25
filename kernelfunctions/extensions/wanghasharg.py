@@ -28,7 +28,7 @@ class WangHashArgType(BaseTypeImpl):
     def name(self) -> str:
         return f"WangHashArg<{self.dims}>"
 
-    def shape(self, value: Optional[WangHashArg] = None):
+    def get_shape(self, value: Optional[WangHashArg] = None):
         return (self.dims,)
 
     @property

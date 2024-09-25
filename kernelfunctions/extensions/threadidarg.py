@@ -28,7 +28,7 @@ class ThreadIdArgType(BaseTypeImpl):
     def name(self) -> str:
         return f"ThreadIdArg<{self.dims}>"
 
-    def shape(self, value: Optional[ThreadIdArg] = None):
+    def get_shape(self, value: Optional[ThreadIdArg] = None):
         return (self.dims,)
 
     @property

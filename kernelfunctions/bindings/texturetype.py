@@ -41,7 +41,7 @@ class Texture2DType(TextureType):
         super().__init__(element_type=element_type, writable=writable,
                          base_texture_type_name="Texture2D", texture_shape=2)
 
-    def container_shape(self, value: Optional[Texture] = None):
+    def get_container_shape(self, value: Optional[Texture] = None):
         if value is not None:
             return (value.width, value.height)
         else:

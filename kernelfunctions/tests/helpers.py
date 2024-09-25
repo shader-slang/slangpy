@@ -123,10 +123,10 @@ class FakeBufferType(BaseTypeImpl):
     def is_writable(self, value: Any) -> bool:
         return True
 
-    def container_shape(self, value: FakeBuffer):
+    def get_container_shape(self, value: FakeBuffer):
         return value.shape
 
-    def shape(self, value: Any = None):
+    def get_shape(self, value: Any = None):
         return value.shape
 
     @property

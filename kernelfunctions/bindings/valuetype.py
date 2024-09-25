@@ -129,10 +129,10 @@ class ScalarType(ValueType):
     def name(self) -> str:
         return SCALAR_TYPE_NAMES[self.slang_type]
 
-    def byte_size(self, value: Any = None) -> int:
+    def get_byte_size(self, value: Any = None) -> int:
         return self.bytes
 
-    def shape(self, value: Any = None):
+    def get_shape(self, value: Any = None):
         return ()
 
     @property
@@ -181,7 +181,7 @@ class NoneValueType(ValueType):
     def __init__(self, slang_type: TypeReflection.ScalarType):
         super().__init__()
 
-    def shape(self, value: Any = None):
+    def get_shape(self, value: Any = None):
         return None
 
     @property
@@ -204,10 +204,10 @@ class VectorType(ValueType):
     def name(self) -> str:
         return f"vector<{self.et.name},{self.size}>"
 
-    def byte_size(self, value: Any = None) -> int:
-        return self.size * self.et.byte_size()
+    def get_byte_size(self, value: Any = None) -> int:
+        return self.size * self.et.get_byte_size()
 
-    def container_shape(self, value: Any = None):
+    def get_container_shape(self, value: Any = None):
         return (self.size,)
 
     @property
@@ -266,10 +266,10 @@ class MatrixType(ValueType):
     def name(self) -> str:
         return f"matrix<{self.et.name},{self.rows},{self.cols}>"
 
-    def byte_size(self, value: Any = None) -> int:
-        return self.rows * self.cols * self.et.byte_size()
+    def get_byte_size(self, value: Any = None) -> int:
+        return self.rows * self.cols * self.et.get_byte_size()
 
-    def container_shape(self, value: Any = None):
+    def get_container_shape(self, value: Any = None):
         return (self.rows, self.cols)
 
     @property

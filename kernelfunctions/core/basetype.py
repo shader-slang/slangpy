@@ -37,21 +37,21 @@ class BaseType:
     def derivative(self) -> Optional['BaseType']:
         raise NotImplementedError()
 
-    def container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
-        raise NotImplementedError()
-
     @property
     def element_type(self) -> 'BaseType':
         raise NotImplementedError()
 
-    def byte_size(self, value: Any = None) -> int:
-        raise NotImplementedError()
-
-    def shape(self, value: Any = None) -> Sequence[Optional[int]]:
-        raise NotImplementedError()
-
     @property
     def python_return_value_type(self) -> type:
+        raise NotImplementedError()
+
+    def get_container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
+        raise NotImplementedError()
+
+    def get_shape(self, value: Any = None) -> Sequence[Optional[int]]:
+        raise NotImplementedError()
+
+    def get_byte_size(self, value: Any = None) -> int:
         raise NotImplementedError()
 
     def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
