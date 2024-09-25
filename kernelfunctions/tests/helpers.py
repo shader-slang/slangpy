@@ -116,7 +116,8 @@ class FakeBufferType(BaseTypeImpl):
     def name(self) -> str:
         return "FakeBuffer"
 
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return False
 
     def is_writable(self, value: Any) -> bool:

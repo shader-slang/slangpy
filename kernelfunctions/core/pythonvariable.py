@@ -81,7 +81,7 @@ class PythonVariable(BaseVariableImpl):
         self.derivative = self.primal.derivative
         self.element_type = self.primal.element_type
         self.differentiable = self.primal.differentiable
-        self.has_derivative = self.primal.has_derivative(value)
+        self.has_derivative = self.primal.has_derivative
 
         primal_shape = self.primal.shape(value)
         self.dimensionality = len(primal_shape) if primal_shape is not None else None

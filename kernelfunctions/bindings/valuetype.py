@@ -27,7 +27,8 @@ class ValueType(BaseTypeImpl):
         return self
 
     # Values don't store a derivative - they're just a value
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return False
 
     # Values are readonly

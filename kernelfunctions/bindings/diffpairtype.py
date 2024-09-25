@@ -34,15 +34,16 @@ struct _{name}
 
 class DiffPairType(BaseTypeImpl):
 
-    def __init__(self, primal_type: BaseType, derivative_type: Optional[BaseType] = None):
+    def __init__(self, primal_type: BaseType, derivative_type: Optional[BaseType], needs_grad: bool):
         super().__init__()
         self.primal_type = primal_type
         self.derivative_type = derivative_type
+        self.needs_grad = needs_grad
 
     # Values don't store a derivative - they're just a value
-    def has_derivative(self, value: Optional[DiffPair] = None) -> bool:
-        assert value is not None
-        return value.needs_grad and self.derivative_type != None
+    @property
+    def has_derivative(self) -> bool:
+        return self.needs_grad and self.derivative_type != None
 
     # Refs can be written to!
     @property
@@ -142,7 +143,7 @@ class DiffPairType(BaseTypeImpl):
 
 def create_vr_type_for_value(value: Any):
     assert isinstance(value, DiffPair)
-    return DiffPairType(get_or_create_type(type(value.primal)), get_or_create_type(type(value.grad)))
+    return DiffPairType(get_or_create_type(type(value.primal)), get_or_create_type(type(value.grad)), value.needs_grad)
 
 
 PYTHON_TYPES[DiffPair] = create_vr_type_for_value

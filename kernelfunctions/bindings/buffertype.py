@@ -23,7 +23,8 @@ class NDBufferType(BaseTypeImpl):
         self.writable = writable
 
     # Values don't store a derivative - they're just a value
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return False
 
     @property
@@ -119,7 +120,8 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         self.writable = writable
 
     # Values don't store a derivative - they're just a value
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return True
 
     @property

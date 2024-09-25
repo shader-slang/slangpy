@@ -21,7 +21,8 @@ class BaseType:
     def name(self) -> str:
         raise NotImplementedError()
 
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         raise NotImplementedError()
 
     @property

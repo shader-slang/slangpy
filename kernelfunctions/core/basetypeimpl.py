@@ -15,7 +15,8 @@ class BaseTypeImpl(BaseType):
     def __init__(self):
         super().__init__()
 
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return False
 
     @property

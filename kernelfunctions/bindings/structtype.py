@@ -30,7 +30,8 @@ class StructType(ValueType):
     def derivative(self):
         return self
 
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return True
 
     @property
