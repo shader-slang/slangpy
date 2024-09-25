@@ -20,18 +20,15 @@ class WangHashArg:
 
 
 class WangHashArgType(BaseTypeImpl):
-    def __init__(self):
+    def __init__(self, dims: int):
         super().__init__()
+        self.dims = dims
 
     def name(self, value: Optional[WangHashArg] = None) -> str:
-        if value is not None:
-            return f"WangHashArg<{value.dims}>"
-        else:
-            return f"WangHashArg<N>"
+        return f"WangHashArg<{self.dims}>"
 
     def shape(self, value: Optional[WangHashArg] = None):
-        assert value is not None
-        return (value.dims,)
+        return (self.dims,)
 
     def element_type(self, value: Optional[WangHashArg] = None):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
@@ -48,4 +45,4 @@ class WangHashArgType(BaseTypeImpl):
             }
 
 
-PYTHON_TYPES[WangHashArg] = WangHashArgType()
+PYTHON_TYPES[WangHashArg] = lambda x: WangHashArgType(x.dims)

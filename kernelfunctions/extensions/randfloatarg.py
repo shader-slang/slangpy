@@ -23,18 +23,15 @@ class RandFloatArg:
 
 
 class RandFloatArgType(BaseTypeImpl):
-    def __init__(self):
+    def __init__(self, dim: int):
         super().__init__()
+        self.dims = dim
 
     def name(self, value: Optional[RandFloatArg] = None) -> str:
-        if value is not None:
-            return f"RandFloatArg<{value.dims}>"
-        else:
-            return "RandFloatArg<N>"
+        return f"RandFloatArg<{self.dims}>"
 
     def shape(self, value: Optional[RandFloatArg] = None):
-        assert value is not None
-        return (value.dims,)
+        return (self.dims,)
 
     def element_type(self, value: Optional[RandFloatArg] = None):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
@@ -53,4 +50,4 @@ class RandFloatArgType(BaseTypeImpl):
             }
 
 
-PYTHON_TYPES[RandFloatArg] = RandFloatArgType()
+PYTHON_TYPES[RandFloatArg] = lambda x: RandFloatArgType(x.dim)

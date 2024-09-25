@@ -20,18 +20,15 @@ class ThreadIdArg:
 
 
 class ThreadIdArgType(BaseTypeImpl):
-    def __init__(self):
+    def __init__(self, dims: int):
         super().__init__()
+        self.dims = dims
 
     def name(self, value: Optional[ThreadIdArg] = None) -> str:
-        if value is not None:
-            return f"ThreadIdArg<{value.dims}>"
-        else:
-            return f"ThreadIdArg<N>"
+        return f"ThreadIdArg<{self.dims}>"
 
     def shape(self, value: Optional[ThreadIdArg] = None):
-        assert value is not None
-        return (value.dims,)
+        return (self.dims,)
 
     def element_type(self, value: Optional[ThreadIdArg] = None):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
@@ -42,4 +39,4 @@ class ThreadIdArgType(BaseTypeImpl):
             cgb.type_alias(f"_{name}", input_value.python.primal_type_name)
 
 
-PYTHON_TYPES[ThreadIdArg] = ThreadIdArgType()
+PYTHON_TYPES[ThreadIdArg] = lambda x: ThreadIdArgType(x.dims)
