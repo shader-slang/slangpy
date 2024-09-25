@@ -51,12 +51,12 @@ class DiffPairType(BaseTypeImpl):
         return True
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
-        access = input_value.access
-        name = input_value.variable_name
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
 
-        prim_el = input_value.python.primal_element_name
-        deriv_el = input_value.python.derivative_element_name
+        prim_el = binding.python.primal_element_name
+        deriv_el = binding.python.derivative_element_name
         if deriv_el is None:
             deriv_el = prim_el
 
@@ -74,8 +74,8 @@ class DiffPairType(BaseTypeImpl):
         else:
             deriv_storage = f"RWValueRef<{deriv_el}>"
 
-        primal_target = input_value.slang.primal_type_name
-        deriv_target = input_value.slang.derivative_type_name
+        primal_target = binding.slang.primal_type_name
+        deriv_target = binding.slang.derivative_type_name
 
         cgb.append_code(generate_differential_pair(name, primal_storage,
                         deriv_storage, primal_target, deriv_target))
@@ -84,8 +84,8 @@ class DiffPairType(BaseTypeImpl):
         return self.primal_type if prim == PrimType.primal else self.derivative_type
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BoundVariable', broadcast: list[bool], data: DiffPair) -> Any:
-        access = input_value.access
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: DiffPair) -> Any:
+        access = binding.access
         res = {}
 
         for prim in PrimType:
@@ -108,8 +108,8 @@ class DiffPairType(BaseTypeImpl):
         return res
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BoundVariable', data: DiffPair, result: Any) -> None:
-        access = input_value.access
+    def read_calldata(self, device: Device, binding: 'BoundVariable', data: DiffPair, result: Any) -> None:
+        access = binding.access
         for prim in PrimType:
             prim_name = prim.name
             prim_access = access[prim.value]

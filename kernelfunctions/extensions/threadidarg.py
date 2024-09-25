@@ -35,9 +35,9 @@ class ThreadIdArgType(BaseTypeImpl):
     def element_type(self):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
 
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: BoundVariable):
-        access = input_value.access
-        name = input_value.variable_name
+    def gen_calldata(self, cgb: CodeGenBlock, binding: BoundVariable):
+        access = binding.access
+        name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("threadidarg")
             cgb.type_alias(f"_{name}", self.name)

@@ -10,7 +10,7 @@ from .enums import AccessType
 from .codegen import CodeGenBlock
 
 if TYPE_CHECKING:
-    from .basevariable import BoundVariable
+    from .boundvariable import BoundVariable
 
 
 class BaseType:
@@ -54,16 +54,16 @@ class BaseType:
     def python_return_value_type(self) -> type:
         raise NotImplementedError()
 
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
         raise NotImplementedError()
 
-    def create_calldata(self, device: Device, input_value: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
         raise NotImplementedError()
 
-    def read_calldata(self, device: Device, input_value: 'BoundVariable', data: Any, result: Any) -> None:
+    def read_calldata(self, device: Device, binding: 'BoundVariable', data: Any, result: Any) -> None:
         raise NotImplementedError()
 
-    def allocate_return_value(self, device: Device, input_value: 'BoundVariable', slang_value: 'BoundVariable', data: Any, access: tuple[AccessType, AccessType]):
+    def allocate_return_value(self, device: Device, binding: 'BoundVariable', slang_value: 'BoundVariable', data: Any, access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:

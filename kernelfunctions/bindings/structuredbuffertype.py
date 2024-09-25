@@ -60,15 +60,15 @@ class StructuredBufferType(ValueType):
             return None
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
-        access = input_value.access
-        name = input_value.variable_name
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
 
         # As raw structured buffers don't necessary come with a type from the python side, we have to
         # resolve to the type of the slang argument
-        el_name = input_value.python.primal_element_name
+        el_name = binding.python.primal_element_name
         if el_name is None:
-            el_name = input_value.slang.primal_type_name
+            el_name = binding.slang.primal_type_name
 
         # Can now generate
         if access[0] == AccessType.read:
@@ -79,8 +79,8 @@ class StructuredBufferType(ValueType):
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
-        access = input_value.access
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
+        access = binding.access
         if access[0] != AccessType.none:
             return {
                 'value': data

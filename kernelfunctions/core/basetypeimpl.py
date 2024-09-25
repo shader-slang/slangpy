@@ -7,7 +7,7 @@ from kernelfunctions.backend import Device
 from .basetype import BaseType
 
 if TYPE_CHECKING:
-    from .basevariable import BoundVariable
+    from .boundvariable import BoundVariable
 
 
 class BaseTypeImpl(BaseType):
@@ -36,10 +36,10 @@ class BaseTypeImpl(BaseType):
     def shape(self, value: Any = None):
         return tuple(self.container_shape(value)) + tuple(self.element_type.shape())
 
-    def create_calldata(self, device: Device, input_value: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
         pass
 
-    def read_calldata(self, device: Device, input_value: 'BoundVariable', data: Any, result: Any) -> None:
+    def read_calldata(self, device: Device, binding: 'BoundVariable', data: Any, result: Any) -> None:
         pass
 
     def update_from_bound_type(self, bound_type: 'BaseType'):

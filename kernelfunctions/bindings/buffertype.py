@@ -32,9 +32,9 @@ class NDBufferType(BaseTypeImpl):
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
-        access = input_value.access
-        name = input_value.variable_name
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
@@ -46,16 +46,16 @@ class NDBufferType(BaseTypeImpl):
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, input_value: 'BoundVariable', broadcast: list[bool], data: NDBuffer) -> Any:
-        access = input_value.access
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: NDBuffer) -> Any:
+        access = binding.access
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
-        assert input_value.transform is not None
+        assert binding.transform is not None
         assert len(data.strides) <= len(broadcast)
         return {
             'buffer': data.buffer,
             'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
-            'transform': input_value.transform[0:self.dims]
+            'transform': binding.transform[0:self.dims]
         }
 
     @property
@@ -128,12 +128,12 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
-        access = input_value.access
-        name = input_value.variable_name
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
 
-        prim_el = input_value.python.primal_element_name
-        deriv_el = input_value.python.derivative_element_name
+        prim_el = binding.python.primal_element_name
+        deriv_el = binding.python.derivative_element_name
         if deriv_el is None:
             deriv_el = prim_el
         dim = self.dims
@@ -152,17 +152,17 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             deriv_storage = f"RWNDBuffer<{deriv_el},{dim}>"
 
-        primal_target = input_value.slang.primal_type_name
-        deriv_target = input_value.slang.derivative_type_name
+        primal_target = binding.slang.primal_type_name
+        deriv_target = binding.slang.derivative_type_name
 
         cgb.append_code(generate_differential_pair(name, primal_storage,
                         deriv_storage, primal_target, deriv_target))
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, input_value: 'BoundVariable', broadcast: list[bool], data: NDDifferentiableBuffer) -> Any:
-        access = input_value.access
-        assert input_value.transform is not None
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: NDDifferentiableBuffer) -> Any:
+        access = binding.access
+        assert binding.transform is not None
         res = {}
         for prim in PrimType:
             prim_name = prim.name
@@ -174,7 +174,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                 res[prim_name] = {
                     'buffer': value,
                     'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
-                    'transform': input_value.transform[0:self.dims]
+                    'transform': binding.transform[0:self.dims]
                 }
         return res
 
