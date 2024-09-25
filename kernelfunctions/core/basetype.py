@@ -60,7 +60,7 @@ class BaseType:
     def create_calldata(self, device: Device, input_value: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
         raise NotImplementedError()
 
-    def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BoundVariable', data: Any, result: Any) -> None:
         raise NotImplementedError()
 
     def allocate_return_value(self, device: Device, input_value: 'BoundVariable', slang_value: 'BoundVariable', data: Any, access: tuple[AccessType, AccessType]):

@@ -58,10 +58,6 @@ class NDBufferType(BaseTypeImpl):
             'transform': input_value.transform[0:self.dims]
         }
 
-    # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: NDBuffer, result: Any) -> None:
-        pass
-
     @property
     def name(self) -> str:
         if not self.writable:
@@ -181,10 +177,6 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                     'transform': input_value.transform[0:self.dims]
                 }
         return res
-
-    # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer, result: Any) -> None:
-        pass
 
     @property
     def name(self) -> str:

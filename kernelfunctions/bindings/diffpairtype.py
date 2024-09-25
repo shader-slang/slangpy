@@ -108,7 +108,8 @@ class DiffPairType(BaseTypeImpl):
         return res
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: DiffPair, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BoundVariable', data: DiffPair, result: Any) -> None:
+        access = input_value.access
         for prim in PrimType:
             prim_name = prim.name
             prim_access = access[prim.value]

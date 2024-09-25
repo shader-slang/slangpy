@@ -54,7 +54,8 @@ class ValueRefType(BaseTypeImpl):
             }
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: ValueRef, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BoundVariable', data: ValueRef, result: Any) -> None:
+        access = input_value.access
         if access[0] in [AccessType.write, AccessType.readwrite]:
             assert isinstance(result['value'], Buffer)
             npdata = result['value'].to_numpy()

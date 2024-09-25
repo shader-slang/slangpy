@@ -154,7 +154,7 @@ class BoundVariable:
         else:
             cd_val = call_data.get(self.variable_name, None)
             if cd_val is not None:
-                self.python.primal.read_calldata(device, self, self.access, value, cd_val)
+                self.python.primal.read_calldata(device, self, value, cd_val)
 
     def read_output(self, device: Device, data: Any):
         """Reads output from function for a return value"""
