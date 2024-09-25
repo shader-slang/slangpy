@@ -79,20 +79,14 @@ class PythonVariable(BaseVariableImpl):
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
         self.derivative = self.primal.derivative
-        self.element_type = self.primal.element_type
-        self.differentiable = self.primal.differentiable
-        self.has_derivative = self.primal.has_derivative
 
         primal_shape = self.primal.shape(value)
         self.dimensionality = len(primal_shape) if primal_shape is not None else None
 
         self.writable = self.primal.is_writable
 
-        self._primal_type_name = self.primal.name
-        self._derivative_type_name = self.derivative.name if self.derivative is not None else None
-
         self._leaf_element_name = _get_name(self._find_bottom_level_element(value), value)
-        self._primal_element_name = _get_name(self.primal.element_type, value)
+
         if self.derivative is not None:
             self._derivative_element_name = _get_name(
                 self.derivative.element_type, value)
@@ -104,8 +98,6 @@ class PythonVariable(BaseVariableImpl):
             self.primal.update_from_bound_type(slang_type)
             primal_shape = self.primal.shape()
             self.dimensionality = len(primal_shape) if primal_shape is not None else None
-            self._primal_type_name = self.primal.name
-            self._primal_element_name = _get_name(self.primal.element_type, None)
 
     def gen_calldata(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         assert self.binding is not None
@@ -131,20 +123,27 @@ class PythonVariable(BaseVariableImpl):
 
     @property
     def primal_type_name(self):
-        return self._primal_type_name
+        return self.primal.name
 
     @property
     def derivative_type_name(self):
-        return self._derivative_type_name
+        return _get_name(self.derivative, None)
 
     @property
     def primal_element_name(self):
-        return self._primal_element_name
+        return _get_name(self.primal.element_type, None)
 
     @property
     def derivative_element_name(self):
-        return self._derivative_element_name
+        if self.derivative is not None:
+            return _get_name(self.derivative.element_type, None)
+        else:
+            return None
 
     @property
     def root_element_name(self):
         return self._leaf_element_name
+
+    @property
+    def differentiable(self):
+        return self.primal.differentiable and self.primal.has_derivative

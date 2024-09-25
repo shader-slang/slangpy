@@ -64,7 +64,7 @@ class BoundVariable:
         self.variable_name = self.path.replace(".", "__")
 
         # Can now decide if differentiable
-        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable and self.python.has_derivative
+        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
         self._calculate_differentiability(mode)
 
         # Store transforms
