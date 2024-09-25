@@ -10,7 +10,7 @@ from .enums import AccessType
 from .codegen import CodeGenBlock
 
 if TYPE_CHECKING:
-    from .basevariable import BaseVariable
+    from .basevariable import BoundVariable
 
 
 class BaseType:
@@ -47,19 +47,19 @@ class BaseType:
     def python_return_value_type(self, value: Any = None) -> type:
         raise NotImplementedError()
 
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
-    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
         raise NotImplementedError()
 
-    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
         raise NotImplementedError()
 
-    def allocate_return_value(self, device: Device, input_value: 'BaseVariable', slang_value: 'BaseVariable', data: Any, access: tuple[AccessType, AccessType]):
+    def allocate_return_value(self, device: Device, input_value: 'BoundVariable', slang_value: 'BoundVariable', data: Any, access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:

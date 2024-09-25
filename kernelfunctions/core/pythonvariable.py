@@ -109,16 +109,20 @@ class PythonVariable(BaseVariableImpl):
             self._primal_element_name = _get_name(self.primal.element_type(), None)
 
     def gen_calldata(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        return self.primal.gen_calldata(cgb, self, name, transform, access)
+        assert self.binding is not None
+        return self.primal.gen_calldata(cgb, self.binding, name, transform, access)
 
     def gen_load_store(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        return self.primal.gen_load_store(cgb, self, name, transform, access)
+        assert self.binding is not None
+        return self.primal.gen_load_store(cgb, self.binding, name, transform, access)
 
     def create_calldata(self, device: Device, access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
-        return self.primal.create_calldata(device, self, access, broadcast, data)
+        assert self.binding is not None
+        return self.primal.create_calldata(device, self.binding, access, broadcast, data)
 
     def read_calldata(self, device: Device, access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
-        return self.primal.read_calldata(device, self, access, data, result)
+        assert self.binding is not None
+        return self.primal.read_calldata(device, self.binding, access, data, result)
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
         return self.primal.create_output(device, call_shape)

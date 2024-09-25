@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from sgl import ResourceUsage
 
-from kernelfunctions.core import BaseType, BaseVariable, CodeGenBlock, AccessType
+from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessType
 
 from kernelfunctions.backend import Device, Buffer, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
@@ -56,14 +56,13 @@ class StructuredBufferType(ValueType):
             return None
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
 
         # As raw structured buffers don't necessary come with a type from the python side, we have to
         # resolve to the type of the slang argument
-        el_name = input_value.primal_element_name
+        el_name = input_value.python.primal_element_name
         if el_name is None:
-            assert input_value.binding is not None
-            el_name = input_value.binding.slang.primal_type_name
+            el_name = input_value.slang.primal_type_name
 
         # Can now generate
         if access[0] == AccessType.read:
@@ -74,7 +73,7 @@ class StructuredBufferType(ValueType):
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
         if access[0] != AccessType.none:
             return {
                 'value': data

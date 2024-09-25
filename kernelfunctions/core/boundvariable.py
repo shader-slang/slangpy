@@ -131,8 +131,9 @@ class BoundVariable:
 
             # Broadcast occurs if the shape of the input is different from the shape of the output
             broadcast = []
-            for i in range(len(self.transform)):
-                csidx = self.transform[i]
+            transform = cast(list[int], self.transform)
+            for i in range(len(transform)):
+                csidx = transform[i]
                 if csidx < len(full_cs):
                     broadcast.append(full_cs[csidx] != shape[i])
                 else:

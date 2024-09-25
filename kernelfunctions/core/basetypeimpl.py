@@ -8,7 +8,7 @@ from .basetype import BaseType
 from .enums import AccessType
 
 if TYPE_CHECKING:
-    from .basevariable import BaseVariable
+    from .basevariable import BoundVariable
 
 
 class BaseTypeImpl(BaseType):
@@ -33,10 +33,10 @@ class BaseTypeImpl(BaseType):
     def shape(self, value: Any = None):
         return tuple(self.container_shape(value)) + tuple(self.element_type(value).shape())
 
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
         pass
 
-    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
         pass
 
     def update_from_bound_type(self, bound_type: 'BaseType'):

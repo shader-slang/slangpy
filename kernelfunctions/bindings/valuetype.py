@@ -5,7 +5,7 @@ from typing import Any, Optional, Sequence
 import numpy.typing as npt
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType
 
 from kernelfunctions.backend import TypeReflection, math, Device
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
@@ -34,14 +34,15 @@ class ValueType(BaseTypeImpl):
         return False
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         if access[0] in [AccessType.read, AccessType.readwrite]:
-            cgb.type_alias(f"_{name}", f"ValueType<{input_value.primal_type_name}>")
+            cgb.type_alias(
+                f"_{name}", f"ValueType<{input_value.python.primal_type_name}>")
         else:
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
         if access[0] in [AccessType.read, AccessType.readwrite]:
             return {
                 'value': data

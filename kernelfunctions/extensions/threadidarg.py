@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, PythonVariable
+from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable
 
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
@@ -36,10 +36,10 @@ class ThreadIdArgType(BaseTypeImpl):
     def element_type(self, value: Optional[ThreadIdArg] = None):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
 
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: PythonVariable, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: BoundVariable, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         if access[0] == AccessType.read:
             cgb.add_import("threadidarg")
-            cgb.type_alias(f"_{name}", input_value.primal_type_name)
+            cgb.type_alias(f"_{name}", input_value.python.primal_type_name)
 
 
 PYTHON_TYPES[ThreadIdArg] = ThreadIdArgType()

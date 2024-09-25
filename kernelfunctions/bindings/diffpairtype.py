@@ -3,7 +3,7 @@
 from typing import Any, Optional, Sequence
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType, PrimType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType
 
 from kernelfunctions.types import DiffPair
 
@@ -49,13 +49,11 @@ class DiffPairType(BaseTypeImpl):
         return True
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        prim_el = input_value.primal_element_name
-        deriv_el = input_value.derivative_element_name
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+        prim_el = input_value.python.primal_element_name
+        deriv_el = input_value.python.derivative_element_name
         if deriv_el is None:
             deriv_el = prim_el
-
-        binding = input_value.binding
 
         if access[0] == AccessType.none:
             primal_storage = f'NoneType'
@@ -71,9 +69,8 @@ class DiffPairType(BaseTypeImpl):
         else:
             deriv_storage = f"RWValueRef<{deriv_el}>"
 
-        assert binding is not None
-        primal_target = binding.slang.primal_type_name
-        deriv_target = binding.slang.derivative_type_name
+        primal_target = input_value.slang.primal_type_name
+        deriv_target = input_value.slang.derivative_type_name
 
         cgb.append_code(generate_differential_pair(name, primal_storage,
                         deriv_storage, primal_target, deriv_target))
@@ -82,7 +79,7 @@ class DiffPairType(BaseTypeImpl):
         return self.primal_type if prim == PrimType.primal else self.derivative_type
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: DiffPair) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: DiffPair) -> Any:
         res = {}
 
         for prim in PrimType:
@@ -105,7 +102,7 @@ class DiffPairType(BaseTypeImpl):
         return res
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: DiffPair, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: DiffPair, result: Any) -> None:
         for prim in PrimType:
             prim_name = prim.name
             prim_access = access[prim.value]

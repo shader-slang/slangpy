@@ -3,7 +3,7 @@
 from typing import Any, Optional, Sequence
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType
 
 from kernelfunctions.types import ValueRef
 
@@ -26,17 +26,18 @@ class ValueRefType(BaseTypeImpl):
         return True
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
-            cgb.type_alias(f"_{name}", f"ValueRef<{input_value.primal_type_name}>")
+            cgb.type_alias(f"_{name}", f"ValueRef<{input_value.python.primal_type_name}>")
         else:
-            cgb.type_alias(f"_{name}", f"RWValueRef<{input_value.primal_type_name}>")
+            cgb.type_alias(
+                f"_{name}", f"RWValueRef<{input_value.python.primal_type_name}>")
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: ValueRef) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: ValueRef) -> Any:
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
@@ -48,7 +49,7 @@ class ValueRefType(BaseTypeImpl):
             }
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: ValueRef, result: Any) -> None:
+    def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: ValueRef, result: Any) -> None:
         if access[0] in [AccessType.write, AccessType.readwrite]:
             assert isinstance(result['value'], Buffer)
             npdata = result['value'].to_numpy()
