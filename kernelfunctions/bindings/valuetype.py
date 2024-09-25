@@ -47,7 +47,8 @@ class ValueType(BaseTypeImpl):
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
+        access = input_value.access
         if access[0] in [AccessType.read, AccessType.readwrite]:
             return {
                 'value': data

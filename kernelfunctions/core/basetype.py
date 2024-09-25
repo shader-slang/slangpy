@@ -57,10 +57,7 @@ class BaseType:
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
         raise NotImplementedError()
 
-    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        raise NotImplementedError()
-
-    def create_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
         raise NotImplementedError()
 
     def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:

@@ -140,7 +140,7 @@ class BoundVariable:
                     broadcast.append(False)
 
             cd_val = self.python.primal.create_calldata(
-                device, self, self.access, broadcast, value)
+                device, self, broadcast, value)
             if cd_val is not None:
                 call_data[self.variable_name] = cd_val
 
