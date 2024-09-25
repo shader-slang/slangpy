@@ -24,7 +24,8 @@ class WangHashArgType(BaseTypeImpl):
         super().__init__()
         self.dims = dims
 
-    def name(self, value: Optional[WangHashArg] = None) -> str:
+    @property
+    def name(self) -> str:
         return f"WangHashArg<{self.dims}>"
 
     def shape(self, value: Optional[WangHashArg] = None):

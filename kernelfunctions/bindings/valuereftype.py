@@ -55,8 +55,9 @@ class ValueRefType(BaseTypeImpl):
             npdata = result['value'].to_numpy()
             data.value = self.value_type.from_numpy(npdata)
 
-    def name(self, value: Any = None) -> str:
-        return self.value_type.name()
+    @property
+    def name(self) -> str:
+        return self.value_type.name
 
     def element_type(self, value: Optional[ValueRef] = None):
         return self.value_type.element_type()

@@ -15,7 +15,8 @@ class StructType(ValueType):
         super().__init__()
         self.struct_name = struct_name
 
-    def name(self, value: Any = None) -> str:
+    @property
+    def name(self) -> str:
         return self.struct_name
 
     def shape(self, value: Any = None):

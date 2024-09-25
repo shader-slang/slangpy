@@ -57,11 +57,12 @@ class NDBufferType(BaseTypeImpl):
     def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: NDBuffer, result: Any) -> None:
         pass
 
-    def name(self, value: Any = None) -> str:
+    @property
+    def name(self) -> str:
         if not self.writable:
-            return f"NDBuffer<{self.el_type.name()},{self.dims}>"
+            return f"NDBuffer<{self.el_type.name},{self.dims}>"
         else:
-            return f"RWNDBuffer<{self.el_type.name()},{self.dims}>"
+            return f"RWNDBuffer<{self.el_type.name},{self.dims}>"
 
     def element_type(self, value: Optional[NDBuffer] = None):
         return self.el_type
@@ -171,11 +172,12 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def read_calldata(self, device: Device, input_value: 'BoundVariable', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer, result: Any) -> None:
         pass
 
-    def name(self, value: Optional[NDDifferentiableBuffer] = None) -> str:
+    @property
+    def name(self) -> str:
         if not self.writable:
-            return f"NDBuffer<{self.el_type.name()},{self.dims}>"
+            return f"NDBuffer<{self.el_type.name},{self.dims}>"
         else:
-            return f"RWNDBuffer<{self.el_type.name()},{self.dims}>"
+            return f"RWNDBuffer<{self.el_type.name},{self.dims}>"
 
     def element_type(self, value: Optional[NDDifferentiableBuffer] = None):
         return self.el_type

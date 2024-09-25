@@ -18,9 +18,10 @@ class StructuredBufferType(ValueType):
         super().__init__()
         self._el_type = element_type
 
-    def name(self, value: Optional[Buffer] = None) -> str:
+    @property
+    def name(self) -> str:
         if self._el_type is not None:
-            return f"StructuredBuffer<{self._el_type.name()}>"
+            return f"StructuredBuffer<{self._el_type.name}>"
         else:
             return "StructuredBuffer<Unknown>"
 
@@ -96,9 +97,10 @@ class RWStructuredBufferType(StructuredBufferType):
     def __init__(self, element_type: Optional[BaseType]):
         super().__init__(element_type=element_type)
 
-    def name(self, value: Optional[Buffer] = None) -> str:
+    @property
+    def name(self) -> str:
         if self._el_type is not None:
-            return f"RWStructuredBuffer<{self._el_type.name()}>"
+            return f"RWStructuredBuffer<{self._el_type.name}>"
         else:
             return "RWStructuredBuffer<Unknown>"
 

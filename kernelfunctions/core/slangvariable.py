@@ -125,20 +125,20 @@ class SlangVariable(BaseVariableImpl):
 
     @property
     def primal_type_name(self):
-        return self.primal.name()
+        return self.primal.name
 
     @property
     def derivative_type_name(self):
-        return self.derivative.name() if self.derivative is not None else None
+        return self.derivative.name if self.derivative is not None else None
 
     @property
     def primal_element_name(self):
-        return self.primal.element_type().name()
+        return self.primal.element_type().name
 
     @property
     def derivative_element_type_name(self):
-        return self.derivative.element_type().name() if self.derivative is not None else None
+        return self.derivative.element_type().name if self.derivative is not None else None
 
     @property
     def root_element_name(self):
-        return self._find_bottom_level_element().name()
+        return self._find_bottom_level_element().name

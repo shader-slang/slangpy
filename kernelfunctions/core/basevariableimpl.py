@@ -33,9 +33,9 @@ class BaseVariableImpl(BaseVariable):
             return "\n" + "\n".join(child_strs)
         else:
             if self.name == "":
-                return f"{self.primal.name()}"
+                return f"{self.primal.name}"
             else:
-                return f"{self.primal.name()} ({self.name})"
+                return f"{self.primal.name} ({self.name})"
 
     def _find_bottom_level_element(self, value: Any = None) -> 'BaseType':
         t = self.primal

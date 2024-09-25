@@ -113,8 +113,9 @@ class DiffPairType(BaseTypeImpl):
                 npdata = result[prim_name]['value'].to_numpy()
                 data.set(prim, prim_type.from_numpy(npdata))
 
-    def name(self, value: Any = None) -> str:
-        return self.primal_type.name()
+    @property
+    def name(self) -> str:
+        return self.primal_type.name
 
     def element_type(self, value: Optional[DiffPair] = None):
         return self.primal_type.element_type()

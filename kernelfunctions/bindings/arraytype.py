@@ -13,8 +13,9 @@ class ArrayType(ValueType):
         self.et = element_type
         self.ec = element_count
 
-    def name(self, value: Optional[list[Any]] = None) -> str:
-        return f"{self.et.name()}[{self.ec}]"
+    @property
+    def name(self) -> str:
+        return f"{self.et.name}[{self.ec}]"
 
     def byte_size(self, value: Optional[list[Any]] = None) -> int:
         if self.ec is not None:

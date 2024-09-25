@@ -27,7 +27,8 @@ class RandFloatArgType(BaseTypeImpl):
         super().__init__()
         self.dims = dim
 
-    def name(self, value: Optional[RandFloatArg] = None) -> str:
+    @property
+    def name(self) -> str:
         return f"RandFloatArg<{self.dims}>"
 
     def shape(self, value: Optional[RandFloatArg] = None):
@@ -50,4 +51,4 @@ class RandFloatArgType(BaseTypeImpl):
             }
 
 
-PYTHON_TYPES[RandFloatArg] = lambda x: RandFloatArgType(x.dim)
+PYTHON_TYPES[RandFloatArg] = lambda x: RandFloatArgType(x.dims)
