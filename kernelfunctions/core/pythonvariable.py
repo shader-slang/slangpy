@@ -114,8 +114,8 @@ class PythonVariable(BaseVariableImpl):
     def gen_load_store(self, cgb: CodeGenBlock, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
         return self.primal.gen_load_store(cgb, self, name, transform, access)
 
-    def create_calldata(self, device: Device, access: tuple[AccessType, AccessType], data: Any) -> Any:
-        return self.primal.create_calldata(device, self, access, data)
+    def create_calldata(self, device: Device, access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+        return self.primal.create_calldata(device, self, access, broadcast, data)
 
     def read_calldata(self, device: Device, access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
         return self.primal.read_calldata(device, self, access, data, result)

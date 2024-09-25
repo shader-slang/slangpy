@@ -42,13 +42,14 @@ class NDBufferType(BaseTypeImpl):
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDBuffer) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: NDBuffer) -> Any:
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         assert input_value.binding is not None
+        assert len(data.strides) <= len(broadcast)
         return {
             'buffer': data.buffer,
-            'strides': list(data.strides),
+            'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
             'transform': input_value.binding.transform[0:self.dims]
         }
 
@@ -152,7 +153,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer) -> Any:
+    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: NDDifferentiableBuffer) -> Any:
         assert input_value.binding is not None
         res = {}
         for prim in PrimType:
@@ -164,7 +165,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                 value = ndbuffer.buffer if prim == PrimType.primal else ndbuffer.buffer
                 res[prim_name] = {
                     'buffer': value,
-                    'strides': list(data.strides),
+                    'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
                     'transform': input_value.binding.transform[0:self.dims]
                 }
         return res

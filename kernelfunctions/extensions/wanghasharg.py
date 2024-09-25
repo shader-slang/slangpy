@@ -41,7 +41,7 @@ class WangHashArgType(BaseTypeImpl):
             cgb.add_import("wanghasharg")
             cgb.type_alias(f"_{name}", input_value.primal_type_name)
 
-    def create_calldata(self, device: Device, input_value: PythonVariable, access: tuple[AccessType, AccessType], data: WangHashArg) -> Any:
+    def create_calldata(self, device: Device, input_value: PythonVariable, access: tuple[AccessType, AccessType], broadcast: list[bool], data: WangHashArg) -> Any:
         if access[0] == AccessType.read:
             return {
                 'seed': data.seed
