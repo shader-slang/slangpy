@@ -1,4 +1,5 @@
 
+import re
 from typing import TYPE_CHECKING, Any, Optional
 
 from .basevariable import BaseVariable
@@ -15,9 +16,6 @@ def _get_name(el_type: Optional['BaseType'], value: Any, default: Any = None):
 class BaseVariableImpl(BaseVariable):
     def __init__(self):
         super().__init__()
-
-    def is_compatible(self, other: 'BaseVariable') -> bool:
-        return True
 
     @property
     def primal_type_name(self):
@@ -80,3 +78,41 @@ class BaseVariableImpl(BaseVariable):
                 return c
             t = c
         return t
+
+    def is_compatible(self, other: 'BaseVariable') -> bool:
+        if self.fields is not None:
+            if other.fields is None:
+                return False
+            for field in self.fields:
+                if field not in other.fields:
+                    return False
+                if not self.fields[field].is_compatible(other.fields[field]):
+                    return False
+            return True
+
+        el_name = self.root_element_name
+        other_name = other.root_element_name
+
+        # None is 'wildcard'
+        if el_name is None or other_name is None:
+            return True
+
+        if el_name == other_name:
+            return True
+        if el_name == 'none' or other_name == 'none':
+            return True
+
+        stripped_primal_name = re.sub(
+            r"\d+_t", "", el_name).replace("uint", "int")
+        stripped_other_name = re.sub(
+            r"\d+_t", "", other_name).replace("uint", "int")
+
+        if stripped_primal_name == stripped_other_name:
+            return True
+
+        if stripped_primal_name == f"vector<{stripped_other_name},1>":
+            return True
+        if f"vector<{stripped_primal_name},1>" == stripped_other_name:
+            return True
+
+        return False

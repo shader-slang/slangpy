@@ -139,8 +139,8 @@ class BoundVariable:
                 else:
                     broadcast.append(False)
 
-            cd_val = self.python.create_calldata(
-                device, self.access, broadcast, value)
+            cd_val = self.python.primal.create_calldata(
+                device, self, self.access, broadcast, value)
             if cd_val is not None:
                 call_data[self.variable_name] = cd_val
 
@@ -154,7 +154,7 @@ class BoundVariable:
         else:
             cd_val = call_data.get(self.variable_name, None)
             if cd_val is not None:
-                self.python.read_calldata(device, self.access, value, cd_val)
+                self.python.primal.read_calldata(device, self, self.access, value, cd_val)
 
     def read_output(self, device: Device, data: Any):
         """Reads output from function for a return value"""
@@ -168,7 +168,7 @@ class BoundVariable:
             return res
         else:
             if self.access[0] in [AccessType.write, AccessType.readwrite]:
-                return self.python.read_output(device, data)
+                return self.python.primal.read_output(device, data)
 
     def populate_call_shape(self, call_shape: list[Optional[int]], value: Any):
         """
@@ -342,8 +342,9 @@ class BoundVariable:
                         f"Cannot read back value for non-writable type")
 
             # Generate call data
-            self.python.gen_calldata(
+            self.python.primal.gen_calldata(
                 cg.call_data_structs,
+                self,
                 self.variable_name,
                 self.transform,  # type: ignore
                 self.access)

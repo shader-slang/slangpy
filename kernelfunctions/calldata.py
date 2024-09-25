@@ -216,7 +216,7 @@ Overloads:
         # Allocate a return value if not provided in kw args
         rv_node = self.bindings.kwargs.get("_result", None)
         if self.call_mode == CallMode.prim and rv_node is not None and kwargs.get("_result", None) is None:
-            kwargs["_result"] = rv_node.python.create_output(
+            kwargs["_result"] = rv_node.python.primal.create_output(
                 device, self.call_shape)
             unpacked_kwargs["_result"] = kwargs["_result"]
 
