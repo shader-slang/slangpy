@@ -220,7 +220,7 @@ Overloads:
                 device, self.call_shape)
             unpacked_kwargs["_result"] = kwargs["_result"]
 
-        write_calldata_pre_dispatch(device, self.bindings,
+        write_calldata_pre_dispatch(device, self.call_shape, self.bindings,
                                     call_data, *unpacked_args, **unpacked_kwargs)
 
         total_threads = 1

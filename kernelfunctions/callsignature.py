@@ -551,7 +551,7 @@ def generate_code(call_dimensionality: int, function: Function, signature: Bound
     cg.kernel.end_block()
 
 
-def write_calldata_pre_dispatch(device: Device, call_signature: BoundCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def write_calldata_pre_dispatch(device: Device, call_shape: list[int], call_signature: BoundCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Write the call data for args + kwargs before dispatching
     """
@@ -559,10 +559,10 @@ def write_calldata_pre_dispatch(device: Device, call_signature: BoundCall, call_
     sig_kwargs = call_signature.kwargs
 
     for idx, value in enumerate(args):
-        sig_args[idx].write_call_data_pre_dispatch(device, call_data, value)
+        sig_args[idx].write_call_data_pre_dispatch(device, call_shape, call_data, value)
 
     for key, value in kwargs.items():
-        sig_kwargs[key].write_call_data_pre_dispatch(device, call_data, value)
+        sig_kwargs[key].write_call_data_pre_dispatch(device, call_shape, call_data, value)
 
 
 def read_call_data_post_dispatch(device: Device, call_signature: BoundCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):

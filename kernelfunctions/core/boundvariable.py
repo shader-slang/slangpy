@@ -114,17 +114,32 @@ class BoundVariable:
         else:
             args.append(self)
 
-    def write_call_data_pre_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
+    def write_call_data_pre_dispatch(self, device: Device, call_shape: list[int], call_data: dict[str, Any], value: Any):
         """Writes value to call data dictionary pre-dispatch"""
         if self.children is not None:
             res = {}
             for name, child in self.children.items():
-                child.write_call_data_pre_dispatch(device, res, value[name])
+                child.write_call_data_pre_dispatch(device, call_shape, res, value[name])
             if len(res) > 0:
                 call_data[self.variable_name] = res
         else:
+            # Get concrete primal shape
+            shape = self.python.primal.shape(value)
+
+            # Get call shape + append slang primal shape
+            full_cs = call_shape + list(self.slang.primal.shape())
+
+            # Broadcast occurs if the shape of the input is different from the shape of the output
+            broadcast = []
+            for i in range(len(self.transform)):
+                csidx = self.transform[i]
+                if csidx < len(full_cs):
+                    broadcast.append(full_cs[csidx] != shape[i])
+                else:
+                    broadcast.append(False)
+
             cd_val = self.python.create_calldata(
-                device, self.access, value)
+                device, self.access, broadcast, value)
             if cd_val is not None:
                 call_data[self.variable_name] = cd_val
 
@@ -164,11 +179,6 @@ class BoundVariable:
         elif value is not None:
             # Get concrete primal shape
             shape = self.python.primal.shape(value)
-
-            # For untyped containers, combine container shape with slang shape instead
-            if shape == None:
-                shape = tuple(self.python.primal.container_shape(value)) + \
-                    tuple(self.slang.primal.shape())
 
             assert not (None in shape)
             assert self.transform is not None

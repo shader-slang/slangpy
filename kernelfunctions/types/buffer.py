@@ -52,7 +52,7 @@ class NDBuffer:
             if element_count is None:
                 raise ValueError("Either element_count or shape must be provided")
             self.element_count = element_count
-            self.shape = (element_count,)
+            self.shape: tuple[int, ...] = (element_count,)
 
         self.element_type = get_or_create_type(element_type)
         self.usage = usage

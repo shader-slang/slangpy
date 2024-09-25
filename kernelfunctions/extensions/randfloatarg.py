@@ -44,7 +44,7 @@ class RandFloatArgType(BaseTypeImpl):
             cgb.add_import("randfloatarg")
             cgb.type_alias(f"_{name}", input_value.primal_type_name)
 
-    def create_calldata(self, device: Device, input_value: PythonVariable, access: tuple[AccessType, AccessType], data: RandFloatArg) -> Any:
+    def create_calldata(self, device: Device, input_value: PythonVariable, access: tuple[AccessType, AccessType], broadcast: list[bool], data: RandFloatArg) -> Any:
         if access[0] == AccessType.read:
             return {
                 'seed': data.seed,
