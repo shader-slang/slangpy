@@ -168,7 +168,8 @@ class ScalarType(ValueType):
         else:
             raise ValueError(f"Unsupported scalar type: {array.dtype}")
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return self.python_type
 
 
@@ -183,7 +184,8 @@ class NoneValueType(ValueType):
     def name(self) -> str:
         return "none"
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return NoneType
 
 
@@ -243,7 +245,8 @@ class VectorType(ValueType):
             raise ValueError(f"Unsupported scalar type: {type(value)}")
         return self.python_type(list(array))
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return self.python_type
 
 
@@ -287,7 +290,8 @@ class MatrixType(ValueType):
     def from_numpy(self, array: npt.NDArray[Any]) -> Any:
         return self.python_type(array)
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return self.python_type
 
 

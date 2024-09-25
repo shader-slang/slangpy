@@ -89,7 +89,7 @@ class NDBufferType(BaseTypeImpl):
             return None
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
-        return NDBuffer(device, self.el_type.python_return_value_type(), shape=tuple(call_shape), usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        return NDBuffer(device, self.el_type.python_return_value_type, shape=tuple(call_shape), usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
     def read_output(self, device: Device, data: NDDifferentiableBuffer) -> Any:
         return data
@@ -208,7 +208,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
             return None
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
-        return NDDifferentiableBuffer(device, self.el_type.python_return_value_type(),
+        return NDDifferentiableBuffer(device, self.el_type.python_return_value_type,
                                       shape=tuple(call_shape),
                                       requires_grad=True,
                                       usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)

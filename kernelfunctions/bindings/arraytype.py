@@ -44,7 +44,8 @@ class ArrayType(ValueType):
         else:
             return None
 
-    def python_return_value_type(self, value: Optional[list[Any]] = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return list
 
 

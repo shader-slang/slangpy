@@ -49,7 +49,8 @@ class BaseType:
     def shape(self, value: Any = None) -> Sequence[Optional[int]]:
         raise NotImplementedError()
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         raise NotImplementedError()
 
     def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
