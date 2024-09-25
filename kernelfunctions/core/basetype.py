@@ -28,7 +28,8 @@ class BaseType:
     def is_writable(self) -> bool:
         raise NotImplementedError()
 
-    def differentiable(self, value: Any = None) -> bool:
+    @property
+    def differentiable(self) -> bool:
         raise NotImplementedError()
 
     def differentiate(self, value: Any = None) -> Optional['BaseType']:

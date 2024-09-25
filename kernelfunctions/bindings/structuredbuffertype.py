@@ -41,9 +41,10 @@ class StructuredBufferType(ValueType):
     def element_type(self):
         return self._el_type
 
-    def differentiable(self, value: Optional[Buffer] = None):
+    @property
+    def differentiable(self):
         if self._el_type is not None:
-            return self._el_type.differentiable()
+            return self._el_type.differentiable
         else:
             return False
 

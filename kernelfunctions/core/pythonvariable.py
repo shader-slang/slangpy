@@ -80,7 +80,7 @@ class PythonVariable(BaseVariableImpl):
         self.primal = new_type
         self.derivative = self.primal.differentiate(value)
         self.element_type = self.primal.element_type
-        self.differentiable = self.primal.differentiable(value)
+        self.differentiable = self.primal.differentiable
         self.has_derivative = self.primal.has_derivative(value)
 
         primal_shape = self.primal.shape(value)

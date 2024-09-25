@@ -22,7 +22,8 @@ class StructType(ValueType):
     def shape(self, value: Any = None):
         return (1,)
 
-    def differentiable(self, value: Any = None):
+    @property
+    def differentiable(self):
         return True
 
     def differentiate(self, value: Any = None):

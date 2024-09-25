@@ -31,8 +31,9 @@ class TextureType(ValueType):
     def element_type(self):
         return self._el_type
 
-    def differentiable(self, value: Optional[Buffer] = None):
-        return self.element_type.differentiable()
+    @property
+    def differentiable(self):
+        return self.element_type.differentiable
 
 
 class Texture2DType(TextureType):

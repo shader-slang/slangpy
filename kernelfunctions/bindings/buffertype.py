@@ -76,8 +76,9 @@ class NDBufferType(BaseTypeImpl):
         else:
             return [None]*self.dims
 
-    def differentiable(self, value: Optional[NDBuffer] = None):
-        return self.el_type.differentiable()
+    @property
+    def differentiable(self):
+        return self.el_type.differentiable
 
     def differentiate(self, value: Optional[NDBuffer] = None):
         et = self.el_type.differentiate()
@@ -193,8 +194,9 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             return [None]*self.dims
 
-    def differentiable(self, value: Optional[NDBuffer] = None):
-        return self.el_type.differentiable()
+    @property
+    def differentiable(self):
+        return self.el_type.differentiable
 
     def differentiate(self, value: Optional[NDBuffer] = None):
         et = self.el_type.differentiate()

@@ -67,8 +67,9 @@ class ValueRefType(BaseTypeImpl):
     def shape(self, value: Optional[ValueRef] = None):
         return self.value_type.shape()
 
-    def differentiable(self, value: Optional[ValueRef] = None):
-        return self.value_type.differentiable()
+    @property
+    def differentiable(self):
+        return self.value_type.differentiable
 
     def differentiate(self, value: Optional[ValueRef] = None):
         return self.value_type.differentiate()

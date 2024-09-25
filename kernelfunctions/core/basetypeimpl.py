@@ -22,7 +22,8 @@ class BaseTypeImpl(BaseType):
     def is_writable(self) -> bool:
         return False
 
-    def differentiable(self, value: Any = None):
+    @property
+    def differentiable(self):
         return False
 
     def differentiate(self, value: Any = None):

@@ -131,7 +131,8 @@ class ScalarType(ValueType):
     def shape(self, value: Any = None):
         return ()
 
-    def differentiable(self, value: Any = None):
+    @property
+    def differentiable(self):
         return self.diff
 
     def differentiate(self, value: Any = None):
@@ -206,8 +207,9 @@ class VectorType(ValueType):
     def element_type(self):
         return self.et
 
-    def differentiable(self, value: Any = None):
-        return self.et.differentiable(value)
+    @property
+    def differentiable(self):
+        return self.et.differentiable
 
     def differentiate(self, value: Any = None):
         et = self.et.differentiate(value)
@@ -265,8 +267,9 @@ class MatrixType(ValueType):
     def element_type(self):
         return self.et
 
-    def differentiable(self, value: Any = None):
-        return self.et.differentiable(value)
+    @property
+    def differentiable(self):
+        return self.et.differentiable
 
     def differentiate(self, value: Any = None):
         et = self.et.differentiate(value)

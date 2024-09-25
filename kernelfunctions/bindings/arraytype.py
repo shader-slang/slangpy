@@ -32,8 +32,9 @@ class ArrayType(ValueType):
     def element_type(self):
         return self.et
 
-    def differentiable(self, value: Optional[list[Any]] = None):
-        return self.et.differentiable(value)
+    @property
+    def differentiable(self):
+        return self.et.differentiable
 
     def differentiate(self, value: Optional[list[Any]] = None):
         et = self.et.differentiate(value)

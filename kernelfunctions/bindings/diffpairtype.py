@@ -125,8 +125,9 @@ class DiffPairType(BaseTypeImpl):
     def shape(self, value: Optional[DiffPair] = None):
         return self.primal_type.shape()
 
-    def differentiable(self, value: Optional[DiffPair] = None):
-        return self.primal_type.differentiable()
+    @property
+    def differentiable(self):
+        return self.primal_type.differentiable
 
     def differentiate(self, value: Optional[DiffPair] = None):
         return self.primal_type.differentiate()
