@@ -344,10 +344,7 @@ class BoundVariable:
             # Generate call data
             self.python.primal.gen_calldata(
                 cg.call_data_structs,
-                self,
-                self.variable_name,
-                self.transform,  # type: ignore
-                self.access)
+                self)
 
         if depth == 0:
             cg.call_data.declare(f"_{self.variable_name}", self.variable_name)

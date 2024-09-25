@@ -1,7 +1,7 @@
 
 
 from types import NoneType
-from typing import Any, Optional, Sequence
+from typing import Any, Sequence
 import numpy.typing as npt
 import numpy as np
 
@@ -37,7 +37,9 @@ class ValueType(BaseTypeImpl):
         return False
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
+        access = input_value.access
+        name = input_value.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             cgb.type_alias(
                 f"_{name}", f"ValueType<{input_value.python.primal_type_name}>")

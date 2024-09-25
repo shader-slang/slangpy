@@ -60,7 +60,9 @@ class StructuredBufferType(ValueType):
             return None
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
+        access = input_value.access
+        name = input_value.variable_name
 
         # As raw structured buffers don't necessary come with a type from the python side, we have to
         # resolve to the type of the slang argument

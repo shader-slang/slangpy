@@ -32,7 +32,9 @@ class NDBufferType(BaseTypeImpl):
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
+        access = input_value.access
+        name = input_value.variable_name
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
@@ -129,7 +131,10 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BoundVariable'):
+        access = input_value.access
+        name = input_value.variable_name
+
         prim_el = input_value.python.primal_element_name
         deriv_el = input_value.python.derivative_element_name
         if deriv_el is None:
