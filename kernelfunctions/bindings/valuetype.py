@@ -31,7 +31,8 @@ class ValueType(BaseTypeImpl):
         return False
 
     # Values are readonly
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return False
 
     # Call data can only be read access to primal, and simply declares it as a variable

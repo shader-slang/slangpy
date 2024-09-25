@@ -26,7 +26,8 @@ class NDBufferType(BaseTypeImpl):
     def has_derivative(self, value: Any = None) -> bool:
         return False
 
-    def is_writable(self, value: Optional[NDBuffer] = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
@@ -119,7 +120,8 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def has_derivative(self, value: Any = None) -> bool:
         return True
 
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable

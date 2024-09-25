@@ -22,7 +22,8 @@ class ValueRefType(BaseTypeImpl):
         return False
 
     # Refs can be written to!
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return True
 
     # Call data can only be read access to primal, and simply declares it as a variable

@@ -24,7 +24,8 @@ class BaseType:
     def has_derivative(self, value: Any = None) -> bool:
         raise NotImplementedError()
 
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         raise NotImplementedError()
 
     def differentiable(self, value: Any = None) -> bool:

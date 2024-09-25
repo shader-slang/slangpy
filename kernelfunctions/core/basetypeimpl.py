@@ -18,7 +18,8 @@ class BaseTypeImpl(BaseType):
     def has_derivative(self, value: Any = None) -> bool:
         return False
 
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return False
 
     def differentiable(self, value: Any = None):

@@ -86,7 +86,7 @@ class PythonVariable(BaseVariableImpl):
         primal_shape = self.primal.shape(value)
         self.dimensionality = len(primal_shape) if primal_shape is not None else None
 
-        self.writable = self.primal.is_writable(value)
+        self.writable = self.primal.is_writable
 
         self._primal_type_name = self.primal.name
         self._derivative_type_name = self.derivative.name if self.derivative is not None else None

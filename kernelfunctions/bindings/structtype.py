@@ -31,7 +31,8 @@ class StructType(ValueType):
     def has_derivative(self, value: Any = None) -> bool:
         return True
 
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return True
 
 

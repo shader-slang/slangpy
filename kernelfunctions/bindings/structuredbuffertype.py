@@ -105,7 +105,8 @@ class RWStructuredBufferType(StructuredBufferType):
         else:
             return "RWStructuredBuffer<Unknown>"
 
-    def is_writable(self, value: Optional[Buffer] = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return True
 
     def differentiate(self, value: Optional[Buffer] = None):
