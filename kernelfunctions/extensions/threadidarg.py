@@ -40,7 +40,7 @@ class ThreadIdArgType(BaseTypeImpl):
         name = input_value.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("threadidarg")
-            cgb.type_alias(f"_{name}", input_value.python.primal_type_name)
+            cgb.type_alias(f"_{name}", self.name)
 
 
 PYTHON_TYPES[ThreadIdArg] = lambda x: ThreadIdArgType(x.dims)

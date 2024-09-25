@@ -40,7 +40,7 @@ class WangHashArgType(BaseTypeImpl):
         name = input_value.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("wanghasharg")
-            cgb.type_alias(f"_{name}", input_value.python.primal_type_name)
+            cgb.type_alias(f"_{name}", self.name)
 
     def create_calldata(self, device: Device, input_value: BoundVariable, broadcast: list[bool], data: WangHashArg) -> Any:
         access = input_value.access

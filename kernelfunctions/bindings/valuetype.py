@@ -42,7 +42,7 @@ class ValueType(BaseTypeImpl):
         name = input_value.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             cgb.type_alias(
-                f"_{name}", f"ValueType<{input_value.python.primal_type_name}>")
+                f"_{name}", f"ValueType<{self.name}>")
         else:
             cgb.type_alias(f"_{name}", f"NoneType")
 

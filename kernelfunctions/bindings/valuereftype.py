@@ -34,10 +34,10 @@ class ValueRefType(BaseTypeImpl):
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
-            cgb.type_alias(f"_{name}", f"ValueRef<{input_value.python.primal_type_name}>")
+            cgb.type_alias(f"_{name}", f"ValueRef<{self.value_type.name}>")
         else:
             cgb.type_alias(
-                f"_{name}", f"RWValueRef<{input_value.python.primal_type_name}>")
+                f"_{name}", f"RWValueRef<{self.value_type.name}>")
 
     # Call data just returns the primal
 
