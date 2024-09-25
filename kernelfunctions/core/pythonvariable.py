@@ -12,10 +12,6 @@ from .basetype import BaseType
 from .codegen import CodeGenBlock
 
 
-def _get_name(el_type: Optional[BaseType], value: Any, default: Any = None):
-    return el_type.name if el_type is not None else default
-
-
 class PythonFunctionCall:
     def __init__(self, *args: Any, **kwargs: Any) -> NoneType:
         super().__init__()
@@ -79,19 +75,8 @@ class PythonVariable(BaseVariableImpl):
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
         self.derivative = self.primal.derivative
-
         primal_shape = self.primal.shape(value)
         self.dimensionality = len(primal_shape) if primal_shape is not None else None
-
-        self.writable = self.primal.is_writable
-
-        self._leaf_element_name = _get_name(self._find_bottom_level_element(value), value)
-
-        if self.derivative is not None:
-            self._derivative_element_name = _get_name(
-                self.derivative.element_type, value)
-        else:
-            self._derivative_element_name = None
 
     def update_from_slang_type(self, slang_type: BaseType):
         if self.dimensionality is None:
@@ -120,30 +105,3 @@ class PythonVariable(BaseVariableImpl):
 
     def read_output(self, device: Device, data: Any) -> Any:
         return self.primal.read_output(device, data)
-
-    @property
-    def primal_type_name(self):
-        return self.primal.name
-
-    @property
-    def derivative_type_name(self):
-        return _get_name(self.derivative, None)
-
-    @property
-    def primal_element_name(self):
-        return _get_name(self.primal.element_type, None)
-
-    @property
-    def derivative_element_name(self):
-        if self.derivative is not None:
-            return _get_name(self.derivative.element_type, None)
-        else:
-            return None
-
-    @property
-    def root_element_name(self):
-        return self._leaf_element_name
-
-    @property
-    def differentiable(self):
-        return self.primal.differentiable and self.primal.has_derivative

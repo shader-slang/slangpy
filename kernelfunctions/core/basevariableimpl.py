@@ -1,5 +1,5 @@
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from .basevariable import BaseVariable
 from .enums import PrimType
@@ -8,12 +8,47 @@ if TYPE_CHECKING:
     from .basetype import BaseType
 
 
+def _get_name(el_type: Optional['BaseType'], value: Any, default: Any = None):
+    return el_type.name if el_type is not None else default
+
+
 class BaseVariableImpl(BaseVariable):
     def __init__(self):
         super().__init__()
 
     def is_compatible(self, other: 'BaseVariable') -> bool:
         return True
+
+    @property
+    def primal_type_name(self):
+        return self.primal.name
+
+    @property
+    def derivative_type_name(self):
+        return _get_name(self.derivative, None)
+
+    @property
+    def primal_element_name(self):
+        return _get_name(self.primal.element_type, None)
+
+    @property
+    def derivative_element_name(self):
+        if self.derivative is not None:
+            return _get_name(self.derivative.element_type, None)
+        else:
+            return None
+
+    @property
+    def root_element_name(self):
+        return _get_name(self._find_bottom_level_element(), None)
+
+    @property
+    def differentiable(self):
+        return self.primal.differentiable and self.primal.has_derivative
+
+    @property
+    def writable(self):
+        return self.primal.is_writable
 
     @property
     def argument_declaration(self):
