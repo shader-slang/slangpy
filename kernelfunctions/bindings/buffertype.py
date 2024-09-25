@@ -165,7 +165,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                 value = ndbuffer.buffer if prim == PrimType.primal else ndbuffer.buffer
                 res[prim_name] = {
                     'buffer': value,
-                    'strides': list(data.strides),
+                    'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
                     'transform': input_value.binding.transform[0:self.dims]
                 }
         return res

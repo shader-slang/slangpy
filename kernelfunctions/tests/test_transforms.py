@@ -2,7 +2,7 @@ import pytest
 from kernelfunctions.backend import DeviceType, float3
 from kernelfunctions.module import Module
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.types.buffer import NDBuffer
+from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 import numpy as np
 
 
@@ -290,6 +290,37 @@ def test_add_vectors_broadcast_from_buffer_2(device_type: DeviceType):
     # sizes and braodcast each to a different dimension.
 
     a = NDBuffer(device=m.device, shape=(1, 5), element_type=float3)
+    b = NDBuffer(device=m.device, shape=(10, 5), element_type=float3)
+
+    a_data = np.random.rand(a.shape[0], a.shape[1], 3).astype(np.float32)
+    b_data = np.random.rand(b.shape[0], b.shape[1], 3).astype(np.float32)
+
+    a.from_numpy(a_data)
+    b.from_numpy(b_data)
+
+    res: NDBuffer = m.add_vectors(a, b)
+    assert res.shape == (b.shape[0], b.shape[1])
+
+    res_data = res.buffer.to_numpy().view(
+        np.float32).reshape(res.shape[0], res.shape[1], 3)
+
+    for i in range(b.shape[0]):
+        for j in range(b.shape[1]):
+            av = a_data[0][j]
+            bv = b_data[i][j]
+            expected = av + bv
+            r = res_data[i][j]
+            assert np.allclose(r, expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_add_vectors_broadcast_from_diff_buffer(device_type: DeviceType):
+    m = load_test_module(device_type)
+
+    # Test the output transform, where we take 2 1D buffers with different
+    # sizes and braodcast each to a different dimension.
+
+    a = NDDifferentiableBuffer(device=m.device, shape=(1, 5), element_type=float3)
     b = NDBuffer(device=m.device, shape=(10, 5), element_type=float3)
 
     a_data = np.random.rand(a.shape[0], a.shape[1], 3).astype(np.float32)
