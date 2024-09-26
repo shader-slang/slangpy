@@ -1,9 +1,8 @@
 import hashlib
-from io import StringIO
 import os
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
-from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen
+from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime
 
 from kernelfunctions.backend import uint3
 
@@ -196,26 +195,26 @@ Overloads:
             python_to_slang_mapping[rvalnode] = slang_function.return_value
 
         # Once matched, build the fully bound signature
-        self.bindings = bind(python_call, python_to_slang_mapping, self.call_mode,
-                             self.input_transforms, self.outut_transforms)
+        bindings = bind(python_call, python_to_slang_mapping, self.call_mode,
+                        self.input_transforms, self.outut_transforms)
 
         # store overload and signature
         self.overload = slang_function
 
         # calculate call shaping
-        self.call_dimensionality = calculate_call_dimensionality(self.bindings)
+        self.call_dimensionality = calculate_call_dimensionality(bindings)
 
         # if necessary, create return value node
         create_return_value_binding(self.call_dimensionality,
-                                    self.bindings, self.call_mode)
+                                    bindings, self.call_mode)
 
         # once overall dimensionality is known, individual binding transforms can be made concrete
-        finalize_transforms(self.call_dimensionality, self.bindings)
+        finalize_transforms(self.call_dimensionality, bindings)
 
         # generate code
         codegen = CodeGen()
         generate_code(self.call_dimensionality, self.function,
-                      self.bindings, self.call_mode, codegen)
+                      bindings, self.call_mode, codegen)
 
         # store code
         self.code = codegen.finish(call_data=True, input_load_store=True,
@@ -232,7 +231,7 @@ Overloads:
 
         with open(fn, "w",) as f:
             f.write("/*\n")
-            f.write(generate_tree_info_string(self.bindings))
+            f.write(generate_tree_info_string(bindings))
             f.write("\n*/\n")
             f.write(self.code)
 
@@ -246,9 +245,11 @@ Overloads:
         program = session.link_program([module, self.function.module], [ep])
         self.kernel = device.create_compute_kernel(program)
 
-        self.bindings.cache_bindings()
+        self.debug_only_bindings = bindings
+        self.runtime = BoundCallRuntime(bindings)
 
     def call(self, *args: Any, **kwargs: Any):
+
         call_data = {}
         session = self.function.module.session
         device = session.device
@@ -263,17 +264,19 @@ Overloads:
 
         # Calculate call shape
         self.call_shape = calculate_call_shape(
-            self.call_dimensionality, self.bindings, *unpacked_args, **unpacked_kwargs)
+            self.call_dimensionality, self.runtime, *unpacked_args, **unpacked_kwargs)
 
         # Allocate a return value if not provided in kw args
-        rv_node = self.bindings.kwargs.get("_result", None)
+        rv_node = self.runtime.kwargs.get("_result", None)
         if self.call_mode == CallMode.prim and rv_node is not None and kwargs.get("_result", None) is None:
-            kwargs["_result"] = rv_node.python.primal.create_output(
+            kwargs["_result"] = rv_node._create_output(
                 device, self.call_shape)
             unpacked_kwargs["_result"] = kwargs["_result"]
 
-        write_calldata_pre_dispatch(device, self.call_shape, self.bindings,
+        write_calldata_pre_dispatch(device, self.call_shape, self.runtime,
                                     call_data, *unpacked_args, **unpacked_kwargs)
+
+        # return
 
         total_threads = 1
         strides = []
@@ -284,14 +287,14 @@ Overloads:
 
         if len(strides) > 0:
             call_data["_call_stride"] = strides
-            call_data["_call_dim"] = self.call_shape
+            call_data["_call_dim"] = list(self.call_shape)
         call_data["_thread_count"] = uint3(total_threads, 1, 1)
 
         # Dispatch the kernel.
         self.kernel.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
 
         read_call_data_post_dispatch(
-            device, self.bindings, call_data, *unpacked_args, **unpacked_kwargs)
+            device, self.runtime, call_data, *unpacked_args, **unpacked_kwargs)
 
         # Push updated 'this' values back to original objects
         for (i, arg) in enumerate(args):

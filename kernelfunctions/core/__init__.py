@@ -11,6 +11,7 @@ from .basevariableimpl import BaseVariableImpl
 from .pythonvariable import PythonVariable, PythonFunctionCall
 from .slangvariable import SlangVariable, SlangFunction
 
-from .boundvariable import BoundVariable, BoundCall
+from .boundvariable import BoundVariable, BoundCall, BoundVariableException
+from .boundvariableruntime import BoundVariableRuntime, BoundCallRuntime
 
 from .codegen import CodeGen, CodeGenBlock

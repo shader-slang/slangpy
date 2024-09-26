@@ -13,7 +13,7 @@ import kernelfunctions.function as kff
 
 @pytest.fixture(autouse=True)
 def run_after_each_test():
-    kff.ENABLE_CALLDATA_CACHE = True
+    kff.ENABLE_CALLDATA_CACHE = False
     yield
 
 
@@ -64,7 +64,16 @@ def test_kernel_reuse(device_type: DeviceType):
     add_vectors(a, b, _result=res)
 
     start = time()
-    for i in range(0, count):
+    for i in range(0, int(count/10)):
+        add_vectors(a, b, _result=res)
+        add_vectors(a, b, _result=res)
+        add_vectors(a, b, _result=res)
+        add_vectors(a, b, _result=res)
+        add_vectors(a, b, _result=res)
+        add_vectors(a, b, _result=res)
+        add_vectors(a, b, _result=res)
+        add_vectors(a, b, _result=res)
+        add_vectors(a, b, _result=res)
         add_vectors(a, b, _result=res)
     end = time()
     print(f"Time taken cached: {1000.0*(end-start)/count}ms")

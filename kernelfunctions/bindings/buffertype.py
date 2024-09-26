@@ -5,8 +5,9 @@ from typing import Any, Optional, Sequence
 from sgl import TypeReflection
 
 from kernelfunctions.bindings.diffpairtype import generate_differential_pair
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime
 
+from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
 from kernelfunctions.backend import Device, ResourceUsage
@@ -46,7 +47,7 @@ class NDBufferType(BaseTypeImpl):
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: NDBuffer) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: NDBuffer) -> Any:
         return {
             'buffer': data.buffer,
             'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
@@ -64,8 +65,11 @@ class NDBufferType(BaseTypeImpl):
     def element_type(self):
         return self.el_type
 
-    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
-        return value.shape
+    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> TLooseShape:
+        if value is not None:
+            return value.shape
+        else:
+            return (None,)*self.dims
 
     @property
     def differentiable(self):
@@ -151,7 +155,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: NDDifferentiableBuffer) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: NDDifferentiableBuffer) -> Any:
         access = binding.access
         assert binding.transform is not None
         res = {}
@@ -180,12 +184,11 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def element_type(self):
         return self.el_type
 
-    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
+    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> TLooseShape:
         if value is not None:
-            assert len(value.shape) == self.dims
             return value.shape
         else:
-            return [None]*self.dims
+            return (None,)*self.dims
 
     @property
     def differentiable(self):

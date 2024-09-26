@@ -33,6 +33,10 @@ def make_vec4_raw_buffer(device_type: DeviceType, count: int):
     return nd.buffer
 
 
+def list_or_none(x: Any):
+    return list(x) if x is not None else None
+
+
 def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
                 transforms: Optional[dict[str, tuple[int, ...]]] = None,
                 ) -> Any:
@@ -51,12 +55,12 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     call_data.call(a=a, b=b, _result=result)
 
     nodes: list[BoundVariable] = []
-    for node in call_data.bindings.kwargs.values():
+    for node in call_data.debug_only_bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": call_data.call_shape,
+        "call_shape": list_or_none(call_data.call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
-        "node_transforms": [x.transform for x in nodes],
+        "node_transforms": [list_or_none(x.transform) for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]
     }
 
@@ -84,12 +88,12 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     call_data.call(index=index, texture=texture, _result=result)
 
     nodes: list[BoundVariable] = []
-    for node in call_data.bindings.kwargs.values():
+    for node in call_data.debug_only_bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": call_data.call_shape,
+        "call_shape": list_or_none(call_data.call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
-        "node_transforms": [x.transform for x in nodes],
+        "node_transforms": [list_or_none(x.transform) for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]
     }
 
@@ -119,12 +123,12 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
     call_data.call(index=index, fr=frombuffer, to=tobuffer)
 
     nodes: list[BoundVariable] = []
-    for node in call_data.bindings.kwargs.values():
+    for node in call_data.debug_only_bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": call_data.call_shape,
+        "call_shape": list_or_none(call_data.call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
-        "node_transforms": [x.transform for x in nodes],
+        "node_transforms": [list_or_none(x.transform) for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]
     }
 

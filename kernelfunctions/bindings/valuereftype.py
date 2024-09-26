@@ -3,8 +3,9 @@
 from typing import Any, Optional, Sequence
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime
 
+from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.types import ValueRef
 
 from kernelfunctions.backend import Buffer, Device, ResourceUsage
@@ -41,7 +42,7 @@ class ValueRefType(BaseTypeImpl):
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: ValueRef) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: ValueRef) -> Any:
         access = binding.access
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
@@ -54,7 +55,7 @@ class ValueRefType(BaseTypeImpl):
             }
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, binding: 'BoundVariable', data: ValueRef, result: Any) -> None:
+    def read_calldata(self, device: Device, binding: 'BoundVariableRuntime', data: ValueRef, result: Any) -> None:
         access = binding.access
         if access[0] in [AccessType.write, AccessType.readwrite]:
             assert isinstance(result['value'], Buffer)
@@ -69,7 +70,7 @@ class ValueRefType(BaseTypeImpl):
     def element_type(self):
         return self.value_type.element_type
 
-    def get_shape(self, value: Optional[ValueRef] = None):
+    def get_shape(self, value: Optional[ValueRef] = None) -> TLooseShape:
         return self.value_type.get_shape()
 
     @property

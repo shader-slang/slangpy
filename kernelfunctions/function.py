@@ -9,7 +9,7 @@ from kernelfunctions.shapes import TConcreteShape
 if TYPE_CHECKING:
     from kernelfunctions.struct import Struct
 
-ENABLE_CALLDATA_CACHE = True
+ENABLE_CALLDATA_CACHE = False
 
 
 class IThis(Protocol):

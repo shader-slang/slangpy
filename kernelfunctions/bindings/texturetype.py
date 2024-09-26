@@ -5,6 +5,7 @@ from typing import Optional
 from kernelfunctions.core import BaseType
 
 from kernelfunctions.backend import Texture, TypeReflection
+from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.typeregistry import SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
 from .valuetype import ValueType
@@ -41,7 +42,7 @@ class Texture2DType(TextureType):
         super().__init__(element_type=element_type, writable=writable,
                          base_texture_type_name="Texture2D", texture_shape=2)
 
-    def get_container_shape(self, value: Optional[Texture] = None):
+    def get_container_shape(self, value: Optional[Texture] = None) -> TLooseShape:
         if value is not None:
             return (value.width, value.height)
         else:

@@ -5,16 +5,16 @@ from typing import Any, Optional, Union, cast
 from kernelfunctions.core import (
     CodeGen,
     IOType, CallMode, AccessType,
-    BoundCall, BoundVariable,
+    BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangVariable,
-    PythonFunctionCall, PythonVariable
+    PythonFunctionCall, PythonVariable,
+    BoundCallRuntime, BoundVariableRuntime,
 )
 
 from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
 from kernelfunctions.bindings.valuereftype import ValueRefType
 
 from kernelfunctions.backend import Device
-from kernelfunctions.core.boundvariable import BoundVariableException
 from kernelfunctions.function import Function
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH
@@ -195,8 +195,11 @@ COLS = [
     ("Transform", 20),
 ]
 
+TBoundOrRuntimeVariable = Union[BoundVariable, BoundVariableRuntime]
+TBoundOrRuntimeCall = Union[BoundCall, BoundCallRuntime]
 
-def generate_argument_info_header_columns(signature: BoundCall) -> list[str]:
+
+def generate_argument_info_header_columns(signature: TBoundOrRuntimeCall) -> list[str]:
     """
     Generate a header string that describes the arguments
     """
@@ -215,6 +218,12 @@ def clip_string(s: Any, width: int) -> str:
         s = s[:width-3] + "..."
     s += '  '
     return s
+
+
+def _to_var(v: TBoundOrRuntimeVariable):
+    if isinstance(v, BoundVariableRuntime):
+        return v._source_for_exceptions
+    return v
 
 
 def _gen_arg_shape_string(variable: BoundVariable) -> str:
@@ -238,10 +247,11 @@ def _gen_python_shape_string(variable: BoundVariable) -> str:
         return "None"
 
 
-def generate_argument_info_columns(variable: BoundVariable, indent: int, highlight_variable: Optional[BoundVariable] = None) -> list[str]:
+def generate_argument_info_columns(variable: TBoundOrRuntimeVariable, indent: int, highlight_variable: Optional[TBoundOrRuntimeVariable] = None) -> list[str]:
     """
     Generate a string that describes the argument
     """
+    variable = _to_var(variable)
     text: list[str] = []
     for name, width in COLS:
         if name == "Idx":
@@ -260,14 +270,14 @@ def generate_argument_info_columns(variable: BoundVariable, indent: int, highlig
             text.append(clip_string(_gen_type_shape_string(variable), width))
         elif name == "Transform":
             text.append(clip_string(variable.transform, width))
-    if variable == highlight_variable:
+    if highlight_variable and variable == _to_var(highlight_variable):
         text.append(" <---")
     else:
         text.append("")
     return text
 
 
-def generate_tree_info_table(call: BoundCall, highlight_variable: Optional[BoundVariable] = None) -> list[list[str]]:
+def generate_tree_info_table(call: TBoundOrRuntimeCall, highlight_variable: Optional[TBoundOrRuntimeVariable] = None) -> list[list[str]]:
     """
     Generate a string that describes the argument
     """
@@ -280,17 +290,19 @@ def generate_tree_info_table(call: BoundCall, highlight_variable: Optional[Bound
     return lines
 
 
-def _generate_tree_info_table(lines: list[list[str]], variable: BoundVariable, indent: int, highlight_variable: Optional[BoundVariable] = None):
+def _generate_tree_info_table(lines: list[list[str]], variable: TBoundOrRuntimeVariable, indent: int, highlight_variable: Optional[TBoundOrRuntimeVariable] = None):
     """
     Generate a string that describes the argument
     """
+    if isinstance(variable, BoundVariableRuntime):
+        variable = variable._source_for_exceptions
     lines.append(generate_argument_info_columns(variable, indent, highlight_variable))
     if variable.children is not None:
         for name, child in variable.children.items():
             _generate_tree_info_table(lines, child, indent + 1, highlight_variable)
 
 
-def generate_tree_info_string(call: BoundCall, highlight_variable: Optional[BoundVariable] = None) -> str:
+def generate_tree_info_string(call: TBoundOrRuntimeCall, highlight_variable: Optional[TBoundOrRuntimeVariable] = None) -> str:
     table = generate_tree_info_table(call, highlight_variable)
     col_widths = [max(len(x)+2 for x in col) for col in zip(*table)]
     text: list[str] = []
@@ -299,14 +311,14 @@ def generate_tree_info_string(call: BoundCall, highlight_variable: Optional[Boun
     return "\n".join(text)
 
 
-def generate_call_shape_error_string(signature: BoundCall, call_shape: list[int | None], message: str, highlight_variable: Optional[BoundVariable] = None) -> str:
+def generate_call_shape_error_string(signature: TBoundOrRuntimeCall, call_shape: list[int | None], message: str, highlight_variable: Optional[TBoundOrRuntimeVariable] = None) -> str:
     """
     Generate a string that describes the argument
     """
     lines: list[str] = []
     lines.append(f"Error: {message}")
     if highlight_variable is not None:
-        lines.append(f"Variable: {highlight_variable.variable_name}")
+        lines.append(f"Variable: {_to_var(highlight_variable).variable_name}")
     lines.append(f"Calculated call shape: {call_shape}".replace("None", "?"))
 
     header = "\n".join(lines)
@@ -348,7 +360,7 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
             signature, [], e.message, e.variable))
 
 
-def calculate_call_shape(call_dimensionality: int, signature: BoundCall, *args: Any, **kwargs: Any):
+def calculate_call_shape(call_dimensionality: int, signature: BoundCallRuntime, *args: Any, **kwargs: Any):
 
     try:
         call_shape = [1] * call_dimensionality
@@ -364,7 +376,7 @@ def calculate_call_shape(call_dimensionality: int, signature: BoundCall, *args: 
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
 
-    return cast(list[int], call_shape)
+    return cast(tuple[int], tuple(call_shape))
 
 
 def create_return_value_binding(call_dimensionality: int, signature: BoundCall, mode: CallMode):
@@ -551,7 +563,7 @@ def generate_code(call_dimensionality: int, function: Function, signature: Bound
     cg.kernel.end_block()
 
 
-def write_calldata_pre_dispatch(device: Device, call_shape: list[int], call_signature: BoundCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def write_calldata_pre_dispatch(device: Device, call_shape: tuple[int], call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Write the call data for args + kwargs before dispatching
     """
@@ -565,7 +577,7 @@ def write_calldata_pre_dispatch(device: Device, call_shape: list[int], call_sign
         sig_kwargs[key].write_call_data_pre_dispatch(device, call_shape, call_data, value)
 
 
-def read_call_data_post_dispatch(device: Device, call_signature: BoundCall, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def read_call_data_post_dispatch(device: Device, call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Read the call data for args + kwargs after dispatching
     """
