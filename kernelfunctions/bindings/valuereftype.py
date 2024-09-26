@@ -81,7 +81,11 @@ class ValueRefType(BaseTypeImpl):
         return self.value_type.derivative
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
-        return ValueRef(None)
+        pt = self.value_type.python_return_value_type
+        if pt is not None:
+            return ValueRef(pt())
+        else:
+            return ValueRef(None)
 
     def read_output(self, device: Device, data: ValueRef) -> Any:
         return data.value

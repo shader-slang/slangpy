@@ -66,3 +66,7 @@ float2[4] get_particle_quad(Particle p) {
         center + (right - up) * size
     };
 }
+
+float3 add_vectors(float3 a, float3 b) {
+    return a + b;
+}

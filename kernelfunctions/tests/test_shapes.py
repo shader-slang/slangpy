@@ -2,7 +2,7 @@ from typing import Any, Optional
 import pytest
 from sgl import float4
 from kernelfunctions.backend import DeviceType, float1, float3
-from kernelfunctions.callsignature import CallMode, BoundVariable, bind, build_signature, match_signatures
+from kernelfunctions.callsignature import BoundVariable
 from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
@@ -47,7 +47,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     if transforms is not None:
         function = function.transform_output(transforms)
 
-    call_data = function._build_call_data(False, a=a, b=b, _result=result)
+    call_data = function._build_call_data(a=a, b=b, _result=result)
     call_data.call(a=a, b=b, _result=result)
 
     nodes: list[BoundVariable] = []
@@ -80,7 +80,7 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
         function = function.transform_output(transforms)
 
     call_data = function._build_call_data(
-        False, index=index, texture=texture, _result=result)
+        index=index, texture=texture, _result=result)
     call_data.call(index=index, texture=texture, _result=result)
 
     nodes: list[BoundVariable] = []
@@ -115,7 +115,7 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
         function = function.transform_output(transforms)
 
     call_data = function._build_call_data(
-        False, index=index, fr=frombuffer, to=tobuffer)
+        index=index, fr=frombuffer, to=tobuffer)
     call_data.call(index=index, fr=frombuffer, to=tobuffer)
 
     nodes: list[BoundVariable] = []
@@ -126,22 +126,6 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
         "node_call_dims": [x.call_dimensionality for x in nodes],
         "node_transforms": [x.transform for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]
-    }
-
-    sig = build_signature(index=index, fr=frombuffer, to=tobuffer)
-    match = match_signatures(
-        sig, function.overloads[0], CallMode.prim)
-    assert match is not None
-    tree = bind(sig, match, CallMode.prim, input_transforms, ouput_transforms)
-    call_shape = calculate_and_apply_call_shape(tree)
-
-    nodes: list[BoundVariable] = []
-    for node in tree.values():
-        node.get_input_list(nodes)
-    return {
-        "call_shape": call_shape,
-        "type_shapes": [x.type_shape for x in nodes],
-        "arg_shapes": [x.argument_shape for x in nodes],
     }
 
 

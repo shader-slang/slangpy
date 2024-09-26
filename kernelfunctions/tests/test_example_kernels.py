@@ -1,6 +1,8 @@
 from pathlib import Path
+from time import time
 import numpy as np
 import pytest
+from sgl import ShaderCursor
 import kernelfunctions as kf
 from kernelfunctions.types import NDDifferentiableBuffer
 from kernelfunctions.tests import helpers
@@ -365,6 +367,20 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
         element_type=float3,
         requires_grad=True,
     )
+
+    pipeline = device.create_compute_pipeline(prim_program)
+
+    command_buffer = device.create_command_buffer()
+    with command_buffer.encode_compute_commands() as encoder:
+        start = time()
+        count = 10000
+        for i in range(0, count):
+            shader_object = encoder.bind_pipeline(pipeline)
+            processor = ShaderCursor(shader_object)['call_data']
+            processor['_thread_count'] = uint3(32, 1, 1)
+            encoder.dispatch([32, 1, 1])
+        end = time()
+        print(f"Time taken per add: {1000.0*(end-start)/count}ms")
 
     total_threads = 32
 

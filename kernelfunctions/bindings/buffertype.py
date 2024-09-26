@@ -47,15 +47,10 @@ class NDBufferType(BaseTypeImpl):
     # Call data just returns the primal
 
     def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: NDBuffer) -> Any:
-        access = binding.access
-        assert access[0] != AccessType.none
-        assert access[1] == AccessType.none
-        assert binding.transform is not None
-        assert len(data.strides) <= len(broadcast)
         return {
             'buffer': data.buffer,
             'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
-            'transform': binding.transform[0:self.dims]
+            'transform': binding.transform[0:self.dims]  # type: ignore
         }
 
     @property
@@ -70,11 +65,7 @@ class NDBufferType(BaseTypeImpl):
         return self.el_type
 
     def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
-        if value is not None:
-            assert len(value.shape) == self.dims
-            return value.shape
-        else:
-            return [None]*self.dims
+        return value.shape
 
     @property
     def differentiable(self):

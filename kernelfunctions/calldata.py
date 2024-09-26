@@ -1,6 +1,7 @@
 import hashlib
+from io import StringIO
 import os
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen
 
@@ -23,6 +24,7 @@ from kernelfunctions.callsignature import (
 from kernelfunctions.function import (
     Function,
     FunctionChainBase,
+    FunctionChainBwdsDiff,
     FunctionChainInputTransform,
     FunctionChainOutputTransform,
     FunctionChainSet,
@@ -33,6 +35,7 @@ from kernelfunctions.function import (
 from kernelfunctions.shapes import (
     TConcreteShape,
 )
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
@@ -60,11 +63,56 @@ def pack_arg(arg: Any, unpacked_arg: Any):
     return arg
 
 
+_call_data_cache: dict[str, 'CallData'] = {}
+
+
+def build_call_signature(chain: Optional[FunctionChainBase], *args: Any, **kwargs: Any) -> str:
+    x = []
+    x.append("chain\n")
+    while chain is not None:
+        _get_value_signature(chain, x)
+        x.append("\n")
+        chain = chain.parent
+
+    x.append("args\n")
+    for arg in args:
+        x.append(f"N:")
+        _get_value_signature(arg, x)
+        x.append("\n")
+
+    x.append("kwargs\n")
+    for k, v in kwargs.items():
+        x.append(f"{k}:")
+        _get_value_signature(v, x)
+        x.append("\n")
+
+    text = "".join(x)
+    return text
+    return hashlib.md5(text.encode()).hexdigest()
+
+
+def _get_value_signature(x: Any, out: list[str]):
+    out.append(type(x).__name__)
+
+    if hasattr(x, "slangpy_signature"):
+        out.append(x.slangpy_signature)
+        return
+
+    ext_call = PYTHON_SIGNATURES.get(type(x), None)
+    if ext_call is not None:
+        out.append(ext_call(x))
+        return
+
+    if isinstance(x, dict):
+        for k, v in x.items():
+            out.append(f"{k}:\n")
+            _get_value_signature(v, out)
+
+
 class CallData:
     def __init__(
         self,
         chain: list["FunctionChainBase"],
-        backwards: bool,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -73,7 +121,7 @@ class CallData:
             raise ValueError("First entry in chain should be a function")
         self.function = chain[0]
         self.chain = chain
-        self.call_mode = CallMode.bwds if backwards else CallMode.prim
+        self.call_mode = CallMode.prim
         self.input_transforms: dict[str, TConcreteShape] = {}
         self.outut_transforms: dict[str, TConcreteShape] = {}
         self.this: Optional[IThis] = None
@@ -94,6 +142,8 @@ class CallData:
                 self.outut_transforms.update(item.transforms)
             if isinstance(item, FunctionChainThis):
                 self.this = item.this
+            if isinstance(item, FunctionChainBwdsDiff):
+                self.call_mode = CallMode.bwds
 
         self.sets = sets
 
@@ -195,6 +245,8 @@ Overloads:
         ep = module.entry_point("main")
         program = session.link_program([module, self.function.module], [ep])
         self.kernel = device.create_compute_kernel(program)
+
+        self.bindings.cache_bindings()
 
     def call(self, *args: Any, **kwargs: Any):
         call_data = {}

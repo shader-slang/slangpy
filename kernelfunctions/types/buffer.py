@@ -57,6 +57,8 @@ class NDBuffer:
         self.element_type = get_or_create_type(element_type)
         self.usage = usage
 
+        self._cached_signature = f"[{self.element_type.name},{len(self.shape)},{self.is_writable}]"
+
         strides = []
         total = 1
         for dim in reversed(self.shape):
@@ -80,6 +82,10 @@ class NDBuffer:
     @property
     def is_writable(self):
         return (self.usage & ResourceUsage.unordered_access) != 0
+
+    @property
+    def slangpy_signature(self) -> str:
+        return self._cached_signature
 
     def to_numpy(self):
         return self.buffer.to_numpy()

@@ -7,7 +7,7 @@ from sgl import ResourceUsage
 from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessType
 
 from kernelfunctions.backend import Device, Buffer, TypeReflection
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
 from .valuetype import ValueType
 

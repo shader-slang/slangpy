@@ -351,7 +351,7 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
 def calculate_call_shape(call_dimensionality: int, signature: BoundCall, *args: Any, **kwargs: Any):
 
     try:
-        call_shape: list[Optional[int]] = [None] * call_dimensionality
+        call_shape = [1] * call_dimensionality
         sig_args = signature.args
         sig_kwargs = signature.kwargs
 

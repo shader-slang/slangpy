@@ -26,6 +26,15 @@ class BoundCall:
     def values(self) -> list['BoundVariable']:
         return self.args + list(self.kwargs.values())
 
+    def cache_bindings(self) -> NoneType:
+        for variable in self.values():
+            variable.cache_bindings()
+
+
+class BoundVariableCache:
+    def __init__(self, source: 'BoundVariable') -> NoneType:
+        super().__init__()
+
 
 class BoundVariable:
     """
@@ -122,20 +131,17 @@ class BoundVariable:
                 call_data[self.variable_name] = res
         else:
             # Get concrete primal shape
-            shape = self.python.primal.get_shape(value)
+            shape = self.python_primal.get_shape(value)
 
             # Get call shape + append slang primal shape
-            full_cs = call_shape + list(self.slang.primal.get_shape())
+            full_cs = call_shape + self.slang_shape
 
             # Broadcast occurs if the shape of the input is different from the shape of the output
             broadcast = []
             transform = cast(list[int], self.transform)
             for i in range(len(transform)):
                 csidx = transform[i]
-                if csidx < len(full_cs):
-                    broadcast.append(full_cs[csidx] != shape[i])
-                else:
-                    broadcast.append(False)
+                broadcast.append(full_cs[csidx] != shape[i])
 
             cd_val = self.python.primal.create_calldata(
                 device, self, broadcast, value)
@@ -152,7 +158,7 @@ class BoundVariable:
         else:
             cd_val = call_data.get(self.variable_name, None)
             if cd_val is not None:
-                self.python.primal.read_calldata(device, self, value, cd_val)
+                self.python_primal.read_calldata(device, self, value, cd_val)
 
     def read_output(self, device: Device, data: Any):
         """Reads output from function for a return value"""
@@ -168,7 +174,7 @@ class BoundVariable:
             if self.access[0] in [AccessType.write, AccessType.readwrite]:
                 return self.python.primal.read_output(device, data)
 
-    def populate_call_shape(self, call_shape: list[Optional[int]], value: Any):
+    def populate_call_shape(self, call_shape: list[int], value: Any):
         """
         Recursively calculate call shape for the node
         """
@@ -177,32 +183,37 @@ class BoundVariable:
                 child.populate_call_shape(call_shape, value[name])
         elif value is not None:
             # Get concrete primal shape
-            shape = self.python.primal.get_shape(value)
+            shape = self.python_primal.get_shape(value)
+            tf = cast(list[int], self.transform)
+            csl = len(call_shape)
 
-            assert not (None in shape)
-            assert self.transform is not None
-            assert len(shape) == len(self.transform)
-
-            for i in range(len(self.transform)):
+            for i in range(len(tf)):
                 # Get value shape and corresponding index in the overall call shape
-                shape_dim = shape[i]
-                call_idx = self.transform[i]
-                assert shape_dim is not None
-                assert call_idx is not None
+                shape_dim = cast(int, shape[i])
+                call_idx = cast(int, tf[i])
 
                 # Not interested in dimensionality for sub-kernel elements
-                if call_idx >= len(call_shape):
+                if call_idx >= csl:
                     continue
 
                 # Apply shape, failing if we find mismatch
-                if call_shape[call_idx] is None:
-                    call_shape[call_idx] = shape_dim
-                elif call_shape[call_idx] != shape_dim:
-                    if call_shape[call_idx] != 1 and shape_dim != 1:
+                cs = call_shape[call_idx]
+                if cs != shape_dim:
+                    if cs != 1 and shape_dim != 1:
                         raise BoundVariableException(
                             f"Shape mismatch for {self.variable_name} between input and output", self)
                     if shape_dim != 1:
                         call_shape[call_idx] = shape_dim
+
+    def cache_bindings(self):
+        """Pass at end of gen process that stores useful data to optimize the call process"""
+        if self.children is not None:
+            for child in self.children.values():
+                child.cache_bindings()
+        self.python_primal = self.python.primal
+        self.slang_primal = self.slang.primal
+        self.slang_shape = list(self.slang_primal.get_shape())
+        self.python_element_shape = tuple(self.python_primal.element_type.get_shape())
 
     def __repr__(self):
         return self.python.__repr__()
