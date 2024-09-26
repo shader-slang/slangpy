@@ -226,7 +226,7 @@ def _gen_arg_shape_string(variable: BoundVariable) -> str:
 
 def _gen_type_shape_string(variable: BoundVariable) -> str:
     if variable.slang is not None:
-        return str(list(variable.slang.primal.shape()))
+        return str(list(variable.slang.primal.get_shape()))
     else:
         return "None"
 
@@ -364,7 +364,7 @@ def calculate_call_shape(call_dimensionality: int, signature: BoundCall, *args: 
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
 
-    return call_shape
+    return cast(list[int], call_shape)
 
 
 def create_return_value_binding(call_dimensionality: int, signature: BoundCall, mode: CallMode):
@@ -376,7 +376,7 @@ def create_return_value_binding(call_dimensionality: int, signature: BoundCall, 
         if node is not None and node.python.primal_type_name == 'none':
             node.call_dimensionality = call_dimensionality
             node.transform = [i for i in range(
-                node.call_dimensionality+len(node.slang.primal.shape()))]
+                node.call_dimensionality+len(node.slang.primal.get_shape()))]
             if call_dimensionality == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:

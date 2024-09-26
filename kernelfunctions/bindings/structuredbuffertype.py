@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from sgl import ResourceUsage
 
-from kernelfunctions.core import BaseType, BaseVariable, CodeGenBlock, AccessType
+from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessType
 
 from kernelfunctions.backend import Device, Buffer, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
@@ -18,36 +18,40 @@ class StructuredBufferType(ValueType):
         super().__init__()
         self._el_type = element_type
 
-    def name(self, value: Optional[Buffer] = None) -> str:
+    @property
+    def name(self) -> str:
         if self._el_type is not None:
-            return f"StructuredBuffer<{self._el_type.name()}>"
+            return f"StructuredBuffer<{self._el_type.name}>"
         else:
             return "StructuredBuffer<Unknown>"
 
-    def container_shape(self, value: Optional[Buffer] = None):
+    def get_container_shape(self, value: Optional[Buffer] = None):
         if value is not None:
             return (int(value.desc.size/value.desc.struct_size),)
         else:
             return (None,)
 
-    def shape(self, value: Optional[Buffer] = None):
+    def get_shape(self, value: Optional[Buffer] = None):
         if self._el_type is not None:
-            return super().shape(value)
+            return super().get_shape(value)
         else:
             return None
 
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self._el_type
 
-    def differentiable(self, value: Optional[Buffer] = None):
+    @property
+    def differentiable(self):
         if self._el_type is not None:
-            return self._el_type.differentiable()
+            return self._el_type.differentiable
         else:
             return False
 
-    def differentiate(self, value: Optional[Buffer] = None):
+    @property
+    def derivative(self):
         if self._el_type is not None:
-            el_diff = self._el_type.differentiate()
+            el_diff = self._el_type.derivative
             if el_diff is not None:
                 return StructuredBufferType(el_diff)
             else:
@@ -56,14 +60,15 @@ class StructuredBufferType(ValueType):
             return None
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
 
         # As raw structured buffers don't necessary come with a type from the python side, we have to
         # resolve to the type of the slang argument
-        el_name = input_value.primal_element_name
+        el_name = binding.python.primal_element_name
         if el_name is None:
-            assert input_value.binding is not None
-            el_name = input_value.binding.slang.primal_type_name
+            el_name = binding.slang.primal_type_name
 
         # Can now generate
         if access[0] == AccessType.read:
@@ -74,7 +79,8 @@ class StructuredBufferType(ValueType):
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
+        access = binding.access
         if access[0] != AccessType.none:
             return {
                 'value': data
@@ -82,9 +88,9 @@ class StructuredBufferType(ValueType):
 
     def update_from_bound_type(self, bound_type: 'BaseType'):
         while True:
-            stshape = bound_type.shape()
+            stshape = bound_type.get_shape()
             if stshape is None or None in stshape:
-                next_type = bound_type.element_type()
+                next_type = bound_type.element_type
                 if next_type == bound_type:
                     raise ValueError("Cannot resolve shape")
                 bound_type = next_type
@@ -97,18 +103,21 @@ class RWStructuredBufferType(StructuredBufferType):
     def __init__(self, element_type: Optional[BaseType]):
         super().__init__(element_type=element_type)
 
-    def name(self, value: Optional[Buffer] = None) -> str:
+    @property
+    def name(self) -> str:
         if self._el_type is not None:
-            return f"RWStructuredBuffer<{self._el_type.name()}>"
+            return f"RWStructuredBuffer<{self._el_type.name}>"
         else:
             return "RWStructuredBuffer<Unknown>"
 
-    def is_writable(self, value: Optional[Buffer] = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return True
 
-    def differentiate(self, value: Optional[Buffer] = None):
+    @property
+    def derivative(self):
         if self._el_type is not None:
-            el_diff = self._el_type.differentiate()
+            el_diff = self._el_type.derivative
             if el_diff is not None:
                 return StructuredBufferType(el_diff)
             else:

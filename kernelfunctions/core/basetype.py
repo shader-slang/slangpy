@@ -10,56 +10,60 @@ from .enums import AccessType
 from .codegen import CodeGenBlock
 
 if TYPE_CHECKING:
-    from .basevariable import BaseVariable
+    from .boundvariable import BoundVariable
 
 
 class BaseType:
     def __init__(self):
         super().__init__()
 
-    def name(self, value: Any = None) -> str:
+    @property
+    def name(self) -> str:
         raise NotImplementedError()
 
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         raise NotImplementedError()
 
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         raise NotImplementedError()
 
-    def differentiable(self, value: Any = None) -> bool:
+    @property
+    def differentiable(self) -> bool:
         raise NotImplementedError()
 
-    def differentiate(self, value: Any = None) -> Optional['BaseType']:
+    @property
+    def derivative(self) -> Optional['BaseType']:
         raise NotImplementedError()
 
-    def container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
+    @property
+    def element_type(self) -> 'BaseType':
         raise NotImplementedError()
 
-    def element_type(self, value: Any = None) -> 'BaseType':
+    @property
+    def python_return_value_type(self) -> type:
         raise NotImplementedError()
 
-    def byte_size(self, value: Any = None) -> int:
+    def get_container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
         raise NotImplementedError()
 
-    def shape(self, value: Any = None) -> Sequence[Optional[int]]:
+    def get_shape(self, value: Any = None) -> Sequence[Optional[int]]:
         raise NotImplementedError()
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    def get_byte_size(self, value: Any = None) -> int:
         raise NotImplementedError()
 
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
         raise NotImplementedError()
 
-    def gen_load_store(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
         raise NotImplementedError()
 
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+    def read_calldata(self, device: Device, binding: 'BoundVariable', data: Any, result: Any) -> None:
         raise NotImplementedError()
 
-    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: Any, result: Any) -> None:
-        raise NotImplementedError()
-
-    def allocate_return_value(self, device: Device, input_value: 'BaseVariable', slang_value: 'BaseVariable', data: Any, access: tuple[AccessType, AccessType]):
+    def allocate_return_value(self, device: Device, binding: 'BoundVariable', slang_value: 'BoundVariable', data: Any, access: tuple[AccessType, AccessType]):
         raise NotImplementedError()
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:

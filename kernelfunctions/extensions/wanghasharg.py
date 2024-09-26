@@ -1,7 +1,7 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, PythonVariable
+from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable
 
 from kernelfunctions.backend import Device, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
@@ -20,32 +20,34 @@ class WangHashArg:
 
 
 class WangHashArgType(BaseTypeImpl):
-    def __init__(self):
+    def __init__(self, dims: int):
         super().__init__()
+        self.dims = dims
 
-    def name(self, value: Optional[WangHashArg] = None) -> str:
-        if value is not None:
-            return f"WangHashArg<{value.dims}>"
-        else:
-            return f"WangHashArg<N>"
+    @property
+    def name(self) -> str:
+        return f"WangHashArg<{self.dims}>"
 
-    def shape(self, value: Optional[WangHashArg] = None):
-        assert value is not None
-        return (value.dims,)
+    def get_shape(self, value: Optional[WangHashArg] = None):
+        return (self.dims,)
 
-    def element_type(self, value: Optional[WangHashArg] = None):
+    @property
+    def element_type(self):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
 
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: PythonVariable, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, binding: BoundVariable):
+        access = binding.access
+        name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("wanghasharg")
-            cgb.type_alias(f"_{name}", input_value.primal_type_name)
+            cgb.type_alias(f"_{name}", self.name)
 
-    def create_calldata(self, device: Device, input_value: PythonVariable, access: tuple[AccessType, AccessType], broadcast: list[bool], data: WangHashArg) -> Any:
+    def create_calldata(self, device: Device, binding: BoundVariable, broadcast: list[bool], data: WangHashArg) -> Any:
+        access = binding.access
         if access[0] == AccessType.read:
             return {
                 'seed': data.seed
             }
 
 
-PYTHON_TYPES[WangHashArg] = WangHashArgType()
+PYTHON_TYPES[WangHashArg] = lambda x: WangHashArgType(x.dims)

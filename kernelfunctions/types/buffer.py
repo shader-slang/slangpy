@@ -68,7 +68,7 @@ class NDBuffer:
             self.element_size = element_type.size
             self.element_stride = element_type.stride
         else:
-            self.element_size = self.element_type.byte_size()
+            self.element_size = self.element_type.get_byte_size()
             self.element_stride = self.element_size
 
         self.buffer = device.create_buffer(
@@ -106,7 +106,7 @@ class NDDifferentiableBuffer(NDBuffer):
 
         if grad_type is None:
             if isinstance(element_type, BaseType):
-                grad_type = element_type.differentiate()
+                grad_type = element_type.derivative
             elif isinstance(element_type, Struct):
                 grad_type = find_type_layout_for_buffer(
                     element_type.device_module.layout, element_type.name+".Differential")

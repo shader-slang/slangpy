@@ -44,8 +44,6 @@ class BoundVariable:
         # Store the python and slang marshall
         self.python = python
         self.slang = slang
-        self.python.binding = self
-        self.slang.binding = self
 
         # Initialize path
         if path is None:
@@ -64,7 +62,7 @@ class BoundVariable:
         self.variable_name = self.path.replace(".", "__")
 
         # Can now decide if differentiable
-        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable and self.python.has_derivative
+        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
         self._calculate_differentiability(mode)
 
         # Store transforms
@@ -124,22 +122,23 @@ class BoundVariable:
                 call_data[self.variable_name] = res
         else:
             # Get concrete primal shape
-            shape = self.python.primal.shape(value)
+            shape = self.python.primal.get_shape(value)
 
             # Get call shape + append slang primal shape
-            full_cs = call_shape + list(self.slang.primal.shape())
+            full_cs = call_shape + list(self.slang.primal.get_shape())
 
             # Broadcast occurs if the shape of the input is different from the shape of the output
             broadcast = []
-            for i in range(len(self.transform)):
-                csidx = self.transform[i]
+            transform = cast(list[int], self.transform)
+            for i in range(len(transform)):
+                csidx = transform[i]
                 if csidx < len(full_cs):
                     broadcast.append(full_cs[csidx] != shape[i])
                 else:
                     broadcast.append(False)
 
-            cd_val = self.python.create_calldata(
-                device, self.access, broadcast, value)
+            cd_val = self.python.primal.create_calldata(
+                device, self, broadcast, value)
             if cd_val is not None:
                 call_data[self.variable_name] = cd_val
 
@@ -153,7 +152,7 @@ class BoundVariable:
         else:
             cd_val = call_data.get(self.variable_name, None)
             if cd_val is not None:
-                self.python.read_calldata(device, self.access, value, cd_val)
+                self.python.primal.read_calldata(device, self, value, cd_val)
 
     def read_output(self, device: Device, data: Any):
         """Reads output from function for a return value"""
@@ -167,7 +166,7 @@ class BoundVariable:
             return res
         else:
             if self.access[0] in [AccessType.write, AccessType.readwrite]:
-                return self.python.read_output(device, data)
+                return self.python.primal.read_output(device, data)
 
     def populate_call_shape(self, call_shape: list[Optional[int]], value: Any):
         """
@@ -178,7 +177,7 @@ class BoundVariable:
                 child.populate_call_shape(call_shape, value[name])
         elif value is not None:
             # Get concrete primal shape
-            shape = self.python.primal.shape(value)
+            shape = self.python.primal.get_shape(value)
 
             assert not (None in shape)
             assert self.transform is not None
@@ -211,7 +210,7 @@ class BoundVariable:
     def _calculate_transform(self):
         # Get shape of inputs and parameter
         input_dim = self.python.dimensionality
-        param_shape = self.slang.primal.shape()
+        param_shape = self.slang.primal.get_shape()
 
         # Check if we have input
         if input_dim is not None:
@@ -341,11 +340,9 @@ class BoundVariable:
                         f"Cannot read back value for non-writable type")
 
             # Generate call data
-            self.python.gen_calldata(
+            self.python.primal.gen_calldata(
                 cg.call_data_structs,
-                self.variable_name,
-                self.transform,  # type: ignore
-                self.access)
+                self)
 
         if depth == 0:
             cg.call_data.declare(f"_{self.variable_name}", self.variable_name)

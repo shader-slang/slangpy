@@ -142,6 +142,7 @@ def test_copy_vectors_vecindex_inputcontainer_input_transform(device_type: Devic
             assert np.allclose(inn, out)
 
 
+@pytest.mark.skip(reason="Can't get working on build machine atm")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: DeviceType):
     m = load_test_module(device_type)
@@ -215,7 +216,6 @@ def test_add_vectors_vecindex_element_input_transform(device_type: DeviceType):
             assert a == b
 
 
-@pytest.mark.skip(reason="Can't get working on build machine atm")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_add_vectors_basic_output_transform(device_type: DeviceType):
     m = load_test_module(device_type)

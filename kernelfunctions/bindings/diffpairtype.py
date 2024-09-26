@@ -3,7 +3,7 @@
 from typing import Any, Optional, Sequence
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType, PrimType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType
 
 from kernelfunctions.types import DiffPair
 
@@ -34,28 +34,31 @@ struct _{name}
 
 class DiffPairType(BaseTypeImpl):
 
-    def __init__(self, primal_type: BaseType, derivative_type: Optional[BaseType] = None):
+    def __init__(self, primal_type: BaseType, derivative_type: Optional[BaseType], needs_grad: bool):
         super().__init__()
         self.primal_type = primal_type
         self.derivative_type = derivative_type
+        self.needs_grad = needs_grad
 
     # Values don't store a derivative - they're just a value
-    def has_derivative(self, value: Optional[DiffPair] = None) -> bool:
-        assert value is not None
-        return value.needs_grad and self.derivative_type != None
+    @property
+    def has_derivative(self) -> bool:
+        return self.needs_grad and self.derivative_type != None
 
     # Refs can be written to!
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return True
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        prim_el = input_value.primal_element_name
-        deriv_el = input_value.derivative_element_name
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
+
+        prim_el = binding.python.primal_element_name
+        deriv_el = binding.python.derivative_element_name
         if deriv_el is None:
             deriv_el = prim_el
-
-        binding = input_value.binding
 
         if access[0] == AccessType.none:
             primal_storage = f'NoneType'
@@ -71,7 +74,6 @@ class DiffPairType(BaseTypeImpl):
         else:
             deriv_storage = f"RWValueRef<{deriv_el}>"
 
-        assert binding is not None
         primal_target = binding.slang.primal_type_name
         deriv_target = binding.slang.derivative_type_name
 
@@ -82,7 +84,8 @@ class DiffPairType(BaseTypeImpl):
         return self.primal_type if prim == PrimType.primal else self.derivative_type
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: DiffPair) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: DiffPair) -> Any:
+        access = binding.access
         res = {}
 
         for prim in PrimType:
@@ -105,7 +108,8 @@ class DiffPairType(BaseTypeImpl):
         return res
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: DiffPair, result: Any) -> None:
+    def read_calldata(self, device: Device, binding: 'BoundVariable', data: DiffPair, result: Any) -> None:
+        access = binding.access
         for prim in PrimType:
             prim_name = prim.name
             prim_access = access[prim.value]
@@ -116,20 +120,24 @@ class DiffPairType(BaseTypeImpl):
                 npdata = result[prim_name]['value'].to_numpy()
                 data.set(prim, prim_type.from_numpy(npdata))
 
-    def name(self, value: Any = None) -> str:
-        return self.primal_type.name()
+    @property
+    def name(self) -> str:
+        return self.primal_type.name
 
-    def element_type(self, value: Optional[DiffPair] = None):
-        return self.primal_type.element_type()
+    @property
+    def element_type(self):
+        return self.primal_type.element_type
 
-    def shape(self, value: Optional[DiffPair] = None):
-        return self.primal_type.shape()
+    def get_shape(self, value: Optional[DiffPair] = None):
+        return self.primal_type.get_shape()
 
-    def differentiable(self, value: Optional[DiffPair] = None):
-        return self.primal_type.differentiable()
+    @property
+    def differentiable(self):
+        return self.primal_type.differentiable
 
-    def differentiate(self, value: Optional[DiffPair] = None):
-        return self.primal_type.differentiate()
+    @property
+    def derivative(self):
+        return self.primal_type.derivative
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
         return DiffPair(None, None)
@@ -140,7 +148,7 @@ class DiffPairType(BaseTypeImpl):
 
 def create_vr_type_for_value(value: Any):
     assert isinstance(value, DiffPair)
-    return DiffPairType(get_or_create_type(type(value.primal)), get_or_create_type(type(value.grad)))
+    return DiffPairType(get_or_create_type(type(value.primal)), get_or_create_type(type(value.grad)), value.needs_grad)
 
 
 PYTHON_TYPES[DiffPair] = create_vr_type_for_value

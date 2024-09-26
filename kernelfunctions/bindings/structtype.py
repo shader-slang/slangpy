@@ -15,22 +15,27 @@ class StructType(ValueType):
         super().__init__()
         self.struct_name = struct_name
 
-    def name(self, value: Any = None) -> str:
+    @property
+    def name(self) -> str:
         return self.struct_name
 
-    def shape(self, value: Any = None):
+    def get_shape(self, value: Any = None):
         return (1,)
 
-    def differentiable(self, value: Any = None):
+    @property
+    def differentiable(self):
         return True
 
-    def differentiate(self, value: Any = None):
+    @property
+    def derivative(self):
         return self
 
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return True
 
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return True
 
 

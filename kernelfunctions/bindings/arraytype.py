@@ -13,34 +13,39 @@ class ArrayType(ValueType):
         self.et = element_type
         self.ec = element_count
 
-    def name(self, value: Optional[list[Any]] = None) -> str:
-        return f"{self.et.name()}[{self.ec}]"
+    @property
+    def name(self) -> str:
+        return f"{self.et.name}[{self.ec}]"
 
-    def byte_size(self, value: Optional[list[Any]] = None) -> int:
+    def get_byte_size(self, value: Optional[list[Any]] = None) -> int:
         if self.ec is not None:
-            return self.ec * self.et.byte_size()
+            return self.ec * self.et.get_byte_size()
         elif value is not None:
-            return len(value) * self.et.byte_size()
+            return len(value) * self.et.get_byte_size()
         else:
             raise ValueError("Array size must be known to compute byte size")
 
-    def container_shape(self, value: Optional[list[Any]] = None):
+    def get_container_shape(self, value: Optional[list[Any]] = None):
         return (self.ec,)
 
-    def element_type(self, value: Optional[list[Any]] = None):
+    @property
+    def element_type(self):
         return self.et
 
-    def differentiable(self, value: Optional[list[Any]] = None):
-        return self.et.differentiable(value)
+    @property
+    def differentiable(self):
+        return self.et.differentiable
 
-    def differentiate(self, value: Optional[list[Any]] = None):
-        et = self.et.differentiate(value)
+    @property
+    def derivative(self):
+        et = self.et.derivative
         if et is not None:
             return ArrayType(et, self.ec)
         else:
             return None
 
-    def python_return_value_type(self, value: Optional[list[Any]] = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return list
 
 

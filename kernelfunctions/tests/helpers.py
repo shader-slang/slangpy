@@ -112,22 +112,25 @@ class FakeBufferType(BaseTypeImpl):
     def __init__(self):
         super().__init__()
 
-    def name(self, value: Any = None) -> str:
+    @property
+    def name(self) -> str:
         return "FakeBuffer"
 
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return False
 
     def is_writable(self, value: Any) -> bool:
         return True
 
-    def container_shape(self, value: FakeBuffer):
+    def get_container_shape(self, value: FakeBuffer):
         return value.shape
 
-    def shape(self, value: Any = None):
+    def get_shape(self, value: Any = None):
         return value.shape
 
-    def element_type(self, value: Any):
+    @property
+    def element_type(self):
         return PYTHON_TYPES[NoneType]
 
 

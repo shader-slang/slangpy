@@ -1,10 +1,10 @@
 
 
-from typing import Any, Optional
+from typing import Optional
 
 from kernelfunctions.core import BaseType
 
-from kernelfunctions.backend import Buffer, Texture, TypeReflection
+from kernelfunctions.backend import Texture, TypeReflection
 from kernelfunctions.typeregistry import SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
 from .valuetype import ValueType
@@ -18,19 +18,22 @@ class TextureType(ValueType):
         self._writable = writable
         self._texture_shape = texture_shape
         self._base_texture_type_name = base_texture_type_name
-        self._tex_type_name = f"{self._prefix()}{self._base_texture_type_name}<{self._el_type.name()}>"
+        self._tex_type_name = f"{self._prefix()}{self._base_texture_type_name}<{self._el_type.name}>"
 
     def _prefix(self):
         return "RW" if self._writable else ""
 
-    def name(self, value: Optional[Buffer] = None) -> str:
+    @property
+    def name(self) -> str:
         return self._tex_type_name
 
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self._el_type
 
-    def differentiable(self, value: Optional[Buffer] = None):
-        return self.element_type(value).differentiable()
+    @property
+    def differentiable(self):
+        return self.element_type.differentiable
 
 
 class Texture2DType(TextureType):
@@ -38,14 +41,15 @@ class Texture2DType(TextureType):
         super().__init__(element_type=element_type, writable=writable,
                          base_texture_type_name="Texture2D", texture_shape=2)
 
-    def container_shape(self, value: Optional[Texture] = None):
+    def get_container_shape(self, value: Optional[Texture] = None):
         if value is not None:
             return (value.width, value.height)
         else:
             return (None, None)
 
-    def differentiate(self, value: Optional[Buffer] = None):
-        el_diff = self.element_type(value).differentiate()
+    @property
+    def derivative(self):
+        el_diff = self.element_type.derivative
         if el_diff is not None:
             return Texture2DType(el_diff, self._writable)
         else:

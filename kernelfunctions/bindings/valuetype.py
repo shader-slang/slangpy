@@ -1,11 +1,11 @@
 
 
 from types import NoneType
-from typing import Any, Optional, Sequence
+from typing import Any, Sequence
 import numpy.typing as npt
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType
 
 from kernelfunctions.backend import TypeReflection, math, Device
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
@@ -22,26 +22,33 @@ class ValueType(BaseTypeImpl):
         super().__init__()
 
     # A value is its own element
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self
 
     # Values don't store a derivative - they're just a value
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return False
 
     # Values are readonly
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return False
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
-            cgb.type_alias(f"_{name}", f"ValueType<{input_value.primal_type_name}>")
+            cgb.type_alias(
+                f"_{name}", f"ValueType<{self.name}>")
         else:
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
+        access = binding.access
         if access[0] in [AccessType.read, AccessType.readwrite]:
             return {
                 'value': data
@@ -118,19 +125,22 @@ class ScalarType(ValueType):
         self.python_type = SCALAR_TYPE_TO_PYTHON_TYPE[self.slang_type]
         self.bytes = SCALAR_TYPE_SIZES[self.slang_type]
 
-    def name(self, value: Any = None) -> str:
+    @property
+    def name(self) -> str:
         return SCALAR_TYPE_NAMES[self.slang_type]
 
-    def byte_size(self, value: Any = None) -> int:
+    def get_byte_size(self, value: Any = None) -> int:
         return self.bytes
 
-    def shape(self, value: Any = None):
+    def get_shape(self, value: Any = None):
         return ()
 
-    def differentiable(self, value: Any = None):
+    @property
+    def differentiable(self):
         return self.diff
 
-    def differentiate(self, value: Any = None):
+    @property
+    def derivative(self):
         return self if self.diff else None
 
     def to_numpy(self, value: Any) -> npt.NDArray[Any]:
@@ -162,7 +172,8 @@ class ScalarType(ValueType):
         else:
             raise ValueError(f"Unsupported scalar type: {array.dtype}")
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return self.python_type
 
 
@@ -170,13 +181,15 @@ class NoneValueType(ValueType):
     def __init__(self, slang_type: TypeReflection.ScalarType):
         super().__init__()
 
-    def shape(self, value: Any = None):
+    def get_shape(self, value: Any = None):
         return None
 
-    def name(self, value: Any = None) -> str:
+    @property
+    def name(self) -> str:
         return "none"
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return NoneType
 
 
@@ -187,23 +200,27 @@ class VectorType(ValueType):
         self.size = size
         self.python_type: type = NoneType
 
-    def name(self, value: Any = None) -> str:
-        return f"vector<{self.et.name()},{self.size}>"
+    @property
+    def name(self) -> str:
+        return f"vector<{self.et.name},{self.size}>"
 
-    def byte_size(self, value: Any = None) -> int:
-        return self.size * self.et.byte_size()
+    def get_byte_size(self, value: Any = None) -> int:
+        return self.size * self.et.get_byte_size()
 
-    def container_shape(self, value: Any = None):
+    def get_container_shape(self, value: Any = None):
         return (self.size,)
 
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self.et
 
-    def differentiable(self, value: Any = None):
-        return self.et.differentiable(value)
+    @property
+    def differentiable(self):
+        return self.et.differentiable
 
-    def differentiate(self, value: Any = None):
-        et = self.et.differentiate(value)
+    @property
+    def derivative(self):
+        et = self.et.derivative
         if et is not None:
             return VectorType(et, self.size)
         else:
@@ -232,7 +249,8 @@ class VectorType(ValueType):
             raise ValueError(f"Unsupported scalar type: {type(value)}")
         return self.python_type(list(array))
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return self.python_type
 
 
@@ -244,23 +262,27 @@ class MatrixType(ValueType):
         self.cols = cols
         self.python_type: type = NoneType
 
-    def name(self, value: Any = None) -> str:
-        return f"matrix<{self.et.name()},{self.rows},{self.cols}>"
+    @property
+    def name(self) -> str:
+        return f"matrix<{self.et.name},{self.rows},{self.cols}>"
 
-    def byte_size(self, value: Any = None) -> int:
-        return self.rows * self.cols * self.et.byte_size()
+    def get_byte_size(self, value: Any = None) -> int:
+        return self.rows * self.cols * self.et.get_byte_size()
 
-    def container_shape(self, value: Any = None):
+    def get_container_shape(self, value: Any = None):
         return (self.rows, self.cols)
 
-    def element_type(self, value: Any = None):
+    @property
+    def element_type(self):
         return self.et
 
-    def differentiable(self, value: Any = None):
-        return self.et.differentiable(value)
+    @property
+    def differentiable(self):
+        return self.et.differentiable
 
-    def differentiate(self, value: Any = None):
-        et = self.et.differentiate(value)
+    @property
+    def derivative(self):
+        et = self.et.derivative
         if et is not None:
             return MatrixType(et, self.rows, self.cols)
         else:
@@ -272,7 +294,8 @@ class MatrixType(ValueType):
     def from_numpy(self, array: npt.NDArray[Any]) -> Any:
         return self.python_type(array)
 
-    def python_return_value_type(self, value: Any = None) -> type:
+    @property
+    def python_return_value_type(self) -> type:
         return self.python_type
 
 

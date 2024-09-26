@@ -5,7 +5,7 @@ from typing import Any, Optional, Sequence
 from sgl import TypeReflection
 
 from kernelfunctions.bindings.diffpairtype import generate_differential_pair
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BaseVariable, AccessType, PrimType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType
 
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
@@ -23,68 +23,73 @@ class NDBufferType(BaseTypeImpl):
         self.writable = writable
 
     # Values don't store a derivative - they're just a value
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return False
 
-    def is_writable(self, value: Optional[NDBuffer] = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
             cgb.type_alias(
-                f"_{name}", f"NDBuffer<{input_value.primal_element_name},{self.dims}>")
+                f"_{name}", f"NDBuffer<{self.el_type.name},{self.dims}>")
         else:
             cgb.type_alias(
-                f"_{name}", f"RWNDBuffer<{input_value.primal_element_name},{self.dims}>")
+                f"_{name}", f"RWNDBuffer<{self.el_type.name},{self.dims}>")
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: NDBuffer) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: NDBuffer) -> Any:
+        access = binding.access
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
-        assert input_value.binding is not None
+        assert binding.transform is not None
         assert len(data.strides) <= len(broadcast)
         return {
             'buffer': data.buffer,
             'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
-            'transform': input_value.binding.transform[0:self.dims]
+            'transform': binding.transform[0:self.dims]
         }
 
-    # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDBuffer, result: Any) -> None:
-        pass
-
-    def name(self, value: Any = None) -> str:
+    @property
+    def name(self) -> str:
         if not self.writable:
-            return f"NDBuffer<{self.el_type.name()},{self.dims}>"
+            return f"NDBuffer<{self.el_type.name},{self.dims}>"
         else:
-            return f"RWNDBuffer<{self.el_type.name()},{self.dims}>"
+            return f"RWNDBuffer<{self.el_type.name},{self.dims}>"
 
-    def element_type(self, value: Optional[NDBuffer] = None):
+    @property
+    def element_type(self):
         return self.el_type
 
-    def container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
+    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
         if value is not None:
             assert len(value.shape) == self.dims
             return value.shape
         else:
             return [None]*self.dims
 
-    def differentiable(self, value: Optional[NDBuffer] = None):
-        return self.el_type.differentiable()
+    @property
+    def differentiable(self):
+        return self.el_type.differentiable
 
-    def differentiate(self, value: Optional[NDBuffer] = None):
-        et = self.el_type.differentiate()
+    @property
+    def derivative(self):
+        et = self.el_type
         if et is not None:
             return NDBufferType(et, self.dims, self.writable)
         else:
             return None
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
-        return NDBuffer(device, self.el_type.python_return_value_type(), shape=tuple(call_shape), usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        return NDBuffer(device, self.el_type.python_return_value_type, shape=tuple(call_shape), usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
     def read_output(self, device: Device, data: NDDifferentiableBuffer) -> Any:
         return data
@@ -114,21 +119,24 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         self.writable = writable
 
     # Values don't store a derivative - they're just a value
-    def has_derivative(self, value: Any = None) -> bool:
+    @property
+    def has_derivative(self) -> bool:
         return True
 
-    def is_writable(self, value: Any = None) -> bool:
+    @property
+    def is_writable(self) -> bool:
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: 'BaseVariable', name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
-        prim_el = input_value.primal_element_name
-        deriv_el = input_value.derivative_element_name
+    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
+
+        prim_el = binding.python.primal_element_name
+        deriv_el = binding.python.derivative_element_name
         if deriv_el is None:
             deriv_el = prim_el
         dim = self.dims
-
-        binding = input_value.binding
 
         if access[0] == AccessType.none:
             primal_storage = f'NoneType'
@@ -144,7 +152,6 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             deriv_storage = f"RWNDBuffer<{deriv_el},{dim}>"
 
-        assert binding is not None
         primal_target = binding.slang.primal_type_name
         deriv_target = binding.slang.derivative_type_name
 
@@ -153,8 +160,9 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], broadcast: list[bool], data: NDDifferentiableBuffer) -> Any:
-        assert input_value.binding is not None
+    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: NDDifferentiableBuffer) -> Any:
+        access = binding.access
+        assert binding.transform is not None
         res = {}
         for prim in PrimType:
             prim_name = prim.name
@@ -166,42 +174,42 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                 res[prim_name] = {
                     'buffer': value,
                     'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
-                    'transform': input_value.binding.transform[0:self.dims]
+                    'transform': binding.transform[0:self.dims]
                 }
         return res
 
-    # Read back from call data does nothing
-    def read_calldata(self, device: Device, input_value: 'BaseVariable', access: tuple[AccessType, AccessType], data: NDDifferentiableBuffer, result: Any) -> None:
-        pass
-
-    def name(self, value: Optional[NDDifferentiableBuffer] = None) -> str:
+    @property
+    def name(self) -> str:
         if not self.writable:
-            return f"NDBuffer<{self.el_type.name()},{self.dims}>"
+            return f"NDBuffer<{self.el_type.name},{self.dims}>"
         else:
-            return f"RWNDBuffer<{self.el_type.name()},{self.dims}>"
+            return f"RWNDBuffer<{self.el_type.name},{self.dims}>"
 
-    def element_type(self, value: Optional[NDDifferentiableBuffer] = None):
+    @property
+    def element_type(self):
         return self.el_type
 
-    def container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
+    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None):
         if value is not None:
             assert len(value.shape) == self.dims
             return value.shape
         else:
             return [None]*self.dims
 
-    def differentiable(self, value: Optional[NDBuffer] = None):
-        return self.el_type.differentiable()
+    @property
+    def differentiable(self):
+        return self.el_type.differentiable
 
-    def differentiate(self, value: Optional[NDBuffer] = None):
-        et = self.el_type.differentiate()
+    @property
+    def derivative(self):
+        et = self.el_type.derivative
         if et is not None:
             return NDDifferentiableBufferType(et, self.dims, self.writable)
         else:
             return None
 
     def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
-        return NDDifferentiableBuffer(device, self.el_type.python_return_value_type(),
+        return NDDifferentiableBuffer(device, self.el_type.python_return_value_type,
                                       shape=tuple(call_shape),
                                       requires_grad=True,
                                       usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)

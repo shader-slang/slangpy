@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, PythonVariable
+from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable
 
 from kernelfunctions.backend import Device, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
@@ -23,28 +23,30 @@ class RandFloatArg:
 
 
 class RandFloatArgType(BaseTypeImpl):
-    def __init__(self):
+    def __init__(self, dim: int):
         super().__init__()
+        self.dims = dim
 
-    def name(self, value: Optional[RandFloatArg] = None) -> str:
-        if value is not None:
-            return f"RandFloatArg<{value.dims}>"
-        else:
-            return "RandFloatArg<N>"
+    @property
+    def name(self) -> str:
+        return f"RandFloatArg<{self.dims}>"
 
-    def shape(self, value: Optional[RandFloatArg] = None):
-        assert value is not None
-        return (value.dims,)
+    def get_shape(self, value: Optional[RandFloatArg] = None):
+        return (self.dims,)
 
-    def element_type(self, value: Optional[RandFloatArg] = None):
+    @property
+    def element_type(self):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
 
-    def gen_calldata(self, cgb: CodeGenBlock, input_value: PythonVariable, name: str, transform: list[Optional[int]], access: tuple[AccessType, AccessType]):
+    def gen_calldata(self, cgb: CodeGenBlock, binding: BoundVariable):
+        access = binding.access
+        name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("randfloatarg")
-            cgb.type_alias(f"_{name}", input_value.primal_type_name)
+            cgb.type_alias(f"_{name}", self.name)
 
-    def create_calldata(self, device: Device, input_value: PythonVariable, access: tuple[AccessType, AccessType], broadcast: list[bool], data: RandFloatArg) -> Any:
+    def create_calldata(self, device: Device, binding: BoundVariable, broadcast: list[bool], data: RandFloatArg) -> Any:
+        access = binding.access
         if access[0] == AccessType.read:
             return {
                 'seed': data.seed,
@@ -53,4 +55,4 @@ class RandFloatArgType(BaseTypeImpl):
             }
 
 
-PYTHON_TYPES[RandFloatArg] = RandFloatArgType()
+PYTHON_TYPES[RandFloatArg] = lambda x: RandFloatArgType(x.dims)
