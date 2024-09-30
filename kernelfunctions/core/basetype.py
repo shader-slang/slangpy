@@ -4,7 +4,7 @@ from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 import numpy.typing as npt
 
-from kernelfunctions.backend import Device, slangpy
+from kernelfunctions.backend import Device, slangpynative
 from kernelfunctions.shapes import TLooseShape
 
 from .enums import AccessType
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from .boundvariableruntime import BoundVariableRuntime
 
 
-class BaseType(slangpy.NativeType):
+class BaseType(slangpynative.NativeType):
     def __init__(self):
         super().__init__()
 
