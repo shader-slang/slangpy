@@ -13,6 +13,7 @@ from kernelfunctions.backend import (
     Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel,
     TypeReflection)
 from kernelfunctions.calldata import SLANG_PATH
+from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.typeregistry import PYTHON_TYPES
 from kernelfunctions.core.basetypeimpl import BaseTypeImpl
 
@@ -123,10 +124,10 @@ class FakeBufferType(BaseTypeImpl):
     def is_writable(self, value: Any) -> bool:
         return True
 
-    def get_container_shape(self, value: FakeBuffer):
+    def get_container_shape(self, value: FakeBuffer) -> TLooseShape:
         return value.shape
 
-    def get_shape(self, value: Any = None):
+    def get_container_shape(self, value: Any = None) -> TLooseShape:
         return value.shape
 
     @property

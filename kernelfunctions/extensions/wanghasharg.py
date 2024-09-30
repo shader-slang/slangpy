@@ -1,9 +1,10 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable
+from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime
 
 from kernelfunctions.backend import Device, TypeReflection
+from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
 
 
@@ -28,7 +29,7 @@ class WangHashArgType(BaseTypeImpl):
     def name(self) -> str:
         return f"WangHashArg<{self.dims}>"
 
-    def get_shape(self, value: Optional[WangHashArg] = None):
+    def get_container_shape(self, value: Optional[WangHashArg] = None) -> TLooseShape:
         return (self.dims,)
 
     @property
@@ -42,7 +43,7 @@ class WangHashArgType(BaseTypeImpl):
             cgb.add_import("wanghasharg")
             cgb.type_alias(f"_{name}", self.name)
 
-    def create_calldata(self, device: Device, binding: BoundVariable, broadcast: list[bool], data: WangHashArg) -> Any:
+    def create_calldata(self, device: Device, binding: BoundVariableRuntime, broadcast: list[bool], data: WangHashArg) -> Any:
         access = binding.access
         if access[0] == AccessType.read:
             return {

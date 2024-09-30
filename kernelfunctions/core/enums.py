@@ -3,11 +3,9 @@
 from enum import Enum
 
 
-class AccessType(Enum):
-    none = 0
-    read = 1
-    write = 2
-    readwrite = 3
+# Native enums
+from kernelfunctions.backend import slangpynative
+AccessType = slangpynative.AccessType
 
 
 class CallMode(Enum):

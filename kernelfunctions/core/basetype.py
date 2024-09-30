@@ -4,16 +4,18 @@ from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 import numpy.typing as npt
 
-from kernelfunctions.backend import Device
+from kernelfunctions.backend import Device, slangpynative
+from kernelfunctions.shapes import TLooseShape
 
 from .enums import AccessType
 from .codegen import CodeGenBlock
 
 if TYPE_CHECKING:
     from .boundvariable import BoundVariable
+    from .boundvariableruntime import BoundVariableRuntime
 
 
-class BaseType:
+class BaseType(slangpynative.NativeType):
     def __init__(self):
         super().__init__()
 
@@ -45,10 +47,10 @@ class BaseType:
     def python_return_value_type(self) -> type:
         raise NotImplementedError()
 
-    def get_container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
+    def get_container_shape(self, value: Any = None) -> TLooseShape:
         raise NotImplementedError()
 
-    def get_shape(self, value: Any = None) -> Sequence[Optional[int]]:
+    def get_shape(self, value: Any = None) -> TLooseShape:
         raise NotImplementedError()
 
     def get_byte_size(self, value: Any = None) -> int:
@@ -57,10 +59,10 @@ class BaseType:
     def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
         raise NotImplementedError()
 
-    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: Any) -> Any:
         raise NotImplementedError()
 
-    def read_calldata(self, device: Device, binding: 'BoundVariable', data: Any, result: Any) -> None:
+    def read_calldata(self, device: Device, binding: 'BoundVariableRuntime', data: Any, result: Any) -> None:
         raise NotImplementedError()
 
     def allocate_return_value(self, device: Device, binding: 'BoundVariable', slang_value: 'BoundVariable', data: Any, access: tuple[AccessType, AccessType]):

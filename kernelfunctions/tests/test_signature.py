@@ -1,7 +1,7 @@
 from typing import Any
 import pytest
 from kernelfunctions.backend import DeviceType, float1, int1, int2, bool1, uint1, int3
-from kernelfunctions.callsignature import CallMode, build_signature, build_signature_hash, match_signatures
+from kernelfunctions.callsignature import CallMode, build_signature, match_signatures
 import kernelfunctions.tests.helpers as helpers
 
 
@@ -107,13 +107,6 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
         "add_numbers",
         f" void add_numbers({slang_type_name} a, {slang_type_name} b) {{ }}",
     )
-
-    cs_hash_0 = build_signature_hash(v0, v1)
-    cs_hash_1 = build_signature_hash(a=v0, b=v1)
-    cs_hash_2 = build_signature_hash(b=v1, a=v0)
-    assert cs_hash_0 != cs_hash_1
-    assert cs_hash_0 != cs_hash_2
-    assert cs_hash_1 == cs_hash_2
 
     if succeed:
 

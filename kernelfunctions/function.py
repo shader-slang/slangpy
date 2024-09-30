@@ -2,11 +2,15 @@ from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 
 from kernelfunctions.core import SlangFunction
 
-from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection
+from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, slangpynative
 from kernelfunctions.shapes import TConcreteShape
 
 if TYPE_CHECKING:
+    from kernelfunctions.calldata import CallData
     from kernelfunctions.struct import Struct
+
+ENABLE_CALLDATA_CACHE = False
+CALL_DATA_CACHE: dict[str, 'CallData'] = {}
 
 
 class IThis(Protocol):
@@ -21,14 +25,15 @@ class FunctionChainBase:
     def __init__(self, parent: Optional["FunctionChainBase"]) -> None:
         super().__init__()
         self.parent = parent
+        self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
-        calldata = self._build_call_data(False, *args, **kwargs)
+        calldata = self._build_call_data(*args, **kwargs)
         return calldata.call(*args, **kwargs)
 
-    def bwds_diff(self, *args: Any, **kwargs: Any) -> Any:
-        calldata = self._build_call_data(True, *args, **kwargs)
-        return calldata.call(*args, **kwargs)
+    @property
+    def bwds_diff(self) -> Any:
+        return FunctionChainBwdsDiff(self)
 
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)
@@ -42,14 +47,16 @@ class FunctionChainBase:
     def instance(self, this: IThis):
         return FunctionChainThis(self, this)
 
-    def debug_build_call_data(self, backwards: bool, *args: Any, **kwargs: Any):
-        return self._build_call_data(backwards, *args, **kwargs)
+    def debug_build_call_data(self, *args: Any, **kwargs: Any):
+        return self._build_call_data(*args, **kwargs)
 
     def __call__(self, *args: Any, **kwargs: Any):
         return self.call(*args, **kwargs)
 
-    def _build_call_data(self, backwards: bool, *args: Any, **kwargs: Any):
-        from .calldata import CallData
+    def _build_call_data(self, *args: Any, **kwargs: Any):
+        sig = slangpynative.hash_signature(self, *args, **kwargs)
+        if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
+            return CALL_DATA_CACHE[sig]
 
         chain = []
         current = self
@@ -57,7 +64,12 @@ class FunctionChainBase:
             chain.append(current)
             current = current.parent
         chain.reverse()
-        return CallData(chain, backwards, *args, **kwargs)
+
+        from .calldata import CallData
+        res = CallData(chain, *args, **kwargs)
+        if ENABLE_CALLDATA_CACHE:
+            CALL_DATA_CACHE[sig] = res
+        return res
 
     def as_func(self) -> 'FunctionChainBase':
         return self
@@ -117,6 +129,11 @@ class FunctionChainThis(FunctionChainBase):
         super().__init__(parent)
         self.this = this
 
+
+class FunctionChainBwdsDiff(FunctionChainBase):
+    def __init__(self, parent: FunctionChainBase) -> None:
+        super().__init__(parent)
+
 # A callable kernel function. This assumes the function is in the root
 # of the module, however a parent in the abstract syntax tree can be provided
 # to search for the function in a specific scope.
@@ -169,3 +186,5 @@ class Function(FunctionChainBase):
 
         # Build and store overloads
         self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
+
+        self.slangpy_signature = f"[{self.type_parent or ''}::{self.name}]"

@@ -5,9 +5,10 @@ from typing import Any, Sequence
 import numpy.typing as npt
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime
 
 from kernelfunctions.backend import TypeReflection, math, Device
+from kernelfunctions.shapes import TLooseOrUndefinedShape, TLooseShape
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
 from kernelfunctions.utils import parse_generic_signature
 
@@ -47,7 +48,7 @@ class ValueType(BaseTypeImpl):
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: Any) -> Any:
         access = binding.access
         if access[0] in [AccessType.read, AccessType.readwrite]:
             return {
@@ -132,7 +133,7 @@ class ScalarType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         return self.bytes
 
-    def get_shape(self, value: Any = None):
+    def get_shape(self, value: Any = None) -> TLooseShape:
         return ()
 
     @property
@@ -181,7 +182,7 @@ class NoneValueType(ValueType):
     def __init__(self, slang_type: TypeReflection.ScalarType):
         super().__init__()
 
-    def get_shape(self, value: Any = None):
+    def get_shape(self, value: Any = None) -> TLooseOrUndefinedShape:
         return None
 
     @property
@@ -207,7 +208,7 @@ class VectorType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         return self.size * self.et.get_byte_size()
 
-    def get_container_shape(self, value: Any = None):
+    def get_container_shape(self, value: Any = None) -> TLooseShape:
         return (self.size,)
 
     @property
@@ -269,7 +270,7 @@ class MatrixType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         return self.rows * self.cols * self.et.get_byte_size()
 
-    def get_container_shape(self, value: Any = None):
+    def get_container_shape(self, value: Any = None) -> TLooseShape:
         return (self.rows, self.cols)
 
     @property

@@ -21,6 +21,10 @@ TTypeLookup = Union[BaseType, Callable[[Any], BaseType]]
 # Dictionary of python types to corresponding base type
 PYTHON_TYPES: dict[type, TTypeLookup] = {}
 
+# Dictionary of python types to custom function that returns a signature
+# Note: preferred mechanism is to provide a slangpy_signature attribute
+PYTHON_SIGNATURES: dict[type, Callable[[Any], str]] = {}
+
 # Slang types to corresponding base type
 SLANG_SCALAR_TYPES: dict[TypeReflection.ScalarType, BaseType] = {}
 SLANG_VECTOR_TYPES: dict[TypeReflection.ScalarType, list[BaseType]] = {}

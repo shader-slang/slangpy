@@ -1,7 +1,6 @@
 from types import NoneType
 from typing import Any, Optional, cast
 
-from kernelfunctions.backend import Device
 from kernelfunctions.shapes import TConcreteShape
 
 from .enums import PrimType, AccessType, IOType, CallMode
@@ -111,98 +110,6 @@ class BoundVariable:
                 child._get_input_list_recurse(args)
         else:
             args.append(self)
-
-    def write_call_data_pre_dispatch(self, device: Device, call_shape: list[int], call_data: dict[str, Any], value: Any):
-        """Writes value to call data dictionary pre-dispatch"""
-        if self.children is not None:
-            res = {}
-            for name, child in self.children.items():
-                child.write_call_data_pre_dispatch(device, call_shape, res, value[name])
-            if len(res) > 0:
-                call_data[self.variable_name] = res
-        else:
-            # Get concrete primal shape
-            shape = self.python.primal.get_shape(value)
-
-            # Get call shape + append slang primal shape
-            full_cs = call_shape + list(self.slang.primal.get_shape())
-
-            # Broadcast occurs if the shape of the input is different from the shape of the output
-            broadcast = []
-            transform = cast(list[int], self.transform)
-            for i in range(len(transform)):
-                csidx = transform[i]
-                if csidx < len(full_cs):
-                    broadcast.append(full_cs[csidx] != shape[i])
-                else:
-                    broadcast.append(False)
-
-            cd_val = self.python.primal.create_calldata(
-                device, self, broadcast, value)
-            if cd_val is not None:
-                call_data[self.variable_name] = cd_val
-
-    def read_call_data_post_dispatch(self, device: Device, call_data: dict[str, Any], value: Any):
-        """Reads value from call data dictionary post-dispatch"""
-        if self.children is not None:
-            cd_val = call_data.get(self.variable_name, None)
-            for name, child in self.children.items():
-                if child.variable_name in cd_val:
-                    child.read_call_data_post_dispatch(device, cd_val, value[name])
-        else:
-            cd_val = call_data.get(self.variable_name, None)
-            if cd_val is not None:
-                self.python.primal.read_calldata(device, self, value, cd_val)
-
-    def read_output(self, device: Device, data: Any):
-        """Reads output from function for a return value"""
-        if self.children is not None:
-            assert isinstance(data, dict)
-            res = {}
-            for name, child in self.children.items():
-                child_data = data.get(child.python.name, None)
-                if child_data is not None:
-                    res[name] = child.read_output(device, child_data)
-            return res
-        else:
-            if self.access[0] in [AccessType.write, AccessType.readwrite]:
-                return self.python.primal.read_output(device, data)
-
-    def populate_call_shape(self, call_shape: list[Optional[int]], value: Any):
-        """
-        Recursively calculate call shape for the node
-        """
-        if self.children is not None:
-            for name, child in self.children.items():
-                child.populate_call_shape(call_shape, value[name])
-        elif value is not None:
-            # Get concrete primal shape
-            shape = self.python.primal.get_shape(value)
-
-            assert not (None in shape)
-            assert self.transform is not None
-            assert len(shape) == len(self.transform)
-
-            for i in range(len(self.transform)):
-                # Get value shape and corresponding index in the overall call shape
-                shape_dim = shape[i]
-                call_idx = self.transform[i]
-                assert shape_dim is not None
-                assert call_idx is not None
-
-                # Not interested in dimensionality for sub-kernel elements
-                if call_idx >= len(call_shape):
-                    continue
-
-                # Apply shape, failing if we find mismatch
-                if call_shape[call_idx] is None:
-                    call_shape[call_idx] = shape_dim
-                elif call_shape[call_idx] != shape_dim:
-                    if call_shape[call_idx] != 1 and shape_dim != 1:
-                        raise BoundVariableException(
-                            f"Shape mismatch for {self.variable_name} between input and output", self)
-                    if shape_dim != 1:
-                        call_shape[call_idx] = shape_dim
 
     def __repr__(self):
         return self.python.__repr__()

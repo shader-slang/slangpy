@@ -3,8 +3,9 @@
 from typing import Any, Optional, Sequence
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime
 
+from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.types import DiffPair
 
 from kernelfunctions.backend import Buffer, Device, ResourceUsage
@@ -84,7 +85,7 @@ class DiffPairType(BaseTypeImpl):
         return self.primal_type if prim == PrimType.primal else self.derivative_type
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, binding: 'BoundVariable', broadcast: list[bool], data: DiffPair) -> Any:
+    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: DiffPair) -> Any:
         access = binding.access
         res = {}
 
@@ -108,7 +109,7 @@ class DiffPairType(BaseTypeImpl):
         return res
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, binding: 'BoundVariable', data: DiffPair, result: Any) -> None:
+    def read_calldata(self, device: Device, binding: 'BoundVariableRuntime', data: DiffPair, result: Any) -> None:
         access = binding.access
         for prim in PrimType:
             prim_name = prim.name
@@ -128,7 +129,7 @@ class DiffPairType(BaseTypeImpl):
     def element_type(self):
         return self.primal_type.element_type
 
-    def get_shape(self, value: Optional[DiffPair] = None):
+    def get_shape(self, value: Optional[DiffPair] = None) -> TLooseShape:
         return self.primal_type.get_shape()
 
     @property
