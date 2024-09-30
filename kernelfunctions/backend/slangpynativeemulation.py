@@ -34,13 +34,11 @@ def hash_signature(value_to_id: Callable[[Any], str], *args: Any, **kwargs: Any)
     for arg in args:
         x.append(f"N:")
         _get_value_signature(value_to_id, arg, x)
-        x.append("\n")
 
     x.append("kwargs\n")
     for k, v in kwargs.items():
         x.append(f"{k}:")
         _get_value_signature(value_to_id, v, x)
-        x.append("\n")
 
     text = "".join(x)
     return text
@@ -61,16 +59,17 @@ def _get_value_signature(value_to_id: Callable[[Any], str], x: Any, out: list[st
     s = getattr(x, "slangpy_signature", None)
     if s is not None:
         out.append(s)
+        out.append("\n")
         return
 
     if isinstance(x, dict):
         out.append("\n")
         for k, v in x.items():
-            out.append(f"{k}:\n")
+            out.append(f"{k}:")
             _get_value_signature(value_to_id, v, out)
-            return
+        return
 
     s = value_to_id(x)
     if s is not None:
         out.append(s)
-        return
+    out.append("\n")
