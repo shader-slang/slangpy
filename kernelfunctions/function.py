@@ -1,15 +1,16 @@
-import os
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 
 from kernelfunctions.core import SlangFunction
 
-from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection
+from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, slangpynative
 from kernelfunctions.shapes import TConcreteShape
 
 if TYPE_CHECKING:
+    from kernelfunctions.calldata import CallData
     from kernelfunctions.struct import Struct
 
 ENABLE_CALLDATA_CACHE = False
+CALL_DATA_CACHE: dict[str, 'CallData'] = {}
 
 
 class IThis(Protocol):
@@ -24,9 +25,11 @@ class FunctionChainBase:
     def __init__(self, parent: Optional["FunctionChainBase"]) -> None:
         super().__init__()
         self.parent = parent
+        self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
         calldata = self._build_call_data(*args, **kwargs)
+        return None
         return calldata.call(*args, **kwargs)
 
     @property
@@ -52,11 +55,9 @@ class FunctionChainBase:
         return self.call(*args, **kwargs)
 
     def _build_call_data(self, *args: Any, **kwargs: Any):
-        from .calldata import CallData, _call_data_cache, build_call_signature
-
-        sig = build_call_signature(self, *args, **kwargs)
-        if ENABLE_CALLDATA_CACHE and sig in _call_data_cache:
-            return _call_data_cache[sig]
+        sig = slangpynative.hash_signature(self, *args, **kwargs)
+        if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
+            return CALL_DATA_CACHE[sig]
 
         chain = []
         current = self
@@ -65,9 +66,10 @@ class FunctionChainBase:
             current = current.parent
         chain.reverse()
 
+        from .calldata import CallData
         res = CallData(chain, *args, **kwargs)
         if ENABLE_CALLDATA_CACHE:
-            _call_data_cache[sig] = res
+            CALL_DATA_CACHE[sig] = res
         return res
 
     def as_func(self) -> 'FunctionChainBase':

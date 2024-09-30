@@ -1,7 +1,6 @@
 from time import time
 import pytest
-from sgl import DeviceType, float3
-from kernelfunctions.calldata import build_call_signature
+from kernelfunctions.backend import DeviceType, float3, slangpynative
 from kernelfunctions.function import Function
 from kernelfunctions.module import Module
 from kernelfunctions.tests import helpers
@@ -22,7 +21,6 @@ def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Mo
     return Module(device.load_module(name))
 
 
-@pytest.mark.skip(reason="This test is not useful anymore, as the cache is now enabled by default")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_signature_gen(device_type: DeviceType):
     func: Function = load_module(device_type).get_particle_quad  # type: ignore
@@ -32,7 +30,7 @@ def test_signature_gen(device_type: DeviceType):
     start = time()
     count = 10000
     for i in range(0, count):
-        hash_text = build_call_signature(func, buffer, 1, 2, 3, 4)
+        hash_text = slangpynative.hash_signature(func, buffer, 1, 2, 3, 4)
     end = time()
     print(f"Time taken per signature: {1000.0*(end-start)/count}ms")
     print(hash_text)

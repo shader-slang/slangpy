@@ -3,11 +3,7 @@
 from enum import Enum
 
 
-class AccessType(Enum):
-    none = 0
-    read = 1
-    write = 2
-    readwrite = 3
+from kernelfunctions.backend.slangpynative import AccessType
 
 
 class CallMode(Enum):

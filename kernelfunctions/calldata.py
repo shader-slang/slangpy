@@ -1,41 +1,25 @@
 import hashlib
 import os
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime
 
-from kernelfunctions.backend import uint3
+from kernelfunctions.backend import slangpynative
 
 from kernelfunctions.callsignature import (
     bind,
     calculate_call_dimensionality,
-    calculate_call_shape,
     create_return_value_binding,
     finalize_transforms, generate_code,
     generate_tree_info_string,
     get_readable_func_string,
     get_readable_signature_string,
     match_signatures,
-    read_call_data_post_dispatch,
-    write_calldata_pre_dispatch
 )
 
-from kernelfunctions.function import (
-    Function,
-    FunctionChainBase,
-    FunctionChainBwdsDiff,
-    FunctionChainInputTransform,
-    FunctionChainOutputTransform,
-    FunctionChainSet,
-    FunctionChainThis,
-    IThis,
-)
-
-from kernelfunctions.shapes import (
-    TConcreteShape,
-)
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES
-
+if TYPE_CHECKING:
+    from kernelfunctions.shapes import TConcreteShape
+    from kernelfunctions.function import FunctionChainBase
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
 
@@ -62,52 +46,6 @@ def pack_arg(arg: Any, unpacked_arg: Any):
     return arg
 
 
-_call_data_cache: dict[str, 'CallData'] = {}
-
-
-def build_call_signature(chain: Optional[FunctionChainBase], *args: Any, **kwargs: Any) -> str:
-    x = []
-    x.append("chain\n")
-    while chain is not None:
-        _get_value_signature(chain, x)
-        x.append("\n")
-        chain = chain.parent
-
-    x.append("args\n")
-    for arg in args:
-        x.append(f"N:")
-        _get_value_signature(arg, x)
-        x.append("\n")
-
-    x.append("kwargs\n")
-    for k, v in kwargs.items():
-        x.append(f"{k}:")
-        _get_value_signature(v, x)
-        x.append("\n")
-
-    text = "".join(x)
-    return text
-    return hashlib.md5(text.encode()).hexdigest()
-
-
-def _get_value_signature(x: Any, out: list[str]):
-    out.append(type(x).__name__)
-
-    if hasattr(x, "slangpy_signature"):
-        out.append(x.slangpy_signature)
-        return
-
-    ext_call = PYTHON_SIGNATURES.get(type(x), None)
-    if ext_call is not None:
-        out.append(ext_call(x))
-        return
-
-    if isinstance(x, dict):
-        for k, v in x.items():
-            out.append(f"{k}:\n")
-            _get_value_signature(v, out)
-
-
 class CallData:
     def __init__(
         self,
@@ -116,13 +54,24 @@ class CallData:
         **kwargs: Any,
     ) -> None:
         super().__init__()
+
+        from kernelfunctions.function import (
+            Function,
+            FunctionChainBwdsDiff,
+            FunctionChainInputTransform,
+            FunctionChainOutputTransform,
+            FunctionChainSet,
+            FunctionChainThis,
+            IThis,
+        )
+
         if not isinstance(chain[0], Function):
             raise ValueError("First entry in chain should be a function")
         self.function = chain[0]
         self.chain = chain
         self.call_mode = CallMode.prim
-        self.input_transforms: dict[str, TConcreteShape] = {}
-        self.outut_transforms: dict[str, TConcreteShape] = {}
+        self.input_transforms: dict[str, 'TConcreteShape'] = {}
+        self.outut_transforms: dict[str, 'TConcreteShape'] = {}
         self.this: Optional[IThis] = None
         sets = {}
         for item in chain:
@@ -253,6 +202,7 @@ Overloads:
         call_data = {}
         session = self.function.module.session
         device = session.device
+        rv_node = None
 
         # If 'this' is specified, inject as first argument
         if self.this is not None:

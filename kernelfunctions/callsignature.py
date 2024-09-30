@@ -1,6 +1,4 @@
-import hashlib
-from io import StringIO
-from typing import Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 from kernelfunctions.core import (
     CodeGen,
@@ -14,49 +12,10 @@ from kernelfunctions.core import (
 from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
 from kernelfunctions.bindings.valuereftype import ValueRefType
 
-from kernelfunctions.backend import Device
-from kernelfunctions.function import Function
-from kernelfunctions.shapes import TConcreteShape
-from kernelfunctions.typeregistry import PYTHON_SIGNATURE_HASH
-
-
-def build_signature_hash(*args: Any, **kwargs: Any) -> str:
-    """
-    Build a sha256 hash that uniquely identifies a function call signature
-    """
-    stream = StringIO()
-    stream.write("args\n")
-    for x in args:
-        stream.write("-\n")
-        _recurse_build_signature_hash(stream, x)
-    stream.write("kwargs\n")
-    for x, y in sorted(kwargs.items()):
-        stream.write(x)
-        stream.write("\n")
-        _recurse_build_signature_hash(stream, y)
-    return hashlib.sha256(stream.getvalue().encode()).hexdigest()
-
-
-def _recurse_build_signature_hash(stream: StringIO, python_value: Any):
-    """
-    Internal recursive function to populate a string IO buffer
-    that'll be used to generate sha256 hash
-    """
-
-    val_type = type(python_value)
-    stream.write(val_type.__name__)
-    stream.write("\n")
-
-    hasher = PYTHON_SIGNATURE_HASH.get(val_type, None)
-    if hasher is not None:
-        hasher(stream, python_value)
-        stream.write("\n")
-
-    if isinstance(python_value, dict):
-        for key, value in sorted(python_value.items()):
-            stream.write(key)
-            stream.write("\n")
-            _recurse_build_signature_hash(stream, value)
+if TYPE_CHECKING:
+    from kernelfunctions.backend import Device
+    from kernelfunctions.shapes import TConcreteShape
+    from kernelfunctions.function import Function
 
 
 def build_signature(*args: Any, **kwargs: Any):
@@ -157,8 +116,8 @@ def bind(
         signature: PythonFunctionCall,
         mapping: dict[PythonVariable, SlangVariable],
         call_mode: CallMode,
-        input_transforms: Optional[dict[str, TConcreteShape]] = None,
-        output_transforms: Optional[dict[str, TConcreteShape]] = None) -> BoundCall:
+        input_transforms: Optional[dict[str, 'TConcreteShape']] = None,
+        output_transforms: Optional[dict[str, 'TConcreteShape']] = None) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
     to the signature nodes and performing other work that kicks in once
@@ -396,7 +355,7 @@ def create_return_value_binding(call_dimensionality: int, signature: BoundCall, 
                     node.slang.primal, node.call_dimensionality, True))
 
 
-def generate_code(call_dimensionality: int, function: Function, signature: BoundCall, mode: CallMode, cg: CodeGen):
+def generate_code(call_dimensionality: int, function: 'Function', signature: BoundCall, mode: CallMode, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
@@ -563,7 +522,7 @@ def generate_code(call_dimensionality: int, function: Function, signature: Bound
     cg.kernel.end_block()
 
 
-def write_calldata_pre_dispatch(device: Device, call_shape: tuple[int], call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def write_calldata_pre_dispatch(device: 'Device', call_shape: tuple[int], call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Write the call data for args + kwargs before dispatching
     """
@@ -577,7 +536,7 @@ def write_calldata_pre_dispatch(device: Device, call_shape: tuple[int], call_sig
         sig_kwargs[key].write_call_data_pre_dispatch(device, call_shape, call_data, value)
 
 
-def read_call_data_post_dispatch(device: Device, call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
+def read_call_data_post_dispatch(device: 'Device', call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
     """
     Read the call data for args + kwargs after dispatching
     """
