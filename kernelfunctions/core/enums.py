@@ -3,7 +3,9 @@
 from enum import Enum
 
 
-from kernelfunctions.backend.slangpynative import AccessType
+# Native enums
+from kernelfunctions.backend import slangpynative
+AccessType = slangpynative.AccessType
 
 
 class CallMode(Enum):

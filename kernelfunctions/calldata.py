@@ -6,8 +6,6 @@ from sgl import uint3
 
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime
 
-from kernelfunctions.backend import slangpynative
-
 from kernelfunctions.callsignature import (
     bind,
     calculate_call_dimensionality,
