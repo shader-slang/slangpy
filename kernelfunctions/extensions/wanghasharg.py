@@ -19,6 +19,10 @@ class WangHashArg:
         self.dims = dims
         self.seed = seed
 
+    @property
+    def slangpy_signature(self) -> str:
+        return f"[{self.dims}]"
+
 
 class WangHashArgType(BaseTypeImpl):
     def __init__(self, dims: int):

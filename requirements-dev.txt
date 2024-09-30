@@ -2,5 +2,6 @@ typing_extensions
 pre-commit
 pytest
 pytest-xdist
+pytest-cov
 numpy
 deepdiff

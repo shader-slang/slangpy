@@ -39,6 +39,10 @@ class Struct:
     def device(self):
         return self.session.device
 
+    @property
+    def slangpy_signature(self) -> str:
+        return self.name
+
     def __getattr__(self, name: str):
 
         if not '<' in self.name and not '<' in name:

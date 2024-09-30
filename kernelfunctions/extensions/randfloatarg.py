@@ -22,6 +22,10 @@ class RandFloatArg:
         self.max = float(max)
         self.dims = int(dim)
 
+    @property
+    def slangpy_signature(self) -> str:
+        return f"[{self.dims}]"
+
 
 class RandFloatArgType(BaseTypeImpl):
     def __init__(self, dim: int):

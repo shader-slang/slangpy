@@ -8,7 +8,7 @@ from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessTy
 
 from kernelfunctions.backend import Device, Buffer, TypeReflection
 from kernelfunctions.shapes import TLooseOrUndefinedShape, TLooseShape
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
 from .valuetype import ValueType
 
@@ -145,8 +145,7 @@ SLANG_STRUCT_TYPES_BY_NAME['RWStructuredBuffer'] = _get_or_create_rw_slang_type_
 
 def _get_or_create_python_type(value: Buffer):
     assert isinstance(value, Buffer)
-    # TODO: Read usage correctly when SGL supports it
-    usage = ResourceUsage.unordered_access
+    usage = value.desc.usage
     if (usage & ResourceUsage.unordered_access.value) != 0:
         return RWStructuredBufferType(None)
     else:
@@ -154,3 +153,5 @@ def _get_or_create_python_type(value: Buffer):
 
 
 PYTHON_TYPES[Buffer] = _get_or_create_python_type
+
+PYTHON_SIGNATURES[Buffer] = lambda x: f"[{x.desc.usage}]"

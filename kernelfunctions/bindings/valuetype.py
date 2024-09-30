@@ -9,7 +9,7 @@ from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVari
 
 from kernelfunctions.backend import TypeReflection, math, Device
 from kernelfunctions.shapes import TLooseOrUndefinedShape, TLooseShape
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
 from kernelfunctions.utils import parse_generic_signature
 
 """
@@ -323,9 +323,15 @@ PYTHON_TYPES[type(None)] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.none]
 PYTHON_TYPES[bool] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.bool]
 PYTHON_TYPES[float] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
 PYTHON_TYPES[int] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.int32]
+PYTHON_SIGNATURES[type(None)] = None
+PYTHON_SIGNATURES[bool] = None
+PYTHON_SIGNATURES[float] = None
+PYTHON_SIGNATURES[int] = None
+
 
 # Python quaternion type
 PYTHON_TYPES[math.quatf] = SLANG_VECTOR_TYPES[TypeReflection.ScalarType.float32][4]
+PYTHON_SIGNATURES[math.quatf] = None
 
 # Python versions of vector and matrix types
 for pair in zip(["int", "float", "bool", "uint", "float16_t"], [TypeReflection.ScalarType.int32, TypeReflection.ScalarType.float32, TypeReflection.ScalarType.bool, TypeReflection.ScalarType.uint32, TypeReflection.ScalarType.float16]):
@@ -338,6 +344,7 @@ for pair in zip(["int", "float", "bool", "uint", "float16_t"], [TypeReflection.S
             t = SLANG_VECTOR_TYPES[slang_scalar_type][dim]
             t.python_type = vec_type  # type: ignore
             PYTHON_TYPES[vec_type] = t
+            PYTHON_SIGNATURES[vec_type] = None
 
     for row in range(2, 5):
         for col in range(2, 5):
@@ -346,6 +353,7 @@ for pair in zip(["int", "float", "bool", "uint", "float16_t"], [TypeReflection.S
                 t = SLANG_MATRIX_TYPES[slang_scalar_type][row][col]
                 t.python_type = mat_type  # type: ignore
                 PYTHON_TYPES[mat_type] = t
+                PYTHON_SIGNATURES[mat_type] = None
 
 # Map the 1D vectors to scalars
 PYTHON_TYPES[math.int1] = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.int32]
