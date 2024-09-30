@@ -2,6 +2,8 @@ import hashlib
 import os
 from typing import TYPE_CHECKING, Any, Optional
 
+from sgl import uint3
+
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime
 
 from kernelfunctions.backend import slangpynative
@@ -9,12 +11,15 @@ from kernelfunctions.backend import slangpynative
 from kernelfunctions.callsignature import (
     bind,
     calculate_call_dimensionality,
+    calculate_call_shape,
     create_return_value_binding,
     finalize_transforms, generate_code,
     generate_tree_info_string,
     get_readable_func_string,
     get_readable_signature_string,
     match_signatures,
+    read_call_data_post_dispatch,
+    write_calldata_pre_dispatch,
 )
 
 if TYPE_CHECKING:
@@ -222,11 +227,10 @@ Overloads:
             kwargs["_result"] = rv_node._create_output(
                 device, self.call_shape)
             unpacked_kwargs["_result"] = kwargs["_result"]
+            rv_node.populate_call_shape(list(self.call_shape), kwargs["_result"])
 
         write_calldata_pre_dispatch(device, self.call_shape, self.runtime,
                                     call_data, *unpacked_args, **unpacked_kwargs)
-
-        # return
 
         total_threads = 1
         strides = []

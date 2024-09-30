@@ -29,7 +29,6 @@ class FunctionChainBase:
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
         calldata = self._build_call_data(*args, **kwargs)
-        return None
         return calldata.call(*args, **kwargs)
 
     @property

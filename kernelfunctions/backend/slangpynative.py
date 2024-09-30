@@ -1,4 +1,8 @@
 
+"""
+This file contains python-only emulation for the current native functionality of slangpy embedded in SGL
+"""
+
 from enum import Enum
 from typing import Any
 

@@ -21,6 +21,7 @@ def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Mo
     return Module(device.load_module(name))
 
 
+@pytest.mark.skip(reason="Perf test only")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_signature_gen(device_type: DeviceType):
     func: Function = load_module(device_type).get_particle_quad  # type: ignore
@@ -37,6 +38,7 @@ def test_signature_gen(device_type: DeviceType):
     pass
 
 
+@pytest.mark.skip(reason="Perf test only")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_kernel_reuse(device_type: DeviceType):
     add_vectors: Function = load_module(device_type).add_vectors  # type: ignore
