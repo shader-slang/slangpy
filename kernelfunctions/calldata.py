@@ -2,7 +2,7 @@ import hashlib
 import os
 from typing import TYPE_CHECKING, Any, Optional
 
-from sgl import uint3
+from sgl import CommandBuffer, uint3
 
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime
 
@@ -258,3 +258,40 @@ Overloads:
             return rv_node.read_output(device, kwargs["_result"])
         else:
             return None
+
+    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+
+        call_data = {}
+        session = self.function.module.session
+        device = session.device
+
+        # If 'this' is specified, inject as first argument
+        if self.this is not None:
+            args = (self.this,) + args
+
+        # Build 'unpacked' args (that handle IThis)
+        unpacked_args = tuple([unpack_arg(x) for x in args])
+        unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
+
+        # Calculate call shape
+        self.call_shape = calculate_call_shape(
+            self.call_dimensionality, self.runtime, *unpacked_args, **unpacked_kwargs)
+
+        write_calldata_pre_dispatch(device, self.call_shape, self.runtime,
+                                    call_data, *unpacked_args, **unpacked_kwargs)
+
+        total_threads = 1
+        strides = []
+        for dim in reversed(self.call_shape):
+            strides.append(total_threads)
+            total_threads *= dim
+        strides.reverse()
+
+        if len(strides) > 0:
+            call_data["_call_stride"] = strides
+            call_data["_call_dim"] = list(self.call_shape)
+        call_data["_thread_count"] = uint3(total_threads, 1, 1)
+
+        # Dispatch the kernel.
+        self.kernel.dispatch(uint3(total_threads, 1, 1), {
+                             "call_data": call_data}, command_buffer)

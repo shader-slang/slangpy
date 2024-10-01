@@ -70,3 +70,8 @@ float2[4] get_particle_quad(Particle p) {
 float3 add_vectors(float3 a, float3 b) {
     return a + b;
 }
+
+[Differentiable]
+float3 polynomial(float3 a, float3 b) {
+    return a * a + b + 1;
+}

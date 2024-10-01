@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 
 from kernelfunctions.core import SlangFunction
 
-from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, slangpynative
+from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, slangpynative, CommandBuffer
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
@@ -40,8 +40,12 @@ class FunctionChainBase:
         calldata = self._build_call_data(*args, **kwargs)
         return calldata.call(*args, **kwargs)
 
+    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+        calldata = self._build_call_data(*args, **kwargs)
+        return calldata.append_to(command_buffer, *args, **kwargs)
+
     @property
-    def bwds_diff(self) -> Any:
+    def bwds_diff(self):
         return FunctionChainBwdsDiff(self)
 
     def set(self, *args: Any, **kwargs: Any):

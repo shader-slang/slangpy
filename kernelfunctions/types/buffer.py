@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from sgl import TypeReflection
+from sgl import MemoryType, TypeReflection
 
 from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, SlangModule
 
@@ -22,7 +22,8 @@ class NDBuffer:
         shape: Optional[TConcreteShape] = None,
         usage: ResourceUsage = ResourceUsage.shader_resource
         | ResourceUsage.unordered_access,
-        slang_module: Optional[SlangModule] = None,
+        memory_type: MemoryType = MemoryType.device_local,
+        slang_module: Optional[SlangModule] = None
     ):
         super().__init__()
 
@@ -77,6 +78,7 @@ class NDBuffer:
             element_count=self.element_count,
             struct_size=self.element_size,
             usage=self.usage,
+            memory_type=memory_type
         )
 
     @property
@@ -103,12 +105,14 @@ class NDDifferentiableBuffer(NDBuffer):
         shape: Optional[TConcreteShape] = None,
         usage: ResourceUsage = ResourceUsage.shader_resource
         | ResourceUsage.unordered_access,
+        memory_type: MemoryType = MemoryType.device_local,
         requires_grad: bool = False,
         grad_type: Any = None,
         grad_usage: Optional[ResourceUsage] = None,
+        grad_memory_type: Optional[MemoryType] = None,
         slang_module: Optional[SlangModule] = None,
     ):
-        super().__init__(device, element_type, element_count, shape, usage, slang_module)
+        super().__init__(device, element_type, element_count, shape, usage, memory_type, slang_module)
 
         if grad_type is None:
             if isinstance(element_type, BaseType):
@@ -130,6 +134,11 @@ class NDDifferentiableBuffer(NDBuffer):
 
         self.requires_grad = requires_grad
 
+        if grad_usage is not None:
+            usage = grad_usage
+        if grad_memory_type is not None:
+            memory_type = grad_memory_type
+
         if self.requires_grad:
             self.grad = NDDifferentiableBuffer(
                 device=device,
@@ -137,9 +146,11 @@ class NDDifferentiableBuffer(NDBuffer):
                 element_count=element_count,
                 shape=shape,
                 usage=usage,
+                memory_type=memory_type,
                 requires_grad=False,
                 grad_type=None,
                 grad_usage=None,
+                grad_memory_type=None,
                 slang_module=slang_module)
             self._cached_signature += self.grad._cached_signature
         else:
