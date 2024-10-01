@@ -19,6 +19,10 @@ class ThreadIdArg:
         super().__init__()
         self.dims = dims
 
+    @property
+    def slangpy_signature(self) -> str:
+        return f"[{self.dims}]"
+
 
 class ThreadIdArgType(BaseTypeImpl):
     def __init__(self, dims: int):

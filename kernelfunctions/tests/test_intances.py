@@ -68,9 +68,9 @@ def test_this_interface(device_type: DeviceType):
     assert data[3] == 4.0
 
     # Check the this interface has been called
-    # Get should have been called twice - once during setup, and once during call
+    # Get should have been called 3 times - once for hash, once during setup, and once during call
     # Update should only have been called once during the call
-    assert this.get_called == 2
+    assert this.get_called == 3
     assert this.update_called == 1
 
 

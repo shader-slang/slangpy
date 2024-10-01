@@ -4,13 +4,22 @@ from kernelfunctions.core import SlangFunction
 
 from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, slangpynative
 from kernelfunctions.shapes import TConcreteShape
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
     from kernelfunctions.calldata import CallData
     from kernelfunctions.struct import Struct
 
-ENABLE_CALLDATA_CACHE = False
+ENABLE_CALLDATA_CACHE = True
 CALL_DATA_CACHE: dict[str, 'CallData'] = {}
+
+
+def _cache_value_to_id(val: Any) -> str:
+    cb = PYTHON_SIGNATURES[type(val)]
+    if cb is None:
+        return ""
+    else:
+        return cb(val)
 
 
 class IThis(Protocol):
@@ -54,7 +63,16 @@ class FunctionChainBase:
         return self.call(*args, **kwargs)
 
     def _build_call_data(self, *args: Any, **kwargs: Any):
-        sig = slangpynative.hash_signature(self, *args, **kwargs)
+        this = None
+        current = self
+        while current is not None:
+            if isinstance(current, FunctionChainThis):
+                this = current.this
+                break
+            current = current.parent
+
+        sig = slangpynative.hash_signature(
+            _cache_value_to_id, self, this, *args, **kwargs)
         if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
             return CALL_DATA_CACHE[sig]
 

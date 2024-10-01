@@ -13,6 +13,10 @@ class ValueRef:
         super().__init__()
         self.value = init_value
 
+    @property
+    def slangpy_signature(self) -> str:
+        return f"[{type(self.value).__name__}]"
+
 
 def intRef(init_value: int = 0) -> ValueRef:
     return ValueRef(int(init_value))

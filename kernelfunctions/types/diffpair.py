@@ -20,6 +20,10 @@ class DiffPair:
         else:
             self.grad = value
 
+    @property
+    def slangpy_signature(self) -> str:
+        return f"[{type(self.primal).__name__},{type(self.grad).__name__},{self.needs_grad}]"
+
 
 def diffPair(
     p: Optional[Any] = None, d: Optional[Any] = None, needs_grad: bool = True

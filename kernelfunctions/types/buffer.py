@@ -141,8 +141,10 @@ class NDDifferentiableBuffer(NDBuffer):
                 grad_type=None,
                 grad_usage=None,
                 slang_module=slang_module)
+            self._cached_signature += self.grad._cached_signature
         else:
             self.grad = None
+            self._cached_signature += "[]"
 
         self.grad_type = get_or_create_type(grad_type)
         self.grad_usage = grad_usage if grad_usage is not None else self.usage

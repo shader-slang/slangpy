@@ -3,7 +3,7 @@ from typing import Any
 from kernelfunctions.core import BaseType
 
 from kernelfunctions.backend import TypeReflection
-from kernelfunctions.typeregistry import PYTHON_TYPES
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 import kernelfunctions.typeregistry as tr
 
 from .valuetype import ValueType
