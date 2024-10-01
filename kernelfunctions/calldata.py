@@ -65,6 +65,8 @@ class CallData:
             FunctionChainOutputTransform,
             FunctionChainSet,
             FunctionChainThis,
+            FunctionChainHook,
+            TDispatchHook,
             IThis,
         )
 
@@ -76,6 +78,9 @@ class CallData:
         self.input_transforms: dict[str, 'TConcreteShape'] = {}
         self.outut_transforms: dict[str, 'TConcreteShape'] = {}
         self.this: Optional[IThis] = None
+        self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
+        self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
+
         sets = {}
         for item in chain:
             if isinstance(item, FunctionChainSet):
@@ -95,6 +100,15 @@ class CallData:
                 self.this = item.this
             if isinstance(item, FunctionChainBwdsDiff):
                 self.call_mode = CallMode.bwds
+            if isinstance(item, FunctionChainHook):
+                if item.before_dispatch is not None:
+                    if self.before_dispatch_hooks is None:
+                        self.before_dispatch_hooks = []
+                    self.before_dispatch_hooks.append(item.before_dispatch)
+                if item.after_dispatch is not None:
+                    if self.after_dispatch_hooks is None:
+                        self.after_dispatch_hooks = []
+                    self.after_dispatch_hooks.append(item.after_dispatch)
 
         self.sets = sets
 
@@ -242,8 +256,19 @@ Overloads:
             call_data["_call_dim"] = list(self.call_shape)
         call_data["_thread_count"] = uint3(total_threads, 1, 1)
 
+        vars = self.sets.copy()
+        vars['call_data'] = call_data
+
+        if self.before_dispatch_hooks is not None:
+            for hook in self.before_dispatch_hooks:
+                hook(vars)
+
         # Dispatch the kernel.
-        self.kernel.dispatch(uint3(total_threads, 1, 1), {"call_data": call_data})
+        self.kernel.dispatch(uint3(total_threads, 1, 1), vars)
+
+        if self.after_dispatch_hooks is not None:
+            for hook in self.after_dispatch_hooks:
+                hook(vars)
 
         read_call_data_post_dispatch(
             device, self.runtime, call_data, *unpacked_args, **unpacked_kwargs)
@@ -292,6 +317,16 @@ Overloads:
             call_data["_call_dim"] = list(self.call_shape)
         call_data["_thread_count"] = uint3(total_threads, 1, 1)
 
+        vars = self.sets.copy()
+        vars['call_data'] = call_data
+
+        if self.before_dispatch_hooks is not None:
+            for hook in self.before_dispatch_hooks:
+                hook(vars)
+
         # Dispatch the kernel.
-        self.kernel.dispatch(uint3(total_threads, 1, 1), {
-                             "call_data": call_data}, command_buffer)
+        self.kernel.dispatch(uint3(total_threads, 1, 1), vars)
+
+        if self.after_dispatch_hooks is not None:
+            for hook in self.after_dispatch_hooks:
+                hook(vars)

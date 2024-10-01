@@ -1,11 +1,8 @@
 import pytest
-from kernelfunctions.backend import DeviceType, float2, float3
-from kernelfunctions.function import Function
+from kernelfunctions.backend import DeviceType, float3
 from kernelfunctions.module import Module
-from kernelfunctions.struct import Struct
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
-from kernelfunctions.utils import find_type_layout_for_buffer
+from kernelfunctions.types.buffer import NDDifferentiableBuffer
 import numpy as np
 
 
