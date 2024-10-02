@@ -4,9 +4,9 @@ from typing import Any, Optional
 
 from sgl import ResourceUsage
 
-from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime
+from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext
 
-from kernelfunctions.backend import Device, Buffer, TypeReflection
+from kernelfunctions.backend import Buffer, TypeReflection
 from kernelfunctions.shapes import TLooseOrUndefinedShape, TLooseShape
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
@@ -80,7 +80,7 @@ class StructuredBufferType(ValueType):
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
         access = binding.access
         if access[0] != AccessType.none:
             return {

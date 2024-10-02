@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from kernelfunctions.core import (
     CodeGen,
@@ -6,14 +6,13 @@ from kernelfunctions.core import (
     BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
-    BoundCallRuntime, BoundVariableRuntime,
+    BoundCallRuntime, BoundVariableRuntime
 )
 
 from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
 from kernelfunctions.bindings.valuereftype import ValueRefType
 
 if TYPE_CHECKING:
-    from kernelfunctions.backend import Device
     from kernelfunctions.shapes import TConcreteShape
     from kernelfunctions.function import Function
 
@@ -319,25 +318,6 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
             signature, [], e.message, e.variable))
 
 
-def calculate_call_shape(call_dimensionality: int, signature: BoundCallRuntime, *args: Any, **kwargs: Any):
-
-    try:
-        call_shape = [1] * call_dimensionality
-        sig_args = signature.args
-        sig_kwargs = signature.kwargs
-
-        for idx, value in enumerate(args):
-            sig_args[idx].populate_call_shape(call_shape, value)
-
-        for key, value in kwargs.items():
-            sig_kwargs[key].populate_call_shape(call_shape, value)
-    except BoundVariableException as e:
-        raise ValueError(generate_call_shape_error_string(
-            signature, [], e.message, e.variable))
-
-    return cast(tuple[int], tuple(call_shape))
-
-
 def create_return_value_binding(call_dimensionality: int, signature: BoundCall, mode: CallMode):
     """
     Create the return value for the call
@@ -520,33 +500,6 @@ def generate_code(call_dimensionality: int, function: 'Function', signature: Bou
                 store_d(x)
 
     cg.kernel.end_block()
-
-
-def write_calldata_pre_dispatch(device: 'Device', call_shape: tuple[int], call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
-    """
-    Write the call data for args + kwargs before dispatching
-    """
-    sig_args = call_signature.args
-    sig_kwargs = call_signature.kwargs
-
-    for idx, value in enumerate(args):
-        sig_args[idx].write_call_data_pre_dispatch(device, call_shape, call_data, value)
-
-    for key, value in kwargs.items():
-        sig_kwargs[key].write_call_data_pre_dispatch(device, call_shape, call_data, value)
-
-
-def read_call_data_post_dispatch(device: 'Device', call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
-    """
-    Read the call data for args + kwargs after dispatching
-    """
-    sig_args = call_signature.args
-    sig_kwargs = call_signature.kwargs
-
-    for idx, value in enumerate(args):
-        sig_args[idx].read_call_data_post_dispatch(device, call_data, value)
-    for key, value in kwargs.items():
-        sig_kwargs[key].read_call_data_post_dispatch(device, call_data, value)
 
 
 def get_readable_signature_string(call_signature: PythonFunctionCall):

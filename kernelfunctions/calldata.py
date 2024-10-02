@@ -4,20 +4,17 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from sgl import CommandBuffer, uint3
 
-from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime
+from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime, CallContext
 
 from kernelfunctions.callsignature import (
     bind,
     calculate_call_dimensionality,
-    calculate_call_shape,
     create_return_value_binding,
     finalize_transforms, generate_code,
     generate_tree_info_string,
     get_readable_func_string,
     get_readable_signature_string,
-    match_signatures,
-    read_call_data_post_dispatch,
-    write_calldata_pre_dispatch,
+    match_signatures
 )
 
 if TYPE_CHECKING:
@@ -230,19 +227,21 @@ Overloads:
         unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
 
         # Calculate call shape
-        self.call_shape = calculate_call_shape(
-            self.call_dimensionality, self.runtime, *unpacked_args, **unpacked_kwargs)
+        self.call_shape = self.runtime.calculate_call_shape(
+            self.call_dimensionality, *unpacked_args, **unpacked_kwargs)
+
+        # Setup context
+        context = CallContext(device, self.call_shape)
 
         # Allocate a return value if not provided in kw args
         rv_node = self.runtime.kwargs.get("_result", None)
         if self.call_mode == CallMode.prim and rv_node is not None and kwargs.get("_result", None) is None:
-            kwargs["_result"] = rv_node._create_output(
-                device, self.call_shape)
+            kwargs["_result"] = rv_node.python_type.create_output(context)
             unpacked_kwargs["_result"] = kwargs["_result"]
             rv_node.populate_call_shape(list(self.call_shape), kwargs["_result"])
 
-        write_calldata_pre_dispatch(device, self.call_shape, self.runtime,
-                                    call_data, *unpacked_args, **unpacked_kwargs)
+        self.runtime.write_calldata_pre_dispatch(context,
+                                                 call_data, *unpacked_args, **unpacked_kwargs)
 
         total_threads = 1
         strides = []
@@ -270,8 +269,8 @@ Overloads:
             for hook in self.after_dispatch_hooks:
                 hook(vars)
 
-        read_call_data_post_dispatch(
-            device, self.runtime, call_data, *unpacked_args, **unpacked_kwargs)
+        self.runtime.read_call_data_post_dispatch(
+            context, call_data, *unpacked_args, **unpacked_kwargs)
 
         # Push updated 'this' values back to original objects
         for (i, arg) in enumerate(args):
@@ -280,7 +279,7 @@ Overloads:
             pack_arg(arg, unpacked_kwargs[k])
 
         if self.call_mode == CallMode.prim and rv_node is not None:
-            return rv_node.read_output(device, kwargs["_result"])
+            return rv_node.read_output(context, kwargs["_result"])
         else:
             return None
 
@@ -299,11 +298,14 @@ Overloads:
         unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
 
         # Calculate call shape
-        self.call_shape = calculate_call_shape(
-            self.call_dimensionality, self.runtime, *unpacked_args, **unpacked_kwargs)
+        self.call_shape = self.runtime.calculate_call_shape(
+            self.call_dimensionality, *unpacked_args, **unpacked_kwargs)
 
-        write_calldata_pre_dispatch(device, self.call_shape, self.runtime,
-                                    call_data, *unpacked_args, **unpacked_kwargs)
+        # Setup context
+        context = CallContext(device, self.call_shape)
+
+        self.runtime.write_calldata_pre_dispatch(context,
+                                                 call_data, *unpacked_args, **unpacked_kwargs)
 
         total_threads = 1
         strides = []

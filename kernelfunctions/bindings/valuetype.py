@@ -5,9 +5,9 @@ from typing import Any, Sequence
 import numpy.typing as npt
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext
 
-from kernelfunctions.backend import TypeReflection, math, Device
+from kernelfunctions.backend import TypeReflection, math
 from kernelfunctions.shapes import TLooseOrUndefinedShape, TLooseShape
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
 from kernelfunctions.utils import parse_generic_signature
@@ -48,7 +48,7 @@ class ValueType(BaseTypeImpl):
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
         access = binding.access
         if access[0] in [AccessType.read, AccessType.readwrite]:
             return {
@@ -56,11 +56,11 @@ class ValueType(BaseTypeImpl):
             }
 
     # No need to create any buffers for output data, as we're read only!
-    def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
+    def create_output(self, context: CallContext, call_shape: Sequence[int]) -> Any:
         pass
 
     # Return the input as output, as it was by definition not changed
-    def read_output(self, device: Device, data: Any) -> Any:
+    def read_output(self, context: CallContext, data: Any) -> Any:
         return data
 
 

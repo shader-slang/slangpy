@@ -127,7 +127,7 @@ class FakeBufferType(BaseTypeImpl):
     def get_container_shape(self, value: FakeBuffer) -> TLooseShape:
         return value.shape
 
-    def get_container_shape(self, value: Any = None) -> TLooseShape:
+    def get_shape(self, value: Any = None) -> TLooseShape:
         return value.shape
 
     @property

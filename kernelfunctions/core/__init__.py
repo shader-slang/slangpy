@@ -15,3 +15,5 @@ from .boundvariable import BoundVariable, BoundCall, BoundVariableException
 from .boundvariableruntime import BoundVariableRuntime, BoundCallRuntime
 
 from .codegen import CodeGen, CodeGenBlock
+
+from .native import *

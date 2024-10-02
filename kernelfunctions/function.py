@@ -1,8 +1,8 @@
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 
-from kernelfunctions.core import SlangFunction
+from kernelfunctions.core import SlangFunction, hash_signature
 
-from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, slangpynative, CommandBuffer
+from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
 from kernelfunctions.shapes import TConcreteShape
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
@@ -81,7 +81,7 @@ class FunctionChainBase:
                 break
             current = current.parent
 
-        sig = slangpynative.hash_signature(
+        sig = hash_signature(
             _cache_value_to_id, self, this, *args, **kwargs)
         if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
             return CALL_DATA_CACHE[sig]

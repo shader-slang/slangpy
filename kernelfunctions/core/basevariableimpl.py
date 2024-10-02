@@ -6,10 +6,10 @@ from .basevariable import BaseVariable
 from .enums import PrimType
 
 if TYPE_CHECKING:
-    from .basetype import BaseType
+    from .native import NativeType
 
 
-def _get_name(el_type: Optional['BaseType'], value: Any, default: Any = None):
+def _get_name(el_type: Optional['NativeType'], value: Any, default: Any = None):
     return el_type.name if el_type is not None else default
 
 
@@ -70,7 +70,7 @@ class BaseVariableImpl(BaseVariable):
             else:
                 return f"{self.primal.name} ({self.name})"
 
-    def _find_bottom_level_element(self, value: Any = None) -> 'BaseType':
+    def _find_bottom_level_element(self, value: Any = None) -> 'NativeType':
         t = self.primal
         while True:
             c = t.element_type
