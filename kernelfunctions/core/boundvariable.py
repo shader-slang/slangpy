@@ -3,11 +3,11 @@ from typing import Any, Optional, cast
 
 from kernelfunctions.shapes import TConcreteShape
 
-from .enums import PrimType, IOType, CallMode
+from .enums import PrimType, IOType
 from .pythonvariable import PythonVariable
 from .slangvariable import SlangVariable
 from .codegen import CodeGen
-from .native import AccessType
+from .native import AccessType, CallMode
 
 
 class BoundVariableException(Exception):

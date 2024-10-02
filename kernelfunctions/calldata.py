@@ -2,9 +2,9 @@ import hashlib
 import os
 from typing import TYPE_CHECKING, Any, Optional
 
-from sgl import CommandBuffer, uint3
+from sgl import CommandBuffer
 
-from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime, CallContext, NativeBoundCallRuntime
+from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime, NativeCallData
 
 from kernelfunctions.callsignature import (
     bind,
@@ -46,7 +46,7 @@ def pack_arg(arg: Any, unpacked_arg: Any):
     return arg
 
 
-class CallData:
+class CallData(NativeCallData):
     def __init__(
         self,
         chain: list["FunctionChainBase"],
@@ -198,120 +198,13 @@ Overloads:
         ep = module.entry_point("main")
         program = session.link_program([module, self.function.module], [ep])
         self.kernel = device.create_compute_kernel(program)
+        self.device = device
 
         self.debug_only_bindings = bindings
         self.runtime = BoundCallRuntime(bindings)
 
     def call(self, *args: Any, **kwargs: Any):
-
-        call_data = {}
-        session = self.function.module.session
-        device = session.device
-        rv_node = None
-
-        # Build 'unpacked' args (that handle IThis)
-        unpacked_args = tuple([unpack_arg(x) for x in args])
-        unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
-
-        # Calculate call shape
-        self.call_shape = self.runtime.calculate_call_shape(
-            self.call_dimensionality, *unpacked_args, **unpacked_kwargs)
-
-        # Setup context
-        context = CallContext(device, self.call_shape)
-
-        # Allocate a return value if not provided in kw args
-        rv_node = self.runtime.kwargs.get("_result", None)
-        if self.call_mode == CallMode.prim and rv_node is not None and kwargs.get("_result", None) is None:
-            kwargs["_result"] = rv_node.python_type.create_output(context)
-            unpacked_kwargs["_result"] = kwargs["_result"]
-            rv_node.populate_call_shape(list(self.call_shape), kwargs["_result"])
-
-        self.runtime.write_calldata_pre_dispatch(context,
-                                                 call_data, *unpacked_args, **unpacked_kwargs)
-
-        total_threads = 1
-        strides = []
-        for dim in reversed(self.call_shape):
-            strides.append(total_threads)
-            total_threads *= dim
-        strides.reverse()
-
-        if len(strides) > 0:
-            call_data["_call_stride"] = strides
-            call_data["_call_dim"] = list(self.call_shape)
-        call_data["_thread_count"] = uint3(total_threads, 1, 1)
-
-        vars = self.sets.copy()
-        vars['call_data'] = call_data
-
-        if self.before_dispatch_hooks is not None:
-            for hook in self.before_dispatch_hooks:
-                hook(vars)
-
-        # Dispatch the kernel.
-        self.kernel.dispatch(uint3(total_threads, 1, 1), vars)
-
-        if self.after_dispatch_hooks is not None:
-            for hook in self.after_dispatch_hooks:
-                hook(vars)
-
-        self.runtime.read_call_data_post_dispatch(
-            context, call_data, *unpacked_args, **unpacked_kwargs)
-
-        # Push updated 'this' values back to original objects
-        for (i, arg) in enumerate(args):
-            pack_arg(arg, unpacked_args[i])
-        for (k, arg) in kwargs.items():
-            pack_arg(arg, unpacked_kwargs[k])
-
-        if self.call_mode == CallMode.prim and rv_node is not None:
-            return rv_node.read_output(context, kwargs["_result"])
-        else:
-            return None
+        return self.exec(None, *args, **kwargs)
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
-
-        call_data = {}
-        session = self.function.module.session
-        device = session.device
-
-        # Build 'unpacked' args (that handle IThis)
-        unpacked_args = tuple([unpack_arg(x) for x in args])
-        unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
-
-        # Calculate call shape
-        self.call_shape = self.runtime.calculate_call_shape(
-            self.call_dimensionality, *unpacked_args, **unpacked_kwargs)
-
-        # Setup context
-        context = CallContext(device, self.call_shape)
-
-        self.runtime.write_calldata_pre_dispatch(context,
-                                                 call_data, *unpacked_args, **unpacked_kwargs)
-
-        total_threads = 1
-        strides = []
-        for dim in reversed(self.call_shape):
-            strides.append(total_threads)
-            total_threads *= dim
-        strides.reverse()
-
-        if len(strides) > 0:
-            call_data["_call_stride"] = strides
-            call_data["_call_dim"] = list(self.call_shape)
-        call_data["_thread_count"] = uint3(total_threads, 1, 1)
-
-        vars = self.sets.copy()
-        vars['call_data'] = call_data
-
-        if self.before_dispatch_hooks is not None:
-            for hook in self.before_dispatch_hooks:
-                hook(vars)
-
-        # Dispatch the kernel.
-        self.kernel.dispatch(uint3(total_threads, 1, 1), vars)
-
-        if self.after_dispatch_hooks is not None:
-            for hook in self.after_dispatch_hooks:
-                hook(vars)
+        return self.exec(command_buffer, *args, **kwargs)

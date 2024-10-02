@@ -1,13 +1,18 @@
 
 """
-This file contains python-only emulation for the current native functionality of slangpy embedded in SGL
+This file contains python-only emulation for the current native functionality of slangpy embedded in SGL.
+To serve accurately, it should only import typing and the necessary backend types.
 """
 
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
+from sgl import CommandBuffer
+
+from . import uint3
+
 if TYPE_CHECKING:
-    from . import Device
+    from . import Device, ComputeKernel
 
 
 class AccessType(Enum):
@@ -17,8 +22,15 @@ class AccessType(Enum):
     readwrite = 3
 
 
+class CallMode(Enum):
+    prim = 0
+    bwds = 1
+    fwds = 2
+
+
 TLooseShape = tuple[Optional[int], ...]
 TConcreteShape = tuple[int, ...]
+TDispatchHook = Callable[[dict[str, Any]], None]
 
 
 class NativeBoundVariableException(Exception):
@@ -247,6 +259,87 @@ class NativeCallData:
 
     def __init__(self):
         super().__init__()
+        self.device: Device = None  # type: ignore
+        self.kernel: ComputeKernel = None  # type: ignore
+        self.call_dimensionality = 0
+        self.runtime: NativeBoundCallRuntime = None  # type: ignore
+        self.sets: dict[str, Any] = {}
+        self.call_mode = CallMode.prim
+        self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
+        self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
+
+    def exec(self, command_buffer: Optional[CommandBuffer],  *args: Any, **kwargs: Any):
+
+        call_data = {}
+        device = self.device
+        rv_node = None
+
+        # Build 'unpacked' args (that handle IThis)
+        unpacked_args = tuple([unpack_arg(x) for x in args])
+        unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
+
+        # Calculate call shape
+        self.call_shape = self.runtime.calculate_call_shape(
+            self.call_dimensionality, *unpacked_args, **unpacked_kwargs)
+
+        # Setup context
+        context = CallContext(device, self.call_shape)
+
+        # Allocate a return value if not provided in kw args
+        # This is redundant if command buffer supplied, as we don't return anything
+        if command_buffer is None:
+            rv_node = self.runtime.kwargs.get("_result", None)
+            if self.call_mode == CallMode.prim and rv_node is not None and kwargs.get("_result", None) is None:
+                kwargs["_result"] = rv_node.python_type.create_output(context)
+                unpacked_kwargs["_result"] = kwargs["_result"]
+                rv_node.populate_call_shape(list(self.call_shape), kwargs["_result"])
+
+        self.runtime.write_calldata_pre_dispatch(context,
+                                                 call_data, *unpacked_args, **unpacked_kwargs)
+
+        total_threads = 1
+        strides = []
+        for dim in reversed(self.call_shape):
+            strides.append(total_threads)
+            total_threads *= dim
+        strides.reverse()
+
+        if len(strides) > 0:
+            call_data["_call_stride"] = strides
+            call_data["_call_dim"] = list(self.call_shape)
+        call_data["_thread_count"] = uint3(total_threads, 1, 1)
+
+        vars = self.sets.copy()
+        vars['call_data'] = call_data
+
+        if self.before_dispatch_hooks is not None:
+            for hook in self.before_dispatch_hooks:
+                hook(vars)
+
+        # Dispatch the kernel.
+        self.kernel.dispatch(uint3(total_threads, 1, 1), vars, command_buffer)
+
+        # If just adding to command buffer, post dispatch is redundant
+        if command_buffer is not None:
+            return
+
+        if self.after_dispatch_hooks is not None:
+            for hook in self.after_dispatch_hooks:
+                hook(vars)
+
+        self.runtime.read_call_data_post_dispatch(
+            context, call_data, *unpacked_args, **unpacked_kwargs)
+
+        # Push updated 'this' values back to original objects
+        for (i, arg) in enumerate(args):
+            pack_arg(arg, unpacked_args[i])
+        for (k, arg) in kwargs.items():
+            pack_arg(arg, unpacked_kwargs[k])
+
+        if self.call_mode == CallMode.prim and rv_node is not None:
+            return rv_node.read_output(context, kwargs["_result"])
+        else:
+            return None
 
 
 class CallContext:
@@ -258,6 +351,28 @@ class CallContext:
         super().__init__()
         self.device = device
         self.call_shape = call_shape
+
+
+def unpack_arg(arg: Any) -> Any:
+    if hasattr(arg, "get_this"):
+        arg = arg.get_this()
+    if isinstance(arg, dict):
+        arg = {k: unpack_arg(v) for k, v in arg.items()}
+    if isinstance(arg, list):
+        arg = [unpack_arg(v) for v in arg]
+    return arg
+
+
+def pack_arg(arg: Any, unpacked_arg: Any):
+    if hasattr(arg, "update_this"):
+        arg.update_this(unpacked_arg)
+    if isinstance(arg, dict):
+        for k, v in arg.items():
+            pack_arg(v, unpacked_arg[k])
+    if isinstance(arg, list):
+        for i, v in enumerate(arg):
+            pack_arg(v, unpacked_arg[i])
+    return arg
 
 
 def hash_signature(value_to_id: Callable[[Any], str], *args: Any, **kwargs: Any) -> str:
