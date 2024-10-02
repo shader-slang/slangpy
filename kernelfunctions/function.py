@@ -44,9 +44,8 @@ class FunctionChainBase:
             return calldata.call(*args, **kwargs)
         except NativeBoundVariableException as e:
             from kernelfunctions.callsignature import generate_call_shape_error_string
-            src = e.source
             raise ValueError(generate_call_shape_error_string(
-                calldata.runtime, [], e.message, e.source))
+                calldata.runtime, [], e.message, e.source))  # type: ignore
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
         try:
@@ -55,7 +54,7 @@ class FunctionChainBase:
         except NativeBoundVariableException as e:
             from kernelfunctions.callsignature import generate_call_shape_error_string
             raise ValueError(generate_call_shape_error_string(
-                calldata.runtime, [], e.message, e.source))
+                calldata.runtime, [], e.message, e.source))  # type: ignore
 
     @property
     def bwds_diff(self):
