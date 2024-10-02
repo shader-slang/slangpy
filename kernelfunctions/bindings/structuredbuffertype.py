@@ -94,6 +94,7 @@ class StructuredBufferType(ValueType):
                 next_type = bound_type.element_type
                 if next_type == bound_type:
                     raise ValueError("Cannot resolve shape")
+                assert isinstance(next_type, BaseType)
                 bound_type = next_type
             else:
                 break

@@ -242,8 +242,10 @@ def generate_tree_info_table(call: TBoundOrRuntimeCall, highlight_variable: Opti
     lines: list[list[str]] = []
     lines.append(generate_argument_info_header_columns(call))
     for variable in call.args:
+        assert isinstance(variable, (BoundVariable, BoundCallRuntime))
         _generate_tree_info_table(lines, variable, 0, highlight_variable)
     for variable in call.kwargs.values():
+        assert isinstance(variable, (BoundVariable, BoundCallRuntime))
         _generate_tree_info_table(lines, variable, 0, highlight_variable)
     return lines
 
