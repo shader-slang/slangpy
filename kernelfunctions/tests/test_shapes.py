@@ -59,7 +59,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     for node in call_data.debug_only_bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": list_or_none(call_data.call_shape),
+        "call_shape": list_or_none(call_data.last_call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
         "node_transforms": [list_or_none(x.transform) for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]
@@ -92,7 +92,7 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     for node in call_data.debug_only_bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": list_or_none(call_data.call_shape),
+        "call_shape": list_or_none(call_data.last_call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
         "node_transforms": [list_or_none(x.transform) for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]
@@ -127,7 +127,7 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
     for node in call_data.debug_only_bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": list_or_none(call_data.call_shape),
+        "call_shape": list_or_none(call_data.last_call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
         "node_transforms": [list_or_none(x.transform) for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]

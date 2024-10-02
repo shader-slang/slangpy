@@ -87,10 +87,6 @@ class FunctionChainBase:
         return self.call(*args, **kwargs)
 
     def _build_call_data(self, *args: Any, **kwargs: Any):
-        current = self
-        while current is not None:
-            current = current.parent
-
         sig = hash_signature(
             _cache_value_to_id, self, *args, **kwargs)
         if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:

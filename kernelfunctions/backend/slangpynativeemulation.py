@@ -267,6 +267,7 @@ class NativeCallData:
         self.call_mode = CallMode.prim
         self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
         self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
+        self.last_call_shape: TConcreteShape = ()
 
     def exec(self, command_buffer: Optional[CommandBuffer],  *args: Any, **kwargs: Any):
 
@@ -279,11 +280,12 @@ class NativeCallData:
         unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
 
         # Calculate call shape
-        self.call_shape = self.runtime.calculate_call_shape(
+        call_shape = self.runtime.calculate_call_shape(
             self.call_dimensionality, *unpacked_args, **unpacked_kwargs)
+        self.last_call_shape = call_shape
 
         # Setup context
-        context = CallContext(device, self.call_shape)
+        context = CallContext(device, call_shape)
 
         # Allocate a return value if not provided in kw args
         # This is redundant if command buffer supplied, as we don't return anything
@@ -292,21 +294,21 @@ class NativeCallData:
             if self.call_mode == CallMode.prim and rv_node is not None and kwargs.get("_result", None) is None:
                 kwargs["_result"] = rv_node.python_type.create_output(context)
                 unpacked_kwargs["_result"] = kwargs["_result"]
-                rv_node.populate_call_shape(list(self.call_shape), kwargs["_result"])
+                rv_node.populate_call_shape(list(call_shape), kwargs["_result"])
 
         self.runtime.write_calldata_pre_dispatch(context,
                                                  call_data, *unpacked_args, **unpacked_kwargs)
 
         total_threads = 1
         strides = []
-        for dim in reversed(self.call_shape):
+        for dim in reversed(call_shape):
             strides.append(total_threads)
             total_threads *= dim
         strides.reverse()
 
         if len(strides) > 0:
             call_data["_call_stride"] = strides
-            call_data["_call_dim"] = list(self.call_shape)
+            call_data["_call_dim"] = list(call_shape)
         call_data["_thread_count"] = uint3(total_threads, 1, 1)
 
         vars = self.sets.copy()

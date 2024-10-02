@@ -67,13 +67,14 @@ class CallData(NativeCallData):
 
         if not isinstance(chain[0], Function):
             raise ValueError("First entry in chain should be a function")
-        self.function = chain[0]
-        self.chain = chain
         self.call_mode = CallMode.prim
-        self.input_transforms: dict[str, 'TConcreteShape'] = {}
-        self.outut_transforms: dict[str, 'TConcreteShape'] = {}
         self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
         self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
+
+        function = chain[0]
+        chain = chain
+        input_transforms: dict[str, 'TConcreteShape'] = {}
+        outut_transforms: dict[str, 'TConcreteShape'] = {}
 
         sets = {}
         for item in chain:
@@ -87,9 +88,9 @@ class CallData(NativeCallData):
                         "FunctionChainSet must have either a props or callback"
                     )
             if isinstance(item, FunctionChainInputTransform):
-                self.input_transforms.update(item.transforms)
+                input_transforms.update(item.transforms)
             if isinstance(item, FunctionChainOutputTransform):
-                self.outut_transforms.update(item.transforms)
+                outut_transforms.update(item.transforms)
             if isinstance(item, FunctionChainBwdsDiff):
                 self.call_mode = CallMode.bwds
             if isinstance(item, FunctionChainHook):
@@ -114,7 +115,7 @@ class CallData(NativeCallData):
         # Attempt to match to a slang function overload
         python_to_slang_mapping = None
         slang_function = None
-        for overload in self.function.overloads:
+        for overload in function.overloads:
             match = match_signatures(
                 python_call, overload, self.call_mode)
             if match:
@@ -123,7 +124,7 @@ class CallData(NativeCallData):
                     slang_function = overload
                 else:
                     err_text = f"""
-Multiple matching overloads found for function {self.function.name}.
+Multiple matching overloads found for function {function.name}.
 Input signature:
 {get_readable_signature_string(python_call)}
 First match: {get_readable_func_string(slang_function)}
@@ -132,9 +133,9 @@ Second match: {get_readable_func_string(overload)}"""
 
         if python_to_slang_mapping is None or slang_function is None:
             olstrings = "\n".join([get_readable_func_string(x)
-                                  for x in self.function.overloads])
+                                  for x in function.overloads])
             err_text = f"""
-No matching overload found for function {self.function.name}.
+No matching overload found for function {function.name}.
 Input signature:
 {get_readable_signature_string(python_call)}
 Overloads:
@@ -150,10 +151,7 @@ Overloads:
 
         # Once matched, build the fully bound signature
         bindings = bind(python_call, python_to_slang_mapping, self.call_mode,
-                        self.input_transforms, self.outut_transforms)
-
-        # store overload and signature
-        self.overload = slang_function
+                        input_transforms, outut_transforms)
 
         # calculate call shaping
         self.call_dimensionality = calculate_call_dimensionality(bindings)
@@ -167,18 +165,18 @@ Overloads:
 
         # generate code
         codegen = CodeGen()
-        generate_code(self.call_dimensionality, self.function,
+        generate_code(self.call_dimensionality, function,
                       bindings, self.call_mode, codegen)
 
         # store code
-        self.code = codegen.finish(call_data=True, input_load_store=True,
-                                   header=True, kernel=True, imports=True,
-                                   trampoline=True, context=True, snippets=True,
-                                   call_data_structs=True)
+        code = codegen.finish(call_data=True, input_load_store=True,
+                              header=True, kernel=True, imports=True,
+                              trampoline=True, context=True, snippets=True,
+                              call_data_structs=True)
 
         # Write the shader to a file for debugging.
         os.makedirs(".temp", exist_ok=True)
-        fn = f".temp/{self.function.module.name}_{self.function.name}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
+        fn = f".temp/{function.module.name}_{function.name}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
 
         # with open(fn,"r") as f:
         #   self.code = f.read()
@@ -187,16 +185,16 @@ Overloads:
             f.write("/*\n")
             f.write(generate_tree_info_string(bindings))
             f.write("\n*/\n")
-            f.write(self.code)
+            f.write(code)
 
         # Build new module and link it with the one that contains the function being called.
-        session = self.function.module.session
+        session = function.module.session
         device = session.device
         module = session.load_module_from_source(
-            hashlib.sha256(self.code.encode()).hexdigest()[0:16], self.code
+            hashlib.sha256(code.encode()).hexdigest()[0:16], code
         )
         ep = module.entry_point("main")
-        program = session.link_program([module, self.function.module], [ep])
+        program = session.link_program([module, function.module], [ep])
         self.kernel = device.create_compute_kernel(program)
         self.device = device
 
