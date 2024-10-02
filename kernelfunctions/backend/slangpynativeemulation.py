@@ -28,7 +28,7 @@ class CallMode(Enum):
     fwds = 2
 
 
-TLooseShape = tuple[Optional[int], ...]
+TLooseShape = tuple[int, ...]
 TConcreteShape = tuple[int, ...]
 TDispatchHook = Callable[[dict[str, Any]], None]
 

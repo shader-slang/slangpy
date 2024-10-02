@@ -89,6 +89,7 @@ class FunctionChainBase:
     def _build_call_data(self, *args: Any, **kwargs: Any):
         sig = hash_signature(
             _cache_value_to_id, self, *args, **kwargs)
+        print(sig)
         if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
             return CALL_DATA_CACHE[sig]
 
@@ -228,4 +229,4 @@ class Function(FunctionChainBase):
         # Build and store overloads
         self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
 
-        self.slangpy_signature = f"[{self.type_parent or ''}::{self.name}]"
+        self.slangpy_signature = f"[{id(module)}][{self.type_parent or ''}::{self.name}]"

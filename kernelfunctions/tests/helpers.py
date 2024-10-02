@@ -104,7 +104,7 @@ class FakeSlangType:
 
 
 class FakeBuffer:
-    def __init__(self, shape: tuple[Optional[int], ...]):
+    def __init__(self, shape: tuple[int, ...]):
         super().__init__()
         self.shape = shape
 

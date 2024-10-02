@@ -311,10 +311,8 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
                 raise BoundVariableException(
                     "Unresolved call dimensionality for argument", input)
             assert input.transform is not None
-            for i in range(len(input.transform)):
-                if input.transform[i] is None:
-                    input.transform[i] = i + call_dimensionality - \
-                        input.call_dimensionality
+            input.transform = tuple([input.transform[i] if input.transform[i] >= 0 else i +
+                                    call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))])
     except BoundVariableException as e:
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
@@ -328,8 +326,8 @@ def create_return_value_binding(call_dimensionality: int, signature: BoundCall, 
         node = signature.kwargs.get("_result")
         if node is not None and node.python.primal_type_name == 'none':
             node.call_dimensionality = call_dimensionality
-            node.transform = [i for i in range(
-                node.call_dimensionality+len(node.slang.primal.get_shape()))]
+            node.transform = tuple([i for i in range(
+                node.call_dimensionality+len(node.slang.primal.get_shape()))])
             if call_dimensionality == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:

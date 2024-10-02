@@ -30,7 +30,7 @@ class StructuredBufferType(ValueType):
         if value is not None:
             return (int(value.desc.size/value.desc.struct_size),)
         else:
-            return (None,)
+            return (-1,)
 
     def get_shape(self, value: Optional[Buffer] = None) -> TLooseOrUndefinedShape:
         if self._el_type is not None:
@@ -90,7 +90,7 @@ class StructuredBufferType(ValueType):
     def update_from_bound_type(self, bound_type: 'BaseType'):
         while True:
             stshape = bound_type.get_shape()
-            if stshape is None or None in stshape:
+            if stshape is None or -1 in stshape:
                 next_type = bound_type.element_type
                 if next_type == bound_type:
                     raise ValueError("Cannot resolve shape")

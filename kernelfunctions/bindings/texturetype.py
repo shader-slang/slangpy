@@ -46,7 +46,7 @@ class Texture2DType(TextureType):
         if value is not None:
             return (value.width, value.height)
         else:
-            return (None, None)
+            return (-1, -1)
 
     @property
     def derivative(self):

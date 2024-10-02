@@ -27,7 +27,7 @@ class ArrayType(ValueType):
             raise ValueError("Array size must be known to compute byte size")
 
     def get_container_shape(self, value: Optional[list[Any]] = None) -> TLooseShape:
-        return (self.ec,)
+        return (self.ec if self.ec else -1,)
 
     @property
     def element_type(self):

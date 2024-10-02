@@ -80,7 +80,7 @@ class NDBufferType(BaseTypeImpl):
         if value is not None:
             return value.shape
         else:
-            return (None,)*self.dims
+            return (-1,)*self.dims
 
     @property
     def differentiable(self):
@@ -200,7 +200,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         if value is not None:
             return value.shape
         else:
-            return (None,)*self.dims
+            return (-1,)*self.dims
 
     @property
     def differentiable(self):

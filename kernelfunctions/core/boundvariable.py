@@ -67,11 +67,11 @@ class BoundVariable:
 
         # Store transforms
         self.call_dimensionality = None
-        self.transform: Optional[list[Optional[int]]] = None
+        self.transform: Optional[TConcreteShape] = None
         if output_transforms is not None:
             t = output_transforms.get(self.path)
             if t is not None:
-                self.transform = list(t)
+                self.transform = tuple(t)
 
         # Create children if python value has children
         self.children: Optional[dict[str, BoundVariable]] = None
@@ -130,13 +130,13 @@ class BoundVariable:
                     raise BoundVariableException(
                         f"Output transforms {self.transform} must have the same number of dimensions as the input {input_dim}", self)
             else:
-                self.transform = [None] * input_dim  # type: ignore
+                self.transform = [-1] * input_dim  # type: ignore
 
             # Dimensionality is the highest output dimension minus parameter shape
             assert self.transform is not None
             dim_count = len(self.transform)
             for x in self.transform:
-                if x is not None:
+                if x >= 0:
                     dim_count = max(dim_count, x+1)
             self.call_dimensionality = dim_count - len(param_shape)
 

@@ -102,7 +102,7 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
 # Copy function designed to replicate situations in which we'd ideally
 # be able to infer a buffer size but can't due to absence of generics
 # void copy(int index, Slice<1,float4> from, Slice<1,float4> to) { to[index] = from[index];}
-COPY_AT_INDEX_SIGNATURE: list[TLooseShape] = [(1,), (None, 4), (None, 4)]
+COPY_AT_INDEX_SIGNATURE: list[TLooseShape] = [(1,), (-1, 4), (-1, 4)]
 
 
 def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer: Any,
