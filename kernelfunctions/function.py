@@ -14,6 +14,9 @@ ENABLE_CALLDATA_CACHE = True
 CALL_DATA_CACHE: dict[str, 'CallData'] = {}
 
 
+TDispatchHook = Callable[[dict[str, Any]], None]
+
+
 def _cache_value_to_id(val: Any) -> str:
     cb = PYTHON_SIGNATURES[type(val)]
     if cb is None:
@@ -59,6 +62,9 @@ class FunctionChainBase:
 
     def instance(self, this: IThis):
         return FunctionChainThis(self, this)
+
+    def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None):
+        return FunctionChainHook(self, before_dispatch, after_dispatch)
 
     def debug_build_call_data(self, *args: Any, **kwargs: Any):
         return self._build_call_data(*args, **kwargs)
@@ -155,6 +161,13 @@ class FunctionChainThis(FunctionChainBase):
 class FunctionChainBwdsDiff(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase) -> None:
         super().__init__(parent)
+
+
+class FunctionChainHook(FunctionChainBase):
+    def __init__(self, parent: FunctionChainBase, before_dispatch: Optional[TDispatchHook], after_dispatch: Optional[TDispatchHook]) -> None:
+        super().__init__(parent)
+        self.before_dispatch = before_dispatch
+        self.after_dispatch = after_dispatch
 
 # A callable kernel function. This assumes the function is in the root
 # of the module, however a parent in the abstract syntax tree can be provided
