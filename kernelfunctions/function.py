@@ -1,6 +1,5 @@
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
-
-from kernelfunctions.core import SlangFunction, hash_signature
+from kernelfunctions.core import SlangFunction, hash_signature, NativeBoundVariableException
 
 from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
 from kernelfunctions.shapes import TConcreteShape
@@ -40,12 +39,23 @@ class FunctionChainBase:
         self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
-        calldata = self._build_call_data(*args, **kwargs)
-        return calldata.call(*args, **kwargs)
+        try:
+            calldata = self._build_call_data(*args, **kwargs)
+            return calldata.call(*args, **kwargs)
+        except NativeBoundVariableException as e:
+            from kernelfunctions.callsignature import generate_call_shape_error_string
+            src = e.source
+            raise ValueError(generate_call_shape_error_string(
+                calldata.runtime, [], e.message, e.source))
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
-        calldata = self._build_call_data(*args, **kwargs)
-        return calldata.append_to(command_buffer, *args, **kwargs)
+        try:
+            calldata = self._build_call_data(*args, **kwargs)
+            return calldata.append_to(command_buffer, *args, **kwargs)
+        except NativeBoundVariableException as e:
+            from kernelfunctions.callsignature import generate_call_shape_error_string
+            raise ValueError(generate_call_shape_error_string(
+                calldata.runtime, [], e.message, e.source))
 
     @property
     def bwds_diff(self):

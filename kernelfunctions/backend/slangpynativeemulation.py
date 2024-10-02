@@ -100,19 +100,15 @@ class NativeBoundCallRuntime:
 
     def calculate_call_shape(self, call_dimensionality: int, *args: Any, **kwargs: Any):
 
-        try:
-            call_shape = [1] * call_dimensionality
-            sig_args = self.args
-            sig_kwargs = self.kwargs
+        call_shape = [1] * call_dimensionality
+        sig_args = self.args
+        sig_kwargs = self.kwargs
 
-            for idx, value in enumerate(args):
-                sig_args[idx].populate_call_shape(call_shape, value)
+        for idx, value in enumerate(args):
+            sig_args[idx].populate_call_shape(call_shape, value)
 
-            for key, value in kwargs.items():
-                sig_kwargs[key].populate_call_shape(call_shape, value)
-        except NativeBoundVariableException as e:
-            raise ValueError(generate_call_shape_error_string(
-                self, [], e.message, e.source))
+        for key, value in kwargs.items():
+            sig_kwargs[key].populate_call_shape(call_shape, value)
 
         return cast(TConcreteShape, tuple(call_shape))
 

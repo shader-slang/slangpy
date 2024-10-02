@@ -1,6 +1,7 @@
 from typing import Any, Optional
 import pytest
 from sgl import float4
+from kernelfunctions.core import NativeBoundVariableException
 from kernelfunctions.backend import DeviceType, float1, float3
 from kernelfunctions.callsignature import BoundVariable
 from kernelfunctions.shapes import TLooseShape
@@ -227,7 +228,7 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
 def test_dotproduct_shape_error(device_type: DeviceType):
 
     # attempt to pass a buffer of float4s for a, causes shape error
-    with pytest.raises(ValueError):
+    with pytest.raises(NativeBoundVariableException):
         dot_product(device_type, make_float_buffer(device_type, (100, 4)),
                     make_float_buffer(device_type, (3,)), None)
 
@@ -236,7 +237,7 @@ def test_dotproduct_shape_error(device_type: DeviceType):
 def test_dotproduct_broadcast_error(device_type: DeviceType):
 
     # attempt to pass missmatching buffer sizes for a and b
-    with pytest.raises(ValueError):
+    with pytest.raises(NativeBoundVariableException):
         dot_product(device_type, make_float_buffer(device_type, (100, 3)),
                     make_float_buffer(device_type, (1000, 3)), None)
 
@@ -263,7 +264,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 def test_dotproduct_broadcast_invalid_result(device_type: DeviceType):
 
     # pass an output of the wrong shape resulting in error
-    with pytest.raises(ValueError):
+    with pytest.raises(NativeBoundVariableException):
         shapes = dot_product(device_type, make_float_buffer(device_type, (100, 3)),
                              make_float_buffer(device_type, (3,)), make_float_buffer(device_type, (3,)))
 
