@@ -36,10 +36,13 @@ class FunctionChainBase:
     def __init__(self, parent: Optional["FunctionChainBase"]) -> None:
         super().__init__()
         self.parent = parent
+        self.this: Optional[IThis] = parent.this if parent is not None else None
         self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
         try:
+            if self.this:
+                args = (self.this,)+args
             calldata = self._build_call_data(*args, **kwargs)
             return calldata.call(*args, **kwargs)
         except NativeBoundVariableException as e:
@@ -49,6 +52,8 @@ class FunctionChainBase:
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
         try:
+            if self.this:
+                args = (self.this,)+args
             calldata = self._build_call_data(*args, **kwargs)
             return calldata.append_to(command_buffer, *args, **kwargs)
         except NativeBoundVariableException as e:
@@ -82,16 +87,12 @@ class FunctionChainBase:
         return self.call(*args, **kwargs)
 
     def _build_call_data(self, *args: Any, **kwargs: Any):
-        this = None
         current = self
         while current is not None:
-            if isinstance(current, FunctionChainThis):
-                this = current.this
-                break
             current = current.parent
 
         sig = hash_signature(
-            _cache_value_to_id, self, this, *args, **kwargs)
+            _cache_value_to_id, self, *args, **kwargs)
         if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
             return CALL_DATA_CACHE[sig]
 

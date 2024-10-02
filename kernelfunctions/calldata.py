@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from sgl import CommandBuffer, uint3
 
-from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime, CallContext
+from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime, CallContext, NativeBoundCallRuntime
 
 from kernelfunctions.callsignature import (
     bind,
@@ -61,10 +61,8 @@ class CallData:
             FunctionChainInputTransform,
             FunctionChainOutputTransform,
             FunctionChainSet,
-            FunctionChainThis,
             FunctionChainHook,
-            TDispatchHook,
-            IThis,
+            TDispatchHook
         )
 
         if not isinstance(chain[0], Function):
@@ -74,7 +72,6 @@ class CallData:
         self.call_mode = CallMode.prim
         self.input_transforms: dict[str, 'TConcreteShape'] = {}
         self.outut_transforms: dict[str, 'TConcreteShape'] = {}
-        self.this: Optional[IThis] = None
         self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
         self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
 
@@ -93,8 +90,6 @@ class CallData:
                 self.input_transforms.update(item.transforms)
             if isinstance(item, FunctionChainOutputTransform):
                 self.outut_transforms.update(item.transforms)
-            if isinstance(item, FunctionChainThis):
-                self.this = item.this
             if isinstance(item, FunctionChainBwdsDiff):
                 self.call_mode = CallMode.bwds
             if isinstance(item, FunctionChainHook):
@@ -108,10 +103,6 @@ class CallData:
                     self.after_dispatch_hooks.append(item.after_dispatch)
 
         self.sets = sets
-
-        # If 'this' is specified, inject as first argument
-        if self.this is not None:
-            args = (self.this,) + args
 
         # Build 'unpacked' args (that handle IThis)
         unpacked_args = tuple([unpack_arg(x) for x in args])
@@ -218,10 +209,6 @@ Overloads:
         device = session.device
         rv_node = None
 
-        # If 'this' is specified, inject as first argument
-        if self.this is not None:
-            args = (self.this,) + args
-
         # Build 'unpacked' args (that handle IThis)
         unpacked_args = tuple([unpack_arg(x) for x in args])
         unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
@@ -288,10 +275,6 @@ Overloads:
         call_data = {}
         session = self.function.module.session
         device = session.device
-
-        # If 'this' is specified, inject as first argument
-        if self.this is not None:
-            args = (self.this,) + args
 
         # Build 'unpacked' args (that handle IThis)
         unpacked_args = tuple([unpack_arg(x) for x in args])
