@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from kernelfunctions.core import BaseType, NativeShape
+from kernelfunctions.core import BaseType, Shape
 
 from kernelfunctions.backend import Texture, TypeReflection
 from kernelfunctions.typeregistry import SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
@@ -41,11 +41,11 @@ class Texture2DType(TextureType):
         super().__init__(element_type=element_type, writable=writable,
                          base_texture_type_name="Texture2D", texture_shape=2)
 
-    def get_container_shape(self, value: Optional[Texture] = None) -> NativeShape:
+    def get_container_shape(self, value: Optional[Texture] = None) -> Shape:
         if value is not None:
-            return NativeShape(value.width, value.height)
+            return Shape(value.width, value.height)
         else:
-            return NativeShape(-1, -1)
+            return Shape(-1, -1)
 
     @property
     def derivative(self):

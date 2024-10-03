@@ -4,7 +4,7 @@ from sgl import MemoryType, TypeReflection
 
 from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, SlangModule
 
-from kernelfunctions.core import BaseType, NativeShape
+from kernelfunctions.core import BaseType, Shape
 from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.struct import Struct
 from kernelfunctions.typeregistry import get_or_create_type
@@ -48,12 +48,12 @@ class NDBuffer:
             for dim in shape:
                 element_count *= dim
             self.element_count = element_count
-            self.shape = NativeShape(shape)
+            self.shape = Shape(shape)
         elif shape is None:
             if element_count is None:
                 raise ValueError("Either element_count or shape must be provided")
             self.element_count = element_count
-            self.shape = NativeShape(element_count)
+            self.shape = Shape(element_count)
 
         self.element_type = get_or_create_type(element_type)
         self.usage = usage

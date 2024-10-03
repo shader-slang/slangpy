@@ -7,7 +7,7 @@ from .enums import PrimType, IOType
 from .pythonvariable import PythonVariable
 from .slangvariable import SlangVariable
 from .codegen import CodeGen
-from .native import AccessType, CallMode, NativeShape
+from .native import AccessType, CallMode, Shape
 
 
 class BoundVariableException(Exception):
@@ -67,11 +67,11 @@ class BoundVariable:
 
         # Store transforms
         self.call_dimensionality = None
-        self.transform: NativeShape = NativeShape(None)
+        self.transform: Shape = Shape(None)
         if output_transforms is not None:
             t = output_transforms.get(self.path)
             if t is not None:
-                self.transform = NativeShape(t)
+                self.transform = Shape(t)
 
         # Create children if python value has children
         self.children: Optional[dict[str, BoundVariable]] = None
@@ -130,7 +130,7 @@ class BoundVariable:
                     raise BoundVariableException(
                         f"Output transforms {self.transform} must have the same number of dimensions as the input {input_dim}", self)
             else:
-                self.transform = NativeShape((-1,) * input_dim)
+                self.transform = Shape((-1,) * input_dim)
 
             # Dimensionality is the highest output dimension minus parameter shape
             assert self.transform is not None
@@ -148,7 +148,7 @@ class BoundVariable:
             if self.transform.valid:
                 raise BoundVariableException(
                     f"Output transforms can only be applied to variables with well defined input shape", self)
-            self.transform = NativeShape(None)
+            self.transform = Shape(None)
             self.call_dimensionality = None
 
     def _calculate_differentiability(self, mode: CallMode):

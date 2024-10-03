@@ -7,7 +7,7 @@ from kernelfunctions.core import (
     SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
     BoundCallRuntime, BoundVariableRuntime,
-    NativeShape
+    Shape
 )
 
 from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
@@ -312,8 +312,8 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
                 raise BoundVariableException(
                     "Unresolved call dimensionality for argument", input)
             assert input.transform.valid
-            input.transform = NativeShape(tuple([input.transform[i] if input.transform[i] >= 0 else i +
-                                                 call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
+            input.transform = Shape(tuple([input.transform[i] if input.transform[i] >= 0 else i +
+                                           call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
     except BoundVariableException as e:
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
@@ -327,7 +327,7 @@ def create_return_value_binding(call_dimensionality: int, signature: BoundCall, 
         node = signature.kwargs.get("_result")
         if node is not None and node.python.primal_type_name == 'none':
             node.call_dimensionality = call_dimensionality
-            node.transform = NativeShape(tuple([i for i in range(
+            node.transform = Shape(tuple([i for i in range(
                 node.call_dimensionality+len(node.slang.primal.get_shape()))]))
             if call_dimensionality == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))

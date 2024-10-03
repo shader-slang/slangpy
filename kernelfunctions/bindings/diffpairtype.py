@@ -3,7 +3,7 @@
 from typing import Any, Optional
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, NativeShape
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.types import DiffPair
 
@@ -128,7 +128,7 @@ class DiffPairType(BaseTypeImpl):
     def element_type(self):
         return self.primal_type.element_type
 
-    def get_shape(self, value: Optional[DiffPair] = None) -> NativeShape:
+    def get_shape(self, value: Optional[DiffPair] = None) -> Shape:
         return self.primal_type.get_shape()
 
     @property

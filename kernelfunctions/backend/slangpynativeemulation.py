@@ -40,12 +40,12 @@ class NativeBoundVariableException(Exception):
         self.source = source
 
 
-class NativeShape:
+class Shape:
     """
     Native base class for all shapes
     """
 
-    def __init__(self, *args: Union[None, int, 'NativeShape', tuple[int, ...]]):
+    def __init__(self, *args: Union[None, int, 'Shape', tuple[int, ...]]):
         super().__init__()
         if len(args) == 0:
             self.shape = ()
@@ -54,15 +54,15 @@ class NativeShape:
                 self.shape = None
             elif isinstance(args[0], tuple):
                 self.shape = args[0]
-            elif isinstance(args[0], NativeShape):
+            elif isinstance(args[0], Shape):
                 self.shape = args[0].shape
             else:
                 self.shape = self._from_tuple(args)
         else:
             self.shape = self._from_tuple(args)
 
-    def __add__(self, other: 'NativeShape') -> 'NativeShape':
-        return NativeShape(self.as_tuple() + other.as_tuple())
+    def __add__(self, other: 'Shape') -> 'Shape':
+        return Shape(self.as_tuple() + other.as_tuple())
 
     def _from_tuple(self, shape: Any) -> tuple[int, ...]:
         if not isinstance(shape, tuple):
@@ -90,7 +90,7 @@ class NativeShape:
         return self.as_tuple()[key]
 
     def __eq__(self, value: object) -> bool:
-        if isinstance(value, NativeShape):
+        if isinstance(value, Shape):
             return self.shape == value.shape
         else:
             return self.shape == value
@@ -115,10 +115,10 @@ class NativeType:
     def get_byte_size(self, value: Any = None) -> int:
         raise NotImplementedError()
 
-    def get_container_shape(self, value: Any = None) -> NativeShape:
-        return NativeShape()
+    def get_container_shape(self, value: Any = None) -> Shape:
+        return Shape()
 
-    def get_shape(self, value: Any = None) -> NativeShape:
+    def get_shape(self, value: Any = None) -> Shape:
         return self.get_container_shape(value) + self.element_type.get_shape()
 
     def create_calldata(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any) -> Any:
@@ -156,7 +156,7 @@ class NativeBoundCallRuntime:
         for key, value in kwargs.items():
             sig_kwargs[key].populate_call_shape(call_shape, value)
 
-        return NativeShape(tuple(call_shape))
+        return Shape(tuple(call_shape))
 
     def write_calldata_pre_dispatch(self, context: 'CallContext', call_data: dict[str, Any], *args: Any, **kwargs: Any):
         """
@@ -192,10 +192,10 @@ class NativeBoundVariableRuntime:
     def __init__(self):
         super().__init__()
         self.access: tuple[AccessType, AccessType] = (AccessType.none, AccessType.none)
-        self.transform: NativeShape = None  # type: ignore
-        self.slang_shape: NativeShape = None  # type: ignore
+        self.transform: Shape = None  # type: ignore
+        self.slang_shape: Shape = None  # type: ignore
         self.python_type: NativeType = None  # type: ignore
-        self.shape: NativeShape = None  # type: ignore
+        self.shape: Shape = None  # type: ignore
         self._name = ""
         self._variable_name = ""
         self._children: Optional[dict[str, 'NativeBoundVariableRuntime']] = None
@@ -210,7 +210,7 @@ class NativeBoundVariableRuntime:
         elif value is not None:
             # Get concrete primal shape
             shape = self.python_type.get_shape(value)
-            tf = cast(NativeShape, self.transform)
+            tf = cast(Shape, self.transform)
             csl = len(call_shape)
             self.shape = shape
 
@@ -301,7 +301,7 @@ class NativeCallData:
         self.call_mode = CallMode.prim
         self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
         self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
-        self.last_call_shape = NativeShape()
+        self.last_call_shape = Shape()
 
     def exec(self, command_buffer: Optional[CommandBuffer],  *args: Any, **kwargs: Any):
 
@@ -383,7 +383,7 @@ class CallContext:
     Native call context
     """
 
-    def __init__(self, device: 'Device', call_shape: NativeShape):
+    def __init__(self, device: 'Device', call_shape: Shape):
         super().__init__()
         self.device = device
         self.call_shape = call_shape

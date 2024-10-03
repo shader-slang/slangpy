@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, TypedDict, Union
 
 if TYPE_CHECKING:
-    from kernelfunctions.core import NativeShape
+    from kernelfunctions.core import Shape
 
 TArgShapesResult = TypedDict(
     "TArgShapesResult",
@@ -15,7 +15,7 @@ TArgShapesResult = TypedDict(
 TShapeOrTuple = Union[tuple[int, ...], 'NativeShape']
 
 
-def check_concrete(shape: 'NativeShape') -> 'NativeShape':
+def check_concrete(shape: 'Shape') -> 'Shape':
     assert shape.shape is not None
     assert not None in shape.shape
     assert not -1 in shape.shape

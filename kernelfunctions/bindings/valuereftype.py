@@ -3,7 +3,7 @@
 from typing import Any, Optional
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, NativeShape
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.types import ValueRef
 
@@ -69,7 +69,7 @@ class ValueRefType(BaseTypeImpl):
     def element_type(self):
         return self.value_type.element_type
 
-    def get_shape(self, value: Optional[ValueRef] = None) -> NativeShape:
+    def get_shape(self, value: Optional[ValueRef] = None) -> Shape:
         return self.value_type.get_shape()
 
     @property

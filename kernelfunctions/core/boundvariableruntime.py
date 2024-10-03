@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from .native import NativeBoundCallRuntime, NativeBoundVariableRuntime, NativeShape
+from .native import NativeBoundCallRuntime, NativeBoundVariableRuntime, Shape
 from kernelfunctions.shapes import check_concrete
 
 if TYPE_CHECKING:
@@ -22,12 +22,12 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         # Data potentially used by type marshalls
         self.access = source.access
         self.transform = check_concrete(
-            source.transform) if source.transform.valid else NativeShape(None)
+            source.transform) if source.transform.valid else Shape(None)
         self.slang_shape = source.slang.primal.get_shape()
         self.python_type = source.python.primal
 
         # Temp data stored / updated each call
-        self.shape = NativeShape(None)
+        self.shape = Shape(None)
 
         # Internal data
         self._source_for_exceptions = source

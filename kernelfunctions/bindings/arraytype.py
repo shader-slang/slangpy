@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from kernelfunctions.core import BaseType, NativeShape
+from kernelfunctions.core import BaseType, Shape
 
 import kernelfunctions.typeregistry as tr
 
@@ -25,8 +25,8 @@ class ArrayType(ValueType):
         else:
             raise ValueError("Array size must be known to compute byte size")
 
-    def get_container_shape(self, value: Optional[list[Any]] = None) -> NativeShape:
-        return NativeShape(self.ec if self.ec else -1)
+    def get_container_shape(self, value: Optional[list[Any]] = None) -> Shape:
+        return Shape(self.ec if self.ec else -1)
 
     @property
     def element_type(self):

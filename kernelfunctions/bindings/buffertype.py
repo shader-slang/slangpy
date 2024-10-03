@@ -5,7 +5,7 @@ from typing import Any, Optional, cast
 from sgl import TypeReflection
 
 from kernelfunctions.bindings.diffpairtype import generate_differential_pair
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, NativeShape
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
@@ -16,7 +16,7 @@ from kernelfunctions.utils import parse_generic_signature
 
 def _calc_broadcast(context: CallContext, binding: BoundVariableRuntime):
     broadcast = []
-    transform = cast(NativeShape, binding.transform)
+    transform = cast(Shape, binding.transform)
     full_cs = context.call_shape + binding.slang_shape
     for i in range(len(transform)):
         csidx = transform[i]
@@ -75,11 +75,11 @@ class NDBufferType(BaseTypeImpl):
     def element_type(self):
         return self.el_type
 
-    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> NativeShape:
+    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> Shape:
         if value is not None:
             return value.shape
         else:
-            return NativeShape((-1,)*self.dims)
+            return Shape((-1,)*self.dims)
 
     @property
     def differentiable(self):
@@ -195,11 +195,11 @@ class NDDifferentiableBufferType(BaseTypeImpl):
     def element_type(self):
         return self.el_type
 
-    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> NativeShape:
+    def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> Shape:
         if value is not None:
             return value.shape
         else:
-            return NativeShape((-1,)*self.dims)
+            return Shape((-1,)*self.dims)
 
     @property
     def differentiable(self):

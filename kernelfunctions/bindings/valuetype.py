@@ -5,7 +5,7 @@ from typing import Any, Sequence
 import numpy.typing as npt
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, NativeShape
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.backend import TypeReflection, math
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
@@ -132,8 +132,8 @@ class ScalarType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         return self.bytes
 
-    def get_shape(self, value: Any = None) -> NativeShape:
-        return NativeShape()
+    def get_shape(self, value: Any = None) -> Shape:
+        return Shape()
 
     @property
     def differentiable(self):
@@ -181,8 +181,8 @@ class NoneValueType(ValueType):
     def __init__(self, slang_type: TypeReflection.ScalarType):
         super().__init__()
 
-    def get_shape(self, value: Any = None) -> NativeShape:
-        return NativeShape(None)
+    def get_shape(self, value: Any = None) -> Shape:
+        return Shape(None)
 
     @property
     def name(self) -> str:
@@ -207,8 +207,8 @@ class VectorType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         return self.size * self.et.get_byte_size()
 
-    def get_container_shape(self, value: Any = None) -> NativeShape:
-        return NativeShape(self.size)
+    def get_container_shape(self, value: Any = None) -> Shape:
+        return Shape(self.size)
 
     @property
     def element_type(self):
@@ -269,8 +269,8 @@ class MatrixType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         return self.rows * self.cols * self.et.get_byte_size()
 
-    def get_container_shape(self, value: Any = None) -> NativeShape:
-        return NativeShape(self.rows, self.cols)
+    def get_container_shape(self, value: Any = None) -> Shape:
+        return Shape(self.rows, self.cols)
 
     @property
     def element_type(self):

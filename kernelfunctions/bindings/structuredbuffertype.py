@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from sgl import ResourceUsage
 
-from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, NativeShape
+from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.backend import Buffer, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
@@ -25,17 +25,17 @@ class StructuredBufferType(ValueType):
         else:
             return "StructuredBuffer<Unknown>"
 
-    def get_container_shape(self, value: Optional[Buffer] = None) -> NativeShape:
+    def get_container_shape(self, value: Optional[Buffer] = None) -> Shape:
         if value is not None:
-            return NativeShape(int(value.desc.size/value.desc.struct_size))
+            return Shape(int(value.desc.size/value.desc.struct_size))
         else:
-            return NativeShape(-1)
+            return Shape(-1)
 
-    def get_shape(self, value: Optional[Buffer] = None) -> NativeShape:
+    def get_shape(self, value: Optional[Buffer] = None) -> Shape:
         if self._el_type is not None:
             return super().get_shape(value)
         else:
-            return NativeShape(None)
+            return Shape(None)
 
     @property
     def element_type(self):

@@ -1,7 +1,7 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, NativeShape
+from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
@@ -32,8 +32,8 @@ class WangHashArgType(BaseTypeImpl):
     def name(self) -> str:
         return f"WangHashArg<{self.dims}>"
 
-    def get_container_shape(self, value: Optional[WangHashArg] = None) -> NativeShape:
-        return NativeShape(self.dims)
+    def get_container_shape(self, value: Optional[WangHashArg] = None) -> Shape:
+        return Shape(self.dims)
 
     @property
     def element_type(self):

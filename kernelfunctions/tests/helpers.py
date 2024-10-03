@@ -14,7 +14,7 @@ from kernelfunctions.backend import (
     TypeReflection)
 from kernelfunctions.calldata import SLANG_PATH
 from kernelfunctions.typeregistry import PYTHON_TYPES
-from kernelfunctions.core import BaseTypeImpl, NativeShape
+from kernelfunctions.core import BaseTypeImpl, Shape
 
 SHADER_DIR = Path(__file__).parent
 
@@ -105,7 +105,7 @@ class FakeSlangType:
 class FakeBuffer:
     def __init__(self, shape: tuple[int, ...]):
         super().__init__()
-        self.shape = NativeShape(shape)
+        self.shape = Shape(shape)
 
 
 class FakeBufferType(BaseTypeImpl):
@@ -123,10 +123,10 @@ class FakeBufferType(BaseTypeImpl):
     def is_writable(self, value: Any) -> bool:
         return True
 
-    def get_container_shape(self, value: FakeBuffer) -> NativeShape:
+    def get_container_shape(self, value: FakeBuffer) -> Shape:
         return value.shape
 
-    def get_shape(self, value: Any = None) -> NativeShape:
+    def get_shape(self, value: Any = None) -> Shape:
         return value.shape
 
     @property
