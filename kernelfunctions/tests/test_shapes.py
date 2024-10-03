@@ -1,7 +1,7 @@
 from typing import Any, Optional
 import pytest
 from sgl import float4
-from kernelfunctions.core import NativeBoundVariableException
+from kernelfunctions.core import NativeBoundVariableException, BaseType
 from kernelfunctions.backend import DeviceType, float1, float3
 from kernelfunctions.callsignature import BoundVariable
 import deepdiff
@@ -15,6 +15,9 @@ from kernelfunctions.types.valueref import ValueRef
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
+
+x = BaseType()
+x.get_shape(object())
 
 
 def make_int_buffer(device_type: DeviceType, shape: tuple[int, ...]):

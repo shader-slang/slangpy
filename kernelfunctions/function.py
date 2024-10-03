@@ -36,7 +36,7 @@ class FunctionChainBase:
     def __init__(self, parent: Optional["FunctionChainBase"]) -> None:
         super().__init__()
         self.parent = parent
-        self.this: Optional[IThis] = parent.this if parent is not None else None
+        self.this: Any = parent.this if parent is not None else None
         self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
 
     def call(self, *args: Any, **kwargs: Any) -> Any:

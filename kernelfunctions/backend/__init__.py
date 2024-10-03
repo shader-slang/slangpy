@@ -10,3 +10,5 @@ except ImportError:
     BACKEND = "Falcor"
 
 current_module = sys.modules[__name__]
+
+print(current_module.__dict__)
