@@ -42,7 +42,7 @@ class NativeBoundVariableException(Exception):
 
 class Shape:
     """
-    Native base class for all shapes
+    Native shape
     """
 
     def __init__(self, *args: Union[None, int, 'Shape', tuple[int, ...]]):
@@ -302,6 +302,12 @@ class NativeCallData:
         self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
         self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
         self.last_call_shape = Shape()
+
+    def call(self, *args: Any, **kwargs: Any):
+        return self.exec(None, *args, **kwargs)
+
+    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+        return self.exec(command_buffer, *args, **kwargs)
 
     def exec(self, command_buffer: Optional[CommandBuffer],  *args: Any, **kwargs: Any):
 

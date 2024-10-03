@@ -2,8 +2,6 @@ import hashlib
 import os
 from typing import TYPE_CHECKING, Any, Optional
 
-from sgl import CommandBuffer
-
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime, NativeCallData
 
 from kernelfunctions.callsignature import (
@@ -200,9 +198,3 @@ Overloads:
 
         self.debug_only_bindings = bindings
         self.runtime = BoundCallRuntime(bindings)
-
-    def call(self, *args: Any, **kwargs: Any):
-        return self.exec(None, *args, **kwargs)
-
-    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
-        return self.exec(command_buffer, *args, **kwargs)

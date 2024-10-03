@@ -89,7 +89,6 @@ class FunctionChainBase:
     def _build_call_data(self, *args: Any, **kwargs: Any):
         sig = hash_signature(
             _cache_value_to_id, self, *args, **kwargs)
-        print(sig)
         if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
             return CALL_DATA_CACHE[sig]
 
