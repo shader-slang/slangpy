@@ -168,7 +168,7 @@ def test_call_with_buffers(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res.grad.buffer.from_numpy(np.ones(res.shape, dtype=np.float32))
+    res.grad.buffer.from_numpy(np.ones(res.shape.as_tuple(), dtype=np.float32))
 
     kernel_eval_polynomial.bwds_diff(a, b, res)
     a_grad_data = a.grad.buffer.to_numpy().view(np.float32)

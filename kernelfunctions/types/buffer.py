@@ -4,8 +4,8 @@ from sgl import MemoryType, TypeReflection
 
 from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, SlangModule
 
-from kernelfunctions.core.basetype import BaseType
-from kernelfunctions.shapes import TConcreteShape
+from kernelfunctions.core import BaseType, Shape
+from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.struct import Struct
 from kernelfunctions.typeregistry import get_or_create_type
 from kernelfunctions.utils import find_type_layout_for_buffer
@@ -19,7 +19,7 @@ class NDBuffer:
         device: Device,
         element_type: Any,
         element_count: Optional[int] = None,
-        shape: Optional[TConcreteShape] = None,
+        shape: Optional[TShapeOrTuple] = None,
         usage: ResourceUsage = ResourceUsage.shader_resource
         | ResourceUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
@@ -48,12 +48,12 @@ class NDBuffer:
             for dim in shape:
                 element_count *= dim
             self.element_count = element_count
-            self.shape = shape
+            self.shape = Shape(shape)
         elif shape is None:
             if element_count is None:
                 raise ValueError("Either element_count or shape must be provided")
             self.element_count = element_count
-            self.shape: tuple[int, ...] = (element_count,)
+            self.shape = Shape(element_count)
 
         self.element_type = get_or_create_type(element_type)
         self.usage = usage
@@ -102,7 +102,7 @@ class NDDifferentiableBuffer(NDBuffer):
         device: Device,
         element_type: Any,
         element_count: Optional[int] = None,
-        shape: Optional[TConcreteShape] = None,
+        shape: Optional[TShapeOrTuple] = None,
         usage: ResourceUsage = ResourceUsage.shader_resource
         | ResourceUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,

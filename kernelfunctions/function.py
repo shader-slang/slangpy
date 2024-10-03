@@ -1,9 +1,8 @@
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
+from kernelfunctions.core import SlangFunction, hash_signature, NativeBoundVariableException
 
-from kernelfunctions.core import SlangFunction
-
-from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, slangpynative, CommandBuffer
-from kernelfunctions.shapes import TConcreteShape
+from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
+from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
@@ -37,15 +36,30 @@ class FunctionChainBase:
     def __init__(self, parent: Optional["FunctionChainBase"]) -> None:
         super().__init__()
         self.parent = parent
+        self.this: Optional[IThis] = parent.this if parent is not None else None
         self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
-        calldata = self._build_call_data(*args, **kwargs)
-        return calldata.call(*args, **kwargs)
+        try:
+            if self.this:
+                args = (self.this,)+args
+            calldata = self._build_call_data(*args, **kwargs)
+            return calldata.call(*args, **kwargs)
+        except NativeBoundVariableException as e:
+            from kernelfunctions.callsignature import generate_call_shape_error_string
+            raise ValueError(generate_call_shape_error_string(
+                calldata.runtime, [], e.message, e.source))  # type: ignore
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
-        calldata = self._build_call_data(*args, **kwargs)
-        return calldata.append_to(command_buffer, *args, **kwargs)
+        try:
+            if self.this:
+                args = (self.this,)+args
+            calldata = self._build_call_data(*args, **kwargs)
+            return calldata.append_to(command_buffer, *args, **kwargs)
+        except NativeBoundVariableException as e:
+            from kernelfunctions.callsignature import generate_call_shape_error_string
+            raise ValueError(generate_call_shape_error_string(
+                calldata.runtime, [], e.message, e.source))  # type: ignore
 
     @property
     def bwds_diff(self):
@@ -54,10 +68,10 @@ class FunctionChainBase:
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)
 
-    def transform_input(self, transforms: dict[str, TConcreteShape]):
+    def transform_input(self, transforms: dict[str, TShapeOrTuple]):
         return FunctionChainInputTransform(self, transforms)
 
-    def transform_output(self, transforms: dict[str, TConcreteShape]):
+    def transform_output(self, transforms: dict[str, TShapeOrTuple]):
         return FunctionChainOutputTransform(self, transforms)
 
     def instance(self, this: IThis):
@@ -73,16 +87,9 @@ class FunctionChainBase:
         return self.call(*args, **kwargs)
 
     def _build_call_data(self, *args: Any, **kwargs: Any):
-        this = None
-        current = self
-        while current is not None:
-            if isinstance(current, FunctionChainThis):
-                this = current.this
-                break
-            current = current.parent
-
-        sig = slangpynative.hash_signature(
-            _cache_value_to_id, self, this, *args, **kwargs)
+        sig = hash_signature(
+            _cache_value_to_id, self, *args, **kwargs)
+        print(sig)
         if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
             return CALL_DATA_CACHE[sig]
 
@@ -138,7 +145,7 @@ class FunctionChainSet(FunctionChainBase):
 
 class FunctionChainInputTransform(FunctionChainBase):
     def __init__(
-        self, parent: FunctionChainBase, transforms: dict[str, TConcreteShape]
+        self, parent: FunctionChainBase, transforms: dict[str, TShapeOrTuple]
     ) -> None:
         super().__init__(parent)
         self.transforms = transforms
@@ -146,7 +153,7 @@ class FunctionChainInputTransform(FunctionChainBase):
 
 class FunctionChainOutputTransform(FunctionChainBase):
     def __init__(
-        self, parent: FunctionChainBase, transforms: dict[str, TConcreteShape]
+        self, parent: FunctionChainBase, transforms: dict[str, TShapeOrTuple]
     ) -> None:
         super().__init__(parent)
         self.transforms = transforms
@@ -222,4 +229,4 @@ class Function(FunctionChainBase):
         # Build and store overloads
         self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
 
-        self.slangpy_signature = f"[{self.type_parent or ''}::{self.name}]"
+        self.slangpy_signature = f"[{id(module)}][{self.type_parent or ''}::{self.name}]"

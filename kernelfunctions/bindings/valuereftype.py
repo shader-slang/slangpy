@@ -1,14 +1,13 @@
 
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
 
-from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.types import ValueRef
 
-from kernelfunctions.backend import Buffer, Device, ResourceUsage
+from kernelfunctions.backend import Buffer, ResourceUsage
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 
 
@@ -42,7 +41,7 @@ class ValueRefType(BaseTypeImpl):
 
     # Call data just returns the primal
 
-    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: ValueRef) -> Any:
+    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: ValueRef) -> Any:
         access = binding.access
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
@@ -51,11 +50,11 @@ class ValueRefType(BaseTypeImpl):
         else:
             npdata = self.value_type.to_numpy(data.value).view(dtype=np.uint8)
             return {
-                'value': device.create_buffer(element_count=1, struct_size=npdata.size, data=npdata, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+                'value': context.device.create_buffer(element_count=1, struct_size=npdata.size, data=npdata, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
             }
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, binding: 'BoundVariableRuntime', data: ValueRef, result: Any) -> None:
+    def read_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: ValueRef, result: Any) -> None:
         access = binding.access
         if access[0] in [AccessType.write, AccessType.readwrite]:
             assert isinstance(result['value'], Buffer)
@@ -70,7 +69,7 @@ class ValueRefType(BaseTypeImpl):
     def element_type(self):
         return self.value_type.element_type
 
-    def get_shape(self, value: Optional[ValueRef] = None) -> TLooseShape:
+    def get_shape(self, value: Optional[ValueRef] = None) -> Shape:
         return self.value_type.get_shape()
 
     @property
@@ -81,14 +80,14 @@ class ValueRefType(BaseTypeImpl):
     def derivative(self):
         return self.value_type.derivative
 
-    def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
+    def create_output(self, context: CallContext) -> Any:
         pt = self.value_type.python_return_value_type
         if pt is not None:
             return ValueRef(pt())
         else:
             return ValueRef(None)
 
-    def read_output(self, device: Device, data: ValueRef) -> Any:
+    def read_output(self, context: CallContext, data: ValueRef) -> Any:
         return data.value
 
 

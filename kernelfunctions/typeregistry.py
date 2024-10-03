@@ -23,7 +23,7 @@ PYTHON_TYPES: dict[type, TTypeLookup] = {}
 
 # Dictionary of python types to custom function that returns a signature
 # Note: preferred mechanism is to provide a slangpy_signature attribute
-PYTHON_SIGNATURES: dict[type, Callable[[Any], str]] = {}
+PYTHON_SIGNATURES: dict[type, Optional[Callable[[Any], str]]] = {}
 
 # Slang types to corresponding base type
 SLANG_SCALAR_TYPES: dict[TypeReflection.ScalarType, BaseType] = {}

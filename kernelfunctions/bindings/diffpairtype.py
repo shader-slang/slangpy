@@ -1,14 +1,13 @@
 
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
-from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.types import DiffPair
 
-from kernelfunctions.backend import Buffer, Device, ResourceUsage
+from kernelfunctions.backend import Buffer, ResourceUsage
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 
 
@@ -85,7 +84,7 @@ class DiffPairType(BaseTypeImpl):
         return self.primal_type if prim == PrimType.primal else self.derivative_type
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: DiffPair) -> Any:
+    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: DiffPair) -> Any:
         access = binding.access
         res = {}
 
@@ -98,7 +97,7 @@ class DiffPairType(BaseTypeImpl):
                 assert prim_type is not None
                 npdata = prim_type.to_numpy(prim_data).view(dtype=np.uint8)
                 res[prim_name] = {
-                    'value': device.create_buffer(
+                    'value': context.device.create_buffer(
                         element_count=1,
                         struct_size=npdata.size,
                         data=npdata,
@@ -109,7 +108,7 @@ class DiffPairType(BaseTypeImpl):
         return res
 
     # Read back from call data does nothing
-    def read_calldata(self, device: Device, binding: 'BoundVariableRuntime', data: DiffPair, result: Any) -> None:
+    def read_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: DiffPair, result: Any) -> None:
         access = binding.access
         for prim in PrimType:
             prim_name = prim.name
@@ -129,7 +128,7 @@ class DiffPairType(BaseTypeImpl):
     def element_type(self):
         return self.primal_type.element_type
 
-    def get_shape(self, value: Optional[DiffPair] = None) -> TLooseShape:
+    def get_shape(self, value: Optional[DiffPair] = None) -> Shape:
         return self.primal_type.get_shape()
 
     @property
@@ -140,10 +139,10 @@ class DiffPairType(BaseTypeImpl):
     def derivative(self):
         return self.primal_type.derivative
 
-    def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
+    def create_output(self, context: CallContext) -> Any:
         return DiffPair(None, None)
 
-    def read_output(self, device: Device, data: DiffPair) -> Any:
+    def read_output(self, context: CallContext, data: DiffPair) -> Any:
         return data
 
 

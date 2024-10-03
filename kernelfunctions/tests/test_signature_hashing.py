@@ -1,6 +1,7 @@
 from time import time
 import pytest
-from kernelfunctions.backend import DeviceType, float3, slangpynative
+from kernelfunctions.core import hash_signature
+from kernelfunctions.backend import DeviceType, float3
 from kernelfunctions.function import Function
 from kernelfunctions.module import Module
 from kernelfunctions.tests import helpers
@@ -31,7 +32,7 @@ def test_signature_gen(device_type: DeviceType):
     start = time()
     count = 10000
     for i in range(0, count):
-        hash_text = slangpynative.hash_signature(func, buffer, 1, 2, 3, 4)
+        hash_text = hash_signature(func, buffer, 1, 2, 3, 4)
     end = time()
     print(f"Time taken per signature: {1000.0*(end-start)/count}ms")
     print(hash_text)

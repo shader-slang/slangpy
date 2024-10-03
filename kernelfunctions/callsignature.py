@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from kernelfunctions.core import (
     CodeGen,
@@ -7,14 +7,14 @@ from kernelfunctions.core import (
     SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
     BoundCallRuntime, BoundVariableRuntime,
+    Shape
 )
 
 from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
 from kernelfunctions.bindings.valuereftype import ValueRefType
+from kernelfunctions.shapes import TShapeOrTuple
 
 if TYPE_CHECKING:
-    from kernelfunctions.backend import Device
-    from kernelfunctions.shapes import TConcreteShape
     from kernelfunctions.function import Function
 
 
@@ -116,8 +116,8 @@ def bind(
         signature: PythonFunctionCall,
         mapping: dict[PythonVariable, SlangVariable],
         call_mode: CallMode,
-        input_transforms: Optional[dict[str, 'TConcreteShape']] = None,
-        output_transforms: Optional[dict[str, 'TConcreteShape']] = None) -> BoundCall:
+        input_transforms: Optional[dict[str, 'TShapeOrTuple']] = None,
+        output_transforms: Optional[dict[str, 'TShapeOrTuple']] = None) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
     to the signature nodes and performing other work that kicks in once
@@ -194,7 +194,7 @@ def _gen_arg_shape_string(variable: BoundVariable) -> str:
 
 def _gen_type_shape_string(variable: BoundVariable) -> str:
     if variable.slang is not None:
-        return str(list(variable.slang.primal.get_shape()))
+        return str(variable.slang.primal.get_shape().as_list())
     else:
         return "None"
 
@@ -243,8 +243,10 @@ def generate_tree_info_table(call: TBoundOrRuntimeCall, highlight_variable: Opti
     lines: list[list[str]] = []
     lines.append(generate_argument_info_header_columns(call))
     for variable in call.args:
+        assert isinstance(variable, (BoundVariable, BoundVariableRuntime))
         _generate_tree_info_table(lines, variable, 0, highlight_variable)
     for variable in call.kwargs.values():
+        assert isinstance(variable, (BoundVariable, BoundVariableRuntime))
         _generate_tree_info_table(lines, variable, 0, highlight_variable)
     return lines
 
@@ -309,33 +311,12 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
             if input.call_dimensionality is None:
                 raise BoundVariableException(
                     "Unresolved call dimensionality for argument", input)
-            assert input.transform is not None
-            for i in range(len(input.transform)):
-                if input.transform[i] is None:
-                    input.transform[i] = i + call_dimensionality - \
-                        input.call_dimensionality
+            assert input.transform.valid
+            input.transform = Shape(tuple([input.transform[i] if input.transform[i] >= 0 else i +
+                                           call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
     except BoundVariableException as e:
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
-
-
-def calculate_call_shape(call_dimensionality: int, signature: BoundCallRuntime, *args: Any, **kwargs: Any):
-
-    try:
-        call_shape = [1] * call_dimensionality
-        sig_args = signature.args
-        sig_kwargs = signature.kwargs
-
-        for idx, value in enumerate(args):
-            sig_args[idx].populate_call_shape(call_shape, value)
-
-        for key, value in kwargs.items():
-            sig_kwargs[key].populate_call_shape(call_shape, value)
-    except BoundVariableException as e:
-        raise ValueError(generate_call_shape_error_string(
-            signature, [], e.message, e.variable))
-
-    return cast(tuple[int], tuple(call_shape))
 
 
 def create_return_value_binding(call_dimensionality: int, signature: BoundCall, mode: CallMode):
@@ -346,8 +327,8 @@ def create_return_value_binding(call_dimensionality: int, signature: BoundCall, 
         node = signature.kwargs.get("_result")
         if node is not None and node.python.primal_type_name == 'none':
             node.call_dimensionality = call_dimensionality
-            node.transform = [i for i in range(
-                node.call_dimensionality+len(node.slang.primal.get_shape()))]
+            node.transform = Shape(tuple([i for i in range(
+                node.call_dimensionality+len(node.slang.primal.get_shape()))]))
             if call_dimensionality == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:
@@ -520,33 +501,6 @@ def generate_code(call_dimensionality: int, function: 'Function', signature: Bou
                 store_d(x)
 
     cg.kernel.end_block()
-
-
-def write_calldata_pre_dispatch(device: 'Device', call_shape: tuple[int], call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
-    """
-    Write the call data for args + kwargs before dispatching
-    """
-    sig_args = call_signature.args
-    sig_kwargs = call_signature.kwargs
-
-    for idx, value in enumerate(args):
-        sig_args[idx].write_call_data_pre_dispatch(device, call_shape, call_data, value)
-
-    for key, value in kwargs.items():
-        sig_kwargs[key].write_call_data_pre_dispatch(device, call_shape, call_data, value)
-
-
-def read_call_data_post_dispatch(device: 'Device', call_signature: BoundCallRuntime, call_data: dict[str, Any], *args: Any, **kwargs: Any):
-    """
-    Read the call data for args + kwargs after dispatching
-    """
-    sig_args = call_signature.args
-    sig_kwargs = call_signature.kwargs
-
-    for idx, value in enumerate(args):
-        sig_args[idx].read_call_data_post_dispatch(device, call_data, value)
-    for key, value in kwargs.items():
-        sig_kwargs[key].read_call_data_post_dispatch(device, call_data, value)
 
 
 def get_readable_signature_string(call_signature: PythonFunctionCall):

@@ -1,12 +1,13 @@
 from types import NoneType
 from typing import Any, Optional, cast
 
-from kernelfunctions.shapes import TConcreteShape
+from kernelfunctions.shapes import TShapeOrTuple
 
-from .enums import PrimType, AccessType, IOType, CallMode
+from .enums import PrimType, IOType
 from .pythonvariable import PythonVariable
 from .slangvariable import SlangVariable
 from .codegen import CodeGen
+from .native import AccessType, CallMode, Shape
 
 
 class BoundVariableException(Exception):
@@ -34,8 +35,8 @@ class BoundVariable:
 
     def __init__(self, python: PythonVariable, slang: SlangVariable,
                  mode: CallMode,
-                 input_transforms: Optional[dict[str, TConcreteShape]] = None,
-                 output_transforms: Optional[dict[str, TConcreteShape]] = None,
+                 input_transforms: Optional[dict[str, TShapeOrTuple]] = None,
+                 output_transforms: Optional[dict[str, TShapeOrTuple]] = None,
                  path: Optional[str] = None):
 
         super().__init__()
@@ -66,11 +67,11 @@ class BoundVariable:
 
         # Store transforms
         self.call_dimensionality = None
-        self.transform: Optional[list[Optional[int]]] = None
+        self.transform: Shape = Shape(None)
         if output_transforms is not None:
             t = output_transforms.get(self.path)
             if t is not None:
-                self.transform = list(t)
+                self.transform = Shape(t)
 
         # Create children if python value has children
         self.children: Optional[dict[str, BoundVariable]] = None
@@ -124,18 +125,18 @@ class BoundVariable:
 
             # If user transform was provided use it, otherwise just store a transform
             # of correct size but with all undefined values
-            if self.transform is not None:
+            if self.transform.valid:
                 if len(self.transform) != input_dim:
                     raise BoundVariableException(
                         f"Output transforms {self.transform} must have the same number of dimensions as the input {input_dim}", self)
             else:
-                self.transform = [None] * input_dim  # type: ignore
+                self.transform = Shape((-1,) * input_dim)
 
             # Dimensionality is the highest output dimension minus parameter shape
             assert self.transform is not None
             dim_count = len(self.transform)
             for x in self.transform:
-                if x is not None:
+                if x >= 0:
                     dim_count = max(dim_count, x+1)
             self.call_dimensionality = dim_count - len(param_shape)
 
@@ -144,10 +145,10 @@ class BoundVariable:
             # need to know which dimensions were concrete vs not though.
 
         else:
-            if self.transform:
+            if self.transform.valid:
                 raise BoundVariableException(
                     f"Output transforms can only be applied to variables with well defined input shape", self)
-            self.transform = None
+            self.transform = Shape(None)
             self.call_dimensionality = None
 
     def _calculate_differentiability(self, mode: CallMode):
@@ -237,7 +238,7 @@ class BoundVariable:
 
             cgb.end_struct()
         else:
-            if self.transform is None:
+            if not self.transform.valid:
                 return None
 
             # Raise error if attempting to write to non-writable type

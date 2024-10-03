@@ -4,10 +4,9 @@ from typing import Any, Optional
 
 from sgl import ResourceUsage
 
-from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime
+from kernelfunctions.core import BaseType, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, Shape
 
-from kernelfunctions.backend import Device, Buffer, TypeReflection
-from kernelfunctions.shapes import TLooseOrUndefinedShape, TLooseShape
+from kernelfunctions.backend import Buffer, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
 from .valuetype import ValueType
@@ -26,17 +25,17 @@ class StructuredBufferType(ValueType):
         else:
             return "StructuredBuffer<Unknown>"
 
-    def get_container_shape(self, value: Optional[Buffer] = None) -> TLooseShape:
+    def get_container_shape(self, value: Optional[Buffer] = None) -> Shape:
         if value is not None:
-            return (int(value.desc.size/value.desc.struct_size),)
+            return Shape(int(value.desc.size/value.desc.struct_size))
         else:
-            return (None,)
+            return Shape(-1)
 
-    def get_shape(self, value: Optional[Buffer] = None) -> TLooseOrUndefinedShape:
+    def get_shape(self, value: Optional[Buffer] = None) -> Shape:
         if self._el_type is not None:
             return super().get_shape(value)
         else:
-            return None
+            return Shape(None)
 
     @property
     def element_type(self):
@@ -80,7 +79,7 @@ class StructuredBufferType(ValueType):
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
         access = binding.access
         if access[0] != AccessType.none:
             return {
@@ -90,10 +89,11 @@ class StructuredBufferType(ValueType):
     def update_from_bound_type(self, bound_type: 'BaseType'):
         while True:
             stshape = bound_type.get_shape()
-            if stshape is None or None in stshape:
+            if stshape is None or -1 in stshape:
                 next_type = bound_type.element_type
                 if next_type == bound_type:
                     raise ValueError("Cannot resolve shape")
+                assert isinstance(next_type, BaseType)
                 bound_type = next_type
             else:
                 break

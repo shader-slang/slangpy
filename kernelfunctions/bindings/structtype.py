@@ -1,9 +1,9 @@
 from typing import Any
 
-from kernelfunctions.core import BaseType
+from kernelfunctions.core import BaseType, Shape
 
 from kernelfunctions.backend import TypeReflection
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
+from kernelfunctions.typeregistry import PYTHON_TYPES
 import kernelfunctions.typeregistry as tr
 
 from .valuetype import ValueType
@@ -20,7 +20,7 @@ class StructType(ValueType):
         return self.struct_name
 
     def get_shape(self, value: Any = None):
-        return (1,)
+        return Shape(1)
 
     @property
     def differentiable(self):

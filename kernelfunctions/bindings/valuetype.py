@@ -5,10 +5,9 @@ from typing import Any, Sequence
 import numpy.typing as npt
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
 
-from kernelfunctions.backend import TypeReflection, math, Device
-from kernelfunctions.shapes import TLooseOrUndefinedShape, TLooseShape
+from kernelfunctions.backend import TypeReflection, math
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_MATRIX_TYPES, SLANG_SCALAR_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
 from kernelfunctions.utils import parse_generic_signature
 
@@ -48,7 +47,7 @@ class ValueType(BaseTypeImpl):
             cgb.type_alias(f"_{name}", f"NoneType")
 
     # Call data just returns the primal
-    def create_calldata(self, device: Device, binding: 'BoundVariableRuntime', broadcast: list[bool], data: Any) -> Any:
+    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
         access = binding.access
         if access[0] in [AccessType.read, AccessType.readwrite]:
             return {
@@ -56,11 +55,11 @@ class ValueType(BaseTypeImpl):
             }
 
     # No need to create any buffers for output data, as we're read only!
-    def create_output(self, device: Device, call_shape: Sequence[int]) -> Any:
+    def create_output(self, context: CallContext, call_shape: Sequence[int]) -> Any:
         pass
 
     # Return the input as output, as it was by definition not changed
-    def read_output(self, device: Device, data: Any) -> Any:
+    def read_output(self, context: CallContext, data: Any) -> Any:
         return data
 
 
@@ -133,8 +132,8 @@ class ScalarType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         return self.bytes
 
-    def get_shape(self, value: Any = None) -> TLooseShape:
-        return ()
+    def get_shape(self, value: Any = None) -> Shape:
+        return Shape()
 
     @property
     def differentiable(self):
@@ -182,8 +181,8 @@ class NoneValueType(ValueType):
     def __init__(self, slang_type: TypeReflection.ScalarType):
         super().__init__()
 
-    def get_shape(self, value: Any = None) -> TLooseOrUndefinedShape:
-        return None
+    def get_shape(self, value: Any = None) -> Shape:
+        return Shape(None)
 
     @property
     def name(self) -> str:
@@ -208,8 +207,8 @@ class VectorType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         return self.size * self.et.get_byte_size()
 
-    def get_container_shape(self, value: Any = None) -> TLooseShape:
-        return (self.size,)
+    def get_container_shape(self, value: Any = None) -> Shape:
+        return Shape(self.size)
 
     @property
     def element_type(self):
@@ -270,8 +269,8 @@ class MatrixType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         return self.rows * self.cols * self.et.get_byte_size()
 
-    def get_container_shape(self, value: Any = None) -> TLooseShape:
-        return (self.rows, self.cols)
+    def get_container_shape(self, value: Any = None) -> Shape:
+        return Shape(self.rows, self.cols)
 
     @property
     def element_type(self):

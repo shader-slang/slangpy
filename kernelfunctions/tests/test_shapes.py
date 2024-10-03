@@ -1,11 +1,12 @@
 from typing import Any, Optional
 import pytest
 from sgl import float4
+from kernelfunctions.core import NativeBoundVariableException
 from kernelfunctions.backend import DeviceType, float1, float3
 from kernelfunctions.callsignature import BoundVariable
-from kernelfunctions.shapes import TLooseShape
 import deepdiff
 
+from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.tests import helpers
 from kernelfunctions.types import floatRef
 from kernelfunctions.types.buffer import NDBuffer
@@ -38,7 +39,7 @@ def list_or_none(x: Any):
 
 
 def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
-                transforms: Optional[dict[str, tuple[int, ...]]] = None,
+                transforms: Optional[dict[str, TShapeOrTuple]] = None,
                 ) -> Any:
     device = helpers.get_device(device_type)
 
@@ -58,7 +59,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     for node in call_data.debug_only_bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": list_or_none(call_data.call_shape),
+        "call_shape": list_or_none(call_data.last_call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
         "node_transforms": [list_or_none(x.transform) for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]
@@ -70,7 +71,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
 
 
 def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
-               transforms: Optional[dict[str, tuple[int, ...]]] = None,
+               transforms: Optional[dict[str, TShapeOrTuple]] = None,
                ) -> Any:
     device = helpers.get_device(device_type)
 
@@ -91,7 +92,7 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     for node in call_data.debug_only_bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": list_or_none(call_data.call_shape),
+        "call_shape": list_or_none(call_data.last_call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
         "node_transforms": [list_or_none(x.transform) for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]
@@ -101,11 +102,9 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
 # Copy function designed to replicate situations in which we'd ideally
 # be able to infer a buffer size but can't due to absence of generics
 # void copy(int index, Slice<1,float4> from, Slice<1,float4> to) { to[index] = from[index];}
-COPY_AT_INDEX_SIGNATURE: list[TLooseShape] = [(1,), (None, 4), (None, 4)]
-
 
 def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer: Any,
-                  transforms: Optional[dict[str, tuple[int, ...]]] = None
+                  transforms: Optional[dict[str, TShapeOrTuple]] = None
                   ) -> Any:
     device = helpers.get_device(device_type)
 
@@ -126,7 +125,7 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
     for node in call_data.debug_only_bindings.kwargs.values():
         node.get_input_list(nodes)
     return {
-        "call_shape": list_or_none(call_data.call_shape),
+        "call_shape": list_or_none(call_data.last_call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
         "node_transforms": [list_or_none(x.transform) for x in nodes],
         "python_dims": [x.python.dimensionality for x in nodes]
@@ -227,7 +226,7 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
 def test_dotproduct_shape_error(device_type: DeviceType):
 
     # attempt to pass a buffer of float4s for a, causes shape error
-    with pytest.raises(ValueError):
+    with pytest.raises(NativeBoundVariableException):
         dot_product(device_type, make_float_buffer(device_type, (100, 4)),
                     make_float_buffer(device_type, (3,)), None)
 
@@ -236,7 +235,7 @@ def test_dotproduct_shape_error(device_type: DeviceType):
 def test_dotproduct_broadcast_error(device_type: DeviceType):
 
     # attempt to pass missmatching buffer sizes for a and b
-    with pytest.raises(ValueError):
+    with pytest.raises(NativeBoundVariableException):
         dot_product(device_type, make_float_buffer(device_type, (100, 3)),
                     make_float_buffer(device_type, (1000, 3)), None)
 
@@ -263,7 +262,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 def test_dotproduct_broadcast_invalid_result(device_type: DeviceType):
 
     # pass an output of the wrong shape resulting in error
-    with pytest.raises(ValueError):
+    with pytest.raises(NativeBoundVariableException):
         shapes = dot_product(device_type, make_float_buffer(device_type, (100, 3)),
                              make_float_buffer(device_type, (3,)), make_float_buffer(device_type, (3,)))
 
