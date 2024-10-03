@@ -4,8 +4,7 @@ from typing import Any, Optional, TYPE_CHECKING
 
 import numpy.typing as npt
 
-from kernelfunctions.core.native import NativeType
-
+from .native import NativeType
 from .codegen import CodeGenBlock
 
 if TYPE_CHECKING:

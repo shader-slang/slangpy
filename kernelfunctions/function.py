@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 from kernelfunctions.core import SlangFunction, hash_signature, NativeBoundVariableException
 
 from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
-from kernelfunctions.shapes import TConcreteShape
+from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
@@ -68,10 +68,10 @@ class FunctionChainBase:
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)
 
-    def transform_input(self, transforms: dict[str, TConcreteShape]):
+    def transform_input(self, transforms: dict[str, TShapeOrTuple]):
         return FunctionChainInputTransform(self, transforms)
 
-    def transform_output(self, transforms: dict[str, TConcreteShape]):
+    def transform_output(self, transforms: dict[str, TShapeOrTuple]):
         return FunctionChainOutputTransform(self, transforms)
 
     def instance(self, this: IThis):
@@ -145,7 +145,7 @@ class FunctionChainSet(FunctionChainBase):
 
 class FunctionChainInputTransform(FunctionChainBase):
     def __init__(
-        self, parent: FunctionChainBase, transforms: dict[str, TConcreteShape]
+        self, parent: FunctionChainBase, transforms: dict[str, TShapeOrTuple]
     ) -> None:
         super().__init__(parent)
         self.transforms = transforms
@@ -153,7 +153,7 @@ class FunctionChainInputTransform(FunctionChainBase):
 
 class FunctionChainOutputTransform(FunctionChainBase):
     def __init__(
-        self, parent: FunctionChainBase, transforms: dict[str, TConcreteShape]
+        self, parent: FunctionChainBase, transforms: dict[str, TShapeOrTuple]
     ) -> None:
         super().__init__(parent)
         self.transforms = transforms

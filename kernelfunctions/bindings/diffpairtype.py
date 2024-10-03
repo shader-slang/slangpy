@@ -3,9 +3,8 @@
 from typing import Any, Optional
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, NativeShape
 
-from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.types import DiffPair
 
 from kernelfunctions.backend import Buffer, ResourceUsage
@@ -129,7 +128,7 @@ class DiffPairType(BaseTypeImpl):
     def element_type(self):
         return self.primal_type.element_type
 
-    def get_shape(self, value: Optional[DiffPair] = None) -> TLooseShape:
+    def get_shape(self, value: Optional[DiffPair] = None) -> NativeShape:
         return self.primal_type.get_shape()
 
     @property

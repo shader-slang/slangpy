@@ -1,9 +1,7 @@
-from typing import Optional, Sequence, TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict, Union
 
-TConcreteShape = tuple[int, ...]
-TConcreteOrUndefinedShape = Optional[TConcreteShape]
-TLooseShape = tuple[int, ...]
-TLooseOrUndefinedShape = Optional[TLooseShape]
+if TYPE_CHECKING:
+    from kernelfunctions.core import NativeShape
 
 TArgShapesResult = TypedDict(
     "TArgShapesResult",
@@ -14,9 +12,11 @@ TArgShapesResult = TypedDict(
     },
 )
 
+TShapeOrTuple = Union[tuple[int, ...], 'NativeShape']
 
-def check_concrete(shape: Optional[Sequence[Optional[int]]]) -> TConcreteShape:
-    assert shape is not None
-    assert not None in shape
-    assert not -1 in shape
-    return cast(TConcreteShape, shape)
+
+def check_concrete(shape: 'NativeShape') -> 'NativeShape':
+    assert shape.shape is not None
+    assert not None in shape.shape
+    assert not -1 in shape.shape
+    return shape

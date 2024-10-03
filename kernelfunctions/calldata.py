@@ -18,8 +18,8 @@ from kernelfunctions.callsignature import (
 )
 
 if TYPE_CHECKING:
-    from kernelfunctions.shapes import TConcreteShape
     from kernelfunctions.function import FunctionChainBase
+    from kernelfunctions.shapes import TShapeOrTuple
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
 
@@ -73,8 +73,8 @@ class CallData(NativeCallData):
 
         function = chain[0]
         chain = chain
-        input_transforms: dict[str, 'TConcreteShape'] = {}
-        outut_transforms: dict[str, 'TConcreteShape'] = {}
+        input_transforms: dict[str, 'TShapeOrTuple'] = {}
+        outut_transforms: dict[str, 'TShapeOrTuple'] = {}
 
         sets = {}
         for item in chain:

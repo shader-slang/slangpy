@@ -3,9 +3,8 @@
 from typing import Any, Optional
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext
+from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, NativeShape
 
-from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.types import ValueRef
 
 from kernelfunctions.backend import Buffer, ResourceUsage
@@ -70,7 +69,7 @@ class ValueRefType(BaseTypeImpl):
     def element_type(self):
         return self.value_type.element_type
 
-    def get_shape(self, value: Optional[ValueRef] = None) -> TLooseShape:
+    def get_shape(self, value: Optional[ValueRef] = None) -> NativeShape:
         return self.value_type.get_shape()
 
     @property

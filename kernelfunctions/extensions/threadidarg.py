@@ -2,10 +2,9 @@
 
 from typing import Optional
 
-from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable
+from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable, NativeShape
 
 from kernelfunctions.backend import TypeReflection
-from kernelfunctions.shapes import TLooseShape
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
 
 
@@ -33,8 +32,8 @@ class ThreadIdArgType(BaseTypeImpl):
     def name(self) -> str:
         return f"ThreadIdArg<{self.dims}>"
 
-    def get_container_shape(self, value: Optional[ThreadIdArg] = None) -> TLooseShape:
-        return (self.dims,)
+    def get_container_shape(self, value: Optional[ThreadIdArg] = None) -> NativeShape:
+        return NativeShape(self.dims)
 
     @property
     def element_type(self):

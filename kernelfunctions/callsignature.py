@@ -6,14 +6,15 @@ from kernelfunctions.core import (
     BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
-    BoundCallRuntime, BoundVariableRuntime
+    BoundCallRuntime, BoundVariableRuntime,
+    NativeShape
 )
 
 from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
 from kernelfunctions.bindings.valuereftype import ValueRefType
+from kernelfunctions.shapes import TShapeOrTuple
 
 if TYPE_CHECKING:
-    from kernelfunctions.shapes import TConcreteShape
     from kernelfunctions.function import Function
 
 
@@ -115,8 +116,8 @@ def bind(
         signature: PythonFunctionCall,
         mapping: dict[PythonVariable, SlangVariable],
         call_mode: CallMode,
-        input_transforms: Optional[dict[str, 'TConcreteShape']] = None,
-        output_transforms: Optional[dict[str, 'TConcreteShape']] = None) -> BoundCall:
+        input_transforms: Optional[dict[str, 'TShapeOrTuple']] = None,
+        output_transforms: Optional[dict[str, 'TShapeOrTuple']] = None) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
     to the signature nodes and performing other work that kicks in once
@@ -193,7 +194,7 @@ def _gen_arg_shape_string(variable: BoundVariable) -> str:
 
 def _gen_type_shape_string(variable: BoundVariable) -> str:
     if variable.slang is not None:
-        return str(list(variable.slang.primal.get_shape()))
+        return str(variable.slang.primal.get_shape().as_list())
     else:
         return "None"
 
@@ -310,9 +311,9 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
             if input.call_dimensionality is None:
                 raise BoundVariableException(
                     "Unresolved call dimensionality for argument", input)
-            assert input.transform is not None
-            input.transform = tuple([input.transform[i] if input.transform[i] >= 0 else i +
-                                    call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))])
+            assert input.transform.valid
+            input.transform = NativeShape(tuple([input.transform[i] if input.transform[i] >= 0 else i +
+                                                 call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
     except BoundVariableException as e:
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
@@ -326,8 +327,8 @@ def create_return_value_binding(call_dimensionality: int, signature: BoundCall, 
         node = signature.kwargs.get("_result")
         if node is not None and node.python.primal_type_name == 'none':
             node.call_dimensionality = call_dimensionality
-            node.transform = tuple([i for i in range(
-                node.call_dimensionality+len(node.slang.primal.get_shape()))])
+            node.transform = NativeShape(tuple([i for i in range(
+                node.call_dimensionality+len(node.slang.primal.get_shape()))]))
             if call_dimensionality == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:

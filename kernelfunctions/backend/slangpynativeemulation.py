@@ -7,9 +7,7 @@ To serve accurately, it should only import typing and the necessary backend type
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
-from sgl import CommandBuffer
-
-from . import uint3
+from . import uint3, CommandBuffer
 
 if TYPE_CHECKING:
     from . import Device, ComputeKernel
@@ -28,8 +26,6 @@ class CallMode(Enum):
     fwds = 2
 
 
-TLooseShape = tuple[int, ...]
-TConcreteShape = tuple[int, ...]
 TDispatchHook = Callable[[dict[str, Any]], None]
 
 
@@ -49,17 +45,55 @@ class NativeShape:
     Native base class for all shapes
     """
 
-    def __init__(self, shape: Optional[Union[tuple[int, ...], 'NativeShape']] = None):
+    def __init__(self, *args: Union[None, int, 'NativeShape', tuple[int, ...]]):
         super().__init__()
-        if shape is None:
-            self.shape: tuple[int, ...] = ()
-        elif isinstance(shape, tuple):
-            self.shape = shape
+        if len(args) == 0:
+            self.shape = ()
+        elif len(args) == 1:
+            if args[0] == None:
+                self.shape = None
+            elif isinstance(args[0], tuple):
+                self.shape = args[0]
+            elif isinstance(args[0], NativeShape):
+                self.shape = args[0].shape
+            else:
+                self.shape = self._from_tuple(args)
         else:
-            self.shape = shape.shape
+            self.shape = self._from_tuple(args)
 
     def __add__(self, other: 'NativeShape') -> 'NativeShape':
-        return NativeShape(self.shape + other.shape)
+        return NativeShape(self.as_tuple() + other.as_tuple())
+
+    def _from_tuple(self, shape: Any) -> tuple[int, ...]:
+        if not isinstance(shape, tuple):
+            raise ValueError("Shape must be a tuple")
+        if any([not isinstance(x, int) for x in shape]):
+            raise ValueError("Shape must be a tuple of integers")
+        return shape
+
+    def as_tuple(self) -> tuple[int, ...]:
+        if self.shape is None:
+            raise ValueError("Shape is invalid")
+        return self.shape
+
+    def as_list(self) -> list[int]:
+        return list(self.as_tuple())
+
+    @property
+    def valid(self) -> bool:
+        return self.shape is not None
+
+    def __len__(self) -> int:
+        return len(self.as_tuple())
+
+    def __getitem__(self, key: int) -> int:
+        return self.as_tuple()[key]
+
+    def __eq__(self, value: object) -> bool:
+        if isinstance(value, NativeShape):
+            return self.shape == value.shape
+        else:
+            return self.shape == value
 
 
 class NativeType:
@@ -81,10 +115,10 @@ class NativeType:
     def get_byte_size(self, value: Any = None) -> int:
         raise NotImplementedError()
 
-    def get_container_shape(self, value: Any = None) -> TLooseShape:
-        return ()
+    def get_container_shape(self, value: Any = None) -> NativeShape:
+        return NativeShape()
 
-    def get_shape(self, value: Any = None) -> TLooseShape:
+    def get_shape(self, value: Any = None) -> NativeShape:
         return self.get_container_shape(value) + self.element_type.get_shape()
 
     def create_calldata(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any) -> Any:
@@ -122,7 +156,7 @@ class NativeBoundCallRuntime:
         for key, value in kwargs.items():
             sig_kwargs[key].populate_call_shape(call_shape, value)
 
-        return cast(TConcreteShape, tuple(call_shape))
+        return NativeShape(tuple(call_shape))
 
     def write_calldata_pre_dispatch(self, context: 'CallContext', call_data: dict[str, Any], *args: Any, **kwargs: Any):
         """
@@ -158,10 +192,10 @@ class NativeBoundVariableRuntime:
     def __init__(self):
         super().__init__()
         self.access: tuple[AccessType, AccessType] = (AccessType.none, AccessType.none)
-        self.transform: Optional[TConcreteShape] = None
-        self.slang_shape: TLooseShape = ()
+        self.transform: NativeShape = None  # type: ignore
+        self.slang_shape: NativeShape = None  # type: ignore
         self.python_type: NativeType = None  # type: ignore
-        self.shape: TConcreteShape = ()
+        self.shape: NativeShape = None  # type: ignore
         self._name = ""
         self._variable_name = ""
         self._children: Optional[dict[str, 'NativeBoundVariableRuntime']] = None
@@ -175,8 +209,8 @@ class NativeBoundVariableRuntime:
                 child.populate_call_shape(call_shape, value[name])
         elif value is not None:
             # Get concrete primal shape
-            shape = cast(TConcreteShape, self.python_type.get_shape(value))
-            tf = cast(TConcreteShape, self.transform)
+            shape = self.python_type.get_shape(value)
+            tf = cast(NativeShape, self.transform)
             csl = len(call_shape)
             self.shape = shape
 
@@ -215,7 +249,7 @@ class NativeBoundVariableRuntime:
 
             # Broadcast occurs if the shape of the input is different from the shape of the output
             broadcast = []
-            transform = cast(TConcreteShape, self.transform)
+            transform = self.transform
             for i in range(len(transform)):
                 csidx = transform[i]
                 broadcast.append(full_cs[csidx] != shape[i])
@@ -267,7 +301,7 @@ class NativeCallData:
         self.call_mode = CallMode.prim
         self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
         self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
-        self.last_call_shape: TConcreteShape = ()
+        self.last_call_shape = NativeShape()
 
     def exec(self, command_buffer: Optional[CommandBuffer],  *args: Any, **kwargs: Any):
 
@@ -294,7 +328,7 @@ class NativeCallData:
             if self.call_mode == CallMode.prim and rv_node is not None and kwargs.get("_result", None) is None:
                 kwargs["_result"] = rv_node.python_type.create_output(context)
                 unpacked_kwargs["_result"] = kwargs["_result"]
-                rv_node.populate_call_shape(list(call_shape), kwargs["_result"])
+                rv_node.populate_call_shape(call_shape.as_list(), kwargs["_result"])
 
         self.runtime.write_calldata_pre_dispatch(context,
                                                  call_data, *unpacked_args, **unpacked_kwargs)
@@ -308,7 +342,7 @@ class NativeCallData:
 
         if len(strides) > 0:
             call_data["_call_stride"] = strides
-            call_data["_call_dim"] = list(call_shape)
+            call_data["_call_dim"] = call_shape.as_list()
         call_data["_thread_count"] = uint3(total_threads, 1, 1)
 
         vars = self.sets.copy()
@@ -349,7 +383,7 @@ class CallContext:
     Native call context
     """
 
-    def __init__(self, device: 'Device', call_shape: TConcreteShape):
+    def __init__(self, device: 'Device', call_shape: NativeShape):
         super().__init__()
         self.device = device
         self.call_shape = call_shape
