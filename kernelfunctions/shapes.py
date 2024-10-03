@@ -12,7 +12,7 @@ TArgShapesResult = TypedDict(
     },
 )
 
-TShapeOrTuple = Union[tuple[int, ...], 'NativeShape']
+TShapeOrTuple = Union[tuple[int, ...], 'Shape']
 
 
 def check_concrete(shape: 'Shape') -> 'Shape':
