@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 from typing import TYPE_CHECKING, Any, Optional
 
 from sgl import CommandBuffer
@@ -176,7 +177,8 @@ Overloads:
 
         # Write the shader to a file for debugging.
         os.makedirs(".temp", exist_ok=True)
-        fn = f".temp/{function.module.name}_{function.name}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
+        sanitized = re.sub(r"[<>, ]", "_", function.name)
+        fn = f".temp/{function.module.name}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
 
         # with open(fn,"r") as f:
         #   self.code = f.read()
