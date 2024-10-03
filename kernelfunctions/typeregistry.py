@@ -33,6 +33,9 @@ SLANG_ARRAY_TYPE: BaseType = TTypeLookup  # type: ignore
 SLANG_STRUCT_TYPES_BY_FULL_NAME: dict[str, TTypeLookup] = {}
 SLANG_STRUCT_TYPES_BY_NAME: dict[str, TTypeLookup] = {}
 SLANG_STRUCT_BASE_TYPE: TTypeLookup = None  # type: ignore
+SLANG_INTERFACE_TYPES_BY_NAME: dict[str, TTypeLookup] = {}
+SLANG_INTERFACE_BASE_TYPE: TTypeLookup = None  # type: ignore
+
 
 # There is not currently a way to go from TypeReflection to the enclosing scope,
 # so we need this global state to retain it for now. The reflection API should be
@@ -82,6 +85,10 @@ def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> TTypeLoo
         res = SLANG_MATRIX_TYPES[slang_type.scalar_type][slang_type.row_count][slang_type.col_count]
     elif slang_type.kind == TypeReflection.Kind.array:
         res = SLANG_ARRAY_TYPE
+    elif slang_type.kind == TypeReflection.Kind.interface:
+        res = SLANG_INTERFACE_TYPES_BY_NAME.get(slang_type.name)
+        if res is None:
+            res = SLANG_INTERFACE_BASE_TYPE
     elif slang_type.kind == TypeReflection.Kind.struct:
         res = SLANG_STRUCT_TYPES_BY_FULL_NAME.get(slang_type.full_name)
         if res is None:
