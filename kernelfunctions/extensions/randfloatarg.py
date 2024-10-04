@@ -30,17 +30,11 @@ class RandFloatArgType(BaseTypeImpl):
     def __init__(self, dim: int):
         super().__init__()
         self.dims = dim
-
-    @property
-    def name(self) -> str:
-        return f"RandFloatArg<{self.dims}>"
+        self.element_type = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
+        self.name = f"RandFloatArg<{self.dims}>"
 
     def get_container_shape(self, value: Optional[RandFloatArg] = None) -> Shape:
         return Shape(self.dims)
-
-    @property
-    def element_type(self):
-        return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
 
     def gen_calldata(self, cgb: CodeGenBlock, binding: BoundVariable):
         access = binding.access

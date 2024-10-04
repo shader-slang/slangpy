@@ -16,14 +16,11 @@ class StructuredBufferType(ValueType):
 
     def __init__(self, element_type: Optional[BaseType]):
         super().__init__()
-        self._el_type = element_type
-
-    @property
-    def name(self) -> str:
-        if self._el_type is not None:
-            return f"StructuredBuffer<{self._el_type.name}>"
+        self.element_type = element_type
+        if self.element_type is not None:
+            self.name = f"StructuredBuffer<{self.element_type.name}>"
         else:
-            return "StructuredBuffer<Unknown>"
+            self.name = "StructuredBuffer<Unknown>"
 
     def get_container_shape(self, value: Optional[Buffer] = None) -> Shape:
         if value is not None:
@@ -32,26 +29,22 @@ class StructuredBufferType(ValueType):
             return Shape(-1)
 
     def get_shape(self, value: Optional[Buffer] = None) -> Shape:
-        if self._el_type is not None:
+        if self.element_type is not None:
             return super().get_shape(value)
         else:
             return Shape(None)
 
     @property
-    def element_type(self):
-        return self._el_type
-
-    @property
     def differentiable(self):
-        if self._el_type is not None:
-            return self._el_type.differentiable
+        if self.element_type is not None:
+            return self.element_type.differentiable
         else:
             return False
 
     @property
     def derivative(self):
-        if self._el_type is not None:
-            el_diff = self._el_type.derivative
+        if self.element_type is not None:
+            el_diff = self.element_type.derivative
             if el_diff is not None:
                 return StructuredBufferType(el_diff)
             else:
@@ -97,7 +90,7 @@ class StructuredBufferType(ValueType):
                 bound_type = next_type
             else:
                 break
-        self._el_type = bound_type
+        self.element_type = bound_type
 
 
 class RWStructuredBufferType(StructuredBufferType):
@@ -106,8 +99,8 @@ class RWStructuredBufferType(StructuredBufferType):
 
     @property
     def name(self) -> str:
-        if self._el_type is not None:
-            return f"RWStructuredBuffer<{self._el_type.name}>"
+        if self.element_type is not None:
+            return f"RWStructuredBuffer<{self.element_type.name}>"
         else:
             return "RWStructuredBuffer<Unknown>"
 
@@ -117,8 +110,8 @@ class RWStructuredBufferType(StructuredBufferType):
 
     @property
     def derivative(self):
-        if self._el_type is not None:
-            el_diff = self._el_type.derivative
+        if self.element_type is not None:
+            el_diff = self.element_type.derivative
             if el_diff is not None:
                 return StructuredBufferType(el_diff)
             else:

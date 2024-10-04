@@ -10,18 +10,15 @@ from .valuetype import ValueType
 class ArrayType(ValueType):
     def __init__(self, element_type: BaseType, element_count: Optional[int]):
         super().__init__()
-        self.et = element_type
+        self.element_type = element_type
         self.ec = element_count
-
-    @property
-    def name(self) -> str:
-        return f"{self.et.name}[{self.ec}]"
+        self.name = f"{self.element_type.name}[{self.ec}]"
 
     def get_byte_size(self, value: Optional[list[Any]] = None) -> int:
         if self.ec is not None:
-            return self.ec * self.et.get_byte_size()
+            return self.ec * self.element_type.get_byte_size()
         elif value is not None:
-            return len(value) * self.et.get_byte_size()
+            return len(value) * self.element_type.get_byte_size()
         else:
             raise ValueError("Array size must be known to compute byte size")
 
@@ -29,16 +26,12 @@ class ArrayType(ValueType):
         return Shape(self.ec if self.ec else -1)
 
     @property
-    def element_type(self):
-        return self.et
-
-    @property
     def differentiable(self):
-        return self.et.differentiable
+        return self.element_type.differentiable
 
     @property
     def derivative(self):
-        et = self.et.derivative
+        et = self.element_type.derivative
         if et is not None:
             return ArrayType(et, self.ec)
         else:
