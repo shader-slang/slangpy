@@ -13,7 +13,7 @@ from kernelfunctions.backend import (
     Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel,
     TypeReflection)
 from kernelfunctions.calldata import SLANG_PATH
-from kernelfunctions.typeregistry import PYTHON_TYPES
+from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 from kernelfunctions.core import BaseTypeImpl, Shape
 
 SHADER_DIR = Path(__file__).parent
@@ -111,10 +111,8 @@ class FakeBuffer:
 class FakeBufferType(BaseTypeImpl):
     def __init__(self):
         super().__init__()
-
-    @property
-    def name(self) -> str:
-        return "FakeBuffer"
+        self.name = "FakeBuffer"
+        self.element_type = get_or_create_type(type(None))
 
     @property
     def has_derivative(self) -> bool:
@@ -128,10 +126,6 @@ class FakeBufferType(BaseTypeImpl):
 
     def get_shape(self, value: Any = None) -> Shape:
         return value.shape
-
-    @property
-    def element_type(self):
-        return PYTHON_TYPES[NoneType]
 
 
 PYTHON_TYPES[FakeBuffer] = FakeBufferType()

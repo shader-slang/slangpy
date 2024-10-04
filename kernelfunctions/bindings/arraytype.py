@@ -15,6 +15,7 @@ class ArrayType(ValueType):
         self.name = f"{self.element_type.name}[{self.ec}]"
 
     def get_byte_size(self, value: Optional[list[Any]] = None) -> int:
+        assert self.element_type is not None
         if self.ec is not None:
             return self.ec * self.element_type.get_byte_size()
         elif value is not None:

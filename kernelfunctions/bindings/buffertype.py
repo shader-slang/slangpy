@@ -50,6 +50,7 @@ class NDBufferType(BaseTypeImpl):
     def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
+        assert self.element_type is not None
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:

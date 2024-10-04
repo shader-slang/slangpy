@@ -191,6 +191,7 @@ class VectorType(ValueType):
         self.concrete_shape = Shape(self.size)
 
     def get_byte_size(self, value: Any = None) -> int:
+        assert self.element_type is not None
         return self.size * self.element_type.get_byte_size()
 
     @property
@@ -244,6 +245,7 @@ class MatrixType(ValueType):
         self.concrete_shape = Shape(self.rows, self.cols)
 
     def get_byte_size(self, value: Any = None) -> int:
+        assert self.element_type is not None
         return self.rows * self.cols * self.element_type.get_byte_size()
 
     @property

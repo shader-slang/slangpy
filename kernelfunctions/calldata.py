@@ -1,6 +1,6 @@
 import hashlib
 import os
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime, NativeCallData
 
@@ -59,8 +59,7 @@ class CallData(NativeCallData):
             FunctionChainInputTransform,
             FunctionChainOutputTransform,
             FunctionChainSet,
-            FunctionChainHook,
-            TDispatchHook
+            FunctionChainHook
         )
 
         if not isinstance(chain[0], Function):
