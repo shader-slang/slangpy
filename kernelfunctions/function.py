@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
-from kernelfunctions.core import SlangFunction, hash_signature, NativeBoundVariableException
+from kernelfunctions.core import SlangFunction, hash_signature
 
 from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
 from kernelfunctions.shapes import TShapeOrTuple
@@ -40,26 +40,35 @@ class FunctionChainBase:
         self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
+        calldata: Optional['CallData'] = None
         try:
             if self.this:
                 args = (self.this,)+args
             calldata = self._build_call_data(*args, **kwargs)
             return calldata.call(*args, **kwargs)
-        except NativeBoundVariableException as e:
-            from kernelfunctions.callsignature import generate_call_shape_error_string
-            raise ValueError(generate_call_shape_error_string(
-                calldata.runtime, [], e.message, e.source))  # type: ignore
+        except ValueError as e:
+            self._handle_error(e, calldata)
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+        calldata: Optional['CallData'] = None
         try:
             if self.this:
                 args = (self.this,)+args
             calldata = self._build_call_data(*args, **kwargs)
             return calldata.append_to(command_buffer, *args, **kwargs)
-        except NativeBoundVariableException as e:
-            from kernelfunctions.callsignature import generate_call_shape_error_string
-            raise ValueError(generate_call_shape_error_string(
-                calldata.runtime, [], e.message, e.source))  # type: ignore
+        except ValueError as e:
+            self._handle_error(e, calldata)
+
+    def _handle_error(self, e: ValueError, calldata: Optional['CallData']):
+        if len(e.args) != 1 or not isinstance(e.args[0], dict):
+            raise e
+        if not 'message' in e.args[0] or not 'source' in e.args[0]:
+            raise e
+        msg = e.args[0]['message']
+        source = e.args[0]['source']
+        from kernelfunctions.callsignature import generate_call_shape_error_string
+        raise ValueError(generate_call_shape_error_string(
+            calldata.runtime, [], msg, source))  # type: ignore
 
     @property
     def bwds_diff(self):

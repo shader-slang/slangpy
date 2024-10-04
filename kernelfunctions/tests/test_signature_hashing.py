@@ -39,14 +39,14 @@ def test_signature_gen(device_type: DeviceType):
     pass
 
 
-@pytest.mark.skip(reason="Perf test only")
+# @pytest.mark.skip(reason="Perf test only")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_kernel_reuse(device_type: DeviceType):
     add_vectors: Function = load_module(device_type).add_vectors  # type: ignore
 
     buffer = NDBuffer(helpers.get_device(device_type), int, 4)
 
-    count = 10000
+    count = 1000
 
     # kff.ENABLE_CALLDATA_CACHE = False
 #
@@ -64,18 +64,20 @@ def test_kernel_reuse(device_type: DeviceType):
 
     add_vectors(a, b, _result=res)
 
+    buffer = helpers.get_device(device_type).create_command_buffer()
+
     start = time()
     for i in range(0, int(count/10)):
-        add_vectors(a, b, _result=res)
-        add_vectors(a, b, _result=res)
-        add_vectors(a, b, _result=res)
-        add_vectors(a, b, _result=res)
-        add_vectors(a, b, _result=res)
-        add_vectors(a, b, _result=res)
-        add_vectors(a, b, _result=res)
-        add_vectors(a, b, _result=res)
-        add_vectors(a, b, _result=res)
-        add_vectors(a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(buffer, a, b, _result=res)
     end = time()
     print(f"Time taken cached: {1000.0*(end-start)/count}ms")
 
