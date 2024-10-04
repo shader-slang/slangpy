@@ -70,7 +70,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
 
 # Second set of tests emulate the shape of the following slang function,
 # which has a 2nd parameter with with undefined dimension sizes
-# float4 read(int2 index, Slice<2,float4> array) { return array[index];}
+# float4 read(int2 index, Slice<2,float4> array) { return Shaparray[index];}
 
 
 def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,

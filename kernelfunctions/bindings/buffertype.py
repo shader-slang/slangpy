@@ -66,7 +66,7 @@ class NDBufferType(BaseTypeImpl):
         return {
             'buffer': data.buffer,
             'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
-            'transform': binding.transform[0:self.dims]  # type: ignore
+            'transform': binding.transform.as_tuple()[0:self.dims]
         }
 
     def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> Shape:

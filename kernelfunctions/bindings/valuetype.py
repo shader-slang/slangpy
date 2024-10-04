@@ -121,12 +121,10 @@ class ScalarType(ValueType):
         self.python_type = SCALAR_TYPE_TO_PYTHON_TYPE[self.slang_type]
         self.bytes = SCALAR_TYPE_SIZES[self.slang_type]
         self.name = SCALAR_TYPE_NAMES[self.slang_type]
+        self.concrete_shape = Shape()
 
     def get_byte_size(self, value: Any = None) -> int:
         return self.bytes
-
-    def get_shape(self, value: Any = None) -> Shape:
-        return Shape()
 
     @property
     def differentiable(self):
@@ -190,12 +188,10 @@ class VectorType(ValueType):
         self.size = size
         self.python_type: type = NoneType
         self.name = f"vector<{self.element_type.name},{self.size}>"
+        self.concrete_shape = Shape(self.size)
 
     def get_byte_size(self, value: Any = None) -> int:
         return self.size * self.element_type.get_byte_size()
-
-    def get_container_shape(self, value: Any = None) -> Shape:
-        return Shape(self.size)
 
     @property
     def differentiable(self):
@@ -245,12 +241,10 @@ class MatrixType(ValueType):
         self.cols = cols
         self.python_type: type = NoneType
         self.name = f"matrix<{self.element_type.name},{self.rows},{self.cols}>"
+        self.concrete_shape = Shape(self.rows, self.cols)
 
     def get_byte_size(self, value: Any = None) -> int:
         return self.rows * self.cols * self.element_type.get_byte_size()
-
-    def get_container_shape(self, value: Any = None) -> Shape:
-        return Shape(self.rows, self.cols)
 
     @property
     def differentiable(self):
