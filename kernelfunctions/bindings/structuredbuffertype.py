@@ -96,13 +96,7 @@ class StructuredBufferType(ValueType):
 class RWStructuredBufferType(StructuredBufferType):
     def __init__(self, element_type: Optional[BaseType]):
         super().__init__(element_type=element_type)
-
-    @property
-    def name(self) -> str:
-        if self.element_type is not None:
-            return f"RWStructuredBuffer<{self.element_type.name}>"
-        else:
-            return "RWStructuredBuffer<Unknown>"
+        self.name = "RW" + self.name
 
     @property
     def is_writable(self) -> bool:
