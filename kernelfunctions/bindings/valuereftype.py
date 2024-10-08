@@ -80,14 +80,14 @@ class ValueRefType(BaseTypeImpl):
     def derivative(self):
         return self.value_type.derivative
 
-    def create_output(self, context: CallContext) -> Any:
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         pt = self.value_type.python_return_value_type
         if pt is not None:
             return ValueRef(pt())
         else:
             return ValueRef(None)
 
-    def read_output(self, context: CallContext, data: ValueRef) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: ValueRef) -> Any:
         return data.value
 
 

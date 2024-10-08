@@ -139,10 +139,10 @@ class DiffPairType(BaseTypeImpl):
     def derivative(self):
         return self.primal_type.derivative
 
-    def create_output(self, context: CallContext) -> Any:
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         return DiffPair(None, None)
 
-    def read_output(self, context: CallContext, data: DiffPair) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: DiffPair) -> Any:
         return data
 
 

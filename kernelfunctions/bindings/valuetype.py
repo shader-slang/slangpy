@@ -1,7 +1,7 @@
 
 
 from types import NoneType
-from typing import Any, Sequence
+from typing import Any
 import numpy.typing as npt
 import numpy as np
 
@@ -55,11 +55,11 @@ class ValueType(BaseTypeImpl):
             }
 
     # No need to create any buffers for output data, as we're read only!
-    def create_output(self, context: CallContext, call_shape: Sequence[int]) -> Any:
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         pass
 
     # Return the input as output, as it was by definition not changed
-    def read_output(self, context: CallContext, data: Any) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any) -> Any:
         return data
 
 

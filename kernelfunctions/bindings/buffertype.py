@@ -93,10 +93,10 @@ class NDBufferType(BaseTypeImpl):
         else:
             return None
 
-    def create_output(self, context: CallContext) -> Any:
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         return NDBuffer(context.device, self.el_type.python_return_value_type, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
-    def read_output(self, context: CallContext, data: NDDifferentiableBuffer) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
 
 
@@ -213,13 +213,13 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             return None
 
-    def create_output(self, context: CallContext) -> Any:
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         return NDDifferentiableBuffer(context.device, self.el_type.python_return_value_type,
                                       shape=context.call_shape,
                                       requires_grad=True,
                                       usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
-    def read_output(self, context: CallContext, data: NDDifferentiableBuffer) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
 
 
