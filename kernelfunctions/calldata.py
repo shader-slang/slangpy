@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from sgl import CommandBuffer
 
-from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime, NativeCallData
+from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData
 
 from kernelfunctions.callsignature import (
     bind,
@@ -157,17 +157,17 @@ Overloads:
         # calculate call shaping
         self.call_dimensionality = calculate_call_dimensionality(bindings)
 
+        context = BindContext(self.call_dimensionality, self.call_mode)
+
         # if necessary, create return value node
-        create_return_value_binding(self.call_dimensionality,
-                                    bindings, self.call_mode)
+        create_return_value_binding(context, bindings)
 
         # once overall dimensionality is known, individual binding transforms can be made concrete
-        finalize_transforms(self.call_dimensionality, bindings)
+        finalize_transforms(context, bindings)
 
         # generate code
         codegen = CodeGen()
-        generate_code(self.call_dimensionality, function,
-                      bindings, self.call_mode, codegen)
+        generate_code(context, function, bindings, codegen)
 
         # store code
         code = codegen.finish(call_data=True, input_load_store=True,

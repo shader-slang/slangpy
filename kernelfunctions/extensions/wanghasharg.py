@@ -1,7 +1,7 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
@@ -39,7 +39,7 @@ class WangHashArgType(BaseTypeImpl):
     def element_type(self):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
 
-    def gen_calldata(self, cgb: CodeGenBlock, binding: BoundVariable):
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
         if access[0] == AccessType.read:
