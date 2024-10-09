@@ -59,7 +59,7 @@ def test_call_none_differentiable(device_type: DeviceType):
     res = function(a, b)
     assert res == python_eval_polynomial(a, b)
 
-    with pytest.raises(ValueError, match="No matching overload found"):
+    with pytest.raises(ValueError, match="Could not call function 'polynomial': Function is not differentiable"):
         function.bwds_diff(a, b, res)
 
 

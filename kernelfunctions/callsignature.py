@@ -29,11 +29,17 @@ def build_signature(*args: Any, **kwargs: Any):
     return PythonFunctionCall(*args, **kwargs)
 
 
+class MismatchReason:
+    def __init__(self, reason: str):
+        super().__init__()
+        self.reason = reason
+
+
 def match_signatures(
     signature: PythonFunctionCall,
     function: SlangFunction,
     call_mode: CallMode
-) -> Union[None, dict[PythonVariable, SlangVariable]]:
+) -> Union[MismatchReason, dict[PythonVariable, SlangVariable]]:
     """
     Attempts to efficiently match a signature to a slang function overload.
     Returns a dictionary of matched argument nodes to parameter names.
@@ -41,7 +47,7 @@ def match_signatures(
 
     # Bail instantly if trying to call a non-differentiable function with a derivative call
     if call_mode != CallMode.prim and not function.differentiable:
-        return None
+        return MismatchReason("Function is not differentiable")
 
     # Easy step: Match arguments to parameters based on position/names
     # Bail if too many/few args, mismatched parameter name, multiple asignments, etc.
@@ -50,7 +56,8 @@ def match_signatures(
         overload_parameters.append(function.return_value)
 
     if len(signature.args) > len(overload_parameters):
-        return None
+        return MismatchReason(f"Too many function arguments: Expected {len(function.parameters)}, "
+                              f"received {len(signature.args) + len(signature.kwargs)}")
 
     positioned_args: list[Optional[PythonVariable]] = [None] * len(overload_parameters)
     for i, arg in enumerate(signature.args):
@@ -59,16 +66,17 @@ def match_signatures(
     name_map = {param.name: i for i, param in enumerate(overload_parameters)}
     for name, arg in signature.kwargs.items():
         if name not in name_map:
-            return None
+            return MismatchReason(f"No parameter named '{name}'")
         i = name_map[name]
         if positioned_args[i] is not None:
-            return None
+            return MismatchReason(f"Parameter '{name}' is already assigned")
         positioned_args[i] = arg
 
     missing_params = [param for arg, param in zip(positioned_args, overload_parameters)
                       if arg is None and not param.has_default]
     if missing_params:
-        return None
+        missing_names = "', '".join(param.name for param in missing_params)
+        return MismatchReason(f"Arguments missing for parameter(s) '{missing_names}'")
 
     # Each parameter without default is matched to exactly one argument.
     # Now check if the types are compatible
@@ -77,7 +85,8 @@ def match_signatures(
 
     for arg, param in matched_args.items():
         if not arg.is_compatible(param):
-            return None
+            return MismatchReason(f"Cannot convert from {arg.primal.name} to "
+                                  f"{param.primal.name} for parameter '{param.name}'")
 
     return matched_args
 
