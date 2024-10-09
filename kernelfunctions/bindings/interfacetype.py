@@ -12,6 +12,10 @@ class InterfaceType(BaseTypeImpl):
         super().__init__()
         self.interface_name = interface_name
 
+    @property
+    def needs_specialization(self) -> bool:
+        return True
+
     def name(self, value: Any = None) -> str:
         return self.interface_name
 

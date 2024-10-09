@@ -26,8 +26,15 @@ class BaseTypeImpl(BaseType):
         return None
 
     @property
+    def needs_specialization(self) -> bool:
+        return False
+
+    @property
     def fields(self) -> Optional[dict[str, BaseType]]:
         return None
 
     def update_from_bound_type(self, bound_type: 'BaseType'):
         pass
+
+    def specialize_type(self, type: BaseType) -> Optional[BaseType]:
+        return None
