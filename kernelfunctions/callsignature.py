@@ -43,73 +43,43 @@ def match_signatures(
     if call_mode != CallMode.prim and not function.differentiable:
         return None
 
-    overload_parameters = function.parameters
+    # Easy step: Match arguments to parameters based on position/names
+    # Bail if too many/few args, mismatched parameter name, multiple asignments, etc.
+    overload_parameters = function.parameters.copy()
+    if function.return_value is not None:
+        overload_parameters.append(function.return_value)
 
-    args = signature.args.copy()
-    kwargs = signature.kwargs.copy()
-    rval = None
-    matched_rval: Optional[BoundVariable] = None
-
-    # Check for user providing return value. In all cases, it
-    # can be explicitly passed as a keyword argument. With derivative
-    # calls, if not provided as keyword, it is EXPECTED to be
-    # the last positional argument.
-    if "_result" in kwargs:
-        rval = kwargs["_result"]
-        del kwargs["_result"]
-        if function.return_value is None:
-            raise ValueError(
-                f"Function {function.name} does not return a value, but one was provided")
-        if not rval.is_compatible(function.return_value):
-            return None
-    elif call_mode != CallMode.prim and function.return_value is not None:
-        rval = args[-1]
-        args = args[:-1]
-        if not rval.is_compatible(function.return_value):
-            return None
-
-    # If there are more positional arguments than parameters, it can't match.
-    if len(args) > len(overload_parameters):
+    if len(signature.args) > len(overload_parameters):
         return None
 
-    # Dictionary of slang arguments and corresponding python arguments
-    param_name_to_index = {x.name: i for i, x in enumerate(overload_parameters)}
-    matched_params: dict[SlangVariable, Optional[PythonVariable]] = {
-        x: None for x in overload_parameters}
+    positioned_args: list[Optional[PythonVariable]] = [None] * len(overload_parameters)
+    for i, arg in enumerate(signature.args):
+        positioned_args[i] = arg
 
-    # Positional arguments must all match perfectly
-    for i, arg in enumerate(args):
-        param = overload_parameters[i]
+    name_map = {param.name: i for i, param in enumerate(overload_parameters)}
+    for name, arg in signature.kwargs.items():
+        if name not in name_map:
+            return None
+        i = name_map[name]
+        if positioned_args[i] is not None:
+            return None
+        positioned_args[i] = arg
+
+    missing_params = [param for arg, param in zip(positioned_args, overload_parameters)
+                      if arg is None and not param.has_default]
+    if missing_params:
+        return None
+
+    # Each parameter without default is matched to exactly one argument.
+    # Now check if the types are compatible
+    matched_args = {arg: param for arg, param in zip(positioned_args, overload_parameters)
+                    if arg is not None}
+
+    for arg, param in matched_args.items():
         if not arg.is_compatible(param):
             return None
-        arg.param_index = i
-        matched_params[param] = arg
 
-    # Pair up kw arguments with slang arguments
-    for name, arg in kwargs.items():
-        i = param_name_to_index.get(name)
-        if i is None:
-            return None
-        param = overload_parameters[i]
-        if not arg.is_compatible(param):
-            return None
-        arg.param_index = i
-        matched_params[param] = arg
-
-    # Check if all arguments have been handled
-    for param in matched_params.values():
-        if param is None:
-            return None
-
-    if rval is not None:
-        assert function.return_value is not None
-        rval.param_index = len(overload_parameters)
-        matched_params[function.return_value] = rval
-
-    inverse_match = {
-        v: k for k, v in matched_params.items()}
-
-    return inverse_match  # type: ignore
+    return matched_args
 
 
 def bind(
