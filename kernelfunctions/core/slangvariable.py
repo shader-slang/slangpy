@@ -58,6 +58,7 @@ class SlangVariable(BaseVariableImpl):
             assert isinstance(reflection, (VariableReflection, TypeReflection.ScalarType))
             io_type = parent.io_type
             no_diff = parent.no_diff
+            has_default = parent.has_default
             if isinstance(reflection, TypeReflection.ScalarType):
                 assert name is not None
                 self.name = name
@@ -77,18 +78,21 @@ class SlangVariable(BaseVariableImpl):
             else:
                 io_type = IOType.inn
             no_diff = reflection.has_modifier(ModifierID.nodiff)
+            has_default = False
         elif isinstance(reflection, FunctionReflection):
             # Just a return value - always out, and only differentiable if function is
             slang_type = reflection.return_type
             self.name = "_result"
             io_type = IOType.out
             no_diff = not reflection.has_modifier(ModifierID.differentiable)
+            has_default = True
         elif isinstance(reflection, TypeReflection):
             # Just a type
             slang_type = reflection
             self.name = name if name is not None else ""
             io_type = IOType.inn
             no_diff = False
+            has_default = True
 
         if iotype_override is not None:
             io_type = iotype_override
@@ -98,6 +102,7 @@ class SlangVariable(BaseVariableImpl):
         self.no_diff = no_diff
         self.primal = get_or_create_type(slang_type)
         self.derivative = self.primal.derivative
+        self.has_default = has_default
 
         if isinstance(slang_type, TypeReflection):
             if slang_type.kind == TypeReflection.Kind.struct:
