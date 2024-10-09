@@ -1,5 +1,7 @@
 
 
+from typing import Optional
+
 from .basetype import BaseType
 
 
@@ -21,6 +23,10 @@ class BaseTypeImpl(BaseType):
 
     @property
     def derivative(self):
+        return None
+
+    @property
+    def fields(self) -> Optional[dict[str, BaseType]]:
         return None
 
     def update_from_bound_type(self, bound_type: 'BaseType'):

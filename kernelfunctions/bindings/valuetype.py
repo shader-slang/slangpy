@@ -219,6 +219,11 @@ class VectorType(ValueType):
         return self.et.differentiable
 
     @property
+    def fields(self):
+        axes = ("x", "r", "y", "g", "z", "b", "w", "a")
+        return {a: self.et for a in axes[:self.size * 2]}
+
+    @property
     def derivative(self):
         et = self.et.derivative
         if et is not None:
