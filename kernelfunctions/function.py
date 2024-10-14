@@ -208,10 +208,15 @@ class Function(FunctionChainBase):
                 ast_functions = module.module_decl.find_children_of_kind(
                     DeclReflection.Kind.func, name
                 )
-                if len(ast_functions) == 0:
-                    raise ValueError(
-                        f"Function '{name}' not found in module {module.name}")
-                func_reflections = [x.as_function() for x in ast_functions]
+                if len(ast_functions) > 0:
+                    func_reflections = [x.as_function() for x in ast_functions]
+                else:
+                    # Not found in AST - might be generic. Try finding by name
+                    func_reflection = module.layout.find_function_by_name(name)
+                    if func_reflection is None:
+                        raise ValueError(
+                            f"Function '{name}' not found in module {module.name}")
+                    func_reflections = [func_reflection]
             else:
                 # With a type parent, look up the function in the type
                 func_reflection = module.layout.find_function_by_name_in_type(
