@@ -63,6 +63,7 @@ class CallData(NativeCallData):
             FunctionChainOutputTransform,
             FunctionChainSet,
             FunctionChainHook,
+            FunctionChainReturnType,
             TDispatchHook
         )
 
@@ -76,6 +77,7 @@ class CallData(NativeCallData):
         chain = chain
         input_transforms: dict[str, 'TShapeOrTuple'] = {}
         outut_transforms: dict[str, 'TShapeOrTuple'] = {}
+        return_type = None
 
         sets = {}
         for item in chain:
@@ -103,6 +105,8 @@ class CallData(NativeCallData):
                     if self.after_dispatch_hooks is None:
                         self.after_dispatch_hooks = []
                     self.after_dispatch_hooks.append(item.after_dispatch)
+            if isinstance(item, FunctionChainReturnType):
+                return_type = item.return_type
 
         self.sets = sets
 
@@ -160,7 +164,7 @@ Overloads:
         context = BindContext(self.call_dimensionality, self.call_mode)
 
         # if necessary, create return value node
-        create_return_value_binding(context, bindings)
+        create_return_value_binding(context, bindings, return_type)
 
         # once overall dimensionality is known, individual binding transforms can be made concrete
         finalize_transforms(context, bindings)

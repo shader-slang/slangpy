@@ -3,7 +3,7 @@
 from typing import Any, Optional
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.types import ValueRef
 
@@ -92,8 +92,10 @@ class ValueRefType(BaseTypeImpl):
 
 
 def create_vr_type_for_value(value: Any):
-    assert isinstance(value, ValueRef)
-    return ValueRefType(get_or_create_type(type(value.value)))
+    if isinstance(value, ValueRef):
+        return ValueRefType(get_or_create_type(type(value.value)))
+    elif isinstance(value, ReturnContext):
+        return ValueRefType(value.slang_type)
 
 
 PYTHON_TYPES[ValueRef] = create_vr_type_for_value

@@ -80,6 +80,9 @@ class FunctionChainBase:
     def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None):
         return FunctionChainHook(self, before_dispatch, after_dispatch)
 
+    def return_type(self, return_type: Any):
+        return FunctionChainReturnType(self, return_type)
+
     def debug_build_call_data(self, *args: Any, **kwargs: Any):
         return self._build_call_data(*args, **kwargs)
 
@@ -175,6 +178,13 @@ class FunctionChainHook(FunctionChainBase):
         super().__init__(parent)
         self.before_dispatch = before_dispatch
         self.after_dispatch = after_dispatch
+
+
+class FunctionChainReturnType(FunctionChainBase):
+    def __init__(self, parent: FunctionChainBase, return_type: Any) -> None:
+        super().__init__(parent)
+        self.return_type = return_type
+
 
 # A callable kernel function. This assumes the function is in the root
 # of the module, however a parent in the abstract syntax tree can be provided

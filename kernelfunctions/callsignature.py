@@ -3,16 +3,17 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 from kernelfunctions.core import (
     CodeGen,
     IOType, CallMode, AccessType,
-    BindContext, BoundCall, BoundVariable, BoundVariableException,
+    BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
     BoundCallRuntime, BoundVariableRuntime,
     Shape
 )
 
-from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
-from kernelfunctions.bindings.valuereftype import ValueRefType
+from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
+from kernelfunctions.types.valueref import ValueRef
 from kernelfunctions.shapes import TShapeOrTuple
+import kernelfunctions.typeregistry as tr
 
 if TYPE_CHECKING:
     from kernelfunctions.function import Function
@@ -319,21 +320,33 @@ def finalize_transforms(context: BindContext, signature: BoundCall):
             signature, [], e.message, e.variable))
 
 
-def create_return_value_binding(context: BindContext, signature: BoundCall):
+def create_return_value_binding(context: BindContext, signature: BoundCall, return_type: Any):
     """
     Create the return value for the call
     """
-    if context.call_mode == CallMode.prim:
-        node = signature.kwargs.get("_result")
-        if node is not None and node.python.primal_type_name == 'none':
-            node.call_dimensionality = context.call_dimensionality
-            node.transform = Shape(tuple([i for i in range(
-                node.call_dimensionality+len(node.slang.primal.get_shape()))]))
-            if context.call_dimensionality == 0:
-                node.python.set_type(ValueRefType(node.slang.primal))
-            else:
-                node.python.set_type(NDDifferentiableBufferType(
-                    node.slang.primal, node.call_dimensionality, True))
+
+    # If return values are not needed or already set, early out
+    if context.call_mode != CallMode.prim:
+        return
+    node = signature.kwargs.get("_result")
+    if node is None or node.python.primal_type_name != 'none':
+        return
+
+    # If no desired return type was specified explicitly, fill in a useful default
+    if return_type is None:
+        if context.call_dimensionality == 0:
+            return_type = ValueRef
+        elif node.slang.primal.differentiable:
+            return_type = NDDifferentiableBuffer
+        else:
+            return_type = NDBuffer
+
+    return_ctx = ReturnContext(node.slang.primal, context)
+    python_type = tr.get_or_create_type(return_type, return_ctx)
+
+    node.call_dimensionality = context.call_dimensionality
+    node.transform = Shape(tuple([i for i in range(len(python_type.get_shape()))]))
+    node.python.set_type(python_type)
 
 
 def generate_code(context: BindContext, function: 'Function', signature: BoundCall, cg: CodeGen):
