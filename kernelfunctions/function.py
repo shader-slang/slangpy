@@ -3,7 +3,7 @@ from kernelfunctions.core import SlangFunction, hash_signature, NativeBoundVaria
 
 from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
 from kernelfunctions.shapes import TShapeOrTuple
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, scope
 
 if TYPE_CHECKING:
     from kernelfunctions.calldata import CallData
@@ -227,6 +227,7 @@ class Function(FunctionChainBase):
         self.type_parent = type_reflection.full_name if type_reflection is not None else None
 
         # Build and store overloads
-        self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
+        with scope(module):
+            self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
 
         self.slangpy_signature = f"[{id(module)}][{self.type_parent or ''}::{self.name}]"
