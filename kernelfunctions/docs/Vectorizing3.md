@@ -111,14 +111,14 @@ result = tonemap(val, 1, 0.5)
 
 This approach allows the user to improve performance without adding Python-side decorators. The call to `tonemap` is now on par with a pre-vectorized version from V1 in terms of performance.
 
-For this to work, Slang must handle implicit casting during the generation process, similar to:
+For this to work, Slang must be responsible for the implict cast. In psuedocode, this would involve some form of call to a Slang function that took a function name and set of types, and returned a set of types:
 
 ```pseudocode
 # Returns [float3, float, float]
 slang_session.resolve(tonemap, Texture2D<float3>, float, float)
 ```
 
-This could involve returning a `FunctionReflection` object if needed. The main design decision is how the custom *operators* are defined that tell slang what conversations are valid.
+This could involve returning a `FunctionReflection` object if that was simplest. The main design decision is how the custom *operators* are defined that tell slang what conversions are valid.
 
 
 ### Potential confusion with float tensors
