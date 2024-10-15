@@ -8,6 +8,7 @@ from .pythonvariable import PythonVariable
 from .slangvariable import SlangVariable
 from .codegen import CodeGen
 from .native import AccessType, CallMode, Shape
+from .basetype import BindContext
 
 
 class BoundVariableException(Exception):
@@ -193,11 +194,11 @@ class BoundVariable:
         idx: int = prim.value
         return self.access[idx]
 
-    def gen_call_data_code(self, cg: CodeGen, depth: int = 0):
+    def gen_call_data_code(self, cg: CodeGen, context: BindContext, depth: int = 0):
         if self.children is not None:
             names: list[tuple[Any, ...]] = []
             for field, variable in self.children.items():
-                variable_name = variable.gen_call_data_code(cg, depth+1)
+                variable_name = variable.gen_call_data_code(cg, context, depth+1)
                 if variable_name is not None:
                     names.append(
                         (field, variable_name, variable.slang.primal_type_name, variable.slang.derivative_type_name))
@@ -248,9 +249,7 @@ class BoundVariable:
                         f"Cannot read back value for non-writable type")
 
             # Generate call data
-            self.python.primal.gen_calldata(
-                cg.call_data_structs,
-                self)
+            self.python.primal.gen_calldata(cg.call_data_structs, context, self)
 
         if depth == 0:
             cg.call_data.declare(f"_{self.variable_name}", self.variable_name)
