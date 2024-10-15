@@ -42,6 +42,14 @@ class BaseType(NativeType):
     def python_return_value_type(self) -> type:
         raise NotImplementedError()
 
+    @property
+    def needs_specialization(self) -> bool:
+        raise NotImplementedError()
+
+    @property
+    def fields(self) -> Optional[dict[str, 'BaseType']]:
+        raise NotImplementedError()
+
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         raise NotImplementedError()
 
@@ -53,3 +61,6 @@ class BaseType(NativeType):
 
     def update_from_bound_type(self, bound_type: 'BaseType'):
         raise NotImplementedError()
+
+    def specialize_type(self, type: 'BaseType') -> Optional['BaseType']:
+        raise NotImplementedError

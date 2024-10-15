@@ -21,6 +21,9 @@ class BaseVariable:
     def is_compatible(self, other: 'BaseVariable') -> bool:
         raise NotImplementedError()
 
+    def specialize(self, other: 'BaseVariable') -> Optional['BaseVariable']:
+        raise NotImplementedError()
+
     @property
     def primal_type_name(self):
         raise NotImplementedError()

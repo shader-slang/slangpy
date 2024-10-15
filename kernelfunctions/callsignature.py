@@ -29,11 +29,17 @@ def build_signature(*args: Any, **kwargs: Any):
     return PythonFunctionCall(*args, **kwargs)
 
 
+class MismatchReason:
+    def __init__(self, reason: str):
+        super().__init__()
+        self.reason = reason
+
+
 def match_signatures(
     signature: PythonFunctionCall,
     function: SlangFunction,
     call_mode: CallMode
-) -> Union[None, dict[PythonVariable, SlangVariable]]:
+) -> Union[MismatchReason, dict[PythonVariable, SlangVariable]]:
     """
     Attempts to efficiently match a signature to a slang function overload.
     Returns a dictionary of matched argument nodes to parameter names.
@@ -41,75 +47,53 @@ def match_signatures(
 
     # Bail instantly if trying to call a non-differentiable function with a derivative call
     if call_mode != CallMode.prim and not function.differentiable:
-        return None
+        return MismatchReason("Function is not differentiable")
 
-    overload_parameters = function.parameters
+    # Easy step: Match arguments to parameters based on position/names
+    # Bail if too many/few args, mismatched parameter name, multiple asignments, etc.
+    overload_parameters = function.parameters.copy()
+    if function.return_value is not None:
+        overload_parameters.append(function.return_value)
 
-    args = signature.args.copy()
-    kwargs = signature.kwargs.copy()
-    rval = None
-    matched_rval: Optional[BoundVariable] = None
+    if len(signature.args) > len(overload_parameters):
+        return MismatchReason(f"Too many function arguments: Expected {len(function.parameters)}, "
+                              f"received {len(signature.args) + len(signature.kwargs)}")
 
-    # Check for user providing return value. In all cases, it
-    # can be explicitly passed as a keyword argument. With derivative
-    # calls, if not provided as keyword, it is EXPECTED to be
-    # the last positional argument.
-    if "_result" in kwargs:
-        rval = kwargs["_result"]
-        del kwargs["_result"]
-        if function.return_value is None:
-            raise ValueError(
-                f"Function {function.name} does not return a value, but one was provided")
-        if not rval.is_compatible(function.return_value):
-            return None
-    elif call_mode != CallMode.prim and function.return_value is not None:
-        rval = args[-1]
-        args = args[:-1]
-        if not rval.is_compatible(function.return_value):
-            return None
+    positioned_args: list[Optional[PythonVariable]] = [None] * len(overload_parameters)
+    for i, arg in enumerate(signature.args):
+        positioned_args[i] = arg
 
-    # If there are more positional arguments than parameters, it can't match.
-    if len(args) > len(overload_parameters):
-        return None
+    name_map = {param.name: i for i, param in enumerate(overload_parameters)}
+    for name, arg in signature.kwargs.items():
+        if name not in name_map:
+            return MismatchReason(f"No parameter named '{name}'")
+        i = name_map[name]
+        if positioned_args[i] is not None:
+            return MismatchReason(f"Parameter '{name}' is already assigned")
+        positioned_args[i] = arg
 
-    # Dictionary of slang arguments and corresponding python arguments
-    param_name_to_index = {x.name: i for i, x in enumerate(overload_parameters)}
-    matched_params: dict[SlangVariable, Optional[PythonVariable]] = {
-        x: None for x in overload_parameters}
+    missing_params = [param for arg, param in zip(positioned_args, overload_parameters)
+                      if arg is None and not param.has_default]
+    if missing_params:
+        missing_names = "', '".join(param.name for param in missing_params)
+        return MismatchReason(f"Arguments missing for parameter(s) '{missing_names}'")
 
-    # Positional arguments must all match perfectly
-    for i, arg in enumerate(args):
-        param = overload_parameters[i]
+    # Each parameter without default is matched to exactly one argument.
+    # Now check if the types are compatible
+    matched_args = {arg: param for arg, param in zip(positioned_args, overload_parameters)
+                    if arg is not None}
+
+    for arg, param in matched_args.items():
         if not arg.is_compatible(param):
-            return None
-        arg.param_index = i
-        matched_params[param] = arg
+            return MismatchReason(f"Cannot convert from {arg.primal.name} to "
+                                  f"{param.primal.name} for parameter '{param.name}'")
 
-    # Pair up kw arguments with slang arguments
-    for name, arg in kwargs.items():
-        i = param_name_to_index.get(name)
-        if i is None:
-            return None
-        param = overload_parameters[i]
-        if not arg.is_compatible(param):
-            return None
-        arg.param_index = i
-        matched_params[param] = arg
+        specialized = param.specialize(arg)
+        if specialized is None:
+            return MismatchReason(f"Specialization failed for parameter '{param.name}'")
+        matched_args[arg] = specialized
 
-    # Check if all arguments have been handled
-    for param in matched_params.values():
-        if param is None:
-            return None
-
-    if rval is not None:
-        assert function.return_value is not None
-        rval.param_index = len(overload_parameters)
-        matched_params[function.return_value] = rval
-
-    inverse_match = {
-        v: k for k, v in matched_params.items()}
-
-    return inverse_match  # type: ignore
+    return matched_args
 
 
 def bind(
