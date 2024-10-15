@@ -16,9 +16,9 @@ To ensure clarity, the following terms are defined:
 
 A fundamental design principle is that Python should **never** inspect the Slang function signature during resolution.
 
-## V1: Explicit vectorization
+## Explicit vectorization
 
-In the first implementation, all arguments must either:
+In the most basic implementation, all arguments must either:
 - Not be vectorized.
 - Have explicitly defined mappings, allowing type inference.
 - Be explicitly typed, allowing mapping inference.
@@ -88,7 +88,7 @@ tonemap2d = tonemap.declare(vmapping(0, 1), None, None, m.float3)
 
 The core idea here is that Python can fully resolve the vectorization without needing to know the details of the `tonemap` function.
 
-## V2: Implicit vectorization
+## Implicit vectorization
 
 To reduce boilerplate code and improve iteration times, implicit vectorization is introduced. This works like an implicit type cast during the resolution step.
 
@@ -144,7 +144,7 @@ val = NDBuffer(element_type=float, shape=(100, 3))
 result = tonemap(vcast(val,m.float3), 1, 0.5)
 ```
 
-## V3: Fusion
+## Fusion
 
 Fusion introduces a 3rd form of implict mapping - if an argument is the result of a vectorized function, its mapping is implicitly the same.
 
