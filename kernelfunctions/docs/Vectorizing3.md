@@ -81,10 +81,11 @@ tonemap(vmap(val, (0, 1)), 1, 0.5, vcast(result,m.float3))
 tonemap2d = tonemap.declare(vmapping(0, 1), None, None, m.float3)
 ```
 
-### Key Decisions
+### Key Points
 - The Python 'call' operator invokes the function. Pre-vectorization requires an explicit `declare` call, which improves performance and readability but has implications for the future fusion syntax.
 - The `vcast` syntax is a function call taking value and type, as apposed to constructor like syntax. This is to remain compatible with a future fusion system.
-- Unlike Jax, argument mapping occurs within the function call, aligning with the casting syntax. It avoids long strings of `None` for functions where only the last argument is vectorized.
+- A `vdim` operator could be added as a shorthand for `vmap` in which the dimensions are ordered (i.e. `vdim(val,3) == vmap(val,(0,1,2))`), which is a very common case
+- Unlike Jax, argument mapping occurs within the function call, aligning with the casting syntax and avoids long strings of `None` for functions where only the last argument is vectorized.
 - Note that if desired, we could use the Jax style syntax, provided we switched to it for both mapping and casting. However it does not lend itself well to large function calls with nested arguments.
 
 The core idea here is that Python can fully resolve the vectorization without needing to know the details of the `tonemap` function.
@@ -147,48 +148,46 @@ result = tonemap(vcast(val,m.float3), 1, 0.5)
 
 ## Fusion
 
-Fusion introduces a 3rd form of implict mapping - if an argument is the result of a vectorized function, its mapping is implicitly the same.
+Fusion introduces a third form of implicit mapping—if an argument is the result of a vectorized function, its mapping is by default inherited from that function.
 
-Fusion is performed with an explicit call to `fuse`:
+The challenge with fusion lies in designing an API that allows calls to be deferred until fusion occurs, ensuring both high performance and support for pre-vectorization. The proposed solution is for the user to provide a fusable function, which is then wrapped with a call to `fuse`:
 
 ```slang
 float3 sample_texture(float2 uv) {...}
 float3 tone_map(float3 color, float filmic, float saturation) {...}
 ```
 
-The challenge with fusion is to find a neat api with which to specify calls are deferred until fusion occurs, which is both performant and allows for pre-vectorization. My proposal is to require the user to define a fused function:
-
 ```python
-
-# Define a python function
+# Define a Python function
 def tone_map_sample_func(uv):
     return tone_map(sample_texture(uv), 1, 0.5)
 
-# Create a fused version
-tone_map_sample = fuse(tone_map_sample)
+# Create a fused version of the function
+tone_map_sample = fuse(tone_map_sample_func)
 
-# Can now call it as normal
+# The fused function can be called as normal
 buffer = make_buffer_of_float2s()
 results = tone_map_sample(buffer)
 
-# Or pre-vectorize it
+# Or it can be pre-vectorized
 tone_map_sample_2d = tone_map_sample.declare(vmapping(0,))
 tone_map_sample_2d = tone_map_sample.declare(m.float2)
 ```
 
-This allows the `fuse` function to place slangpy in a 'fusion context' in which the call operator builds a graph rather than invoking a kernel.
+The `fuse` function allows Slangpy to enter a "fusion context," where the call operator constructs a computational graph rather than immediately invoking a kernel.
 
-Fusion also highlights the reasoning for using an explicit `cast` function in earlier examples. As many types have constructors, they should be usable as part of a fused call:
+The use of `vcast` in earlier examples was to ensure type constructors are available for use in fused calls:
 
 ```python
 def tone_map_sample_func(u, v):
-    return tone_map(sample_texture(float2(u,v), 1, 0.5))
+    return tone_map(sample_texture(float2(u, v)), 1, 0.5)
 
-# Create a fused version
-tone_map_sample = fuse(tone_map_sample)
+# Create a fused version of the function
+tone_map_sample = fuse(tone_map_sample_func)
 
-# Can now call it as normal
+# Call it as usual
 ubuffer = make_buffer_of_floats()
 vbuffer = make_buffer_of_floats()
-results = tone_map_sample(ubuffer,vbuffer)
+results = tone_map_sample(ubuffer, vbuffer)
 ```
+
