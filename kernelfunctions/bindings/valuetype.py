@@ -201,7 +201,7 @@ class VectorType(ValueType):
     @property
     def fields(self):
         axes = ("x", "r", "y", "g", "z", "b", "w", "a")
-        return {a: self.et for a in axes[:self.size * 2]}
+        return {a: self.element_type for a in axes[:self.size * 2]}
 
     @property
     def derivative(self):

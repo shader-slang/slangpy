@@ -14,10 +14,8 @@ class StructType(ValueType):
     def __init__(self, struct_name: str, fields: dict[str, BaseType]):
         super().__init__()
         self.name = struct_name
+        self.concrete_shape = Shape()
         self._fields = fields
-
-    def get_shape(self, value: Any = None):
-        return Shape(1)
 
     @property
     def differentiable(self):

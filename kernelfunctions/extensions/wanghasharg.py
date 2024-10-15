@@ -33,10 +33,6 @@ class WangHashArgType(BaseTypeImpl):
     def get_container_shape(self, value: Optional[WangHashArg] = None) -> Shape:
         return Shape(self.dims)
 
-    @property
-    def element_type(self):
-        return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
-
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
