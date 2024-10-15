@@ -95,6 +95,9 @@ class Shape:
         else:
             return self.shape == value
 
+    def __iter__(self):
+        return iter(self.as_tuple())
+
 
 class NativeType:
     """
