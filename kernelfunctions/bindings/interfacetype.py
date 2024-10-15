@@ -16,15 +16,17 @@ class InterfaceType(BaseTypeImpl):
     def needs_specialization(self) -> bool:
         return True
 
+    @property
     def name(self, value: Any = None) -> str:
         return self.interface_name
 
-    def shape(self, value: Any = None):
+    def get_shape(self, value: Any = None):
         return ()
 
-    def container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
+    def get_container_shape(self, value: Any = None) -> Sequence[Optional[int]]:
         return ()
 
+    @property
     def element_type(self, value: Any = None):
         return self
 
