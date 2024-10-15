@@ -84,7 +84,8 @@ tonemap2d = tonemap.declare(vmapping(0, 1), None, None, m.float3)
 ### Key Decisions
 - The Python 'call' operator invokes the function. Pre-vectorization requires an explicit `declare` call, which improves performance and readability but has implications for the future fusion syntax.
 - The `vcast` syntax is a function call taking value and type, as apposed to constructor like syntax. This is to remain compatible with a future fusion system.
-- Unlike Jax, argument mapping occurs within the function call, aligning with the casting syntax and improving readability. It avoids long strings of `None` for functions where only the last argument is vectorized.
+- Unlike Jax, argument mapping occurs within the function call, aligning with the casting syntax. It avoids long strings of `None` for functions where only the last argument is vectorized.
+- Note that if desired, we could use the Jax style syntax, provided we switched to it for both mapping and casting. However it does not lend itself well to large function calls with nested arguments.
 
 The core idea here is that Python can fully resolve the vectorization without needing to know the details of the `tonemap` function.
 
