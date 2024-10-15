@@ -3,16 +3,17 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 from kernelfunctions.core import (
     CodeGen,
     IOType, CallMode, AccessType,
-    BoundCall, BoundVariable, BoundVariableException,
+    BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
     BoundCallRuntime, BoundVariableRuntime,
     Shape
 )
 
-from kernelfunctions.bindings.buffertype import NDDifferentiableBufferType
-from kernelfunctions.bindings.valuereftype import ValueRefType
+from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
+from kernelfunctions.types.valueref import ValueRef
 from kernelfunctions.shapes import TShapeOrTuple
+import kernelfunctions.typeregistry as tr
 
 if TYPE_CHECKING:
     from kernelfunctions.function import Function
@@ -29,11 +30,17 @@ def build_signature(*args: Any, **kwargs: Any):
     return PythonFunctionCall(*args, **kwargs)
 
 
+class MismatchReason:
+    def __init__(self, reason: str):
+        super().__init__()
+        self.reason = reason
+
+
 def match_signatures(
     signature: PythonFunctionCall,
     function: SlangFunction,
     call_mode: CallMode
-) -> Union[None, dict[PythonVariable, SlangVariable]]:
+) -> Union[MismatchReason, dict[PythonVariable, SlangVariable]]:
     """
     Attempts to efficiently match a signature to a slang function overload.
     Returns a dictionary of matched argument nodes to parameter names.
@@ -41,75 +48,53 @@ def match_signatures(
 
     # Bail instantly if trying to call a non-differentiable function with a derivative call
     if call_mode != CallMode.prim and not function.differentiable:
-        return None
+        return MismatchReason("Function is not differentiable")
 
-    overload_parameters = function.parameters
+    # Easy step: Match arguments to parameters based on position/names
+    # Bail if too many/few args, mismatched parameter name, multiple asignments, etc.
+    overload_parameters = function.parameters.copy()
+    if function.return_value is not None:
+        overload_parameters.append(function.return_value)
 
-    args = signature.args.copy()
-    kwargs = signature.kwargs.copy()
-    rval = None
-    matched_rval: Optional[BoundVariable] = None
+    if len(signature.args) > len(overload_parameters):
+        return MismatchReason(f"Too many function arguments: Expected {len(function.parameters)}, "
+                              f"received {len(signature.args) + len(signature.kwargs)}")
 
-    # Check for user providing return value. In all cases, it
-    # can be explicitly passed as a keyword argument. With derivative
-    # calls, if not provided as keyword, it is EXPECTED to be
-    # the last positional argument.
-    if "_result" in kwargs:
-        rval = kwargs["_result"]
-        del kwargs["_result"]
-        if function.return_value is None:
-            raise ValueError(
-                f"Function {function.name} does not return a value, but one was provided")
-        if not rval.is_compatible(function.return_value):
-            return None
-    elif call_mode != CallMode.prim and function.return_value is not None:
-        rval = args[-1]
-        args = args[:-1]
-        if not rval.is_compatible(function.return_value):
-            return None
+    positioned_args: list[Optional[PythonVariable]] = [None] * len(overload_parameters)
+    for i, arg in enumerate(signature.args):
+        positioned_args[i] = arg
 
-    # If there are more positional arguments than parameters, it can't match.
-    if len(args) > len(overload_parameters):
-        return None
+    name_map = {param.name: i for i, param in enumerate(overload_parameters)}
+    for name, arg in signature.kwargs.items():
+        if name not in name_map:
+            return MismatchReason(f"No parameter named '{name}'")
+        i = name_map[name]
+        if positioned_args[i] is not None:
+            return MismatchReason(f"Parameter '{name}' is already assigned")
+        positioned_args[i] = arg
 
-    # Dictionary of slang arguments and corresponding python arguments
-    param_name_to_index = {x.name: i for i, x in enumerate(overload_parameters)}
-    matched_params: dict[SlangVariable, Optional[PythonVariable]] = {
-        x: None for x in overload_parameters}
+    missing_params = [param for arg, param in zip(positioned_args, overload_parameters)
+                      if arg is None and not param.has_default]
+    if missing_params:
+        missing_names = "', '".join(param.name for param in missing_params)
+        return MismatchReason(f"Arguments missing for parameter(s) '{missing_names}'")
 
-    # Positional arguments must all match perfectly
-    for i, arg in enumerate(args):
-        param = overload_parameters[i]
+    # Each parameter without default is matched to exactly one argument.
+    # Now check if the types are compatible
+    matched_args = {arg: param for arg, param in zip(positioned_args, overload_parameters)
+                    if arg is not None}
+
+    for arg, param in matched_args.items():
         if not arg.is_compatible(param):
-            return None
-        arg.param_index = i
-        matched_params[param] = arg
+            return MismatchReason(f"Cannot convert from {arg.primal.name} to "
+                                  f"{param.primal.name} for parameter '{param.name}'")
 
-    # Pair up kw arguments with slang arguments
-    for name, arg in kwargs.items():
-        i = param_name_to_index.get(name)
-        if i is None:
-            return None
-        param = overload_parameters[i]
-        if not arg.is_compatible(param):
-            return None
-        arg.param_index = i
-        matched_params[param] = arg
+        specialized = param.specialize(arg)
+        if specialized is None:
+            return MismatchReason(f"Specialization failed for parameter '{param.name}'")
+        matched_args[arg] = specialized
 
-    # Check if all arguments have been handled
-    for param in matched_params.values():
-        if param is None:
-            return None
-
-    if rval is not None:
-        assert function.return_value is not None
-        rval.param_index = len(overload_parameters)
-        matched_params[function.return_value] = rval
-
-    inverse_match = {
-        v: k for k, v in matched_params.items()}
-
-    return inverse_match  # type: ignore
+    return matched_args
 
 
 def bind(
@@ -302,7 +287,7 @@ def calculate_call_dimensionality(signature: BoundCall) -> int:
     return dimensionality
 
 
-def finalize_transforms(call_dimensionality: int, signature: BoundCall):
+def finalize_transforms(context: BindContext, signature: BoundCall):
     try:
         nodes: list[BoundVariable] = []
         for node in signature.values():
@@ -313,30 +298,42 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
                     "Unresolved call dimensionality for argument", input)
             assert input.transform.valid
             input.transform = Shape(tuple([input.transform[i] if input.transform[i] >= 0 else i +
-                                           call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
+                                           context.call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
     except BoundVariableException as e:
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
 
 
-def create_return_value_binding(call_dimensionality: int, signature: BoundCall, mode: CallMode):
+def create_return_value_binding(context: BindContext, signature: BoundCall, return_type: Any):
     """
     Create the return value for the call
     """
-    if mode == CallMode.prim:
-        node = signature.kwargs.get("_result")
-        if node is not None and node.python.primal_type_name == 'none':
-            node.call_dimensionality = call_dimensionality
-            node.transform = Shape(tuple([i for i in range(
-                node.call_dimensionality+len(node.slang.primal.get_shape()))]))
-            if call_dimensionality == 0:
-                node.python.set_type(ValueRefType(node.slang.primal))
-            else:
-                node.python.set_type(NDDifferentiableBufferType(
-                    node.slang.primal, node.call_dimensionality, True))
+
+    # If return values are not needed or already set, early out
+    if context.call_mode != CallMode.prim:
+        return
+    node = signature.kwargs.get("_result")
+    if node is None or node.python.primal_type_name != 'none':
+        return
+
+    # If no desired return type was specified explicitly, fill in a useful default
+    if return_type is None:
+        if context.call_dimensionality == 0:
+            return_type = ValueRef
+        elif node.slang.primal.differentiable:
+            return_type = NDDifferentiableBuffer
+        else:
+            return_type = NDBuffer
+
+    return_ctx = ReturnContext(node.slang.primal, context)
+    python_type = tr.get_or_create_type(return_type, return_ctx)
+
+    node.call_dimensionality = context.call_dimensionality
+    node.transform = Shape(tuple([i for i in range(len(python_type.get_shape()))]))
+    node.python.set_type(python_type)
 
 
-def generate_code(call_dimensionality: int, function: 'Function', signature: BoundCall, mode: CallMode, cg: CodeGen):
+def generate_code(context: BindContext, function: 'Function', signature: BoundCall, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
@@ -347,7 +344,7 @@ def generate_code(call_dimensionality: int, function: 'Function', signature: Bou
     cg.add_import(function.module.name)
 
     # Generate call data inputs if vector call
-    call_data_len = call_dimensionality
+    call_data_len = context.call_dimensionality
     if call_data_len > 0:
         cg.call_data.append_statement(f"int[{call_data_len}] _call_stride")
         cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
@@ -365,7 +362,7 @@ def generate_code(call_dimensionality: int, function: 'Function', signature: Bou
 
     # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
-        node.gen_call_data_code(cg)
+        node.gen_call_data_code(cg, context)
 
     # Get sorted list of root parameters for trampoline function
     root_params = sorted(signature.values(), key=lambda x: x.param_index)
@@ -484,7 +481,7 @@ def generate_code(call_dimensionality: int, function: 'Function', signature: Bou
 
     # Call the trampoline function
     fn = "_trampoline"
-    if mode == CallMode.bwds:
+    if context.call_mode == CallMode.bwds:
         fn = f"bwd_diff({fn})"
     cg.kernel.append_statement(
         f"{fn}(" + ", ".join(names) + ")")

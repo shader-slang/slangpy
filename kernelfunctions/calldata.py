@@ -1,8 +1,11 @@
 import hashlib
 import os
-from typing import TYPE_CHECKING, Any
+import re
+from typing import TYPE_CHECKING, Any, Optional
 
-from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BoundCallRuntime, NativeCallData
+from sgl import CommandBuffer
+
+from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData
 
 from kernelfunctions.callsignature import (
     bind,
@@ -12,7 +15,8 @@ from kernelfunctions.callsignature import (
     generate_tree_info_string,
     get_readable_func_string,
     get_readable_signature_string,
-    match_signatures
+    match_signatures,
+    MismatchReason
 )
 
 if TYPE_CHECKING:
@@ -59,7 +63,9 @@ class CallData(NativeCallData):
             FunctionChainInputTransform,
             FunctionChainOutputTransform,
             FunctionChainSet,
-            FunctionChainHook
+            FunctionChainHook,
+            FunctionChainReturnType,
+            TDispatchHook
         )
 
         if not isinstance(chain[0], Function):
@@ -70,6 +76,7 @@ class CallData(NativeCallData):
         chain = chain
         input_transforms: dict[str, 'TShapeOrTuple'] = {}
         outut_transforms: dict[str, 'TShapeOrTuple'] = {}
+        return_type = None
 
         sets = {}
         for item in chain:
@@ -92,7 +99,11 @@ class CallData(NativeCallData):
                 if item.before_dispatch is not None:
                     self.add_before_dispatch_hook(item.before_dispatch)
                 if item.after_dispatch is not None:
-                    self.add_after_dispatch_hook(item.after_dispatch)
+                    if self.after_dispatch_hooks is None:
+                        self.after_dispatch_hooks = []
+                    self.after_dispatch_hooks.append(item.after_dispatch)
+            if isinstance(item, FunctionChainReturnType):
+                return_type = item.return_type
 
         self.vars = sets
 
@@ -106,33 +117,49 @@ class CallData(NativeCallData):
         # Attempt to match to a slang function overload
         python_to_slang_mapping = None
         slang_function = None
-        for overload in function.overloads:
-            match = match_signatures(
-                python_call, overload, self.call_mode)
-            if match:
-                if python_to_slang_mapping == None:
-                    python_to_slang_mapping = match
-                    slang_function = overload
-                else:
-                    err_text = f"""
-Multiple matching overloads found for function {function.name}.
-Input signature:
-{get_readable_signature_string(python_call)}
-First match: {get_readable_func_string(slang_function)}
-Second match: {get_readable_func_string(overload)}"""
-                    raise ValueError(err_text.strip())
 
-        if python_to_slang_mapping is None or slang_function is None:
-            olstrings = "\n".join([get_readable_func_string(x)
-                                  for x in function.overloads])
-            err_text = f"""
+        if len(function.overloads) == 1:
+            # Non-overloaded functions allow more detailed error messages. Special case them
+            match = match_signatures(python_call, function.overloads[0], self.call_mode)
+            if isinstance(match, MismatchReason):
+                raise ValueError(
+                    f"Could not call function '{function.name}': {match.reason}")
+            else:
+                python_to_slang_mapping = match
+                slang_function = function.overloads[0]
+        else:
+            # Otherwise, check all overloads and throw generic overload error on failure
+            matches = []
+            for overload in function.overloads:
+                match = match_signatures(python_call, overload, self.call_mode)
+                if not isinstance(match, MismatchReason):
+                    python_to_slang_mapping = match
+                    matches.append(overload)
+
+            if len(matches) == 1:
+                # Success!
+                slang_function = matches[0]
+            elif len(matches) > 1:
+                match_string = "\n".join(get_readable_func_string(match)
+                                         for match in matches)
+                err_text = f"""
+Ambiguous call to '{function.name}' with arguments:
+{get_readable_signature_string(python_call)}
+Matching candidates:
+{match_string}"""
+                raise ValueError(err_text.strip())
+            else:
+                olstrings = "\n".join([get_readable_func_string(x)
+                                       for x in function.overloads])
+                err_text = f"""
 No matching overload found for function {function.name}.
 Input signature:
 {get_readable_signature_string(python_call)}
 Overloads:
 {olstrings}
 """
-            raise ValueError(err_text.strip())
+                raise ValueError(err_text.strip())
+        assert python_to_slang_mapping is not None
 
         # Inject a dummy node into both signatures if we need a result back
         if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_value is not None:
@@ -147,17 +174,17 @@ Overloads:
         # calculate call shaping
         self.call_dimensionality = calculate_call_dimensionality(bindings)
 
+        context = BindContext(self.call_dimensionality, self.call_mode)
+
         # if necessary, create return value node
-        create_return_value_binding(self.call_dimensionality,
-                                    bindings, self.call_mode)
+        create_return_value_binding(context, bindings, return_type)
 
         # once overall dimensionality is known, individual binding transforms can be made concrete
-        finalize_transforms(self.call_dimensionality, bindings)
+        finalize_transforms(context, bindings)
 
         # generate code
         codegen = CodeGen()
-        generate_code(self.call_dimensionality, function,
-                      bindings, self.call_mode, codegen)
+        generate_code(context, function, bindings, codegen)
 
         # store code
         code = codegen.finish(call_data=True, input_load_store=True,
@@ -167,7 +194,8 @@ Overloads:
 
         # Write the shader to a file for debugging.
         os.makedirs(".temp", exist_ok=True)
-        fn = f".temp/{function.module.name}_{function.name}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
+        sanitized = re.sub(r"[<>, ]", "_", function.name)
+        fn = f".temp/{function.module.name}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
 
         # with open(fn,"r") as f:
         #   self.code = f.read()

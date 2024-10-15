@@ -1,7 +1,7 @@
 from typing import Any
 import pytest
 from kernelfunctions.backend import DeviceType, float1, int1, int2, bool1, uint1, int3
-from kernelfunctions.callsignature import CallMode, build_signature, match_signatures
+from kernelfunctions.callsignature import CallMode, MismatchReason, build_signature, match_signatures
 import kernelfunctions.tests.helpers as helpers
 
 
@@ -113,7 +113,7 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
         sig = build_signature(v0, v1)
         match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
-        assert match is not None
+        assert not isinstance(match, MismatchReason)
         # assert match["a"].python_marshal.type == type(v0)
         # assert match["b"].python_marshal.type == type(v1)
         # apply_signature(match, function.ast_functions[0].as_function(), CallMode.prim)
@@ -125,7 +125,7 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
         sig = build_signature(a=v0, b=v1)
         match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
-        assert match is not None
+        assert not isinstance(match, MismatchReason)
         # assert match["a"].python_marshal.type == type(v0)
         # assert match["b"].python_marshal.type == type(v1)
         # apply_signature(match, function.ast_functions[0].as_function(), CallMode.prim)
@@ -137,7 +137,7 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
         sig = build_signature(b=v1, a=v0)
         match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
-        assert match is not None
+        assert not isinstance(match, MismatchReason)
         # assert match["a"].python_marshal.type == type(v0)
         # assert match["b"].python_marshal.type == type(v1)
         # apply_signature(match, function.ast_functions[0].as_function(), CallMode.prim)
@@ -150,7 +150,7 @@ def test_match_scalar_parameters(device_type: DeviceType, test: TScalarTest):
         sig = build_signature(v0, v1)
         match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
-        assert match is None
+        assert isinstance(match, MismatchReason)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -200,7 +200,7 @@ void add_numbers(MyStruct v) {{ }}
         sig = build_signature({"a": v0, "b": v1})
         match = match_signatures(
             sig, function.overloads[0], CallMode.prim)
-        assert match is None
+        assert isinstance(match, MismatchReason)
 
 
 if __name__ == "__main__":

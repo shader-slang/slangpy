@@ -3,7 +3,7 @@
 from typing import Any, Optional
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.types import ValueRef
 
@@ -30,7 +30,7 @@ class ValueRefType(BaseTypeImpl):
         return True
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
         assert access[0] != AccessType.none
@@ -74,20 +74,22 @@ class ValueRefType(BaseTypeImpl):
     def derivative(self):
         return self.value_type.derivative
 
-    def create_output(self, context: CallContext) -> Any:
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         pt = self.value_type.python_return_value_type
         if pt is not None:
             return ValueRef(pt())
         else:
             return ValueRef(None)
 
-    def read_output(self, context: CallContext, data: ValueRef) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: ValueRef) -> Any:
         return data.value
 
 
 def create_vr_type_for_value(value: Any):
-    assert isinstance(value, ValueRef)
-    return ValueRefType(get_or_create_type(type(value.value)))
+    if isinstance(value, ValueRef):
+        return ValueRefType(get_or_create_type(type(value.value)))
+    elif isinstance(value, ReturnContext):
+        return ValueRefType(value.slang_type)
 
 
 PYTHON_TYPES[ValueRef] = create_vr_type_for_value

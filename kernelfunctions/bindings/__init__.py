@@ -4,6 +4,7 @@ import runpy
 runpy.run_module("kernelfunctions.bindings.buffertype")
 runpy.run_module("kernelfunctions.bindings.diffpairtype")
 runpy.run_module("kernelfunctions.bindings.structtype")
+runpy.run_module("kernelfunctions.bindings.interfacetype")
 runpy.run_module("kernelfunctions.bindings.structuredbuffertype")
 runpy.run_module("kernelfunctions.bindings.texturetype")
 runpy.run_module("kernelfunctions.bindings.valuereftype")

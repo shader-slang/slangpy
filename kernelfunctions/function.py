@@ -3,7 +3,7 @@ from kernelfunctions.core import SlangFunction, hash_signature
 
 from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
 from kernelfunctions.shapes import TShapeOrTuple
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, scope
 
 if TYPE_CHECKING:
     from kernelfunctions.calldata import CallData
@@ -88,6 +88,9 @@ class FunctionChainBase:
 
     def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None):
         return FunctionChainHook(self, before_dispatch, after_dispatch)
+
+    def return_type(self, return_type: Any):
+        return FunctionChainReturnType(self, return_type)
 
     def debug_build_call_data(self, *args: Any, **kwargs: Any):
         return self._build_call_data(*args, **kwargs)
@@ -184,6 +187,13 @@ class FunctionChainHook(FunctionChainBase):
         self.before_dispatch = before_dispatch
         self.after_dispatch = after_dispatch
 
+
+class FunctionChainReturnType(FunctionChainBase):
+    def __init__(self, parent: FunctionChainBase, return_type: Any) -> None:
+        super().__init__(parent)
+        self.return_type = return_type
+
+
 # A callable kernel function. This assumes the function is in the root
 # of the module, however a parent in the abstract syntax tree can be provided
 # to search for the function in a specific scope.
@@ -216,10 +226,15 @@ class Function(FunctionChainBase):
                 ast_functions = module.module_decl.find_children_of_kind(
                     DeclReflection.Kind.func, name
                 )
-                if len(ast_functions) == 0:
-                    raise ValueError(
-                        f"Function '{name}' not found in module {module.name}")
-                func_reflections = [x.as_function() for x in ast_functions]
+                if len(ast_functions) > 0:
+                    func_reflections = [x.as_function() for x in ast_functions]
+                else:
+                    # Not found in AST - might be generic. Try finding by name
+                    func_reflection = module.layout.find_function_by_name(name)
+                    if func_reflection is None:
+                        raise ValueError(
+                            f"Function '{name}' not found in module {module.name}")
+                    func_reflections = [func_reflection]
             else:
                 # With a type parent, look up the function in the type
                 func_reflection = module.layout.find_function_by_name_in_type(
@@ -235,6 +250,7 @@ class Function(FunctionChainBase):
         self.type_parent = type_reflection.full_name if type_reflection is not None else None
 
         # Build and store overloads
-        self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
+        with scope(module):
+            self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
 
         self.slangpy_signature = f"[{id(module)}][{self.type_parent or ''}::{self.name}]"

@@ -2,7 +2,7 @@
 
 from .enums import *
 
-from .basetype import BaseType
+from .basetype import BaseType, BindContext, ReturnContext
 from .basetypeimpl import BaseTypeImpl
 
 from .basevariable import BaseVariable

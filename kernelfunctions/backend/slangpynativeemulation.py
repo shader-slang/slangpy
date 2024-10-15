@@ -90,6 +90,9 @@ class Shape:
         else:
             return self.shape == value
 
+    def __iter__(self):
+        return iter(self.as_tuple())
+
 
 class NativeType:
     """
@@ -122,10 +125,10 @@ class NativeType:
     def read_calldata(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any, result: Any) -> None:
         pass
 
-    def create_output(self, context: 'CallContext') -> Any:
+    def create_output(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime') -> Any:
         raise NotImplementedError()
 
-    def read_output(self, context: 'CallContext', data: Any) -> Any:
+    def read_output(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any) -> Any:
         raise NotImplementedError()
 
 
@@ -280,7 +283,7 @@ class NativeBoundVariableRuntime:
             return res
         else:
             if self.access[0] in [AccessType.write, AccessType.readwrite]:
-                return self.python_type.read_output(context, data)
+                return self.python_type.read_output(context, self, data)
 
 
 class NativeCallData:
@@ -335,7 +338,7 @@ class NativeCallData:
         if command_buffer is None:
             rv_node = self.runtime.kwargs.get("_result", None)
             if self.call_mode == CallMode.prim and rv_node is not None and kwargs.get("_result", None) is None:
-                kwargs["_result"] = rv_node.python_type.create_output(context)
+                kwargs["_result"] = rv_node.python_type.create_output(context, rv_node)
                 unpacked_kwargs["_result"] = kwargs["_result"]
                 rv_node.populate_call_shape(call_shape.as_list(), kwargs["_result"])
 
