@@ -91,7 +91,7 @@ def match_signatures(
 
         specialized = param.specialize(arg)
         if specialized is None:
-            return MismatchReason(f"Specialization failed for parameter '{param.name}'")
+            return MismatchReason(f"Could not specialize {param.primal.name} to {arg.primal.name} for parameter '{param.name}'")
         matched_args[arg] = specialized
 
     return matched_args
