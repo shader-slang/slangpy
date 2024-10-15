@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from kernelfunctions.core import CodeGenBlock, BaseTypeImpl, AccessType, BoundVariable, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, BaseTypeImpl, AccessType, BoundVariable, Shape
 
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
@@ -39,7 +39,7 @@ class ThreadIdArgType(BaseTypeImpl):
     def element_type(self):
         return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
 
-    def gen_calldata(self, cgb: CodeGenBlock, binding: BoundVariable):
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
         if access[0] == AccessType.read:

@@ -3,7 +3,7 @@
 from typing import Any, Optional
 import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.types import DiffPair
 
@@ -51,7 +51,7 @@ class DiffPairType(BaseTypeImpl):
         return True
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
 
@@ -139,10 +139,10 @@ class DiffPairType(BaseTypeImpl):
     def derivative(self):
         return self.primal_type.derivative
 
-    def create_output(self, context: CallContext) -> Any:
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         return DiffPair(None, None)
 
-    def read_output(self, context: CallContext, data: DiffPair) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: DiffPair) -> Any:
         return data
 
 

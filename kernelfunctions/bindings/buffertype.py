@@ -5,7 +5,7 @@ from typing import Any, Optional, cast
 from sgl import TypeReflection
 
 from kernelfunctions.bindings.diffpairtype import generate_differential_pair
-from kernelfunctions.core import CodeGenBlock, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
@@ -42,7 +42,7 @@ class NDBufferType(BaseTypeImpl):
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
         assert access[0] != AccessType.none
@@ -93,10 +93,10 @@ class NDBufferType(BaseTypeImpl):
         else:
             return None
 
-    def create_output(self, context: CallContext) -> Any:
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         return NDBuffer(context.device, self.el_type.python_return_value_type, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
-    def read_output(self, context: CallContext, data: NDDifferentiableBuffer) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
 
 
@@ -133,7 +133,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         return self.writable
 
     # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, binding: 'BoundVariable'):
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
 
@@ -213,13 +213,13 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             return None
 
-    def create_output(self, context: CallContext) -> Any:
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         return NDDifferentiableBuffer(context.device, self.el_type.python_return_value_type,
                                       shape=context.call_shape,
                                       requires_grad=True,
                                       usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
-    def read_output(self, context: CallContext, data: NDDifferentiableBuffer) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
 
 

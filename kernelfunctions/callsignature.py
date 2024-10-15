@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 from kernelfunctions.core import (
     CodeGen,
     IOType, CallMode, AccessType,
-    BoundCall, BoundVariable, BoundVariableException,
+    BindContext, BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
     BoundCallRuntime, BoundVariableRuntime,
@@ -302,7 +302,7 @@ def calculate_call_dimensionality(signature: BoundCall) -> int:
     return dimensionality
 
 
-def finalize_transforms(call_dimensionality: int, signature: BoundCall):
+def finalize_transforms(context: BindContext, signature: BoundCall):
     try:
         nodes: list[BoundVariable] = []
         for node in signature.values():
@@ -313,30 +313,30 @@ def finalize_transforms(call_dimensionality: int, signature: BoundCall):
                     "Unresolved call dimensionality for argument", input)
             assert input.transform.valid
             input.transform = Shape(tuple([input.transform[i] if input.transform[i] >= 0 else i +
-                                           call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
+                                           context.call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
     except BoundVariableException as e:
         raise ValueError(generate_call_shape_error_string(
             signature, [], e.message, e.variable))
 
 
-def create_return_value_binding(call_dimensionality: int, signature: BoundCall, mode: CallMode):
+def create_return_value_binding(context: BindContext, signature: BoundCall):
     """
     Create the return value for the call
     """
-    if mode == CallMode.prim:
+    if context.call_mode == CallMode.prim:
         node = signature.kwargs.get("_result")
         if node is not None and node.python.primal_type_name == 'none':
-            node.call_dimensionality = call_dimensionality
+            node.call_dimensionality = context.call_dimensionality
             node.transform = Shape(tuple([i for i in range(
                 node.call_dimensionality+len(node.slang.primal.get_shape()))]))
-            if call_dimensionality == 0:
+            if context.call_dimensionality == 0:
                 node.python.set_type(ValueRefType(node.slang.primal))
             else:
                 node.python.set_type(NDDifferentiableBufferType(
                     node.slang.primal, node.call_dimensionality, True))
 
 
-def generate_code(call_dimensionality: int, function: 'Function', signature: BoundCall, mode: CallMode, cg: CodeGen):
+def generate_code(context: BindContext, function: 'Function', signature: BoundCall, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
@@ -347,7 +347,7 @@ def generate_code(call_dimensionality: int, function: 'Function', signature: Bou
     cg.add_import(function.module.name)
 
     # Generate call data inputs if vector call
-    call_data_len = call_dimensionality
+    call_data_len = context.call_dimensionality
     if call_data_len > 0:
         cg.call_data.append_statement(f"int[{call_data_len}] _call_stride")
         cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
@@ -365,7 +365,7 @@ def generate_code(call_dimensionality: int, function: 'Function', signature: Bou
 
     # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
-        node.gen_call_data_code(cg)
+        node.gen_call_data_code(cg, context)
 
     # Get sorted list of root parameters for trampoline function
     root_params = sorted(signature.values(), key=lambda x: x.param_index)
@@ -484,7 +484,7 @@ def generate_code(call_dimensionality: int, function: 'Function', signature: Bou
 
     # Call the trampoline function
     fn = "_trampoline"
-    if mode == CallMode.bwds:
+    if context.call_mode == CallMode.bwds:
         fn = f"bwd_diff({fn})"
     cg.kernel.append_statement(
         f"{fn}(" + ", ".join(names) + ")")
