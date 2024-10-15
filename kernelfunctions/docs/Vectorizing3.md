@@ -7,12 +7,6 @@ These proposed modifications to slangpy have the following goals:
 - Provide clear, easy-to-use, and explicit vectorization.
 - Allow for implicit vectorization where appropriate.
 
-For clarity, the following terms are defined:
-- Vectorization: How to convert a function from its original scalar form to one designed to be called multiple times from a kernel
-- Mapping: How the dimensions of an argument map to dimensions of the kernel
-- Typing: The type of an argument that will be loaded/stored inside the kernel and passed to the function.
-- Resolution: The process of taking a set of python arguments and extracting a fully resolved function, in which mapping and typing is known for all arguments.
-
 ## Key Definitions
 To ensure clarity, the following terms are defined:
 - **Vectorization**: The process of converting a function from its scalar form to one designed to be called multiple times from a kernel.
