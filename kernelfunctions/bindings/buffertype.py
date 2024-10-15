@@ -5,7 +5,7 @@ from typing import Any, Optional, cast
 from sgl import TypeReflection
 
 from kernelfunctions.bindings.diffpairtype import generate_differential_pair
-from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
@@ -101,8 +101,14 @@ class NDBufferType(BaseTypeImpl):
 
 
 def create_vr_type_for_value(value: NDBuffer):
-    assert isinstance(value, NDBuffer)
-    return NDBufferType(get_or_create_type(value.element_type), len(value.shape), (value.usage & ResourceUsage.unordered_access) != 0)
+    if isinstance(value, NDBuffer):
+        return NDBufferType(get_or_create_type(value.element_type),
+                            len(value.shape),
+                            (value.usage & ResourceUsage.unordered_access) != 0)
+    elif isinstance(value, ReturnContext):
+        return NDBufferType(value.slang_type,
+                            value.bind_context.call_dimensionality,
+                            True)
 
 
 def create_vr_type_for_slang(value: TypeReflection):
@@ -224,8 +230,14 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
 
 def create_gradvr_type_for_value(value: Any):
-    assert isinstance(value, NDDifferentiableBuffer)
-    return NDDifferentiableBufferType(get_or_create_type(value.element_type), len(value.shape), (value.usage & ResourceUsage.unordered_access) != 0)
+    if isinstance(value, NDDifferentiableBuffer):
+        return NDDifferentiableBufferType(get_or_create_type(value.element_type),
+                                          len(value.shape),
+                                          (value.usage & ResourceUsage.unordered_access) != 0)
+    elif isinstance(value, ReturnContext):
+        return NDDifferentiableBufferType(value.slang_type,
+                                          value.bind_context.call_dimensionality,
+                                          True)
 
 
 PYTHON_TYPES[NDDifferentiableBuffer] = create_gradvr_type_for_value

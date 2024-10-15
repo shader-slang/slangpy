@@ -18,6 +18,12 @@ class BindContext:
         self.call_mode = call_mode
 
 
+class ReturnContext:
+    def __init__(self, slang_type: 'BaseType', bind_context: BindContext):
+        self.slang_type = slang_type
+        self.bind_context = bind_context
+
+
 class BaseType(NativeType):
     def __init__(self):
         super().__init__()
