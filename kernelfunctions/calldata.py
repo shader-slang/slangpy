@@ -99,9 +99,7 @@ class CallData(NativeCallData):
                 if item.before_dispatch is not None:
                     self.add_before_dispatch_hook(item.before_dispatch)
                 if item.after_dispatch is not None:
-                    if self.after_dispatch_hooks is None:
-                        self.after_dispatch_hooks = []
-                    self.after_dispatch_hooks.append(item.after_dispatch)
+                    self.add_after_dispatch_hook(item.after_dispatch)
             if isinstance(item, FunctionChainReturnType):
                 return_type = item.return_type
 
