@@ -28,9 +28,14 @@ class NDBufferType(BaseTypeImpl):
 
     def __init__(self, element_type: BaseType, dims: int, writable: bool):
         super().__init__()
-        self.el_type = element_type
+        self.element_type = element_type
         self.dims = dims
         self.writable = writable
+
+        if not self.writable:
+            self.name = f"NDBuffer<{self.element_type.name},{self.dims}>"
+        else:
+            self.name = f"RWNDBuffer<{self.element_type.name},{self.dims}>"
 
     # Values don't store a derivative - they're just a value
     @property
@@ -45,14 +50,15 @@ class NDBufferType(BaseTypeImpl):
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
+        assert self.element_type is not None
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
             cgb.type_alias(
-                f"_{name}", f"NDBuffer<{self.el_type.name},{self.dims}>")
+                f"_{name}", f"NDBuffer<{self.element_type.name},{self.dims}>")
         else:
             cgb.type_alias(
-                f"_{name}", f"RWNDBuffer<{self.el_type.name},{self.dims}>")
+                f"_{name}", f"RWNDBuffer<{self.element_type.name},{self.dims}>")
 
     # Call data just returns the primal
 
@@ -61,19 +67,8 @@ class NDBufferType(BaseTypeImpl):
         return {
             'buffer': data.buffer,
             'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
-            'transform': binding.transform[0:self.dims]  # type: ignore
+            'transform': binding.transform.as_tuple()[0:self.dims]
         }
-
-    @property
-    def name(self) -> str:
-        if not self.writable:
-            return f"NDBuffer<{self.el_type.name},{self.dims}>"
-        else:
-            return f"RWNDBuffer<{self.el_type.name},{self.dims}>"
-
-    @property
-    def element_type(self):
-        return self.el_type
 
     def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> Shape:
         if value is not None:
@@ -83,18 +78,18 @@ class NDBufferType(BaseTypeImpl):
 
     @property
     def differentiable(self):
-        return self.el_type.differentiable
+        return self.element_type.differentiable
 
     @property
     def derivative(self):
-        et = self.el_type
+        et = self.element_type
         if et is not None:
             return NDBufferType(et, self.dims, self.writable)
         else:
             return None
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return NDBuffer(context.device, self.el_type.python_return_value_type, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        return NDBuffer(context.device, self.element_type.python_return_value_type, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
@@ -125,9 +120,14 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
     def __init__(self, element_type: BaseType, dims: int, writable: bool):
         super().__init__()
-        self.el_type = element_type
+        self.element_type = element_type
         self.dims = dims
         self.writable = writable
+
+        if not self.writable:
+            self.name = f"NDBuffer<{self.element_type.name},{self.dims}>"
+        else:
+            self.name = f"RWNDBuffer<{self.element_type.name},{self.dims}>"
 
     # Values don't store a derivative - they're just a value
     @property
@@ -190,17 +190,6 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                 }
         return res
 
-    @property
-    def name(self) -> str:
-        if not self.writable:
-            return f"NDBuffer<{self.el_type.name},{self.dims}>"
-        else:
-            return f"RWNDBuffer<{self.el_type.name},{self.dims}>"
-
-    @property
-    def element_type(self):
-        return self.el_type
-
     def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> Shape:
         if value is not None:
             return value.shape
@@ -209,18 +198,18 @@ class NDDifferentiableBufferType(BaseTypeImpl):
 
     @property
     def differentiable(self):
-        return self.el_type.differentiable
+        return self.element_type.differentiable
 
     @property
     def derivative(self):
-        et = self.el_type.derivative
+        et = self.element_type.derivative
         if et is not None:
             return NDDifferentiableBufferType(et, self.dims, self.writable)
         else:
             return None
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return NDDifferentiableBuffer(context.device, self.el_type.python_return_value_type,
+        return NDDifferentiableBuffer(context.device, self.element_type.python_return_value_type,
                                       shape=context.call_shape,
                                       requires_grad=True,
                                       usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)

@@ -16,7 +16,6 @@ TShapeOrTuple = Union[tuple[int, ...], 'Shape']
 
 
 def check_concrete(shape: 'Shape') -> 'Shape':
-    assert shape.shape is not None
-    assert not None in shape.shape
-    assert not -1 in shape.shape
+    assert shape.valid
+    assert shape.concrete
     return shape

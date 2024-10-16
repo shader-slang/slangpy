@@ -70,7 +70,7 @@ class BaseVariableImpl(BaseVariable):
             else:
                 return f"{self.primal.name} ({self.name})"
 
-    def _find_bottom_level_element(self, value: Any = None) -> 'NativeType':
+    def _find_bottom_level_element(self, value: Any = None) -> Optional['NativeType']:
         t = self.primal
         while True:
             c = t.element_type

@@ -16,6 +16,8 @@ class ValueRefType(BaseTypeImpl):
     def __init__(self, value_type: BaseType):
         super().__init__()
         self.value_type = value_type
+        self.element_type = self.value_type.element_type
+        self.name = self.value_type.name
 
     # Values don't store a derivative - they're just a value
     @property
@@ -60,14 +62,6 @@ class ValueRefType(BaseTypeImpl):
             assert isinstance(result['value'], Buffer)
             npdata = result['value'].to_numpy()
             data.value = self.value_type.from_numpy(npdata)
-
-    @property
-    def name(self) -> str:
-        return self.value_type.name
-
-    @property
-    def element_type(self):
-        return self.value_type.element_type
 
     def get_shape(self, value: Optional[ValueRef] = None) -> Shape:
         return self.value_type.get_shape()

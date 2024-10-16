@@ -27,17 +27,11 @@ class WangHashArgType(BaseTypeImpl):
     def __init__(self, dims: int):
         super().__init__()
         self.dims = dims
-
-    @property
-    def name(self) -> str:
-        return f"WangHashArg<{self.dims}>"
+        self.element_type = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
+        self.name = f"WangHashArg<{self.dims}>"
 
     def get_container_shape(self, value: Optional[WangHashArg] = None) -> Shape:
         return Shape(self.dims)
-
-    @property
-    def element_type(self):
-        return SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access

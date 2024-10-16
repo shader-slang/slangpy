@@ -71,8 +71,6 @@ class CallData(NativeCallData):
         if not isinstance(chain[0], Function):
             raise ValueError("First entry in chain should be a function")
         self.call_mode = CallMode.prim
-        self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
-        self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
 
         function = chain[0]
         chain = chain
@@ -99,9 +97,7 @@ class CallData(NativeCallData):
                 self.call_mode = CallMode.bwds
             if isinstance(item, FunctionChainHook):
                 if item.before_dispatch is not None:
-                    if self.before_dispatch_hooks is None:
-                        self.before_dispatch_hooks = []
-                    self.before_dispatch_hooks.append(item.before_dispatch)
+                    self.add_before_dispatch_hook(item.before_dispatch)
                 if item.after_dispatch is not None:
                     if self.after_dispatch_hooks is None:
                         self.after_dispatch_hooks = []
@@ -109,7 +105,7 @@ class CallData(NativeCallData):
             if isinstance(item, FunctionChainReturnType):
                 return_type = item.return_type
 
-        self.sets = sets
+        self.vars = sets
 
         # Build 'unpacked' args (that handle IThis)
         unpacked_args = tuple([unpack_arg(x) for x in args])
@@ -223,9 +219,3 @@ Overloads:
 
         self.debug_only_bindings = bindings
         self.runtime = BoundCallRuntime(bindings)
-
-    def call(self, *args: Any, **kwargs: Any):
-        return self.exec(None, *args, **kwargs)
-
-    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
-        return self.exec(command_buffer, *args, **kwargs)

@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
-from kernelfunctions.core import SlangFunction, hash_signature, NativeBoundVariableException
+from kernelfunctions.core import SlangFunction, hash_signature
 
 from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
 from kernelfunctions.shapes import TShapeOrTuple
@@ -36,30 +36,39 @@ class FunctionChainBase:
     def __init__(self, parent: Optional["FunctionChainBase"]) -> None:
         super().__init__()
         self.parent = parent
-        self.this: Optional[IThis] = parent.this if parent is not None else None
+        self.this: Any = parent.this if parent is not None else None
         self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
+        calldata: Optional['CallData'] = None
         try:
             if self.this:
                 args = (self.this,)+args
             calldata = self._build_call_data(*args, **kwargs)
             return calldata.call(*args, **kwargs)
-        except NativeBoundVariableException as e:
-            from kernelfunctions.callsignature import generate_call_shape_error_string
-            raise ValueError(generate_call_shape_error_string(
-                calldata.runtime, [], e.message, e.source))  # type: ignore
+        except ValueError as e:
+            self._handle_error(e, calldata)
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+        calldata: Optional['CallData'] = None
         try:
             if self.this:
                 args = (self.this,)+args
             calldata = self._build_call_data(*args, **kwargs)
             return calldata.append_to(command_buffer, *args, **kwargs)
-        except NativeBoundVariableException as e:
-            from kernelfunctions.callsignature import generate_call_shape_error_string
-            raise ValueError(generate_call_shape_error_string(
-                calldata.runtime, [], e.message, e.source))  # type: ignore
+        except ValueError as e:
+            self._handle_error(e, calldata)
+
+    def _handle_error(self, e: ValueError, calldata: Optional['CallData']):
+        if len(e.args) != 1 or not isinstance(e.args[0], dict):
+            raise e
+        if not 'message' in e.args[0] or not 'source' in e.args[0]:
+            raise e
+        msg = e.args[0]['message']
+        source = e.args[0]['source']
+        from kernelfunctions.callsignature import generate_call_shape_error_string
+        raise ValueError(generate_call_shape_error_string(
+            calldata.runtime, [], msg, source))  # type: ignore
 
     @property
     def bwds_diff(self):
@@ -92,7 +101,6 @@ class FunctionChainBase:
     def _build_call_data(self, *args: Any, **kwargs: Any):
         sig = hash_signature(
             _cache_value_to_id, self, *args, **kwargs)
-        print(sig)
         if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
             return CALL_DATA_CACHE[sig]
 
@@ -108,12 +116,6 @@ class FunctionChainBase:
         if ENABLE_CALLDATA_CACHE:
             CALL_DATA_CACHE[sig] = res
         return res
-
-    def as_func(self) -> 'FunctionChainBase':
-        return self
-
-    def as_struct(self) -> 'Struct':
-        raise ValueError("Cannot convert a function to a struct")
 
 
 class FunctionChainSet(FunctionChainBase):
@@ -246,3 +248,9 @@ class Function(FunctionChainBase):
             self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
 
         self.slangpy_signature = f"[{id(module)}][{self.type_parent or ''}::{self.name}]"
+
+    def as_func(self) -> 'Function':
+        return self
+
+    def as_struct(self) -> 'Struct':
+        raise ValueError("Cannot convert a function to a struct")

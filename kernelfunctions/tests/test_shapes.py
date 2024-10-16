@@ -1,7 +1,7 @@
 from typing import Any, Optional
 import pytest
 from sgl import float4
-from kernelfunctions.core import NativeBoundVariableException
+from kernelfunctions.core import BaseType
 from kernelfunctions.backend import DeviceType, float1, float3
 from kernelfunctions.callsignature import BoundVariable
 import deepdiff
@@ -15,6 +15,9 @@ from kernelfunctions.types.valueref import ValueRef
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
+
+x = BaseType()
+x.get_shape(object())
 
 
 def make_int_buffer(device_type: DeviceType, shape: tuple[int, ...]):
@@ -67,7 +70,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
 
 # Second set of tests emulate the shape of the following slang function,
 # which has a 2nd parameter with with undefined dimension sizes
-# float4 read(int2 index, Slice<2,float4> array) { return array[index];}
+# float4 read(int2 index, Slice<2,float4> array) { return Shaparray[index];}
 
 
 def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
@@ -226,7 +229,7 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
 def test_dotproduct_shape_error(device_type: DeviceType):
 
     # attempt to pass a buffer of float4s for a, causes shape error
-    with pytest.raises(NativeBoundVariableException):
+    with pytest.raises(ValueError):
         dot_product(device_type, make_float_buffer(device_type, (100, 4)),
                     make_float_buffer(device_type, (3,)), None)
 
@@ -235,7 +238,7 @@ def test_dotproduct_shape_error(device_type: DeviceType):
 def test_dotproduct_broadcast_error(device_type: DeviceType):
 
     # attempt to pass missmatching buffer sizes for a and b
-    with pytest.raises(NativeBoundVariableException):
+    with pytest.raises(ValueError):
         dot_product(device_type, make_float_buffer(device_type, (100, 3)),
                     make_float_buffer(device_type, (1000, 3)), None)
 
@@ -262,7 +265,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 def test_dotproduct_broadcast_invalid_result(device_type: DeviceType):
 
     # pass an output of the wrong shape resulting in error
-    with pytest.raises(NativeBoundVariableException):
+    with pytest.raises(ValueError):
         shapes = dot_product(device_type, make_float_buffer(device_type, (100, 3)),
                              make_float_buffer(device_type, (3,)), make_float_buffer(device_type, (3,)))
 

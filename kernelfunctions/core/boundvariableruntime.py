@@ -31,8 +31,10 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
 
         # Internal data
         self._source_for_exceptions = source
-        self._name = source.python.name
-        self._variable_name = source.variable_name
-        self._children = {
-            name: BoundVariableRuntime(child) for name, child in source.children.items()
-        } if source.children is not None else None
+        self.name = source.python.name
+        self.variable_name = source.variable_name
+
+        if source.children is not None:
+            self.children = {
+                name: BoundVariableRuntime(child) for name, child in source.children.items()
+            }

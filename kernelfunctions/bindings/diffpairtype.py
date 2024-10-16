@@ -39,6 +39,8 @@ class DiffPairType(BaseTypeImpl):
         self.primal_type = primal_type
         self.derivative_type = derivative_type
         self.needs_grad = needs_grad
+        self.element_type = self.primal_type.element_type
+        self.name = self.primal_type.name
 
     # Values don't store a derivative - they're just a value
     @property
@@ -119,14 +121,6 @@ class DiffPairType(BaseTypeImpl):
                 assert prim_type is not None
                 npdata = result[prim_name]['value'].to_numpy()
                 data.set(prim, prim_type.from_numpy(npdata))
-
-    @property
-    def name(self) -> str:
-        return self.primal_type.name
-
-    @property
-    def element_type(self):
-        return self.primal_type.element_type
 
     def get_shape(self, value: Optional[DiffPair] = None) -> Shape:
         return self.primal_type.get_shape()

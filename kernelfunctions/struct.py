@@ -85,7 +85,7 @@ class Struct:
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         raise AttributeError(f"Type '{self.name}' is not callable")
 
-    def as_func(self) -> 'FunctionChainBase':
+    def as_func(self) -> 'Function':
         raise ValueError("Cannot convert a struct to a function")
 
     def as_struct(self) -> 'Struct':

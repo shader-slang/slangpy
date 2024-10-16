@@ -29,20 +29,9 @@ class CallMode(Enum):
 TDispatchHook = Callable[[dict[str, Any]], None]
 
 
-class NativeBoundVariableException(Exception):
-    """
-    Native base class for all variable exceptions
-    """
-
-    def __init__(self, message: str, source: Optional['NativeBoundVariableRuntime'] = None):
-        super().__init__(message)
-        self.message = message
-        self.source = source
-
-
 class Shape:
     """
-    Native base class for all shapes
+    Native shape
     """
 
     def __init__(self, *args: Union[None, int, 'Shape', tuple[int, ...]]):
@@ -83,10 +72,16 @@ class Shape:
     def valid(self) -> bool:
         return self.shape is not None
 
+    @property
+    def concrete(self) -> bool:
+        return self.shape is not None and -1 not in self.shape
+
     def __len__(self) -> int:
         return len(self.as_tuple())
 
     def __getitem__(self, key: int) -> int:
+        if key >= len(self):
+            raise IndexError("Shape index out of range")  # @IgnoreException
         return self.as_tuple()[key]
 
     def __eq__(self, value: object) -> bool:
@@ -106,14 +101,9 @@ class NativeType:
 
     def __init__(self):
         super().__init__()
-
-    @property
-    def name(self) -> str:
-        raise NotImplementedError()
-
-    @property
-    def element_type(self) -> 'NativeType':
-        raise NotImplementedError()
+        self.name = ""
+        self.element_type: Optional['NativeType'] = None
+        self.concrete_shape: Shape = Shape(None)
 
     def get_byte_size(self, value: Any = None) -> int:
         raise NotImplementedError()
@@ -122,7 +112,12 @@ class NativeType:
         return Shape()
 
     def get_shape(self, value: Any = None) -> Shape:
-        return self.get_container_shape(value) + self.element_type.get_shape()
+        if self.concrete_shape.valid:
+            return self.concrete_shape
+        if self.element_type is not None:
+            return self.get_container_shape(value) + self.element_type.get_shape()
+        else:
+            return self.get_container_shape(value)
 
     def create_calldata(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any) -> Any:
         pass
@@ -199,16 +194,16 @@ class NativeBoundVariableRuntime:
         self.slang_shape: Shape = None  # type: ignore
         self.python_type: NativeType = None  # type: ignore
         self.shape: Shape = None  # type: ignore
-        self._name = ""
-        self._variable_name = ""
-        self._children: Optional[dict[str, 'NativeBoundVariableRuntime']] = None
+        self.name = ""
+        self.variable_name = ""
+        self.children: Optional[dict[str, 'NativeBoundVariableRuntime']] = None
 
     def populate_call_shape(self, call_shape: list[int], value: Any):
         """
         Recursively calculate call shape for the node
         """
-        if self._children is not None:
-            for name, child in self._children.items():
+        if self.children is not None:
+            for name, child in self.children.items():
                 child.populate_call_shape(call_shape, value[name])
         elif value is not None:
             # Get concrete primal shape
@@ -230,19 +225,21 @@ class NativeBoundVariableRuntime:
                 cs = call_shape[call_idx]
                 if cs != shape_dim:
                     if cs != 1 and shape_dim != 1:
-                        raise NativeBoundVariableException(
-                            f"Shape mismatch for {self._variable_name} between input and output", self)
+                        raise ValueError({
+                            'message': f"Shape mismatch for {self.variable_name} between input and output",
+                            'source': self
+                        })
                     if shape_dim != 1:
                         call_shape[call_idx] = shape_dim
 
     def write_call_data_pre_dispatch(self, context: 'CallContext', call_data: dict[str, Any], value: Any):
         """Writes value to call data dictionary pre-dispatch"""
-        if self._children is not None:
+        if self.children is not None:
             res = {}
-            for name, child in self._children.items():
+            for name, child in self.children.items():
                 child.write_call_data_pre_dispatch(context, res, value[name])
             if len(res) > 0:
-                call_data[self._variable_name] = res
+                call_data[self.variable_name] = res
         else:
             # Get concrete primal shape
             shape = self.shape
@@ -260,27 +257,27 @@ class NativeBoundVariableRuntime:
             cd_val = self.python_type.create_calldata(
                 context, self, value)
             if cd_val is not None:
-                call_data[self._variable_name] = cd_val
+                call_data[self.variable_name] = cd_val
 
     def read_call_data_post_dispatch(self, context: 'CallContext', call_data: dict[str, Any], value: Any):
         """Reads value from call data dictionary post-dispatch"""
-        if self._children is not None:
-            cd_val = call_data.get(self._variable_name, None)
-            for name, child in self._children.items():
-                if child._variable_name in cd_val:
+        if self.children is not None:
+            cd_val = call_data.get(self.variable_name, None)
+            for name, child in self.children.items():
+                if child.variable_name in cd_val:
                     child.read_call_data_post_dispatch(context, cd_val, value[name])
         else:
-            cd_val = call_data.get(self._variable_name, None)
+            cd_val = call_data.get(self.variable_name, None)
             if cd_val is not None:
                 self.python_type.read_calldata(context, self, value, cd_val)
 
     def read_output(self, context: 'CallContext', data: Any):
         """Reads output from function for a return value"""
-        if self._children is not None:
+        if self.children is not None:
             assert isinstance(data, dict)
             res = {}
-            for name, child in self._children.items():
-                child_data = data.get(child._name, None)
+            for name, child in self.children.items():
+                child_data = data.get(child.name, None)
                 if child_data is not None:
                     res[name] = child.read_output(context, child_data)
             return res
@@ -300,11 +297,23 @@ class NativeCallData:
         self.kernel: ComputeKernel = None  # type: ignore
         self.call_dimensionality = 0
         self.runtime: NativeBoundCallRuntime = None  # type: ignore
-        self.sets: dict[str, Any] = {}
+        self.vars: dict[str, Any] = {}
         self.call_mode = CallMode.prim
-        self.before_dispatch_hooks: Optional[list[TDispatchHook]] = None
-        self.after_dispatch_hooks: Optional[list[TDispatchHook]] = None
+        self.before_dispatch_hooks: list[TDispatchHook] = []
+        self.after_dispatch_hooks: list[TDispatchHook] = []
         self.last_call_shape = Shape()
+
+    def add_before_dispatch_hook(self, hook: TDispatchHook):
+        self.before_dispatch_hooks.append(hook)
+
+    def add_after_dispatch_hook(self, hook: TDispatchHook):
+        self.after_dispatch_hooks.append(hook)
+
+    def call(self, *args: Any, **kwargs: Any):
+        return self.exec(None, *args, **kwargs)
+
+    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+        return self.exec(command_buffer, *args, **kwargs)
 
     def exec(self, command_buffer: Optional[CommandBuffer],  *args: Any, **kwargs: Any):
 
@@ -348,7 +357,7 @@ class NativeCallData:
             call_data["_call_dim"] = call_shape.as_list()
         call_data["_thread_count"] = uint3(total_threads, 1, 1)
 
-        vars = self.sets.copy()
+        vars = self.vars.copy()
         vars['call_data'] = call_data
 
         if self.before_dispatch_hooks is not None:

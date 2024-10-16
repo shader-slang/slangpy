@@ -58,7 +58,7 @@ class NDBuffer:
         self.element_type = get_or_create_type(element_type)
         self.usage = usage
 
-        self._cached_signature = f"[{self.element_type.name},{len(self.shape)},{self.is_writable}]"
+        self.slangpy_signature = f"[{self.element_type.name},{len(self.shape)},{self.is_writable}]"
 
         strides = []
         total = 1
@@ -84,10 +84,6 @@ class NDBuffer:
     @property
     def is_writable(self):
         return (self.usage & ResourceUsage.unordered_access) != 0
-
-    @property
-    def slangpy_signature(self) -> str:
-        return self._cached_signature
 
     def to_numpy(self):
         return self.buffer.to_numpy()
@@ -152,10 +148,10 @@ class NDDifferentiableBuffer(NDBuffer):
                 grad_usage=None,
                 grad_memory_type=None,
                 slang_module=slang_module)
-            self._cached_signature += self.grad._cached_signature
+            self.slangpy_signature += self.grad.slangpy_signature
         else:
             self.grad = None
-            self._cached_signature += "[]"
+            self.slangpy_signature += "[]"
 
         self.grad_type = get_or_create_type(grad_type)
         self.grad_usage = grad_usage if grad_usage is not None else self.usage

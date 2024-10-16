@@ -14,22 +14,14 @@ class TextureType(ValueType):
 
     def __init__(self, element_type: BaseType, writable: bool, base_texture_type_name: str, texture_shape: int):
         super().__init__()
-        self._el_type = element_type
         self._writable = writable
         self._texture_shape = texture_shape
         self._base_texture_type_name = base_texture_type_name
-        self._tex_type_name = f"{self._prefix()}{self._base_texture_type_name}<{self._el_type.name}>"
+        self.element_type = element_type
+        self.name = f"{self._prefix()}{self._base_texture_type_name}<{self.element_type.name}>"
 
     def _prefix(self):
         return "RW" if self._writable else ""
-
-    @property
-    def name(self) -> str:
-        return self._tex_type_name
-
-    @property
-    def element_type(self):
-        return self._el_type
 
     @property
     def differentiable(self):
