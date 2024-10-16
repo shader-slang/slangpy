@@ -1,6 +1,9 @@
 from typing import Any
 import pytest
 from kernelfunctions.backend import DeviceType, TypeReflection
+from kernelfunctions.core.basetype import BindContext
+from kernelfunctions.core.boundvariable import BoundVariable
+from kernelfunctions.core.codegen import CodeGenBlock
 import kernelfunctions.tests.helpers as helpers
 import kernelfunctions.typeregistry as tr
 from kernelfunctions.bindings.valuetype import ValueType
@@ -36,19 +39,13 @@ float foo(ITest<float, 2> x) {
 
 class ITest(BaseTypeImpl):
     def __init__(self, reflection: TypeReflection):
+        super().__init__()
         self.args = get_resolved_generic_args(reflection)
-
-    @property
-    def name(self) -> str:
-        return "ITest<float, 2>"
+        self.name = "ITest<float, 2>"
 
     @property
     def needs_specialization(self):
         return True
-
-    @property
-    def element_type(self):
-        return None
 
 
 tr.SLANG_INTERFACE_TYPES_BY_NAME["ITest"] = ITest
@@ -56,6 +53,7 @@ tr.SLANG_INTERFACE_TYPES_BY_NAME["ITest"] = ITest
 
 class Test:
     def __init__(self, T: BaseType, N: int):
+        super().__init__()
         self.T = T
         self.N = N
         self.slangpy_signature = f"{T.name}{N}"
@@ -66,28 +64,24 @@ class TestImpl(ValueType):
         super().__init__()
         self.T = T
         self.N = N
+        self.name = f"Test{self.N}{self.T.name[0]}"
+        self.concrete_shape = Shape()
 
-    def gen_calldata(self, cgb, context, binding):
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         cgb.type_alias(f"_{binding.variable_name}", self.name)
 
     def specialize_type(self, type: BaseType):
         if not isinstance(type, ITest):
             return None
+        assert type.args is not None
+        assert isinstance(type.args[0], BaseType)
         if type.args[0].name != self.T.name or type.args[1] != self.N:
             return None
         return self
 
-    def get_shape(self, value: Any = None):
-        return Shape()
-
-    @property
-    def name(self) -> str:
-        return f"Test{self.N}{self.T.name[0]}"
-
 
 def create_test_impl(value: Any):
-    if not isinstance(value, Test):
-        return None
+    assert isinstance(value, Test)
     return TestImpl(value.T, value.N)
 
 
@@ -100,11 +94,12 @@ def test_interface_resolution(device_type: DeviceType):
     device = helpers.get_device(device_type)
     module = Module(device.load_module_from_source(
         "test_interface_resolution", TEST_MODULE))
-    function = module.foo
+    function = module.foo.as_func()
 
     param = function.overloads[0].parameters[0].primal
 
     assert isinstance(param, ITest)
+    assert param.args is not None
     assert isinstance(param.args[0], BaseType) and param.args[0].name == "float"
     assert isinstance(param.args[1], int) and param.args[1] == 2
 

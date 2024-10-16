@@ -60,7 +60,7 @@ def test_add_vectors_basic_input_transform(device_type: DeviceType):
 
     func = m.add_vectors.transform_output({
         'a': (1, 0, 2),
-    }).as_func()
+    })
 
     res: NDBuffer = func(a, b)
 
@@ -96,7 +96,7 @@ def test_add_vectors_vecindex_inputcontainer_input_transform(device_type: Device
 
     func = m.add_vectors.transform_output({
         'a': (1, 0, 2),
-    }).as_func()
+    })
 
     res: NDBuffer = func(a, b)
 
@@ -129,7 +129,7 @@ def test_copy_vectors_vecindex_inputcontainer_input_transform(device_type: Devic
 
     func = m.copy_vectors.transform_output({
         'input': (1, 0, 2),
-    }).as_func()
+    })
 
     func(inn, out)
 
@@ -159,7 +159,7 @@ def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: Devi
 
     func = m.copy_vectors.transform_output({
         'output': (1, 0, 2),
-    }).as_func()
+    })
 
     func(inn, out)
 
@@ -235,7 +235,7 @@ def test_add_vectors_basic_output_transform(device_type: DeviceType):
     func = m.add_vectors.transform_output({
         'a': (0, 2),
         'b': (1, 2)
-    }).as_func()
+    })
 
     res: NDBuffer = func(a, b)
 

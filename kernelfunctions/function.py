@@ -117,12 +117,6 @@ class FunctionChainBase:
             CALL_DATA_CACHE[sig] = res
         return res
 
-    def as_func(self) -> 'FunctionChainBase':
-        return self
-
-    def as_struct(self) -> 'Struct':
-        raise ValueError("Cannot convert a function to a struct")
-
 
 class FunctionChainSet(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
@@ -254,3 +248,9 @@ class Function(FunctionChainBase):
             self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
 
         self.slangpy_signature = f"[{id(module)}][{self.type_parent or ''}::{self.name}]"
+
+    def as_func(self) -> 'Function':
+        return self
+
+    def as_struct(self) -> 'Struct':
+        raise ValueError("Cannot convert a function to a struct")
