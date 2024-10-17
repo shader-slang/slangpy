@@ -1,8 +1,10 @@
 import subprocess
 import sys
-
+import os
 
 # Helper to run a command.
+
+
 def run_command(command: str, shell: bool = True):
     print(command)
     sys.stdout.flush()
@@ -26,5 +28,10 @@ run_command("pip install -r requirements-dev.txt")
 # run precommit
 run_command("pre-commit run --all-files")
 
-# run tests
+# run tests with native emulation
+os.environ["SLANGPY_DISABLE_NATIVE"] = "1"
+run_command("pytest --junit-xml=junit-test-emu.xml")
+
+# run tests with native
+del os.environ["SLANGPY_DISABLE_NATIVE"]
 run_command("pytest --junit-xml=junit-test.xml")
