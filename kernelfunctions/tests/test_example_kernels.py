@@ -130,6 +130,7 @@ void user_func(float a, float b, out float c) {
     assert np.allclose(in_grad_1, eval_grad_1)
 
 
+@pytest.mark.skip(reason="Slang issue")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
@@ -241,6 +242,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     assert np.allclose(b_grad_data, exprected_grad)
 
 
+@pytest.mark.skip(reason="Slang issue")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vec3_nested_calldata_soa(device_type: DeviceType):
 
