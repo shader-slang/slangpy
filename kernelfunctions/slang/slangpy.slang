@@ -62,6 +62,122 @@ struct RWStructuredBufferType<T> {
     void store_primal(IContext context, in RWStructuredBuffer<T> value) {};
 }
 
+struct Texture1DType<T> {
+    // x map to 0
+    int1 toidx(IContext context) { return int1(context.get_call_id(0)); }
+
+    Texture1D<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) {};
+
+    void load_primal(IContext context, out Texture1D<T> value) { value = this.value; }
+    void store_primal(IContext context, in Texture1D<T> value) {};
+}
+struct RWTexture1DType<T> {
+    // x map to 0
+    int1 toidx(IContext context) { return int1(context.get_call_id(0)); }
+
+    RWTexture1D<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) { this.value[toidx(context)] = value;};
+
+    void load_primal(IContext context, out RWTexture1D<T> value) { value = this.value; }
+    void store_primal(IContext context, in RWTexture1D<T> value) {};
+}
+
+struct Texture2DType<T> {
+    // xy map to 0,1
+    int2 toidx(IContext context) { return int2(context.get_call_id(0), context.get_call_id(1)); }
+
+    Texture2D<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) {};
+
+    void load_primal(IContext context, out Texture2D<T> value) { value = this.value; }
+    void store_primal(IContext context, in Texture2D<T> value) {};
+}
+struct RWTexture2DType<T> {
+    // xy map to 0,1
+    int2 toidx(IContext context) { return int2(context.get_call_id(0), context.get_call_id(1)); }
+
+    RWTexture2D<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) { this.value[toidx(context)] = value;};
+
+    void load_primal(IContext context, out RWTexture2D<T> value) { value = this.value; }
+    void store_primal(IContext context, in RWTexture2D<T> value) {};
+}
+
+struct Texture1DArrayType<T> {
+
+    // Map with the first index as the x coordinate and the second index as the array slice
+    int2 toidx(IContext context) { return int2(context.get_call_id(1), context.get_call_id(0)); }
+
+    Texture1DArray<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) {};
+
+    void load_primal(IContext context, out Texture1DArray<T> value) { value = this.value; }
+    void store_primal(IContext context, in Texture1DArray<T> value) {};
+}
+struct RWTexture1DArrayType<T> {
+    // Map with the first index as the x coordinate and the second index as the array slice
+    int2 toidx(IContext context) { return int2(context.get_call_id(1), context.get_call_id(0)); }
+
+    RWTexture1DArray<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) { this.value[toidx(context)] = value;};
+
+    void load_primal(IContext context, out RWTexture1DArray<T> value) { value = this.value; }
+    void store_primal(IContext context, in RWTexture1DArray<T> value) {};
+}
+
+struct Texture3DType<T> {
+    // xyz map to 0,1,2
+    int3 toidx(IContext context) { return int3(context.get_call_id(0), context.get_call_id(1), context.get_call_id(2)); }
+
+    Texture3D<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) {};
+
+    void load_primal(IContext context, out Texture3D<T> value) { value = this.value; }
+    void store_primal(IContext context, in Texture3D<T> value) {};
+}
+struct RWTexture3DType<T> {
+    // xyz map to 0,1,2
+    int3 toidx(IContext context) { return int3(context.get_call_id(0), context.get_call_id(1), context.get_call_id(2)); }
+
+    RWTexture3D<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) { this.value[toidx(context)] = value;};
+
+    void load_primal(IContext context, out RWTexture3D<T> value) { value = this.value; }
+    void store_primal(IContext context, in RWTexture3D<T> value) {};
+}
+
+struct Texture2DArrayType<T> {
+    // slice is 0, xy are 1,2
+    int3 toidx(IContext context) { return int3(context.get_call_id(1), context.get_call_id(2), context.get_call_id(0)); }
+
+    Texture2DArray<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) {};
+
+    void load_primal(IContext context, out Texture2DArray<T> value) { value = this.value; }
+    void store_primal(IContext context, in Texture2DArray<T> value) {};
+}
+struct RWTexture2DArrayType<T> {
+    // slice is 0, xy are 1,2
+    int3 toidx(IContext context) { return int3(context.get_call_id(1), context.get_call_id(2), context.get_call_id(0)); }
+
+    RWTexture2DArray<T> value;
+    void load_primal(IContext context, out T value) { value = this.value[toidx(context)]; }
+    void store_primal(IContext context, in T value) { this.value[toidx(context)] = value;};
+
+    void load_primal(IContext context, out RWTexture2DArray<T> value) { value = this.value; }
+    void store_primal(IContext context, in RWTexture2DArray<T> value) {};
+}
+
 struct ValueRef<T>
 {
     T value;
