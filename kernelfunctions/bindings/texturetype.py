@@ -13,57 +13,67 @@ from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_
 from .valuetype import ValueType
 
 
+def has_uav(usage: ResourceUsage):
+    return (usage & ResourceUsage.unordered_access.value) != 0
+
+
 class TextureType(ValueType):
 
-    def __init__(self, element_type: BaseType, writable: bool, base_texture_type_name: str, texture_dims: int):
+    def __init__(self, element_type: BaseType, usage: ResourceUsage, base_texture_type_name: str, texture_dims: int):
         super().__init__()
-        self._writable = writable
+        self._usage = usage
         self._texture_dims = texture_dims
         self._base_texture_type_name = base_texture_type_name
         self.element_type = element_type
         self.name = f"{self._prefix()}{self._base_texture_type_name}<{self.element_type.name}>"
 
     def is_writable(self):
-        return self._writable
+        return has_uav(self._usage)
 
     def _prefix(self):
-        return "RW" if self._writable else ""
+        return "RW" if self.is_writable() else ""
 
-    def build_accessor_name(self, writable: Optional[bool] = None):
-        if writable is None:
-            writable = self._writable
+    def build_accessor_name(self, usage: Optional[ResourceUsage] = None):
+        if usage is None:
+            usage = self._usage
         assert self.element_type is not None
-        prefix = "RW" if writable else ""
+        prefix = "RW" if has_uav(usage) else ""
         return f"{prefix}{self._base_texture_type_name}Type<{self.element_type.name}>"
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         assert self.element_type is not None
-        access = binding.access
+        access = binding.access[0]
         name = binding.variable_name
+
+        if access == AccessType.none:
+            cgb.type_alias(f"_{name}", f"NoneType")
+            return
 
         if binding.call_dimensionality == 0:
             # If broadcast directly, function is just taking the texture argument directly, so use the slang type
-            assert not access[0] in [AccessType.write, AccessType.readwrite]
+            assert access == AccessType.read
             assert isinstance(binding.slang.primal, TextureType)
-            if binding.slang.primal._writable and not self._writable:
+            if self._usage & binding.slang.primal._usage == 0:
                 raise ValueError(
-                    f"Cannot bind read-only texture to writable texture {name}")
+                    f"Cannot bind texture view {name} with usage {binding.slang.primal._usage}")
             cgb.type_alias(
                 f"_{name}", binding.slang.primal.build_accessor_name())
         elif binding.call_dimensionality == self._texture_dims:
             # If broadcast is the same shape as the texture, this is loading from pixels, so use the
             # type required to support the required access
-            if not self._writable and access[0] in [AccessType.write, AccessType.readwrite]:
-                raise ValueError(f"Cannot write to read-only texture {name}")
-            if access[0] in [AccessType.write, AccessType.readwrite]:
+            if access == AccessType.read:
+                # Read access can be either shader resource or UAV, so just bind the correct type
+                # for this resource view
                 cgb.type_alias(
-                    f"_{name}", self.build_accessor_name(True))
-            elif access[0] == AccessType.read:
-                cgb.type_alias(
-                    f"_{name}", self.build_accessor_name(False))
+                    f"_{name}", self.build_accessor_name())
             else:
-                cgb.type_alias(f"_{name}", f"NoneType")
+                # Write access requires a UAV so check it and bind RW type
+                if not has_uav(self._usage):
+                    raise ValueError(
+                        f"Cannot write to read-only texture {name}")
+                cgb.type_alias(
+                    f"_{name}", self.build_accessor_name(ResourceUsage.unordered_access))
         else:
             raise ValueError(
                 f"Texture {name} has invalid transform {binding.transform}")
@@ -103,14 +113,14 @@ class TextureType(ValueType):
         el_diff = self.element_type.derivative
         if el_diff is not None:
             # Note: all subtypes of TextureType take just element type + writable
-            return type(self)(el_diff, self._writable)  # type: ignore
+            return type(self)(el_diff, self._usage)  # type: ignore
         else:
             return None
 
 
 class Texture1DType(TextureType):
-    def __init__(self, element_type: BaseType, writable: bool):
-        super().__init__(element_type=element_type, writable=writable,
+    def __init__(self, element_type: BaseType, usage: ResourceUsage):
+        super().__init__(element_type=element_type, usage=usage,
                          base_texture_type_name="Texture1D", texture_dims=1)
 
     def get_texture_shape(self, value: Texture, mip: int) -> Shape:
@@ -118,8 +128,8 @@ class Texture1DType(TextureType):
 
 
 class Texture2DType(TextureType):
-    def __init__(self, element_type: BaseType, writable: bool):
-        super().__init__(element_type=element_type, writable=writable,
+    def __init__(self, element_type: BaseType, usage: ResourceUsage):
+        super().__init__(element_type=element_type, usage=usage,
                          base_texture_type_name="Texture2D", texture_dims=2)
 
     def get_texture_shape(self, value: Texture, mip: int) -> Shape:
@@ -127,8 +137,8 @@ class Texture2DType(TextureType):
 
 
 class Texture1DArrayType(TextureType):
-    def __init__(self, element_type: BaseType, writable: bool):
-        super().__init__(element_type=element_type, writable=writable,
+    def __init__(self, element_type: BaseType, usage: ResourceUsage):
+        super().__init__(element_type=element_type, usage=usage,
                          base_texture_type_name="Texture1DArray", texture_dims=2)
 
     def get_texture_shape(self, value: Texture, mip: int) -> Shape:
@@ -136,8 +146,8 @@ class Texture1DArrayType(TextureType):
 
 
 class Texture2DArrayType(TextureType):
-    def __init__(self, element_type: BaseType, writable: bool):
-        super().__init__(element_type=element_type, writable=writable,
+    def __init__(self, element_type: BaseType, usage: ResourceUsage):
+        super().__init__(element_type=element_type, usage=usage,
                          base_texture_type_name="Texture2DArray", texture_dims=3)
 
     def get_texture_shape(self, value: Texture, mip: int) -> Shape:
@@ -145,8 +155,8 @@ class Texture2DArrayType(TextureType):
 
 
 class Texture3DType(TextureType):
-    def __init__(self, element_type: BaseType, writable: bool):
-        super().__init__(element_type=element_type, writable=writable,
+    def __init__(self, element_type: BaseType, usage: ResourceUsage):
+        super().__init__(element_type=element_type, usage=usage,
                          base_texture_type_name="Texture3D", texture_dims=3)
 
     def get_texture_shape(self, value: Texture, mip: int) -> Shape:
@@ -154,8 +164,8 @@ class Texture3DType(TextureType):
 
 
 class TextureCubeType(TextureType):
-    def __init__(self, element_type: BaseType, writable: bool):
-        super().__init__(element_type=element_type, writable=writable,
+    def __init__(self, element_type: BaseType, usage: ResourceUsage):
+        super().__init__(element_type=element_type, usage=usage,
                          base_texture_type_name="TextureCube", texture_dims=3)
 
     def get_texture_shape(self, value: Texture, mip: int) -> Shape:
@@ -163,8 +173,8 @@ class TextureCubeType(TextureType):
 
 
 class TextureCubeArrayType(TextureType):
-    def __init__(self, element_type: BaseType, writable: bool):
-        super().__init__(element_type=element_type, writable=writable,
+    def __init__(self, element_type: BaseType, usage: ResourceUsage):
+        super().__init__(element_type=element_type, usage=usage,
                          base_texture_type_name="TextureCubeArray", texture_dims=4)
 
     def get_texture_shape(self, value: Texture, mip: int) -> Shape:
@@ -175,21 +185,30 @@ def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType
     assert isinstance(slang_type, TypeReflection)
     assert slang_type.kind == TypeReflection.Kind.resource
     et = get_or_create_type(slang_type.resource_result_type)
-    writable = slang_type.resource_access == TypeReflection.ResourceAccess.read_write
+
+    # A slang texture requires a specific usage to be bound to. a Texture
+    # must be a shader resource, and an RWTexture must be a UAV.
+    if slang_type.resource_access == TypeReflection.ResourceAccess.read:
+        usage = ResourceUsage.shader_resource
+    elif slang_type.resource_access == TypeReflection.ResourceAccess.read_write:
+        usage = ResourceUsage.unordered_access
+    else:
+        raise ValueError(f"Unsupported resource access {slang_type.resource_access}")
+
     if slang_type.resource_shape == TypeReflection.ResourceShape.texture_1d:
-        return Texture1DType(element_type=et, writable=writable)
+        return Texture1DType(et, usage)
     elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_2d:
-        return Texture2DType(element_type=et, writable=writable)
+        return Texture2DType(et, usage)
     elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_3d:
-        return Texture3DType(element_type=et, writable=writable)
+        return Texture3DType(et, usage)
     elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_cube:
-        return TextureCubeType(element_type=et, writable=writable)
+        return TextureCubeType(et, usage)
     elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_1d_array:
-        return Texture1DArrayType(element_type=et, writable=writable)
+        return Texture1DArrayType(et, usage)
     elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_2d_array:
-        return Texture2DArrayType(element_type=et, writable=writable)
+        return Texture2DArrayType(et, usage)
     elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_cube_array:
-        return TextureCubeArrayType(element_type=et, writable=writable)
+        return TextureCubeArrayType(et, usage)
     else:
         raise ValueError(f"Unsupported slang type {slang_type}")
 
@@ -198,10 +217,8 @@ SLANG_STRUCT_TYPES_BY_NAME['__TextureImpl'] = _get_or_create_slang_type_reflecti
 SLANG_STRUCT_TYPES_BY_NAME['_Texture'] = _get_or_create_slang_type_reflection
 
 
-def get_or_create_python_texture_type(value: Texture, usage: ResourceUsage):
-    writable = (usage & ResourceUsage.unordered_access.value) != 0
-
-    fmt_info = get_format_info(value.desc.format)
+def get_or_create_python_texture_type(resource: Texture, usage: ResourceUsage):
+    fmt_info = get_format_info(resource.desc.format)
     if fmt_info.type in [FormatType.float, FormatType.unorm, FormatType.snorm, FormatType.unorm_srgb]:
         scalar_type = TypeReflection.ScalarType.float32
     elif fmt_info.type == FormatType.uint:
@@ -209,29 +226,29 @@ def get_or_create_python_texture_type(value: Texture, usage: ResourceUsage):
     elif fmt_info.type == FormatType.sint:
         scalar_type = TypeReflection.ScalarType.int32
     else:
-        raise ValueError(f"Unsupported format {value.desc.format}")
+        raise ValueError(f"Unsupported format {resource.desc.format}")
     element_type = SLANG_VECTOR_TYPES[scalar_type][fmt_info.channel_count]
 
-    if value.array_size == 1:
-        if value.desc.type == ResourceType.texture_1d:
-            return Texture1DType(element_type, writable)
-        elif value.desc.type == ResourceType.texture_2d:
-            return Texture2DType(element_type, writable)
-        elif value.desc.type == ResourceType.texture_3d:
-            return Texture3DType(element_type, writable)
-        elif value.desc.type == ResourceType.texture_cube:
-            return TextureCubeType(element_type, writable)
+    if resource.array_size == 1:
+        if resource.desc.type == ResourceType.texture_1d:
+            return Texture1DType(element_type, usage)
+        elif resource.desc.type == ResourceType.texture_2d:
+            return Texture2DType(element_type, usage)
+        elif resource.desc.type == ResourceType.texture_3d:
+            return Texture3DType(element_type, usage)
+        elif resource.desc.type == ResourceType.texture_cube:
+            return TextureCubeType(element_type, usage)
         else:
-            raise ValueError(f"Unsupported texture type {value.desc.type}")
+            raise ValueError(f"Unsupported texture type {resource.desc.type}")
     else:
-        if value.desc.type == ResourceType.texture_1d:
-            return Texture1DArrayType(element_type, writable)
-        elif value.desc.type == ResourceType.texture_2d:
-            return Texture2DArrayType(element_type, writable)
-        elif value.desc.type == ResourceType.texture_cube:
-            return TextureCubeArrayType(element_type, writable)
+        if resource.desc.type == ResourceType.texture_1d:
+            return Texture1DArrayType(element_type, usage)
+        elif resource.desc.type == ResourceType.texture_2d:
+            return Texture2DArrayType(element_type, usage)
+        elif resource.desc.type == ResourceType.texture_cube:
+            return TextureCubeArrayType(element_type, usage)
         else:
-            raise ValueError(f"Unsupported texture type {value.desc.type}")
+            raise ValueError(f"Unsupported texture type {resource.desc.type}")
 
 
 def _get_or_create_python_type(value: Any):
