@@ -19,7 +19,14 @@ def _get_or_create_python_type(value: Any):
         raise ValueError(f"Unsupported resource view resource {value.resource}")
 
 
-PYTHON_TYPES[ResourceView] = _get_or_create_python_type
+def _get_signature(value: Any):
+    assert isinstance(value, ResourceView)
+    if isinstance(value.resource, Texture):
+        x = value.resource
+        return f"[texture,{x.desc.type},{value.type},{x.desc.format},{x.array_size>1}]"
+    else:
+        raise ValueError(f"Unsupported resource view resource {value.resource}")
 
-PYTHON_SIGNATURES[ResourceView] = lambda x: PYTHON_SIGNATURES[type(
-    x.resource)](x.resource)
+
+PYTHON_TYPES[ResourceView] = _get_or_create_python_type
+PYTHON_SIGNATURES[ResourceView] = _get_signature

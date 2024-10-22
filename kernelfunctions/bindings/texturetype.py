@@ -17,30 +17,67 @@ def has_uav(usage: ResourceUsage):
     return (usage & ResourceUsage.unordered_access.value) != 0
 
 
+def prefix(usage: ResourceUsage):
+    return "RW" if has_uav(usage) else ""
+
+
 class TextureType(ValueType):
 
-    def __init__(self, element_type: BaseType, usage: ResourceUsage, base_texture_type_name: str, texture_dims: int):
+    def __init__(self, resource_shape: TypeReflection.ResourceShape, element_type: BaseType, usage: ResourceUsage):
         super().__init__()
+        self._resource_shape = resource_shape
         self._usage = usage
-        self._texture_dims = texture_dims
-        self._base_texture_type_name = base_texture_type_name
-        self.element_type = element_type
-        self.name = f"{self._prefix()}{self._base_texture_type_name}<{self.element_type.name}>"
 
+        tex_type = ""
+        tex_dims = 0
+
+        if resource_shape == TypeReflection.ResourceShape.texture_1d:
+            tex_type = "Texture1D"
+            tex_dims = 1
+        elif resource_shape == TypeReflection.ResourceShape.texture_2d:
+            tex_type = "Texture2D"
+            tex_dims = 2
+        elif resource_shape == TypeReflection.ResourceShape.texture_3d:
+            tex_type = "Texture3D"
+            tex_dims = 3
+        elif resource_shape == TypeReflection.ResourceShape.texture_cube:
+            tex_type = "TextureCube"
+            tex_dims = 3
+        elif resource_shape == TypeReflection.ResourceShape.texture_1d_array:
+            tex_type = "Texture1DArray"
+            tex_dims = 2
+        elif resource_shape == TypeReflection.ResourceShape.texture_2d_array:
+            tex_type = "Texture2DArray"
+            tex_dims = 3
+        elif resource_shape == TypeReflection.ResourceShape.texture_cube_array:
+            tex_type = "TextureCubeArray"
+            tex_dims = 4
+        elif resource_shape == TypeReflection.ResourceShape.texture_2d_multisample:
+            tex_type = "Texture2DMS"
+            tex_dims = 2
+        elif resource_shape == TypeReflection.ResourceShape.texture_2d_multisample_array:
+            tex_type = "Texture2DMSArray"
+            tex_dims = 3
+        else:
+            raise ValueError(f"Unsupported resource shape {resource_shape}")
+
+        self._texture_dims = tex_dims
+        self._base_texture_type_name = tex_type
+        self.element_type = element_type
+        self.name = f"{prefix(self._usage)}{self._base_texture_type_name}<{self.element_type.name}>"
+
+    # Texture is writable if it has unordered access view.
     def is_writable(self):
         return has_uav(self._usage)
 
-    def _prefix(self):
-        return "RW" if self.is_writable() else ""
-
+    # Generate the slangpy accessor type name (eg Texture2DType<float4>).
     def build_accessor_name(self, usage: Optional[ResourceUsage] = None):
         if usage is None:
             usage = self._usage
         assert self.element_type is not None
-        prefix = "RW" if has_uav(usage) else ""
-        return f"{prefix}{self._base_texture_type_name}Type<{self.element_type.name}>"
+        return f"{prefix(usage)}{self._base_texture_type_name}Type<{self.element_type.name}>"
 
-    # Call data can only be read access to primal, and simply declares it as a variable
+    # Call data can only be read access to primal, and simply declares it as a variable.
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         assert self.element_type is not None
         access = binding.access[0]
@@ -102,7 +139,23 @@ class TextureType(ValueType):
             return Shape((-1,)*self._texture_dims)
 
     def get_texture_shape(self, value: Texture, mip: int) -> Shape:
-        raise NotImplementedError()
+        resource_shape = self._resource_shape
+        if resource_shape == TypeReflection.ResourceShape.texture_1d:
+            return Shape(value.width >> mip)
+        elif resource_shape == TypeReflection.ResourceShape.texture_2d or resource_shape == TypeReflection.ResourceShape.texture_2d_multisample:
+            return Shape(value.width >> mip, value.height >> mip)
+        elif resource_shape == TypeReflection.ResourceShape.texture_3d:
+            return Shape(value.width >> mip, value.height >> mip, value.depth >> mip)
+        elif resource_shape == TypeReflection.ResourceShape.texture_cube:
+            return Shape(6, value.width >> mip, value.height >> mip)
+        elif resource_shape == TypeReflection.ResourceShape.texture_1d_array:
+            return Shape(value.array_size, value.width >> mip)
+        elif resource_shape == TypeReflection.ResourceShape.texture_2d_array or resource_shape == TypeReflection.ResourceShape.texture_2d_multisample_array:
+            return Shape(value.array_size, value.width >> mip, value.height >> mip)
+        elif resource_shape == TypeReflection.ResourceShape.texture_cube_array:
+            return Shape(value.array_size, 6, value.width >> mip, value.height >> mip)
+        else:
+            raise ValueError(f"Unsupported resource shape {resource_shape}")
 
     @property
     def differentiable(self):
@@ -112,73 +165,9 @@ class TextureType(ValueType):
     def derivative(self):
         el_diff = self.element_type.derivative
         if el_diff is not None:
-            # Note: all subtypes of TextureType take just element type + writable
-            return type(self)(el_diff, self._usage)  # type: ignore
+            return TextureType(self._resource_shape, el_diff, self._usage)
         else:
             return None
-
-
-class Texture1DType(TextureType):
-    def __init__(self, element_type: BaseType, usage: ResourceUsage):
-        super().__init__(element_type=element_type, usage=usage,
-                         base_texture_type_name="Texture1D", texture_dims=1)
-
-    def get_texture_shape(self, value: Texture, mip: int) -> Shape:
-        return Shape(value.width >> mip)
-
-
-class Texture2DType(TextureType):
-    def __init__(self, element_type: BaseType, usage: ResourceUsage):
-        super().__init__(element_type=element_type, usage=usage,
-                         base_texture_type_name="Texture2D", texture_dims=2)
-
-    def get_texture_shape(self, value: Texture, mip: int) -> Shape:
-        return Shape(value.width >> mip, value.height >> mip)
-
-
-class Texture1DArrayType(TextureType):
-    def __init__(self, element_type: BaseType, usage: ResourceUsage):
-        super().__init__(element_type=element_type, usage=usage,
-                         base_texture_type_name="Texture1DArray", texture_dims=2)
-
-    def get_texture_shape(self, value: Texture, mip: int) -> Shape:
-        return Shape(value.array_size, value.width >> mip)
-
-
-class Texture2DArrayType(TextureType):
-    def __init__(self, element_type: BaseType, usage: ResourceUsage):
-        super().__init__(element_type=element_type, usage=usage,
-                         base_texture_type_name="Texture2DArray", texture_dims=3)
-
-    def get_texture_shape(self, value: Texture, mip: int) -> Shape:
-        return Shape(value.array_size, value.width >> mip, value.height >> mip)
-
-
-class Texture3DType(TextureType):
-    def __init__(self, element_type: BaseType, usage: ResourceUsage):
-        super().__init__(element_type=element_type, usage=usage,
-                         base_texture_type_name="Texture3D", texture_dims=3)
-
-    def get_texture_shape(self, value: Texture, mip: int) -> Shape:
-        return Shape(value.width >> mip, value.height >> mip, value.depth >> mip)
-
-
-class TextureCubeType(TextureType):
-    def __init__(self, element_type: BaseType, usage: ResourceUsage):
-        super().__init__(element_type=element_type, usage=usage,
-                         base_texture_type_name="TextureCube", texture_dims=3)
-
-    def get_texture_shape(self, value: Texture, mip: int) -> Shape:
-        return Shape(6, value.width >> mip, value.height >> mip)
-
-
-class TextureCubeArrayType(TextureType):
-    def __init__(self, element_type: BaseType, usage: ResourceUsage):
-        super().__init__(element_type=element_type, usage=usage,
-                         base_texture_type_name="TextureCubeArray", texture_dims=4)
-
-    def get_texture_shape(self, value: Texture, mip: int) -> Shape:
-        return Shape(value.array_size, 6, value.width >> mip, value.height >> mip)
 
 
 def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType:
@@ -194,23 +183,7 @@ def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType
         usage = ResourceUsage.unordered_access
     else:
         raise ValueError(f"Unsupported resource access {slang_type.resource_access}")
-
-    if slang_type.resource_shape == TypeReflection.ResourceShape.texture_1d:
-        return Texture1DType(et, usage)
-    elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_2d:
-        return Texture2DType(et, usage)
-    elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_3d:
-        return Texture3DType(et, usage)
-    elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_cube:
-        return TextureCubeType(et, usage)
-    elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_1d_array:
-        return Texture1DArrayType(et, usage)
-    elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_2d_array:
-        return Texture2DArrayType(et, usage)
-    elif slang_type.resource_shape == TypeReflection.ResourceShape.texture_cube_array:
-        return TextureCubeArrayType(et, usage)
-    else:
-        raise ValueError(f"Unsupported slang type {slang_type}")
+    return TextureType(slang_type.resource_shape, et, usage)
 
 
 SLANG_STRUCT_TYPES_BY_NAME['__TextureImpl'] = _get_or_create_slang_type_reflection
@@ -218,6 +191,9 @@ SLANG_STRUCT_TYPES_BY_NAME['_Texture'] = _get_or_create_slang_type_reflection
 
 
 def get_or_create_python_texture_type(resource: Texture, usage: ResourceUsage):
+
+    # Translate format into slang scalar type + channel count, which allows
+    # us to build the element type of the texture.
     fmt_info = get_format_info(resource.desc.format)
     if fmt_info.type in [FormatType.float, FormatType.unorm, FormatType.snorm, FormatType.unorm_srgb]:
         scalar_type = TypeReflection.ScalarType.float32
@@ -229,26 +205,36 @@ def get_or_create_python_texture_type(resource: Texture, usage: ResourceUsage):
         raise ValueError(f"Unsupported format {resource.desc.format}")
     element_type = SLANG_VECTOR_TYPES[scalar_type][fmt_info.channel_count]
 
+    # Translate resource type + array size into a slang resource shape.
+    resource_shape = TypeReflection.ResourceShape.none
     if resource.array_size == 1:
         if resource.desc.type == ResourceType.texture_1d:
-            return Texture1DType(element_type, usage)
+            resource_shape = TypeReflection.ResourceShape.texture_1d
         elif resource.desc.type == ResourceType.texture_2d:
-            return Texture2DType(element_type, usage)
+            if resource.desc.sample_count == 1:
+                resource_shape = TypeReflection.ResourceShape.texture_2d
+            else:
+                resource_shape = TypeReflection.ResourceShape.texture_2d_multisample
         elif resource.desc.type == ResourceType.texture_3d:
-            return Texture3DType(element_type, usage)
+            resource_shape = TypeReflection.ResourceShape.texture_3d
         elif resource.desc.type == ResourceType.texture_cube:
-            return TextureCubeType(element_type, usage)
+            resource_shape = TypeReflection.ResourceShape.texture_cube
         else:
             raise ValueError(f"Unsupported texture type {resource.desc.type}")
     else:
         if resource.desc.type == ResourceType.texture_1d:
-            return Texture1DArrayType(element_type, usage)
+            resource_shape = TypeReflection.ResourceShape.texture_1d_array
         elif resource.desc.type == ResourceType.texture_2d:
-            return Texture2DArrayType(element_type, usage)
+            if resource.desc.sample_count == 1:
+                resource_shape = TypeReflection.ResourceShape.texture_2d_array
+            else:
+                resource_shape = TypeReflection.ResourceShape.texture_2d_multisample_array
         elif resource.desc.type == ResourceType.texture_cube:
-            return TextureCubeArrayType(element_type, usage)
+            resource_shape = TypeReflection.ResourceShape.texture_cube_array
         else:
             raise ValueError(f"Unsupported texture type {resource.desc.type}")
+
+    return TextureType(resource_shape, element_type, usage)
 
 
 def _get_or_create_python_type(value: Any):
