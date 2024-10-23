@@ -49,16 +49,13 @@ class BoundVariable:
         # Initialize path
         if path is None:
             self.path = self.slang.name
-            self.python.name = self.slang.name
         else:
-            self.path = f"{path}.{self.python.name}"
+            self.path = f"{path}.{self.slang.name}"
 
         # Allow python info to complete any missing type info from bound slang variable
         self.python.update_from_slang_type(self.slang.primal)
 
         # Get the python marshall for the value + load some basic info
-        self.python.param_index = slang.param_index
-        self.param_index = slang.param_index
         self.access = (AccessType.none, AccessType.none)
         self.variable_name = self.path.replace(".", "__")
 
@@ -85,6 +82,10 @@ class BoundVariable:
                     cast(PythonVariable, child_python),
                     cast(SlangVariable, child_slang),
                     mode, input_transforms, output_transforms, self.path)
+
+    @property
+    def param_index(self):
+        return self.slang.param_index
 
     def calculate_transform(self):
         """

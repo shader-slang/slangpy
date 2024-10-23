@@ -132,3 +132,7 @@ class SlangVariable(BaseVariableImpl):
                              other.io_type,
                              other.no_diff,
                              other.has_default)
+
+    @property
+    def argument_declaration(self):
+        return f"{self.primal_type_name} {self.name}"

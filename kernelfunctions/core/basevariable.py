@@ -9,8 +9,6 @@ if TYPE_CHECKING:
 class BaseVariable:
     def __init__(self):
         super().__init__()
-        self.param_index = -1
-        self.name = ""
         self.primal: 'BaseType' = None  # type: ignore (init in constructor)
         self.derivative: Optional['BaseType'] = None
         self.fields: Optional[dict[str, 'BaseVariable']] = None

@@ -48,10 +48,6 @@ class BaseVariableImpl(BaseVariable):
     def writable(self):
         return self.primal.is_writable
 
-    @property
-    def argument_declaration(self):
-        return f"{self.primal_type_name} {self.name}"
-
     def get(self, t: PrimType):
         if t == PrimType.primal:
             return self.primal
@@ -65,10 +61,7 @@ class BaseVariableImpl(BaseVariable):
                 f"{'  ' * depth}{name}: {child._recurse_str(depth + 1)}" for name, child in self.fields.items()]
             return "\n" + "\n".join(child_strs)
         else:
-            if self.name == "":
-                return f"{self.primal.name}"
-            else:
-                return f"{self.primal.name} ({self.name})"
+            return f"{self.primal.name}"
 
     def _find_bottom_level_element(self, value: Any = None) -> Optional['NativeType']:
         t = self.primal
