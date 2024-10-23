@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from kernelfunctions.backend import TypeReflection
 
@@ -43,7 +43,7 @@ class Struct:
     def slangpy_signature(self) -> str:
         return self.name
 
-    def __getattr__(self, name: str):
+    def try_get_child(self, name: str) -> Optional[Union['Struct', 'Function']]:
 
         if not '<' in self.name and not '<' in name:
             # Neither or we are a generic, so attempt to use the ast to find a type decl
@@ -77,6 +77,12 @@ class Struct:
         if slang_function is not None:
             return Function(self.device_module, name, type_reflection=parent_slang_struct, func_reflections=[slang_function])
 
+        return None
+
+    def __getattr__(self, name: str) -> Union['Struct', 'Function']:
+        child = self.try_get_child(name)
+        if child is not None:
+            return child
         raise AttributeError(f"Type '{self.name}' has no attribute '{name}'")
 
     def __getitem__(self, name: str):

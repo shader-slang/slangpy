@@ -52,14 +52,13 @@ class InstanceList:
         return super().__setattr__(name, value)
 
     def _try_load_func(self, name: str):
-        try:
-            func = getattr(self._struct, name)
-            if isinstance(func, Function):
-                if name != "__init":
-                    func = func.instance(self)
-                self._loaded_functions[name] = func
-                return func
-        except AttributeError as e:
+        func = self._struct.try_get_child(name)
+        if isinstance(func, Function):
+            if name != "__init":
+                func = func.instance(self)
+            self._loaded_functions[name] = func
+            return func
+        else:
             return None
 
 
