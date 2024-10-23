@@ -60,10 +60,14 @@ def match_signatures(
         return MismatchReason(f"Too many function arguments: Expected {len(function.parameters)}, "
                               f"received {len(signature.args) + len(signature.kwargs)}")
 
+    # Build empty positional list of python arguments to correspond to each slang argument
     positioned_args: list[Optional[PythonVariable]] = [None] * len(overload_parameters)
+
+    # Populate the first N arguments from provided positional arguments
     for i, arg in enumerate(signature.args):
         positioned_args[i] = arg
 
+    # Attempt to populate the remaining arguments from keyword arguments
     name_map = {param.name: i for i, param in enumerate(overload_parameters)}
     for name, arg in signature.kwargs.items():
         if name not in name_map:
@@ -73,35 +77,38 @@ def match_signatures(
             return MismatchReason(f"Parameter '{name}' is already assigned")
         positioned_args[i] = arg
 
+    # Identify missing required params (TODO: This really needs to understand
+    # how default values must be populated from left-to-right for a valid call)
     missing_params = [param for arg, param in zip(positioned_args, overload_parameters)
                       if arg is None and not param.has_default]
     if missing_params:
         missing_names = "', '".join(param.name for param in missing_params)
         return MismatchReason(f"Arguments missing for parameter(s) '{missing_names}'")
 
-    # Each parameter without default is matched to exactly one argument.
-    # Now check if the types are compatible
+    # Build dictionary of matched arguments
     matched_args = {arg: param for arg, param in zip(positioned_args, overload_parameters)
                     if arg is not None}
 
-    for arg, param in matched_args.items():
-        if not arg.is_compatible(param):
-            return MismatchReason(f"Cannot convert from {arg.primal.name} to "
-                                  f"{param.primal.name} for parameter '{param.name}'")
+    # Each parameter without default is matched to exactly one argument.
+    # Now check if the types are compatible
 
-        specialized = param.specialize(arg)
-        if specialized is None:
-            return MismatchReason(f"Could not specialize {param.primal.name} to {arg.primal.name} for parameter '{param.name}'")
-        matched_args[arg] = specialized
+#    for arg, param in matched_args.items():
+#        if not arg.is_compatible(param):
+#            return MismatchReason(f"Cannot convert from {arg.primal.name} to "
+#                                  f"{param.primal.name} for parameter '{param.name}'")
+#
+#        specialized = param.specialize(arg)
+#        if specialized is None:
+#            return MismatchReason(f"Could not specialize {param.primal.name} to {arg.primal.name} for parameter '{param.name}'")
+#        matched_args[arg] = specialized
 
     return matched_args
 
 
 def bind(
+        context: BindContext,
         signature: PythonFunctionCall,
         mapping: dict[PythonVariable, SlangVariable],
-        call_mode: CallMode,
-        input_transforms: Optional[dict[str, 'TShapeOrTuple']] = None,
         output_transforms: Optional[dict[str, 'TShapeOrTuple']] = None) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
@@ -111,21 +118,33 @@ def bind(
 
     # First bind things
     res = BoundCall()
-    res.args = [BoundVariable(x, mapping[x], call_mode, input_transforms,
+    res.args = [BoundVariable(x, mapping[x],
                               output_transforms) for x in signature.args]
     res.kwargs = {k: BoundVariable(
-        v, mapping[v], call_mode, input_transforms, output_transforms) for k, v in signature.kwargs.items()}
-
-    # Do argument work as 2nd pass, as it lets us return more useful errors
-    try:
-        for arg in res.args:
-            arg.calculate_transform()
-        for arg in res.kwargs.values():
-            arg.calculate_transform()
-    except BoundVariableException as e:
-        raise ValueError(generate_call_shape_error_string(res, [], e.message, e.variable))
+        v, mapping[v], output_transforms) for k, v in signature.kwargs.items()}
 
     return res
+
+
+def apply_vectorization(context: BindContext, call: BoundCall):
+    return call
+
+
+def apply_bindings(context: BindContext, call: BoundCall):
+    """
+    Recursively step through all parameters in the bind call and generate
+    any data that requires both PythonVariable and SlangVariable to be
+    fully resolved.
+    """
+    try:
+        for arg in call.args:
+            arg.apply_binding(context)
+        for arg in call.kwargs.values():
+            arg.apply_binding(context)
+    except BoundVariableException as e:
+        raise ValueError(generate_call_shape_error_string(
+            call, [], e.message, e.variable))
+    return call
 
 
 COLS = [

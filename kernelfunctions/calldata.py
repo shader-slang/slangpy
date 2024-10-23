@@ -8,6 +8,8 @@ from sgl import CommandBuffer
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData
 
 from kernelfunctions.callsignature import (
+    apply_bindings,
+    apply_vectorization,
     bind,
     calculate_call_dimensionality,
     create_return_value_binding,
@@ -60,12 +62,10 @@ class CallData(NativeCallData):
         from kernelfunctions.function import (
             Function,
             FunctionChainBwdsDiff,
-            FunctionChainInputTransform,
             FunctionChainOutputTransform,
             FunctionChainSet,
             FunctionChainHook,
-            FunctionChainReturnType,
-            TDispatchHook
+            FunctionChainReturnType
         )
 
         if not isinstance(chain[0], Function):
@@ -74,7 +74,6 @@ class CallData(NativeCallData):
 
         function = chain[0]
         chain = chain
-        input_transforms: dict[str, 'TShapeOrTuple'] = {}
         outut_transforms: dict[str, 'TShapeOrTuple'] = {}
         return_type = None
 
@@ -89,8 +88,6 @@ class CallData(NativeCallData):
                     raise ValueError(
                         "FunctionChainSet must have either a props or callback"
                     )
-            if isinstance(item, FunctionChainInputTransform):
-                input_transforms.update(item.transforms)
             if isinstance(item, FunctionChainOutputTransform):
                 outut_transforms.update(item.transforms)
             if isinstance(item, FunctionChainBwdsDiff):
@@ -165,14 +162,22 @@ Overloads:
             python_call.kwargs["_result"] = rvalnode
             python_to_slang_mapping[rvalnode] = slang_function.return_value
 
+        context = BindContext(self.call_mode)
+
         # Once matched, build the fully bound signature
-        bindings = bind(python_call, python_to_slang_mapping, self.call_mode,
-                        input_transforms, outut_transforms)
+        bindings = bind(context, python_call, python_to_slang_mapping, outut_transforms)
+
+        # Resolve vectorization, resulting in concrete vector mappings
+        # and types for each parameter, and a concrete slang function call.
+        # This may result in a rebuilding of the binding data.
+        bindings = apply_vectorization(context, bindings)
+
+        # apply bindings now both python and slang types are finalized
+        bindings = apply_bindings(context, bindings)
 
         # calculate call shaping
         self.call_dimensionality = calculate_call_dimensionality(bindings)
-
-        context = BindContext(self.call_dimensionality, self.call_mode)
+        context.call_dimensionality = self.call_dimensionality
 
         # if necessary, create return value node
         create_return_value_binding(context, bindings, return_type)

@@ -35,8 +35,6 @@ class BoundVariable:
     """
 
     def __init__(self, python: PythonVariable, slang: SlangVariable,
-                 mode: CallMode,
-                 input_transforms: Optional[dict[str, TShapeOrTuple]] = None,
                  output_transforms: Optional[dict[str, TShapeOrTuple]] = None,
                  path: Optional[str] = None):
 
@@ -52,20 +50,16 @@ class BoundVariable:
         else:
             self.path = f"{path}.{self.slang.name}"
 
-        # Allow python info to complete any missing type info from bound slang variable
-        self.python.update_from_slang_type(self.slang.primal)
-
         # Get the python marshall for the value + load some basic info
-        self.access = (AccessType.none, AccessType.none)
         self.variable_name = self.path.replace(".", "__")
 
-        # Can now decide if differentiable
-        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
-        self._calculate_differentiability(mode)
-
-        # Store transforms
+        # Init default properties
+        self.access = (AccessType.none, AccessType.none)
+        self.differentiable = False
         self.call_dimensionality = None
         self.transform: Shape = Shape(None)
+
+        # Store transforms
         if output_transforms is not None:
             t = output_transforms.get(self.path)
             if t is not None:
@@ -81,19 +75,29 @@ class BoundVariable:
                 self.children[name] = BoundVariable(
                     cast(PythonVariable, child_python),
                     cast(SlangVariable, child_slang),
-                    mode, input_transforms, output_transforms, self.path)
+                    output_transforms, self.path)
 
     @property
     def param_index(self):
         return self.slang.param_index
 
-    def calculate_transform(self):
+    def apply_binding(self, context: BindContext):
         """
-        Recursively calculate argument shapes for the node
+        Recursively apply binding properties that require
+        knowledge of fully resolved slang and python types.
+        Includes calculating transforms and differentiability
         """
+
+        # Allow python info to complete any missing type info from bound slang variable
+        self.python.update_from_slang_type(self.slang.primal)
+
+        # Can now decide if differentiable
+        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
+        self._calculate_differentiability(context.call_mode)
+
         if self.children is not None:
             for child in self.children.values():
-                child.calculate_transform()
+                child.apply_binding(context)
         else:
             self._calculate_transform()
 

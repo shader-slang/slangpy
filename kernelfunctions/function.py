@@ -77,9 +77,6 @@ class FunctionChainBase:
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)
 
-    def transform_input(self, transforms: dict[str, TShapeOrTuple]):
-        return FunctionChainInputTransform(self, transforms)
-
     def transform_output(self, transforms: dict[str, TShapeOrTuple]):
         return FunctionChainOutputTransform(self, transforms)
 
@@ -146,14 +143,6 @@ class FunctionChainSet(FunctionChainBase):
                 )
         else:
             raise ValueError("Set requires at least one argument")
-
-
-class FunctionChainInputTransform(FunctionChainBase):
-    def __init__(
-        self, parent: FunctionChainBase, transforms: dict[str, TShapeOrTuple]
-    ) -> None:
-        super().__init__(parent)
-        self.transforms = transforms
 
 
 class FunctionChainOutputTransform(FunctionChainBase):

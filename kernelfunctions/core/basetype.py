@@ -12,9 +12,9 @@ if TYPE_CHECKING:
 
 
 class BindContext:
-    def __init__(self, call_dimensionality: int, call_mode: CallMode):
+    def __init__(self, call_mode: CallMode):
         super().__init__()
-        self.call_dimensionality = call_dimensionality
+        self.call_dimensionality = -1
         self.call_mode = call_mode
 
 
