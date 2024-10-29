@@ -1,14 +1,17 @@
 from types import NoneType
 from typing import Any, Optional, cast
 
+from sgl import TypeReflection
+
 from kernelfunctions.shapes import TShapeOrTuple
+from kernelfunctions.typeregistry import get_or_create_type
 
 from .enums import PrimType, IOType
 from .pythonvariable import PythonVariable
-from .slangvariable import SlangVariable
+from .slangvariable import SlangFunction, SlangVariable
 from .codegen import CodeGen
 from .native import AccessType, CallMode, Shape
-from .basetype import BindContext
+from .basetype import BaseType, BindContext
 
 
 class BoundVariableException(Exception):
@@ -26,6 +29,27 @@ class BoundCall:
 
     def values(self) -> list['BoundVariable']:
         return self.args + list(self.kwargs.values())
+
+    def apply_implicit_vectorization(self, context: BindContext):
+        for arg in self.args:
+            arg.apply_implicit_vectorization(context)
+
+        for arg in self.kwargs.values():
+            arg.apply_implicit_vectorization(context)
+
+    def resolve_vectorization(self, context: BindContext):
+        for arg in self.args:
+            arg.resolve_vectorization(context)
+
+        for arg in self.kwargs.values():
+            arg.resolve_vectorization(context)
+
+    def finalize_mappings(self, context: BindContext):
+        for arg in self.args:
+            arg.finalize_mappings(context)
+
+        for arg in self.kwargs.values():
+            arg.finalize_mappings(context)
 
 
 class BoundVariable:
@@ -79,7 +103,94 @@ class BoundVariable:
 
     @property
     def param_index(self):
-        return self.slang.param_index
+        return self.python.parameter_index
+
+    @property
+    def vector_mapping(self):
+        return self.python.vector_mapping
+
+    @property
+    def vector_type(self):
+        return self.python.vector_type
+
+    def apply_implicit_vectorization(self, context: BindContext):
+        """
+        Apply implicit vectorization to this variable. This inspects
+        the slang type being bound to in an attempt to get a concrete
+        type to provide to the specialization system.
+        """
+        if self.children is not None:
+            for child in self.children.values():
+                child.apply_implicit_vectorization(context)
+        else:
+            self._apply_implicit_vectorization(context)
+
+    def _apply_implicit_vectorization(self, context: BindContext):
+        if self.python.vector_mapping.valid:
+            # if we have a valid vector mapping, just need to reduce it
+            self.python.vector_type = self.python.primal.reduce_type(
+                len(self.python.vector_mapping))
+        elif self.python.vector_type is not None:
+            # do nothing in first phase if already have a type. vector
+            # mapping will be worked out once specialized slang function is known
+            pass
+        elif self.path == '_result':
+            # result is inferred last
+            pass
+        else:
+            # neither specified, attempt to resolve type
+            self.python.vector_type = self.python.primal.resolve_type(
+                context, self.slang.primal)
+
+    def resolve_vectorization(self, context: BindContext):
+        """
+        Apply implicit vectorization to this variable. This inspects
+        the slang type being bound to in an attempt to get a concrete
+        type to provide to the specialization system.
+        """
+        if self.children is not None:
+            for child in self.children.values():
+                child.resolve_vectorization(context)
+        else:
+            self._resolve_vectorization(context)
+
+    def _resolve_vectorization(self, context: BindContext):
+        # If we ended up with no valid type, use slang type
+        if not self.python.vector_mapping.valid and self.python.vector_type is None:
+            self.python.vector_type = self.slang.primal
+        assert self.python.vector_type is not None
+
+        # Can now calculate dimensionality
+        if self.python.dimensionality is not None:
+            if self.python.vector_mapping.valid:
+                if len(self.python.vector_mapping) > 0:
+                    self.call_dimensionality = max(self.python.vector_mapping.as_tuple())
+                else:
+                    self.call_dimensionality = 0
+            else:
+                self.call_dimensionality = self.python.dimensionality - \
+                    len(self.python.vector_type.get_shape())
+
+    def finalize_mappings(self, context: BindContext):
+        """
+        Finalize vector mappings and types for this variable and children.
+        """
+        if self.children is not None:
+            for child in self.children.values():
+                child.finalize_mappings(context)
+        else:
+            self._finalize_mappings(context)
+
+    def _finalize_mappings(self, context: BindContext):
+        if self.call_dimensionality is None:
+            self.call_dimensionality = context.call_dimensionality
+
+        if not self.python.vector_mapping.valid:
+            m: list[int] = []
+            for i in range(self.call_dimensionality):
+                m.append(context.call_dimensionality - i - 1)
+            m.reverse()
+            self.python.vector_mapping = Shape(*m)
 
     def apply_binding(self, context: BindContext):
         """

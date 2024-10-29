@@ -1,3 +1,4 @@
+import "slangpy";
 
 void copy_value(float4 value, out float4 dest) {
     dest = value;

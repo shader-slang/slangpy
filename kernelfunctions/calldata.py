@@ -1,15 +1,14 @@
 import hashlib
 import os
 import re
-from typing import TYPE_CHECKING, Any, Optional
-
-from sgl import CommandBuffer
+from typing import TYPE_CHECKING, Any
 
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData
 
 from kernelfunctions.callsignature import (
     apply_bindings,
-    apply_vectorization,
+    apply_explicit_vectorization,
+    apply_implicit_vectorization,
     bind,
     calculate_call_dimensionality,
     create_return_value_binding,
@@ -17,9 +16,10 @@ from kernelfunctions.callsignature import (
     generate_tree_info_string,
     get_readable_func_string,
     get_readable_signature_string,
-    match_signatures,
-    MismatchReason
+    MismatchReason,
+    specialize
 )
+from kernelfunctions.core.slangvariable import SlangFunction
 
 if TYPE_CHECKING:
     from kernelfunctions.function import FunctionChainBase
@@ -65,7 +65,8 @@ class CallData(NativeCallData):
             FunctionChainOutputTransform,
             FunctionChainSet,
             FunctionChainHook,
-            FunctionChainReturnType
+            FunctionChainReturnType,
+            FunctionChainMap
         )
 
         if not isinstance(chain[0], Function):
@@ -76,6 +77,8 @@ class CallData(NativeCallData):
         chain = chain
         outut_transforms: dict[str, 'TShapeOrTuple'] = {}
         return_type = None
+        positional_mapping = ()
+        keyword_mapping = {}
 
         sets = {}
         for item in chain:
@@ -99,6 +102,9 @@ class CallData(NativeCallData):
                     self.add_after_dispatch_hook(item.after_dispatch)
             if isinstance(item, FunctionChainReturnType):
                 return_type = item.return_type
+            if isinstance(item, FunctionChainMap):
+                positional_mapping = item.args
+                keyword_mapping = item.kwargs
 
         self.vars = sets
 
@@ -106,71 +112,36 @@ class CallData(NativeCallData):
         unpacked_args = tuple([unpack_arg(x) for x in args])
         unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
 
+        # Setup context
+        context = BindContext(self.call_mode, function.module)
+
         # Build the unbound signature from inputs
         python_call = PythonFunctionCall(*unpacked_args, **unpacked_kwargs)
 
-        # Attempt to match to a slang function overload
-        python_to_slang_mapping = None
-        slang_function = None
+        # Apply explicit to the Python variables
+        apply_explicit_vectorization(python_call, positional_mapping, keyword_mapping)
 
-        if len(function.overloads) == 1:
-            # Non-overloaded functions allow more detailed error messages. Special case them
-            match = match_signatures(python_call, function.overloads[0], self.call_mode)
-            if isinstance(match, MismatchReason):
-                raise ValueError(
-                    f"Could not call function '{function.name}': {match.reason}")
-            else:
-                python_to_slang_mapping = match
-                slang_function = function.overloads[0]
-        else:
-            # Otherwise, check all overloads and throw generic overload error on failure
-            matches = []
-            for overload in function.overloads:
-                match = match_signatures(python_call, overload, self.call_mode)
-                if not isinstance(match, MismatchReason):
-                    python_to_slang_mapping = match
-                    matches.append(overload)
+        # Perform specialization to get a concrete function reflection
+        concrete_reflection = specialize(context, python_call, function.reflection)
+        if isinstance(concrete_reflection, MismatchReason):
+            raise ValueError(
+                f"Function signature mismatch: {concrete_reflection.reason}\n"
+                f"  {get_readable_func_string(function.overloads[0])}\n"
+                f"  {get_readable_signature_string(python_call)}")
 
-            if len(matches) == 1:
-                # Success!
-                slang_function = matches[0]
-            elif len(matches) > 1:
-                match_string = "\n".join(get_readable_func_string(match)
-                                         for match in matches)
-                err_text = f"""
-Ambiguous call to '{function.name}' with arguments:
-{get_readable_signature_string(python_call)}
-Matching candidates:
-{match_string}"""
-                raise ValueError(err_text.strip())
-            else:
-                olstrings = "\n".join([get_readable_func_string(x)
-                                       for x in function.overloads])
-                err_text = f"""
-No matching overload found for function {function.name}.
-Input signature:
-{get_readable_signature_string(python_call)}
-Overloads:
-{olstrings}
-"""
-                raise ValueError(err_text.strip())
-        assert python_to_slang_mapping is not None
+        # Build slang function signature
+        slang_function = SlangFunction(concrete_reflection)
 
-        # Inject a dummy node into both signatures if we need a result back
+        # Inject a dummy node into the Python signature if we need a result back
         if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_value is not None:
             rvalnode = PythonVariable(None, None, "_result")
             python_call.kwargs["_result"] = rvalnode
-            python_to_slang_mapping[rvalnode] = slang_function.return_value
 
-        context = BindContext(self.call_mode)
+        # Create bound variable information now that we have concrete data for path sides
+        bindings = bind(context, python_call, slang_function)
 
-        # Once matched, build the fully bound signature
-        bindings = bind(context, python_call, python_to_slang_mapping, outut_transforms)
-
-        # Resolve vectorization, resulting in concrete vector mappings
-        # and types for each parameter, and a concrete slang function call.
-        # This may result in a rebuilding of the binding data.
-        bindings = apply_vectorization(context, bindings)
+        # Run Python side implicit vectorization to do any remaining type resolution
+        apply_implicit_vectorization(context, bindings)
 
         # apply bindings now both python and slang types are finalized
         bindings = apply_bindings(context, bindings)

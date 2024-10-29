@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
 
+from sgl import FunctionReflection, TypeReflection
+
 from kernelfunctions.core import (
     CodeGen,
     IOType, CallMode, AccessType,
@@ -10,6 +12,7 @@ from kernelfunctions.core import (
     Shape
 )
 
+from kernelfunctions.core.basetype import BaseType
 from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 from kernelfunctions.types.valueref import ValueRef
 from kernelfunctions.shapes import TShapeOrTuple
@@ -36,79 +39,81 @@ class MismatchReason:
         self.reason = reason
 
 
-def match_signatures(
+def specialize(
+    context: BindContext,
     signature: PythonFunctionCall,
-    function: SlangFunction,
-    call_mode: CallMode
-) -> Union[MismatchReason, dict[PythonVariable, SlangVariable]]:
-    """
-    Attempts to efficiently match a signature to a slang function overload.
-    Returns a dictionary of matched argument nodes to parameter names.
-    """
+    function: FunctionReflection
+):
+    if signature.num_function_kwargs > 0 or signature.has_implicit_args:
+        if function.is_overloaded:
+            return MismatchReason("Cannot currently specialize overloaded function with named or implicit arguments")
+        if signature.num_function_args != len(function.parameters):
+            return MismatchReason("To use named or implicit arguments, all parameters must be specified")
 
-    # Bail instantly if trying to call a non-differentiable function with a derivative call
-    if call_mode != CallMode.prim and not function.differentiable:
-        return MismatchReason("Function is not differentiable")
+        function_parameters = [x for x in function.parameters]
 
-    # Easy step: Match arguments to parameters based on position/names
-    # Bail if too many/few args, mismatched parameter name, multiple asignments, etc.
-    overload_parameters = function.parameters.copy()
-    if function.return_value is not None:
-        overload_parameters.append(function.return_value)
+        # Build empty positional list of python arguments to correspond to each slang argument
+        positioned_args: list[Optional[PythonVariable]] = [
+            None] * len(function_parameters)
 
-    if len(signature.args) > len(overload_parameters):
-        return MismatchReason(f"Too many function arguments: Expected {len(function.parameters)}, "
-                              f"received {len(signature.args) + len(signature.kwargs)}")
+        # Populate the first N arguments from provided positional arguments
+        for i, arg in enumerate(signature.args):
+            positioned_args[i] = arg
+            arg.parameter_index = i
 
-    # Build empty positional list of python arguments to correspond to each slang argument
-    positioned_args: list[Optional[PythonVariable]] = [None] * len(overload_parameters)
+        # Attempt to populate the remaining arguments from keyword arguments
+        name_map = {param.name: i for i, param in enumerate(function_parameters)}
+        for name, arg in signature.kwargs.items():
+            if name == "_result" or name == "_this":
+                continue
+            if name not in name_map:
+                return MismatchReason(f"No parameter named '{name}'")
+            i = name_map[name]
+            if positioned_args[i] is not None:
+                return MismatchReason(f"Parameter '{name}' is already assigned")
+            positioned_args[i] = arg
+            arg.parameter_index = i
 
-    # Populate the first N arguments from provided positional arguments
-    for i, arg in enumerate(signature.args):
-        positioned_args[i] = arg
+        # Ensure all parameters are assigned (this is assert as above code should ensure it or fail)
+        assert all(x is not None for x in positioned_args)
 
-    # Attempt to populate the remaining arguments from keyword arguments
-    name_map = {param.name: i for i, param in enumerate(overload_parameters)}
-    for name, arg in signature.kwargs.items():
-        if name not in name_map:
-            return MismatchReason(f"No parameter named '{name}'")
-        i = name_map[name]
-        if positioned_args[i] is not None:
-            return MismatchReason(f"Parameter '{name}' is already assigned")
-        positioned_args[i] = arg
+        # Choose either explicit vector type or slang type for specialization
+        inputs: list[Any] = []
+        for i, python_arg in enumerate(positioned_args):
+            slang_param = function_parameters[i]
+            assert python_arg is not None
+            if python_arg.vector_type is not None:
+                inputs.append(python_arg.vector_type)
+            else:
+                if slang_param.type.kind == TypeReflection.Kind.none:
+                    return MismatchReason(f"Parameter '{slang_param.name}' is not specialized so must have explicit vectorization")
+                inputs.append(slang_param.type)
+    else:
+        # If no named or implicit arguments, just use explicit vector types for specialization
+        inputs: list[Any] = [x.vector_type for x in signature.args]
 
-    # Identify missing required params (TODO: This really needs to understand
-    # how default values must be populated from left-to-right for a valid call)
-    missing_params = [param for arg, param in zip(positioned_args, overload_parameters)
-                      if arg is None and not param.has_default]
-    if missing_params:
-        missing_names = "', '".join(param.name for param in missing_params)
-        return MismatchReason(f"Arguments missing for parameter(s) '{missing_names}'")
+    def to_type_reflection(input: Any) -> TypeReflection:
+        if isinstance(input, BaseType):
+            return context.device_module.layout.find_type_by_name(input.name)
+        elif isinstance(input, TypeReflection):
+            return input
+        elif isinstance(input, str):
+            return context.device_module.layout.find_type_by_name(input)
+        else:
+            raise ValueError(f"Cannot convert {input} to TypeReflection")
 
-    # Build dictionary of matched arguments
-    matched_args = {arg: param for arg, param in zip(positioned_args, overload_parameters)
-                    if arg is not None}
+    specialized = function.specialize_with_arg_types(
+        [to_type_reflection(x) for x in inputs])
+    if specialized is None:
+        return MismatchReason("Could not specialize function with given argument types")
 
-    # Each parameter without default is matched to exactly one argument.
-    # Now check if the types are compatible
-
-#    for arg, param in matched_args.items():
-#        if not arg.is_compatible(param):
-#            return MismatchReason(f"Cannot convert from {arg.primal.name} to "
-#                                  f"{param.primal.name} for parameter '{param.name}'")
-#
-#        specialized = param.specialize(arg)
-#        if specialized is None:
-#            return MismatchReason(f"Could not specialize {param.primal.name} to {arg.primal.name} for parameter '{param.name}'")
-#        matched_args[arg] = specialized
-
-    return matched_args
+    return specialized
 
 
 def bind(
         context: BindContext,
         signature: PythonFunctionCall,
-        mapping: dict[PythonVariable, SlangVariable],
+        function: SlangFunction,
         output_transforms: Optional[dict[str, 'TShapeOrTuple']] = None) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
@@ -116,17 +121,39 @@ def bind(
     match has occured.
     """
 
-    # First bind things
     res = BoundCall()
-    res.args = [BoundVariable(x, mapping[x],
+
+    res.args = [BoundVariable(x, function.parameters[x.parameter_index],
                               output_transforms) for x in signature.args]
-    res.kwargs = {k: BoundVariable(
-        v, mapping[v], output_transforms) for k, v in signature.kwargs.items()}
+
+    for k, v in signature.kwargs.items():
+        if k == "_result":
+            res.kwargs[k] = BoundVariable(v, function.return_value, output_transforms)
+        elif k == "_this":
+            res.kwargs[k] = BoundVariable(v, function.this, output_transforms)
+        else:
+            res.kwargs[k] = BoundVariable(
+                v, function.parameters[v.parameter_index], output_transforms)
 
     return res
 
 
-def apply_vectorization(context: BindContext, call: BoundCall):
+def apply_explicit_vectorization(call: PythonFunctionCall, args: tuple[Any, ...], kwargs: dict[str, Any]):
+    """
+    Apply user supplied explicit vectorization options to the python variables.
+    """
+    call.apply_explicit_vectorization(args, kwargs)
+    return call
+
+
+def apply_implicit_vectorization(context: BindContext, call: BoundCall):
+
+    call.apply_implicit_vectorization(context)
+
+    call.resolve_vectorization(context)
+
+    call.finalize_mappings(context)
+
     return call
 
 
@@ -435,13 +462,13 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
 
     def declare_p(x: BoundVariable, has_suffix: bool = False):
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang.primal_type_name} {name}")
+        cg.kernel.append_statement(f"{x.python.vector_type.name} {name}")
         return name
 
     def declare_d(x: BoundVariable, has_suffix: bool = False):
         assert x.slang.derivative is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang.derivative_type_name} {name}")
+        cg.kernel.append_statement(f"{x.python.vector_type.name}.Derivative {name}")
         return name
 
     def load_p(x: BoundVariable, has_suffix: bool = False):

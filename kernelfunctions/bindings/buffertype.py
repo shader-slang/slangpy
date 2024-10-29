@@ -37,6 +37,14 @@ class NDBufferType(BaseTypeImpl):
         else:
             self.name = f"RWNDBuffer<{self.element_type.name},{self.dims}>"
 
+    def reduce_type(self, dimensions: int):
+        if dimensions == 0:
+            return self
+        elif dimensions == self.dims:
+            return self.element_type
+        else:
+            raise ValueError("Cannot reduce dimensions of NDBuffer")
+
     # Values don't store a derivative - they're just a value
     @property
     def has_derivative(self) -> bool:

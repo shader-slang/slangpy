@@ -1,7 +1,7 @@
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 from kernelfunctions.core import SlangFunction, hash_signature
 
-from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
+from kernelfunctions.backend import SlangModule, TypeReflection, FunctionReflection, CommandBuffer
 from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, scope
 
@@ -80,6 +80,9 @@ class FunctionChainBase:
     def transform_output(self, transforms: dict[str, TShapeOrTuple]):
         return FunctionChainOutputTransform(self, transforms)
 
+    def map(self, *args: Any, **kwargs: Any):
+        return FunctionChainMap(self, *args, **kwargs)
+
     def instance(self, this: IThis):
         return FunctionChainThis(self, this)
 
@@ -113,6 +116,13 @@ class FunctionChainBase:
         if ENABLE_CALLDATA_CACHE:
             CALL_DATA_CACHE[sig] = res
         return res
+
+
+class FunctionChainMap(FunctionChainBase):
+    def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
+        super().__init__(parent)
+        self.args = args
+        self.kwargs = kwargs
 
 
 class FunctionChainSet(FunctionChainBase):
@@ -205,19 +215,12 @@ class Function(FunctionChainBase):
         # If function reflections not supplied, look up either from type or module
         if func_reflections is None:
             if type_reflection is None:
-                # With no type parent, use the module's ast to find functions
-                ast_functions = module.module_decl.find_children_of_kind(
-                    DeclReflection.Kind.func, name
-                )
-                if len(ast_functions) > 0:
-                    func_reflections = [x.as_function() for x in ast_functions]
-                else:
-                    # Not found in AST - might be generic. Try finding by name
-                    func_reflection = module.layout.find_function_by_name(name)
-                    if func_reflection is None:
-                        raise ValueError(
-                            f"Function '{name}' not found in module {module.name}")
-                    func_reflections = [func_reflection]
+                # With no type parent, look up function in global namespace
+                func_reflection = module.layout.find_function_by_name(name)
+                if func_reflection is None:
+                    raise ValueError(
+                        f"Function '{name}' not found in module {module.name}")
+                func_reflections = [func_reflection]
             else:
                 # With a type parent, look up the function in the type
                 func_reflection = module.layout.find_function_by_name_in_type(
@@ -228,6 +231,9 @@ class Function(FunctionChainBase):
                         f"Function '{name}' not found in type '{type_parent}' in module {module.name}"
                     )
                 func_reflections = [func_reflection]
+
+        # Store root slang function reflection
+        self.reflection = func_reflections[0]
 
         # Store type parent name if found
         self.type_parent = type_reflection.full_name if type_reflection is not None else None

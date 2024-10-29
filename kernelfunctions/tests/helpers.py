@@ -58,10 +58,23 @@ def get_device(type: DeviceType, use_cache: bool = True) -> Device:
         DEVICE_CACHE[type] = device
     return device
 
+# Helper that creates a module from source (if not already loaded) and returns
+# the corresponding slangpy module.
+
+
+def create_module(
+    device: Device, module_source: str
+) -> kernelfunctions.Module:
+    module = device.load_module_from_source(
+        hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
+    )
+    return kernelfunctions.Module(module)
 
 # Helper that creates a module from source (if not already loaded) and find / returns
 # a kernel function for it. This helper supports nested functions and structs, e.g.
 # create_function_from_module(device, "MyStruct.add_numbers", <src>).
+
+
 def create_function_from_module(
     device: Device, func_name: str, module_source: str
 ) -> kernelfunctions.Function:

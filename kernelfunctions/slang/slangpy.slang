@@ -29,6 +29,11 @@ int _idx<let N : int>(IContext index, int[N] stride, int[N] transform) {
     return idx;
 }
 
+struct ImplicitCast<N> 
+{
+
+}
+
 struct NoneType
 {
     void load_primal<T>(IContext context, out T value) { value = T();}
@@ -73,6 +78,7 @@ struct Texture1DType<T> {
     void load_primal(IContext context, out Texture1D<T> value) { value = this.value; }
     void store_primal(IContext context, in Texture1D<T> value) {};
 }
+
 struct RWTexture1DType<T> {
     // x map to 0
     int1 toidx(IContext context) { return int1(context.get_call_id(0)); }

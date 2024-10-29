@@ -1,8 +1,8 @@
 
 
-from typing import Optional
+from typing import Optional, cast
 
-from .basetype import BaseType
+from .basetype import BaseType, BindContext
 
 
 class BaseTypeImpl(BaseType):
@@ -38,3 +38,11 @@ class BaseTypeImpl(BaseType):
 
     def specialize_type(self, type: BaseType) -> Optional[BaseType]:
         return None
+
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        # default implementation of type resolution is to attempt to pass
+        # either element type if it matches, or this type otherwise
+        if self.element_type is not None and self.element_type.name != 'none' and len(self.element_type.get_shape()) == len(bound_type.get_shape()):
+            return cast(BaseType, self.element_type)
+        else:
+            return self

@@ -134,6 +134,11 @@ class ScalarType(ValueType):
     def derivative(self):
         return self if self.diff else None
 
+    def reduce_type(self, dimensions: int):
+        if dimensions > 0:
+            raise ValueError("Cannot reduce scalar type")
+        return self
+
     def to_numpy(self, value: Any) -> npt.NDArray[Any]:
         if self.python_type == int:
             if value is None:
@@ -189,6 +194,14 @@ class VectorType(ValueType):
         self.python_type: type = NoneType
         self.name = f"vector<{self.element_type.name},{self.size}>"
         self.concrete_shape = Shape(self.size)
+
+    def reduce_type(self, dimensions: int):
+        if dimensions == 1:
+            return self.element_type
+        elif dimensions == 0:
+            return self
+        else:
+            raise ValueError("Cannot reduce vector type by more than one dimension")
 
     def get_byte_size(self, value: Any = None) -> int:
         assert self.element_type is not None
@@ -252,6 +265,15 @@ class MatrixType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         assert self.element_type is not None
         return self.rows * self.cols * self.element_type.get_byte_size()
+
+    def reduce_type(self, dimensions: int):
+        if dimensions == 2:
+            return self.element_type
+        elif dimensions == 1:
+            # Each kernel call will pass a column to the function
+            return VectorType(self.element_type, self.cols)
+        elif dimensions == 0:
+            return self
 
     @property
     def differentiable(self):

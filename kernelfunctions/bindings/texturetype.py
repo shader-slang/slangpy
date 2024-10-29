@@ -66,6 +66,21 @@ class TextureType(ValueType):
         self.element_type = element_type
         self.name = f"{prefix(self._usage)}{self._base_texture_type_name}<{self.element_type.name}>"
 
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        if isinstance(bound_type, TextureType):
+            if self._usage & bound_type._usage == 0:
+                raise ValueError(
+                    f"Cannot bind texture view {self.name} with usage {bound_type._usage}")
+            if self._resource_shape != bound_type._resource_shape:
+                raise ValueError(
+                    f"Cannot bind texture view {self.name} with different shape {bound_type._resource_shape}")
+            if self.element_type.name != bound_type.element_type.name:
+                raise ValueError(
+                    f"Cannot bind texture view {self.name} with different element type {bound_type.element_type.name}")
+            return bound_type
+        else:
+            return super().resolve_type(context, bound_type)
+
     # Texture is writable if it has unordered access view.
     def is_writable(self):
         return has_uav(self._usage)

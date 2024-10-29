@@ -95,6 +95,8 @@ def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> TTypeLoo
             res = SLANG_STRUCT_TYPES_BY_NAME.get(slang_type.name)
         if res is None:
             res = SLANG_STRUCT_BASE_TYPE
+    elif slang_type.kind == TypeReflection.Kind.none:
+        return PYTHON_TYPES[type(None)]
     else:
         res = SLANG_STRUCT_TYPES_BY_FULL_NAME.get(slang_type.full_name)
         if res is None:
