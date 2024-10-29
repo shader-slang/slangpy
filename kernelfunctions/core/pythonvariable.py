@@ -30,6 +30,10 @@ class PythonFunctionCall:
     def has_implicit_args(self) -> bool:
         return any(x.vector_type is None for x in self.args)
 
+    @property
+    def has_implicit_mappings(self) -> bool:
+        return any(not x.vector_mapping.valid for x in self.args)
+
     def apply_explicit_vectorization(self, args: tuple[Any, ...], kwargs: dict[str, Any]):
         if len(args) > len(self.args):
             raise ValueError("Too many arguments supplied for explicit vectorization")

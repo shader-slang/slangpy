@@ -12,6 +12,7 @@ from kernelfunctions.callsignature import (
     bind,
     calculate_call_dimensionality,
     create_return_value_binding,
+    finalize_mappings,
     finalize_transforms, generate_code,
     generate_tree_info_string,
     get_readable_func_string,
@@ -143,12 +144,21 @@ class CallData(NativeCallData):
         # Run Python side implicit vectorization to do any remaining type resolution
         apply_implicit_vectorization(context, bindings)
 
+        # Should no longer have implicit argument types for anything.
+        assert not python_call.has_implicit_args
+
         # apply bindings now both python and slang types are finalized
         bindings = apply_bindings(context, bindings)
 
         # calculate call shaping
         self.call_dimensionality = calculate_call_dimensionality(bindings)
         context.call_dimensionality = self.call_dimensionality
+
+        # Calculate final mappings for bindings that only have known vector type
+        finalize_mappings(context, bindings)
+
+        # Should no longer have any unresolved mappings for anything
+        assert not python_call.has_implicit_mappings
 
         # if necessary, create return value node
         create_return_value_binding(context, bindings, return_type)

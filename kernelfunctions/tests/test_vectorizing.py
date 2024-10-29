@@ -113,17 +113,8 @@ def test_generic_constrained_fail_no_vectorization(device_type: DeviceType):
     function = helpers.create_function_from_module(
         device, "genericconstrainedfoo", SIMPLE_FUNC)
 
-    call_data = function.debug_build_call_data(int3(1, 1, 1))
-
-    binding = call_data.debug_only_bindings.args[0]
-    assert binding.vector_mapping.as_tuple() == ()
-    assert binding.vector_type is not None
-    assert binding.vector_type.name == "float"
-
-    result = call_data.debug_only_bindings.kwargs["_result"]
-    assert result.vector_mapping.as_tuple() == ()
-    assert result.vector_type is not None
-    assert result.vector_type.name == "float"
+    with pytest.raises(ValueError):
+        call_data = function.debug_build_call_data(int3(1, 1, 1))
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -142,7 +133,7 @@ def test_implicit_1d_vectorization(device_type: DeviceType):
     assert binding.vector_type.name == "float"
 
     result = call_data.debug_only_bindings.kwargs["_result"]
-    assert result.vector_mapping.as_tuple() == ()
+    assert result.vector_mapping.as_tuple() == (0,)
     assert result.vector_type is not None
     assert result.vector_type.name == "float"
 
@@ -163,7 +154,7 @@ def test_implicit_cast_1d_vectorization(device_type: DeviceType):
     assert binding.vector_type.name == "float"
 
     result = call_data.debug_only_bindings.kwargs["_result"]
-    assert result.vector_mapping.as_tuple() == ()
+    assert result.vector_mapping.as_tuple() == (0,)
     assert result.vector_type is not None
     assert result.vector_type.name == "float"
 
@@ -184,7 +175,7 @@ def test_generic_1d_explicit_vectorization(device_type: DeviceType):
     assert binding.vector_type.name == "float"
 
     result = call_data.debug_only_bindings.kwargs["_result"]
-    assert result.vector_mapping.as_tuple() == ()
+    assert result.vector_mapping.as_tuple() == (0,)
     assert result.vector_type is not None
     assert result.vector_type.name == "float"
 
@@ -206,7 +197,7 @@ def test_genericconstrained_1d_explicit_vectorization(device_type: DeviceType):
     assert binding.vector_type.name == "float"
 
     result = call_data.debug_only_bindings.kwargs["_result"]
-    assert result.vector_mapping.as_tuple() == ()
+    assert result.vector_mapping.as_tuple() == (0,)
     assert result.vector_type is not None
     assert result.vector_type.name == "float"
 
@@ -242,17 +233,8 @@ def test_genericconstrained_1d_fail_implicit_vectorization(device_type: DeviceTy
 
     buffer = NDBuffer(device=device, element_type=float, shape=(10,))
 
-    call_data = function.debug_build_call_data(buffer)
-
-    binding = call_data.debug_only_bindings.args[0]
-    assert binding.vector_mapping.as_tuple() == (0,)
-    assert binding.vector_type is not None
-    assert binding.vector_type.name == "float"
-
-    result = call_data.debug_only_bindings.kwargs["_result"]
-    assert result.vector_mapping.as_tuple() == ()
-    assert result.vector_type is not None
-    assert result.vector_type.name == "float"
+    with pytest.raises(ValueError):
+        call_data = function.debug_build_call_data(buffer)
 
 
 if __name__ == "__main__":

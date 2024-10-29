@@ -164,7 +164,8 @@ class BoundVariable:
         if self.python.dimensionality is not None:
             if self.python.vector_mapping.valid:
                 if len(self.python.vector_mapping) > 0:
-                    self.call_dimensionality = max(self.python.vector_mapping.as_tuple())
+                    self.call_dimensionality = max(
+                        self.python.vector_mapping.as_tuple())+1
                 else:
                     self.call_dimensionality = 0
             else:

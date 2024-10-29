@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 from sgl import FunctionReflection, TypeReflection
 
+from kernelfunctions.bindings.valuetype import ValueType
 from kernelfunctions.core import (
     CodeGen,
     IOType, CallMode, AccessType,
@@ -84,10 +85,13 @@ def specialize(
             assert python_arg is not None
             if python_arg.vector_type is not None:
                 inputs.append(python_arg.vector_type)
-            else:
-                if slang_param.type.kind == TypeReflection.Kind.none:
-                    return MismatchReason(f"Parameter '{slang_param.name}' is not specialized so must have explicit vectorization")
+            elif slang_param.type.kind != TypeReflection.Kind.none:
                 inputs.append(slang_param.type)
+            elif isinstance(python_arg.primal, ValueType):
+                inputs.append(python_arg.primal)
+            else:
+                raise ValueError(
+                    f"Cannot specialize function with argument {i} of unknown type")
     else:
         # If no named or implicit arguments, just use explicit vector types for specialization
         inputs: list[Any] = [x.vector_type for x in signature.args]
@@ -152,8 +156,11 @@ def apply_implicit_vectorization(context: BindContext, call: BoundCall):
 
     call.resolve_vectorization(context)
 
-    call.finalize_mappings(context)
+    return call
 
+
+def finalize_mappings(context: BindContext, call: BoundCall):
+    call.finalize_mappings(context)
     return call
 
 
@@ -468,7 +475,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     def declare_d(x: BoundVariable, has_suffix: bool = False):
         assert x.slang.derivative is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.python.vector_type.name}.Derivative {name}")
+        cg.kernel.append_statement(f"{x.python.vector_type.name}.Differential {name}")
         return name
 
     def load_p(x: BoundVariable, has_suffix: bool = False):
