@@ -19,9 +19,11 @@ from kernelfunctions.callsignature import (
     get_readable_func_string,
     get_readable_signature_string,
     MismatchReason,
-    specialize
+    specialize,
+    validate_specialize
 )
 from kernelfunctions.core.slangvariable import SlangFunction
+from kernelfunctions.typeregistry import scope
 
 if TYPE_CHECKING:
     from kernelfunctions.function import FunctionChainBase
@@ -133,7 +135,8 @@ class CallData(NativeCallData):
                 f"  {get_readable_signature_string(python_call)}")
 
         # Build slang function signature
-        slang_function = SlangFunction(concrete_reflection, function.type_reflection)
+        with scope(function.module):
+            slang_function = SlangFunction(concrete_reflection, function.type_reflection)
 
         # Check for differentiability error
         if not slang_function.differentiable and self.call_mode != CallMode.prim:
@@ -172,6 +175,10 @@ class CallData(NativeCallData):
 
         # once overall dimensionality is known, individual binding transforms can be made concrete
         finalize_transforms(context, bindings)
+
+        # Validate the arguments we're going to pass to slang before trying to make code
+        validate_specialize(context, python_call, concrete_reflection,
+                            function.type_reflection)
 
         # generate code
         codegen = CodeGen()

@@ -52,6 +52,12 @@ class StructuredBufferType(ValueType):
         else:
             return None
 
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        if isinstance(bound_type, StructuredBufferType):
+            return bound_type
+        else:
+            return StructuredBufferType(bound_type)
+
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access

@@ -40,11 +40,11 @@ SLANG_INTERFACE_BASE_TYPE: TTypeLookup = None  # type: ignore
 # There is not currently a way to go from TypeReflection to the enclosing scope,
 # so we need this global state to retain it for now. The reflection API should be
 # changed to allow removing this in the future
-_cur_module: Optional[SlangModule] = None
+_cur_module: list[SlangModule] = []
 
 
 def cur_scope() -> Optional[SlangModule]:
-    return _cur_module
+    return _cur_module[-1] if len(_cur_module) > 0 else None
 
 
 class scope:
@@ -53,12 +53,10 @@ class scope:
         self.module = module
 
     def __enter__(self):
-        global _cur_module
-        _cur_module = self.module
+        _cur_module.append(self.module)
 
     def __exit__(self, exception_type: Any, exception_value: Any, exception_traceback: Any):
-        global _cur_module
-        _cur_module = None
+        _cur_module.pop()
 
 
 def _get_or_create_slang_type_by_name(name: str) -> TTypeLookup:

@@ -145,6 +145,34 @@ def specialize(
     return specialized
 
 
+def validate_specialize(
+    context: BindContext,
+    signature: PythonFunctionCall,
+    function: FunctionReflection,
+    type: Optional[TypeReflection] = None
+):
+    # Get sorted list of root parameters for trampoline function
+    root_params = [y for y in sorted(signature.args + list(signature.kwargs.values()), key=lambda x: x.parameter_index)
+                   if y.parameter_index >= 0 and y.parameter_index < len(function.parameters)]
+
+    def to_type_reflection(input: Any) -> TypeReflection:
+        if isinstance(input, BaseType):
+            return context.device_module.layout.find_type_by_name(input.name)
+        elif isinstance(input, TypeReflection):
+            return input
+        elif isinstance(input, str):
+            return context.device_module.layout.find_type_by_name(input)
+        else:
+            raise ValueError(f"Cannot convert {input} to TypeReflection")
+
+    types = [to_type_reflection(x.vector_type) for x in root_params]
+    specialized = function.specialize_with_arg_types(types)
+    if specialized is None:
+        raise ValueError("Could not specialize function with given argument types")
+
+    return specialized
+
+
 def bind(
         context: BindContext,
         signature: PythonFunctionCall,
