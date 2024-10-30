@@ -232,17 +232,15 @@ class Function(FunctionChainBase):
                     )
                 func_reflections = [func_reflection]
 
-        # Store root slang function reflection
-        self.reflection = func_reflections[0]
+        # Store function reflections (should normally be 1 unless forced to do AST based search)
+        self.reflections = func_reflections
 
         # Store type parent name if found
-        self.type_parent = type_reflection.full_name if type_reflection is not None else None
+        self.type_reflection = type_reflection
 
-        # Build and store overloads
-        with scope(module):
-            self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
-
-        self.slangpy_signature = f"[{id(module)}][{self.type_parent or ''}::{self.name}]"
+        # Generate signature for hashing
+        type_parent = type_reflection.full_name if type_reflection is not None else None
+        self.slangpy_signature = f"[{id(module)}][{type_parent or ''}::{self.name}]"
 
     def as_func(self) -> 'Function':
         return self

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-from sgl import FunctionReflection, TypeReflection
+from sgl import FunctionReflection, ModifierID, TypeReflection
 
 from kernelfunctions.bindings.valuetype import ValueType
 from kernelfunctions.core import (
@@ -43,12 +43,40 @@ class MismatchReason:
 def specialize(
     context: BindContext,
     signature: PythonFunctionCall,
-    function: FunctionReflection
+    functions: list[FunctionReflection],
+    type: Optional[TypeReflection] = None
 ):
+    # Handle current slang issue where init has to be found via ast, resulting in potential multiple functions
+    if len(functions) > 1:
+        if functions[0].name == "$init":
+            matches = [x for x in functions if len(
+                x.parameters) == signature.num_function_args]
+            if len(matches) != 1:
+                return MismatchReason("Could not find unique $init function")
+            function = matches[0]
+        else:
+            return MismatchReason("Multiple functions found - should only happen with $init")
+    else:
+        function = functions[0]
+
+    # Expecting 'this' argument as first parameter of none-static member functions (except for $init)
+    first_arg_is_this = type is not None and not function.has_modifier(
+        ModifierID.static) and function.name != "$init"
+
+    # Require '_result' argument for derivative calls, either as '_result' named parameter or last positional argument
+    last_arg_is_retval = function.return_type is not None and not "_result" in signature.kwargs and context.call_mode != CallMode.prim
+
+    # Select the positional arguments we need to match against
+    signature_args = signature.args
+    if first_arg_is_this:
+        signature_args = signature_args[1:]
+    if last_arg_is_retval:
+        signature_args = signature_args[:-1]
+
     if signature.num_function_kwargs > 0 or signature.has_implicit_args:
         if function.is_overloaded:
             return MismatchReason("Cannot currently specialize overloaded function with named or implicit arguments")
-        if signature.num_function_args != len(function.parameters):
+        if len(signature_args) != len(function.parameters):
             return MismatchReason("To use named or implicit arguments, all parameters must be specified")
 
         function_parameters = [x for x in function.parameters]
@@ -58,14 +86,14 @@ def specialize(
             None] * len(function_parameters)
 
         # Populate the first N arguments from provided positional arguments
-        for i, arg in enumerate(signature.args):
+        for i, arg in enumerate(signature_args):
             positioned_args[i] = arg
             arg.parameter_index = i
 
         # Attempt to populate the remaining arguments from keyword arguments
         name_map = {param.name: i for i, param in enumerate(function_parameters)}
         for name, arg in signature.kwargs.items():
-            if name == "_result" or name == "_this":
+            if name == "_result":
                 continue
             if name not in name_map:
                 return MismatchReason(f"No parameter named '{name}'")
@@ -94,7 +122,9 @@ def specialize(
                     f"Cannot specialize function with argument {i} of unknown type")
     else:
         # If no named or implicit arguments, just use explicit vector types for specialization
-        inputs: list[Any] = [x.vector_type for x in signature.args]
+        inputs: list[Any] = [x.vector_type for x in signature_args]
+        for i, arg in enumerate(signature_args):
+            arg.parameter_index = i
 
     def to_type_reflection(input: Any) -> TypeReflection:
         if isinstance(input, BaseType):
@@ -127,8 +157,14 @@ def bind(
 
     res = BoundCall()
 
-    res.args = [BoundVariable(x, function.parameters[x.parameter_index],
-                              output_transforms) for x in signature.args]
+    for x in signature.args:
+        if x.parameter_index == len(function.parameters):
+            res.args.append(BoundVariable(x, function.return_value, output_transforms))
+        elif x.parameter_index == -1:
+            res.args.append(BoundVariable(x, function.this, output_transforms))
+        else:
+            res.args.append(BoundVariable(
+                x, function.parameters[x.parameter_index], output_transforms))
 
     for k, v in signature.kwargs.items():
         if k == "_result":

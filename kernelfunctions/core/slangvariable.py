@@ -48,10 +48,9 @@ class SlangFunction:
         # Start with empty paramter list
         self.parameters: list[SlangVariable] = []
 
-        # Handle 'this' parameter for class methods UNLESS an init/static function
+        # Handle 'this' parameter for class methods UNLESS a static function
         if this_reflection is not None and self.name != "$init" and not reflection.has_modifier(ModifierID.static):
             self.this = _reflect_this(reflection, this_reflection)
-            self.parameters.append(self.this)
         else:
             self.this = None
 

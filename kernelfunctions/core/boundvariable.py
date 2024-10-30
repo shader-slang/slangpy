@@ -151,8 +151,7 @@ class BoundVariable:
         if self.children is not None:
             for child in self.children.values():
                 child.resolve_vectorization(context)
-        else:
-            self._resolve_vectorization(context)
+        self._resolve_vectorization(context)
 
     def _resolve_vectorization(self, context: BindContext):
         # If we ended up with no valid type, use slang type
@@ -179,8 +178,7 @@ class BoundVariable:
         if self.children is not None:
             for child in self.children.values():
                 child.finalize_mappings(context)
-        else:
-            self._finalize_mappings(context)
+        self._finalize_mappings(context)
 
     def _finalize_mappings(self, context: BindContext):
         if self.call_dimensionality is None:

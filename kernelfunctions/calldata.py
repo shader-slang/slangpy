@@ -123,7 +123,8 @@ class CallData(NativeCallData):
         apply_explicit_vectorization(python_call, positional_mapping, keyword_mapping)
 
         # Perform specialization to get a concrete function reflection
-        concrete_reflection = specialize(context, python_call, function.reflection)
+        concrete_reflection = specialize(
+            context, python_call, function.reflections, function.type_reflection)
         if isinstance(concrete_reflection, MismatchReason):
             raise ValueError(
                 f"Function signature mismatch: {concrete_reflection.reason}\n"
@@ -131,7 +132,7 @@ class CallData(NativeCallData):
                 f"  {get_readable_signature_string(python_call)}")
 
         # Build slang function signature
-        slang_function = SlangFunction(concrete_reflection)
+        slang_function = SlangFunction(concrete_reflection, function.type_reflection)
 
         # Inject a dummy node into the Python signature if we need a result back
         if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_value is not None:
