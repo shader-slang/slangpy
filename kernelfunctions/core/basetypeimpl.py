@@ -42,7 +42,11 @@ class BaseTypeImpl(BaseType):
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         # default implementation of type resolution is to attempt to pass
         # either element type if it matches, or this type otherwise
-        if self.element_type is not None and self.element_type.name != 'none' and len(self.element_type.get_shape()) == len(bound_type.get_shape()):
-            return cast(BaseType, self.element_type)
+        if self.element_type is not None and self.element_type.name == bound_type.name:
+            return cast(BaseType, bound_type)
+        elif bound_type.name.startswith('vector<') and self.element_type.name == bound_type.element_type.name:
+            return cast(BaseType, bound_type)
+        elif bound_type.name.startswith('matrix<') and self.element_type.name == bound_type.element_type.name:
+            return cast(BaseType, bound_type)
         else:
             return self
