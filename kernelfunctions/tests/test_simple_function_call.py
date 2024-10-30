@@ -1,6 +1,7 @@
 from typing import Optional, Union
 import numpy as np
 import pytest
+from sgl import float3
 from kernelfunctions.backend import DeviceType, Device
 import kernelfunctions as kf
 import kernelfunctions.tests.helpers as helpers
@@ -25,13 +26,16 @@ void add_numbers(int a, int b) {
     # just verify it can be called with no exceptions
     function(5, 10)
 
+    # verify call that slang is happy with because bool can cast to int
+    function(5, False)
+
+    # verify call fails due to invalid cast (float3->int)
+    with pytest.raises(ValueError):
+        function(5, float3(1.0, 2.0, 3.0))
+
     # verify call fails with wrong number of arguments
     with pytest.raises(ValueError):
         function(5)
-
-    # verify call fails with wrong type of arguments
-    with pytest.raises(ValueError):
-        function(5, False)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
