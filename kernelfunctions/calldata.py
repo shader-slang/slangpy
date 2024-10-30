@@ -15,6 +15,7 @@ from kernelfunctions.callsignature import (
     finalize_mappings,
     finalize_transforms, generate_code,
     generate_tree_info_string,
+    get_readable_func_refl_string,
     get_readable_func_string,
     get_readable_signature_string,
     MismatchReason,
@@ -128,11 +129,16 @@ class CallData(NativeCallData):
         if isinstance(concrete_reflection, MismatchReason):
             raise ValueError(
                 f"Function signature mismatch: {concrete_reflection.reason}\n"
-                f"  {get_readable_func_string(function.overloads[0])}\n"
+                f"  {get_readable_func_refl_string(function.reflections[0])}\n"
                 f"  {get_readable_signature_string(python_call)}")
 
         # Build slang function signature
         slang_function = SlangFunction(concrete_reflection, function.type_reflection)
+
+        # Check for differentiability error
+        if not slang_function.differentiable and self.call_mode != CallMode.prim:
+            raise ValueError(
+                "Could not call function 'polynomial': Function is not differentiable")
 
         # Inject a dummy node into the Python signature if we need a result back
         if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_value is not None:

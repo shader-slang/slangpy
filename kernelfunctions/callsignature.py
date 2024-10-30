@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-from sgl import FunctionReflection, ModifierID, TypeReflection
+from sgl import FunctionReflection, ModifierID, TypeReflection, VariableReflection
 
 from kernelfunctions.bindings.valuetype import ValueType
 from kernelfunctions.core import (
@@ -69,15 +69,15 @@ def specialize(
     # Select the positional arguments we need to match against
     signature_args = signature.args
     if first_arg_is_this:
+        signature_args[0].parameter_index = -1
         signature_args = signature_args[1:]
     if last_arg_is_retval:
+        signature_args[-1].parameter_index = len(function.parameters)
         signature_args = signature_args[:-1]
 
     if signature.num_function_kwargs > 0 or signature.has_implicit_args:
         if function.is_overloaded:
             return MismatchReason("Cannot currently specialize overloaded function with named or implicit arguments")
-        if len(signature_args) != len(function.parameters):
-            return MismatchReason("To use named or implicit arguments, all parameters must be specified")
 
         function_parameters = [x for x in function.parameters]
 
@@ -103,8 +103,9 @@ def specialize(
             positioned_args[i] = arg
             arg.parameter_index = i
 
-        # Ensure all parameters are assigned (this is assert as above code should ensure it or fail)
-        assert all(x is not None for x in positioned_args)
+        # Ensure all parameters are assigned
+        if not all(x is not None for x in positioned_args):
+            return MismatchReason("To use named or implicit arguments, all parameters must be specified")
 
         # Choose either explicit vector type or slang type for specialization
         inputs: list[Any] = []
@@ -159,8 +160,10 @@ def bind(
 
     for x in signature.args:
         if x.parameter_index == len(function.parameters):
+            assert function.return_value is not None
             res.args.append(BoundVariable(x, function.return_value, output_transforms))
         elif x.parameter_index == -1:
+            assert function.this is not None
             res.args.append(BoundVariable(x, function.this, output_transforms))
         else:
             res.args.append(BoundVariable(
@@ -168,8 +171,10 @@ def bind(
 
     for k, v in signature.kwargs.items():
         if k == "_result":
+            assert function.return_value is not None
             res.kwargs[k] = BoundVariable(v, function.return_value, output_transforms)
         elif k == "_this":
+            assert function.this is not None
             res.kwargs[k] = BoundVariable(v, function.this, output_transforms)
         else:
             res.kwargs[k] = BoundVariable(
@@ -625,6 +630,31 @@ def get_readable_func_string(slang_function: Optional[SlangFunction]):
     text.append("(")
     parms = [
         f"{get_modifiers(x)}{x.primal_type_name} {x.name}" for x in slang_function.parameters]
+    text.append(", ".join(parms))
+    text.append(")")
+    return "".join(text)
+
+
+def get_readable_func_refl_string(slang_function: Optional[FunctionReflection]):
+    if slang_function is None:
+        return ""
+
+    def get_modifiers(val: VariableReflection):
+        mods: list[str] = []
+        for m in ModifierID:
+            if val.has_modifier(m):
+                mods.append(m.name)
+        return " ".join(mods)
+
+    text: list[str] = []
+    if slang_function.return_type is not None:
+        text.append(f"{slang_function.return_type.full_name} ")
+    else:
+        text.append("void ")
+    text.append(slang_function.name)
+    text.append("(")
+    parms = [
+        f"{get_modifiers(x)}{x.type.full_name} {x.name}" for x in slang_function.parameters]
     text.append(", ".join(parms))
     text.append(")")
     return "".join(text)

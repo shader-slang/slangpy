@@ -4,7 +4,8 @@ from typing import Any, Optional
 from kernelfunctions.core import CodeGenBlock, BindContext, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.backend import TypeReflection
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
+from kernelfunctions.core.basetype import BaseType
+from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES, SLANG_VECTOR_TYPES
 
 
 class WangHashArg:
@@ -46,6 +47,9 @@ class WangHashArgType(BaseTypeImpl):
             return {
                 'seed': data.seed
             }
+
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        return SLANG_VECTOR_TYPES[TypeReflection.ScalarType.uint32][self.dims]
 
 
 PYTHON_TYPES[WangHashArg] = lambda x: WangHashArgType(x.dims)

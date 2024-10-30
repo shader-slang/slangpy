@@ -371,7 +371,16 @@ class BoundVariable:
         return self.variable_name
 
     def _gen_trampoline_argument(self):
-        return self.slang.gen_trampoline_argument(self.differentiable)
+        arg_def = f"{self.vector_type.name} {self.slang.name}"
+        if self.slang.io_type == IOType.inout:
+            arg_def = f"inout {arg_def}"
+        elif self.slang.io_type == IOType.out:
+            arg_def = f"out {arg_def}"
+        elif self.slang.io_type == IOType.inn:
+            arg_def = f"in {arg_def}"
+        if self.slang.no_diff or not self.differentiable:
+            arg_def = f"no_diff {arg_def}"
+        return arg_def
 
     def __str__(self) -> str:
         return self._recurse_str(0)
