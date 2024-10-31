@@ -1,17 +1,14 @@
 from types import NoneType
 from typing import Any, Optional, cast
 
-from sgl import TypeReflection
-
 from kernelfunctions.shapes import TShapeOrTuple
-from kernelfunctions.typeregistry import get_or_create_type
 
 from .enums import PrimType, IOType
 from .pythonvariable import PythonVariable
-from .slangvariable import SlangFunction, SlangVariable
+from .slangvariable import SlangVariable
 from .codegen import CodeGen
 from .native import AccessType, CallMode, Shape
-from .basetype import BaseType, BindContext
+from .basetype import BindContext
 
 
 class BoundVariableException(Exception):
@@ -237,10 +234,6 @@ class BoundVariable:
             # todo: fwds
             self.access = (AccessType.none, AccessType.none)
 
-    def _get_access(self, prim: PrimType) -> AccessType:
-        idx: int = prim.value
-        return self.access[idx]
-
     def gen_call_data_code(self, cg: CodeGen, context: BindContext, depth: int = 0):
         if self.children is not None:
             cgb = cg.call_data_structs
@@ -252,7 +245,7 @@ class BoundVariable:
                 variable_name = variable.gen_call_data_code(cg, context, depth+1)
                 if variable_name is not None:
                     names.append(
-                        (field, variable_name, variable.slang.primal_type_name, variable.slang.derivative_type_name))
+                        (field, variable_name, variable.vector_type.name, variable.vector_type.name + ".Differential"))
 
             for name in names:
                 cgb.declare(f"_t_{name[1]}", name[1])

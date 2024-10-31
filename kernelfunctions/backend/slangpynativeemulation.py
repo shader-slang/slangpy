@@ -191,10 +191,8 @@ class NativeBoundVariableRuntime:
         super().__init__()
         self.access: tuple[AccessType, AccessType] = (AccessType.none, AccessType.none)
         self.transform: Shape = None  # type: ignore
-        self.slang_shape: Shape = None  # type: ignore
         self.python_type: NativeType = None  # type: ignore
         self.shape: Shape = None  # type: ignore
-        self.name = ""
         self.variable_name = ""
         self.children: Optional[dict[str, 'NativeBoundVariableRuntime']] = None
 
@@ -246,7 +244,7 @@ class NativeBoundVariableRuntime:
             shape = self.shape
 
             # Get call shape + append slang primal shape
-            full_cs = context.call_shape + self.slang_shape
+            full_cs = context.call_shape
 
             # Broadcast occurs if the shape of the input is different from the shape of the output
             broadcast = []
@@ -278,7 +276,7 @@ class NativeBoundVariableRuntime:
             assert isinstance(data, dict)
             res = {}
             for name, child in self.children.items():
-                child_data = data.get(child.name, None)
+                child_data = data.get(child.variable_name, None)
                 if child_data is not None:
                     res[name] = child.read_output(context, child_data)
             return res

@@ -170,8 +170,7 @@ class CallData(NativeCallData):
         assert not python_call.has_implicit_mappings
 
         # Validate the arguments we're going to pass to slang before trying to make code.
-        validate_specialize(context, python_call, concrete_reflection,
-                            function.type_reflection)
+        validate_specialize(context, python_call, concrete_reflection)
 
         # Calculate differentiability of all variables.
         calculate_differentiability(context, bindings)

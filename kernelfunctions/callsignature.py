@@ -9,8 +9,7 @@ from kernelfunctions.core import (
     BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
-    BoundCallRuntime, BoundVariableRuntime,
-    Shape
+    BoundCallRuntime, BoundVariableRuntime
 )
 
 from kernelfunctions.core.basetype import BaseType
@@ -148,8 +147,7 @@ def specialize(
 def validate_specialize(
     context: BindContext,
     signature: PythonFunctionCall,
-    function: FunctionReflection,
-    type: Optional[TypeReflection] = None
+    function: FunctionReflection
 ):
     # Get sorted list of root parameters for trampoline function
     root_params = [y for y in sorted(signature.args + list(signature.kwargs.values()), key=lambda x: x.parameter_index)

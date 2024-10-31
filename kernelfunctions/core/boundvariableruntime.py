@@ -22,7 +22,6 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         # Data potentially used by type marshalls
         self.access = source.access
         self.transform = source.vector_mapping
-        self.slang_shape = source.slang.primal.get_shape()
         self.python_type = source.python.primal
 
         # Temp data stored / updated each call
@@ -30,7 +29,6 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
 
         # Internal data
         self._source_for_exceptions = source
-        self.name = source.python.name
         self.variable_name = source.variable_name
 
         if source.children is not None:
