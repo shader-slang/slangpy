@@ -128,7 +128,7 @@ class TextureType(ValueType):
                     f"_t_{name}", self.build_accessor_name(ResourceUsage.unordered_access))
         else:
             raise ValueError(
-                f"Texture {name} has invalid transform {binding.transform}")
+                f"Texture {name} has invalid dimensionality {binding.call_dimensionality}")
 
     # Call data just returns the primal
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:

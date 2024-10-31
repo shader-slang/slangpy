@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData
 
 from kernelfunctions.callsignature import (
-    apply_bindings,
+    calculate_differentiability,
     apply_explicit_vectorization,
     apply_implicit_vectorization,
     bind,
@@ -156,31 +156,29 @@ class CallData(NativeCallData):
         # Should no longer have implicit argument types for anything.
         assert not python_call.has_implicit_args
 
-        # apply bindings now both python and slang types are finalized
-        bindings = apply_bindings(context, bindings)
-
-        # calculate call shaping
+        # Calculate overall call dimensionality now that all typing is known.
         self.call_dimensionality = calculate_call_dimensionality(bindings)
         context.call_dimensionality = self.call_dimensionality
 
-        # Calculate final mappings for bindings that only have known vector type
-        finalize_mappings(context, bindings)
-
-        # Should no longer have any unresolved mappings for anything
-        assert not python_call.has_implicit_mappings
-
-        # if necessary, create return value node
+        # If necessary, create return value node once call dimensionality is known.
         create_return_value_binding(context, bindings, return_type)
 
-        # Validate the arguments we're going to pass to slang before trying to make code
+        # Calculate final mappings for bindings that only have known vector type.
+        finalize_mappings(context, bindings)
+
+        # Should no longer have any unresolved mappings for anything.
+        assert not python_call.has_implicit_mappings
+
+        # Validate the arguments we're going to pass to slang before trying to make code.
         validate_specialize(context, python_call, concrete_reflection,
                             function.type_reflection)
 
-        # generate code
+        # Calculate differentiability of all variables.
+        calculate_differentiability(context, bindings)
+
+        # Generate code.
         codegen = CodeGen()
         generate_code(context, function, bindings, codegen)
-
-        # store code
         code = codegen.finish(call_data=True, input_load_store=True,
                               header=True, kernel=True, imports=True,
                               trampoline=True, context=True, snippets=True,

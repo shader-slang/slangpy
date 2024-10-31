@@ -223,20 +223,23 @@ def apply_explicit_vectorization(call: PythonFunctionCall, args: tuple[Any, ...]
 
 
 def apply_implicit_vectorization(context: BindContext, call: BoundCall):
-
+    """
+    Apply implicit vectorization rules and calculate per variable dimensionality
+    """
     call.apply_implicit_vectorization(context)
-
-    call.resolve_vectorization(context)
-
     return call
 
 
 def finalize_mappings(context: BindContext, call: BoundCall):
+    """
+    Once overall call dimensionality is known, calculate any explicit
+    mappings for variables that only have explicit types
+    """
     call.finalize_mappings(context)
     return call
 
 
-def apply_bindings(context: BindContext, call: BoundCall):
+def calculate_differentiability(context: BindContext, call: BoundCall):
     """
     Recursively step through all parameters in the bind call and generate
     any data that requires both PythonVariable and SlangVariable to be
@@ -244,9 +247,9 @@ def apply_bindings(context: BindContext, call: BoundCall):
     """
     try:
         for arg in call.args:
-            arg.apply_binding(context)
+            arg.calculate_differentiability(context)
         for arg in call.kwargs.values():
-            arg.apply_binding(context)
+            arg.calculate_differentiability(context)
     except BoundVariableException as e:
         raise ValueError(generate_call_shape_error_string(
             call, [], e.message, e.variable))
@@ -434,7 +437,6 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     python_type = tr.get_or_create_type(return_type, return_ctx)
 
     node.call_dimensionality = context.call_dimensionality
-    node.transform = Shape(tuple([i for i in range(len(python_type.get_shape()))]))
     node.python.set_type(python_type)
 
 

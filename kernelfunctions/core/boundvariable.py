@@ -37,13 +37,6 @@ class BoundCall:
         for arg in self.kwargs.values():
             arg.apply_implicit_vectorization(context)
 
-    def resolve_vectorization(self, context: BindContext):
-        for arg in self.args:
-            arg.resolve_vectorization(context)
-
-        for arg in self.kwargs.values():
-            arg.resolve_vectorization(context)
-
     def finalize_mappings(self, context: BindContext):
         for arg in self.args:
             arg.finalize_mappings(context)
@@ -135,18 +128,6 @@ class BoundVariable:
             self.python.vector_type = self.python.primal.resolve_type(
                 context, self.slang.primal)
 
-    def resolve_vectorization(self, context: BindContext):
-        """
-        Apply implicit vectorization to this variable. This inspects
-        the slang type being bound to in an attempt to get a concrete
-        type to provide to the specialization system.
-        """
-        if self.children is not None:
-            for child in self.children.values():
-                child.resolve_vectorization(context)
-        self._resolve_vectorization(context)
-
-    def _resolve_vectorization(self, context: BindContext):
         # If we ended up with no valid type, use slang type. Currently this should
         # only happen for auto-allocated result buffers
         if not self.python.vector_mapping.valid and self.python.vector_type is None:
@@ -185,11 +166,9 @@ class BoundVariable:
             m.reverse()
             self.python.vector_mapping = Shape(*m)
 
-    def apply_binding(self, context: BindContext):
+    def calculate_differentiability(self, context: BindContext):
         """
-        Recursively apply binding properties that require
-        knowledge of fully resolved slang and python types.
-        Includes calculating transforms and differentiability
+        Recursively calculate  differentiability
         """
 
         # Can now decide if differentiable
@@ -198,7 +177,7 @@ class BoundVariable:
 
         if self.children is not None:
             for child in self.children.values():
-                child.apply_binding(context)
+                child.calculate_differentiability(context)
 
     def get_input_list(self, args: list['BoundVariable']):
         """
