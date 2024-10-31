@@ -76,8 +76,8 @@ class DiffPairType(BaseTypeImpl):
         else:
             deriv_storage = f"RWValueRef<{deriv_el}>"
 
-        primal_target = binding.slang.primal_type_name
-        deriv_target = binding.slang.derivative_type_name
+        primal_target = binding.vector_type.name
+        deriv_target = binding.vector_type.name + ".Differential"
 
         cgb.append_code_indented(generate_differential_pair(name, primal_storage,
                                                             deriv_storage, primal_target, deriv_target))

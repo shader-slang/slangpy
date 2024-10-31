@@ -105,12 +105,12 @@ class TextureType(ValueType):
         if binding.call_dimensionality == 0:
             # If broadcast directly, function is just taking the texture argument directly, so use the slang type
             assert access == AccessType.read
-            assert isinstance(binding.slang.primal, TextureType)
-            if self._usage & binding.slang.primal._usage == 0:
+            assert isinstance(binding.vector_type, TextureType)
+            if self._usage & binding.vector_type._usage == 0:
                 raise ValueError(
-                    f"Cannot bind texture view {name} with usage {binding.slang.primal._usage}")
+                    f"Cannot bind texture view {name} with usage {binding.vector_type._usage}")
             cgb.type_alias(
-                f"_t_{name}", binding.slang.primal.build_accessor_name())
+                f"_t_{name}", binding.vector_type.build_accessor_name())
         elif binding.call_dimensionality == self._texture_dims:
             # If broadcast is the same shape as the texture, this is loading from pixels, so use the
             # type required to support the required access

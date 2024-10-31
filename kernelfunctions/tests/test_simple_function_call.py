@@ -65,15 +65,15 @@ def test_returnvalue_with_diffpair_input(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-int add_numbers(int a, int b) {
+float add_numbers(float a, float b) {
     return a+b;
 }
 """,
     )
 
     # just verify it can be called with no exceptions
-    res = function(diffPair(5), 10)
-    assert res == 15
+    res = function(diffPair(5.0), 10.0)
+    assert res == 15.0
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

@@ -76,13 +76,13 @@ class StructuredBufferType(ValueType):
         if binding.call_dimensionality == 0:
             # If broadcast directly, function is just taking the texture argument directly, so use the slang type
             assert access == AccessType.read
-            assert isinstance(binding.slang.primal, StructuredBufferType)
-            if binding.slang.primal.is_writable:
+            assert isinstance(binding.vector_type, StructuredBufferType)
+            if binding.vector_type.is_writable:
                 cgb.type_alias(
-                    f"_t_{name}", f"RWStructuredBufferType<{binding.slang.primal.element_type.name}>")
+                    f"_t_{name}", f"RWStructuredBufferType<{binding.vector_type.element_type.name}>")
             else:
                 cgb.type_alias(
-                    f"_t_{name}", f"StructuredBufferType<{binding.slang.primal.element_type.name}>")
+                    f"_t_{name}", f"StructuredBufferType<{binding.vector_type.element_type.name}>")
         else:
             # Can now generate
             if access == AccessType.read:

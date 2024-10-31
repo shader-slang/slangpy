@@ -305,7 +305,7 @@ def _gen_arg_shape_string(variable: BoundVariable) -> str:
 
 def _gen_type_shape_string(variable: BoundVariable) -> str:
     if variable.slang is not None:
-        return str(variable.slang.primal.get_shape().as_list())
+        return str(variable.vector_type.get_shape().as_list())
     else:
         return "None"
 
@@ -328,7 +328,7 @@ def generate_argument_info_columns(variable: TBoundOrRuntimeVariable, indent: in
         elif name == "Input Type":
             text.append(clip_string(variable.python.primal_type_name, width))
         elif name == "Output Type":
-            text.append(clip_string(variable.slang.primal_type_name, width))
+            text.append(clip_string(variable.vector_type.name, width))
         elif name == "Input Shape":
             text.append(clip_string(_gen_python_shape_string(variable), width))
         elif name == "Argument Shape":
@@ -487,7 +487,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     if func_name == "$init":
         results = [x for x in root_params if x.path == '_result']
         assert len(results) == 1
-        func_name = results[0].slang.primal_element_name
+        func_name = results[0].vector_type.name
     elif len(root_params) > 0 and root_params[0].path == '_this':
         func_name = f'_this.{func_name}'
 
