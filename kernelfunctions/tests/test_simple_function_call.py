@@ -275,7 +275,7 @@ void add_numbers_remap(int a, int b, out int c) {
     )
     c.buffer.from_numpy(rand_array_of_ints(c.element_count))
 
-    function.transform_output({"a": (1,), "b": (0,)})(a, b, c)
+    function.map((1,), (0,))(a, b, c)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

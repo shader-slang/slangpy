@@ -21,8 +21,7 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
 
         # Data potentially used by type marshalls
         self.access = source.access
-        self.transform = check_concrete(
-            source.transform) if source.transform.valid else Shape(None)
+        self.transform = source.vector_mapping
         self.slang_shape = source.slang.primal.get_shape()
         self.python_type = source.python.primal
 

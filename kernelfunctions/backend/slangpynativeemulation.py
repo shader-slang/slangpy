@@ -206,8 +206,9 @@ class NativeBoundVariableRuntime:
             for name, child in self.children.items():
                 child.populate_call_shape(call_shape, value[name])
         elif value is not None:
-            # Get concrete primal shape
-            shape = self.python_type.get_shape(value)
+            # Get concrete primal shape. As it is invalid to broadcast from
+            # elements, only need the container shape, not full shape.
+            shape = self.python_type.get_container_shape(value)
             tf = cast(Shape, self.transform)
             csl = len(call_shape)
             self.shape = shape

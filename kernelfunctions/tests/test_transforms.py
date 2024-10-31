@@ -28,9 +28,7 @@ def test_copy_values_basic_input_transform(device_type: DeviceType):
 
     # Call function, which should copy to output with dimensions flipped
     func = m.copy_values.as_func()
-    func = func.transform_output({
-        'input': (1, 0),
-    })
+    func = func.map((1, 0))
     func(a, b)
 
     # Get and verify output
@@ -58,9 +56,7 @@ def test_add_vectors_basic_input_transform(device_type: DeviceType):
     a.from_numpy(a_data)
     b.from_numpy(b_data)
 
-    func = m.add_vectors.transform_output({
-        'a': (1, 0, 2),
-    })
+    func = m.add_vectors.map((1, 0))
 
     res: NDBuffer = func(a, b)
 
@@ -94,9 +90,7 @@ def test_add_vectors_vecindex_inputcontainer_input_transform(device_type: Device
     a.from_numpy(a_data)
     b.from_numpy(b_data)
 
-    func = m.add_vectors.transform_output({
-        'a': (1, 0, 2),
-    })
+    func = m.add_vectors.map((1, 0))
 
     res: NDBuffer = func(a, b)
 
@@ -127,9 +121,7 @@ def test_copy_vectors_vecindex_inputcontainer_input_transform(device_type: Devic
     inn_data = np.random.rand(2, 3, 3).astype(np.float32)
     inn.from_numpy(inn_data)
 
-    func = m.copy_vectors.transform_output({
-        'input': (1, 0, 2),
-    })
+    func = m.copy_vectors.map((1, 0))
 
     func(inn, out)
 
@@ -157,9 +149,7 @@ def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: Devi
     inn_data = np.random.rand(2, 3, 3).astype(np.float32)
     inn.from_numpy(inn_data)
 
-    func = m.copy_vectors.transform_output({
-        'output': (1, 0, 2),
-    })
+    func = m.copy_vectors.map(None, (1, 0))
 
     func(inn, out)
 
@@ -170,50 +160,6 @@ def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: Devi
             inn = inn_data[i, j]
             out = out_data[j, i]
             assert np.allclose(inn, out)
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_vecindex_element_input_transform(device_type: DeviceType):
-    m = load_test_module(device_type)
-
-    # Test remapping when one of the inputs is an 3D buffer of floats
-    # instead of 2D buffer of float3s.
-
-    # The current problem with this case is that we're asking to remap
-    # a dimension within A that is at the element level of the inputs
-    # to the slang function. i.e. the slang function is:
-    # copy_vectors(float3 A, float3 B)
-
-    # A is a (3,2) buffer of floats, so we're effectively asking to swizzle
-    # around the load the elements of a single float3 value from A.
-
-    # Currently, the transform code works at the container level, so this
-    # is broken!
-
-    m = load_test_module(device_type)
-
-    # Create input+output buffers
-    a = NDBuffer(device=m.device, shape=(3, 2), element_type=float)
-    b = NDBuffer(device=m.device, shape=(2,), element_type=float3)
-
-    # Populate input
-    a_data = np.random.rand(3, 2).astype(np.float32)
-    a.from_numpy(a_data)
-
-    # Call function, which should copy to output with dimensions flipped
-    func = m.copy_vectors.as_func()
-    func = func.transform_output({
-        'input': (1, 0),
-    })
-    func(a, b)
-
-    # Get and verify output
-    b_data = b.buffer.to_numpy().view(np.float32).reshape(-1, 3)
-    for i in range(1):
-        for j in range(3):
-            a = a_data[j, i]
-            b = b_data[i, j]
-            assert a == b
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -232,10 +178,7 @@ def test_add_vectors_basic_output_transform(device_type: DeviceType):
     a.from_numpy(a_data)
     b.from_numpy(b_data)
 
-    func = m.add_vectors.transform_output({
-        'a': (0, 2),
-        'b': (1, 2)
-    })
+    func = m.add_vectors.map((0,), (1,))
 
     res: NDBuffer = func(a, b)
 
@@ -342,66 +285,6 @@ def test_add_vectors_broadcast_from_diff_buffer(device_type: DeviceType):
             expected = av + bv
             r = res_data[i][j]
             assert np.allclose(r, expected)
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_broadcast_from_buffer_subelement(device_type: DeviceType):
-    m = load_test_module(device_type)
-
-    # Test the output transform, where we take 2 1D buffers with different
-    # sizes and braodcast each to a different dimension.
-
-    a = NDBuffer(device=m.device, shape=(10, 1), element_type=float)
-    b = NDBuffer(device=m.device, shape=(10,), element_type=float3)
-
-    a_data = np.random.rand(a.shape[0], 1).astype(np.float32)
-    b_data = np.random.rand(b.shape[0], 3).astype(np.float32)
-
-    a.from_numpy(a_data)
-    b.from_numpy(b_data)
-
-    res: NDBuffer = m.add_vectors(a, b)
-    assert res.shape == (b.shape[0],)
-
-    res_data = res.buffer.to_numpy().view(np.float32).reshape(res.shape[0], 3)
-
-    for i in range(b.shape[0]):
-        av = a_data[i][0]
-        bv = b_data[i]
-        expected = av + bv
-        r = res_data[i]
-        assert np.allclose(r, expected)
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_broadcast_from_buffer_transformed_subelement(device_type: DeviceType):
-    m = load_test_module(device_type)
-
-    # Test the output transform, where we take 2 1D buffers with different
-    # sizes and braodcast each to a different dimension.
-
-    a = NDBuffer(device=m.device, shape=(1, 10), element_type=float)
-    b = NDBuffer(device=m.device, shape=(10,), element_type=float3)
-
-    a_data = np.random.rand(a.shape[1], 1).astype(np.float32)
-    b_data = np.random.rand(b.shape[0], 3).astype(np.float32)
-
-    a.from_numpy(a_data)
-    b.from_numpy(b_data)
-
-    res: NDBuffer = m.add_vectors.transform_output({
-        'a': (1, 0)
-    })(a, b)
-    assert res.shape == (b.shape[0],)
-
-    res_data = res.buffer.to_numpy().view(np.float32).reshape(res.shape[0], 3)
-
-    for i in range(b.shape[0]):
-        av = a_data[i]
-        bv = b_data[i]
-        expected = av + bv
-        r = res_data[i]
-        assert np.allclose(r, expected)
 
 
 if __name__ == "__main__":

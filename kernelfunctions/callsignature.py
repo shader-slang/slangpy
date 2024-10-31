@@ -166,6 +166,9 @@ def validate_specialize(
             raise ValueError(f"Cannot convert {input} to TypeReflection")
 
     types = [to_type_reflection(x.vector_type) for x in root_params]
+    if any(x is None for x in types):
+        raise ValueError("Unable to resolve all types for specialization")
+
     specialized = function.specialize_with_arg_types(types)
     if specialized is None:
         raise ValueError("Could not specialize function with given argument types")
@@ -307,10 +310,7 @@ def _gen_type_shape_string(variable: BoundVariable) -> str:
 
 
 def _gen_python_shape_string(variable: BoundVariable) -> str:
-    if variable.python.dimensionality is not None:
-        return str([None]*variable.python.dimensionality)
-    else:
-        return "None"
+    return "None"
 
 
 def generate_argument_info_columns(variable: TBoundOrRuntimeVariable, indent: int, highlight_variable: Optional[TBoundOrRuntimeVariable] = None) -> list[str]:
@@ -334,8 +334,8 @@ def generate_argument_info_columns(variable: TBoundOrRuntimeVariable, indent: in
             text.append(clip_string(_gen_arg_shape_string(variable), width))
         elif name == "Type Shape":
             text.append(clip_string(_gen_type_shape_string(variable), width))
-        elif name == "Transform":
-            text.append(clip_string(variable.transform, width))
+        elif name == "Mapping":
+            text.append(clip_string(variable.vector_mapping, width))
     if highlight_variable and variable == _to_var(highlight_variable):
         text.append(" <---")
     else:
@@ -407,23 +407,6 @@ def calculate_call_dimensionality(signature: BoundCall) -> int:
         if input.call_dimensionality is not None:
             dimensionality = max(dimensionality, input.call_dimensionality)
     return dimensionality
-
-
-def finalize_transforms(context: BindContext, signature: BoundCall):
-    try:
-        nodes: list[BoundVariable] = []
-        for node in signature.values():
-            node.get_input_list(nodes)
-        for input in nodes:
-            if input.call_dimensionality is None:
-                raise BoundVariableException(
-                    "Unresolved call dimensionality for argument", input)
-            assert input.transform.valid
-            input.transform = Shape(tuple([input.transform[i] if input.transform[i] >= 0 else i +
-                                           context.call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
-    except BoundVariableException as e:
-        raise ValueError(generate_call_shape_error_string(
-            signature, [], e.message, e.variable))
 
 
 def create_return_value_binding(context: BindContext, signature: BoundCall, return_type: Any):
@@ -550,22 +533,22 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     def load_p(x: BoundVariable, has_suffix: bool = False):
         n = declare_p(x, has_suffix)
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.load_primal(context,{n})")
+            f"call_data.{x.variable_name}.load_primal(ctx(context, _m_{x.variable_name}),{n})")
         return n
 
     def load_d(x: BoundVariable, has_suffix: bool = False):
         n = declare_d(x, has_suffix)
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.load_derivative(context,{n})")
+            f"call_data.{x.variable_name}.load_derivative(ctx(context, _m_{x.variable_name}),{n})")
         return n
 
     def store_p(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_primal(context,{x.variable_name}{'_p' if has_suffix else ''})")
+            f"call_data.{x.variable_name}.store_primal(ctx(context, _m_{x.variable_name}),{x.variable_name}{'_p' if has_suffix else ''})")
 
     def store_d(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_derivative(context,{x.variable_name}{'_d' if has_suffix else ''})")
+            f"call_data.{x.variable_name}.store_derivative(ctx(context, _m_{x.variable_name}),{x.variable_name}{'_d' if has_suffix else ''})")
 
     def create_pair(x: BoundVariable, inc_derivative: bool):
         p = load_p(x, True)
@@ -579,7 +562,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
 
     def store_pair_derivative(x: BoundVariable):
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_derivative(context,{x.variable_name}.d)")
+            f"call_data.{x.variable_name}.store_derivative(ctx(context, _m_{x.variable_name}),{x.variable_name}.d)")
 
     # Select either primals, derivatives or pairs for the trampoline function
     names: list[str] = []

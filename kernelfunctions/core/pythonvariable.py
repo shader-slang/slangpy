@@ -72,14 +72,6 @@ class PythonVariable(BaseVariableImpl):
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
         self.derivative = self.primal.derivative
-        primal_shape = self.primal.get_shape(value)
-        self.dimensionality = len(primal_shape) if primal_shape.valid else None
-
-    def update_from_slang_type(self, slang_type: BaseType):
-        if self.dimensionality is None:
-            self.primal.update_from_bound_type(slang_type)
-            primal_shape = self.primal.get_shape()
-            self.dimensionality = len(primal_shape) if primal_shape.valid else None
 
     def apply_explicit_vectorization(self, mapping: Any):
         """
@@ -105,5 +97,5 @@ class PythonVariable(BaseVariableImpl):
         if isinstance(mapping, tuple):
             self.vector_mapping = Shape(*mapping)
             self.vector_type = self.primal.reduce_type(len(mapping))
-        else:
+        elif mapping is not None:
             self.vector_type = get_or_create_type(mapping)

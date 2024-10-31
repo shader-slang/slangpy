@@ -19,7 +19,7 @@ def generate_differential_pair(name: str, primal_storage: str, deriv_storage: st
         deriv_target = primal_target
 
     DIFF_PAIR_CODE = f"""
-struct _{name}
+struct _t_{name}
 {{
     {primal_storage} primal;
     {deriv_storage} derivative;
@@ -79,8 +79,8 @@ class DiffPairType(BaseTypeImpl):
         primal_target = binding.slang.primal_type_name
         deriv_target = binding.slang.derivative_type_name
 
-        cgb.append_code(generate_differential_pair(name, primal_storage,
-                        deriv_storage, primal_target, deriv_target))
+        cgb.append_code_indented(generate_differential_pair(name, primal_storage,
+                                                            deriv_storage, primal_target, deriv_target))
 
     def get_type(self, prim: PrimType):
         return self.primal_type if prim == PrimType.primal else self.derivative_type

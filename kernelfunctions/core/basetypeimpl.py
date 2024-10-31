@@ -50,3 +50,12 @@ class BaseTypeImpl(BaseType):
             return cast(BaseType, bound_type)
         else:
             return self
+
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+        # default implementation requires that both this type and the target type
+        # have fully known element types. If so, dimensionality is just the difference
+        # between the length of the 2 shapes
+        if self.element_type is None:
+            raise ValueError(
+                f"Cannot resolve dimensionality of {self.name} without element type")
+        return len(self.get_shape()) - len(vector_target_type.get_shape())

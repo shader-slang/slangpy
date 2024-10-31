@@ -41,7 +41,7 @@ class RandFloatArgType(BaseTypeImpl):
         name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("randfloatarg")
-            cgb.type_alias(f"_{name}", self.name)
+            cgb.type_alias(f"_t_{name}", self.name)
 
     def create_calldata(self, context: CallContext, binding: BoundVariableRuntime, data: RandFloatArg) -> Any:
         access = binding.access

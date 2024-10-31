@@ -53,7 +53,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     )
 
     if transforms is not None:
-        function = function.transform_output(transforms)
+        function = function.map(**transforms)
 
     call_data = function._build_call_data(a=a, b=b, _result=result)
     call_data.call(a=a, b=b, _result=result)
@@ -64,8 +64,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     return {
         "call_shape": list_or_none(call_data.last_call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
-        "node_transforms": [list_or_none(x.transform) for x in nodes],
-        "python_dims": [x.python.dimensionality for x in nodes]
+        "node_transforms": [list_or_none(x.vector_mapping) for x in nodes],
     }
 
 # Second set of tests emulate the shape of the following slang function,
@@ -85,7 +84,7 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     )
 
     if transforms is not None:
-        function = function.transform_output(transforms)
+        function = function.map(**transforms)
 
     call_data = function._build_call_data(
         index=index, texture=texture, _result=result)
@@ -97,8 +96,7 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     return {
         "call_shape": list_or_none(call_data.last_call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
-        "node_transforms": [list_or_none(x.transform) for x in nodes],
-        "python_dims": [x.python.dimensionality for x in nodes]
+        "node_transforms": [list_or_none(x.vector_mapping) for x in nodes],
     }
 
 
@@ -114,11 +112,11 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
     function = helpers.create_function_from_module(
         device,
         "copy_at_index",
-        r"void copy_at_index(int index, StructuredBuffer<float4> fr, inout RWStructuredBuffer<float4> to) { to[index] = fr[index]; }",
+        r"void copy_at_index(int index, StructuredBuffer<float4> fr, RWStructuredBuffer<float4> to) { to[index] = fr[index]; }",
     )
 
     if transforms is not None:
-        function = function.transform_output(transforms)
+        function = function.map(**transforms)
 
     call_data = function._build_call_data(
         index=index, fr=frombuffer, to=tobuffer)
@@ -130,8 +128,7 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
     return {
         "call_shape": list_or_none(call_data.last_call_shape),
         "node_call_dims": [x.call_dimensionality for x in nodes],
-        "node_transforms": [list_or_none(x.transform) for x in nodes],
-        "python_dims": [x.python.dimensionality for x in nodes]
+        "node_transforms": [list_or_none(x.vector_mapping) for x in nodes],
     }
 
 
@@ -146,8 +143,7 @@ def test_dotproduct_scalar(device_type: DeviceType):
         {
             "call_shape": [],
             "node_call_dims": [0, 0, 0],
-            "node_transforms": [[0], [0], []],
-            "python_dims": [1, 1, 0],
+            "node_transforms": [[], [], []],
         },
     )
     assert not diff
@@ -163,8 +159,7 @@ def test_dotproduct_scalar_floatref(device_type: DeviceType):
         {
             "call_shape": [],
             "node_call_dims": [0, 0, 0],
-            "node_transforms": [[0], [0], []],
-            "python_dims": [1, 1, 0],
+            "node_transforms": [[], [], []],
         }
     )
     assert not diff
@@ -181,8 +176,7 @@ def test_dotproduct_broadcast_a(device_type: DeviceType):
         {
             "call_shape": [100],
             "node_call_dims": [0, 1, 1],
-            "node_transforms": [[1], [0, 1], [0]],
-            "python_dims": [1, 2, 1],
+            "node_transforms": [[], [0], [0]],
         }
     )
     assert not diff
@@ -199,8 +193,7 @@ def test_dotproduct_broadcast_b(device_type: DeviceType):
         {
             "call_shape": [100],
             "node_call_dims": [1, 0, 1],
-            "node_transforms": [[0, 1], [1], [0]],
-            "python_dims": [2, 1, 1],
+            "node_transforms": [[0], [], [0]],
         }
     )
     assert not diff
@@ -217,8 +210,7 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
         {
             "call_shape": [100],
             "node_call_dims": [1, 1, 1],
-            "node_transforms": [[0, 1], [0, 1], [0]],
-            "python_dims": [2, 2, 1],
+            "node_transforms": [[0], [0], [0]],
         }
     )
     assert not diff
@@ -254,8 +246,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
         {
             "call_shape": [100],
             "node_call_dims": [1, 0, 0],
-            "node_transforms": [[0, 1], [1], []],
-            "python_dims": [2, 1, 0],
+            "node_transforms": [[0], [], []],
         }
     )
     assert not diff
@@ -281,8 +272,7 @@ def test_dotproduct_big_tensors(device_type: DeviceType):
         {
             "call_shape": [8, 4, 2],
             "node_call_dims": [3, 3, 3],
-            "node_transforms": [[0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2]],
-            "python_dims": [4, 4, 3],
+            "node_transforms": [[0, 1, 2], [0, 1, 2], [0, 1, 2]],
         }
     )
     assert not diff
@@ -296,14 +286,13 @@ def test_dotproduct_input_transform(device_type: DeviceType):
                          make_float_buffer(device_type, (8, 1, 2, 3)),
                          make_float_buffer(device_type, (4, 8, 2, 3)),
                          None,
-                         transforms={"b": (1, 0, 2, 3)})
+                         transforms={"b": (1, 0, 2)})
     diff = deepdiff.DeepDiff(
         shapes,
         {
             "call_shape": [8, 4, 2],
             "node_call_dims": [3, 3, 3],
-            "node_transforms": [[0, 1, 2, 3], [1, 0, 2, 3], [0, 1, 2]],
-            "python_dims": [4, 4, 3],
+            "node_transforms": [[0, 1, 2], [1, 0, 2], [0, 1, 2]],
         }
     )
     assert not diff
@@ -318,15 +307,14 @@ def test_dotproduct_output_transform(device_type: DeviceType):
                          make_float_buffer(device_type, (5, 3)),
                          None,
                          transforms={
-                             "a": (0, 2),
-                             "b": (1, 2)})
+                             "a": (0,),
+                             "b": (1,)})
     diff = deepdiff.DeepDiff(
         shapes,
         {
             "call_shape": [10, 5],
-            "node_call_dims": [2, 2, 2],
-            "node_transforms": [[0, 2], [1, 2], [0, 1]],
-            "python_dims": [2, 2, 2],
+            "node_call_dims": [1, 2, 2],
+            "node_transforms": [[0], [1], [0, 1]],
         }
     )
     assert not diff
@@ -348,7 +336,6 @@ def test_readslice_scalar(device_type: DeviceType):
             "call_shape": [10, 5],
             "node_call_dims": [2, 2, None],
             "node_transforms": [[0, 2], [1, 2], [0, 1]],
-            "python_dims": [2, 2, 2],
         }
     )
     assert not diff
@@ -491,8 +478,7 @@ def test_copyatindex_both_buffers_defined(device_type: DeviceType):
         {
             "call_shape": [50],
             "node_call_dims": [1, 0, 0],
-            "node_transforms": [[0], [1, 2], [1, 2]],
-            "python_dims": [1, 2, 2],
+            "node_transforms": [[0], [], []],
         }
     )
     assert not diff
@@ -513,8 +499,7 @@ def test_copyatindex_undersized_output(device_type: DeviceType):
         {
             "call_shape": [50],
             "node_call_dims": [1, 0, 0],
-            "node_transforms": [[0], [1, 2], [1, 2]],
-            "python_dims": [1, 2, 2],
+            "node_transforms": [[0], [], []],
         }
     )
     assert not diff

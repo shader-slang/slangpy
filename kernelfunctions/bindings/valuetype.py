@@ -38,9 +38,9 @@ class ValueType(BaseTypeImpl):
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             cgb.type_alias(
-                f"_{name}", f"ValueType<{self.name}>")
+                f"_t_{name}", f"ValueType<{self.name}>")
         else:
-            cgb.type_alias(f"_{name}", f"NoneType")
+            cgb.type_alias(f"_t_{name}", f"NoneType")
 
     # Call data just returns the primal
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
@@ -184,6 +184,10 @@ class NoneValueType(ValueType):
     @property
     def python_return_value_type(self) -> type:
         return NoneType
+
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+        # None type can't resolve dimensionality
+        return None
 
 
 class VectorType(ValueType):

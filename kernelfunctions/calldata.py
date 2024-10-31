@@ -13,10 +13,9 @@ from kernelfunctions.callsignature import (
     calculate_call_dimensionality,
     create_return_value_binding,
     finalize_mappings,
-    finalize_transforms, generate_code,
+    generate_code,
     generate_tree_info_string,
     get_readable_func_refl_string,
-    get_readable_func_string,
     get_readable_signature_string,
     MismatchReason,
     specialize,
@@ -172,9 +171,6 @@ class CallData(NativeCallData):
 
         # if necessary, create return value node
         create_return_value_binding(context, bindings, return_type)
-
-        # once overall dimensionality is known, individual binding transforms can be made concrete
-        finalize_transforms(context, bindings)
 
         # Validate the arguments we're going to pass to slang before trying to make code
         validate_specialize(context, python_call, concrete_reflection,

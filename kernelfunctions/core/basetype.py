@@ -78,3 +78,6 @@ class BaseType(NativeType):
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         raise NotImplementedError()
+
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+        raise NotImplementedError()

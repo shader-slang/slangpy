@@ -69,7 +69,7 @@ class TestImpl(ValueType):
         self.concrete_shape = Shape()
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
-        cgb.type_alias(f"_{binding.variable_name}", self.name)
+        cgb.type_alias(f"_t_{binding.variable_name}", self.name)
 
     def specialize_type(self, type: BaseType):
         if not isinstance(type, ITest):

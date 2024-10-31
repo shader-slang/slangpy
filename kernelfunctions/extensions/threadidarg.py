@@ -38,7 +38,7 @@ class ThreadIdArgType(BaseTypeImpl):
         name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("threadidarg")
-            cgb.type_alias(f"_{name}", self.name)
+            cgb.type_alias(f"_t_{name}", self.name)
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         return SLANG_VECTOR_TYPES[TypeReflection.ScalarType.uint32][self.dims]
