@@ -52,24 +52,47 @@ class StructuredBufferType(ValueType):
         else:
             return None
 
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        if self.element_type is None:
+            return bound_type
+        elif isinstance(bound_type, StructuredBufferType):
+            return bound_type
+        else:
+            return self.element_type
+
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+        # structured buffer can only ever be taken to another structured buffer,
+        # or an element.
+        if isinstance(vector_target_type, StructuredBufferType):
+            return 0
+        else:
+            return 1
+
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
-        access = binding.access
+        access = binding.access[0]
         name = binding.variable_name
 
-        # As raw structured buffers don't necessary come with a type from the python side, we have to
-        # resolve to the type of the slang argument
-        el_name = binding.python.primal_element_name
-        if el_name is None:
-            el_name = binding.slang.primal_type_name
-
-        # Can now generate
-        if access[0] == AccessType.read:
-            cgb.type_alias(f"_{name}", f"StructuredBufferType<{el_name}>")
-        elif access[0] in (AccessType.write, AccessType.readwrite):
-            cgb.type_alias(f"_{name}", f"RWStructuredBufferType<{el_name}>")
+        if binding.call_dimensionality == 0:
+            # If broadcast directly, function is just taking the texture argument directly, so use the slang type
+            assert access == AccessType.read
+            assert isinstance(binding.vector_type, StructuredBufferType)
+            if binding.vector_type.is_writable:
+                cgb.type_alias(
+                    f"_t_{name}", f"RWStructuredBufferType<{binding.vector_type.element_type.name}>")
+            else:
+                cgb.type_alias(
+                    f"_t_{name}", f"StructuredBufferType<{binding.vector_type.element_type.name}>")
         else:
-            cgb.type_alias(f"_{name}", f"NoneType")
+            # Can now generate
+            if access == AccessType.read:
+                cgb.type_alias(
+                    f"_t_{name}", f"StructuredBufferType<{binding.vector_type.name}>")
+            elif access in (AccessType.write, AccessType.readwrite):
+                cgb.type_alias(
+                    f"_t_{name}", f"RWStructuredBufferType<{binding.vector_type.name}>")
+            else:
+                cgb.type_alias(f"_t_{name}", f"NoneType")
 
     # Call data just returns the primal
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
@@ -78,19 +101,6 @@ class StructuredBufferType(ValueType):
             return {
                 'value': data
             }
-
-    def update_from_bound_type(self, bound_type: 'BaseType'):
-        while True:
-            stshape = bound_type.get_shape()
-            if stshape is None or -1 in stshape:
-                next_type = bound_type.element_type
-                if next_type == bound_type:
-                    raise ValueError("Cannot resolve shape")
-                assert isinstance(next_type, BaseType)
-                bound_type = next_type
-            else:
-                break
-        self.element_type = bound_type
 
 
 class RWStructuredBufferType(StructuredBufferType):

@@ -45,22 +45,7 @@ class Struct:
 
     def try_get_child(self, name: str) -> Optional[Union['Struct', 'Function']]:
 
-        if not '<' in self.name and not '<' in name:
-            # Neither or we are a generic, so attempt to use the ast to find a type decl
-            name_if_struct = f"{self.name}::{name}"
-            type = try_find_type_via_ast(self.device_module.module_decl, name_if_struct)
-            if type is not None:
-                return Struct(self.device_module, name_if_struct, type)
-
-            # If not found, do similar searching for a global function
-            if name == "__init":
-                name = "$init"
-            (type, funcs) = try_find_function_overloads_via_ast(
-                self.device_module.module_decl, self.name, name)
-            if funcs is not None and len(funcs) > 0:
-                return Function(self.device_module, name, type_reflection=type, func_reflections=funcs)
-
-        # If resolution by decl failed, could be generic so ask slang to generate it
+        # First try to find the child using the search functions in the reflection API
 
         # Search for name as a fully qualified child struct
         name_if_struct = f"{self.name}::{name}"
@@ -76,6 +61,14 @@ class Struct:
             parent_slang_struct, name)
         if slang_function is not None:
             return Function(self.device_module, name, type_reflection=parent_slang_struct, func_reflections=[slang_function])
+
+        # Currently have Slang issue finding the init function, so for none-generic classes,
+        # try to find it via the AST.
+        if not '<' in self.name and name == "$init":
+            (type, funcs) = try_find_function_overloads_via_ast(
+                self.device_module.module_decl, self.name, name)
+            if funcs is not None and len(funcs) > 0:
+                return Function(self.device_module, name, type_reflection=type, func_reflections=funcs)
 
         return None
 

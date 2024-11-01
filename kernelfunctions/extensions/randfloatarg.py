@@ -2,10 +2,10 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.core import CodeGenBlock, BindContext, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.backend import TypeReflection
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
+from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES, SLANG_VECTOR_TYPES, get_or_create_type
 
 
 class RandFloatArg:
@@ -41,7 +41,7 @@ class RandFloatArgType(BaseTypeImpl):
         name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("randfloatarg")
-            cgb.type_alias(f"_{name}", self.name)
+            cgb.type_alias(f"_t_{name}", self.name)
 
     def create_calldata(self, context: CallContext, binding: BoundVariableRuntime, data: RandFloatArg) -> Any:
         access = binding.access
@@ -51,6 +51,9 @@ class RandFloatArgType(BaseTypeImpl):
                 'min': data.min,
                 'max': data.max
             }
+
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        return SLANG_VECTOR_TYPES[TypeReflection.ScalarType.float32][self.dims]
 
 
 PYTHON_TYPES[RandFloatArg] = lambda x: RandFloatArgType(x.dims)

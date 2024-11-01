@@ -38,9 +38,9 @@ class ValueType(BaseTypeImpl):
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             cgb.type_alias(
-                f"_{name}", f"ValueType<{self.name}>")
+                f"_t_{name}", f"ValueType<{self.name}>")
         else:
-            cgb.type_alias(f"_{name}", f"NoneType")
+            cgb.type_alias(f"_t_{name}", f"NoneType")
 
     # Call data just returns the primal
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
@@ -134,6 +134,11 @@ class ScalarType(ValueType):
     def derivative(self):
         return self if self.diff else None
 
+    def reduce_type(self, dimensions: int):
+        if dimensions > 0:
+            raise ValueError("Cannot reduce scalar type")
+        return self
+
     def to_numpy(self, value: Any) -> npt.NDArray[Any]:
         if self.python_type == int:
             if value is None:
@@ -180,6 +185,10 @@ class NoneValueType(ValueType):
     def python_return_value_type(self) -> type:
         return NoneType
 
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+        # None type can't resolve dimensionality
+        return None
+
 
 class VectorType(ValueType):
     def __init__(self, element_type: BaseType, size: int):
@@ -189,6 +198,14 @@ class VectorType(ValueType):
         self.python_type: type = NoneType
         self.name = f"vector<{self.element_type.name},{self.size}>"
         self.concrete_shape = Shape(self.size)
+
+    def reduce_type(self, dimensions: int):
+        if dimensions == 1:
+            return self.element_type
+        elif dimensions == 0:
+            return self
+        else:
+            raise ValueError("Cannot reduce vector type by more than one dimension")
 
     def get_byte_size(self, value: Any = None) -> int:
         assert self.element_type is not None
@@ -252,6 +269,15 @@ class MatrixType(ValueType):
     def get_byte_size(self, value: Any = None) -> int:
         assert self.element_type is not None
         return self.rows * self.cols * self.element_type.get_byte_size()
+
+    def reduce_type(self, dimensions: int):
+        if dimensions == 2:
+            return self.element_type
+        elif dimensions == 1:
+            # Each kernel call will pass a column to the function
+            return VectorType(self.element_type, self.cols)
+        elif dimensions == 0:
+            return self
 
     @property
     def differentiable(self):

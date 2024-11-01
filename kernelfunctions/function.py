@@ -1,7 +1,7 @@
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 from kernelfunctions.core import SlangFunction, hash_signature
 
-from kernelfunctions.backend import SlangModule, DeclReflection, TypeReflection, FunctionReflection, CommandBuffer
+from kernelfunctions.backend import SlangModule, TypeReflection, FunctionReflection, CommandBuffer
 from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, scope
 
@@ -77,11 +77,11 @@ class FunctionChainBase:
     def set(self, *args: Any, **kwargs: Any):
         return FunctionChainSet(self, *args, **kwargs)
 
-    def transform_input(self, transforms: dict[str, TShapeOrTuple]):
-        return FunctionChainInputTransform(self, transforms)
-
     def transform_output(self, transforms: dict[str, TShapeOrTuple]):
         return FunctionChainOutputTransform(self, transforms)
+
+    def map(self, *args: Any, **kwargs: Any):
+        return FunctionChainMap(self, *args, **kwargs)
 
     def instance(self, this: IThis):
         return FunctionChainThis(self, this)
@@ -118,6 +118,13 @@ class FunctionChainBase:
         return res
 
 
+class FunctionChainMap(FunctionChainBase):
+    def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
+        super().__init__(parent)
+        self.args = args
+        self.kwargs = kwargs
+
+
 class FunctionChainSet(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
         super().__init__(parent)
@@ -146,14 +153,6 @@ class FunctionChainSet(FunctionChainBase):
                 )
         else:
             raise ValueError("Set requires at least one argument")
-
-
-class FunctionChainInputTransform(FunctionChainBase):
-    def __init__(
-        self, parent: FunctionChainBase, transforms: dict[str, TShapeOrTuple]
-    ) -> None:
-        super().__init__(parent)
-        self.transforms = transforms
 
 
 class FunctionChainOutputTransform(FunctionChainBase):
@@ -216,19 +215,12 @@ class Function(FunctionChainBase):
         # If function reflections not supplied, look up either from type or module
         if func_reflections is None:
             if type_reflection is None:
-                # With no type parent, use the module's ast to find functions
-                ast_functions = module.module_decl.find_children_of_kind(
-                    DeclReflection.Kind.func, name
-                )
-                if len(ast_functions) > 0:
-                    func_reflections = [x.as_function() for x in ast_functions]
-                else:
-                    # Not found in AST - might be generic. Try finding by name
-                    func_reflection = module.layout.find_function_by_name(name)
-                    if func_reflection is None:
-                        raise ValueError(
-                            f"Function '{name}' not found in module {module.name}")
-                    func_reflections = [func_reflection]
+                # With no type parent, look up function in global namespace
+                func_reflection = module.layout.find_function_by_name(name)
+                if func_reflection is None:
+                    raise ValueError(
+                        f"Function '{name}' not found in module {module.name}")
+                func_reflections = [func_reflection]
             else:
                 # With a type parent, look up the function in the type
                 func_reflection = module.layout.find_function_by_name_in_type(
@@ -240,14 +232,15 @@ class Function(FunctionChainBase):
                     )
                 func_reflections = [func_reflection]
 
+        # Store function reflections (should normally be 1 unless forced to do AST based search)
+        self.reflections = func_reflections
+
         # Store type parent name if found
-        self.type_parent = type_reflection.full_name if type_reflection is not None else None
+        self.type_reflection = type_reflection
 
-        # Build and store overloads
-        with scope(module):
-            self.overloads = [SlangFunction(x, type_reflection) for x in func_reflections]
-
-        self.slangpy_signature = f"[{id(module)}][{self.type_parent or ''}::{self.name}]"
+        # Generate signature for hashing
+        type_parent = type_reflection.full_name if type_reflection is not None else None
+        self.slangpy_signature = f"[{id(module)}][{type_parent or ''}::{self.name}]"
 
     def as_func(self) -> 'Function':
         return self

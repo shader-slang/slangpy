@@ -27,6 +27,20 @@ class BoundCall:
     def values(self) -> list['BoundVariable']:
         return self.args + list(self.kwargs.values())
 
+    def apply_implicit_vectorization(self, context: BindContext):
+        for arg in self.args:
+            arg.apply_implicit_vectorization(context)
+
+        for arg in self.kwargs.values():
+            arg.apply_implicit_vectorization(context)
+
+    def finalize_mappings(self, context: BindContext):
+        for arg in self.args:
+            arg.finalize_mappings(context)
+
+        for arg in self.kwargs.values():
+            arg.finalize_mappings(context)
+
 
 class BoundVariable:
     """
@@ -35,8 +49,6 @@ class BoundVariable:
     """
 
     def __init__(self, python: PythonVariable, slang: SlangVariable,
-                 mode: CallMode,
-                 input_transforms: Optional[dict[str, TShapeOrTuple]] = None,
                  output_transforms: Optional[dict[str, TShapeOrTuple]] = None,
                  path: Optional[str] = None):
 
@@ -49,30 +61,16 @@ class BoundVariable:
         # Initialize path
         if path is None:
             self.path = self.slang.name
-            self.python.name = self.slang.name
         else:
-            self.path = f"{path}.{self.python.name}"
-
-        # Allow python info to complete any missing type info from bound slang variable
-        self.python.update_from_slang_type(self.slang.primal)
+            self.path = f"{path}.{self.slang.name}"
 
         # Get the python marshall for the value + load some basic info
-        self.python.param_index = slang.param_index
-        self.param_index = slang.param_index
+        self.variable_name = self.slang.name
+
+        # Init default properties
         self.access = (AccessType.none, AccessType.none)
-        self.variable_name = self.path.replace(".", "__")
-
-        # Can now decide if differentiable
-        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
-        self._calculate_differentiability(mode)
-
-        # Store transforms
+        self.differentiable = False
         self.call_dimensionality = None
-        self.transform: Shape = Shape(None)
-        if output_transforms is not None:
-            t = output_transforms.get(self.path)
-            if t is not None:
-                self.transform = Shape(t)
 
         # Create children if python value has children
         self.children: Optional[dict[str, BoundVariable]] = None
@@ -84,17 +82,103 @@ class BoundVariable:
                 self.children[name] = BoundVariable(
                     cast(PythonVariable, child_python),
                     cast(SlangVariable, child_slang),
-                    mode, input_transforms, output_transforms, self.path)
+                    output_transforms, self.path)
 
-    def calculate_transform(self):
+    @property
+    def param_index(self):
+        return self.python.parameter_index
+
+    @property
+    def vector_mapping(self):
+        return self.python.vector_mapping
+
+    @property
+    def vector_type(self):
+        return self.python.vector_type
+
+    def apply_implicit_vectorization(self, context: BindContext):
         """
-        Recursively calculate argument shapes for the node
+        Apply implicit vectorization to this variable. This inspects
+        the slang type being bound to in an attempt to get a concrete
+        type to provide to the specialization system.
         """
         if self.children is not None:
             for child in self.children.values():
-                child.calculate_transform()
+                child.apply_implicit_vectorization(context)
+        self._apply_implicit_vectorization(context)
+
+    def _apply_implicit_vectorization(self, context: BindContext):
+        if self.python.vector_mapping.valid:
+            # if we have a valid vector mapping, just need to reduce it
+            self.python.vector_type = self.python.primal.reduce_type(
+                len(self.python.vector_mapping))
+
+        if self.python.vector_type is not None:
+            # do nothing in first phase if already have a type. vector
+            # mapping will be worked out once specialized slang function is known
+            pass
+        elif self.path == '_result':
+            # result is inferred last
+            pass
         else:
-            self._calculate_transform()
+            # neither specified, attempt to resolve type
+            self.python.vector_type = self.python.primal.resolve_type(
+                context, self.slang.primal)
+
+        # If we ended up with no valid type, use slang type. Currently this should
+        # only happen for auto-allocated result buffers
+        if not self.python.vector_mapping.valid and self.python.vector_type is None:
+            assert self.path == '_result'
+            self.python.vector_type = self.slang.primal
+
+        # Clear slang type info - it should never be used after this
+        self.slang.primal = None
+        self.slang.derivative = None
+
+        # Can now calculate dimensionality
+        if self.python.vector_mapping.valid:
+            if len(self.python.vector_mapping) > 0:
+                self.call_dimensionality = max(
+                    self.python.vector_mapping.as_tuple())+1
+            else:
+                self.call_dimensionality = 0
+        else:
+            assert self.python.vector_type is not None
+            self.call_dimensionality = self.python.primal.resolve_dimensionality(
+                context, self.python.vector_type)
+
+    def finalize_mappings(self, context: BindContext):
+        """
+        Finalize vector mappings and types for this variable and children.
+        """
+        if self.children is not None:
+            for child in self.children.values():
+                child.finalize_mappings(context)
+        self._finalize_mappings(context)
+
+    def _finalize_mappings(self, context: BindContext):
+        if self.call_dimensionality is None:
+            self.call_dimensionality = context.call_dimensionality
+
+        if not self.python.vector_mapping.valid:
+            m: list[int] = []
+            for i in range(self.call_dimensionality):
+                m.append(context.call_dimensionality - i - 1)
+            m.reverse()
+            self.python.vector_mapping = Shape(*m)
+
+    def calculate_differentiability(self, context: BindContext):
+        """
+        Recursively calculate  differentiability
+        """
+
+        # Can now decide if differentiable
+        self.differentiable = not self.slang.no_diff and self.vector_type.differentiable and self.python.differentiable
+        self._calculate_differentiability(context.call_mode)
+
+        if self.children is not None:
+            for child in self.children.values():
+                child.calculate_differentiability(context)
 
     def get_input_list(self, args: list['BoundVariable']):
         """
@@ -115,42 +199,6 @@ class BoundVariable:
 
     def __repr__(self):
         return self.python.__repr__()
-
-    def _calculate_transform(self):
-        # Get shape of inputs and parameter
-        input_dim = self.python.dimensionality
-        param_shape = self.slang.primal.get_shape()
-
-        # Check if we have input
-        if input_dim is not None:
-
-            # If user transform was provided use it, otherwise just store a transform
-            # of correct size but with all undefined values
-            if self.transform.valid:
-                if len(self.transform) != input_dim:
-                    raise BoundVariableException(
-                        f"Output transforms {self.transform} must have the same number of dimensions as the input {input_dim}", self)
-            else:
-                self.transform = Shape((-1,) * input_dim)
-
-            # Dimensionality is the highest output dimension minus parameter shape
-            assert self.transform is not None
-            dim_count = len(self.transform)
-            for x in self.transform:
-                if x >= 0:
-                    dim_count = max(dim_count, x+1)
-            self.call_dimensionality = dim_count - len(param_shape)
-
-            # TODO: At this point, could perform some degree of shape matching, given
-            # final transform is known and potentially have concrete shape info. Would
-            # need to know which dimensions were concrete vs not though.
-
-        else:
-            if self.transform.valid:
-                raise BoundVariableException(
-                    f"Output transforms can only be applied to variables with well defined input shape", self)
-            self.transform = Shape(None)
-            self.call_dimensionality = None
 
     def _calculate_differentiability(self, mode: CallMode):
         """
@@ -190,31 +238,30 @@ class BoundVariable:
             # todo: fwds
             self.access = (AccessType.none, AccessType.none)
 
-    def _get_access(self, prim: PrimType) -> AccessType:
-        idx: int = prim.value
-        return self.access[idx]
-
     def gen_call_data_code(self, cg: CodeGen, context: BindContext, depth: int = 0):
         if self.children is not None:
+            cgb = cg.call_data_structs
+
+            cgb.begin_struct(f"_t_{self.variable_name}")
+
             names: list[tuple[Any, ...]] = []
             for field, variable in self.children.items():
                 variable_name = variable.gen_call_data_code(cg, context, depth+1)
                 if variable_name is not None:
                     names.append(
-                        (field, variable_name, variable.slang.primal_type_name, variable.slang.derivative_type_name))
+                        (field, variable_name, variable.vector_type.name, variable.vector_type.name + ".Differential"))
 
-            cgb = cg.call_data_structs
-
-            cgb.begin_struct(f"_{self.variable_name}")
             for name in names:
-                cgb.declare(f"_{name[1]}", name[1])
+                cgb.declare(f"_t_{name[1]}", name[1])
 
             for prim in PrimType:
                 if self.access[prim.value] == AccessType.none:
                     continue
 
                 prim_name = prim.name
-                prim_type_name = self.slang.primal_type_name if prim == PrimType.primal else self.slang.derivative_type_name
+                prim_type_name = self.vector_type.name
+                if prim != PrimType.primal:
+                    prim_type_name += ".Differential"
 
                 cgb.empty_line()
 
@@ -224,7 +271,8 @@ class BoundVariable:
                 cgb.begin_block()
                 for name in names:
                     cgb.declare(name[2], name[0])
-                    cgb.append_statement(f"{name[1]}.load_{prim_name}(context,{name[0]})")
+                    cgb.append_statement(
+                        f"this.{name[1]}.load_{prim_name}(ctx(context, _m_{name[1]}),{name[0]})")
                     cgb.assign(f"value.{name[0]}", f"{name[0]}")
                 cgb.end_block()
 
@@ -234,14 +282,20 @@ class BoundVariable:
                 cgb.begin_block()
                 for name in names:
                     cgb.append_statement(
-                        f"{name[1]}.store_{prim_name}(context,value.{name[0]})")
+                        f"this.{name[1]}.store_{prim_name}(ctx(context, _m_{name[1]}),value.{name[0]})")
                 cgb.end_block()
 
             cgb.end_struct()
-        else:
-            if not self.transform.valid:
-                return None
 
+            full_map = list(range(context.call_dimensionality))
+            if len(full_map) > 0:
+                cg.call_data_structs.append_statement(
+                    f"static const int[] _m_{self.variable_name} = {{ {','.join([str(x) for x in full_map])} }}")
+            else:
+                cg.call_data_structs.append_statement(
+                    f"static const int _m_{self.variable_name} = 0")
+
+        else:
             # Raise error if attempting to write to non-writable type
             if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.writable:
                 if depth == 0:
@@ -251,12 +305,29 @@ class BoundVariable:
             # Generate call data
             self.python.primal.gen_calldata(cg.call_data_structs, context, self)
 
+            if len(self.vector_mapping) > 0:
+                cg.call_data_structs.append_statement(
+                    f"static const int[] _m_{self.variable_name} = {{ {','.join([str(x) for x in self.vector_mapping.as_tuple()])} }}")
+            else:
+                cg.call_data_structs.append_statement(
+                    f"static const int _m_{self.variable_name} = 0")
+
         if depth == 0:
-            cg.call_data.declare(f"_{self.variable_name}", self.variable_name)
+            cg.call_data.declare(f"_t_{self.variable_name}", self.variable_name)
+
         return self.variable_name
 
     def _gen_trampoline_argument(self):
-        return self.slang.gen_trampoline_argument(self.differentiable)
+        arg_def = f"{self.vector_type.name} {self.variable_name}"
+        if self.slang.io_type == IOType.inout:
+            arg_def = f"inout {arg_def}"
+        elif self.slang.io_type == IOType.out:
+            arg_def = f"out {arg_def}"
+        elif self.slang.io_type == IOType.inn:
+            arg_def = f"in {arg_def}"
+        if self.slang.no_diff or not self.differentiable:
+            arg_def = f"no_diff {arg_def}"
+        return arg_def
 
     def __str__(self) -> str:
         return self._recurse_str(0)

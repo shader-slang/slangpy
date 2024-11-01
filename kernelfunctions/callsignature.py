@@ -1,15 +1,18 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
 
+from sgl import FunctionReflection, ModifierID, TypeReflection, VariableReflection
+
+from kernelfunctions.bindings.valuetype import ValueType
 from kernelfunctions.core import (
     CodeGen,
     IOType, CallMode, AccessType,
     BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
-    BoundCallRuntime, BoundVariableRuntime,
-    Shape
+    BoundCallRuntime, BoundVariableRuntime
 )
 
+from kernelfunctions.core.basetype import BaseType
 from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 from kernelfunctions.types.valueref import ValueRef
 from kernelfunctions.shapes import TShapeOrTuple
@@ -36,72 +39,145 @@ class MismatchReason:
         self.reason = reason
 
 
-def match_signatures(
+def specialize(
+    context: BindContext,
     signature: PythonFunctionCall,
-    function: SlangFunction,
-    call_mode: CallMode
-) -> Union[MismatchReason, dict[PythonVariable, SlangVariable]]:
-    """
-    Attempts to efficiently match a signature to a slang function overload.
-    Returns a dictionary of matched argument nodes to parameter names.
-    """
+    functions: list[FunctionReflection],
+    type: Optional[TypeReflection] = None
+):
+    # Handle current slang issue where init has to be found via ast, resulting in potential multiple functions
+    if len(functions) > 1:
+        if functions[0].name == "$init":
+            matches = [x for x in functions if len(
+                x.parameters) == signature.num_function_args]
+            if len(matches) != 1:
+                return MismatchReason("Could not find unique $init function")
+            function = matches[0]
+        else:
+            return MismatchReason("Multiple functions found - should only happen with $init")
+    else:
+        function = functions[0]
 
-    # Bail instantly if trying to call a non-differentiable function with a derivative call
-    if call_mode != CallMode.prim and not function.differentiable:
-        return MismatchReason("Function is not differentiable")
+    # Expecting 'this' argument as first parameter of none-static member functions (except for $init)
+    first_arg_is_this = type is not None and not function.has_modifier(
+        ModifierID.static) and function.name != "$init"
 
-    # Easy step: Match arguments to parameters based on position/names
-    # Bail if too many/few args, mismatched parameter name, multiple asignments, etc.
-    overload_parameters = function.parameters.copy()
-    if function.return_value is not None:
-        overload_parameters.append(function.return_value)
+    # Require '_result' argument for derivative calls, either as '_result' named parameter or last positional argument
+    last_arg_is_retval = function.return_type is not None and not "_result" in signature.kwargs and context.call_mode != CallMode.prim
 
-    if len(signature.args) > len(overload_parameters):
-        return MismatchReason(f"Too many function arguments: Expected {len(function.parameters)}, "
-                              f"received {len(signature.args) + len(signature.kwargs)}")
+    # Select the positional arguments we need to match against
+    signature_args = signature.args
+    if first_arg_is_this:
+        signature_args[0].parameter_index = -1
+        signature_args = signature_args[1:]
+    if last_arg_is_retval:
+        signature_args[-1].parameter_index = len(function.parameters)
+        signature_args = signature_args[:-1]
 
-    positioned_args: list[Optional[PythonVariable]] = [None] * len(overload_parameters)
-    for i, arg in enumerate(signature.args):
-        positioned_args[i] = arg
+    if signature.num_function_kwargs > 0 or signature.has_implicit_args:
+        if function.is_overloaded:
+            return MismatchReason("Cannot currently specialize overloaded function with named or implicit arguments")
 
-    name_map = {param.name: i for i, param in enumerate(overload_parameters)}
-    for name, arg in signature.kwargs.items():
-        if name not in name_map:
-            return MismatchReason(f"No parameter named '{name}'")
-        i = name_map[name]
-        if positioned_args[i] is not None:
-            return MismatchReason(f"Parameter '{name}' is already assigned")
-        positioned_args[i] = arg
+        function_parameters = [x for x in function.parameters]
 
-    missing_params = [param for arg, param in zip(positioned_args, overload_parameters)
-                      if arg is None and not param.has_default]
-    if missing_params:
-        missing_names = "', '".join(param.name for param in missing_params)
-        return MismatchReason(f"Arguments missing for parameter(s) '{missing_names}'")
+        # Build empty positional list of python arguments to correspond to each slang argument
+        positioned_args: list[Optional[PythonVariable]] = [
+            None] * len(function_parameters)
 
-    # Each parameter without default is matched to exactly one argument.
-    # Now check if the types are compatible
-    matched_args = {arg: param for arg, param in zip(positioned_args, overload_parameters)
-                    if arg is not None}
+        # Populate the first N arguments from provided positional arguments
+        for i, arg in enumerate(signature_args):
+            positioned_args[i] = arg
+            arg.parameter_index = i
 
-    for arg, param in matched_args.items():
-        if not arg.is_compatible(param):
-            return MismatchReason(f"Cannot convert from {arg.primal.name} to "
-                                  f"{param.primal.name} for parameter '{param.name}'")
+        # Attempt to populate the remaining arguments from keyword arguments
+        name_map = {param.name: i for i, param in enumerate(function_parameters)}
+        for name, arg in signature.kwargs.items():
+            if name == "_result":
+                continue
+            if name not in name_map:
+                return MismatchReason(f"No parameter named '{name}'")
+            i = name_map[name]
+            if positioned_args[i] is not None:
+                return MismatchReason(f"Parameter '{name}' is already assigned")
+            positioned_args[i] = arg
+            arg.parameter_index = i
 
-        specialized = param.specialize(arg)
-        if specialized is None:
-            return MismatchReason(f"Could not specialize {param.primal.name} to {arg.primal.name} for parameter '{param.name}'")
-        matched_args[arg] = specialized
+        # Ensure all parameters are assigned
+        if not all(x is not None for x in positioned_args):
+            return MismatchReason("To use named or implicit arguments, all parameters must be specified")
 
-    return matched_args
+        # Choose either explicit vector type or slang type for specialization
+        inputs: list[Any] = []
+        for i, python_arg in enumerate(positioned_args):
+            slang_param = function_parameters[i]
+            assert python_arg is not None
+            if python_arg.vector_type is not None:
+                inputs.append(python_arg.vector_type)
+            elif slang_param.type.kind != TypeReflection.Kind.none and slang_param.type.kind != TypeReflection.Kind.interface:
+                inputs.append(slang_param.type)
+            elif isinstance(python_arg.primal, ValueType):
+                inputs.append(python_arg.primal)
+            else:
+                raise ValueError(
+                    f"Cannot specialize function with argument {i} of unknown type")
+    else:
+        # If no named or implicit arguments, just use explicit vector types for specialization
+        inputs: list[Any] = [x.vector_type for x in signature_args]
+        for i, arg in enumerate(signature_args):
+            arg.parameter_index = i
+
+    def to_type_reflection(input: Any) -> TypeReflection:
+        if isinstance(input, BaseType):
+            return context.device_module.layout.find_type_by_name(input.name)
+        elif isinstance(input, TypeReflection):
+            return input
+        elif isinstance(input, str):
+            return context.device_module.layout.find_type_by_name(input)
+        else:
+            raise ValueError(f"Cannot convert {input} to TypeReflection")
+
+    input_types = [to_type_reflection(x) for x in inputs]
+    specialized = function.specialize_with_arg_types(input_types)
+    if specialized is None:
+        return MismatchReason("Could not specialize function with given argument types")
+
+    return specialized
+
+
+def validate_specialize(
+    context: BindContext,
+    signature: PythonFunctionCall,
+    function: FunctionReflection
+):
+    # Get sorted list of root parameters for trampoline function
+    root_params = [y for y in sorted(signature.args + list(signature.kwargs.values()), key=lambda x: x.parameter_index)
+                   if y.parameter_index >= 0 and y.parameter_index < len(function.parameters)]
+
+    def to_type_reflection(input: Any) -> TypeReflection:
+        if isinstance(input, BaseType):
+            return context.device_module.layout.find_type_by_name(input.name)
+        elif isinstance(input, TypeReflection):
+            return input
+        elif isinstance(input, str):
+            return context.device_module.layout.find_type_by_name(input)
+        else:
+            raise ValueError(f"Cannot convert {input} to TypeReflection")
+
+    types = [to_type_reflection(x.vector_type) for x in root_params]
+    if any(x is None for x in types):
+        raise ValueError("Unable to resolve all types for specialization")
+
+    specialized = function.specialize_with_arg_types(types)
+    if specialized is None:
+        raise ValueError("Could not specialize function with given argument types")
+
+    return specialized
 
 
 def bind(
+        context: BindContext,
         signature: PythonFunctionCall,
-        mapping: dict[PythonVariable, SlangVariable],
-        call_mode: CallMode,
-        input_transforms: Optional[dict[str, 'TShapeOrTuple']] = None,
+        function: SlangFunction,
         output_transforms: Optional[dict[str, 'TShapeOrTuple']] = None) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
@@ -109,23 +185,73 @@ def bind(
     match has occured.
     """
 
-    # First bind things
     res = BoundCall()
-    res.args = [BoundVariable(x, mapping[x], call_mode, input_transforms,
-                              output_transforms) for x in signature.args]
-    res.kwargs = {k: BoundVariable(
-        v, mapping[v], call_mode, input_transforms, output_transforms) for k, v in signature.kwargs.items()}
 
-    # Do argument work as 2nd pass, as it lets us return more useful errors
-    try:
-        for arg in res.args:
-            arg.calculate_transform()
-        for arg in res.kwargs.values():
-            arg.calculate_transform()
-    except BoundVariableException as e:
-        raise ValueError(generate_call_shape_error_string(res, [], e.message, e.variable))
+    for x in signature.args:
+        if x.parameter_index == len(function.parameters):
+            assert function.return_value is not None
+            res.args.append(BoundVariable(x, function.return_value, output_transforms))
+        elif x.parameter_index == -1:
+            assert function.this is not None
+            res.args.append(BoundVariable(x, function.this, output_transforms))
+        else:
+            res.args.append(BoundVariable(
+                x, function.parameters[x.parameter_index], output_transforms))
+
+    for k, v in signature.kwargs.items():
+        if k == "_result":
+            assert function.return_value is not None
+            res.kwargs[k] = BoundVariable(v, function.return_value, output_transforms)
+        elif k == "_this":
+            assert function.this is not None
+            res.kwargs[k] = BoundVariable(v, function.this, output_transforms)
+        else:
+            res.kwargs[k] = BoundVariable(
+                v, function.parameters[v.parameter_index], output_transforms)
 
     return res
+
+
+def apply_explicit_vectorization(call: PythonFunctionCall, args: tuple[Any, ...], kwargs: dict[str, Any]):
+    """
+    Apply user supplied explicit vectorization options to the python variables.
+    """
+    call.apply_explicit_vectorization(args, kwargs)
+    return call
+
+
+def apply_implicit_vectorization(context: BindContext, call: BoundCall):
+    """
+    Apply implicit vectorization rules and calculate per variable dimensionality
+    """
+    call.apply_implicit_vectorization(context)
+    return call
+
+
+def finalize_mappings(context: BindContext, call: BoundCall):
+    """
+    Once overall call dimensionality is known, calculate any explicit
+    mappings for variables that only have explicit types
+    """
+    call.finalize_mappings(context)
+    return call
+
+
+def calculate_differentiability(context: BindContext, call: BoundCall):
+    """
+    Recursively step through all parameters in the bind call and generate
+    any data that requires both PythonVariable and SlangVariable to be
+    fully resolved.
+    """
+    try:
+        for arg in call.args:
+            arg.calculate_differentiability(context)
+        for arg in call.kwargs.values():
+            arg.calculate_differentiability(context)
+    except BoundVariableException as e:
+        raise ValueError(generate_call_shape_error_string(
+            call, [], e.message, e.variable))
+    return call
 
 
 COLS = [
@@ -179,16 +305,13 @@ def _gen_arg_shape_string(variable: BoundVariable) -> str:
 
 def _gen_type_shape_string(variable: BoundVariable) -> str:
     if variable.slang is not None:
-        return str(variable.slang.primal.get_shape().as_list())
+        return str(variable.vector_type.get_shape().as_list())
     else:
         return "None"
 
 
 def _gen_python_shape_string(variable: BoundVariable) -> str:
-    if variable.python.dimensionality is not None:
-        return str([None]*variable.python.dimensionality)
-    else:
-        return "None"
+    return "None"
 
 
 def generate_argument_info_columns(variable: TBoundOrRuntimeVariable, indent: int, highlight_variable: Optional[TBoundOrRuntimeVariable] = None) -> list[str]:
@@ -203,17 +326,17 @@ def generate_argument_info_columns(variable: TBoundOrRuntimeVariable, indent: in
         elif name == "Name":
             text.append(clip_string(variable.variable_name, width))
         elif name == "Input Type":
-            text.append(clip_string(variable.python.primal_type_name, width))
+            text.append(clip_string(variable.python.primal.name, width))
         elif name == "Output Type":
-            text.append(clip_string(variable.slang.primal_type_name, width))
+            text.append(clip_string(variable.vector_type.name, width))
         elif name == "Input Shape":
             text.append(clip_string(_gen_python_shape_string(variable), width))
         elif name == "Argument Shape":
             text.append(clip_string(_gen_arg_shape_string(variable), width))
         elif name == "Type Shape":
             text.append(clip_string(_gen_type_shape_string(variable), width))
-        elif name == "Transform":
-            text.append(clip_string(variable.transform, width))
+        elif name == "Mapping":
+            text.append(clip_string(variable.vector_mapping, width))
     if highlight_variable and variable == _to_var(highlight_variable):
         text.append(" <---")
     else:
@@ -287,23 +410,6 @@ def calculate_call_dimensionality(signature: BoundCall) -> int:
     return dimensionality
 
 
-def finalize_transforms(context: BindContext, signature: BoundCall):
-    try:
-        nodes: list[BoundVariable] = []
-        for node in signature.values():
-            node.get_input_list(nodes)
-        for input in nodes:
-            if input.call_dimensionality is None:
-                raise BoundVariableException(
-                    "Unresolved call dimensionality for argument", input)
-            assert input.transform.valid
-            input.transform = Shape(tuple([input.transform[i] if input.transform[i] >= 0 else i +
-                                           context.call_dimensionality - input.call_dimensionality for i in range(0, len(input.transform))]))
-    except BoundVariableException as e:
-        raise ValueError(generate_call_shape_error_string(
-            signature, [], e.message, e.variable))
-
-
 def create_return_value_binding(context: BindContext, signature: BoundCall, return_type: Any):
     """
     Create the return value for the call
@@ -313,23 +419,25 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     if context.call_mode != CallMode.prim:
         return
     node = signature.kwargs.get("_result")
-    if node is None or node.python.primal_type_name != 'none':
+    if node is None or node.python.primal.name != 'none':
         return
+
+    # Should have an explicit vector type by now.
+    assert node.vector_type is not None
 
     # If no desired return type was specified explicitly, fill in a useful default
     if return_type is None:
         if context.call_dimensionality == 0:
             return_type = ValueRef
-        elif node.slang.primal.differentiable:
+        elif node.vector_type.differentiable:
             return_type = NDDifferentiableBuffer
         else:
             return_type = NDBuffer
 
-    return_ctx = ReturnContext(node.slang.primal, context)
+    return_ctx = ReturnContext(node.vector_type, context)
     python_type = tr.get_or_create_type(return_type, return_ctx)
 
     node.call_dimensionality = context.call_dimensionality
-    node.transform = Shape(tuple([i for i in range(len(python_type.get_shape()))]))
     node.python.set_type(python_type)
 
 
@@ -382,7 +490,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     if func_name == "$init":
         results = [x for x in root_params if x.path == '_result']
         assert len(results) == 1
-        func_name = results[0].slang.primal_element_name
+        func_name = results[0].vector_type.name
     elif len(root_params) > 0 and root_params[0].path == '_this':
         func_name = f'_this.{func_name}'
 
@@ -416,34 +524,33 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
 
     def declare_p(x: BoundVariable, has_suffix: bool = False):
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang.primal_type_name} {name}")
+        cg.kernel.append_statement(f"{x.python.vector_type.name} {name}")
         return name
 
     def declare_d(x: BoundVariable, has_suffix: bool = False):
-        assert x.slang.derivative is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.slang.derivative_type_name} {name}")
+        cg.kernel.append_statement(f"{x.python.vector_type.name}.Differential {name}")
         return name
 
     def load_p(x: BoundVariable, has_suffix: bool = False):
         n = declare_p(x, has_suffix)
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.load_primal(context,{n})")
+            f"call_data.{x.variable_name}.load_primal(ctx(context, _m_{x.variable_name}),{n})")
         return n
 
     def load_d(x: BoundVariable, has_suffix: bool = False):
         n = declare_d(x, has_suffix)
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.load_derivative(context,{n})")
+            f"call_data.{x.variable_name}.load_derivative(ctx(context, _m_{x.variable_name}),{n})")
         return n
 
     def store_p(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_primal(context,{x.variable_name}{'_p' if has_suffix else ''})")
+            f"call_data.{x.variable_name}.store_primal(ctx(context, _m_{x.variable_name}),{x.variable_name}{'_p' if has_suffix else ''})")
 
     def store_d(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_derivative(context,{x.variable_name}{'_d' if has_suffix else ''})")
+            f"call_data.{x.variable_name}.store_derivative(ctx(context, _m_{x.variable_name}),{x.variable_name}{'_d' if has_suffix else ''})")
 
     def create_pair(x: BoundVariable, inc_derivative: bool):
         p = load_p(x, True)
@@ -457,7 +564,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
 
     def store_pair_derivative(x: BoundVariable):
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_derivative(context,{x.variable_name}.d)")
+            f"call_data.{x.variable_name}.store_derivative(ctx(context, _m_{x.variable_name}),{x.variable_name}.d)")
 
     # Select either primals, derivatives or pairs for the trampoline function
     names: list[str] = []
@@ -513,29 +620,26 @@ def get_readable_signature_string(call_signature: PythonFunctionCall):
     return "".join(text)
 
 
-def get_readable_func_string(slang_function: Optional[SlangFunction]):
+def get_readable_func_refl_string(slang_function: Optional[FunctionReflection]):
     if slang_function is None:
         return ""
 
-    def get_modifiers(val: SlangVariable):
+    def get_modifiers(val: VariableReflection):
         mods: list[str] = []
-        if val.io_type == IOType.inout:
-            mods.append("inout")
-        elif val.io_type == IOType.out:
-            mods.append("out")
-        if val.no_diff:
-            mods.append("nodiff")
+        for m in ModifierID:
+            if val.has_modifier(m):
+                mods.append(m.name)
         return " ".join(mods)
 
     text: list[str] = []
-    if slang_function.return_value is not None:
-        text.append(f"{slang_function.return_value.primal_type_name} ")
+    if slang_function.return_type is not None:
+        text.append(f"{slang_function.return_type.full_name} ")
     else:
         text.append("void ")
     text.append(slang_function.name)
     text.append("(")
     parms = [
-        f"{get_modifiers(x)}{x.primal_type_name} {x.name}" for x in slang_function.parameters]
+        f"{get_modifiers(x)}{x.type.full_name} {x.name}" for x in slang_function.parameters]
     text.append(", ".join(parms))
     text.append(")")
     return "".join(text)

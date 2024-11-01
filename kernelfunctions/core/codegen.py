@@ -48,6 +48,11 @@ class CodeGenBlock:
     def append_code(self, code: str):
         self.code.append(code)
 
+    def append_code_indented(self, code: str):
+        lines = code.splitlines()
+        for line in lines:
+            self.append_line(line)
+
     def empty_line(self):
         self.append_code("\n")
 

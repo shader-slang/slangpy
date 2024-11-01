@@ -13,10 +13,6 @@ class InterfaceType(BaseTypeImpl):
         self.name = interface_name
         self.concrete_shape = Shape()
 
-    @property
-    def needs_specialization(self) -> bool:
-        return True
-
 
 def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType:
     assert isinstance(slang_type, TypeReflection)

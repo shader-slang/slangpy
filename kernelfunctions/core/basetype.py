@@ -9,13 +9,15 @@ from .codegen import CodeGenBlock
 
 if TYPE_CHECKING:
     from .boundvariable import BoundVariable
+    from kernelfunctions.backend import SlangModule
 
 
 class BindContext:
-    def __init__(self, call_dimensionality: int, call_mode: CallMode):
+    def __init__(self, call_mode: CallMode, device_module: 'SlangModule'):
         super().__init__()
-        self.call_dimensionality = call_dimensionality
+        self.call_dimensionality = -1
         self.call_mode = call_mode
+        self.device_module = device_module
 
 
 class ReturnContext:
@@ -49,10 +51,6 @@ class BaseType(NativeType):
         raise NotImplementedError()
 
     @property
-    def needs_specialization(self) -> bool:
-        raise NotImplementedError()
-
-    @property
     def fields(self) -> Optional[dict[str, 'BaseType']]:
         raise NotImplementedError()
 
@@ -65,8 +63,11 @@ class BaseType(NativeType):
     def from_numpy(self, array: npt.ArrayLike) -> Any:
         raise NotImplementedError()
 
-    def update_from_bound_type(self, bound_type: 'BaseType'):
+    def reduce_type(self, dimensions: int):
         raise NotImplementedError()
 
-    def specialize_type(self, type: 'BaseType') -> Optional['BaseType']:
-        raise NotImplementedError
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        raise NotImplementedError()
+
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+        raise NotImplementedError()

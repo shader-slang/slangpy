@@ -1,23 +1,28 @@
 import hashlib
 import os
 import re
-from typing import TYPE_CHECKING, Any, Optional
-
-from sgl import CommandBuffer
+from typing import TYPE_CHECKING, Any
 
 from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData
 
 from kernelfunctions.callsignature import (
+    calculate_differentiability,
+    apply_explicit_vectorization,
+    apply_implicit_vectorization,
     bind,
     calculate_call_dimensionality,
     create_return_value_binding,
-    finalize_transforms, generate_code,
+    finalize_mappings,
+    generate_code,
     generate_tree_info_string,
-    get_readable_func_string,
+    get_readable_func_refl_string,
     get_readable_signature_string,
-    match_signatures,
-    MismatchReason
+    MismatchReason,
+    specialize,
+    validate_specialize
 )
+from kernelfunctions.core.slangvariable import SlangFunction
+from kernelfunctions.typeregistry import scope
 
 if TYPE_CHECKING:
     from kernelfunctions.function import FunctionChainBase
@@ -60,12 +65,11 @@ class CallData(NativeCallData):
         from kernelfunctions.function import (
             Function,
             FunctionChainBwdsDiff,
-            FunctionChainInputTransform,
             FunctionChainOutputTransform,
             FunctionChainSet,
             FunctionChainHook,
             FunctionChainReturnType,
-            TDispatchHook
+            FunctionChainMap
         )
 
         if not isinstance(chain[0], Function):
@@ -74,9 +78,10 @@ class CallData(NativeCallData):
 
         function = chain[0]
         chain = chain
-        input_transforms: dict[str, 'TShapeOrTuple'] = {}
         outut_transforms: dict[str, 'TShapeOrTuple'] = {}
         return_type = None
+        positional_mapping = ()
+        keyword_mapping = {}
 
         sets = {}
         for item in chain:
@@ -89,8 +94,6 @@ class CallData(NativeCallData):
                     raise ValueError(
                         "FunctionChainSet must have either a props or callback"
                     )
-            if isinstance(item, FunctionChainInputTransform):
-                input_transforms.update(item.transforms)
             if isinstance(item, FunctionChainOutputTransform):
                 outut_transforms.update(item.transforms)
             if isinstance(item, FunctionChainBwdsDiff):
@@ -102,6 +105,9 @@ class CallData(NativeCallData):
                     self.add_after_dispatch_hook(item.after_dispatch)
             if isinstance(item, FunctionChainReturnType):
                 return_type = item.return_type
+            if isinstance(item, FunctionChainMap):
+                positional_mapping = item.args
+                keyword_mapping = item.kwargs
 
         self.vars = sets
 
@@ -109,82 +115,69 @@ class CallData(NativeCallData):
         unpacked_args = tuple([unpack_arg(x) for x in args])
         unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
 
+        # Setup context
+        context = BindContext(self.call_mode, function.module)
+
         # Build the unbound signature from inputs
         python_call = PythonFunctionCall(*unpacked_args, **unpacked_kwargs)
 
-        # Attempt to match to a slang function overload
-        python_to_slang_mapping = None
-        slang_function = None
+        # Apply explicit to the Python variables
+        apply_explicit_vectorization(python_call, positional_mapping, keyword_mapping)
 
-        if len(function.overloads) == 1:
-            # Non-overloaded functions allow more detailed error messages. Special case them
-            match = match_signatures(python_call, function.overloads[0], self.call_mode)
-            if isinstance(match, MismatchReason):
-                raise ValueError(
-                    f"Could not call function '{function.name}': {match.reason}")
-            else:
-                python_to_slang_mapping = match
-                slang_function = function.overloads[0]
-        else:
-            # Otherwise, check all overloads and throw generic overload error on failure
-            matches = []
-            for overload in function.overloads:
-                match = match_signatures(python_call, overload, self.call_mode)
-                if not isinstance(match, MismatchReason):
-                    python_to_slang_mapping = match
-                    matches.append(overload)
+        # Perform specialization to get a concrete function reflection
+        concrete_reflection = specialize(
+            context, python_call, function.reflections, function.type_reflection)
+        if isinstance(concrete_reflection, MismatchReason):
+            raise ValueError(
+                f"Function signature mismatch: {concrete_reflection.reason}\n"
+                f"  {get_readable_func_refl_string(function.reflections[0])}\n"
+                f"  {get_readable_signature_string(python_call)}")
 
-            if len(matches) == 1:
-                # Success!
-                slang_function = matches[0]
-            elif len(matches) > 1:
-                match_string = "\n".join(get_readable_func_string(match)
-                                         for match in matches)
-                err_text = f"""
-Ambiguous call to '{function.name}' with arguments:
-{get_readable_signature_string(python_call)}
-Matching candidates:
-{match_string}"""
-                raise ValueError(err_text.strip())
-            else:
-                olstrings = "\n".join([get_readable_func_string(x)
-                                       for x in function.overloads])
-                err_text = f"""
-No matching overload found for function {function.name}.
-Input signature:
-{get_readable_signature_string(python_call)}
-Overloads:
-{olstrings}
-"""
-                raise ValueError(err_text.strip())
-        assert python_to_slang_mapping is not None
+        # Build slang function signature
+        with scope(function.module):
+            slang_function = SlangFunction(concrete_reflection, function.type_reflection)
 
-        # Inject a dummy node into both signatures if we need a result back
+        # Check for differentiability error
+        if not slang_function.differentiable and self.call_mode != CallMode.prim:
+            raise ValueError(
+                "Could not call function 'polynomial': Function is not differentiable")
+
+        # Inject a dummy node into the Python signature if we need a result back
         if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_value is not None:
             rvalnode = PythonVariable(None, None, "_result")
             python_call.kwargs["_result"] = rvalnode
-            python_to_slang_mapping[rvalnode] = slang_function.return_value
 
-        # Once matched, build the fully bound signature
-        bindings = bind(python_call, python_to_slang_mapping, self.call_mode,
-                        input_transforms, outut_transforms)
+        # Create bound variable information now that we have concrete data for path sides
+        bindings = bind(context, python_call, slang_function)
 
-        # calculate call shaping
+        # Run Python side implicit vectorization to do any remaining type resolution
+        apply_implicit_vectorization(context, bindings)
+
+        # Should no longer have implicit argument types for anything.
+        assert not python_call.has_implicit_args
+
+        # Calculate overall call dimensionality now that all typing is known.
         self.call_dimensionality = calculate_call_dimensionality(bindings)
+        context.call_dimensionality = self.call_dimensionality
 
-        context = BindContext(self.call_dimensionality, self.call_mode)
-
-        # if necessary, create return value node
+        # If necessary, create return value node once call dimensionality is known.
         create_return_value_binding(context, bindings, return_type)
 
-        # once overall dimensionality is known, individual binding transforms can be made concrete
-        finalize_transforms(context, bindings)
+        # Calculate final mappings for bindings that only have known vector type.
+        finalize_mappings(context, bindings)
 
-        # generate code
+        # Should no longer have any unresolved mappings for anything.
+        assert not python_call.has_implicit_mappings
+
+        # Validate the arguments we're going to pass to slang before trying to make code.
+        validate_specialize(context, python_call, concrete_reflection)
+
+        # Calculate differentiability of all variables.
+        calculate_differentiability(context, bindings)
+
+        # Generate code.
         codegen = CodeGen()
         generate_code(context, function, bindings, codegen)
-
-        # store code
         code = codegen.finish(call_data=True, input_load_store=True,
                               header=True, kernel=True, imports=True,
                               trampoline=True, context=True, snippets=True,

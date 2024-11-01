@@ -66,6 +66,21 @@ class TextureType(ValueType):
         self.element_type = element_type
         self.name = f"{prefix(self._usage)}{self._base_texture_type_name}<{self.element_type.name}>"
 
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        if isinstance(bound_type, TextureType):
+            if self._usage & bound_type._usage == 0:
+                raise ValueError(
+                    f"Cannot bind texture view {self.name} with usage {bound_type._usage}")
+            if self._resource_shape != bound_type._resource_shape:
+                raise ValueError(
+                    f"Cannot bind texture view {self.name} with different shape {bound_type._resource_shape}")
+            if self.element_type.name != bound_type.element_type.name:
+                raise ValueError(
+                    f"Cannot bind texture view {self.name} with different element type {bound_type.element_type.name}")
+            return bound_type
+        else:
+            return super().resolve_type(context, bound_type)
+
     # Texture is writable if it has unordered access view.
     def is_writable(self):
         return has_uav(self._usage)
@@ -84,18 +99,18 @@ class TextureType(ValueType):
         name = binding.variable_name
 
         if access == AccessType.none:
-            cgb.type_alias(f"_{name}", f"NoneType")
+            cgb.type_alias(f"_t_{name}", f"NoneType")
             return
 
         if binding.call_dimensionality == 0:
             # If broadcast directly, function is just taking the texture argument directly, so use the slang type
             assert access == AccessType.read
-            assert isinstance(binding.slang.primal, TextureType)
-            if self._usage & binding.slang.primal._usage == 0:
+            assert isinstance(binding.vector_type, TextureType)
+            if self._usage & binding.vector_type._usage == 0:
                 raise ValueError(
-                    f"Cannot bind texture view {name} with usage {binding.slang.primal._usage}")
+                    f"Cannot bind texture view {name} with usage {binding.vector_type._usage}")
             cgb.type_alias(
-                f"_{name}", binding.slang.primal.build_accessor_name())
+                f"_t_{name}", binding.vector_type.build_accessor_name())
         elif binding.call_dimensionality == self._texture_dims:
             # If broadcast is the same shape as the texture, this is loading from pixels, so use the
             # type required to support the required access
@@ -103,17 +118,17 @@ class TextureType(ValueType):
                 # Read access can be either shader resource or UAV, so just bind the correct type
                 # for this resource view
                 cgb.type_alias(
-                    f"_{name}", self.build_accessor_name())
+                    f"_t_{name}", self.build_accessor_name())
             else:
                 # Write access requires a UAV so check it and bind RW type
                 if not has_uav(self._usage):
                     raise ValueError(
                         f"Cannot write to read-only texture {name}")
                 cgb.type_alias(
-                    f"_{name}", self.build_accessor_name(ResourceUsage.unordered_access))
+                    f"_t_{name}", self.build_accessor_name(ResourceUsage.unordered_access))
         else:
             raise ValueError(
-                f"Texture {name} has invalid transform {binding.transform}")
+                f"Texture {name} has invalid dimensionality {binding.call_dimensionality}")
 
     # Call data just returns the primal
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:

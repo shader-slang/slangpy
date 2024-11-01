@@ -5,6 +5,34 @@ interface IContext
     int get_call_id(int dim);
 }
 
+struct ContextND<let N: int> : IContext
+{
+    uint3 thread_id;
+    int[N] call_id;
+
+    uint3 get_thread_id() { return thread_id; }
+    int get_call_id(int dim) { return call_id[dim]; }
+}
+struct Context0D : IContext
+{
+    uint3 thread_id;
+    uint3 get_thread_id() { return thread_id; }
+    int get_call_id(int dim) { return 0; }
+}
+
+ContextND<N> ctx<let N: int>(IContext other, int[N] mapping) {
+    ContextND<N> context;
+    context.thread_id = other.get_thread_id();
+    [unroll]
+    for (int i = 0; i < N; i++) { context.call_id[i] = other.get_call_id(mapping[i]); }
+    return context;
+}
+Context0D ctx(IContext other, int mapping) {
+    Context0D context;
+    context.thread_id = other.get_thread_id();
+    return context;
+}
+
 int _idx<let N : int>(int[N] index, int[N] stride) {
     int idx = 0;
     for (int i = 0; i < N; i++) { idx += index[i] * stride[i]; }
@@ -17,16 +45,9 @@ int _idx<let N : int>(IContext index, int[N] stride) {
     return idx;
 }
 
-int _idx<let N : int>(int[N] index, int[N] stride, int[N] transform) {
-    int idx = 0;
-    for (int i = 0; i < N; i++) { idx += index[transform[i]] * stride[i]; }
-    return idx;
-}
+struct ImplicitCast<N> 
+{
 
-int _idx<let N : int>(IContext index, int[N] stride, int[N] transform) {
-    int idx = 0;
-    for (int i = 0; i < N; i++) { idx += index.get_call_id(transform[i]) * stride[i]; }
-    return idx;
 }
 
 struct NoneType
@@ -73,6 +94,7 @@ struct Texture1DType<T> {
     void load_primal(IContext context, out Texture1D<T> value) { value = this.value; }
     void store_primal(IContext context, in Texture1D<T> value) {};
 }
+
 struct RWTexture1DType<T> {
     // x map to 0
     int1 toidx(IContext context) { return int1(context.get_call_id(0)); }
@@ -196,28 +218,17 @@ struct NDBuffer<T, let N : int>
 {
     StructuredBuffer<T> buffer;
     int[N] strides;
-    int[N] transform;
 
     T get(int[N] index) { return buffer[_idx(index, strides)]; }
     __subscript(int[N] index)->T { get { return get(index); } }
 
-    void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides, transform)]; }
+    void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides)]; }
     void store_primal(IContext context, in T value) {};
 
     void load_primal(IContext context, out StructuredBuffer<T> value) {
         value = buffer;
     }
     void store_primal(IContext context, in StructuredBuffer<T> value) {};
-
-    void load_primal<let BN : int>(IContext context, out NDBuffer<T, BN> value) { 
-        value.buffer = buffer;
-        //TODO: Do this properly - it's wrong
-        for(int i = 0; i < N; i++) { 
-            value.strides[i] = strides[i]; 
-            value.transform[i] = transform[i];
-        }
-    }
-    void store_primal<let BN : int>(IContext context, in NDBuffer<T, BN> value) {};
 
     void load_primal<let VD : int>(IContext context, out vector<T, VD> value) {
 
@@ -226,7 +237,7 @@ struct NDBuffer<T, let N : int>
 
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
-            value[vi] = buffer[_idx(call_id, strides, transform)];
+            value[vi] = buffer[_idx(call_id, strides)];
         }
     }
 
@@ -237,15 +248,14 @@ struct RWNDBuffer<T, let N : int>
 {
     RWStructuredBuffer<T> buffer;
     int[N] strides;
-    int[N] transform;
 
     T get(int[N] index) { return buffer[_idx(index, strides)]; }
     void set(int[N] index, T value) { buffer[_idx(index, strides)] = value; }
 
     __subscript(int[N] index)->T { get { return get(index); } set { set(index, newValue); } }
 
-    void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides, transform)]; }
-    void store_primal(IContext context, in T value) { buffer[_idx(context, strides, transform)] = value; }
+    void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides)]; }
+    void store_primal(IContext context, in T value) { buffer[_idx(context, strides)] = value; }
 
     void load_primal<let VD : int>(IContext context, out vector<T, VD> value) {
 
@@ -254,7 +264,7 @@ struct RWNDBuffer<T, let N : int>
         
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
-            value[vi] = buffer[_idx(call_id, strides, transform)];
+            value[vi] = buffer[_idx(call_id, strides)];
         }
     }
 
@@ -264,7 +274,7 @@ struct RWNDBuffer<T, let N : int>
 
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
-            buffer[_idx(call_id, strides, transform)] = value[vi];
+            buffer[_idx(call_id, strides)] = value[vi];
         }
     }
 }

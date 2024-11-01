@@ -19,7 +19,7 @@ def generate_differential_pair(name: str, primal_storage: str, deriv_storage: st
         deriv_target = primal_target
 
     DIFF_PAIR_CODE = f"""
-struct _{name}
+struct _t_{name}
 {{
     {primal_storage} primal;
     {deriv_storage} derivative;
@@ -57,10 +57,8 @@ class DiffPairType(BaseTypeImpl):
         access = binding.access
         name = binding.variable_name
 
-        prim_el = binding.python.primal_element_name
-        deriv_el = binding.python.derivative_element_name
-        if deriv_el is None:
-            deriv_el = prim_el
+        prim_el = self.primal_type.name
+        deriv_el = self.primal_type.name + ".Differential"
 
         if access[0] == AccessType.none:
             primal_storage = f'NoneType'
@@ -76,11 +74,11 @@ class DiffPairType(BaseTypeImpl):
         else:
             deriv_storage = f"RWValueRef<{deriv_el}>"
 
-        primal_target = binding.slang.primal_type_name
-        deriv_target = binding.slang.derivative_type_name
+        primal_target = binding.vector_type.name
+        deriv_target = binding.vector_type.name + ".Differential"
 
-        cgb.append_code(generate_differential_pair(name, primal_storage,
-                        deriv_storage, primal_target, deriv_target))
+        cgb.append_code_indented(generate_differential_pair(name, primal_storage,
+                                                            deriv_storage, primal_target, deriv_target))
 
     def get_type(self, prim: PrimType):
         return self.primal_type if prim == PrimType.primal else self.derivative_type

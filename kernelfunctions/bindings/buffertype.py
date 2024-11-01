@@ -17,10 +17,10 @@ from kernelfunctions.utils import parse_generic_signature
 def _calc_broadcast(context: CallContext, binding: BoundVariableRuntime):
     broadcast = []
     transform = cast(Shape, binding.transform)
-    full_cs = context.call_shape + binding.slang_shape
     for i in range(len(transform)):
         csidx = transform[i]
-        broadcast.append(full_cs[csidx] != binding.shape[i])
+        broadcast.append(context.call_shape[csidx] != binding.shape[i])
+    broadcast.extend([False]*(len(binding.shape) - len(broadcast)))
     return broadcast
 
 
@@ -36,6 +36,18 @@ class NDBufferType(BaseTypeImpl):
             self.name = f"NDBuffer<{self.element_type.name},{self.dims}>"
         else:
             self.name = f"RWNDBuffer<{self.element_type.name},{self.dims}>"
+
+    def reduce_type(self, dimensions: int):
+        if dimensions == 0:
+            return self
+        elif dimensions == self.dims:
+            return self.element_type
+        elif dimensions < self.dims:
+            # Not sure how to handle this yet - what do we want if reducing by some dimensions
+            # Should this return a smaller buffer? How does that end up being cast to, eg, vector.
+            return None
+        else:
+            raise ValueError("Cannot reduce dimensions of NDBuffer")
 
     # Values don't store a derivative - they're just a value
     @property
@@ -55,10 +67,10 @@ class NDBufferType(BaseTypeImpl):
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
             cgb.type_alias(
-                f"_{name}", f"NDBuffer<{self.element_type.name},{self.dims}>")
+                f"_t_{name}", f"NDBuffer<{self.element_type.name},{self.dims}>")
         else:
             cgb.type_alias(
-                f"_{name}", f"RWNDBuffer<{self.element_type.name},{self.dims}>")
+                f"_t_{name}", f"RWNDBuffer<{self.element_type.name},{self.dims}>")
 
     # Call data just returns the primal
 
@@ -66,8 +78,7 @@ class NDBufferType(BaseTypeImpl):
         broadcast = _calc_broadcast(context, binding)
         return {
             'buffer': data.buffer,
-            'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
-            'transform': binding.transform.as_tuple()[0:self.dims]
+            'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))]
         }
 
     def get_container_shape(self, value: Optional[NDDifferentiableBuffer] = None) -> Shape:
@@ -143,10 +154,8 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         access = binding.access
         name = binding.variable_name
 
-        prim_el = binding.python.primal_element_name
-        deriv_el = binding.python.derivative_element_name
-        if deriv_el is None:
-            deriv_el = prim_el
+        prim_el = self.element_type.name
+        deriv_el = prim_el + ".Differential"
         dim = self.dims
 
         if access[0] == AccessType.none:
@@ -163,11 +172,11 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             deriv_storage = f"RWNDBuffer<{deriv_el},{dim}>"
 
-        primal_target = binding.slang.primal_type_name
-        deriv_target = binding.slang.derivative_type_name
+        primal_target = binding.vector_type.name
+        deriv_target = binding.vector_type.name + ".Differential"
 
-        cgb.append_code(generate_differential_pair(name, primal_storage,
-                        deriv_storage, primal_target, deriv_target))
+        cgb.append_code_indented(generate_differential_pair(name, primal_storage,
+                                                            deriv_storage, primal_target, deriv_target))
 
     # Call data just returns the primal
 
@@ -185,8 +194,7 @@ class NDDifferentiableBufferType(BaseTypeImpl):
                 value = ndbuffer.buffer if prim == PrimType.primal else ndbuffer.buffer
                 res[prim_name] = {
                     'buffer': value,
-                    'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
-                    'transform': binding.transform.as_tuple()[0:self.dims]
+                    'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))]
                 }
         return res
 

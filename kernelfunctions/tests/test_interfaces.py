@@ -4,6 +4,7 @@ from kernelfunctions.backend import DeviceType, TypeReflection
 from kernelfunctions.core.basetype import BindContext
 from kernelfunctions.core.boundvariable import BoundVariable
 from kernelfunctions.core.codegen import CodeGenBlock
+from kernelfunctions.core.slangvariable import SlangFunction
 import kernelfunctions.tests.helpers as helpers
 import kernelfunctions.typeregistry as tr
 from kernelfunctions.bindings.valuetype import ValueType
@@ -68,7 +69,7 @@ class TestImpl(ValueType):
         self.concrete_shape = Shape()
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
-        cgb.type_alias(f"_{binding.variable_name}", self.name)
+        cgb.type_alias(f"_t_{binding.variable_name}", self.name)
 
     def specialize_type(self, type: BaseType):
         if not isinstance(type, ITest):
@@ -94,9 +95,11 @@ def test_interface_resolution(device_type: DeviceType):
     device = helpers.get_device(device_type)
     module = Module(device.load_module_from_source(
         "test_interface_resolution", TEST_MODULE))
-    function = module.foo.as_func()
 
-    param = function.overloads[0].parameters[0].primal
+    with tr.scope(module.device_module):
+        function = SlangFunction(module.foo.as_func().reflections[0])
+
+    param = function.parameters[0].primal
 
     assert isinstance(param, ITest)
     assert param.args is not None

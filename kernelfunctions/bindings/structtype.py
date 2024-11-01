@@ -3,6 +3,7 @@ from typing import Any
 from kernelfunctions.core import BaseType, Shape
 
 from kernelfunctions.backend import TypeReflection
+from kernelfunctions.core.basetype import BindContext
 from kernelfunctions.typeregistry import PYTHON_TYPES
 import kernelfunctions.typeregistry as tr
 
@@ -36,6 +37,9 @@ class StructType(ValueType):
     @property
     def fields(self):
         return self._fields
+
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        return bound_type
 
 
 def create_vr_type_for_value(value: dict[str, Any]):

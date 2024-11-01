@@ -191,10 +191,8 @@ class NativeBoundVariableRuntime:
         super().__init__()
         self.access: tuple[AccessType, AccessType] = (AccessType.none, AccessType.none)
         self.transform: Shape = None  # type: ignore
-        self.slang_shape: Shape = None  # type: ignore
         self.python_type: NativeType = None  # type: ignore
         self.shape: Shape = None  # type: ignore
-        self.name = ""
         self.variable_name = ""
         self.children: Optional[dict[str, 'NativeBoundVariableRuntime']] = None
 
@@ -206,8 +204,12 @@ class NativeBoundVariableRuntime:
             for name, child in self.children.items():
                 child.populate_call_shape(call_shape, value[name])
         elif value is not None:
-            # Get concrete primal shape
-            shape = self.python_type.get_shape(value)
+            # Get concrete primal shape. As it is invalid to broadcast from
+            # elements, only need the container shape, not full shape.
+            if self.python_type.concrete_shape.valid:
+                shape = self.python_type.concrete_shape
+            else:
+                shape = self.python_type.get_container_shape(value)
             tf = cast(Shape, self.transform)
             csl = len(call_shape)
             self.shape = shape
@@ -245,7 +247,7 @@ class NativeBoundVariableRuntime:
             shape = self.shape
 
             # Get call shape + append slang primal shape
-            full_cs = context.call_shape + self.slang_shape
+            full_cs = context.call_shape
 
             # Broadcast occurs if the shape of the input is different from the shape of the output
             broadcast = []
@@ -277,7 +279,7 @@ class NativeBoundVariableRuntime:
             assert isinstance(data, dict)
             res = {}
             for name, child in self.children.items():
-                child_data = data.get(child.name, None)
+                child_data = data.get(child.variable_name, None)
                 if child_data is not None:
                     res[name] = child.read_output(context, child_data)
             return res

@@ -2,10 +2,10 @@
 
 from typing import Optional
 
-from kernelfunctions.core import CodeGenBlock, BindContext, BaseTypeImpl, AccessType, BoundVariable, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, AccessType, BoundVariable, Shape
 
 from kernelfunctions.backend import TypeReflection
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES
+from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES, SLANG_VECTOR_TYPES
 
 
 class ThreadIdArg:
@@ -38,7 +38,10 @@ class ThreadIdArgType(BaseTypeImpl):
         name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("threadidarg")
-            cgb.type_alias(f"_{name}", self.name)
+            cgb.type_alias(f"_t_{name}", self.name)
+
+    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        return SLANG_VECTOR_TYPES[TypeReflection.ScalarType.uint32][self.dims]
 
 
 PYTHON_TYPES[ThreadIdArg] = lambda x: ThreadIdArgType(x.dims)
