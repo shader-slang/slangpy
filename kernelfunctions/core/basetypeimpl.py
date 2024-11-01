@@ -30,16 +30,22 @@ class BaseTypeImpl(BaseType):
         return None
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
-        # default implementation of type resolution is to attempt to pass
-        # either element type if it matches, or this type otherwise
-        if self.element_type is not None and self.element_type.name == bound_type.name:
-            return cast(BaseType, bound_type)
-        elif bound_type.name.startswith('vector<') and self.element_type.name == bound_type.element_type.name:
-            return cast(BaseType, bound_type)
-        elif bound_type.name.startswith('matrix<') and self.element_type.name == bound_type.element_type.name:
-            return cast(BaseType, bound_type)
-        else:
-            return self
+
+        # if implicit element casts enabled, allow conversion from type to element type
+        if context.options['implicit_element_casts']:
+            if self.element_type is not None and self.element_type.name == bound_type.name:
+                return cast(BaseType, bound_type)
+
+        # TODO: move to tensor type
+        # if implicit tensor casts enabled, allow conversion from vector/matrix to element type
+        if context.options['implicit_tensor_casts']:
+            if bound_type.name.startswith('vector<') and self.element_type.name == bound_type.element_type.name:
+                return cast(BaseType, bound_type)
+            elif bound_type.name.startswith('matrix<') and self.element_type.name == bound_type.element_type.name:
+                return cast(BaseType, bound_type)
+
+        # Default to just casting to itself (i.e. no implicit cast)
+        return self
 
     def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
         # default implementation requires that both this type and the target type

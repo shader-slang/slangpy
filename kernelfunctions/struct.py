@@ -9,9 +9,10 @@ from kernelfunctions.utils import find_type_layout_for_buffer, try_find_function
 
 
 class Struct:
-    def __init__(self, device_module: SlangModule, name: str, type_reflection: Optional[TypeReflection] = None) -> None:
+    def __init__(self, device_module: SlangModule, name: str, type_reflection: Optional[TypeReflection] = None, options: dict[str, Any] = {}) -> None:
         super().__init__()
         self.device_module = device_module
+        self.options = options
         self.name = name
         if type_reflection is None:
             type_reflection = self.device_module.layout.find_type_by_name(name)
@@ -51,7 +52,7 @@ class Struct:
         name_if_struct = f"{self.name}::{name}"
         slang_struct = self.device_module.layout.find_type_by_name(name_if_struct)
         if slang_struct is not None:
-            return Struct(self.device_module, name_if_struct, slang_struct)
+            return Struct(self.device_module, name_if_struct, slang_struct, options=self.options)
 
         # Search for name as a child of this struct
         if name == "__init":
@@ -60,7 +61,7 @@ class Struct:
         slang_function = self.device_module.layout.find_function_by_name_in_type(
             parent_slang_struct, name)
         if slang_function is not None:
-            return Function(self.device_module, name, type_reflection=parent_slang_struct, func_reflections=[slang_function])
+            return Function(self.device_module, name, type_reflection=parent_slang_struct, func_reflections=[slang_function], options=self.options)
 
         # Currently have Slang issue finding the init function, so for none-generic classes,
         # try to find it via the AST.
@@ -68,7 +69,7 @@ class Struct:
             (type, funcs) = try_find_function_overloads_via_ast(
                 self.device_module.module_decl, self.name, name)
             if funcs is not None and len(funcs) > 0:
-                return Function(self.device_module, name, type_reflection=type, func_reflections=funcs)
+                return Function(self.device_module, name, type_reflection=type, func_reflections=funcs, options=self.options)
 
         return None
 
