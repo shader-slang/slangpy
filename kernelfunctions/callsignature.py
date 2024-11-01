@@ -113,7 +113,7 @@ def specialize(
             assert python_arg is not None
             if python_arg.vector_type is not None:
                 inputs.append(python_arg.vector_type)
-            elif slang_param.type.kind != TypeReflection.Kind.none:
+            elif slang_param.type.kind != TypeReflection.Kind.none and slang_param.type.kind != TypeReflection.Kind.interface:
                 inputs.append(slang_param.type)
             elif isinstance(python_arg.primal, ValueType):
                 inputs.append(python_arg.primal)
@@ -136,8 +136,8 @@ def specialize(
         else:
             raise ValueError(f"Cannot convert {input} to TypeReflection")
 
-    specialized = function.specialize_with_arg_types(
-        [to_type_reflection(x) for x in inputs])
+    input_types = [to_type_reflection(x) for x in inputs]
+    specialized = function.specialize_with_arg_types(input_types)
     if specialized is None:
         return MismatchReason("Could not specialize function with given argument types")
 
@@ -326,7 +326,7 @@ def generate_argument_info_columns(variable: TBoundOrRuntimeVariable, indent: in
         elif name == "Name":
             text.append(clip_string(variable.variable_name, width))
         elif name == "Input Type":
-            text.append(clip_string(variable.python.primal_type_name, width))
+            text.append(clip_string(variable.python.primal.name, width))
         elif name == "Output Type":
             text.append(clip_string(variable.vector_type.name, width))
         elif name == "Input Shape":
@@ -419,19 +419,22 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     if context.call_mode != CallMode.prim:
         return
     node = signature.kwargs.get("_result")
-    if node is None or node.python.primal_type_name != 'none':
+    if node is None or node.python.primal.name != 'none':
         return
+
+    # Should have an explicit vector type by now.
+    assert node.vector_type is not None
 
     # If no desired return type was specified explicitly, fill in a useful default
     if return_type is None:
         if context.call_dimensionality == 0:
             return_type = ValueRef
-        elif node.slang.primal.differentiable:
+        elif node.vector_type.differentiable:
             return_type = NDDifferentiableBuffer
         else:
             return_type = NDBuffer
 
-    return_ctx = ReturnContext(node.slang.primal, context)
+    return_ctx = ReturnContext(node.vector_type, context)
     python_type = tr.get_or_create_type(return_type, return_ctx)
 
     node.call_dimensionality = context.call_dimensionality
@@ -525,7 +528,6 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
         return name
 
     def declare_d(x: BoundVariable, has_suffix: bool = False):
-        assert x.slang.derivative is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
         cg.kernel.append_statement(f"{x.python.vector_type.name}.Differential {name}")
         return name
@@ -615,34 +617,6 @@ def get_readable_signature_string(call_signature: PythonFunctionCall):
         text.append(f"{key}: ")
         text.append(arg._recurse_str(1))
         text.append("\n")
-    return "".join(text)
-
-
-def get_readable_func_string(slang_function: Optional[SlangFunction]):
-    if slang_function is None:
-        return ""
-
-    def get_modifiers(val: SlangVariable):
-        mods: list[str] = []
-        if val.io_type == IOType.inout:
-            mods.append("inout")
-        elif val.io_type == IOType.out:
-            mods.append("out")
-        if val.no_diff:
-            mods.append("nodiff")
-        return " ".join(mods)
-
-    text: list[str] = []
-    if slang_function.return_value is not None:
-        text.append(f"{slang_function.return_value.primal_type_name} ")
-    else:
-        text.append("void ")
-    text.append(slang_function.name)
-    text.append("(")
-    parms = [
-        f"{get_modifiers(x)}{x.primal_type_name} {x.name}" for x in slang_function.parameters]
-    text.append(", ".join(parms))
-    text.append(")")
     return "".join(text)
 
 

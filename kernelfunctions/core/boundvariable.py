@@ -131,6 +131,10 @@ class BoundVariable:
             assert self.path == '_result'
             self.python.vector_type = self.slang.primal
 
+        # Clear slang type info - it should never be used after this
+        self.slang.primal = None
+        self.slang.derivative = None
+
         # Can now calculate dimensionality
         if self.python.vector_mapping.valid:
             if len(self.python.vector_mapping) > 0:
@@ -169,7 +173,7 @@ class BoundVariable:
         """
 
         # Can now decide if differentiable
-        self.differentiable = not self.slang.no_diff and self.slang.derivative is not None and self.python.differentiable
+        self.differentiable = not self.slang.no_diff and self.vector_type.differentiable and self.python.differentiable
         self._calculate_differentiability(context.call_mode)
 
         if self.children is not None:

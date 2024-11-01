@@ -1,9 +1,9 @@
 from types import NoneType
 from typing import Any, Optional
-from kernelfunctions.backend.slangpynativeemulation import Shape
 from kernelfunctions.typeregistry import get_or_create_type
 from .basevariableimpl import BaseVariableImpl
 from .basetype import BaseType
+from .native import Shape
 
 
 class PythonFunctionCall:
@@ -68,6 +68,10 @@ class PythonVariable(BaseVariableImpl):
         self.parameter_index = -1
         self.vector_mapping: Shape = Shape(None)
         self.vector_type: Optional[BaseType] = None
+
+    @property
+    def differentiable(self):
+        return self.primal.differentiable and self.primal.has_derivative
 
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type

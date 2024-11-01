@@ -91,18 +91,6 @@ class SlangVariable(BaseVariableImpl):
         else:
             self.fields = None
 
-    def gen_trampoline_argument(self, differentiable: bool):
-        arg_def = self.argument_declaration
-        if self.io_type == IOType.inout:
-            arg_def = f"inout {arg_def}"
-        elif self.io_type == IOType.out:
-            arg_def = f"out {arg_def}"
-        elif self.io_type == IOType.inn:
-            arg_def = f"in {arg_def}"
-        if self.no_diff or not differentiable:
-            arg_def = f"no_diff {arg_def}"
-        return arg_def
-
     def specialize(self, other: BaseVariable) -> Optional['SlangVariable']:
         # We currently only support specializing interfaces, which can only appear
         # as root level variables and there's no need to recurse.
@@ -129,7 +117,3 @@ class SlangVariable(BaseVariableImpl):
                              other.io_type,
                              other.no_diff,
                              other.has_default)
-
-    @property
-    def argument_declaration(self):
-        return f"{self.primal_type_name} {self.name}"

@@ -57,10 +57,8 @@ class DiffPairType(BaseTypeImpl):
         access = binding.access
         name = binding.variable_name
 
-        prim_el = binding.python.primal_element_name
-        deriv_el = binding.python.derivative_element_name
-        if deriv_el is None:
-            deriv_el = prim_el
+        prim_el = self.primal_type.name
+        deriv_el = self.primal_type.name + ".Differential"
 
         if access[0] == AccessType.none:
             primal_storage = f'NoneType'

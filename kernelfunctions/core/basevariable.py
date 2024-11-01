@@ -16,34 +16,7 @@ class BaseVariable:
     def __repr__(self) -> str:
         return self._recurse_str(0)
 
-    def is_compatible(self, other: 'BaseVariable') -> bool:
-        raise NotImplementedError()
-
     def specialize(self, other: 'BaseVariable') -> Optional['BaseVariable']:
-        raise NotImplementedError()
-
-    @property
-    def primal_type_name(self):
-        raise NotImplementedError()
-
-    @property
-    def derivative_type_name(self):
-        raise NotImplementedError()
-
-    @property
-    def primal_element_name(self):
-        raise NotImplementedError()
-
-    @property
-    def derivative_element_name(self):
-        raise NotImplementedError()
-
-    @property
-    def root_element_name(self):
-        raise NotImplementedError()
-
-    @property
-    def argument_declaration(self):
         raise NotImplementedError()
 
     def get(self, t: PrimType):
