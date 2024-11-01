@@ -68,6 +68,7 @@ class PythonVariable(BaseVariableImpl):
         self.parameter_index = -1
         self.vector_mapping: Shape = Shape(None)
         self.vector_type: Optional[BaseType] = None
+        self.explicitly_vectorized = False
 
     @property
     def differentiable(self):
@@ -101,5 +102,7 @@ class PythonVariable(BaseVariableImpl):
         if isinstance(mapping, tuple):
             self.vector_mapping = Shape(*mapping)
             self.vector_type = self.primal.reduce_type(len(mapping))
+            self.explicitly_vectorized = True
         elif mapping is not None:
             self.vector_type = get_or_create_type(mapping)
+            self.explicitly_vectorized = True
