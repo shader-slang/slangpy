@@ -102,19 +102,6 @@ class StructuredBufferType(ValueType):
                 'value': data
             }
 
-    def update_from_bound_type(self, bound_type: 'BaseType'):
-        while True:
-            stshape = bound_type.get_shape()
-            if stshape is None or -1 in stshape:
-                next_type = bound_type.element_type
-                if next_type == bound_type:
-                    raise ValueError("Cannot resolve shape")
-                assert isinstance(next_type, BaseType)
-                bound_type = next_type
-            else:
-                break
-        self.element_type = bound_type
-
 
 class RWStructuredBufferType(StructuredBufferType):
     def __init__(self, element_type: Optional[BaseType]):

@@ -21,13 +21,6 @@ class BaseVariableImpl(BaseVariable):
     def writable(self):
         return self.primal.is_writable
 
-    def get(self, t: PrimType):
-        if t == PrimType.primal:
-            return self.primal
-        else:
-            assert self.derivative is not None
-            return self.derivative
-
     def _recurse_str(self, depth: int) -> str:
         if self.fields is not None:
             child_strs = [

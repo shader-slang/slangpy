@@ -4,7 +4,7 @@ from typing import Optional
 from kernelfunctions.backend import FunctionReflection, ModifierID, VariableReflection, TypeReflection
 from kernelfunctions.typeregistry import get_or_create_type
 
-from .basevariableimpl import BaseVariable, BaseVariableImpl
+from .basevariableimpl import BaseVariableImpl
 from .basetype import BaseType
 from .enums import IOType
 
@@ -90,25 +90,6 @@ class SlangVariable(BaseVariableImpl):
                            for name, type in primal.fields.items()}
         else:
             self.fields = None
-
-    def specialize(self, other: BaseVariable) -> Optional['SlangVariable']:
-        # We currently only support specializing interfaces, which can only appear
-        # as root level variables and there's no need to recurse.
-        if self.fields is not None:
-            return self
-
-        # No-op if type does not need to be specialized
-        if not self.primal.needs_specialization:
-            return self
-
-        resolved_type = other.primal.specialize_type(self.primal)
-        # Need to resolve, but were unable to (likely incompatible types). Return failure
-        if resolved_type is None:
-            return None
-
-        # We have a type that needs specializing, and specializing succeeded. Return a new slang
-        # variable with the specialized type that inherits all the same flags
-        return SlangVariable.from_parent(self, resolved_type, self.name)
 
     @staticmethod
     def from_parent(other: 'SlangVariable', primal: BaseType, name: str) -> 'SlangVariable':

@@ -16,11 +16,5 @@ class BaseVariable:
     def __repr__(self) -> str:
         return self._recurse_str(0)
 
-    def specialize(self, other: 'BaseVariable') -> Optional['BaseVariable']:
-        raise NotImplementedError()
-
-    def get(self, t: PrimType):
-        raise NotImplementedError()
-
     def _recurse_str(self, depth: int) -> str:
         raise NotImplementedError()
