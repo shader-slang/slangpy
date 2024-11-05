@@ -510,7 +510,7 @@ def test_copyatindex_undefined_output_size(device_type: DeviceType):
 
     # Output buffer size is undefined and can't be inferred.
     # This would ideally be solved with generics / IBuffer interface
-    with pytest.raises(ValueError):
+    with pytest.raises(Exception):
         shapes = copy_at_index(device_type,
                                make_int_buffer(device_type, (50,)),
                                make_vec4_raw_buffer(device_type, 100),

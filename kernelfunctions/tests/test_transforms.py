@@ -288,4 +288,4 @@ def test_add_vectors_broadcast_from_diff_buffer(device_type: DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

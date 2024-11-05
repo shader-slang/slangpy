@@ -3,14 +3,12 @@
 from typing import Any, Optional, Union
 
 from kernelfunctions.backend.slangpynativeemulation import CallContext
-from kernelfunctions.core import BaseType, Shape, AccessType, BindContext, BoundVariable, CodeGenBlock
+from kernelfunctions.core import BaseType, BaseTypeImpl, Shape, AccessType, BindContext, BoundVariable, CodeGenBlock
 
 from kernelfunctions.backend import Texture, TypeReflection, ResourceUsage, ResourceType, get_format_info, FormatType, ResourceView
 
 from kernelfunctions.core.boundvariableruntime import BoundVariableRuntime
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
-
-from .valuetype import ValueType
 
 
 def has_uav(usage: ResourceUsage):
@@ -21,7 +19,7 @@ def prefix(usage: ResourceUsage):
     return "RW" if has_uav(usage) else ""
 
 
-class TextureType(ValueType):
+class TextureType(BaseTypeImpl):
 
     def __init__(self, resource_shape: TypeReflection.ResourceShape, element_type: BaseType, usage: ResourceUsage):
         super().__init__()
