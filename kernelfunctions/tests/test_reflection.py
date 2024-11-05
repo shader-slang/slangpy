@@ -82,6 +82,22 @@ def check_matrix(type: r.SlangType, scalar_type: r.TR.ScalarType, rows: int, col
     assert type.differentiable == type.element_type.differentiable
 
 
+def check_structured_buffer(type: r.SlangType, resource_access: r.TR.ResourceAccess, element_type: r.SlangType):
+    assert isinstance(type, r.StructuredBufferType)
+    assert type.element_type == element_type
+
+
+def check_array(type: r.SlangType, element_type: r.SlangType, num_elements: int):
+    assert isinstance(type, r.ArrayType)
+    assert type.element_type == element_type
+    assert type.num_elements == num_elements
+    if num_elements == 0:
+        assert type.name == f"{element_type.name}[]"
+    else:
+        assert type.name == f"{element_type.name}[{num_elements}]"
+    assert type.differentiable == type.element_type.differentiable
+
+
 ARG_TYPE_CHECKS = [
     ("float16_t", lambda x: check_scalar(x, r.TR.ScalarType.float16)),
     ("float", lambda x: check_scalar(x, r.TR.ScalarType.float32)),
@@ -109,6 +125,13 @@ ARG_TYPE_CHECKS = [
         x, r.TR.ResourceShape.texture_2d, r.TR.ResourceAccess.read, 2, r.float3)),
     ("RWTexture2D<float3>", lambda x: check_texture(
         x, r.TR.ResourceShape.texture_2d, r.TR.ResourceAccess.read_write, 2, r.float3)),
+    ("StructuredBuffer<float>", lambda x: check_structured_buffer(
+        x, r.TR.ResourceAccess.read, r.float32)),
+    ("RWStructuredBuffer<float4>", lambda x: check_structured_buffer(
+        x, r.TR.ResourceAccess.read_write, r.float4)),
+    ("float[10]", lambda x: check_array(x, r.float32, 10)),
+    ("float3[]", lambda x: check_array(x, r.float3, 0)),
+
 ]
 
 

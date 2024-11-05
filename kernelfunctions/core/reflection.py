@@ -145,7 +145,11 @@ class ArrayType(SlangType):
     def __init__(self, element_type: SlangType, num_elements: int):
         super().__init__()
 
-        self.name = f"{element_type.name}[{num_elements}]"
+        if num_elements > 0:
+            self.name = f"{element_type.name}[{num_elements}]"
+        else:
+            self.name = f"{element_type.name}[]"
+
         self.element_type: SlangType = element_type
         self.num_elements = num_elements
         if element_type.differential is not None:
