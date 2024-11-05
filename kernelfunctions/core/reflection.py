@@ -212,6 +212,8 @@ class ByteAddressBufferType(ResourceType):
         name = f"{prefix}ByteAddressBuffer"
         super().__init__(name, TR.ResourceShape.byte_address_buffer, resource_access)
 
+        self.element_type = uint8
+
 
 class DifferentialPairType(SlangType):
     def __init__(self, primal: SlangType):
@@ -278,8 +280,9 @@ MATRIX: dict[TR.ScalarType | ScalarType, tuple[tuple[MatrixType, ...], ...]] = {
 for scalar_type in scalar_names.keys():
     st = ScalarType(scalar_type)
     SCALAR[scalar_type] = st
-    VECTOR[scalar_type] = (None,) + tuple(VectorType(st, dim)
-                                          for dim in (1, 2, 3, 4))  # type: ignore
+
+    VECTOR[scalar_type] = (None,) + tuple(VectorType(st, dim)  # type: ignore
+                                          for dim in (1, 2, 3, 4))
     MATRIX[scalar_type] = (None,) + tuple((None,) + tuple(MatrixType(st, r, c)  # type: ignore
                                                           for c in (1, 2, 3, 4)) for r in (1, 2, 3, 4))
 

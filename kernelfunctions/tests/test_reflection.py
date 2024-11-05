@@ -85,6 +85,13 @@ def check_matrix(type: r.SlangType, scalar_type: r.TR.ScalarType, rows: int, col
 def check_structured_buffer(type: r.SlangType, resource_access: r.TR.ResourceAccess, element_type: r.SlangType):
     assert isinstance(type, r.StructuredBufferType)
     assert type.element_type == element_type
+    assert type.resource_access == resource_access
+
+
+def check_address_buffer(type: r.SlangType, resource_access: r.TR.ResourceAccess):
+    assert isinstance(type, r.ByteAddressBufferType)
+    assert type.element_type == r.uint8
+    assert type.resource_access == resource_access
 
 
 def check_array(type: r.SlangType, element_type: r.SlangType, num_elements: int):
@@ -96,6 +103,15 @@ def check_array(type: r.SlangType, element_type: r.SlangType, num_elements: int)
     else:
         assert type.name == f"{element_type.name}[{num_elements}]"
     assert type.differentiable == type.element_type.differentiable
+
+
+def check_struct(type: r.SlangType, fields: dict[str, r.SlangType]):
+    assert isinstance(type, r.StructType)
+    assert type.fields == fields
+
+
+def check_interface(type: r.SlangType):
+    assert isinstance(type, r.InterfaceType)
 
 
 ARG_TYPE_CHECKS = [
@@ -131,7 +147,10 @@ ARG_TYPE_CHECKS = [
         x, r.TR.ResourceAccess.read_write, r.float4)),
     ("float[10]", lambda x: check_array(x, r.float32, 10)),
     ("float3[]", lambda x: check_array(x, r.float3, 0)),
-
+    ("ByteAddressBuffer", lambda x: check_address_buffer(x, r.TR.ResourceAccess.read)),
+    ("RWByteAddressBuffer", lambda x: check_address_buffer(x, r.TR.ResourceAccess.read_write)),
+    ("TestStruct", lambda x: check_struct(x, {"foo": r.float32})),
+    ("ITestInterface", lambda x: check_interface(x)),
 ]
 
 
@@ -143,6 +162,11 @@ def test_arg_types(device_type: DeviceType, arg_type: tuple[str, Callable[[Any],
     function = helpers.create_function_from_module(device, "foo",
                                                    f"""
 import "slangpy";
+struct TestStruct {{
+    float foo;
+}}
+interface ITestInterface {{}}
+
 float foo({arg_type[0]} a) {{ return 0; }}
 """)
 
