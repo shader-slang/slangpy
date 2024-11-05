@@ -13,15 +13,17 @@ if TYPE_CHECKING:
 
 
 class BindContext:
-    def __init__(self, call_mode: CallMode, device_module: 'SlangModule'):
+    def __init__(self, call_mode: CallMode, device_module: 'SlangModule', options: dict[str, Any]):
         super().__init__()
         self.call_dimensionality = -1
         self.call_mode = call_mode
         self.device_module = device_module
+        self.options = options
 
 
 class ReturnContext:
     def __init__(self, slang_type: 'BaseType', bind_context: BindContext):
+        super().__init__()
         self.slang_type = slang_type
         self.bind_context = bind_context
 

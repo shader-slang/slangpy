@@ -1,3 +1,5 @@
+from hashlib import sha1, sha256
+import json
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 from kernelfunctions.core import SlangFunction, hash_signature
 
@@ -200,9 +202,11 @@ class Function(FunctionChainBase):
         type_parent: Optional[str] = None,
         type_reflection: Optional[TypeReflection] = None,
         func_reflections: Optional[list[FunctionReflection]] = None,
+        options: dict[str, Any] = {},
     ) -> None:
         super().__init__(None)
         self.module = module
+        self.options = options
         self.name = name
 
         # If type parent supplied by name, look it up
@@ -238,9 +242,18 @@ class Function(FunctionChainBase):
         # Store type parent name if found
         self.type_reflection = type_reflection
 
+        # Calc hash of input options for signature
+        if not 'implicit_element_casts' in self.options:
+            self.options['implicit_element_casts'] = True
+        if not 'implicit_tensor_casts' in self.options:
+            self.options['implicit_tensor_casts'] = True
+        if not 'strict_broadcasting' in self.options:
+            self.options['strict_broadcasting'] = True
+        options_hash = json.dumps(self.options)
+
         # Generate signature for hashing
         type_parent = type_reflection.full_name if type_reflection is not None else None
-        self.slangpy_signature = f"[{id(module)}][{type_parent or ''}::{self.name}]"
+        self.slangpy_signature = f"[{id(module)}][{type_parent or ''}::{self.name},{options_hash}]"
 
     def as_func(self) -> 'Function':
         return self

@@ -76,7 +76,7 @@ def create_module(
 
 
 def create_function_from_module(
-    device: Device, func_name: str, module_source: str
+    device: Device, func_name: str, module_source: str, options: dict[str, Any] = {}
 ) -> kernelfunctions.Function:
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
@@ -85,10 +85,11 @@ def create_function_from_module(
     names = func_name.split(".")
 
     if len(names) == 1:
-        function = kernelfunctions.Function(module, names[0])
+        function = kernelfunctions.Function(module, names[0], options=options)
     else:
         type_name = "::".join(names[:-1])
-        function = kernelfunctions.Function(module, names[-1], type_parent=type_name)
+        function = kernelfunctions.Function(
+            module, names[-1], type_parent=type_name, options=options)
     return function
 
 

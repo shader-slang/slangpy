@@ -116,7 +116,7 @@ class CallData(NativeCallData):
         unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
 
         # Setup context
-        context = BindContext(self.call_mode, function.module)
+        context = BindContext(self.call_mode, function.module, function.options)
 
         # Build the unbound signature from inputs
         python_call = PythonFunctionCall(*unpacked_args, **unpacked_kwargs)
