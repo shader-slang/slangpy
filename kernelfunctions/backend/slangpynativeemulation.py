@@ -7,7 +7,7 @@ To serve accurately, it should only import typing and the necessary backend type
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
-from . import uint3, CommandBuffer
+from . import uint3, CommandBuffer, ModifierID
 
 if TYPE_CHECKING:
     from . import Device, ComputeKernel
@@ -92,6 +92,53 @@ class Shape:
 
     def __iter__(self):
         return iter(self.as_tuple())
+
+
+class NativeTypeLayout:
+    def __init__(self, size_bytes: int, stride_bytes: int, offset_bytes: int):
+        super().__init__()
+
+        self.size_bytes = size_bytes
+        self.stride_bytes = stride_bytes
+
+
+class NativeSlangType:
+    def __init__(self):
+        super().__init__()
+        self.name = ""
+        self.element_type: Optional['NativeSlangType'] = None
+        self.differential: Optional[NativeSlangType] = None
+        self.static_shape: Optional[Shape] = None
+        self.layout: Optional[NativeTypeLayout] = None
+        self.fields: dict[str, NativeSlangType] = {}
+        self.modifiers: set[ModifierID] = set()
+
+        self.needs_specialization: bool = False
+        self.num_elements: int = 0
+
+    def get_byte_size(self) -> int:
+        assert self.layout is not None
+        return self.layout.size_bytes
+
+    @property
+    def shape(self) -> Shape:
+        if self.static_shape is None:
+            dims = []
+            slang_type = self
+            while slang_type.element_type is not None:
+                dims.append(slang_type.num_elements)
+                slang_type = slang_type.element_type
+
+            self.static_shape = Shape(*dims)
+
+        return self.static_shape
+
+    @property
+    def innermost_type(self) -> 'NativeSlangType':
+        result = self
+        while result.element_type is not None:
+            result = result.element_type
+        return result
 
 
 class NativeType:
