@@ -76,9 +76,6 @@ class SlangType(NativeSlangType):
     def no_diff(self) -> bool:
         return ModifierID.nodiff in self.modifiers
 
-    # slangtypes note: if we're wanting to handle derivatives-of-derivatives etc, should we avoid ever trying
-    # to store this? maybe we should just work it out on-demand by going out to slang - it can be different
-    # for different modules after all. I see horrible recursive problems in our future if we store it :)
     @property
     def differentiable(self) -> bool:
         return self.differential is not None and not self.no_diff
@@ -88,14 +85,11 @@ class SlangType(NativeSlangType):
         assert self.differential is not None and self.differentiable
         return self.differential
 
-    # slangtypes note: naming check only works if we ensure vector types always use full name (eg vector<float,4)),
-    # because the slang api either returns 'vector' for name, or 'vector<float,4>' for full name, but never float4
     def __eq__(self, other: Any):
         if not isinstance(other, SlangType):
             return NotImplemented
         return self.name == other.name
 
-    # slangtypes note: required if we want __eq__ and to use type in a dict (eg the VECTOR dict below)
     def __hash__(self):
         return hash(self.name)
 
@@ -122,23 +116,19 @@ class VectorType(SlangType):
     def __init__(self, element_type: ScalarType, num_elements: int):
         super().__init__()
 
-        self.name = f"{element_type.name}{num_elements}"
+        self.name = f"vector<{element_type.name},{num_elements}>"
         self.element_type: ScalarType = element_type
         self.num_elements = num_elements
         if element_type.differential is not None:
             assert element_type.differential is element_type
             self.differential = self
 
-# slangtypes note: Slang doesn't see a matrix as a vector of vectors - it's
-# defined as matrix<float,4,4> - I think we should follow this convention
-# unless we have a good reason not to.
-
 
 class MatrixType(SlangType):
     def __init__(self, element_type: ScalarType, rows: int, cols: int):
         super().__init__()
 
-        self.name = f"{element_type.name}{rows}x{cols}"
+        self.name = f"matrix<{element_type.name},{rows},{cols}>"
         self.element_type: SlangType = VectorType(element_type, cols)
 
         self.scalar_et = element_type
