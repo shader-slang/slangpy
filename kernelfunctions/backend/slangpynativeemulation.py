@@ -129,7 +129,7 @@ class NativeType:
         raise NotImplementedError()
 
     def read_output(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any) -> Any:
-        raise NotImplementedError()
+        return None
 
 
 class NativeBoundCallRuntime:
