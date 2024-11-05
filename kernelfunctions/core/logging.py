@@ -78,13 +78,6 @@ def _generate_table_recurse(data: list[Any], columns: list[TableColumn], depth: 
     return rows
 
 
-test_data = [{"name": "AliceIsALongName", "age": 25, "children": [{"name": "Bob", "age": 3}, {
-    "name": "Charlie", "age": 1}]}, {"name": "David", "age": 30, "children": [{"name": "Eve", "age": 5}]}]
-columns = [TableColumn("Name", 10, "name"), TableColumn("Age", 10, "age")]
-table = generate_table(columns, test_data, lambda x: x.get('children'))
-print(table)
-
-
 def _pyarg_name(value: Any) -> str:
     if value == '':
         return '<posarg>'
