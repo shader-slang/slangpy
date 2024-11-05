@@ -76,6 +76,9 @@ class SlangType(NativeSlangType):
     def no_diff(self) -> bool:
         return ModifierID.nodiff in self.modifiers
 
+    # slangtypes note: if we're wanting to handle derivatives-of-derivatives etc, should we avoid ever trying
+    # to store this? maybe we should just work it out on-demand by going out to slang - it can be different
+    # for different modules after all. I see horrible recursive problems in our future if we store it :)
     @property
     def differentiable(self) -> bool:
         return self.differential is not None and not self.no_diff
@@ -85,11 +88,16 @@ class SlangType(NativeSlangType):
         assert self.differential is not None and self.differentiable
         return self.differential
 
+    # slangtypes note: naming check only works if we ensure vector types always use full name (eg vector<float,4)),
+    # because the slang api either returns 'vector' for name, or 'vector<float,4>' for full name, but never float4
     def __eq__(self, other: Any):
         if not isinstance(other, SlangType):
             return NotImplemented
-
         return self.name == other.name
+
+    # slangtypes note: required if we want __eq__ and to use type in a dict (eg the VECTOR dict below)
+    def __hash__(self):
+        return hash(self.name)
 
 
 class VoidType(SlangType):
@@ -100,13 +108,13 @@ class VoidType(SlangType):
 
 
 class ScalarType(SlangType):
-    def __init__(self, kind: TR.ScalarType):
+    def __init__(self, scalar_type: TR.ScalarType):
         super().__init__()
 
-        assert kind not in (TR.ScalarType.none, TR.ScalarType.void)
-        self.name = scalar_names[kind]
-        self.kind = kind
-        if is_float(kind):
+        assert scalar_type not in (TR.ScalarType.none, TR.ScalarType.void)
+        self.name = scalar_names[scalar_type]
+        self.scalar_type = scalar_type
+        if is_float(scalar_type):
             self.differential = self
 
 
@@ -120,6 +128,10 @@ class VectorType(SlangType):
         if element_type.differential is not None:
             assert element_type.differential is element_type
             self.differential = self
+
+# slangtypes note: Slang doesn't see a matrix as a vector of vectors - it's
+# defined as matrix<float,4,4> - I think we should follow this convention
+# unless we have a good reason not to.
 
 
 class MatrixType(SlangType):
@@ -167,49 +179,44 @@ class InterfaceType(SlangType):
 
 
 class ResourceType(SlangType):
-    def __init__(self, name: str, kind: TR.ResourceShape, access: TR.ResourceAccess):
+    def __init__(self, name: str, resource_shape: TR.ResourceShape, resource_access: TR.ResourceAccess):
         super().__init__()
         self.name = name
-        self.kind = kind
-        self.access = access
+        self.resource_shape = resource_shape
+        self.resource_access = resource_access
 
 
 class TextureType(ResourceType):
-    def __init__(self, kind: TR.ResourceShape, element_type: SlangType, writable: bool):
-        assert kind in texture_names
+    def __init__(self, texture_resource_shape: TR.ResourceShape, resource_access: TR.ResourceAccess, element_type: SlangType):
+        assert texture_resource_shape in texture_names
+        assert resource_access in (TR.ResourceAccess.read, TR.ResourceAccess.read_write)
+
+        prefix = "RW" if resource_access == TR.ResourceAccess.read_write else ""
+        name = f"{prefix}{texture_names[texture_resource_shape]}<{element_type.name}>"
+        super().__init__(name, texture_resource_shape, resource_access)
 
         self.element_type = element_type
-        self.writable = writable
-        self.num_dims = texture_dims[kind]
-
-        prefix = "RW" if writable else ""
-        name = f"{prefix}{texture_names[kind]}<{element_type.name}>"
-        access = TR.ResourceAccess.read_write if writable else TR.ResourceAccess.read
-
-        super().__init__(name, kind, access)
+        self.num_dims = texture_dims[texture_resource_shape]
 
 
 class StructuredBufferType(ResourceType):
-    def __init__(self, element_type: SlangType, writable: bool):
-        self.writable = writable
-        self.element_type = element_type
+    def __init__(self, resource_access: TR.ResourceAccess, element_type: SlangType):
+        assert resource_access in (TR.ResourceAccess.read, TR.ResourceAccess.read_write)
 
-        prefix = "RW" if writable else ""
+        prefix = "RW" if resource_access == TR.ResourceAccess.read_write else ""
         name = f"{prefix}StructuredBuffer<{element_type.name}>"
-        access = TR.ResourceAccess.read_write if writable else TR.ResourceAccess.read
+        super().__init__(name, TR.ResourceShape.structured_buffer, resource_access)
 
-        super().__init__(name, TR.ResourceShape.structured_buffer, access)
+        self.element_type = element_type
 
 
 class ByteAddressBufferType(ResourceType):
-    def __init__(self, writable: bool):
-        self.writable = writable
+    def __init__(self, resource_access: TR.ResourceAccess):
+        assert resource_access in (TR.ResourceAccess.read, TR.ResourceAccess.read_write)
 
-        prefix = "RW" if writable else ""
+        prefix = "RW" if resource_access == TR.ResourceAccess.read_write else ""
         name = f"{prefix}ByteAddressBuffer"
-        access = TR.ResourceAccess.read_write if writable else TR.ResourceAccess.read
-
-        super().__init__(name, TR.ResourceShape.structured_buffer, access)
+        super().__init__(name, TR.ResourceShape.byte_address_buffer, resource_access)
 
 
 class DifferentialPairType(SlangType):
@@ -274,14 +281,16 @@ class SlangParameter:
 SCALAR: dict[TR.ScalarType, ScalarType] = {}
 VECTOR: dict[TR.ScalarType | ScalarType, tuple[VectorType, ...]] = {}
 MATRIX: dict[TR.ScalarType | ScalarType, tuple[tuple[MatrixType, ...], ...]] = {}
-for kind in scalar_names.keys():
-    st = ScalarType(kind)
-    SCALAR[kind] = st
-    VECTOR[kind] = tuple(VectorType(st, dim) for dim in (1, 2, 3, 4))
-    MATRIX[kind] = tuple(tuple(MatrixType(st, r, c)
-                         for c in (1, 2, 3, 4)) for r in (1, 2, 3, 4))
-    VECTOR[st] = VECTOR[kind]
-    MATRIX[st] = MATRIX[kind]
+for scalar_type in scalar_names.keys():
+    st = ScalarType(scalar_type)
+    SCALAR[scalar_type] = st
+    VECTOR[scalar_type] = (None,) + tuple(VectorType(st, dim)
+                                          for dim in (1, 2, 3, 4))  # type: ignore
+    MATRIX[scalar_type] = (None,) + tuple((None,) + tuple(MatrixType(st, r, c)  # type: ignore
+                                                          for c in (1, 2, 3, 4)) for r in (1, 2, 3, 4))
+
+    VECTOR[st] = VECTOR[scalar_type]
+    MATRIX[st] = MATRIX[scalar_type]
 
 bool_ = SCALAR[TR.ScalarType.bool]
 int8 = SCALAR[TR.ScalarType.int8]
@@ -449,14 +458,12 @@ def reflect_array(type: TypeReflection) -> SlangType:
 
 
 def reflect_resource(type: TypeReflection) -> SlangType:
-    RW = (type.resource_access == TR.ResourceAccess.read_write)
-
     if type.resource_shape == TR.ResourceShape.structured_buffer:
-        return StructuredBufferType(reflect(type.resource_result_type), RW)
+        return StructuredBufferType(type.resource_access, reflect(type.resource_result_type))
     elif type.resource_shape == TR.ResourceShape.byte_address_buffer:
-        return ByteAddressBufferType(RW)
+        return ByteAddressBufferType(type.resource_access)
     elif type.resource_shape in texture_names:
-        return TextureType(type.resource_shape, reflect(type.resource_result_type), RW)
+        return TextureType(type.resource_shape, type.resource_access, reflect(type.resource_result_type))
     else:
         return ResourceType(type.full_name, type.resource_shape, type.resource_access)
 
@@ -501,7 +508,7 @@ def reflect_function(function: FunctionReflection, this: Optional[TypeReflection
         # TODO: Get actual value of has_default from reflection API
         has_default = False
         parameters.append(SlangParameter(
-            type, function.name, len(parameters), has_default))
+            type, param.name, len(parameters), has_default))
 
     return_type = reflect_type(function.return_type)
     return_modifiers = {ModifierID.out}
