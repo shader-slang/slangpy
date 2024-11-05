@@ -3,9 +3,12 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData
+from sgl import SlangCompileError
+
+from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException, PythonVariableException
 
 from kernelfunctions.callsignature import (
+    KernelGenException,
     calculate_differentiability,
     apply_explicit_vectorization,
     apply_implicit_vectorization,
@@ -21,6 +24,7 @@ from kernelfunctions.callsignature import (
     specialize,
     validate_specialize
 )
+from kernelfunctions.core.logging import bound_call_table, bound_exception_info, bound_variables_table, mismatch_info, python_exception_info, python_variables_table
 from kernelfunctions.core.slangvariable import SlangFunction
 from kernelfunctions.typeregistry import scope
 
@@ -62,151 +66,189 @@ class CallData(NativeCallData):
     ) -> None:
         super().__init__()
 
-        from kernelfunctions.function import (
-            Function,
-            FunctionChainBwdsDiff,
-            FunctionChainOutputTransform,
-            FunctionChainSet,
-            FunctionChainHook,
-            FunctionChainReturnType,
-            FunctionChainMap
-        )
+        try:
 
-        if not isinstance(chain[0], Function):
-            raise ValueError("First entry in chain should be a function")
-        self.call_mode = CallMode.prim
+            from kernelfunctions.function import (
+                Function,
+                FunctionChainBwdsDiff,
+                FunctionChainOutputTransform,
+                FunctionChainSet,
+                FunctionChainHook,
+                FunctionChainReturnType,
+                FunctionChainMap
+            )
+            bindings = None
+            python_call = None
 
-        function = chain[0]
-        chain = chain
-        outut_transforms: dict[str, 'TShapeOrTuple'] = {}
-        return_type = None
-        positional_mapping = ()
-        keyword_mapping = {}
+            if not isinstance(chain[0], Function):
+                raise KernelGenException("First entry in chain should be a function")
+            self.call_mode = CallMode.prim
 
-        sets = {}
-        for item in chain:
-            if isinstance(item, FunctionChainSet):
-                if item.props is not None:
-                    sets.update(item.props)
-                elif item.callback is not None:
-                    sets.update(item.callback(self))
-                else:
-                    raise ValueError(
-                        "FunctionChainSet must have either a props or callback"
-                    )
-            if isinstance(item, FunctionChainOutputTransform):
-                outut_transforms.update(item.transforms)
-            if isinstance(item, FunctionChainBwdsDiff):
-                self.call_mode = CallMode.bwds
-            if isinstance(item, FunctionChainHook):
-                if item.before_dispatch is not None:
-                    self.add_before_dispatch_hook(item.before_dispatch)
-                if item.after_dispatch is not None:
-                    self.add_after_dispatch_hook(item.after_dispatch)
-            if isinstance(item, FunctionChainReturnType):
-                return_type = item.return_type
-            if isinstance(item, FunctionChainMap):
-                positional_mapping = item.args
-                keyword_mapping = item.kwargs
+            function = chain[0]
+            chain = chain
+            outut_transforms: dict[str, 'TShapeOrTuple'] = {}
+            return_type = None
+            positional_mapping = ()
+            keyword_mapping = {}
 
-        self.vars = sets
+            sets = {}
+            for item in chain:
+                if isinstance(item, FunctionChainSet):
+                    if item.props is not None:
+                        sets.update(item.props)
+                    elif item.callback is not None:
+                        sets.update(item.callback(self))
+                    else:
+                        raise KernelGenException(
+                            "FunctionChainSet must have either a props or callback"
+                        )
+                if isinstance(item, FunctionChainOutputTransform):
+                    outut_transforms.update(item.transforms)
+                if isinstance(item, FunctionChainBwdsDiff):
+                    self.call_mode = CallMode.bwds
+                if isinstance(item, FunctionChainHook):
+                    if item.before_dispatch is not None:
+                        self.add_before_dispatch_hook(item.before_dispatch)
+                    if item.after_dispatch is not None:
+                        self.add_after_dispatch_hook(item.after_dispatch)
+                if isinstance(item, FunctionChainReturnType):
+                    return_type = item.return_type
+                if isinstance(item, FunctionChainMap):
+                    positional_mapping = item.args
+                    keyword_mapping = item.kwargs
 
-        # Build 'unpacked' args (that handle IThis)
-        unpacked_args = tuple([unpack_arg(x) for x in args])
-        unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
+            self.vars = sets
 
-        # Setup context
-        context = BindContext(self.call_mode, function.module, function.options)
+            # Build 'unpacked' args (that handle IThis)
+            unpacked_args = tuple([unpack_arg(x) for x in args])
+            unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
 
-        # Build the unbound signature from inputs
-        python_call = PythonFunctionCall(*unpacked_args, **unpacked_kwargs)
+            # Setup context
+            context = BindContext(self.call_mode, function.module, function.options)
 
-        # Apply explicit to the Python variables
-        apply_explicit_vectorization(python_call, positional_mapping, keyword_mapping)
+            # Build the unbound signature from inputs
+            python_call = PythonFunctionCall(*unpacked_args, **unpacked_kwargs)
 
-        # Perform specialization to get a concrete function reflection
-        concrete_reflection = specialize(
-            context, python_call, function.reflections, function.type_reflection)
-        if isinstance(concrete_reflection, MismatchReason):
+            # Apply explicit to the Python variables
+            apply_explicit_vectorization(python_call, positional_mapping, keyword_mapping)
+
+            # Perform specialization to get a concrete function reflection
+            concrete_reflection = specialize(
+                context, python_call, function.reflections, function.type_reflection)
+            if isinstance(concrete_reflection, MismatchReason):
+                raise KernelGenException(
+                    f"Function signature mismatch: {concrete_reflection.reason}\n\n"
+                    f"{mismatch_info(python_call, function.reflections)}\n")
+
+            # Build slang function signature
+            with scope(function.module):
+                slang_function = SlangFunction(
+                    concrete_reflection, function.type_reflection)
+
+            # Check for differentiability error
+            if not slang_function.differentiable and self.call_mode != CallMode.prim:
+                raise KernelGenException(
+                    "Could not call function 'polynomial': Function is not differentiable\n\n"
+                    f"{mismatch_info(python_call, function.reflections)}\n")
+
+            # Inject a dummy node into the Python signature if we need a result back
+            if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_value is not None:
+                rvalnode = PythonVariable(None, None, "_result")
+                python_call.kwargs["_result"] = rvalnode
+
+            # Create bound variable information now that we have concrete data for path sides
+            bindings = bind(context, python_call, slang_function)
+
+            # Run Python side implicit vectorization to do any remaining type resolution
+            apply_implicit_vectorization(context, bindings)
+
+            # Should no longer have implicit argument types for anything.
+            assert not python_call.has_implicit_args
+
+            # Calculate overall call dimensionality now that all typing is known.
+            self.call_dimensionality = calculate_call_dimensionality(bindings)
+            context.call_dimensionality = self.call_dimensionality
+
+            # If necessary, create return value node once call dimensionality is known.
+            create_return_value_binding(context, bindings, return_type)
+
+            # Calculate final mappings for bindings that only have known vector type.
+            finalize_mappings(context, bindings)
+
+            # Should no longer have any unresolved mappings for anything.
+            assert not python_call.has_implicit_mappings
+
+            # Validate the arguments we're going to pass to slang before trying to make code.
+            validate_specialize(context, python_call, concrete_reflection)
+
+            # Calculate differentiability of all variables.
+            calculate_differentiability(context, bindings)
+
+            # Generate code.
+            codegen = CodeGen()
+            generate_code(context, function, bindings, codegen)
+            code = codegen.finish(call_data=True, input_load_store=True,
+                                  header=True, kernel=True, imports=True,
+                                  trampoline=True, context=True, snippets=True,
+                                  call_data_structs=True)
+
+            # Write the shader to a file for debugging.
+            os.makedirs(".temp", exist_ok=True)
+            sanitized = re.sub(r"[<>, ]", "_", function.name)
+            fn = f".temp/{function.module.name}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
+
+            # with open(fn,"r") as f:
+            #   self.code = f.read()
+
+            with open(fn, "w",) as f:
+                f.write("/*\n")
+                f.write(bound_call_table(bindings))
+                f.write("\n*/\n")
+                f.write(code)
+
+            # Build new module and link it with the one that contains the function being called.
+            session = function.module.session
+            device = session.device
+            module = session.load_module_from_source(
+                hashlib.sha256(code.encode()).hexdigest()[0:16], code
+            )
+            ep = module.entry_point("main")
+            program = session.link_program([module, function.module], [ep])
+            self.kernel = device.create_compute_kernel(program)
+            self.device = device
+
+            self.debug_only_bindings = bindings
+            self.runtime = BoundCallRuntime(bindings)
+        except PythonVariableException as e:
             raise ValueError(
-                f"Function signature mismatch: {concrete_reflection.reason}\n"
-                f"  {get_readable_func_refl_string(function.reflections[0])}\n"
-                f"  {get_readable_signature_string(python_call)}")
-
-        # Build slang function signature
-        with scope(function.module):
-            slang_function = SlangFunction(concrete_reflection, function.type_reflection)
-
-        # Check for differentiability error
-        if not slang_function.differentiable and self.call_mode != CallMode.prim:
+                f"{e.message}\n\n"
+                f"{python_exception_info(python_call, function.reflections, e.variable)}\n")
+        except BoundVariableException as e:
             raise ValueError(
-                "Could not call function 'polynomial': Function is not differentiable")
-
-        # Inject a dummy node into the Python signature if we need a result back
-        if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_value is not None:
-            rvalnode = PythonVariable(None, None, "_result")
-            python_call.kwargs["_result"] = rvalnode
-
-        # Create bound variable information now that we have concrete data for path sides
-        bindings = bind(context, python_call, slang_function)
-
-        # Run Python side implicit vectorization to do any remaining type resolution
-        apply_implicit_vectorization(context, bindings)
-
-        # Should no longer have implicit argument types for anything.
-        assert not python_call.has_implicit_args
-
-        # Calculate overall call dimensionality now that all typing is known.
-        self.call_dimensionality = calculate_call_dimensionality(bindings)
-        context.call_dimensionality = self.call_dimensionality
-
-        # If necessary, create return value node once call dimensionality is known.
-        create_return_value_binding(context, bindings, return_type)
-
-        # Calculate final mappings for bindings that only have known vector type.
-        finalize_mappings(context, bindings)
-
-        # Should no longer have any unresolved mappings for anything.
-        assert not python_call.has_implicit_mappings
-
-        # Validate the arguments we're going to pass to slang before trying to make code.
-        validate_specialize(context, python_call, concrete_reflection)
-
-        # Calculate differentiability of all variables.
-        calculate_differentiability(context, bindings)
-
-        # Generate code.
-        codegen = CodeGen()
-        generate_code(context, function, bindings, codegen)
-        code = codegen.finish(call_data=True, input_load_store=True,
-                              header=True, kernel=True, imports=True,
-                              trampoline=True, context=True, snippets=True,
-                              call_data_structs=True)
-
-        # Write the shader to a file for debugging.
-        os.makedirs(".temp", exist_ok=True)
-        sanitized = re.sub(r"[<>, ]", "_", function.name)
-        fn = f".temp/{function.module.name}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
-
-        # with open(fn,"r") as f:
-        #   self.code = f.read()
-
-        with open(fn, "w",) as f:
-            f.write("/*\n")
-            f.write(generate_tree_info_string(bindings))
-            f.write("\n*/\n")
-            f.write(code)
-
-        # Build new module and link it with the one that contains the function being called.
-        session = function.module.session
-        device = session.device
-        module = session.load_module_from_source(
-            hashlib.sha256(code.encode()).hexdigest()[0:16], code
-        )
-        ep = module.entry_point("main")
-        program = session.link_program([module, function.module], [ep])
-        self.kernel = device.create_compute_kernel(program)
-        self.device = device
-
-        self.debug_only_bindings = bindings
-        self.runtime = BoundCallRuntime(bindings)
+                f"{e.message}\n\n"
+                f"{bound_exception_info(bindings, concrete_reflection, e.variable)}\n")
+        except SlangCompileError as e:
+            raise ValueError(
+                f"Slang compilation error: {e}\n. See .temp directory for generated shader.\n"
+                f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n"
+                f"{bound_exception_info(bindings, concrete_reflection, None)}\n")
+        except KernelGenException as e:
+            if bindings is None:
+                raise ValueError(
+                    f"Exception in kernel generation: {e.message}\n."
+                    f"{python_exception_info(python_call, function.reflections, None)}\n")
+            else:
+                raise ValueError(
+                    f"Exception in kernel generation: {e.message}\n."
+                    f"{bound_exception_info(bindings, concrete_reflection, None)}\n")
+        except Exception as e:
+            if bindings is not None:
+                raise ValueError(
+                    f"Exception in kernel generation: {e}\n."
+                    f"{bound_exception_info(bindings, concrete_reflection, None)}\n")
+            elif python_call is not None:
+                raise ValueError(
+                    f"Exception in kernel generation: {e}\n."
+                    f"{python_exception_info(python_call, function.reflections, None)}\n")
+            else:
+                raise e

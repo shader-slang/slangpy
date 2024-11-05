@@ -132,7 +132,8 @@ class BoundVariable:
             self.python.vector_type = self.slang.primal
 
         # Clear slang type info - it should never be used after this
-        self.slang.primal = None
+        # Note: useful for debugging so keeping for now!
+        # self.slang.primal = None
         self.slang.derivative = None
 
         # Can now calculate dimensionality
@@ -157,9 +158,6 @@ class BoundVariable:
         self._finalize_mappings(context)
 
     def _finalize_mappings(self, context: BindContext):
-        if self.call_dimensionality is None:
-            self.call_dimensionality = context.call_dimensionality
-
         if context.options['strict_broadcasting'] and self.children is None and not self.python.explicitly_vectorized:
             if self.call_dimensionality != 0 and self.call_dimensionality != context.call_dimensionality:
                 raise BoundVariableException(
@@ -304,8 +302,8 @@ class BoundVariable:
             # Raise error if attempting to write to non-writable type
             if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.writable:
                 if depth == 0:
-                    raise ValueError(
-                        f"Cannot read back value for non-writable type")
+                    raise BoundVariableException(
+                        f"Cannot read back value for non-writable type", self)
 
             # Generate call data
             self.python.primal.gen_calldata(cg.call_data_structs, context, self)

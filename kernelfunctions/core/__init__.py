@@ -8,7 +8,7 @@ from .basetypeimpl import BaseTypeImpl
 from .basevariable import BaseVariable
 from .basevariableimpl import BaseVariableImpl
 
-from .pythonvariable import PythonVariable, PythonFunctionCall
+from .pythonvariable import PythonVariable, PythonFunctionCall, PythonVariableException
 from .slangvariable import SlangVariable, SlangFunction
 
 from .boundvariable import BoundVariable, BoundCall, BoundVariableException

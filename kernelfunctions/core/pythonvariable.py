@@ -6,6 +6,13 @@ from .basetype import BaseType
 from .native import Shape
 
 
+class PythonVariableException(Exception):
+    def __init__(self, message: str, variable: 'PythonVariable') -> NoneType:
+        super().__init__(message)
+        self.message = message
+        self.variable = variable
+
+
 class PythonFunctionCall:
     def __init__(self, *args: Any, **kwargs: Any) -> NoneType:
         super().__init__()
@@ -99,10 +106,14 @@ class PythonVariable(BaseVariableImpl):
             self._apply_explicit_vectorization(mapping)
 
     def _apply_explicit_vectorization(self, mapping: Any):
-        if isinstance(mapping, tuple):
-            self.vector_mapping = Shape(*mapping)
-            self.vector_type = self.primal.reduce_type(len(mapping))
-            self.explicitly_vectorized = True
-        elif mapping is not None:
-            self.vector_type = get_or_create_type(mapping)
-            self.explicitly_vectorized = True
+        try:
+            if isinstance(mapping, tuple):
+                self.vector_mapping = Shape(*mapping)
+                self.vector_type = self.primal.reduce_type(len(mapping))
+                self.explicitly_vectorized = True
+            elif mapping is not None:
+                self.vector_type = get_or_create_type(mapping)
+                self.explicitly_vectorized = True
+        except Exception as e:
+            raise PythonVariableException(
+                f"Explicit vectorization raised exception: {e.__repr__()}", self)

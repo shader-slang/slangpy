@@ -39,6 +39,12 @@ class MismatchReason:
         self.reason = reason
 
 
+class KernelGenException(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
 def specialize(
     context: BindContext,
     signature: PythonFunctionCall,
@@ -51,10 +57,11 @@ def specialize(
             matches = [x for x in functions if len(
                 x.parameters) == signature.num_function_args]
             if len(matches) != 1:
-                return MismatchReason("Could not find unique $init function")
+                return MismatchReason("Overloaded $init functions are currently only supported if they have different argument counts.")
             function = matches[0]
         else:
-            return MismatchReason("Multiple functions found - should only happen with $init")
+            raise ValueError(
+                "Internal error - Multiple function reflections provided, which should only happen with $init.")
     else:
         function = functions[0]
 
@@ -76,7 +83,7 @@ def specialize(
 
     if signature.num_function_kwargs > 0 or signature.has_implicit_args:
         if function.is_overloaded:
-            return MismatchReason("Cannot currently specialize overloaded function with named or implicit arguments")
+            return MismatchReason("Call an overloaded function with named or implicit arguments is not currently supported.")
 
         function_parameters = [x for x in function.parameters]
 
@@ -85,6 +92,8 @@ def specialize(
             None] * len(function_parameters)
 
         # Populate the first N arguments from provided positional arguments
+        if len(signature_args) > len(function_parameters):
+            return MismatchReason("Too many positional arguments.")
         for i, arg in enumerate(signature_args):
             positioned_args[i] = arg
             arg.parameter_index = i
@@ -98,13 +107,13 @@ def specialize(
                 return MismatchReason(f"No parameter named '{name}'")
             i = name_map[name]
             if positioned_args[i] is not None:
-                return MismatchReason(f"Parameter '{name}' is already assigned")
+                return MismatchReason(f"Parameter '{name}' is already specified as a positional argument.")
             positioned_args[i] = arg
             arg.parameter_index = i
 
         # Ensure all parameters are assigned
         if not all(x is not None for x in positioned_args):
-            return MismatchReason("To use named or implicit arguments, all parameters must be specified")
+            return MismatchReason("To use named or implicit arguments, all parameters must be specified.")
 
         # Choose either explicit vector type or slang type for specialization
         inputs: list[Any] = []
@@ -113,13 +122,13 @@ def specialize(
             assert python_arg is not None
             if python_arg.vector_type is not None:
                 inputs.append(python_arg.vector_type)
+            elif isinstance(python_arg.primal, ValueType) and python_arg.primal.name != 'dict':
+                inputs.append(python_arg.primal)
             elif slang_param.type.kind != TypeReflection.Kind.none and slang_param.type.kind != TypeReflection.Kind.interface:
                 inputs.append(slang_param.type)
-            elif isinstance(python_arg.primal, ValueType):
-                inputs.append(python_arg.primal)
             else:
-                raise ValueError(
-                    f"Cannot specialize function with argument {i} of unknown type")
+                return MismatchReason(
+                    f"Parameter {i} is a generic or interface, so must either be passed a value type or have an explicit vector type.")
     else:
         # If no named or implicit arguments, just use explicit vector types for specialization
         inputs: list[Any] = [x.vector_type for x in signature_args]
@@ -134,12 +143,17 @@ def specialize(
         elif isinstance(input, str):
             return context.device_module.layout.find_type_by_name(input)
         else:
-            raise ValueError(f"Cannot convert {input} to TypeReflection")
+            raise KernelGenException(
+                f"Cannot convert {input} to a TypeReflection for overload resolution.")
 
     input_types = [to_type_reflection(x) for x in inputs]
+    if any(x is None for x in input_types):
+        raise KernelGenException(
+            "Unable to resolve all Slang types for specialization overload resolution.")
+
     specialized = function.specialize_with_arg_types(input_types)
     if specialized is None:
-        return MismatchReason("Could not specialize function with given argument types")
+        return MismatchReason("No Slang overload found that matches the provided Python argument types.")
 
     return specialized
 
@@ -161,15 +175,18 @@ def validate_specialize(
         elif isinstance(input, str):
             return context.device_module.layout.find_type_by_name(input)
         else:
-            raise ValueError(f"Cannot convert {input} to TypeReflection")
+            raise KernelGenException(
+                f"After implicit casting, cannot convert {input} to TypeReflection.")
 
     types = [to_type_reflection(x.vector_type) for x in root_params]
     if any(x is None for x in types):
-        raise ValueError("Unable to resolve all types for specialization")
+        raise KernelGenException(
+            "After implicit casting, unable to resolve all Slang types for specialization overload resolution.")
 
     specialized = function.specialize_with_arg_types(types)
     if specialized is None:
-        raise ValueError("Could not specialize function with given argument types")
+        raise KernelGenException(
+            "After implicit casting, no Slang overload found that matches the provided Python argument types.")
 
     return specialized
 

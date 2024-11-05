@@ -4,15 +4,13 @@ from typing import Any, Optional
 
 from sgl import ResourceUsage
 
-from kernelfunctions.core import BindContext, BaseType, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import BindContext, BaseType, BaseTypeImpl, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.backend import Buffer, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
-from .valuetype import ValueType
 
-
-class StructuredBufferType(ValueType):
+class StructuredBufferType(BaseTypeImpl):
 
     def __init__(self, element_type: Optional[BaseType]):
         super().__init__()

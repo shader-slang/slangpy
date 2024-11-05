@@ -19,7 +19,7 @@ TDispatchHook = Callable[[dict[str, Any]], None]
 
 
 def _cache_value_to_id(val: Any) -> str:
-    cb = PYTHON_SIGNATURES[type(val)]
+    cb = PYTHON_SIGNATURES.get(type(val))
     if cb is None:
         return ""
     else:
