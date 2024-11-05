@@ -13,6 +13,7 @@ float intfoo(int a) { return a; }
 T genericfoo<T>(T a) { return a; }
 T genericconstrainedfoo<T: IFloat>(T a) { return a; }
 float3 foo3(float3 a) { return a; }
+float add(float a, float b) { return a+b; }
 """
 
 
@@ -318,6 +319,48 @@ def test_fail_disabled_implicit_tensor_to_vector(device_type: DeviceType):
 
     with pytest.raises(ValueError):
         call_data = function.debug_build_call_data(buffer)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_fail_implicit_dimension_adding_vectorization(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(device, "add", SIMPLE_FUNC)
+
+    a = NDBuffer(device=device, element_type=float, shape=(10, 10))
+    b = NDBuffer(device=device, element_type=float, shape=(10,))
+
+    with pytest.raises(Exception):
+        call_data = function.debug_build_call_data(a, b)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_none_strict_implicit_dimension_adding_vectorization(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(device, "add", SIMPLE_FUNC, options={
+        'strict_broadcasting': False
+    })
+
+    a = NDBuffer(device=device, element_type=float, shape=(10, 10))
+    b = NDBuffer(device=device, element_type=float, shape=(10,))
+
+    call_data = function.debug_build_call_data(a, b)
+
+    binding = call_data.debug_only_bindings.args[0]
+    assert binding.vector_mapping.as_tuple() == (0, 1)
+    assert binding.vector_type is not None
+    assert binding.vector_type.name == "float"
+
+    binding = call_data.debug_only_bindings.args[1]
+    assert binding.vector_mapping.as_tuple() == (1,)
+    assert binding.vector_type is not None
+    assert binding.vector_type.name == "float"
+
+    result = call_data.debug_only_bindings.kwargs["_result"]
+    assert result.vector_mapping.as_tuple() == (0, 1)
+    assert result.vector_type is not None
+    assert result.vector_type.name == "float"
 
 
 if __name__ == "__main__":

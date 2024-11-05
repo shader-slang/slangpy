@@ -160,6 +160,11 @@ class BoundVariable:
         if self.call_dimensionality is None:
             self.call_dimensionality = context.call_dimensionality
 
+        if context.options['strict_broadcasting'] and self.children is None and not self.python.explicitly_vectorized:
+            if self.call_dimensionality != 0 and self.call_dimensionality != context.call_dimensionality:
+                raise BoundVariableException(
+                    f"Strict broadcasting is enabled and {self.path} dimensionality ({self.call_dimensionality}) is neither 0 or the kernel dimensionality ({context.call_dimensionality})", self)
+
         if not self.python.vector_mapping.valid:
             m: list[int] = []
             for i in range(self.call_dimensionality):
