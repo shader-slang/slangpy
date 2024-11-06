@@ -172,6 +172,10 @@ class VectorType(SlangType):
         return self.shape[0]
 
     @property
+    def scalar_type(self) -> ScalarType:
+        return cast(ScalarType, self.element_type)
+
+    @property
     def slang_scalar_type(self) -> TR.ScalarType:
         assert isinstance(self.element_type, VectorType)
         return self.element_type.slang_scalar_type
@@ -195,7 +199,7 @@ class MatrixType(SlangType):
     @property
     def scalar_type(self) -> ScalarType:
         assert isinstance(self.element_type, VectorType)
-        return cast(ScalarType, self.element_type.element_type)
+        return cast(ScalarType, self.element_type.scalar_type)
 
     @property
     def slang_scalar_type(self) -> TR.ScalarType:
@@ -437,19 +441,6 @@ class SlangParameter(BaseSlangVariable):
     @property
     def has_default(self) -> bool:
         return self._has_default
-
-
-class SlangThisParameter(BaseSlangVariable):
-    def __init__(self, program: SlangProgramLayout, type_refl: TypeReflection, mutating: bool):
-        super().__init__(program, program.find_type(type_refl), "_this", set())
-        self.mutating = mutating
-
-    # def cast(self, new_type: SlangType) -> SlangParameter:
-    #    return SlangParameter(self.program, new_type, self.name, self.index, self.has_default, self.modifiers)
-
-    @property
-    def io_type(self) -> IOType:
-        return IOType.inout if self.mutating else IOType.inn
 
 
 class SlangProgramLayout:
