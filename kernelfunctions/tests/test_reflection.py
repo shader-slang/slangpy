@@ -20,23 +20,31 @@ float foo_generic<T>(T a) { return 0; }
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vector_types_correct(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(device, "foo2", MODULE)
+    layout = r.SlangProgramLayout(function.module.layout)
 
-    for v in r.VECTOR.values():
-        assert v[0] == None
+    for st in r.TR.ScalarType:
+        if st == r.TR.ScalarType.void or st == r.TR.ScalarType.none:
+            continue
         for i in range(1, 4):
-            assert v[i].num_elements == i
+            assert layout.vector_type(st, i).num_elements == i
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_matrix_types_correct(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(device, "foo2", MODULE)
+    layout = r.SlangProgramLayout(function.module.layout)
 
-    for v in r.MATRIX.values():
-        assert v[0] == None
+    for st in r.TR.ScalarType:
+        if st == r.TR.ScalarType.void or st == r.TR.ScalarType.none:
+            continue
         for row in range(1, 4):
-            assert v[row][0] == None
             for col in range(1, 4):
-                assert v[row][col].rows == row
-                assert v[row][col].cols == col
+                m = layout.matrix_type(st, row, col)
+                assert m.rows == row
+                assert m.cols == col
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -44,22 +52,27 @@ def test_basic_function_decl(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "foo2", MODULE)
+    layout = r.SlangProgramLayout(function.module.layout)
 
-    res = r.reflect_function(function.reflections[0], None)
+    res = layout.find_function_by_name("foo2")
     assert res is not None
     assert res.name == "foo2"
     assert res.parameters[0].name == "a"
-    assert res.parameters[0].type == r.float32
+    assert res.parameters[0].type == layout.scalar_type(r.TR.ScalarType.float32)
     assert res.parameters[1].name == "b"
-    assert res.parameters[1].type == r.float32
+    assert res.parameters[1].type == layout.scalar_type(r.TR.ScalarType.float32)
 
 
-def check_texture(type: r.ScalarType, resource_shape: r.TR.ResourceShape, resource_access: r.TR.ResourceAccess, num_dims: int, element_type: r.SlangType):
+def check_texture(type: r.SlangType, resource_shape: r.TR.ResourceShape, resource_access: r.TR.ResourceAccess, num_dims: int, element_type: str):
     assert isinstance(type, r.TextureType)
     assert type.resource_shape == resource_shape
     assert type.resource_access == resource_access
-    assert type.num_dims == num_dims
-    assert type.element_type == element_type
+    assert type.texture_dims == num_dims
+
+    et = type._program.find_type_by_name(element_type)
+    assert et is not None
+    assert type.num_dims == type.texture_dims + et.num_dims
+    assert type.element_type == et
 
 
 def check_scalar(type: r.SlangType, scalar_type: r.TR.ScalarType):
@@ -70,6 +83,7 @@ def check_scalar(type: r.SlangType, scalar_type: r.TR.ScalarType):
 
 def check_vector(type: r.SlangType, scalar_type: r.TR.ScalarType, size: int):
     assert isinstance(type, r.VectorType)
+    assert isinstance(type.element_type, r.ScalarType)
     assert type.element_type.scalar_type == scalar_type
     assert type.num_elements == size
     assert type.differentiable == type.element_type.differentiable
@@ -77,37 +91,43 @@ def check_vector(type: r.SlangType, scalar_type: r.TR.ScalarType, size: int):
 
 def check_matrix(type: r.SlangType, scalar_type: r.TR.ScalarType, rows: int, cols: int):
     assert isinstance(type, r.MatrixType)
+    assert isinstance(type.element_type, r.VectorType)
     assert type.rows == rows
     assert type.cols == cols
     assert type.differentiable == type.element_type.differentiable
 
 
-def check_structured_buffer(type: r.SlangType, resource_access: r.TR.ResourceAccess, element_type: r.SlangType):
+def check_structured_buffer(type: r.SlangType, resource_access: r.TR.ResourceAccess, element_type: str):
     assert isinstance(type, r.StructuredBufferType)
-    assert type.element_type == element_type
+    assert type.element_type == type._program.find_type_by_name(element_type)
     assert type.resource_access == resource_access
 
 
 def check_address_buffer(type: r.SlangType, resource_access: r.TR.ResourceAccess):
     assert isinstance(type, r.ByteAddressBufferType)
-    assert type.element_type == r.uint8
+    assert type.element_type == type._program.find_type_by_name('uint8_t')
     assert type.resource_access == resource_access
 
 
-def check_array(type: r.SlangType, element_type: r.SlangType, num_elements: int):
+def check_array(type: r.SlangType, element_type: str, num_elements: int):
     assert isinstance(type, r.ArrayType)
-    assert type.element_type == element_type
+    assert type.element_type is not None
+    assert type.element_type == type._program.find_type_by_name(element_type)
     assert type.num_elements == num_elements
     if num_elements == 0:
-        assert type.name == f"{element_type.name}[]"
+        assert type.name == f"{type.element_type.name}[]"
     else:
-        assert type.name == f"{element_type.name}[{num_elements}]"
+        assert type.name == f"{type.element_type.name}[{num_elements}]"
     assert type.differentiable == type.element_type.differentiable
 
 
-def check_struct(type: r.SlangType, fields: dict[str, r.SlangType]):
+def check_struct(type: r.SlangType, fields: dict[str, str]):
     assert isinstance(type, r.StructType)
-    assert type.fields == fields
+
+    input_field_types = {n: type._program.find_type_by_name(
+        t) for (n, t) in fields.items()}
+    struct_field_types = {f.name: f.type for f in type.fields.values()}
+    assert input_field_types == struct_field_types
 
 
 def check_interface(type: r.SlangType):
@@ -134,22 +154,22 @@ ARG_TYPE_CHECKS = [
     ("float3x4", lambda x: check_matrix(x, r.TR.ScalarType.float32, 3, 4)),
     ("matrix<float,3,4>", lambda x: check_matrix(x, r.TR.ScalarType.float32, 3, 4)),
     ("Texture1D<float>", lambda x: check_texture(
-        x, r.TR.ResourceShape.texture_1d, r.TR.ResourceAccess.read, 1, r.float32)),
+        x, r.TR.ResourceShape.texture_1d, r.TR.ResourceAccess.read, 1, 'float')),
     ("RWTexture1D<float>", lambda x: check_texture(
-        x, r.TR.ResourceShape.texture_1d, r.TR.ResourceAccess.read_write, 1, r.float32)),
+        x, r.TR.ResourceShape.texture_1d, r.TR.ResourceAccess.read_write, 1, 'float')),
     ("Texture2D<float3>", lambda x: check_texture(
-        x, r.TR.ResourceShape.texture_2d, r.TR.ResourceAccess.read, 2, r.float3)),
+        x, r.TR.ResourceShape.texture_2d, r.TR.ResourceAccess.read, 2, 'float3')),
     ("RWTexture2D<float3>", lambda x: check_texture(
-        x, r.TR.ResourceShape.texture_2d, r.TR.ResourceAccess.read_write, 2, r.float3)),
+        x, r.TR.ResourceShape.texture_2d, r.TR.ResourceAccess.read_write, 2, 'float3')),
     ("StructuredBuffer<float>", lambda x: check_structured_buffer(
-        x, r.TR.ResourceAccess.read, r.float32)),
+        x, r.TR.ResourceAccess.read, 'float')),
     ("RWStructuredBuffer<float4>", lambda x: check_structured_buffer(
-        x, r.TR.ResourceAccess.read_write, r.float4)),
-    ("float[10]", lambda x: check_array(x, r.float32, 10)),
-    ("float3[]", lambda x: check_array(x, r.float3, 0)),
+        x, r.TR.ResourceAccess.read_write, 'float4')),
+    ("float[10]", lambda x: check_array(x, 'float', 10)),
+    ("float3[]", lambda x: check_array(x, 'float3', 0)),
     ("ByteAddressBuffer", lambda x: check_address_buffer(x, r.TR.ResourceAccess.read)),
     ("RWByteAddressBuffer", lambda x: check_address_buffer(x, r.TR.ResourceAccess.read_write)),
-    ("TestStruct", lambda x: check_struct(x, {"foo": r.float32})),
+    ("TestStruct", lambda x: check_struct(x, {"foo": 'float'})),
     ("ITestInterface", lambda x: check_interface(x)),
 ]
 
@@ -169,8 +189,9 @@ interface ITestInterface {{}}
 
 float foo({arg_type[0]} a) {{ return 0; }}
 """)
+    layout = r.SlangProgramLayout(function.module.layout)
 
-    res = r.reflect_function(function.reflections[0], None)
+    res = layout.find_function_by_name('foo')
     assert res is not None
     assert res.name == "foo"
     assert res.parameters[0].name == "a"
