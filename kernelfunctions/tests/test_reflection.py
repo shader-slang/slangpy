@@ -77,14 +77,14 @@ def check_texture(type: r.SlangType, resource_shape: r.TR.ResourceShape, resourc
 
 def check_scalar(type: r.SlangType, scalar_type: r.TR.ScalarType):
     assert isinstance(type, r.ScalarType)
-    assert type.scalar_type == scalar_type
+    assert type.slang_scalar_type == scalar_type
     assert type.differentiable == r.is_float(scalar_type)
 
 
 def check_vector(type: r.SlangType, scalar_type: r.TR.ScalarType, size: int):
     assert isinstance(type, r.VectorType)
     assert isinstance(type.element_type, r.ScalarType)
-    assert type.element_type.scalar_type == scalar_type
+    assert type.element_type.slang_scalar_type == scalar_type
     assert type.num_elements == size
     assert type.differentiable == type.element_type.differentiable
 
@@ -115,9 +115,9 @@ def check_array(type: r.SlangType, element_type: str, num_elements: int):
     assert type.element_type == type._program.find_type_by_name(element_type)
     assert type.num_elements == num_elements
     if num_elements == 0:
-        assert type.name == f"{type.element_type.name}[]"
+        assert type.full_name == f"{type.element_type.full_name}[]"
     else:
-        assert type.name == f"{type.element_type.name}[{num_elements}]"
+        assert type.full_name == f"{type.element_type.full_name}[{num_elements}]"
     assert type.differentiable == type.element_type.differentiable
 
 
