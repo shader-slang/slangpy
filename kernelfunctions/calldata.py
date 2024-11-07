@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from sgl import SlangCompileError
 
-from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException, PythonVariableException
+from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException, PythonVariableException, SlangProgramLayout
 
 from kernelfunctions.callsignature import (
     KernelGenException,
@@ -17,16 +17,11 @@ from kernelfunctions.callsignature import (
     create_return_value_binding,
     finalize_mappings,
     generate_code,
-    generate_tree_info_string,
-    get_readable_func_refl_string,
-    get_readable_signature_string,
     MismatchReason,
     specialize,
     validate_specialize
 )
-from kernelfunctions.core.logging import bound_call_table, bound_exception_info, bound_variables_table, mismatch_info, python_exception_info, python_variables_table
-from kernelfunctions.core.slangvariable import SlangFunction
-from kernelfunctions.typeregistry import scope
+from kernelfunctions.core.logging import bound_call_table, bound_exception_info, mismatch_info, python_exception_info
 
 if TYPE_CHECKING:
     from kernelfunctions.function import FunctionChainBase
@@ -118,32 +113,30 @@ class CallData(NativeCallData):
                     keyword_mapping = item.kwargs
 
             self.vars = sets
+            self.layout = SlangProgramLayout(function.module.layout)
 
             # Build 'unpacked' args (that handle IThis)
             unpacked_args = tuple([unpack_arg(x) for x in args])
             unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
 
             # Setup context
-            context = BindContext(self.call_mode, function.module, function.options)
+            context = BindContext(self.layout, self.call_mode,
+                                  function.module, function.options)
 
             # Build the unbound signature from inputs
             python_call = PythonFunctionCall(*unpacked_args, **unpacked_kwargs)
 
             # Apply explicit to the Python variables
-            apply_explicit_vectorization(python_call, positional_mapping, keyword_mapping)
+            apply_explicit_vectorization(
+                context, python_call, positional_mapping, keyword_mapping)
 
             # Perform specialization to get a concrete function reflection
-            concrete_reflection = specialize(
+            slang_function = specialize(
                 context, python_call, function.reflections, function.type_reflection)
-            if isinstance(concrete_reflection, MismatchReason):
+            if isinstance(slang_function, MismatchReason):
                 raise KernelGenException(
-                    f"Function signature mismatch: {concrete_reflection.reason}\n\n"
+                    f"Function signature mismatch: {slang_function.reason}\n\n"
                     f"{mismatch_info(python_call, function.reflections)}\n")
-
-            # Build slang function signature
-            with scope(function.module):
-                slang_function = SlangFunction(
-                    concrete_reflection, function.type_reflection)
 
             # Check for differentiability error
             if not slang_function.differentiable and self.call_mode != CallMode.prim:
@@ -152,7 +145,7 @@ class CallData(NativeCallData):
                     f"{mismatch_info(python_call, function.reflections)}\n")
 
             # Inject a dummy node into the Python signature if we need a result back
-            if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_value is not None:
+            if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_type.full_name != 'void':
                 rvalnode = PythonVariable(None, None, "_result")
                 python_call.kwargs["_result"] = rvalnode
 
@@ -179,7 +172,7 @@ class CallData(NativeCallData):
             assert not python_call.has_implicit_mappings
 
             # Validate the arguments we're going to pass to slang before trying to make code.
-            validate_specialize(context, python_call, concrete_reflection)
+            validate_specialize(context, python_call, slang_function)
 
             # Calculate differentiability of all variables.
             calculate_differentiability(context, bindings)

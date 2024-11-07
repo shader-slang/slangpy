@@ -1,9 +1,13 @@
 from types import NoneType
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 from kernelfunctions.typeregistry import get_or_create_type
 from .basevariableimpl import BaseVariableImpl
 from .basetype import BaseType
 from .native import Shape
+from .reflection import SlangType, SlangProgramLayout
+
+if TYPE_CHECKING:
+    from .basetype import BindContext
 
 
 class PythonVariableException(Exception):
@@ -41,7 +45,7 @@ class PythonFunctionCall:
     def has_implicit_mappings(self) -> bool:
         return any(not x.vector_mapping.valid for x in self.args)
 
-    def apply_explicit_vectorization(self, args: tuple[Any, ...], kwargs: dict[str, Any]):
+    def apply_explicit_vectorization(self, context: 'BindContext', args: tuple[Any, ...], kwargs: dict[str, Any]):
         if len(args) > len(self.args):
             raise ValueError("Too many arguments supplied for explicit vectorization")
         if len(kwargs) > len(self.kwargs):
@@ -49,12 +53,12 @@ class PythonFunctionCall:
                 "Too many keyword arguments supplied for explicit vectorization")
 
         for i, arg in enumerate(args):
-            self.args[i].apply_explicit_vectorization(arg)
+            self.args[i].apply_explicit_vectorization(context, arg)
 
         for name, arg in kwargs.items():
             if not name in self.kwargs:
                 raise ValueError(f"Unknown keyword argument {name}")
-            self.kwargs[name].apply_explicit_vectorization(arg)
+            self.kwargs[name].apply_explicit_vectorization(context, arg)
 
 
 class PythonVariable(BaseVariableImpl):
@@ -74,7 +78,7 @@ class PythonVariable(BaseVariableImpl):
 
         self.parameter_index = -1
         self.vector_mapping: Shape = Shape(None)
-        self.vector_type: Optional[BaseType] = None
+        self.vector_type: Optional[SlangType] = None
         self.explicitly_vectorized = False
 
     @property
@@ -83,9 +87,12 @@ class PythonVariable(BaseVariableImpl):
 
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
-        self.derivative = self.primal.derivative
+        if self.primal.differentiable:
+            self.derivative = self.primal.derivative
+        else:
+            self.derivative = None
 
-    def apply_explicit_vectorization(self, mapping: Any):
+    def apply_explicit_vectorization(self, context: 'BindContext', mapping: Any):
         """
         Apply explicit vectorization to this variable and children.
         This will result in any explicit mapping or typing provided
@@ -97,23 +104,36 @@ class PythonVariable(BaseVariableImpl):
                 child_mapping = mapping.get(name)
                 if child_mapping is not None:
                     assert isinstance(child, PythonVariable)
-                    child.apply_explicit_vectorization(child_mapping)
+                    child.apply_explicit_vectorization(context, child_mapping)
 
             type_mapping = mapping.get("$type")
             if type_mapping is not None:
-                self._apply_explicit_vectorization(type_mapping)
+                self._apply_explicit_vectorization(context, type_mapping)
         else:
-            self._apply_explicit_vectorization(mapping)
+            self._apply_explicit_vectorization(context, mapping)
 
-    def _apply_explicit_vectorization(self, mapping: Any):
+    def _apply_explicit_vectorization(self, context: 'BindContext', mapping: Any):
         try:
             if isinstance(mapping, tuple):
                 self.vector_mapping = Shape(*mapping)
-                self.vector_type = self.primal.reduce_type(len(mapping))
+                self.vector_type = self.primal.reduce_type(context, len(mapping))
                 self.explicitly_vectorized = True
-            elif mapping is not None:
-                self.vector_type = get_or_create_type(mapping)
+            elif isinstance(mapping, SlangType):
+                self.vector_type = mapping
                 self.explicitly_vectorized = True
+            elif isinstance(mapping, str):
+                self.vector_type = context.layout.find_type_by_name(mapping)
+                self.explicitly_vectorized = True
+            elif isinstance(mapping, type):
+                marshall = get_or_create_type(mapping)
+                if not marshall:
+                    raise PythonVariableException(
+                        f"Invalid explicit type: {mapping}", self)
+                self.vector_type = marshall.get_slang_type(context)
+                self.explicitly_vectorized = True
+            else:
+                raise PythonVariableException(
+                    f"Invalid explicit type: {mapping}", self)
         except Exception as e:
             raise PythonVariableException(
                 f"Explicit vectorization raised exception: {e.__repr__()}", self)

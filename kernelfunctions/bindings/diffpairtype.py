@@ -57,7 +57,10 @@ class DiffPairType(BaseTypeImpl):
         access = binding.access
         name = binding.variable_name
 
-        prim_el = self.primal_type.name
+        if isinstance(self.primal_type, BaseType):
+            prim_el = self.primal_type.name
+        else:
+            prim_el = self.primal_type.full_name
         deriv_el = self.primal_type.name + ".Differential"
 
         if access[0] == AccessType.none:
@@ -74,8 +77,8 @@ class DiffPairType(BaseTypeImpl):
         else:
             deriv_storage = f"RWValueRef<{deriv_el}>"
 
-        primal_target = binding.vector_type.name
-        deriv_target = binding.vector_type.name + ".Differential"
+        primal_target = binding.vector_type.full_name
+        deriv_target = binding.vector_type.full_name + ".Differential"
 
         cgb.append_code_indented(generate_differential_pair(name, primal_storage,
                                                             deriv_storage, primal_target, deriv_target))

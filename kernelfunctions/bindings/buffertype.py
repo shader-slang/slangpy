@@ -1,12 +1,14 @@
 
 
-from typing import Any, Optional, cast
+from typing import Any, Optional, Union, cast
 
 from sgl import TypeReflection
 
 from kernelfunctions.bindings.diffpairtype import generate_differential_pair
+from kernelfunctions.bindings.valuereftype import slang_type_to_return_type
 from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
+from kernelfunctions.core.reflection import SlangType
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
 from kernelfunctions.backend import ResourceUsage
@@ -26,9 +28,9 @@ def _calc_broadcast(context: CallContext, binding: BoundVariableRuntime):
 
 class NDBufferType(BaseTypeImpl):
 
-    def __init__(self, element_type: BaseType, dims: int, writable: bool):
+    def __init__(self, element_type: Union[BaseType, SlangType], dims: int, writable: bool):
         super().__init__()
-        self.element_type = element_type
+        self.element_type: Union[BaseType, SlangType] = element_type
         self.dims = dims
         self.writable = writable
 
@@ -37,11 +39,11 @@ class NDBufferType(BaseTypeImpl):
         else:
             self.name = f"RWNDBuffer<{self.element_type.name},{self.dims}>"
 
-    def reduce_type(self, dimensions: int):
+    def reduce_type(self, context: BindContext, dimensions: int):
         if dimensions == 0:
-            return self
+            return self.get_slang_type(context)
         elif dimensions == self.dims:
-            return self.element_type
+            return self.element_type.get_slang_type(context)
         elif dimensions < self.dims:
             # Not sure how to handle this yet - what do we want if reducing by some dimensions
             # Should this return a smaller buffer? How does that end up being cast to, eg, vector.
@@ -100,7 +102,11 @@ class NDBufferType(BaseTypeImpl):
             return None
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return NDBuffer(context.device, self.element_type.python_return_value_type, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        if isinstance(self.element_type, BaseType):
+            et = self.element_type.python_return_value_type
+        else:
+            et = slang_type_to_return_type(self.element_type)
+        return NDBuffer(context.device, et, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
@@ -129,9 +135,9 @@ SLANG_STRUCT_TYPES_BY_NAME["NDBuffer"] = create_vr_type_for_slang
 
 class NDDifferentiableBufferType(BaseTypeImpl):
 
-    def __init__(self, element_type: BaseType, dims: int, writable: bool):
+    def __init__(self, element_type: Union[BaseType, SlangType], dims: int, writable: bool):
         super().__init__()
-        self.element_type = element_type
+        self.element_type: Union[BaseType, SlangType] = element_type
         self.dims = dims
         self.writable = writable
 
@@ -154,7 +160,10 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         access = binding.access
         name = binding.variable_name
 
-        prim_el = self.element_type.name
+        if isinstance(self.element_type, BaseType):
+            prim_el = self.element_type.name
+        else:
+            prim_el = self.element_type.full_name
         deriv_el = prim_el + ".Differential"
         dim = self.dims
 
@@ -172,8 +181,8 @@ class NDDifferentiableBufferType(BaseTypeImpl):
         else:
             deriv_storage = f"RWNDBuffer<{deriv_el},{dim}>"
 
-        primal_target = binding.vector_type.name
-        deriv_target = binding.vector_type.name + ".Differential"
+        primal_target = binding.vector_type.full_name
+        deriv_target = binding.vector_type.full_name + ".Differential"
 
         cgb.append_code_indented(generate_differential_pair(name, primal_storage,
                                                             deriv_storage, primal_target, deriv_target))
@@ -217,7 +226,11 @@ class NDDifferentiableBufferType(BaseTypeImpl):
             return None
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return NDDifferentiableBuffer(context.device, self.element_type.python_return_value_type,
+        if isinstance(self.element_type, BaseType):
+            et = self.element_type.python_return_value_type
+        else:
+            et = slang_type_to_return_type(self.element_type)
+        return NDDifferentiableBuffer(context.device, et,
                                       shape=context.call_shape,
                                       requires_grad=True,
                                       usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)

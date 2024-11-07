@@ -3,9 +3,9 @@ from typing import Any, Optional, Union
 from kernelfunctions.backend import TypeReflection
 
 from kernelfunctions.backend import SlangModule
-from kernelfunctions.function import Function, FunctionChainBase
+from kernelfunctions.function import Function
 from kernelfunctions.typeregistry import get_or_create_type
-from kernelfunctions.utils import find_type_layout_for_buffer, try_find_function_overloads_via_ast, try_find_type_via_ast
+from kernelfunctions.utils import find_type_layout_for_buffer, try_find_function_overloads_via_ast
 
 
 class Struct:

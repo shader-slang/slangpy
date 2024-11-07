@@ -9,12 +9,14 @@ from .codegen import CodeGenBlock
 
 if TYPE_CHECKING:
     from .boundvariable import BoundVariable
+    from .reflection import SlangProgramLayout, SlangType
     from kernelfunctions.backend import SlangModule
 
 
 class BindContext:
-    def __init__(self, call_mode: CallMode, device_module: 'SlangModule', options: dict[str, Any]):
+    def __init__(self, layout: 'SlangProgramLayout', call_mode: CallMode, device_module: 'SlangModule', options: dict[str, Any]):
         super().__init__()
+        self.layout = layout
         self.call_dimensionality = -1
         self.call_mode = call_mode
         self.device_module = device_module
@@ -31,6 +33,7 @@ class ReturnContext:
 class BaseType(NativeType):
     def __init__(self):
         super().__init__()
+        self.element_type: Optional[BaseType]
 
     @property
     def has_derivative(self) -> bool:
@@ -56,6 +59,9 @@ class BaseType(NativeType):
     def fields(self) -> Optional[dict[str, 'BaseType']]:
         raise NotImplementedError()
 
+    def get_slang_type(self, context: 'BindContext') -> 'SlangType':
+        raise NotImplementedError()
+
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         raise NotImplementedError()
 
@@ -65,11 +71,11 @@ class BaseType(NativeType):
     def from_numpy(self, array: npt.ArrayLike) -> Any:
         raise NotImplementedError()
 
-    def reduce_type(self, dimensions: int):
+    def reduce_type(self, context: BindContext, dimensions: int):
         raise NotImplementedError()
 
-    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         raise NotImplementedError()
 
-    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'SlangType'):
         raise NotImplementedError()

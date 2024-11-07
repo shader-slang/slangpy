@@ -5,11 +5,11 @@ from sgl import FunctionReflection, ModifierID, TypeReflection, VariableReflecti
 from kernelfunctions.bindings.valuetype import ValueType
 from kernelfunctions.core import (
     CodeGen,
-    IOType, CallMode, AccessType,
+    CallMode, AccessType,
     BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
-    SlangFunction, SlangVariable,
     PythonFunctionCall, PythonVariable,
-    BoundCallRuntime, BoundVariableRuntime
+    BoundCallRuntime, BoundVariableRuntime,
+    SlangProgramLayout, SlangFunction, SlangType
 )
 
 from kernelfunctions.core.basetype import BaseType
@@ -142,6 +142,8 @@ def specialize(
             return input
         elif isinstance(input, str):
             return context.device_module.layout.find_type_by_name(input)
+        elif isinstance(input, SlangType):
+            return input.type_reflection
         else:
             raise KernelGenException(
                 f"Cannot convert {input} to a TypeReflection for overload resolution.")
@@ -155,13 +157,13 @@ def specialize(
     if specialized is None:
         return MismatchReason("No Slang overload found that matches the provided Python argument types.")
 
-    return specialized
+    return context.layout.find_function(specialized, type)
 
 
 def validate_specialize(
     context: BindContext,
     signature: PythonFunctionCall,
-    function: FunctionReflection
+    function: SlangFunction
 ):
     # Get sorted list of root parameters for trampoline function
     root_params = [y for y in sorted(signature.args + list(signature.kwargs.values()), key=lambda x: x.parameter_index)
@@ -174,6 +176,8 @@ def validate_specialize(
             return input
         elif isinstance(input, str):
             return context.device_module.layout.find_type_by_name(input)
+        elif isinstance(input, SlangType):
+            return input.type_reflection
         else:
             raise KernelGenException(
                 f"After implicit casting, cannot convert {input} to TypeReflection.")
@@ -183,12 +187,10 @@ def validate_specialize(
         raise KernelGenException(
             "After implicit casting, unable to resolve all Slang types for specialization overload resolution.")
 
-    specialized = function.specialize_with_arg_types(types)
+    specialized = function.reflection.specialize_with_arg_types(types)
     if specialized is None:
         raise KernelGenException(
             "After implicit casting, no Slang overload found that matches the provided Python argument types.")
-
-    return specialized
 
 
 def bind(
@@ -203,37 +205,41 @@ def bind(
     """
 
     res = BoundCall()
+    res.bind(function)
 
     for x in signature.args:
+        b = BoundVariable(x, output_transforms)
         if x.parameter_index == len(function.parameters):
-            assert function.return_value is not None
-            res.args.append(BoundVariable(x, function.return_value, output_transforms))
+            assert function.return_type is not None
+            b.bind(function.return_type, {ModifierID.out})
         elif x.parameter_index == -1:
             assert function.this is not None
-            res.args.append(BoundVariable(x, function.this, output_transforms))
+            b.bind(function.this, {
+                   ModifierID.inout if function.mutating else ModifierID.inn})
         else:
-            res.args.append(BoundVariable(
-                x, function.parameters[x.parameter_index], output_transforms))
+            b.bind(function.parameters[x.parameter_index])
+        res.args.append(b)
 
     for k, v in signature.kwargs.items():
+        b = BoundVariable(v, output_transforms)
         if k == "_result":
-            assert function.return_value is not None
-            res.kwargs[k] = BoundVariable(v, function.return_value, output_transforms)
+            assert function.return_type is not None
+            b.bind(function.return_type, {ModifierID.out})
         elif k == "_this":
             assert function.this is not None
-            res.kwargs[k] = BoundVariable(v, function.this, output_transforms)
+            b.bind(function.this, {
+                   ModifierID.inout if function.mutating else ModifierID.inn})
         else:
-            res.kwargs[k] = BoundVariable(
-                v, function.parameters[v.parameter_index], output_transforms)
-
+            b.bind(function.parameters[v.parameter_index])
+        res.kwargs[k] = b
     return res
 
 
-def apply_explicit_vectorization(call: PythonFunctionCall, args: tuple[Any, ...], kwargs: dict[str, Any]):
+def apply_explicit_vectorization(context: BindContext, call: PythonFunctionCall, args: tuple[Any, ...], kwargs: dict[str, Any]):
     """
     Apply user supplied explicit vectorization options to the python variables.
     """
-    call.apply_explicit_vectorization(args, kwargs)
+    call.apply_explicit_vectorization(context, args, kwargs)
     return call
 
 
@@ -322,7 +328,7 @@ def _gen_arg_shape_string(variable: BoundVariable) -> str:
 
 def _gen_type_shape_string(variable: BoundVariable) -> str:
     if variable.slang is not None:
-        return str(variable.vector_type.get_shape().as_list())
+        return str(variable.vector_type.shape.as_list())
     else:
         return "None"
 
@@ -345,7 +351,7 @@ def generate_argument_info_columns(variable: TBoundOrRuntimeVariable, indent: in
         elif name == "Input Type":
             text.append(clip_string(variable.python.primal.name, width))
         elif name == "Output Type":
-            text.append(clip_string(variable.vector_type.name, width))
+            text.append(clip_string(variable.vector_type.full_name, width))
         elif name == "Input Shape":
             text.append(clip_string(_gen_python_shape_string(variable), width))
         elif name == "Argument Shape":
@@ -495,28 +501,30 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     # Generate the trampoline function
     root_param_defs = [x._gen_trampoline_argument() for x in root_params]
     root_param_defs = ", ".join(root_param_defs)
-    cg.trampoline.append_line("[Differentiable]")
+    if signature.differentiable:
+        cg.trampoline.append_line("[Differentiable]")
     cg.trampoline.append_line("void _trampoline(" + root_param_defs + ")")
     cg.trampoline.begin_block()
     cg.trampoline.append_indent()
-    if any(x.path is '_result' for x in root_params):
+    if any(x.variable_name is '_result' for x in root_params):
         cg.trampoline.append_code(f"_result = ")
 
     # Get function name, if it's the init function, use the result type
     func_name = function.name
     if func_name == "$init":
-        results = [x for x in root_params if x.path == '_result']
+        results = [x for x in root_params if x.variable_name == '_result']
         assert len(results) == 1
-        func_name = results[0].vector_type.name
-    elif len(root_params) > 0 and root_params[0].path == '_this':
+        func_name = results[0].vector_type.full_name
+    elif len(root_params) > 0 and root_params[0].variable_name == '_this':
         func_name = f'_this.{func_name}'
 
     # Get the parameters that are not the result or this reference
-    normal_params = [x for x in root_params if x.path != '_result' and x.path != '_this']
+    normal_params = [x for x in root_params if x.variable_name !=
+                     '_result' and x.variable_name != '_this']
 
     # Internal call to the actual function
     cg.trampoline.append_code(
-        f"{func_name}(" + ", ".join(x.path for x in normal_params) + ");\n")
+        f"{func_name}(" + ", ".join(x.variable_name for x in normal_params) + ");\n")
 
     cg.trampoline.end_block()
     cg.trampoline.append_line("")
@@ -541,12 +549,13 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
 
     def declare_p(x: BoundVariable, has_suffix: bool = False):
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.python.vector_type.name} {name}")
+        cg.kernel.append_statement(f"{x.python.vector_type.full_name} {name}")
         return name
 
     def declare_d(x: BoundVariable, has_suffix: bool = False):
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.python.vector_type.name}.Differential {name}")
+        cg.kernel.append_statement(
+            f"{x.python.vector_type.full_name}.Differential {name}")
         return name
 
     def load_p(x: BoundVariable, has_suffix: bool = False):

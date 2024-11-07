@@ -134,10 +134,10 @@ class ScalarType(ValueType):
     def derivative(self):
         return self if self.diff else None
 
-    def reduce_type(self, dimensions: int):
+    def reduce_type(self, context: BindContext, dimensions: int):
         if dimensions > 0:
             raise ValueError("Cannot reduce scalar type")
-        return self
+        return self.get_slang_type(context)
 
     def to_numpy(self, value: Any) -> npt.NDArray[Any]:
         if self.python_type == int:
@@ -193,17 +193,18 @@ class NoneValueType(ValueType):
 class VectorType(ValueType):
     def __init__(self, element_type: BaseType, size: int):
         super().__init__()
-        self.element_type = element_type
+        self.element_type: BaseType = element_type
         self.size = size
         self.python_type: type = NoneType
         self.name = f"vector<{self.element_type.name},{self.size}>"
         self.concrete_shape = Shape(self.size)
 
-    def reduce_type(self, dimensions: int):
+    def reduce_type(self, context: 'BindContext', dimensions: int):
+        self_type = self.get_slang_type(context)
         if dimensions == 1:
-            return self.element_type
+            return self_type.element_type
         elif dimensions == 0:
-            return self
+            return self_type
         else:
             raise ValueError("Cannot reduce vector type by more than one dimension")
 
@@ -270,14 +271,15 @@ class MatrixType(ValueType):
         assert self.element_type is not None
         return self.rows * self.cols * self.element_type.get_byte_size()
 
-    def reduce_type(self, dimensions: int):
+    def reduce_type(self, context: 'BindContext', dimensions: int):
+        self_type = self.get_slang_type(context)
         if dimensions == 2:
-            return self.element_type
+            assert self_type.element_type is not None
+            return self_type.element_type.element_type
         elif dimensions == 1:
-            # Each kernel call will pass a column to the function
-            return VectorType(self.element_type, self.cols)
+            return self_type.element_type
         elif dimensions == 0:
-            return self
+            return self_type
 
     @property
     def differentiable(self):

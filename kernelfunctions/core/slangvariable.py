@@ -8,7 +8,7 @@ from .basevariableimpl import BaseVariableImpl
 from .basetype import BaseType
 from .enums import IOType
 
-
+"""
 def _reflect_this(reflection: FunctionReflection, this_reflection: TypeReflection) -> 'SlangVariable':
     iot = IOType.inn
     if reflection.has_modifier(ModifierID.mutating):
@@ -98,3 +98,4 @@ class SlangVariable(BaseVariableImpl):
                              other.io_type,
                              other.no_diff,
                              other.has_default)
+"""

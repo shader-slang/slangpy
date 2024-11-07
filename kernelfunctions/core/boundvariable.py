@@ -1,14 +1,16 @@
 from types import NoneType
-from typing import Any, Optional, cast
+from typing import Any, Optional, Union, cast
+
+from sgl import ModifierID
 
 from kernelfunctions.shapes import TShapeOrTuple
 
 from .enums import PrimType, IOType
 from .pythonvariable import PythonVariable
-from .slangvariable import SlangVariable
 from .codegen import CodeGen
 from .native import AccessType, CallMode, Shape
 from .basetype import BindContext
+from .reflection import BaseSlangVariable, SlangFunction, SlangType
 
 
 class BoundVariableException(Exception):
@@ -23,6 +25,13 @@ class BoundCall:
         super().__init__()
         self.args: list['BoundVariable'] = []
         self.kwargs: dict[str, 'BoundVariable'] = {}
+
+    def bind(self, slang: SlangFunction):
+        self.slang = slang
+
+    @property
+    def differentiable(self) -> bool:
+        return self.slang.differentiable
 
     def values(self) -> list['BoundVariable']:
         return self.args + list(self.kwargs.values())
@@ -48,7 +57,7 @@ class BoundVariable:
     and a potential set of child nodes
     """
 
-    def __init__(self, python: PythonVariable, slang: SlangVariable,
+    def __init__(self, python: PythonVariable,
                  output_transforms: Optional[dict[str, TShapeOrTuple]] = None,
                  path: Optional[str] = None):
 
@@ -56,16 +65,12 @@ class BoundVariable:
 
         # Store the python and slang marshall
         self.python = python
-        self.slang = slang
 
         # Initialize path
         if path is None:
-            self.path = self.slang.name
+            self.path = self.python.name
         else:
-            self.path = f"{path}.{self.slang.name}"
-
-        # Get the python marshall for the value + load some basic info
-        self.variable_name = self.slang.name
+            self.path = f"{path}.{self.python.name}"
 
         # Init default properties
         self.access = (AccessType.none, AccessType.none)
@@ -75,14 +80,28 @@ class BoundVariable:
         # Create children if python value has children
         self.children: Optional[dict[str, BoundVariable]] = None
         if python.fields is not None:
-            assert slang.fields is not None
             self.children = {}
             for name, child_python in python.fields.items():
-                child_slang = slang.fields[name]
                 self.children[name] = BoundVariable(
                     cast(PythonVariable, child_python),
-                    cast(SlangVariable, child_slang),
                     output_transforms, self.path)
+
+    def bind(self, slang: Union[BaseSlangVariable, SlangType], modifiers: set[ModifierID] = set()):
+        if isinstance(slang, SlangType):
+            assert self.python.name != ""
+            self.name = self.python.name
+            self.slang_type = slang
+            self.slang_modifiers = modifiers
+        else:
+            self.name = slang.name
+            self.slang_type = slang.type
+            self.slang_modifiers = modifiers.union(slang.modifiers)
+        self.variable_name = self.name
+
+        if self.children is not None:
+            for child in self.children.values():
+                slang_child = self.slang_type.fields[child.python.name]
+                child.bind(slang_child, self.slang_modifiers)
 
     @property
     def param_index(self):
@@ -95,6 +114,23 @@ class BoundVariable:
     @property
     def vector_type(self):
         return self.python.vector_type
+
+    @property
+    def io_type(self) -> IOType:
+        have_in = ModifierID.inn in self.slang_modifiers
+        have_out = ModifierID.out in self.slang_modifiers
+        have_inout = ModifierID.inout in self.slang_modifiers
+
+        if (have_in and have_out) or have_inout:
+            return IOType.inout
+        elif have_out:
+            return IOType.out
+        else:
+            return IOType.inn
+
+    @property
+    def no_diff(self) -> bool:
+        return ModifierID.nodiff in self.slang_modifiers
 
     def apply_implicit_vectorization(self, context: BindContext):
         """
@@ -110,8 +146,8 @@ class BoundVariable:
     def _apply_implicit_vectorization(self, context: BindContext):
         if self.python.vector_mapping.valid:
             # if we have a valid vector mapping, just need to reduce it
-            self.python.vector_type = self.python.primal.reduce_type(
-                len(self.python.vector_mapping))
+            self.python.vector_type = self.python.primal.reduce_type(context,
+                                                                     len(self.python.vector_mapping))
 
         if self.python.vector_type is not None:
             # do nothing in first phase if already have a type. vector
@@ -123,18 +159,18 @@ class BoundVariable:
         else:
             # neither specified, attempt to resolve type
             self.python.vector_type = self.python.primal.resolve_type(
-                context, self.slang.primal)
+                context, self.slang_type)
 
         # If we ended up with no valid type, use slang type. Currently this should
         # only happen for auto-allocated result buffers
         if not self.python.vector_mapping.valid and self.python.vector_type is None:
             assert self.path == '_result'
-            self.python.vector_type = self.slang.primal
+            self.python.vector_type = self.slang_type
 
         # Clear slang type info - it should never be used after this
         # Note: useful for debugging so keeping for now!
         # self.slang.primal = None
-        self.slang.derivative = None
+        # self.slang.derivative = None
 
         # Can now calculate dimensionality
         if self.python.vector_mapping.valid:
@@ -176,7 +212,7 @@ class BoundVariable:
         """
 
         # Can now decide if differentiable
-        self.differentiable = not self.slang.no_diff and self.vector_type.differentiable and self.python.differentiable
+        self.differentiable = not self.no_diff and self.vector_type.differentiable and self.python.differentiable
         self._calculate_differentiability(context.call_mode)
 
         if self.children is not None:
@@ -209,31 +245,31 @@ class BoundVariable:
         """
         if mode == CallMode.prim:
             if self.differentiable:
-                if self.slang.io_type == IOType.inout:
+                if self.io_type == IOType.inout:
                     self.access = (AccessType.readwrite, AccessType.none)
-                elif self.slang.io_type == IOType.out:
+                elif self.io_type == IOType.out:
                     self.access = (AccessType.write, AccessType.none)
                 else:
                     self.access = (AccessType.read, AccessType.none)
             else:
-                if self.slang.io_type == IOType.inout:
+                if self.io_type == IOType.inout:
                     self.access = (AccessType.readwrite, AccessType.none)
-                elif self.slang.io_type == IOType.out:
+                elif self.io_type == IOType.out:
                     self.access = (AccessType.write, AccessType.none)
                 else:
                     self.access = (AccessType.read, AccessType.none)
         elif mode == CallMode.bwds:
             if self.differentiable:
-                if self.slang.io_type == IOType.inout:
+                if self.io_type == IOType.inout:
                     self.access = (AccessType.read, AccessType.readwrite)
-                elif self.slang.io_type == IOType.out:
+                elif self.io_type == IOType.out:
                     self.access = (AccessType.none, AccessType.read)
                 else:
                     self.access = (AccessType.read, AccessType.write)
             else:
-                if self.slang.io_type == IOType.inout:
+                if self.io_type == IOType.inout:
                     self.access = (AccessType.read, AccessType.none)
-                elif self.slang.io_type == IOType.out:
+                elif self.io_type == IOType.out:
                     self.access = (AccessType.none, AccessType.none)
                 else:
                     self.access = (AccessType.read, AccessType.none)
@@ -252,7 +288,7 @@ class BoundVariable:
                 variable_name = variable.gen_call_data_code(cg, context, depth+1)
                 if variable_name is not None:
                     names.append(
-                        (field, variable_name, variable.vector_type.name, variable.vector_type.name + ".Differential"))
+                        (field, variable_name, variable.vector_type.full_name, variable.vector_type.full_name + ".Differential"))
 
             for name in names:
                 cgb.declare(f"_t_{name[1]}", name[1])
@@ -262,7 +298,7 @@ class BoundVariable:
                     continue
 
                 prim_name = prim.name
-                prim_type_name = self.vector_type.name
+                prim_type_name = self.vector_type.full_name
                 if prim != PrimType.primal:
                     prim_type_name += ".Differential"
 
@@ -321,14 +357,14 @@ class BoundVariable:
         return self.variable_name
 
     def _gen_trampoline_argument(self):
-        arg_def = f"{self.vector_type.name} {self.variable_name}"
-        if self.slang.io_type == IOType.inout:
+        arg_def = f"{self.vector_type.full_name} {self.variable_name}"
+        if self.io_type == IOType.inout:
             arg_def = f"inout {arg_def}"
-        elif self.slang.io_type == IOType.out:
+        elif self.io_type == IOType.out:
             arg_def = f"out {arg_def}"
-        elif self.slang.io_type == IOType.inn:
+        elif self.io_type == IOType.inn:
             arg_def = f"in {arg_def}"
-        if self.slang.no_diff or not self.differentiable:
+        if self.no_diff or not self.differentiable:
             arg_def = f"no_diff {arg_def}"
         return arg_def
 

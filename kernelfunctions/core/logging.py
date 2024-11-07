@@ -126,10 +126,10 @@ def python_function_table(data: 'PythonFunctionCall', highlight: Optional['Pytho
 
 def bound_variables_table(data: list['BoundVariable'], highlight: Optional['BoundVariable'] = None, filter: Optional[dict[str, bool]] = None):
     columns = [
-        TableColumn("Name", 20, lambda x: _pyarg_name(x.slang.name)),
+        TableColumn("Name", 20, lambda x: _pyarg_name(x.name)),
         TableColumn("Index", 10, "param_index"),
         TableColumn("PyType", 30, lambda x: _type_name(x.python.primal)),
-        TableColumn("SlType", 30, lambda x: _type_name(x.slang.primal)),
+        TableColumn("SlType", 30, lambda x: _type_name(x.slang_type)),
         TableColumn("VType", 30, lambda x: _type_name(x.vector_type)),
         TableColumn("Shape", 20, lambda x: _type_shape(x.python.primal)),
         TableColumn("Call Dim", 10, lambda x: x.call_dimensionality),

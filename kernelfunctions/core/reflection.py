@@ -6,10 +6,11 @@ from kernelfunctions.backend.slangpynativeemulation import Shape
 
 from .enums import IOType
 from kernelfunctions.backend import TypeReflection as TR
-from kernelfunctions.backend import ModifierID, VariableReflection, TypeReflection, FunctionReflection, SlangModule
+from kernelfunctions.backend import ModifierID, VariableReflection, TypeReflection, FunctionReflection, SlangModule, TypeLayoutReflection
 
 from typing import Optional, Callable, Any, Union, cast
 
+import numpy as np
 
 scalar_names = {
     TR.ScalarType.void: "void",
@@ -26,6 +27,30 @@ scalar_names = {
     TR.ScalarType.float32: "float",
     TR.ScalarType.float64: "double",
 }
+
+SIGNED_INT_TYPES = {TR.ScalarType.int8, TR.ScalarType.int16,
+                    TR.ScalarType.int32, TR.ScalarType.int64}
+UNSIGNED_INT_TYPES = {TR.ScalarType.uint8, TR.ScalarType.uint16,
+                      TR.ScalarType.uint32, TR.ScalarType.uint64}
+FLOAT_TYPES = {TR.ScalarType.float16, TR.ScalarType.float32, TR.ScalarType.float64}
+BOOL_TYPES = {TR.ScalarType.bool}
+INT_TYPES = SIGNED_INT_TYPES | UNSIGNED_INT_TYPES
+
+SCALAR_TYPE_TO_NUMPY_TYPE = {
+    TR.ScalarType.int8: np.int8,
+    TR.ScalarType.int16: np.int16,
+    TR.ScalarType.int32: np.int32,
+    TR.ScalarType.int64: np.int64,
+    TR.ScalarType.uint8: np.uint8,
+    TR.ScalarType.uint16: np.uint16,
+    TR.ScalarType.uint32: np.uint32,
+    TR.ScalarType.uint64: np.uint64,
+    TR.ScalarType.float16: np.float16,
+    TR.ScalarType.float32: np.float32,
+    TR.ScalarType.float64: np.float64,
+    TR.ScalarType.bool: np.int8,
+}
+
 texture_names = {
     TR.ResourceShape.texture_1d: "Texture1D",
     TR.ResourceShape.texture_2d: "Texture2D",
@@ -54,6 +79,24 @@ def is_float(kind: TR.ScalarType):
     return kind in (TR.ScalarType.float16, TR.ScalarType.float32, TR.ScalarType.float64)
 
 
+class SlangLayout:
+    def __init__(self, tlr: TypeLayoutReflection):
+        super().__init__()
+        self._tlr = tlr
+
+    @property
+    def size(self) -> int:
+        return self._tlr.size
+
+    @property
+    def alignment(self) -> int:
+        return self._tlr.alignment
+
+    @property
+    def stride(self) -> int:
+        return self._tlr.stride
+
+
 class SlangType:
     def __init__(self,
                  program: SlangProgramLayout,
@@ -68,6 +111,8 @@ class SlangType:
 
         self._cached_fields: Optional[dict[str, SlangField]] = None
         self._cached_differential: Optional[SlangType] = None
+        self._cached_uniform_layout: Optional[SlangLayout] = None
+        self._cached_buffer_layout: Optional[SlangLayout] = None
 
         if self._element_type == self:
             self._cached_shape = local_shape
@@ -100,6 +145,10 @@ class SlangType:
     def shape(self) -> Shape:
         return self._cached_shape
 
+    # TODO: Remove once code base fully converted from old type system
+    def get_shape(self) -> Shape:
+        return self.shape
+
     @property
     def differentiable(self) -> bool:
         return self._get_differential() is not None
@@ -116,6 +165,26 @@ class SlangType:
     @property
     def num_dims(self) -> int:
         return len(self.shape)
+
+    @property
+    def python_type(self) -> type:
+        return type(None)
+
+    @property
+    def uniform_layout(self) -> SlangLayout:
+        if self._cached_uniform_layout is None:
+            self._cached_uniform_layout = SlangLayout(
+                self._program.program_layout.get_type_layout(self.type_reflection))
+        return self._cached_uniform_layout
+
+    @property
+    def buffer_layout(self) -> SlangLayout:
+        if self._cached_buffer_layout is None:
+            buffer_type = self._program.program_layout.find_type_by_name(
+                f"StructuredBuffer<{self.full_name}>")
+            buffer_layout = self._program.program_layout.get_type_layout(buffer_type)
+            self._cached_buffer_layout = SlangLayout(buffer_layout.element_type_layout)
+        return self._cached_buffer_layout
 
     def build_differential_type(self) -> Optional[SlangType]:
         return self._program.find_type_by_name(self.full_name + ".Differential")
@@ -177,7 +246,7 @@ class VectorType(SlangType):
 
     @property
     def slang_scalar_type(self) -> TR.ScalarType:
-        assert isinstance(self.element_type, VectorType)
+        assert isinstance(self.element_type, ScalarType)
         return self.element_type.slang_scalar_type
 
 
@@ -364,7 +433,7 @@ class BaseSlangVariable:
     @property
     def declaration(self) -> str:
         mods = [str(mod) for mod in self.modifiers]
-        return " ".join(mods + [f"{self.type.name} {self.name}"])
+        return " ".join(mods + [f"{self.type.full_name} {self.name}"])
 
     @property
     def io_type(self) -> IOType:
@@ -455,6 +524,12 @@ class SlangProgramLayout:
     def find_type(self, refl: TypeReflection) -> SlangType:
         return self._get_or_create_type(refl)
 
+    def find_function(self, refl: FunctionReflection, this_refl: Optional[TypeReflection]) -> SlangFunction:
+        if this_refl is None:
+            return self._get_or_create_function(refl, None)
+        else:
+            return self._get_or_create_function(refl, self._get_or_create_type(this_refl))
+
     def find_type_by_name(self, name: str) -> Optional[SlangType]:
         existing = self._types_by_name.get(name)
         if existing is not None:
@@ -478,13 +553,13 @@ class SlangProgramLayout:
         return res
 
     def find_function_by_name_in_type(self, type: SlangType, name: str) -> Optional[SlangFunction]:
-        qualified_name = f"{type.name}::{name}"
+        qualified_name = f"{type.full_name}::{name}"
         existing = self._functions_by_name.get(qualified_name)
         if existing is not None:
             return existing
-        type_refl = self.program_layout.find_type_by_name(type.name)
+        type_refl = self.program_layout.find_type_by_name(type.full_name)
         if type_refl is None:
-            raise ValueError(f"Type {type.name} not found")
+            raise ValueError(f"Type {type.full_name} not found")
         func_refl = self.program_layout.find_function_by_name_in_type(type_refl, name)
         if func_refl is None:
             return None

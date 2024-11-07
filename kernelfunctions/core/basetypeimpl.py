@@ -3,6 +3,7 @@
 from typing import Optional, cast
 
 from .basetype import BaseType, BindContext
+from .reflection import SlangType
 
 
 class BaseTypeImpl(BaseType):
@@ -29,29 +30,34 @@ class BaseTypeImpl(BaseType):
     def fields(self) -> Optional[dict[str, BaseType]]:
         return None
 
-    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+    def get_slang_type(self, context: 'BindContext') -> 'SlangType':
+        t = context.layout.find_type_by_name(self.name)
+        assert t
+        return t
+
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
 
         # if implicit element casts enabled, allow conversion from type to element type
         if context.options['implicit_element_casts']:
-            if self.element_type is not None and self.element_type.name == bound_type.name:
+            if self.element_type is not None and self.element_type.name == bound_type.full_name:
                 return cast(BaseType, bound_type)
 
         # TODO: move to tensor type
         # if implicit tensor casts enabled, allow conversion from vector/matrix to element type
         if context.options['implicit_tensor_casts']:
-            if bound_type.name.startswith('vector<') and self.element_type.name == bound_type.element_type.name:
+            if bound_type.full_name.startswith('vector<') and self.element_type.name == bound_type.element_type.name:
                 return cast(BaseType, bound_type)
-            elif bound_type.name.startswith('matrix<') and self.element_type.name == bound_type.element_type.name:
+            elif bound_type.full_name.startswith('matrix<') and self.element_type.name == bound_type.element_type.name:
                 return cast(BaseType, bound_type)
 
         # Default to just casting to itself (i.e. no implicit cast)
-        return self
+        return self.get_slang_type(context)
 
-    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'SlangType'):
         # default implementation requires that both this type and the target type
         # have fully known element types. If so, dimensionality is just the difference
         # between the length of the 2 shapes
         if self.element_type is None:
             raise ValueError(
                 f"Cannot resolve dimensionality of {self.name} without element type")
-        return len(self.get_shape()) - len(vector_target_type.get_shape())
+        return len(self.get_shape()) - len(vector_target_type.shape)

@@ -78,6 +78,10 @@ def create_module(
 def create_function_from_module(
     device: Device, func_name: str, module_source: str, options: dict[str, Any] = {}
 ) -> kernelfunctions.Function:
+
+    if not 'import "slangpy";' in module_source:
+        module_source = 'import "slangpy";\n' + module_source
+
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
