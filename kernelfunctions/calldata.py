@@ -219,12 +219,12 @@ class CallData(NativeCallData):
         except BoundVariableException as e:
             raise ValueError(
                 f"{e.message}\n\n"
-                f"{bound_exception_info(bindings, concrete_reflection, e.variable)}\n")
+                f"{bound_exception_info(bindings, slang_function.reflection, e.variable)}\n")
         except SlangCompileError as e:
             raise ValueError(
                 f"Slang compilation error: {e}\n. See .temp directory for generated shader.\n"
                 f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n"
-                f"{bound_exception_info(bindings, concrete_reflection, None)}\n")
+                f"{bound_exception_info(bindings, slang_function.reflection, None)}\n")
         except KernelGenException as e:
             if bindings is None:
                 raise ValueError(
@@ -233,12 +233,12 @@ class CallData(NativeCallData):
             else:
                 raise ValueError(
                     f"Exception in kernel generation: {e.message}\n."
-                    f"{bound_exception_info(bindings, concrete_reflection, None)}\n")
+                    f"{bound_exception_info(bindings, slang_function.reflection, None)}\n")
         except Exception as e:
             if bindings is not None:
                 raise ValueError(
                     f"Exception in kernel generation: {e}\n."
-                    f"{bound_exception_info(bindings, concrete_reflection, None)}\n")
+                    f"{bound_exception_info(bindings, slang_function.reflection, None)}\n")
             elif python_call is not None:
                 raise ValueError(
                     f"Exception in kernel generation: {e}\n."

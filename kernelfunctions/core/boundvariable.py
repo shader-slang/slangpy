@@ -86,11 +86,11 @@ class BoundVariable:
                     cast(PythonVariable, child_python),
                     output_transforms, self.path)
 
-    def bind(self, slang: Union[BaseSlangVariable, SlangType], modifiers: set[ModifierID] = set()):
+    def bind(self, slang: Union[BaseSlangVariable, SlangType], modifiers: set[ModifierID] = set(), override_name: Optional[str] = None):
         if isinstance(slang, SlangType):
             if self.python.name == '':
-                # TODO: Handle this better!
-                self.name = '_result'
+                assert override_name is not None
+                self.name = override_name
             else:
                 self.name = self.python.name
             self.slang_type = slang

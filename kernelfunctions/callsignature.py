@@ -211,11 +211,11 @@ def bind(
         b = BoundVariable(x, output_transforms)
         if x.parameter_index == len(function.parameters):
             assert function.return_type is not None
-            b.bind(function.return_type, {ModifierID.out})
+            b.bind(function.return_type, {ModifierID.out}, '_result')
         elif x.parameter_index == -1:
             assert function.this is not None
             b.bind(function.this, {
-                   ModifierID.inout if function.mutating else ModifierID.inn})
+                   ModifierID.inout if function.mutating else ModifierID.inn}, '_this')
         else:
             b.bind(function.parameters[x.parameter_index])
         res.args.append(b)
@@ -224,11 +224,11 @@ def bind(
         b = BoundVariable(v, output_transforms)
         if k == "_result":
             assert function.return_type is not None
-            b.bind(function.return_type, {ModifierID.out})
+            b.bind(function.return_type, {ModifierID.out}, '_result')
         elif k == "_this":
             assert function.this is not None
             b.bind(function.this, {
-                   ModifierID.inout if function.mutating else ModifierID.inn})
+                   ModifierID.inout if function.mutating else ModifierID.inn}, '_this')
         else:
             b.bind(function.parameters[v.parameter_index])
         res.kwargs[k] = b
@@ -327,7 +327,7 @@ def _gen_arg_shape_string(variable: BoundVariable) -> str:
 
 
 def _gen_type_shape_string(variable: BoundVariable) -> str:
-    if variable.slang is not None:
+    if variable.vector_type is not None:
         return str(variable.vector_type.shape.as_list())
     else:
         return "None"
