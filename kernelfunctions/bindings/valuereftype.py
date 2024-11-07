@@ -66,7 +66,7 @@ def numpy_to_slang_value(slang_type: kfr.SlangType, value: np.ndarray) -> Any:
         # convert first element of numpy array to basic python type
         np_data = value.view(
             dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type])
-        return python_type(value[0])
+        return python_type(np_data[0])
     elif isinstance(slang_type, kfr.VectorType):
         # convert to one of the SGL vector types (can be constructed from sequence)
         np_data = value.view(

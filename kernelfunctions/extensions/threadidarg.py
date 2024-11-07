@@ -41,7 +41,7 @@ class ThreadIdArgType(BaseTypeImpl):
             cgb.type_alias(f"_t_{name}", self.name)
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
-        return SLANG_VECTOR_TYPES[TypeReflection.ScalarType.uint32][self.dims]
+        return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
 
 
 PYTHON_TYPES[ThreadIdArg] = lambda x: ThreadIdArgType(x.dims)

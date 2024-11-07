@@ -49,7 +49,7 @@ class WangHashArgType(BaseTypeImpl):
             }
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
-        return SLANG_VECTOR_TYPES[TypeReflection.ScalarType.uint32][self.dims]
+        return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
 
 
 PYTHON_TYPES[WangHashArg] = lambda x: WangHashArgType(x.dims)

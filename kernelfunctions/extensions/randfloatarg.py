@@ -53,7 +53,7 @@ class RandFloatArgType(BaseTypeImpl):
             }
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
-        return SLANG_VECTOR_TYPES[TypeReflection.ScalarType.float32][self.dims]
+        return context.layout.vector_type(TypeReflection.ScalarType.float32, self.dims)
 
 
 PYTHON_TYPES[RandFloatArg] = lambda x: RandFloatArgType(x.dims)

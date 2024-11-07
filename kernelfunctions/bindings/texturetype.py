@@ -10,6 +10,8 @@ from kernelfunctions.backend import Texture, TypeReflection, ResourceUsage, Reso
 from kernelfunctions.core.boundvariableruntime import BoundVariableRuntime
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
 
+import kernelfunctions.core.reflection as kfr
+
 
 def has_uav(usage: ResourceUsage):
     return (usage & ResourceUsage.unordered_access.value) != 0
@@ -65,16 +67,17 @@ class TextureType(BaseTypeImpl):
         self.name = f"{prefix(self._usage)}{self._base_texture_type_name}<{self.element_type.name}>"
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
-        if isinstance(bound_type, TextureType):
-            if self._usage & bound_type._usage == 0:
+        if isinstance(bound_type, kfr.TextureType):
+            if self._usage & bound_type.usage == 0:
                 raise ValueError(
-                    f"Cannot bind texture view {self.name} with usage {bound_type._usage}")
-            if self._resource_shape != bound_type._resource_shape:
+                    f"Cannot bind texture view {self.name} with usage {bound_type.usage}")
+            if self._resource_shape != bound_type.resource_shape:
                 raise ValueError(
-                    f"Cannot bind texture view {self.name} with different shape {bound_type._resource_shape}")
-            if self.element_type.name != bound_type.element_type.name:
-                raise ValueError(
-                    f"Cannot bind texture view {self.name} with different element type {bound_type.element_type.name}")
+                    f"Cannot bind texture view {self.name} with different shape {bound_type.resource_shape}")
+            # TODO: Check element types match
+            # if self.element_type.name != bound_type.element_type.name:
+            #    raise ValueError(
+            #        f"Cannot bind texture view {self.name} with different element type {bound_type.element_type.name}")
             return bound_type
         else:
             return super().resolve_type(context, bound_type)
@@ -103,12 +106,12 @@ class TextureType(BaseTypeImpl):
         if binding.call_dimensionality == 0:
             # If broadcast directly, function is just taking the texture argument directly, so use the slang type
             assert access == AccessType.read
-            assert isinstance(binding.vector_type, TextureType)
-            if self._usage & binding.vector_type._usage == 0:
+            assert isinstance(binding.vector_type, kfr.TextureType)
+            if self._usage & binding.vector_type.usage == 0:
                 raise ValueError(
-                    f"Cannot bind texture view {name} with usage {binding.vector_type._usage}")
+                    f"Cannot bind texture view {name} with usage {binding.vector_type.usage}")
             cgb.type_alias(
-                f"_t_{name}", binding.vector_type.build_accessor_name())
+                f"_t_{name}", binding.vector_type.full_name.replace("<", "Type<", 1))
         elif binding.call_dimensionality == self._texture_dims:
             # If broadcast is the same shape as the texture, this is loading from pixels, so use the
             # type required to support the required access

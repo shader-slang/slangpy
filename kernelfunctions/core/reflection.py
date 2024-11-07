@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sgl import ProgramLayout
+from sgl import ProgramLayout, ResourceUsage
 
 from kernelfunctions.backend.slangpynativeemulation import Shape
 
@@ -119,7 +119,7 @@ class SlangType:
         elif local_shape.valid and self._element_type is not None:
             self._cached_shape = local_shape + self._element_type.shape
         else:
-            self._cached_shape = Shape(None)
+            self._cached_shape = local_shape
 
     @property
     def type_reflection(self) -> TypeReflection:
@@ -287,7 +287,7 @@ class ArrayType(SlangType):
 
 class StructType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-        super().__init__(program, refl)
+        super().__init__(program, refl, local_shape=Shape())
 
     def build_fields(self):
         return {field.name: field for field in self.type_reflection.fields}
@@ -310,6 +310,22 @@ class ResourceType(SlangType):
     def resource_access(self) -> TR.ResourceAccess:
         return self.type_reflection.resource_access
 
+    @property
+    def writable(self) -> bool:
+        if self.resource_access == TR.ResourceAccess.read_write:
+            return True
+        elif self.resource_access == TR.ResourceAccess.read:
+            return False
+        else:
+            raise ValueError("Resource is neither read_write or read")
+
+    @property
+    def usage(self) -> ResourceUsage:
+        if self.writable:
+            return ResourceUsage.unordered_access
+        else:
+            return ResourceUsage.shader_resource
+
 
 class TextureType(ResourceType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
@@ -320,9 +336,6 @@ class TextureType(ResourceType):
                          element_type=program.find_type(refl.resource_result_type),
                          local_shape=Shape((-1,)*self.texture_dims,))
 
-    def writable(self) -> bool:
-        return self.resource_access == TR.ResourceAccess.read_write
-
 
 class StructuredBufferType(ResourceType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
@@ -331,18 +344,12 @@ class StructuredBufferType(ResourceType):
                          element_type=program.find_type(refl.resource_result_type),
                          local_shape=Shape((-1,)))
 
-    def writable(self) -> bool:
-        return self.resource_access == TR.ResourceAccess.read_write
-
 
 class ByteAddressBufferType(ResourceType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl,
                          element_type=program.scalar_type(TR.ScalarType.uint8),
                          local_shape=Shape((-1,)))
-
-    def writable(self) -> bool:
-        return self.resource_access == TR.ResourceAccess.read_write
 
 
 class DifferentialPairType(SlangType):

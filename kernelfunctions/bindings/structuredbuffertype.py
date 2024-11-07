@@ -9,6 +9,8 @@ from kernelfunctions.core import BindContext, BaseType, BaseTypeImpl, BoundVaria
 from kernelfunctions.backend import Buffer, TypeReflection
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
 
+import kernelfunctions.core.reflection as kfr
+
 
 class StructuredBufferType(BaseTypeImpl):
 
@@ -53,15 +55,15 @@ class StructuredBufferType(BaseTypeImpl):
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         if self.element_type is None:
             return bound_type
-        elif isinstance(bound_type, StructuredBufferType):
+        elif isinstance(bound_type, kfr.StructuredBufferType):
             return bound_type
         else:
-            return self.element_type
+            return self.element_type.get_slang_type(context)
 
     def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
         # structured buffer can only ever be taken to another structured buffer,
         # or an element.
-        if isinstance(vector_target_type, StructuredBufferType):
+        if isinstance(vector_target_type, kfr.StructuredBufferType):
             return 0
         else:
             return 1
@@ -74,21 +76,21 @@ class StructuredBufferType(BaseTypeImpl):
         if binding.call_dimensionality == 0:
             # If broadcast directly, function is just taking the texture argument directly, so use the slang type
             assert access == AccessType.read
-            assert isinstance(binding.vector_type, StructuredBufferType)
-            if binding.vector_type.is_writable:
+            assert isinstance(binding.vector_type, kfr.StructuredBufferType)
+            if binding.vector_type.writable:
                 cgb.type_alias(
-                    f"_t_{name}", f"RWStructuredBufferType<{binding.vector_type.element_type.name}>")
+                    f"_t_{name}", f"RWStructuredBufferType<{binding.vector_type.element_type.full_name}>")
             else:
                 cgb.type_alias(
-                    f"_t_{name}", f"StructuredBufferType<{binding.vector_type.element_type.name}>")
+                    f"_t_{name}", f"StructuredBufferType<{binding.vector_type.element_type.full_name}>")
         else:
             # Can now generate
             if access == AccessType.read:
                 cgb.type_alias(
-                    f"_t_{name}", f"StructuredBufferType<{binding.vector_type.name}>")
+                    f"_t_{name}", f"StructuredBufferType<{binding.vector_type.full_name}>")
             elif access in (AccessType.write, AccessType.readwrite):
                 cgb.type_alias(
-                    f"_t_{name}", f"RWStructuredBufferType<{binding.vector_type.name}>")
+                    f"_t_{name}", f"RWStructuredBufferType<{binding.vector_type.full_name}>")
             else:
                 cgb.type_alias(f"_t_{name}", f"NoneType")
 

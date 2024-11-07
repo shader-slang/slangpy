@@ -40,15 +40,15 @@ class BaseTypeImpl(BaseType):
         # if implicit element casts enabled, allow conversion from type to element type
         if context.options['implicit_element_casts']:
             if self.element_type is not None and self.element_type.name == bound_type.full_name:
-                return cast(BaseType, bound_type)
+                return bound_type
 
         # TODO: move to tensor type
         # if implicit tensor casts enabled, allow conversion from vector/matrix to element type
         if context.options['implicit_tensor_casts']:
             if bound_type.full_name.startswith('vector<') and self.element_type.name == bound_type.element_type.name:
-                return cast(BaseType, bound_type)
+                return bound_type
             elif bound_type.full_name.startswith('matrix<') and self.element_type.name == bound_type.element_type.name:
-                return cast(BaseType, bound_type)
+                return bound_type
 
         # Default to just casting to itself (i.e. no implicit cast)
         return self.get_slang_type(context)
