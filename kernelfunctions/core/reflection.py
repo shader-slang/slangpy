@@ -249,6 +249,10 @@ class VectorType(SlangType):
         assert isinstance(self.element_type, ScalarType)
         return self.element_type.slang_scalar_type
 
+    def build_fields(self):
+        names = ['x', 'y', 'z', 'w']
+        return {names[i]: self.scalar_type for i in range(self.num_elements)}
+
 
 class MatrixType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):

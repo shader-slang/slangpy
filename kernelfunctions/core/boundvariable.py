@@ -88,8 +88,11 @@ class BoundVariable:
 
     def bind(self, slang: Union[BaseSlangVariable, SlangType], modifiers: set[ModifierID] = set()):
         if isinstance(slang, SlangType):
-            assert self.python.name != ""
-            self.name = self.python.name
+            if self.python.name == '':
+                # TODO: Handle this better!
+                self.name = '_result'
+            else:
+                self.name = self.python.name
             self.slang_type = slang
             self.slang_modifiers = modifiers
         else:
