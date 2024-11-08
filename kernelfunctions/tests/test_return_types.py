@@ -3,6 +3,7 @@ import pytest
 from kernelfunctions.backend import DeviceType, TypeReflection
 from kernelfunctions.backend.slangpynativeemulation import CallContext
 from kernelfunctions.core.boundvariableruntime import BoundVariableRuntime
+from kernelfunctions.core.reflection import SlangProgramLayout
 import kernelfunctions.tests.helpers as helpers
 import kernelfunctions.typeregistry as tr
 from kernelfunctions.bindings.valuereftype import ValueRefType
@@ -15,22 +16,22 @@ class Test:
 
 
 class TestType(ValueRefType):
-    def __init__(self):
-        super().__init__(tr.SLANG_SCALAR_TYPES[TypeReflection.ScalarType.int32])
+    def __init__(self, layout: SlangProgramLayout):
+        super().__init__(layout, layout.scalar_type(TypeReflection.ScalarType.int32))
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any):
         return Test(super().read_output(context, binding, data))
 
 
-def create_test_type(value: Any):
+def create_test_type(layout: SlangProgramLayout, value: Any):
     if isinstance(value, Test):
-        return TestType()
+        return TestType(layout)
     elif isinstance(value, ReturnContext):
         if value.slang_type.name != "int":
             return None
         if value.bind_context.call_dimensionality != 0:
             return None
-        return TestType()
+        return TestType(layout)
     else:
         return None
 

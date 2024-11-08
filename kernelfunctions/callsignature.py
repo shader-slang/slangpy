@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 from sgl import FunctionReflection, ModifierID, TypeReflection, VariableReflection
 
-from kernelfunctions.bindings.valuetype import ValueType
+from kernelfunctions.bindings.valuetype import NoneValueType, ValueType
 from kernelfunctions.core import (
     CodeGen,
     CallMode, AccessType,
@@ -122,7 +122,7 @@ def specialize(
             assert python_arg is not None
             if python_arg.vector_type is not None:
                 inputs.append(python_arg.vector_type)
-            elif isinstance(python_arg.primal, ValueType) and python_arg.primal.name != 'dict':
+            elif isinstance(python_arg.primal, ValueType) and python_arg.primal.slang_type is not None:
                 inputs.append(python_arg.primal)
             elif slang_param.type.kind != TypeReflection.Kind.none and slang_param.type.kind != TypeReflection.Kind.interface:
                 inputs.append(slang_param.type)
@@ -137,7 +137,7 @@ def specialize(
 
     def to_type_reflection(input: Any) -> TypeReflection:
         if isinstance(input, BaseType):
-            return context.device_module.layout.find_type_by_name(input.name)
+            return input.slang_type.type_reflection
         elif isinstance(input, TypeReflection):
             return input
         elif isinstance(input, str):
@@ -171,7 +171,7 @@ def validate_specialize(
 
     def to_type_reflection(input: Any) -> TypeReflection:
         if isinstance(input, BaseType):
-            return context.device_module.layout.find_type_by_name(input.name)
+            return input.slang_type.type_reflection
         elif isinstance(input, TypeReflection):
             return input
         elif isinstance(input, str):
@@ -349,7 +349,7 @@ def generate_argument_info_columns(variable: TBoundOrRuntimeVariable, indent: in
         elif name == "Name":
             text.append(clip_string(variable.variable_name, width))
         elif name == "Input Type":
-            text.append(clip_string(variable.python.primal.name, width))
+            text.append(clip_string(variable.python.primal.slang_type.full_name, width))
         elif name == "Output Type":
             text.append(clip_string(variable.vector_type.full_name, width))
         elif name == "Input Shape":
@@ -442,7 +442,7 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     if context.call_mode != CallMode.prim:
         return
     node = signature.kwargs.get("_result")
-    if node is None or node.python.primal.name != 'none':
+    if node is None or not isinstance(node.python.primal, NoneValueType):
         return
 
     # Should have an explicit vector type by now.
@@ -458,7 +458,7 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
             return_type = NDBuffer
 
     return_ctx = ReturnContext(node.vector_type, context)
-    python_type = tr.get_or_create_type(return_type, return_ctx)
+    python_type = tr.get_or_create_type(context.layout, return_type, return_ctx)
 
     node.call_dimensionality = context.call_dimensionality
     node.python.set_type(python_type)

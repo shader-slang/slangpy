@@ -146,4 +146,4 @@ class FakeBufferType(BaseTypeImpl):
         return value.shape
 
 
-PYTHON_TYPES[FakeBuffer] = FakeBufferType()
+PYTHON_TYPES[FakeBuffer] = lambda layout, pytype: FakeBufferType()

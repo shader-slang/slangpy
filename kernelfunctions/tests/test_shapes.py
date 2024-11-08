@@ -16,9 +16,6 @@ from kernelfunctions.types.valueref import ValueRef
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
 
-x = BaseType()
-x.get_shape(object())
-
 
 def make_int_buffer(device_type: DeviceType, shape: tuple[int, ...]):
     return NDBuffer(device=helpers.get_device(device_type), shape=shape, element_type=int)

@@ -124,7 +124,7 @@ class CallData(NativeCallData):
                                   function.module, function.options)
 
             # Build the unbound signature from inputs
-            python_call = PythonFunctionCall(*unpacked_args, **unpacked_kwargs)
+            python_call = PythonFunctionCall(context, *unpacked_args, **unpacked_kwargs)
 
             # Apply explicit to the Python variables
             apply_explicit_vectorization(
@@ -146,7 +146,7 @@ class CallData(NativeCallData):
 
             # Inject a dummy node into the Python signature if we need a result back
             if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_type.full_name != 'void':
-                rvalnode = PythonVariable(None, None, "_result")
+                rvalnode = PythonVariable(context, None, None, "_result")
                 python_call.kwargs["_result"] = rvalnode
 
             # Create bound variable information now that we have concrete data for path sides

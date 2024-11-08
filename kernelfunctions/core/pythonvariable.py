@@ -18,10 +18,11 @@ class PythonVariableException(Exception):
 
 
 class PythonFunctionCall:
-    def __init__(self, *args: Any, **kwargs: Any) -> NoneType:
+    def __init__(self,
+                 context: 'BindContext', *args: Any, **kwargs: Any) -> NoneType:
         super().__init__()
-        self.args = [PythonVariable(x, None, None) for x in args]
-        self.kwargs = {n: PythonVariable(v, None, n) for n, v in kwargs.items()}
+        self.args = [PythonVariable(context, x, None, None) for x in args]
+        self.kwargs = {n: PythonVariable(context, v, None, n) for n, v in kwargs.items()}
 
     @property
     def num_function_args(self) -> int:
@@ -63,16 +64,18 @@ class PythonFunctionCall:
 
 class PythonVariable(BaseVariableImpl):
     def __init__(self,
+                 context: 'BindContext',
                  value: Any,
                  parent: Optional['PythonVariable'],
                  name: Optional[str]):
         super().__init__()
 
         self.name = name if name is not None else ""
-        self.set_type(get_or_create_type(type(value), value), value)
+        self.set_type(get_or_create_type(context.layout, type(value), value), value)
 
         if isinstance(value, dict):
-            self.fields = {n: PythonVariable(v, self, n) for n, v in value.items()}
+            self.fields = {n: PythonVariable(context, v, self, n)
+                           for n, v in value.items()}
         else:
             self.fields = None
 
@@ -83,7 +86,7 @@ class PythonVariable(BaseVariableImpl):
 
     @property
     def differentiable(self):
-        return self.primal.differentiable and self.primal.has_derivative
+        return self.primal.has_derivative
 
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
@@ -125,7 +128,7 @@ class PythonVariable(BaseVariableImpl):
                 self.vector_type = context.layout.find_type_by_name(mapping)
                 self.explicitly_vectorized = True
             elif isinstance(mapping, type):
-                marshall = get_or_create_type(mapping)
+                marshall = get_or_create_type(context.layout, mapping)
                 if not marshall:
                     raise PythonVariableException(
                         f"Invalid explicit type: {mapping}", self)

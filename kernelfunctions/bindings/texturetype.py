@@ -8,7 +8,7 @@ from kernelfunctions.core import BaseType, BaseTypeImpl, Shape, AccessType, Bind
 from kernelfunctions.backend import Texture, TypeReflection, ResourceUsage, ResourceType, get_format_info, FormatType, ResourceView
 
 from kernelfunctions.core.boundvariableruntime import BoundVariableRuntime
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, SLANG_VECTOR_TYPES, get_or_create_type
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES,  get_or_create_type
 
 import kernelfunctions.core.reflection as kfr
 
@@ -200,10 +200,6 @@ def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType
     else:
         raise ValueError(f"Unsupported resource access {slang_type.resource_access}")
     return TextureType(slang_type.resource_shape, et, usage)
-
-
-SLANG_STRUCT_TYPES_BY_NAME['__TextureImpl'] = _get_or_create_slang_type_reflection
-SLANG_STRUCT_TYPES_BY_NAME['_Texture'] = _get_or_create_slang_type_reflection
 
 
 def get_or_create_python_texture_type(resource: Texture, usage: ResourceUsage):

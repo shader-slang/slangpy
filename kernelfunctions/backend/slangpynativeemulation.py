@@ -116,30 +116,6 @@ class NativeSlangType:
         self.needs_specialization: bool = False
         self.num_elements: int = 0
 
-    def get_byte_size(self) -> int:
-        assert self.layout is not None
-        return self.layout.size_bytes
-
-    @property
-    def shape(self) -> Shape:
-        if self.static_shape is None:
-            dims = []
-            slang_type = self
-            while slang_type.element_type is not None:
-                dims.append(slang_type.num_elements)
-                slang_type = slang_type.element_type
-
-            self.static_shape = Shape(*dims)
-
-        return self.static_shape
-
-    @property
-    def innermost_type(self) -> 'NativeSlangType':
-        result = self
-        while result.element_type is not None:
-            result = result.element_type
-        return result
-
 
 class NativeType:
     """
@@ -148,8 +124,6 @@ class NativeType:
 
     def __init__(self):
         super().__init__()
-        self.name = ""
-        self.element_type: Optional['NativeType'] = None
         self.concrete_shape: Shape = Shape(None)
 
     def get_byte_size(self, value: Any = None) -> int:
@@ -159,12 +133,7 @@ class NativeType:
         return Shape()
 
     def get_shape(self, value: Any = None) -> Shape:
-        if self.concrete_shape.valid:
-            return self.concrete_shape
-        if self.element_type is not None:
-            return self.get_container_shape(value) + self.element_type.get_shape()
-        else:
-            return self.get_container_shape(value)
+        return self.concrete_shape
 
     def create_calldata(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any) -> Any:
         pass
@@ -256,7 +225,7 @@ class NativeBoundVariableRuntime:
             if self.python_type.concrete_shape.valid:
                 shape = self.python_type.concrete_shape
             else:
-                shape = self.python_type.get_container_shape(value)
+                shape = self.python_type.get_shape(value)
             tf = cast(Shape, self.transform)
             csl = len(call_shape)
             self.shape = shape

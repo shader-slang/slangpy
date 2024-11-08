@@ -48,9 +48,6 @@ class ITest(BaseTypeImpl):
         return True
 
 
-tr.SLANG_INTERFACE_TYPES_BY_NAME["ITest"] = ITest
-
-
 class Test:
     def __init__(self, T: BaseType, N: int):
         super().__init__()
@@ -85,7 +82,6 @@ def create_test_impl(value: Any):
     return TestImpl(value.T, value.N)
 
 
-tr.SLANG_INTERFACE_TYPES_BY_NAME["ITest"] = ITest
 tr.PYTHON_TYPES[Test] = create_test_impl
 
 

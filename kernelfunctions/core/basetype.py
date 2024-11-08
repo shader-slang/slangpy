@@ -31,9 +31,8 @@ class ReturnContext:
 
 
 class BaseType(NativeType):
-    def __init__(self):
+    def __init__(self, layout: 'SlangProgramLayout'):
         super().__init__()
-        self.element_type: Optional[BaseType]
 
     @property
     def has_derivative(self) -> bool:

@@ -7,7 +7,7 @@ from sgl import ResourceUsage
 from kernelfunctions.core import BindContext, BaseType, BaseTypeImpl, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.backend import Buffer, TypeReflection
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, SLANG_STRUCT_TYPES_BY_NAME, get_or_create_type
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, get_or_create_type
 
 import kernelfunctions.core.reflection as kfr
 
@@ -134,10 +134,6 @@ def _get_or_create_rw_slang_type_reflection(slang_type: TypeReflection) -> BaseT
     assert isinstance(slang_type, TypeReflection)
     assert slang_type.kind == TypeReflection.Kind.resource
     return RWStructuredBufferType(element_type=get_or_create_type(slang_type.resource_result_type))
-
-
-SLANG_STRUCT_TYPES_BY_NAME['StructuredBuffer'] = _get_or_create_ro_slang_type_reflection
-SLANG_STRUCT_TYPES_BY_NAME['RWStructuredBuffer'] = _get_or_create_rw_slang_type_reflection
 
 
 def _get_or_create_python_type(value: Buffer):

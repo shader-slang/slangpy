@@ -5,12 +5,58 @@ from sgl import MemoryType, TypeReflection
 from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, SlangModule
 
 from kernelfunctions.core import BaseType, Shape
+from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
 from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.struct import Struct
 from kernelfunctions.typeregistry import get_or_create_type
 from kernelfunctions.utils import find_type_layout_for_buffer
 
 import numpy.typing as npt
+
+global_lookup_modules: dict[Device, SlangProgramLayout] = {}
+
+
+def get_lookup_module(device: Device) -> SlangProgramLayout:
+    if device not in global_lookup_modules:
+        dummy_module = device.load_module_from_source(
+            "slangpy_layout", 'import "slangpy";')
+        global_lookup_modules[device] = SlangProgramLayout(dummy_module.layout)
+    return global_lookup_modules[device]
+
+
+def resolve_program_layout(device: Device, element_type: Any, program_layout: Optional[SlangProgramLayout]) -> SlangProgramLayout:
+    if program_layout is None:
+        if isinstance(element_type, SlangType):
+            program_layout = element_type.program
+        elif isinstance(element_type, BaseType):
+            program_layout = element_type.slang_type.program
+        else:
+            program_layout = get_lookup_module(device)
+    return program_layout
+
+
+def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) -> SlangType:
+    if isinstance(element_type, SlangType):
+        pass
+    elif isinstance(element_type, str):
+        element_type = program_layout.find_type_by_name(element_type)
+    elif isinstance(element_type, Struct):
+        element_type = program_layout.find_type_by_name(element_type.name)
+    elif isinstance(element_type, TypeReflection):
+        element_type = program_layout.find_type(element_type)
+    elif isinstance(element_type, TypeLayoutReflection):
+        element_type = program_layout.find_type(element_type.type)
+    elif isinstance(element_type, BaseType):
+        if element_type.slang_type.program == program_layout.program:
+            element_type = slang_type
+        else:
+            element_type = program_layout.find_type_by_name(element_type.name)
+    else:
+        bt = get_or_create_type(program_layout, element_type)
+        element_type = bt.slang_type
+    if element_type is None:
+        raise ValueError("Element type could not be resolved")
+    return element_type
 
 
 class NDBuffer:
@@ -23,7 +69,7 @@ class NDBuffer:
         usage: ResourceUsage = ResourceUsage.shader_resource
         | ResourceUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
-        slang_module: Optional[SlangModule] = None
+        program_layout: Optional[SlangProgramLayout] = None
     ):
         super().__init__()
 
@@ -32,14 +78,8 @@ class NDBuffer:
         if element_count is not None and shape is not None:
             raise ValueError("Only one of element_count or shape can be provided")
 
-        if isinstance(element_type, str):
-            if slang_module is None:
-                raise ValueError(
-                    "slang_module must be provided to resolve string based element types")
-            element_type = find_type_layout_for_buffer(slang_module.layout, element_type)
-        elif isinstance(element_type, Struct):
-            element_type = find_type_layout_for_buffer(
-                element_type.device_module.layout, element_type.name)
+        self.program_layout = resolve_program_layout(device, element_type, program_layout)
+        self.element_type = resolve_element_type(self.program_layout, element_type)
 
         if element_count is None:
             if shape is None:
@@ -55,10 +95,9 @@ class NDBuffer:
             self.element_count = element_count
             self.shape = Shape(element_count)
 
-        self.element_type = get_or_create_type(element_type)
         self.usage = usage
 
-        self.slangpy_signature = f"[{self.element_type.name},{len(self.shape)},{self.is_writable}]"
+        self.slangpy_signature = f"[{self.element_type.full_name},{len(self.shape)},{self.is_writable}]"
 
         strides = []
         total = 1
@@ -67,12 +106,8 @@ class NDBuffer:
             total *= dim
         self.strides = tuple(reversed(strides))
 
-        if isinstance(element_type, TypeLayoutReflection):
-            self.element_size = element_type.size
-            self.element_stride = element_type.stride
-        else:
-            self.element_size = self.element_type.get_byte_size()
-            self.element_stride = self.element_size
+        self.element_size = self.element_type.buffer_layout.size
+        self.element_stride = self.element_type.buffer_layout.stride
 
         self.buffer = device.create_buffer(
             element_count=self.element_count,
@@ -106,27 +141,14 @@ class NDDifferentiableBuffer(NDBuffer):
         grad_type: Any = None,
         grad_usage: Optional[ResourceUsage] = None,
         grad_memory_type: Optional[MemoryType] = None,
-        slang_module: Optional[SlangModule] = None,
+        program_layout: Optional[SlangProgramLayout] = None
     ):
-        super().__init__(device, element_type, element_count, shape, usage, memory_type, slang_module)
+        super().__init__(device, element_type, element_count, shape, usage, memory_type, program_layout)
 
         if grad_type is None:
-            if isinstance(element_type, BaseType):
-                grad_type = element_type.derivative
-            elif isinstance(element_type, Struct):
-                grad_type = find_type_layout_for_buffer(
-                    element_type.device_module.layout, element_type.name+".Differential")
-            elif isinstance(element_type, str):
-                if slang_module is None:
-                    raise ValueError(
-                        "slang_module must be provided to resolve string based element types")
-                grad_type = find_type_layout_for_buffer(
-                    slang_module.layout, element_type+".Differential")
-            elif isinstance(element_type, (TypeLayoutReflection, TypeReflection)):
-                if slang_module is not None:
-                    grad_type = element_type.name+".Differential"
-            if grad_type is None:
-                grad_type = element_type
+            grad_type = self.element_type
+
+        self.grad_type = resolve_element_type(self.program_layout, element_type)
 
         self.requires_grad = requires_grad
 
@@ -147,13 +169,12 @@ class NDDifferentiableBuffer(NDBuffer):
                 grad_type=None,
                 grad_usage=None,
                 grad_memory_type=None,
-                slang_module=slang_module)
+                program_layout=self.program_layout)
             self.slangpy_signature += self.grad.slangpy_signature
         else:
             self.grad = None
             self.slangpy_signature += "[]"
 
-        self.grad_type = get_or_create_type(grad_type)
         self.grad_usage = grad_usage if grad_usage is not None else self.usage
 
     @property

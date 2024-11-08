@@ -87,7 +87,14 @@ def _pyarg_name(value: Any) -> str:
 def _type_name(value: Optional['BaseType']) -> str:
     if value is None:
         return ""
-    return value.name
+    if hasattr(value, 'slang_type'):
+        return value.slang_type.name
+    elif hasattr(value, 'full_name'):
+        return value.full_name
+    elif hasattr(value, 'name'):
+        return value.name
+    else:
+        return str(value)
 
 
 def _type_shape(value: Optional['BaseType']) -> str:

@@ -5,7 +5,8 @@ from typing import Optional
 from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, AccessType, BoundVariable, Shape
 
 from kernelfunctions.backend import TypeReflection
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES, SLANG_VECTOR_TYPES
+from kernelfunctions.core.reflection import SlangProgramLayout
+from kernelfunctions.typeregistry import PYTHON_TYPES
 
 
 class ThreadIdArg:
@@ -24,24 +25,23 @@ class ThreadIdArg:
 
 
 class ThreadIdArgType(BaseTypeImpl):
-    def __init__(self, dims: int):
-        super().__init__()
+    def __init__(self, layout: SlangProgramLayout, dims: int):
+        super().__init__(layout)
         self.dims = dims
-        self.element_type = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
-        self.name = f"ThreadIdArg<{self.dims}>"
-
-    def get_container_shape(self, value: Optional[ThreadIdArg] = None) -> Shape:
-        return Shape(self.dims)
+        st = layout.find_type_by_name(f"ThreadIdArg<{self.dims}>")
+        assert st
+        self.slang_type = st
+        self.concrete_shape = Shape(self.dims)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("threadidarg")
-            cgb.type_alias(f"_t_{name}", self.name)
+            cgb.type_alias(f"_t_{name}", self.slang_type.full_name)
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
 
 
-PYTHON_TYPES[ThreadIdArg] = lambda x: ThreadIdArgType(x.dims)
+PYTHON_TYPES[ThreadIdArg] = lambda l, x: ThreadIdArgType(l, x.dims)

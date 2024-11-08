@@ -122,6 +122,10 @@ class SlangType:
             self._cached_shape = local_shape
 
     @property
+    def program(self) -> SlangProgramLayout:
+        return self._program
+
+    @property
     def type_reflection(self) -> TypeReflection:
         return self._reflection
 
@@ -358,7 +362,9 @@ class ByteAddressBufferType(ResourceType):
 
 class DifferentialPairType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection, primal: SlangType):
-        super().__init__(program, refl)
+        # TODO: What should shape of this be? For conversions to work in marshall, needs
+        # to be the same as the primal, but maybe we need to handle that differently?
+        super().__init__(program, refl, local_shape=primal.shape)
         assert primal.differentiable
         self.primal = primal
 
@@ -588,6 +594,12 @@ class SlangProgramLayout:
     def matrix_type(self, scalar_type: TR.ScalarType, rows: int, cols: int) -> MatrixType:
         return cast(MatrixType, self.find_type_by_name(f"matrix<{scalar_names[scalar_type]},{rows},{cols}>"))
 
+    def array_type(self, element_type: SlangType, count: int) -> ArrayType:
+        if count > 0:
+            return cast(ArrayType, self.find_type_by_name(f"{element_type.full_name}[{count}]"))
+        else:
+            return cast(ArrayType, self.find_type_by_name(f"{element_type.full_name}[]"))
+
     def _get_or_create_type(self, refl: TypeReflection):
         existing = self._types_by_reflection.get(refl)
         if existing is not None:
@@ -696,19 +708,28 @@ class SlangProgramLayout:
             raise ValueError(f"Unable to parse generic '{full}'")
 
         # Now resolve generics into ints or types
+        # Note: avoiding using exception as it makes things hard to debug
         result = []
         for piece in reversed(pieces):
-            try:
-                # Try int first; if it fails, try a type instead
+            if can_convert_to_int(piece):
                 x = int(piece)
-            except ValueError:
-                if _cur_module is None:
-                    raise RuntimeError(
-                        "Trying to reflect type without setting current module")
+            else:
                 x = self.find_type_by_name(piece)
             result.append(x)
 
         return tuple(result)
+
+
+def can_convert_to_int(value: Any):
+    # Check if it's an integer or a float that can be cast to an int
+    if isinstance(value, int):
+        return True
+    elif isinstance(value, float) and value.is_integer():
+        return True
+    elif isinstance(value, str) and value.lstrip('+-').isdigit():
+        return True
+    else:
+        return False
 
 
 # Let's prove we unquestionably need these before creating them, as they represent

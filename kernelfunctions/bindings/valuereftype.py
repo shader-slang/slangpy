@@ -3,6 +3,7 @@
 from typing import Any, Optional, Union
 import numpy as np
 
+from kernelfunctions.bindings.valuetype import slang_type_to_return_type
 from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
 
 import kernelfunctions.core.reflection as kfr
@@ -11,38 +12,6 @@ from kernelfunctions.types import ValueRef
 
 from kernelfunctions.backend import Buffer, ResourceUsage
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
-
-import kernelfunctions.backend as kfbackend
-
-
-def slang_type_to_return_type(slang_type: kfr.SlangType) -> Any:
-    if isinstance(slang_type, kfr.ScalarType):
-        if slang_type.slang_scalar_type in kfr.FLOAT_TYPES:
-            return float
-        elif slang_type.slang_scalar_type in kfr.INT_TYPES:
-            return int
-        elif slang_type.slang_scalar_type in kfr.BOOL_TYPES:
-            return bool
-    elif isinstance(slang_type, kfr.VectorType):
-        if slang_type.slang_scalar_type in kfr.FLOAT_TYPES:
-            return getattr(kfbackend, f'float{slang_type.num_elements}')
-        elif slang_type.slang_scalar_type in kfr.SIGNED_INT_TYPES:
-            return getattr(kfbackend, f'int{slang_type.num_elements}')
-        elif slang_type.slang_scalar_type in kfr.UNSIGNED_INT_TYPES:
-            return getattr(kfbackend, f'uint{slang_type.num_elements}')
-        elif slang_type.slang_scalar_type in kfr.BOOL_TYPES:
-            return getattr(kfbackend, f'bool{slang_type.num_elements}')
-    elif isinstance(slang_type, kfr.MatrixType):
-        if slang_type.slang_scalar_type in kfr.FLOAT_TYPES:
-            return getattr(kfbackend, f'float{slang_type.rows}x{slang_type.cols}')
-        elif slang_type.slang_scalar_type in kfr.SIGNED_INT_TYPES:
-            return getattr(kfbackend, f'int{slang_type.rows}x{slang_type.cols}')
-        elif slang_type.slang_scalar_type in kfr.UNSIGNED_INT_TYPES:
-            return getattr(kfbackend, f'uint{slang_type.rows}x{slang_type.cols}')
-        elif slang_type.slang_scalar_type in kfr.BOOL_TYPES:
-            return getattr(kfbackend, f'bool{slang_type.rows}x{slang_type.cols}')
-    else:
-        raise ValueError(f"Slang type {slang_type} has no associated python value type")
 
 
 def slang_value_to_numpy(slang_type: kfr.SlangType, value: Any) -> np.ndarray:
@@ -83,11 +52,10 @@ def numpy_to_slang_value(slang_type: kfr.SlangType, value: np.ndarray) -> Any:
 
 class ValueRefType(BaseTypeImpl):
 
-    def __init__(self, value_type: Union[BaseType, kfr.SlangType]):
-        super().__init__()
+    def __init__(self, layout: kfr.SlangProgramLayout, value_type: kfr.SlangType):
+        super().__init__(layout)
         self.value_type = value_type
-        self.element_type = self.value_type.element_type
-        self.name = self.value_type.name
+        self.slang_type = layout.find_type_by_name(f"ValueRef<{value_type.full_name}>")
 
     # Values don't store a derivative - they're just a value
     @property
@@ -99,6 +67,9 @@ class ValueRefType(BaseTypeImpl):
     def is_writable(self) -> bool:
         return True
 
+    def resolve_type(self, context: BindContext, bound_type: 'kfr.SlangType'):
+        return self.value_type
+
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
@@ -106,10 +77,10 @@ class ValueRefType(BaseTypeImpl):
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
-            cgb.type_alias(f"_t_{name}", f"ValueRef<{self.value_type.name}>")
+            cgb.type_alias(f"_t_{name}", f"ValueRef<{self.value_type.full_name}>")
         else:
             cgb.type_alias(
-                f"_t_{name}", f"RWValueRef<{self.value_type.name}>")
+                f"_t_{name}", f"RWValueRef<{self.value_type.full_name}>")
 
     # Call data just returns the primal
 
@@ -168,11 +139,11 @@ class ValueRefType(BaseTypeImpl):
         return data.value
 
 
-def create_vr_type_for_value(value: Any):
+def create_vr_type_for_value(layout: kfr.SlangProgramLayout, value: Any):
     if isinstance(value, ValueRef):
-        return ValueRefType(get_or_create_type(type(value.value)))
+        return ValueRefType(layout, get_or_create_type(layout, type(value.value)).slang_type)
     elif isinstance(value, ReturnContext):
-        return ValueRefType(value.slang_type)
+        return ValueRefType(layout, value.slang_type)
 
 
 PYTHON_TYPES[ValueRef] = create_vr_type_for_value
