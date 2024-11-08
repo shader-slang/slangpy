@@ -1,6 +1,6 @@
 
 
-from typing import Any, Optional
+from typing import Any
 
 from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
 

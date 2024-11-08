@@ -1,7 +1,5 @@
 from typing import Optional, TYPE_CHECKING
 
-from .enums import PrimType
-
 if TYPE_CHECKING:
     from .basetype import BaseType
 
@@ -9,8 +7,7 @@ if TYPE_CHECKING:
 class BaseVariable:
     def __init__(self):
         super().__init__()
-        self.primal: 'BaseType' = None  # type: ignore (init in constructor)
-        self.derivative: Optional['BaseType'] = None
+        self.primal: 'BaseType'
         self.fields: Optional[dict[str, 'BaseVariable']] = None
 
     def __repr__(self) -> str:

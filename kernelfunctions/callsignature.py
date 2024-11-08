@@ -10,7 +10,7 @@ from kernelfunctions.core import (
     BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
     PythonFunctionCall, PythonVariable,
     BoundCallRuntime, BoundVariableRuntime,
-    SlangProgramLayout, SlangFunction, SlangType
+    SlangFunction, SlangType
 )
 
 from kernelfunctions.core.basetype import BaseType
@@ -515,6 +515,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     if func_name == "$init":
         results = [x for x in root_params if x.variable_name == '_result']
         assert len(results) == 1
+        assert results[0].vector_type is not None
         func_name = results[0].vector_type.full_name
     elif len(root_params) > 0 and root_params[0].variable_name == '_this':
         func_name = f'_this.{func_name}'
@@ -549,11 +550,13 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
         cg.kernel.append_statement("context.call_id = {0}")
 
     def declare_p(x: BoundVariable, has_suffix: bool = False):
+        assert x.python.vector_type is not None
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
         cg.kernel.append_statement(f"{x.python.vector_type.full_name} {name}")
         return name
 
     def declare_d(x: BoundVariable, has_suffix: bool = False):
+        assert x.python.vector_type is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
         cg.kernel.append_statement(
             f"{x.python.vector_type.full_name}.Differential {name}")

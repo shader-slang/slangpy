@@ -2,8 +2,6 @@
 
 from typing import Any, TYPE_CHECKING
 
-import numpy.typing as npt
-
 from .native import NativeType, CallMode
 from .codegen import CodeGenBlock
 
@@ -43,14 +41,7 @@ class BaseType(NativeType):
     def is_writable(self) -> bool:
         raise NotImplementedError()
 
-    @property
-    def python_return_value_type(self) -> type:
-        raise NotImplementedError()
-
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
-        raise NotImplementedError()
-
-    def from_numpy(self, array: npt.ArrayLike) -> Any:
         raise NotImplementedError()
 
     def reduce_type(self, context: BindContext, dimensions: int):

@@ -1,5 +1,5 @@
 from io import StringIO
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from kernelfunctions.core import BaseType
 

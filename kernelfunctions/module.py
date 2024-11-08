@@ -1,30 +1,12 @@
 
 
 from typing import Any
-from kernelfunctions.backend import SlangModule, DeclReflection
+from kernelfunctions.backend import SlangModule
 
 from kernelfunctions.core.reflection import SlangProgramLayout
 from kernelfunctions.function import Function
 from kernelfunctions.struct import Struct
 import kernelfunctions.typeregistry as tr
-
-
-class ModuleFunctions:
-    def __init__(self, module: 'Module'):
-        super().__init__()
-        self.module = module
-
-    def __getattr__(self, name: str):
-        return Function(self.module.device_module, name)
-
-
-class ModuleStructs:
-    def __init__(self, module: 'Module'):
-        super().__init__()
-        self.module = module
-
-    def __getattr__(self, name: str):
-        return Struct(self.module.device_module, name)
 
 
 class Module:

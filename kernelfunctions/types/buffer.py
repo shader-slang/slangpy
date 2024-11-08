@@ -2,14 +2,13 @@ from typing import Any, Optional
 
 from sgl import MemoryType, TypeReflection
 
-from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, SlangModule
+from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection
 
 from kernelfunctions.core import BaseType, Shape
 from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
 from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.struct import Struct
 from kernelfunctions.typeregistry import get_or_create_type
-from kernelfunctions.utils import find_type_layout_for_buffer
 
 import numpy.typing as npt
 
@@ -52,10 +51,11 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
     elif isinstance(element_type, TypeLayoutReflection):
         element_type = program_layout.find_type(element_type.type)
     elif isinstance(element_type, BaseType):
-        if element_type.slang_type.program == program_layout.program:
-            element_type = slang_type
+        if element_type.slang_type.program == program_layout:
+            element_type = element_type.slang_type
         else:
-            element_type = program_layout.find_type_by_name(element_type.name)
+            element_type = program_layout.find_type_by_name(
+                element_type.slang_type.full_name)
     else:
         bt = get_or_create_type(program_layout, element_type)
         element_type = bt.slang_type

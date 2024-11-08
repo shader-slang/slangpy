@@ -4,7 +4,7 @@ from kernelfunctions.typeregistry import get_or_create_type
 from .basevariableimpl import BaseVariableImpl
 from .basetype import BaseType
 from .native import Shape
-from .reflection import SlangType, SlangProgramLayout
+from .reflection import SlangType
 
 if TYPE_CHECKING:
     from .basetype import BindContext

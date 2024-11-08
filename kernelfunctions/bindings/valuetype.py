@@ -152,19 +152,11 @@ class ScalarType(ValueType):
             raise ValueError("Cannot reduce scalar type")
         return self.slang_type
 
-    @property
-    def python_return_value_type(self) -> type:
-        return slang_type_to_return_type(self.slang_type)
-
 
 class NoneValueType(ValueType):
     def __init__(self, layout: kfr.SlangProgramLayout):
         super().__init__(layout)
         self.slang_type = layout.scalar_type(kfr.TR.ScalarType.void)
-
-    @property
-    def python_return_value_type(self) -> type:
-        return NoneType
 
     def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
         # None type can't resolve dimensionality
@@ -186,10 +178,6 @@ class VectorType(ValueType):
         else:
             raise ValueError("Cannot reduce vector type by more than one dimension")
 
-    @property
-    def python_return_value_type(self) -> type:
-        return slang_type_to_return_type(self.slang_type)
-
 
 class MatrixType(ValueType):
     def __init__(self, layout: kfr.SlangProgramLayout, scalar_type: TypeReflection.ScalarType, rows: int, cols: int):
@@ -206,10 +194,6 @@ class MatrixType(ValueType):
             return self_type.element_type
         elif dimensions == 0:
             return self_type
-
-    @property
-    def python_return_value_type(self) -> type:
-        return slang_type_to_return_type(self.slang_type)
 
 
 # Point built in python types at their slang equivalents

@@ -1,7 +1,5 @@
 
 
-from typing import Optional, cast
-
 from .basetype import BaseType, BindContext
 from .reflection import SlangType, SlangProgramLayout
 
@@ -42,5 +40,5 @@ class BaseTypeImpl(BaseType):
         # between the length of the 2 shapes
         if self.slang_type is None:
             raise ValueError(
-                f"Cannot resolve dimensionality of {self.name} without slang type")
+                f"Cannot resolve dimensionality of {type(self)} without slang type")
         return len(self.get_shape(None)) - len(vector_target_type.shape)

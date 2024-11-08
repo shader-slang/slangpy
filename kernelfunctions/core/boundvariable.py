@@ -203,6 +203,7 @@ class BoundVariable:
                     f"Strict broadcasting is enabled and {self.path} dimensionality ({self.call_dimensionality}) is neither 0 or the kernel dimensionality ({context.call_dimensionality})", self)
 
         if not self.python.vector_mapping.valid:
+            assert self.call_dimensionality is not None
             m: list[int] = []
             for i in range(self.call_dimensionality):
                 m.append(context.call_dimensionality - i - 1)
@@ -215,6 +216,7 @@ class BoundVariable:
         """
 
         # Can now decide if differentiable
+        assert self.vector_type is not None
         self.differentiable = not self.no_diff and self.vector_type.differentiable and self.python.has_derivative
         self._calculate_differentiability(context.call_mode)
 
@@ -290,6 +292,7 @@ class BoundVariable:
             for field, variable in self.children.items():
                 variable_name = variable.gen_call_data_code(cg, context, depth+1)
                 if variable_name is not None:
+                    assert variable.vector_type is not None
                     names.append(
                         (field, variable_name, variable.vector_type.full_name, variable.vector_type.full_name + ".Differential"))
 
@@ -300,6 +303,7 @@ class BoundVariable:
                 if self.access[prim.value] == AccessType.none:
                     continue
 
+                assert self.vector_type is not None
                 prim_name = prim.name
                 prim_type_name = self.vector_type.full_name
                 if prim != PrimType.primal:
@@ -360,6 +364,7 @@ class BoundVariable:
         return self.variable_name
 
     def _gen_trampoline_argument(self):
+        assert self.vector_type is not None
         arg_def = f"{self.vector_type.full_name} {self.variable_name}"
         if self.io_type == IOType.inout:
             arg_def = f"inout {arg_def}"

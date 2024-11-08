@@ -1,16 +1,4 @@
-
-import re
-from typing import TYPE_CHECKING, Any, Optional
-
 from .basevariable import BaseVariable
-from .enums import PrimType
-
-if TYPE_CHECKING:
-    from .native import NativeType
-
-
-def _get_name(el_type: Optional['NativeType'], value: Any, default: Any = None):
-    return el_type.name if el_type is not None else default
 
 
 class BaseVariableImpl(BaseVariable):
@@ -27,13 +15,4 @@ class BaseVariableImpl(BaseVariable):
                 f"{'  ' * depth}{name}: {child._recurse_str(depth + 1)}" for name, child in self.fields.items()]
             return "\n" + "\n".join(child_strs)
         else:
-            return f"{self.primal.name}"
-
-    def _find_bottom_level_element(self, value: Any = None) -> Optional['NativeType']:
-        t = self.primal
-        while True:
-            c = t.element_type
-            if c is None or c is t:
-                return c
-            t = c
-        return t
+            return f"{self.primal.slang_type.full_name}"
