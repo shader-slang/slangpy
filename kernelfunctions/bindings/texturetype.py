@@ -3,12 +3,12 @@
 from typing import Any, Optional, Union
 
 from kernelfunctions.backend.slangpynativeemulation import CallContext
-from kernelfunctions.core import BaseType, BaseTypeImpl, Shape, AccessType, BindContext, BoundVariable, CodeGenBlock
+from kernelfunctions.core import BaseTypeImpl, Shape, AccessType, BindContext, BoundVariable, CodeGenBlock
 
 from kernelfunctions.backend import Texture, TypeReflection, ResourceUsage, ResourceType, get_format_info, FormatType, ResourceView
 
 from kernelfunctions.core.boundvariableruntime import BoundVariableRuntime
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES,  get_or_create_type
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 
 import kernelfunctions.core.reflection as kfr
 

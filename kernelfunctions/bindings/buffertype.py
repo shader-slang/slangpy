@@ -1,16 +1,16 @@
 
 
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, cast
 
 from kernelfunctions.bindings.diffpairtype import generate_differential_pair
 from kernelfunctions.bindings.valuetype import slang_type_to_return_type
-from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
 from kernelfunctions.backend import ResourceUsage
-from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
+from kernelfunctions.typeregistry import PYTHON_TYPES
 
 
 def _calc_broadcast(context: CallContext, binding: BoundVariableRuntime):
@@ -24,21 +24,16 @@ def _calc_broadcast(context: CallContext, binding: BoundVariableRuntime):
 
 
 class BaseNDBufferType(BaseTypeImpl):
-    def __init__(self, layout: SlangProgramLayout, element_type: Union[BaseType, SlangType], dims: int, writable: bool):
+    def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
         super().__init__(layout)
 
         self.dims = dims
         self.writable = writable
 
         prefix = "RW" if self.writable else ""
-        elname: str
-        if isinstance(element_type, BaseType):
-            elname = element_type.name
-        else:
-            elname = element_type.full_name
 
         # Note: find by name handles the fact that element type may not be from the same program layout
-        slet = layout.find_type_by_name(elname)
+        slet = layout.find_type_by_name(element_type.full_name)
         assert slet is not None
         self.slang_element_type = slet
 
@@ -90,7 +85,7 @@ class BaseNDBufferType(BaseTypeImpl):
 
 class NDBufferType(BaseNDBufferType):
 
-    def __init__(self, layout: SlangProgramLayout, element_type: Union[BaseType, SlangType], dims: int, writable: bool):
+    def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
         super().__init__(layout, element_type, dims, writable)
 
     # Values don't store a derivative - they're just a value
@@ -137,6 +132,9 @@ def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
         return NDBufferType(layout, value.slang_type,
                             value.bind_context.call_dimensionality,
                             True)
+    else:
+        raise ValueError(
+            f"Unexpected type {type(value)} attempting to create NDBuffer marshall")
 
 
 PYTHON_TYPES[NDBuffer] = create_vr_type_for_value
@@ -144,7 +142,7 @@ PYTHON_TYPES[NDBuffer] = create_vr_type_for_value
 
 class NDDifferentiableBufferType(BaseNDBufferType):
 
-    def __init__(self, layout: SlangProgramLayout, element_type: Union[BaseType, SlangType], dims: int, writable: bool):
+    def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
         super().__init__(layout, element_type, dims, writable)
 
     @property
@@ -174,6 +172,7 @@ class NDDifferentiableBufferType(BaseNDBufferType):
         else:
             deriv_storage = f"RWNDBuffer<{deriv_el},{dim}>"
 
+        assert binding.vector_type is not None
         primal_target = binding.vector_type.full_name
         deriv_target = binding.vector_type.full_name + ".Differential"
 
@@ -220,6 +219,9 @@ def create_gradvr_type_for_value(layout: SlangProgramLayout, value: Any):
         return NDDifferentiableBufferType(layout, value.slang_type,
                                           value.bind_context.call_dimensionality,
                                           True)
+    else:
+        raise ValueError(
+            f"Unexpected type {type(value)} attempting to create NDDifferentiableBuffer marshall")
 
 
 PYTHON_TYPES[NDDifferentiableBuffer] = create_gradvr_type_for_value

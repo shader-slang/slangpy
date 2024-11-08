@@ -43,8 +43,9 @@ class DiffPairType(BaseTypeImpl):
         slt = layout.find_type_by_name(
             f"DifferentialPair<{primal_type.slang_type.full_name}>")
         assert isinstance(slt, kfr.DifferentialPairType)
-        self.slang_type = slt
+        self.slang_type: kfr.DifferentialPairType = slt
         self.needs_grad = needs_grad
+        self.primal = primal_type
 
     # Values don't store a derivative - they're just a value
     @property
@@ -84,6 +85,7 @@ class DiffPairType(BaseTypeImpl):
         else:
             deriv_storage = f"RWValueRef<{deriv_el}>"
 
+        assert binding.vector_type is not None
         primal_target = binding.vector_type.full_name
         deriv_target = binding.vector_type.full_name + ".Differential"
 
@@ -132,7 +134,10 @@ class DiffPairType(BaseTypeImpl):
                 data.set(prim, val)
 
     def get_shape(self, value: Optional[DiffPair] = None) -> Shape:
-        return self.slang_type.shape
+        if value is not None:
+            return self.primal.get_shape(value.primal)
+        else:
+            return self.primal.get_shape()
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         return DiffPair(None, None)

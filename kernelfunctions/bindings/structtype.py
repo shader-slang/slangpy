@@ -1,8 +1,6 @@
 from typing import Any
 
 from kernelfunctions.core import BaseType, Shape
-
-from kernelfunctions.backend import TypeReflection
 from kernelfunctions.core.basetype import BindContext
 from kernelfunctions.core.reflection import SlangProgramLayout
 from kernelfunctions.typeregistry import PYTHON_TYPES
@@ -15,7 +13,11 @@ class StructType(ValueType):
 
     def __init__(self, layout: SlangProgramLayout, fields: dict[str, BaseType]):
         super().__init__(layout)
-        self.slang_type = layout.find_type_by_name("Unknown")
+        st = layout.find_type_by_name("Unknown")
+        if st is None:
+            raise ValueError(
+                f"Could not find Struct slang type. This usually indicates the slangpy module has not been imported.")
+        self.slang_type = st
         self.concrete_shape = Shape()
         self._fields = fields
 
@@ -26,10 +28,6 @@ class StructType(ValueType):
     @property
     def is_writable(self) -> bool:
         return True
-
-    @property
-    def fields(self):
-        return self._fields
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         return bound_type

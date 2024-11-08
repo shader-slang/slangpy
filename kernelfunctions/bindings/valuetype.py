@@ -2,14 +2,11 @@
 
 from types import NoneType
 from typing import Any
-import numpy.typing as npt
-import numpy as np
 
-from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext
 
 from kernelfunctions.backend import TypeReflection, math
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, get_or_create_type
-from kernelfunctions.utils import parse_generic_signature
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 
 import kernelfunctions.core.reflection as kfr
 import kernelfunctions.backend as kfbackend
@@ -188,11 +185,6 @@ class VectorType(ValueType):
             return self_type
         else:
             raise ValueError("Cannot reduce vector type by more than one dimension")
-
-    @property
-    def fields(self):
-        axes = ("x", "r", "y", "g", "z", "b", "w", "a")
-        return {a: self.element_type for a in axes[:self.size * 2]}
 
     @property
     def python_return_value_type(self) -> type:

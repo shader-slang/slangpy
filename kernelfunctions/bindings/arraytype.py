@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from kernelfunctions.core import BaseType, Shape
 
@@ -9,7 +9,7 @@ from .valuetype import ValueType
 
 
 class ArrayType(ValueType):
-    def __init__(self, layout: SlangProgramLayout, element_type: BaseType, element_count: Optional[int]):
+    def __init__(self, layout: SlangProgramLayout, element_type: BaseType, element_count: int):
         super().__init__(layout)
         self.slang_type = layout.array_type(element_type.slang_type, element_count)
 

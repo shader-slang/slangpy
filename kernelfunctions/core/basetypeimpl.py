@@ -18,23 +18,6 @@ class BaseTypeImpl(BaseType):
     def is_writable(self) -> bool:
         return False
 
-    @property
-    def differentiable(self):
-        return False
-
-    @property
-    def derivative(self):
-        return None
-
-    @property
-    def fields(self) -> Optional[dict[str, BaseType]]:
-        return None
-
-    def get_slang_type(self, context: 'BindContext') -> 'SlangType':
-        t = self.slang_type
-        assert t
-        return t
-
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
 
         # if implicit element casts enabled, allow conversion from type to element type

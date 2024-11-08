@@ -215,7 +215,7 @@ class BoundVariable:
         """
 
         # Can now decide if differentiable
-        self.differentiable = not self.no_diff and self.vector_type.differentiable and self.python.differentiable
+        self.differentiable = not self.no_diff and self.vector_type.differentiable and self.python.has_derivative
         self._calculate_differentiability(context.call_mode)
 
         if self.children is not None:

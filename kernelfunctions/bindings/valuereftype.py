@@ -1,10 +1,10 @@
 
 
-from typing import Any, Optional, Union
+from typing import Any, Optional
 import numpy as np
 
 from kernelfunctions.bindings.valuetype import slang_type_to_return_type
-from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
 
 import kernelfunctions.core.reflection as kfr
 
@@ -55,7 +55,11 @@ class ValueRefType(BaseTypeImpl):
     def __init__(self, layout: kfr.SlangProgramLayout, value_type: kfr.SlangType):
         super().__init__(layout)
         self.value_type = value_type
-        self.slang_type = layout.find_type_by_name(f"ValueRef<{value_type.full_name}>")
+        st = layout.find_type_by_name(f"ValueRef<{value_type.full_name}>")
+        if st is None:
+            raise ValueError(
+                f"Could not find ValueRef<{value_type.full_name}> slang type. This usually indicates the slangpy module has not been imported.")
+        self.slang_type = st
 
     # Values don't store a derivative - they're just a value
     @property
@@ -83,7 +87,6 @@ class ValueRefType(BaseTypeImpl):
                 f"_t_{name}", f"RWValueRef<{self.value_type.full_name}>")
 
     # Call data just returns the primal
-
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: ValueRef) -> Any:
         access = binding.access
         assert access[0] != AccessType.none
@@ -118,10 +121,7 @@ class ValueRefType(BaseTypeImpl):
             return self.value_type.get_shape()
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        if isinstance(self.value_type, kfr.SlangType):
-            pt = slang_type_to_return_type(self.value_type)
-        else:
-            pt = self.value_type.python_return_value_type
+        pt = slang_type_to_return_type(self.value_type)
         if pt is not None:
             return ValueRef(pt())
         else:
@@ -136,6 +136,8 @@ def create_vr_type_for_value(layout: kfr.SlangProgramLayout, value: Any):
         return ValueRefType(layout, get_or_create_type(layout, type(value.value)).slang_type)
     elif isinstance(value, ReturnContext):
         return ValueRefType(layout, value.slang_type)
+    else:
+        raise ValueError(f"Unsupported value type {type(value)}")
 
 
 PYTHON_TYPES[ValueRef] = create_vr_type_for_value

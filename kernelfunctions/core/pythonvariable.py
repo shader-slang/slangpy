@@ -85,15 +85,11 @@ class PythonVariable(BaseVariableImpl):
         self.explicitly_vectorized = False
 
     @property
-    def differentiable(self):
+    def has_derivative(self):
         return self.primal.has_derivative
 
     def set_type(self, new_type: BaseType, value: Any = None):
         self.primal = new_type
-        if self.primal.differentiable:
-            self.derivative = self.primal.derivative
-        else:
-            self.derivative = None
 
     def apply_explicit_vectorization(self, context: 'BindContext', mapping: Any):
         """
@@ -132,7 +128,7 @@ class PythonVariable(BaseVariableImpl):
                 if not marshall:
                     raise PythonVariableException(
                         f"Invalid explicit type: {mapping}", self)
-                self.vector_type = marshall.get_slang_type(context)
+                self.vector_type = marshall.slang_type
                 self.explicitly_vectorized = True
             else:
                 raise PythonVariableException(

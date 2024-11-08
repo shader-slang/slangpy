@@ -2,13 +2,9 @@
 
 from typing import Any, Optional
 
-from sgl import ResourceUsage
-
+from kernelfunctions.backend import ResourceUsage, Buffer
 from kernelfunctions.core import BindContext, BaseType, BaseTypeImpl, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, Shape
-
-from kernelfunctions.backend import Buffer, TypeReflection
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES, get_or_create_type
-
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 import kernelfunctions.core.reflection as kfr
 
 
@@ -47,6 +43,8 @@ class StructuredBufferType(BaseTypeImpl):
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access[0]
         name = binding.variable_name
+        assert isinstance(binding.vector_type, kfr.StructuredBufferType)
+        assert binding.vector_type.element_type is not None
 
         if binding.call_dimensionality == 0:
             # If broadcast directly, function is just taking the texture argument directly, so use the slang type
