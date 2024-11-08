@@ -149,10 +149,6 @@ class SlangType:
     def shape(self) -> Shape:
         return self._cached_shape
 
-    # TODO: Remove once code base fully converted from old type system
-    def get_shape(self) -> Shape:
-        return self.shape
-
     @property
     def differentiable(self) -> bool:
         return self._get_differential() is not None
@@ -301,6 +297,7 @@ class ArrayType(SlangType):
 
 class StructType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        # An opaque struct has no element type, but like a normal scalar has a 0D local shape
         super().__init__(program, refl, local_shape=Shape())
 
     def build_fields(self):
@@ -368,9 +365,8 @@ class ByteAddressBufferType(ResourceType):
 
 class DifferentialPairType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection, primal: SlangType):
-        # TODO: What should shape of this be? For conversions to work in marshall, needs
-        # to be the same as the primal, but maybe we need to handle that differently?
-        super().__init__(program, refl, local_shape=primal.shape)
+        # TODO: What should shape of this be? Seems like it should be treated as an opaque struct.
+        super().__init__(program, refl, local_shape=Shape())
         assert primal.differentiable
         self.primal = primal
 
@@ -437,9 +433,6 @@ class BaseSlangVariable:
         self._type = slang_type
         self._name = name
         self._modifiers = modifiers
-
-    # def cast(self, new_type: SlangType) -> SlangVariable:
-    #    return SlangVariable(self._program, new_type, self.name, self.modifiers)
 
     @property
     def type(self) -> SlangType:
@@ -522,9 +515,6 @@ class SlangParameter(BaseSlangVariable):
 
         self._index = index
         self._has_default = False  # TODO: Work out defaults
-
-    # def cast(self, new_type: SlangType) -> SlangParameter:
-    #    return SlangParameter(self.program, new_type, self.name, self.index, self.has_default, self.modifiers)
 
     @property
     def index(self) -> int:

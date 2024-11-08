@@ -1,6 +1,3 @@
-
-
-from types import NoneType
 from typing import Any
 
 from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext

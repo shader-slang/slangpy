@@ -8,9 +8,8 @@ from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
 import kernelfunctions.tests.helpers as helpers
 import kernelfunctions.typeregistry as tr
 from kernelfunctions.bindings.valuetype import ValueType
-from kernelfunctions.core import BaseType, BaseTypeImpl, Shape
+from kernelfunctions.core import Shape
 from kernelfunctions import Module
-from kernelfunctions.utils import get_resolved_generic_args
 
 
 TEST_MODULE = """
@@ -51,7 +50,9 @@ class TestImpl(ValueType):
         super().__init__(layout)
         self.T = T
         self.N = N
-        self.slang_type = layout.find_type_by_name(f"Test{self.N}{self.T.full_name[0]}")
+        st = layout.find_type_by_name(f"Test{N}{T.full_name[0]}")
+        assert isinstance(st, SlangType)
+        self.slang_type = st
         self.concrete_shape = Shape()
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
