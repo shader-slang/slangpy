@@ -1,6 +1,7 @@
 
 
 import pytest
+from kernelfunctions.module import Module
 from kernelfunctions.tests import helpers
 from kernelfunctions.types.buffer import NDBuffer
 from kernelfunctions.extensions.randfloatarg import RandFloatArg
@@ -135,21 +136,13 @@ Particle rand_float_soa(Particle input) {
 """
     )
 
-    sgl_module = kernel_output_values.module
-
-    sb_layout = sgl_module.layout.get_type_layout(
-        sgl_module.layout.find_type_by_name("StructuredBuffer<Particle>"))
-    particle_layout = sb_layout.element_type_layout
-    print(particle_layout.size)
-
-    pt = kernel_output_values.module.layout.get_type_layout(
-        kernel_output_values.module.layout.find_type_by_name("Particle"))
+    module = Module(kernel_output_values.module)
 
     # Make buffer for results
     results = NDBuffer(
         element_count=16,
         device=device,
-        element_type=pt
+        element_type=module.layout.find_type_by_name("Particle")
     )
 
     # Call function with 3D random arg

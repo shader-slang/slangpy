@@ -20,6 +20,8 @@ struct Context0D : IContext
     int get_call_id(int dim) { return 0; }
 }
 
+struct Unknown {}
+
 ContextND<N> ctx<let N: int>(IContext other, int[N] mapping) {
     ContextND<N> context;
     context.thread_id = other.get_thread_id();

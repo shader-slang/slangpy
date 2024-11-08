@@ -1,4 +1,5 @@
 import "slangpy";
+import "randfloatarg";
 
 struct Material : IDifferentiable {
     float3 color;

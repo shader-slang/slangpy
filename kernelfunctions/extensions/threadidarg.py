@@ -29,7 +29,9 @@ class ThreadIdArgType(BaseTypeImpl):
         super().__init__(layout)
         self.dims = dims
         st = layout.find_type_by_name(f"ThreadIdArg<{self.dims}>")
-        assert st
+        if st is None:
+            raise ValueError(
+                f"Could not find ThreadIdArg slang type. This usually indicates the threadidarg module has not been imported.")
         self.slang_type = st
         self.concrete_shape = Shape(self.dims)
 

@@ -32,7 +32,9 @@ class RandFloatArgType(BaseTypeImpl):
         super().__init__(layout)
         self.dims = dim
         st = layout.find_type_by_name(f"RandFloatArg<{self.dims}>")
-        assert st
+        if st is None:
+            raise ValueError(
+                f"Could not find RandFloatArg slang type. This usually indicates the randfloatarg module has not been imported.")
         self.slang_type = st
         self.concrete_shape = Shape(self.dims)
 

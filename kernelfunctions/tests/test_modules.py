@@ -53,10 +53,7 @@ def test_init_particle(device_type: DeviceType):
     Particle = m.Particle
     assert isinstance(Particle, Struct)
 
-    particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
-    assert particle_type_layout is not None
-
-    buffer = NDBuffer(m.device, particle_type_layout, 1)
+    buffer = NDBuffer(m.device, Particle, 1)
 
     # Call constructor, which returns particles
     Particle.__init(float2(1.0, 2.0), float2(3.0, 4.0), _result=buffer)
@@ -87,11 +84,8 @@ def test_call_read_only_func(device_type: DeviceType):
     Particle = m.Particle
     assert isinstance(Particle, Struct)
 
-    particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
-    assert particle_type_layout is not None
-
     # Create and init a buffer of particles
-    buffer = NDBuffer(m.device, particle_type_layout, 1)
+    buffer = NDBuffer(m.device, Particle, 1)
     Particle.__init(float2(0, 0), float2(0.1, 0.2), _result=buffer)
 
     # Get next position of all particles
@@ -107,11 +101,8 @@ def test_call_mutable_func(device_type: DeviceType):
     Particle = m.Particle
     assert isinstance(Particle, Struct)
 
-    particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
-    assert particle_type_layout is not None
-
     # Create and init a buffer of particles
-    buffer = NDBuffer(m.device, particle_type_layout, 1)
+    buffer = NDBuffer(m.device, Particle, 1)
     Particle.__init(float2(0, 0), float2(0.1, 0.2), _result=buffer)
 
     # Update position of all particles
@@ -127,11 +118,8 @@ def test_read_back_with_global_func(device_type: DeviceType):
     Particle = m.Particle
     assert isinstance(Particle, Struct)
 
-    particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
-    assert particle_type_layout is not None
-
     # Create and init a buffer of particles
-    buffer = NDBuffer(m.device, particle_type_layout, 1)
+    buffer = NDBuffer(m.device, Particle, 1)
     Particle.__init(float2(0, 0), float2(0, 0.2), _result=buffer)
 
     # Update position of particles
@@ -151,9 +139,6 @@ def test_soa_particles(device_type: DeviceType):
     m = load_test_module(device_type)
     Particle = m.Particle
     assert isinstance(Particle, Struct)
-
-    particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
-    assert particle_type_layout is not None
 
     soa_particles = {
         "position": NDBuffer(m.device, float2, 1),

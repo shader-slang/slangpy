@@ -30,6 +30,8 @@ def resolve_program_layout(device: Device, element_type: Any, program_layout: Op
             program_layout = element_type.program
         elif isinstance(element_type, BaseType):
             program_layout = element_type.slang_type.program
+        elif isinstance(element_type, Struct):
+            program_layout = element_type.module.layout
         else:
             program_layout = get_lookup_module(device)
     return program_layout
@@ -41,7 +43,10 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
     elif isinstance(element_type, str):
         element_type = program_layout.find_type_by_name(element_type)
     elif isinstance(element_type, Struct):
-        element_type = program_layout.find_type_by_name(element_type.name)
+        if element_type.module.layout == program_layout:
+            element_type = element_type.struct
+        else:
+            element_type = program_layout.find_type_by_name(element_type.name)
     elif isinstance(element_type, TypeReflection):
         element_type = program_layout.find_type(element_type)
     elif isinstance(element_type, TypeLayoutReflection):

@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 from sgl import FunctionReflection, ModifierID, TypeReflection, VariableReflection
 
+from kernelfunctions.bindings.structtype import StructType
 from kernelfunctions.bindings.valuetype import NoneValueType, ValueType
 from kernelfunctions.core import (
     CodeGen,
@@ -122,7 +123,7 @@ def specialize(
             assert python_arg is not None
             if python_arg.vector_type is not None:
                 inputs.append(python_arg.vector_type)
-            elif isinstance(python_arg.primal, ValueType) and python_arg.primal.slang_type is not None:
+            elif isinstance(python_arg.primal, ValueType) and not isinstance(python_arg.primal, StructType):
                 inputs.append(python_arg.primal)
             elif slang_param.type.kind != TypeReflection.Kind.none and slang_param.type.kind != TypeReflection.Kind.interface:
                 inputs.append(slang_param.type)

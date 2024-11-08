@@ -23,8 +23,8 @@ def prefix(usage: ResourceUsage):
 
 class TextureType(BaseTypeImpl):
 
-    def __init__(self, resource_shape: TypeReflection.ResourceShape, element_type: BaseType, usage: ResourceUsage):
-        super().__init__()
+    def __init__(self, layout: kfr.SlangProgramLayout, resource_shape: TypeReflection.ResourceShape, element_type: kfr.SlangType, usage: ResourceUsage):
+        super().__init__(layout)
         self._resource_shape = resource_shape
         self._usage = usage
 
@@ -63,17 +63,20 @@ class TextureType(BaseTypeImpl):
 
         self._texture_dims = tex_dims
         self._base_texture_type_name = tex_type
-        self.element_type = element_type
-        self.name = f"{prefix(self._usage)}{self._base_texture_type_name}<{self.element_type.name}>"
+        self.slang_element_type = element_type
 
-    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+        st = layout.find_type_by_name(self.build_type_name())
+        assert st is not None
+        self.slang_type = st
+
+    def resolve_type(self, context: BindContext, bound_type: kfr.SlangType):
         if isinstance(bound_type, kfr.TextureType):
             if self._usage & bound_type.usage == 0:
                 raise ValueError(
-                    f"Cannot bind texture view {self.name} with usage {bound_type.usage}")
+                    f"Cannot bind texture view {self.slang_type.name} with usage {bound_type.usage}")
             if self._resource_shape != bound_type.resource_shape:
                 raise ValueError(
-                    f"Cannot bind texture view {self.name} with different shape {bound_type.resource_shape}")
+                    f"Cannot bind texture view {self.slang_type.name} with different shape {bound_type.resource_shape}")
             # TODO: Check element types match
             # if self.element_type.name != bound_type.element_type.name:
             #    raise ValueError(
@@ -86,16 +89,20 @@ class TextureType(BaseTypeImpl):
     def is_writable(self):
         return has_uav(self._usage)
 
+    # Generate the slang type name (eg Texture2D<float4>).
+    def build_type_name(self, usage: Optional[ResourceUsage] = None):
+        if usage is None:
+            usage = self._usage
+        return f"{prefix(usage)}{self._base_texture_type_name}<{self.slang_element_type.full_name}>"
+
     # Generate the slangpy accessor type name (eg Texture2DType<float4>).
     def build_accessor_name(self, usage: Optional[ResourceUsage] = None):
         if usage is None:
             usage = self._usage
-        assert self.element_type is not None
-        return f"{prefix(usage)}{self._base_texture_type_name}Type<{self.element_type.name}>"
+        return f"{prefix(usage)}{self._base_texture_type_name}Type<{self.slang_element_type.full_name}>"
 
     # Call data can only be read access to primal, and simply declares it as a variable.
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
-        assert self.element_type is not None
         access = binding.access[0]
         name = binding.variable_name
 
@@ -141,7 +148,7 @@ class TextureType(BaseTypeImpl):
 
     # Container shape internally handles both textures or views onto textures,
     # which lets it deal with views onto none-zero mip levels of a texture.
-    def get_container_shape(self, value: Optional[Union[Texture, ResourceView]] = None) -> Shape:
+    def get_shape(self, value: Optional[Union[Texture, ResourceView]] = None) -> Shape:
         mip = 0
         if isinstance(value, ResourceView):
             mip = value.subresource_range.mip_level
@@ -150,9 +157,9 @@ class TextureType(BaseTypeImpl):
         if value is not None:
             res = self.get_texture_shape(value, mip)
             assert len(res) == self._texture_dims
-            return res
+            return res + self.slang_element_type.shape
         else:
-            return Shape((-1,)*self._texture_dims)
+            return Shape((-1,)*self._texture_dims) + self.slang_element_type.shape
 
     def get_texture_shape(self, value: Texture, mip: int) -> Shape:
         resource_shape = self._resource_shape
@@ -173,36 +180,8 @@ class TextureType(BaseTypeImpl):
         else:
             raise ValueError(f"Unsupported resource shape {resource_shape}")
 
-    @property
-    def differentiable(self):
-        return self.element_type.differentiable
 
-    @property
-    def derivative(self):
-        el_diff = self.element_type.derivative
-        if el_diff is not None:
-            return TextureType(self._resource_shape, el_diff, self._usage)
-        else:
-            return None
-
-
-def _get_or_create_slang_type_reflection(slang_type: TypeReflection) -> BaseType:
-    assert isinstance(slang_type, TypeReflection)
-    assert slang_type.kind == TypeReflection.Kind.resource
-    et = get_or_create_type(slang_type.resource_result_type)
-
-    # A slang texture requires a specific usage to be bound to. a Texture
-    # must be a shader resource, and an RWTexture must be a UAV.
-    if slang_type.resource_access == TypeReflection.ResourceAccess.read:
-        usage = ResourceUsage.shader_resource
-    elif slang_type.resource_access == TypeReflection.ResourceAccess.read_write:
-        usage = ResourceUsage.unordered_access
-    else:
-        raise ValueError(f"Unsupported resource access {slang_type.resource_access}")
-    return TextureType(slang_type.resource_shape, et, usage)
-
-
-def get_or_create_python_texture_type(resource: Texture, usage: ResourceUsage):
+def get_or_create_python_texture_type(layout: kfr.SlangProgramLayout, resource: Texture, usage: ResourceUsage):
 
     # Translate format into slang scalar type + channel count, which allows
     # us to build the element type of the texture.
@@ -215,7 +194,7 @@ def get_or_create_python_texture_type(resource: Texture, usage: ResourceUsage):
         scalar_type = TypeReflection.ScalarType.int32
     else:
         raise ValueError(f"Unsupported format {resource.desc.format}")
-    element_type = SLANG_VECTOR_TYPES[scalar_type][fmt_info.channel_count]
+    element_type = layout.vector_type(scalar_type, fmt_info.channel_count)
 
     # Translate resource type + array size into a slang resource shape.
     resource_shape = TypeReflection.ResourceShape.none
@@ -246,13 +225,13 @@ def get_or_create_python_texture_type(resource: Texture, usage: ResourceUsage):
         else:
             raise ValueError(f"Unsupported texture type {resource.desc.type}")
 
-    return TextureType(resource_shape, element_type, usage)
+    return TextureType(layout, resource_shape, element_type, usage)
 
 
-def _get_or_create_python_type(value: Any):
+def _get_or_create_python_type(layout: kfr.SlangProgramLayout, value: Any):
     assert isinstance(value, Texture)
     usage = value.desc.usage
-    return get_or_create_python_texture_type(value, usage)
+    return get_or_create_python_texture_type(layout, value, usage)
 
 
 PYTHON_TYPES[Texture] = _get_or_create_python_type

@@ -9,7 +9,6 @@ from kernelfunctions.struct import Struct
 import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 from kernelfunctions.types.valueref import ValueRef, floatRef
-from kernelfunctions.utils import find_type_layout_for_buffer
 import numpy as np
 import numpy.typing as npt
 
@@ -45,10 +44,8 @@ def test_this_interface(device_type: DeviceType):
     assert Particle is not None
     assert isinstance(Particle, Struct)
 
-    # Get particle type so we can allocate a buffer
-    particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
-    assert particle_type_layout is not None
-    buffer = NDBuffer(m.device, particle_type_layout, 1)
+    # Allocate a buffer
+    buffer = NDBuffer(m.device, Particle, 1)
 
     # Create a tiny wrapper around the buffer to provide the this interface
     this = ThisType(buffer)
@@ -116,10 +113,8 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     assert Particle is not None
     assert isinstance(Particle, Struct)
 
-    # Get particle type so we can allocate a buffer
-    particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
-    assert particle_type_layout is not None
-    buffer = NDBuffer(m.device, particle_type_layout, 1)
+    # Sllocate a buffer
+    buffer = NDBuffer(m.device, Particle, 1)
 
     # Create a tiny wrapper around the buffer to provide the this interface
     instance = InstanceList(Particle, buffer)

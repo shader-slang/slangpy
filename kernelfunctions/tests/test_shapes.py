@@ -237,7 +237,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 
     # pass an output, which is also broadcast so would in practice be a race condition
     shapes = dot_product(device_type, make_float_buffer(device_type,
-                                                        (100, 3)), make_float_buffer(device_type, (3,)), ValueRef(float1()))
+                                                        (100, 3)), make_float_buffer(device_type, (3,)), ValueRef(float()))
     diff = deepdiff.DeepDiff(
         shapes,
         {

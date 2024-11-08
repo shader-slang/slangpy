@@ -177,8 +177,11 @@ class SlangType:
     @property
     def uniform_layout(self) -> SlangLayout:
         if self._cached_uniform_layout is None:
-            self._cached_uniform_layout = SlangLayout(
-                self._program.program_layout.get_type_layout(self.type_reflection))
+            sl = self._program.program_layout.get_type_layout(self.type_reflection)
+            if sl is None:
+                raise ValueError(
+                    f"Unable to get layout for {self.full_name}. This can happen if the type is defined in a module that isn't accesible during type resolution.")
+            self._cached_uniform_layout = SlangLayout(sl)
         return self._cached_uniform_layout
 
     @property
@@ -186,6 +189,9 @@ class SlangType:
         if self._cached_buffer_layout is None:
             buffer_type = self._program.program_layout.find_type_by_name(
                 f"StructuredBuffer<{self.full_name}>")
+            if buffer_type is None:
+                raise ValueError(
+                    f"Unable to get layout for {self.full_name}. This can happen if the type is defined in a module that isn't accesible during type resolution.")
             buffer_layout = self._program.program_layout.get_type_layout(buffer_type)
             self._cached_buffer_layout = SlangLayout(buffer_layout.element_type_layout)
         return self._cached_buffer_layout
