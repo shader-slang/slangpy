@@ -1,7 +1,7 @@
 import pytest
 from kernelfunctions.types import NDDifferentiableBuffer, diffPair
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.backend import DeviceType, float3, float1
+from kernelfunctions.backend import DeviceType, float3
 import numpy as np
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false

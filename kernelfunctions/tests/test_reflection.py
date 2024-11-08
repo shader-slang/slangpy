@@ -1,10 +1,8 @@
 from typing import Any, Callable
 import pytest
-from sgl import float3, float4
 from kernelfunctions.backend import DeviceType
 import kernelfunctions.tests.helpers as helpers
 import kernelfunctions.core.reflection as r
-from kernelfunctions.types.buffer import NDBuffer
 
 MODULE = """
 import "slangpy";

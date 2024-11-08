@@ -1,8 +1,7 @@
 from typing import Any, Optional
 import pytest
 from sgl import float4
-from kernelfunctions.core import BaseType
-from kernelfunctions.backend import DeviceType, float1, float3
+from kernelfunctions.backend import DeviceType, float3
 from kernelfunctions.callsignature import BoundVariable
 import deepdiff
 

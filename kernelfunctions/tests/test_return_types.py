@@ -12,6 +12,7 @@ from kernelfunctions.core import ReturnContext
 
 class Test:
     def __init__(self, x: int):
+        super().__init__()
         self.x = x
 
 
@@ -28,12 +29,13 @@ def create_test_type(layout: SlangProgramLayout, value: Any):
         return TestType(layout)
     elif isinstance(value, ReturnContext):
         if value.slang_type.name != "int":
-            return None
+            raise ValueError(f"Expected int, got {value.slang_type.name}")
         if value.bind_context.call_dimensionality != 0:
-            return None
+            raise ValueError(
+                f"Expected scalar, got {value.bind_context.call_dimensionality}")
         return TestType(layout)
     else:
-        return None
+        raise ValueError(f"Unexpected value {value}")
 
 
 tr.PYTHON_TYPES[Test] = create_test_type

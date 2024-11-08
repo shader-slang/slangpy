@@ -1,6 +1,6 @@
 from typing import Any
 import pytest
-from sgl import Buffer, Device, ResourceUsage
+from sgl import Buffer, Device
 from kernelfunctions.backend import DeviceType, float2, float3, math
 from kernelfunctions.extensions.randfloatarg import RandFloatArg
 from kernelfunctions.instance import InstanceList, InstanceListBuffer, InstanceListDifferentiableBuffer
