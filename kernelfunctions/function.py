@@ -1,15 +1,18 @@
 from hashlib import sha1, sha256
 import json
-from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
+from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
 from kernelfunctions.core import SlangFunction, hash_signature
 
 from kernelfunctions.backend import SlangModule, TypeReflection, FunctionReflection, CommandBuffer
 from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, scope
 
+import kernelfunctions.core.reflection as kfr
+
 if TYPE_CHECKING:
     from kernelfunctions.calldata import CallData
     from kernelfunctions.struct import Struct
+    from kernelfunctions.module import Module
 
 ENABLE_CALLDATA_CACHE = True
 CALL_DATA_CACHE: dict[str, 'CallData'] = {}
@@ -197,50 +200,37 @@ class FunctionChainReturnType(FunctionChainBase):
 class Function(FunctionChainBase):
     def __init__(
         self,
-        module: SlangModule,
-        name: str,
-        type_parent: Optional[str] = None,
-        type_reflection: Optional[TypeReflection] = None,
-        func_reflections: Optional[list[FunctionReflection]] = None,
+        module: 'Module',
+        struct: Optional['Struct'],
+        func: Union[str, list[FunctionReflection], kfr.SlangFunction],
         options: dict[str, Any] = {},
     ) -> None:
         super().__init__(None)
         self.module = module
         self.options = options
-        self.name = name
 
-        # If type parent supplied by name, look it up
-        if type_parent is not None:
-            type_reflection = module.layout.find_type_by_name(type_parent)
-            if type_reflection is None:
-                raise ValueError(
-                    f"Type '{type_parent}' not found in module {module.name}")
-
-        # If function reflections not supplied, look up either from type or module
-        if func_reflections is None:
-            if type_reflection is None:
-                # With no type parent, look up function in global namespace
-                func_reflection = module.layout.find_function_by_name(name)
-                if func_reflection is None:
-                    raise ValueError(
-                        f"Function '{name}' not found in module {module.name}")
-                func_reflections = [func_reflection]
+        if isinstance(func, str):
+            if struct is None:
+                sf = module.layout.find_function_by_name(func)
             else:
-                # With a type parent, look up the function in the type
-                func_reflection = module.layout.find_function_by_name_in_type(
-                    type_reflection, name
-                )
-                if func_reflection is None:
-                    raise ValueError(
-                        f"Function '{name}' not found in type '{type_parent}' in module {module.name}"
-                    )
-                func_reflections = [func_reflection]
+                sf = module.layout.find_function_by_name_in_type(struct.struct, func)
+            if sf is None:
+                raise ValueError(f"Function '{func}' not found")
+            func = sf
+
+        if isinstance(func, kfr.SlangFunction):
+            func_reflections = [func.reflection]
+        else:
+            func_reflections = func
 
         # Store function reflections (should normally be 1 unless forced to do AST based search)
         self.reflections = func_reflections
 
         # Store type parent name if found
-        self.type_reflection = type_reflection
+        if struct is not None:
+            self.type_reflection = struct.struct.type_reflection
+        else:
+            self.type_reflection = None
 
         # Calc hash of input options for signature
         if not 'implicit_element_casts' in self.options:
@@ -252,8 +242,12 @@ class Function(FunctionChainBase):
         options_hash = json.dumps(self.options)
 
         # Generate signature for hashing
-        type_parent = type_reflection.full_name if type_reflection is not None else None
+        type_parent = self.type_reflection.full_name if self.type_reflection is not None else None
         self.slangpy_signature = f"[{id(module)}][{type_parent or ''}::{self.name},{options_hash}]"
+
+    @property
+    def name(self):
+        return self.reflections[0].name
 
     def as_func(self) -> 'Function':
         return self

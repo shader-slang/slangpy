@@ -136,7 +136,7 @@ Particle rand_float_soa(Particle input) {
 """
     )
 
-    module = Module(kernel_output_values.module)
+    module = kernel_output_values.module
 
     # Make buffer for results
     results = NDBuffer(

@@ -20,7 +20,7 @@ float foo_generic<T>(T a) { return 0; }
 def test_vector_types_correct(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "foo2", MODULE)
-    layout = r.SlangProgramLayout(function.module.layout)
+    layout = function.module.layout
 
     for st in r.TR.ScalarType:
         if st == r.TR.ScalarType.void or st == r.TR.ScalarType.none:
@@ -33,7 +33,7 @@ def test_vector_types_correct(device_type: DeviceType):
 def test_matrix_types_correct(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "foo2", MODULE)
-    layout = r.SlangProgramLayout(function.module.layout)
+    layout = function.module.layout
 
     for st in r.TR.ScalarType:
         if st == r.TR.ScalarType.void or st == r.TR.ScalarType.none:
@@ -50,7 +50,7 @@ def test_basic_function_decl(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "foo2", MODULE)
-    layout = r.SlangProgramLayout(function.module.layout)
+    layout = function.module.layout
 
     res = layout.find_function_by_name("foo2")
     assert res is not None
@@ -187,7 +187,7 @@ interface ITestInterface {{}}
 
 float foo({arg_type[0]} a) {{ return 0; }}
 """)
-    layout = r.SlangProgramLayout(function.module.layout)
+    layout = function.module.layout
 
     res = layout.find_function_by_name('foo')
     assert res is not None

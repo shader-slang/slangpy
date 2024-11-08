@@ -113,7 +113,7 @@ class CallData(NativeCallData):
                     keyword_mapping = item.kwargs
 
             self.vars = sets
-            self.layout = SlangProgramLayout(function.module.layout)
+            self.layout = function.module.layout
 
             # Build 'unpacked' args (that handle IThis)
             unpacked_args = tuple([unpack_arg(x) for x in args])
@@ -121,7 +121,7 @@ class CallData(NativeCallData):
 
             # Setup context
             context = BindContext(self.layout, self.call_mode,
-                                  function.module, function.options)
+                                  function.module.device_module, function.options)
 
             # Build the unbound signature from inputs
             python_call = PythonFunctionCall(context, *unpacked_args, **unpacked_kwargs)
@@ -206,7 +206,7 @@ class CallData(NativeCallData):
                 hashlib.sha256(code.encode()).hexdigest()[0:16], code
             )
             ep = module.entry_point("main")
-            program = session.link_program([module, function.module], [ep])
+            program = session.link_program([module, function.module.device_module], [ep])
             self.kernel = device.create_compute_kernel(program)
             self.device = device
 

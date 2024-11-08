@@ -388,10 +388,11 @@ class SlangFunction:
         super().__init__()
         self._this = this
         self._reflection = refl
+        self._program = program
         func_params = [x for x in refl.parameters]
         self._cached_parameters = tuple(SlangParameter(
             program, param, i) for i, param in enumerate(func_params))
-        self._cached_return_type = program.find_type(refl.return_type)
+        self._cached_return_type: Optional[SlangType] = None
 
     @property
     def reflection(self) -> FunctionReflection:
@@ -406,7 +407,10 @@ class SlangFunction:
         return self._this
 
     @property
-    def return_type(self) -> SlangType:
+    def return_type(self) -> Optional[SlangType]:
+        if self._cached_return_type is None and self._reflection.return_type is not None:
+            self._cached_return_type = self._program.find_type(
+                self._reflection.return_type)
         return self._cached_return_type
 
     @property
@@ -528,6 +532,7 @@ class SlangParameter(BaseSlangVariable):
 class SlangProgramLayout:
     def __init__(self, program_layout: ProgramLayout):
         super().__init__()
+        assert isinstance(program_layout, ProgramLayout)
         self.program_layout = program_layout
         self._types_by_name: dict[str, SlangType] = {}
         self._types_by_reflection: dict[TypeReflection, SlangType] = {}

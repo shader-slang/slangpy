@@ -13,6 +13,7 @@ from kernelfunctions.backend import (
     Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel,
     TypeReflection)
 from kernelfunctions.calldata import SLANG_PATH
+from kernelfunctions.module import Module
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 from kernelfunctions.core import BaseTypeImpl, Shape
 
@@ -82,16 +83,18 @@ def create_function_from_module(
     if not 'import "slangpy";' in module_source:
         module_source = 'import "slangpy";\n' + module_source
 
-    module = device.load_module_from_source(
+    slang_module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
+    module = Module(slang_module, options=options)
 
     names = func_name.split(".")
 
     if len(names) == 1:
-        function = kernelfunctions.Function(module, names[0], options=options)
+        function = module.find_function(names[0])
     else:
         type_name = "::".join(names[:-1])
-        function = kernelfunctions.Function(
-            module, names[-1], type_parent=type_name, options=options)
+        function = module.find_function_in_struct(type_name, names[-1])
+    if function is None:
+        raise ValueError(f"Could not find function {func_name}")
     return function
