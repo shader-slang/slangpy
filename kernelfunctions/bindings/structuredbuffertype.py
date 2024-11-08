@@ -29,15 +29,19 @@ class StructuredBufferType(BaseTypeImpl):
             return Shape(-1)
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
-        return bound_type
+        if isinstance(bound_type, kfr.StructuredBufferType):
+            return bound_type
+        else:
+            raise ValueError(
+                "Structured buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type")
 
     def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
         # structured buffer can only ever be taken to another structured buffer,
-        # or an element.
         if isinstance(vector_target_type, kfr.StructuredBufferType):
             return 0
         else:
-            return 1
+            raise ValueError(
+                "Structured buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type")
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):

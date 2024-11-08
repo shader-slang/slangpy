@@ -301,11 +301,10 @@ class CustomInstanceList:
         self.data = data
 
     def get_this(self) -> Any:
-        device_buffer = self.device.create_buffer(element_count=len(
-            self.data), struct_size=8, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        buffer = NDBuffer(self.device, float2, len(self.data))
         np_data = np.array([[v.x, v.y] for v in self.data], dtype=np.float32)
-        device_buffer.from_numpy(np_data)
-        return device_buffer
+        buffer.from_numpy(np_data)
+        return buffer
 
     def update_this(self, value: Buffer) -> None:
         np_data = value.to_numpy().view(dtype=np.float32).reshape(-1, 2)

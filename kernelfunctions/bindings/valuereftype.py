@@ -117,14 +117,6 @@ class ValueRefType(BaseTypeImpl):
         else:
             return self.value_type.get_shape()
 
-    @property
-    def differentiable(self):
-        return self.value_type.differentiable
-
-    @property
-    def derivative(self):
-        return self.value_type.derivative
-
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         if isinstance(self.value_type, kfr.SlangType):
             pt = slang_type_to_return_type(self.value_type)
