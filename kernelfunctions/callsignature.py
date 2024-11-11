@@ -1,14 +1,13 @@
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional
 
-from sgl import FunctionReflection, ModifierID, TypeReflection, VariableReflection
+from sgl import FunctionReflection, ModifierID, TypeReflection
 
 from kernelfunctions.bindings.structtype import StructType
 from kernelfunctions.bindings.valuetype import NoneValueType, ValueType
 from kernelfunctions.core import (
     CodeGen,
     CallMode, AccessType,
-    BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
-    BoundCallRuntime, BoundVariableRuntime,
+    BindContext, ReturnContext, BoundCall, BoundVariable,
     SlangFunction, SlangType
 )
 
@@ -248,9 +247,7 @@ def finalize_mappings(context: BindContext, call: BoundCall):
 
 def calculate_differentiability(context: BindContext, call: BoundCall):
     """
-    Recursively step through all parameters in the bind call and generate
-    any data that requires both PythonVariable and SlangVariable to be
-    fully resolved.
+    Calculate differentiability of all variables
     """
     for arg in call.args:
         arg.calculate_differentiability(context)

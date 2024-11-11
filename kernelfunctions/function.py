@@ -1,12 +1,11 @@
-from hashlib import sha1, sha256
 import json
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
-from kernelfunctions.core import SlangFunction, hash_signature
+from kernelfunctions.core import hash_signature
 
-from kernelfunctions.backend import SlangModule, TypeReflection, FunctionReflection, CommandBuffer
+from kernelfunctions.backend import FunctionReflection, CommandBuffer
 from kernelfunctions.core.logging import runtime_exception_info
 from kernelfunctions.shapes import TShapeOrTuple
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, scope
+from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
 import kernelfunctions.core.reflection as kfr
 
