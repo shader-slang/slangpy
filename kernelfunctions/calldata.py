@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from sgl import SlangCompileError
 
-from kernelfunctions.core import CallMode, PythonFunctionCall, PythonVariable, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException, PythonVariableException, SlangProgramLayout
+from kernelfunctions.core import CallMode, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException
 
 from kernelfunctions.callsignature import (
     KernelGenException,
@@ -21,7 +21,9 @@ from kernelfunctions.callsignature import (
     specialize,
     validate_specialize
 )
-from kernelfunctions.core.logging import bound_call_table, bound_exception_info, mismatch_info, python_exception_info
+from kernelfunctions.core.boundvariable import BoundCall, BoundVariable
+from kernelfunctions.core.logging import bound_call_table, bound_exception_info, mismatch_info
+from kernelfunctions.core.reflection import SlangFunction
 
 if TYPE_CHECKING:
     from kernelfunctions.function import FunctionChainBase
@@ -73,7 +75,7 @@ class CallData(NativeCallData):
                 FunctionChainMap
             )
             bindings = None
-            python_call = None
+            slang_function = None
 
             if not isinstance(chain[0], Function):
                 raise KernelGenException("First entry in chain should be a function")
@@ -124,39 +126,39 @@ class CallData(NativeCallData):
                                   function.module.device_module, function.options)
 
             # Build the unbound signature from inputs
-            python_call = PythonFunctionCall(context, *unpacked_args, **unpacked_kwargs)
+            bindings = BoundCall(context, *unpacked_args, **unpacked_kwargs)
 
             # Apply explicit to the Python variables
             apply_explicit_vectorization(
-                context, python_call, positional_mapping, keyword_mapping)
+                context, bindings, positional_mapping, keyword_mapping)
 
             # Perform specialization to get a concrete function reflection
             slang_function = specialize(
-                context, python_call, function.reflections, function.type_reflection)
+                context, bindings, function.reflections, function.type_reflection)
             if isinstance(slang_function, MismatchReason):
                 raise KernelGenException(
                     f"Function signature mismatch: {slang_function.reason}\n\n"
-                    f"{mismatch_info(python_call, function.reflections)}\n")
+                    f"{mismatch_info(bindings, function.reflections)}\n")
 
             # Check for differentiability error
             if not slang_function.differentiable and self.call_mode != CallMode.prim:
                 raise KernelGenException(
                     "Could not call function 'polynomial': Function is not differentiable\n\n"
-                    f"{mismatch_info(python_call, function.reflections)}\n")
+                    f"{mismatch_info(bindings, function.reflections)}\n")
 
             # Inject a dummy node into the Python signature if we need a result back
-            if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_type.full_name != 'void':
-                rvalnode = PythonVariable(context, None, None, "_result")
-                python_call.kwargs["_result"] = rvalnode
+            if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_type is not None and slang_function.return_type.full_name != 'void':
+                rvalnode = BoundVariable(context, None, None, "_result")
+                bindings.kwargs["_result"] = rvalnode
 
             # Create bound variable information now that we have concrete data for path sides
-            bindings = bind(context, python_call, slang_function)
+            bindings = bind(context, bindings, slang_function)
 
             # Run Python side implicit vectorization to do any remaining type resolution
             apply_implicit_vectorization(context, bindings)
 
             # Should no longer have implicit argument types for anything.
-            assert not python_call.has_implicit_args
+            assert not bindings.has_implicit_args
 
             # Calculate overall call dimensionality now that all typing is known.
             self.call_dimensionality = calculate_call_dimensionality(bindings)
@@ -169,10 +171,10 @@ class CallData(NativeCallData):
             finalize_mappings(context, bindings)
 
             # Should no longer have any unresolved mappings for anything.
-            assert not python_call.has_implicit_mappings
+            assert not bindings.has_implicit_mappings
 
             # Validate the arguments we're going to pass to slang before trying to make code.
-            validate_specialize(context, python_call, slang_function)
+            validate_specialize(context, bindings, slang_function)
 
             # Calculate differentiability of all variables.
             calculate_differentiability(context, bindings)
@@ -212,36 +214,40 @@ class CallData(NativeCallData):
 
             self.debug_only_bindings = bindings
             self.runtime = BoundCallRuntime(bindings)
-        except PythonVariableException as e:
-            raise ValueError(
-                f"{e.message}\n\n"
-                f"{python_exception_info(python_call, function.reflections, e.variable)}\n")
         except BoundVariableException as e:
-            raise ValueError(
-                f"{e.message}\n\n"
-                f"{bound_exception_info(bindings, slang_function.reflection, e.variable)}\n")
-        except SlangCompileError as e:
-            raise ValueError(
-                f"Slang compilation error: {e}\n. See .temp directory for generated shader.\n"
-                f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n"
-                f"{bound_exception_info(bindings, slang_function.reflection, None)}\n")
-        except KernelGenException as e:
-            if bindings is None:
+            if bindings is not None:
+                ref = slang_function.reflection if isinstance(
+                    slang_function, SlangFunction) else function.reflections[0]
                 raise ValueError(
-                    f"Exception in kernel generation: {e.message}\n."
-                    f"{python_exception_info(python_call, function.reflections, None)}\n")
+                    f"{e.message}\n\n"
+                    f"{bound_exception_info(bindings, ref, e.variable)}\n")
             else:
+                raise e
+        except SlangCompileError as e:
+            if bindings is not None:
+                ref = slang_function.reflection if isinstance(
+                    slang_function, SlangFunction) else function.reflections[0]
+                raise ValueError(
+                    f"Slang compilation error: {e}\n. See .temp directory for generated shader.\n"
+                    f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n"
+                    f"{bound_exception_info(bindings, ref, None)}\n")
+            else:
+                raise e
+        except KernelGenException as e:
+            if bindings is not None:
+                ref = slang_function.reflection if isinstance(
+                    slang_function, SlangFunction) else function.reflections[0]
                 raise ValueError(
                     f"Exception in kernel generation: {e.message}\n."
-                    f"{bound_exception_info(bindings, slang_function.reflection, None)}\n")
+                    f"{bound_exception_info(bindings, ref, None)}\n")
+            else:
+                raise e
         except Exception as e:
             if bindings is not None:
+                ref = slang_function.reflection if isinstance(
+                    slang_function, SlangFunction) else function.reflections[0]
                 raise ValueError(
                     f"Exception in kernel generation: {e}\n."
-                    f"{bound_exception_info(bindings, slang_function.reflection, None)}\n")
-            elif python_call is not None:
-                raise ValueError(
-                    f"Exception in kernel generation: {e}\n."
-                    f"{python_exception_info(python_call, function.reflections, None)}\n")
+                    f"{bound_exception_info(bindings, ref, None)}\n")
             else:
                 raise e

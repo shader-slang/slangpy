@@ -22,7 +22,7 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         # Data potentially used by type marshalls
         self.access = source.access
         self.transform = source.vector_mapping
-        self.python_type = source.python.primal
+        self.python_type = source.python
 
         # Temp data stored / updated each call
         self.shape = Shape(None)

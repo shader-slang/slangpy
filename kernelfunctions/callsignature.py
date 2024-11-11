@@ -8,7 +8,6 @@ from kernelfunctions.core import (
     CodeGen,
     CallMode, AccessType,
     BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
-    PythonFunctionCall, PythonVariable,
     BoundCallRuntime, BoundVariableRuntime,
     SlangFunction, SlangType
 )
@@ -16,22 +15,10 @@ from kernelfunctions.core import (
 from kernelfunctions.core.basetype import BaseType
 from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 from kernelfunctions.types.valueref import ValueRef
-from kernelfunctions.shapes import TShapeOrTuple
 import kernelfunctions.typeregistry as tr
 
 if TYPE_CHECKING:
     from kernelfunctions.function import Function
-
-
-def build_signature(*args: Any, **kwargs: Any):
-    """
-    Builds a basic call signature for a given set of python 
-    arguments and keyword arguments
-    """
-    # arg_signatures = [SignatureNode(x) for x in args]
-    # kwarg_signatures = {k: SignatureNode(v) for k, v in kwargs.items()}
-    # return (arg_signatures, kwarg_signatures)
-    return PythonFunctionCall(*args, **kwargs)
 
 
 class MismatchReason:
@@ -48,7 +35,7 @@ class KernelGenException(Exception):
 
 def specialize(
     context: BindContext,
-    signature: PythonFunctionCall,
+    signature: BoundCall,
     functions: list[FunctionReflection],
     type: Optional[TypeReflection] = None
 ):
@@ -76,10 +63,10 @@ def specialize(
     # Select the positional arguments we need to match against
     signature_args = signature.args
     if first_arg_is_this:
-        signature_args[0].parameter_index = -1
+        signature_args[0].param_index = -1
         signature_args = signature_args[1:]
     if last_arg_is_retval:
-        signature_args[-1].parameter_index = len(function.parameters)
+        signature_args[-1].param_index = len(function.parameters)
         signature_args = signature_args[:-1]
 
     if signature.num_function_kwargs > 0 or signature.has_implicit_args:
@@ -89,7 +76,7 @@ def specialize(
         function_parameters = [x for x in function.parameters]
 
         # Build empty positional list of python arguments to correspond to each slang argument
-        positioned_args: list[Optional[PythonVariable]] = [
+        positioned_args: list[Optional[BoundVariable]] = [
             None] * len(function_parameters)
 
         # Populate the first N arguments from provided positional arguments
@@ -97,7 +84,7 @@ def specialize(
             return MismatchReason("Too many positional arguments.")
         for i, arg in enumerate(signature_args):
             positioned_args[i] = arg
-            arg.parameter_index = i
+            arg.param_index = i
 
         # Attempt to populate the remaining arguments from keyword arguments
         name_map = {param.name: i for i, param in enumerate(function_parameters)}
@@ -110,7 +97,7 @@ def specialize(
             if positioned_args[i] is not None:
                 return MismatchReason(f"Parameter '{name}' is already specified as a positional argument.")
             positioned_args[i] = arg
-            arg.parameter_index = i
+            arg.param_index = i
 
         # Ensure all parameters are assigned
         if not all(x is not None for x in positioned_args):
@@ -123,8 +110,8 @@ def specialize(
             assert python_arg is not None
             if python_arg.vector_type is not None:
                 inputs.append(python_arg.vector_type)
-            elif isinstance(python_arg.primal, ValueType) and not isinstance(python_arg.primal, StructType):
-                inputs.append(python_arg.primal)
+            elif isinstance(python_arg.python, ValueType) and not isinstance(python_arg.python, StructType):
+                inputs.append(python_arg.python)
             elif slang_param.type.kind != TypeReflection.Kind.none and slang_param.type.kind != TypeReflection.Kind.interface:
                 inputs.append(slang_param.type)
             else:
@@ -134,7 +121,7 @@ def specialize(
         # If no named or implicit arguments, just use explicit vector types for specialization
         inputs: list[Any] = [x.vector_type for x in signature_args]
         for i, arg in enumerate(signature_args):
-            arg.parameter_index = i
+            arg.param_index = i
 
     def to_type_reflection(input: Any) -> TypeReflection:
         if isinstance(input, BaseType):
@@ -163,12 +150,12 @@ def specialize(
 
 def validate_specialize(
     context: BindContext,
-    signature: PythonFunctionCall,
+    signature: BoundCall,
     function: SlangFunction
 ):
     # Get sorted list of root parameters for trampoline function
-    root_params = [y for y in sorted(signature.args + list(signature.kwargs.values()), key=lambda x: x.parameter_index)
-                   if y.parameter_index >= 0 and y.parameter_index < len(function.parameters)]
+    root_params = [y for y in sorted(signature.args + list(signature.kwargs.values()), key=lambda x: x.param_index)
+                   if y.param_index >= 0 and y.param_index < len(function.parameters)]
 
     def to_type_reflection(input: Any) -> TypeReflection:
         if isinstance(input, BaseType):
@@ -196,33 +183,31 @@ def validate_specialize(
 
 def bind(
         context: BindContext,
-        signature: PythonFunctionCall,
-        function: SlangFunction,
-        output_transforms: Optional[dict[str, 'TShapeOrTuple']] = None) -> BoundCall:
+        signature: BoundCall,
+        function: SlangFunction) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
     to the signature nodes and performing other work that kicks in once
     match has occured.
     """
 
-    res = BoundCall()
+    res = signature
     res.bind(function)
 
     for x in signature.args:
-        b = BoundVariable(x, output_transforms)
-        if x.parameter_index == len(function.parameters):
+        b = x
+        if x.param_index == len(function.parameters):
             assert function.return_type is not None
             b.bind(function.return_type, {ModifierID.out}, '_result')
-        elif x.parameter_index == -1:
+        elif x.param_index == -1:
             assert function.this is not None
             b.bind(function.this, {
                    ModifierID.inout if function.mutating else ModifierID.inn}, '_this')
         else:
-            b.bind(function.parameters[x.parameter_index])
-        res.args.append(b)
+            b.bind(function.parameters[x.param_index])
 
     for k, v in signature.kwargs.items():
-        b = BoundVariable(v, output_transforms)
+        b = v
         if k == "_result":
             assert function.return_type is not None
             b.bind(function.return_type, {ModifierID.out}, '_result')
@@ -231,12 +216,12 @@ def bind(
             b.bind(function.this, {
                    ModifierID.inout if function.mutating else ModifierID.inn}, '_this')
         else:
-            b.bind(function.parameters[v.parameter_index])
-        res.kwargs[k] = b
+            b.bind(function.parameters[v.param_index])
+
     return res
 
 
-def apply_explicit_vectorization(context: BindContext, call: PythonFunctionCall, args: tuple[Any, ...], kwargs: dict[str, Any]):
+def apply_explicit_vectorization(context: BindContext, call: BoundCall, args: tuple[Any, ...], kwargs: dict[str, Any]):
     """
     Apply user supplied explicit vectorization options to the python variables.
     """
@@ -443,7 +428,7 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     if context.call_mode != CallMode.prim:
         return
     node = signature.kwargs.get("_result")
-    if node is None or not isinstance(node.python.primal, NoneValueType):
+    if node is None or not isinstance(node.python, NoneValueType):
         return
 
     # Should have an explicit vector type by now.
@@ -462,7 +447,7 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     python_type = tr.get_or_create_type(context.layout, return_type, return_ctx)
 
     node.call_dimensionality = context.call_dimensionality
-    node.python.set_type(python_type)
+    node.python = python_type
 
 
 def generate_code(context: BindContext, function: 'Function', signature: BoundCall, cg: CodeGen):
@@ -550,16 +535,16 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
         cg.kernel.append_statement("context.call_id = {0}")
 
     def declare_p(x: BoundVariable, has_suffix: bool = False):
-        assert x.python.vector_type is not None
+        assert x.vector_type is not None
         name = f"{x.variable_name}{'_p' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.python.vector_type.full_name} {name}")
+        cg.kernel.append_statement(f"{x.vector_type.full_name} {name}")
         return name
 
     def declare_d(x: BoundVariable, has_suffix: bool = False):
-        assert x.python.vector_type is not None
+        assert x.vector_type is not None
         name = f"{x.variable_name}{'_d' if has_suffix else ''}"
         cg.kernel.append_statement(
-            f"{x.python.vector_type.full_name}.Differential {name}")
+            f"{x.vector_type.full_name}.Differential {name}")
         return name
 
     def load_p(x: BoundVariable, has_suffix: bool = False):
@@ -637,7 +622,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     cg.kernel.end_block()
 
 
-def get_readable_signature_string(call_signature: PythonFunctionCall):
+def get_readable_signature_string(call_signature):
     text: list[str] = []
     for idx, arg in enumerate(call_signature.args):
         text.append(f"arg{idx}: ")

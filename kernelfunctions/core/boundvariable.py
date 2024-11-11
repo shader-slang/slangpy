@@ -1,12 +1,11 @@
 from types import NoneType
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, Union
 
 from sgl import ModifierID
 
-from kernelfunctions.shapes import TShapeOrTuple
+from kernelfunctions.typeregistry import get_or_create_type
 
 from .enums import PrimType, IOType
-from .pythonvariable import PythonVariable
 from .codegen import CodeGen
 from .native import AccessType, CallMode, Shape
 from .basetype import BindContext
@@ -21,10 +20,10 @@ class BoundVariableException(Exception):
 
 
 class BoundCall:
-    def __init__(self) -> NoneType:
+    def __init__(self, context: 'BindContext', *args: Any, **kwargs: Any) -> NoneType:
         super().__init__()
-        self.args: list['BoundVariable'] = []
-        self.kwargs: dict[str, 'BoundVariable'] = {}
+        self.args = [BoundVariable(context, x, None, "") for x in args]
+        self.kwargs = {n: BoundVariable(context, v, None, n) for n, v in kwargs.items()}
 
     def bind(self, slang: SlangFunction):
         self.slang = slang
@@ -32,6 +31,43 @@ class BoundCall:
     @property
     def differentiable(self) -> bool:
         return self.slang.differentiable
+
+    @property
+    def num_function_args(self) -> int:
+        total = len(self.args) + self.num_function_kwargs
+        return total
+
+    @property
+    def num_function_kwargs(self) -> int:
+        total = len(self.kwargs)
+        if "_this" in self.kwargs:
+            total -= 1
+        if "_result" in self.kwargs:
+            total -= 1
+        return total
+
+    @property
+    def has_implicit_args(self) -> bool:
+        return any(x.vector_type is None for x in self.args)
+
+    @property
+    def has_implicit_mappings(self) -> bool:
+        return any(not x.vector_mapping.valid for x in self.args)
+
+    def apply_explicit_vectorization(self, context: 'BindContext', args: tuple[Any, ...], kwargs: dict[str, Any]):
+        if len(args) > len(self.args):
+            raise ValueError("Too many arguments supplied for explicit vectorization")
+        if len(kwargs) > len(self.kwargs):
+            raise ValueError(
+                "Too many keyword arguments supplied for explicit vectorization")
+
+        for i, arg in enumerate(args):
+            self.args[i].apply_explicit_vectorization(context, arg)
+
+        for name, arg in kwargs.items():
+            if not name in self.kwargs:
+                raise ValueError(f"Unknown keyword argument {name}")
+            self.kwargs[name].apply_explicit_vectorization(context, arg)
 
     def values(self) -> list['BoundVariable']:
         return self.args + list(self.kwargs.values())
@@ -57,42 +93,49 @@ class BoundVariable:
     and a potential set of child nodes
     """
 
-    def __init__(self, python: PythonVariable,
-                 output_transforms: Optional[dict[str, TShapeOrTuple]] = None,
-                 path: Optional[str] = None):
+    def __init__(self,
+                 context: 'BindContext',
+                 value: Any,
+                 parent: Optional['BoundVariable'],
+                 name: str):
 
         super().__init__()
 
         # Store the python and slang marshall
-        self.python = python
-
-        # Initialize path
-        if path is None:
-            self.path = self.python.name
-        else:
-            self.path = f"{path}.{self.python.name}"
+        self.name = name
+        self.python = get_or_create_type(context.layout, type(value), value)
 
         # Init default properties
         self.access = (AccessType.none, AccessType.none)
         self.differentiable = False
         self.call_dimensionality = None
+        self.param_index = -1
+        self.vector_mapping: Shape = Shape(None)
+        self.vector_type: Optional[SlangType] = None
+        self.explicitly_vectorized = False
+        self.slang_type: SlangType = None
 
-        # Create children if python value has children
-        self.children: Optional[dict[str, BoundVariable]] = None
-        if python.fields is not None:
-            self.children = {}
-            for name, child_python in python.fields.items():
-                self.children[name] = BoundVariable(
-                    cast(PythonVariable, child_python),
-                    output_transforms, self.path)
+        # Initialize path
+        if parent is None:
+            self.path = self.name
+        else:
+            self.path = f"{parent.path}.{self.name}"
+
+        # Create children
+        # TODO: Should this be based off type fields
+        if isinstance(value, dict):
+            self.children = {n: BoundVariable(context, v, self, n)
+                             for n, v in value.items()}
+        else:
+            self.children = None
 
     def bind(self, slang: Union[BaseSlangVariable, SlangType], modifiers: set[ModifierID] = set(), override_name: Optional[str] = None):
         if isinstance(slang, SlangType):
-            if self.python.name == '':
+            if self.name == '':
                 assert override_name is not None
                 self.name = override_name
             else:
-                self.name = self.python.name
+                self.name = self.name
             self.slang_type = slang
             self.slang_modifiers = modifiers
         else:
@@ -103,20 +146,8 @@ class BoundVariable:
 
         if self.children is not None:
             for child in self.children.values():
-                slang_child = self.slang_type.fields[child.python.name]
+                slang_child = self.slang_type.fields[child.name]
                 child.bind(slang_child, self.slang_modifiers)
-
-    @property
-    def param_index(self):
-        return self.python.parameter_index
-
-    @property
-    def vector_mapping(self):
-        return self.python.vector_mapping
-
-    @property
-    def vector_type(self):
-        return self.python.vector_type
 
     @property
     def io_type(self) -> IOType:
@@ -135,6 +166,52 @@ class BoundVariable:
     def no_diff(self) -> bool:
         return ModifierID.nodiff in self.slang_modifiers
 
+    def apply_explicit_vectorization(self, context: 'BindContext', mapping: Any):
+        """
+        Apply explicit vectorization to this variable and children.
+        This will result in any explicit mapping or typing provided
+        by the caller being stored on the corresponding bound variable.
+        """
+        if self.children is not None:
+            assert isinstance(mapping, dict)
+            for name, child in self.children.items():
+                child_mapping = mapping.get(name)
+                if child_mapping is not None:
+                    assert isinstance(child, BoundVariable)
+                    child.apply_explicit_vectorization(context, child_mapping)
+
+            type_mapping = mapping.get("$type")
+            if type_mapping is not None:
+                self._apply_explicit_vectorization(context, type_mapping)
+        else:
+            self._apply_explicit_vectorization(context, mapping)
+
+    def _apply_explicit_vectorization(self, context: 'BindContext', mapping: Any):
+        try:
+            if isinstance(mapping, tuple):
+                self.vector_mapping = Shape(*mapping)
+                self.vector_type = self.python.reduce_type(context, len(mapping))
+                self.explicitly_vectorized = True
+            elif isinstance(mapping, SlangType):
+                self.vector_type = mapping
+                self.explicitly_vectorized = True
+            elif isinstance(mapping, str):
+                self.vector_type = context.layout.find_type_by_name(mapping)
+                self.explicitly_vectorized = True
+            elif isinstance(mapping, type):
+                marshall = get_or_create_type(context.layout, mapping)
+                if not marshall:
+                    raise BoundVariableException(
+                        f"Invalid explicit type: {mapping}", self)
+                self.vector_type = marshall.slang_type
+                self.explicitly_vectorized = True
+            else:
+                raise BoundVariableException(
+                    f"Invalid explicit type: {mapping}", self)
+        except Exception as e:
+            raise BoundVariableException(
+                f"Explicit vectorization raised exception: {e.__repr__()}", self)
+
     def apply_implicit_vectorization(self, context: BindContext):
         """
         Apply implicit vectorization to this variable. This inspects
@@ -147,12 +224,11 @@ class BoundVariable:
         self._apply_implicit_vectorization(context)
 
     def _apply_implicit_vectorization(self, context: BindContext):
-        if self.python.vector_mapping.valid:
+        if self.vector_mapping.valid:
             # if we have a valid vector mapping, just need to reduce it
-            self.python.vector_type = self.python.primal.reduce_type(context,
-                                                                     len(self.python.vector_mapping))
+            self.vector_type = self.python.reduce_type(context, len(self.vector_mapping))
 
-        if self.python.vector_type is not None:
+        if self.vector_type is not None:
             # do nothing in first phase if already have a type. vector
             # mapping will be worked out once specialized slang function is known
             pass
@@ -161,14 +237,14 @@ class BoundVariable:
             pass
         else:
             # neither specified, attempt to resolve type
-            self.python.vector_type = self.python.primal.resolve_type(
+            self.vector_type = self.python.resolve_type(
                 context, self.slang_type)
 
         # If we ended up with no valid type, use slang type. Currently this should
         # only happen for auto-allocated result buffers
-        if not self.python.vector_mapping.valid and self.python.vector_type is None:
+        if not self.vector_mapping.valid and self.vector_type is None:
             assert self.path == '_result'
-            self.python.vector_type = self.slang_type
+            self.vector_type = self.slang_type
 
         # Clear slang type info - it should never be used after this
         # Note: useful for debugging so keeping for now!
@@ -176,16 +252,16 @@ class BoundVariable:
         # self.slang.derivative = None
 
         # Can now calculate dimensionality
-        if self.python.vector_mapping.valid:
-            if len(self.python.vector_mapping) > 0:
+        if self.vector_mapping.valid:
+            if len(self.vector_mapping) > 0:
                 self.call_dimensionality = max(
-                    self.python.vector_mapping.as_tuple())+1
+                    self.vector_mapping.as_tuple())+1
             else:
                 self.call_dimensionality = 0
         else:
-            assert self.python.vector_type is not None
-            self.call_dimensionality = self.python.primal.resolve_dimensionality(
-                context, self.python.vector_type)
+            assert self.vector_type is not None
+            self.call_dimensionality = self.python.resolve_dimensionality(
+                context, self.vector_type)
 
     def finalize_mappings(self, context: BindContext):
         """
@@ -197,18 +273,18 @@ class BoundVariable:
         self._finalize_mappings(context)
 
     def _finalize_mappings(self, context: BindContext):
-        if context.options['strict_broadcasting'] and self.children is None and not self.python.explicitly_vectorized:
+        if context.options['strict_broadcasting'] and self.children is None and not self.explicitly_vectorized:
             if self.call_dimensionality != 0 and self.call_dimensionality != context.call_dimensionality:
                 raise BoundVariableException(
                     f"Strict broadcasting is enabled and {self.path} dimensionality ({self.call_dimensionality}) is neither 0 or the kernel dimensionality ({context.call_dimensionality})", self)
 
-        if not self.python.vector_mapping.valid:
+        if not self.vector_mapping.valid:
             assert self.call_dimensionality is not None
             m: list[int] = []
             for i in range(self.call_dimensionality):
                 m.append(context.call_dimensionality - i - 1)
             m.reverse()
-            self.python.vector_mapping = Shape(*m)
+            self.vector_mapping = Shape(*m)
 
     def calculate_differentiability(self, context: BindContext):
         """
@@ -343,13 +419,13 @@ class BoundVariable:
 
         else:
             # Raise error if attempting to write to non-writable type
-            if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.writable:
+            if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.is_writable:
                 if depth == 0:
                     raise BoundVariableException(
                         f"Cannot read back value for non-writable type", self)
 
             # Generate call data
-            self.python.primal.gen_calldata(cg.call_data_structs, context, self)
+            self.python.gen_calldata(cg.call_data_structs, context, self)
 
             if len(self.vector_mapping) > 0:
                 cg.call_data_structs.append_statement(
@@ -385,4 +461,4 @@ class BoundVariable:
                 f"{'  ' * depth}{name}: {child._recurse_str(depth + 1)}" for name, child in self.children.items()]
             return "\n" + "\n".join(child_strs)
         else:
-            return f"{self.python.name}"
+            return f"{self.name}"

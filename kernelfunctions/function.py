@@ -4,6 +4,7 @@ from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
 from kernelfunctions.core import SlangFunction, hash_signature
 
 from kernelfunctions.backend import SlangModule, TypeReflection, FunctionReflection, CommandBuffer
+from kernelfunctions.core.logging import runtime_exception_info
 from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES, scope
 
@@ -71,9 +72,9 @@ class FunctionChainBase:
             raise e
         msg = e.args[0]['message']
         source = e.args[0]['source']
-        from kernelfunctions.callsignature import generate_call_shape_error_string
-        raise ValueError(generate_call_shape_error_string(
-            calldata.runtime, [], msg, source))  # type: ignore
+        raise ValueError(
+            f"Exception dispatching kernel: {msg}\n."
+            f"{runtime_exception_info(calldata.runtime, [], source)}\n")  # type: ignore
 
     @property
     def bwds_diff(self):
