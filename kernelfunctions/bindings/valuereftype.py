@@ -1,10 +1,10 @@
 
 
-from typing import Any, Optional
+from typing import Any
 import numpy as np
 
 from kernelfunctions.bindings.valuetype import slang_type_to_return_type
-from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext
 
 import kernelfunctions.core.reflection as kfr
 
@@ -60,6 +60,8 @@ class ValueRefType(BaseTypeImpl):
             raise ValueError(
                 f"Could not find ValueRef<{value_type.full_name}> slang type. This usually indicates the slangpy module has not been imported.")
         self.slang_type = st
+        assert value_type.shape.concrete
+        self.concrete_shape = value_type.shape
 
     # Values don't store a derivative - they're just a value
     @property
@@ -73,6 +75,9 @@ class ValueRefType(BaseTypeImpl):
 
     def resolve_type(self, context: BindContext, bound_type: 'kfr.SlangType'):
         return self.value_type
+
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'kfr.SlangType'):
+        return len(self.value_type.shape) - len(vector_target_type.shape)
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
@@ -113,12 +118,6 @@ class ValueRefType(BaseTypeImpl):
                 data.value = numpy_to_slang_value(self.value_type, npdata)
             else:
                 data.value = self.value_type.from_numpy(npdata)
-
-    def get_shape(self, value: Optional[ValueRef] = None) -> Shape:
-        if isinstance(self.value_type, kfr.SlangType):
-            return self.value_type.shape
-        else:
-            return self.value_type.get_shape()
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         pt = slang_type_to_return_type(self.value_type)

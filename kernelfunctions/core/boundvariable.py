@@ -113,7 +113,7 @@ class BoundVariable:
         self.vector_mapping: Shape = Shape(None)
         self.vector_type: Optional[SlangType] = None
         self.explicitly_vectorized = False
-        self.slang_type: SlangType = None
+        self.slang_type: Optional[SlangType] = None
 
         # Initialize path
         if parent is None:
@@ -237,6 +237,7 @@ class BoundVariable:
             pass
         else:
             # neither specified, attempt to resolve type
+            assert self.slang_type is not None
             self.vector_type = self.python.resolve_type(
                 context, self.slang_type)
 
@@ -248,8 +249,7 @@ class BoundVariable:
 
         # Clear slang type info - it should never be used after this
         # Note: useful for debugging so keeping for now!
-        # self.slang.primal = None
-        # self.slang.derivative = None
+        # self.slang_type = None
 
         # Can now calculate dimensionality
         if self.vector_mapping.valid:

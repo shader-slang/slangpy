@@ -72,6 +72,9 @@ class BaseNDBufferType(BaseTypeImpl):
         # Default to just casting to itself (i.e. no implicit cast)
         return self.slang_type
 
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'SlangType'):
+        return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
+
     def get_shape(self, value: Optional[NDBuffer] = None) -> Shape:
         if value is not None:
             return value.shape+self.slang_element_type.shape

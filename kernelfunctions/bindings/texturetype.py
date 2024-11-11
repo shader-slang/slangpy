@@ -70,6 +70,7 @@ class TextureType(BaseTypeImpl):
         self.slang_type = st
 
     def resolve_type(self, context: BindContext, bound_type: kfr.SlangType):
+        # Handle being passed to a texture
         if isinstance(bound_type, kfr.TextureType):
             if self._usage & bound_type.usage == 0:
                 raise ValueError(
@@ -82,8 +83,14 @@ class TextureType(BaseTypeImpl):
             #    raise ValueError(
             #        f"Cannot bind texture view {self.name} with different element type {bound_type.element_type.name}")
             return bound_type
-        else:
-            return super().resolve_type(context, bound_type)
+
+        # If implicit element casts enabled, allow conversion from type to element type
+        if context.options['implicit_element_casts']:
+            if self.slang_element_type == bound_type:
+                return bound_type
+
+        # Otherwise, use default behaviour
+        return super().resolve_type(context, bound_type)
 
     # Texture is writable if it has unordered access view.
     def is_writable(self):

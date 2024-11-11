@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING
 
 from .native import NativeBoundCallRuntime, NativeBoundVariableRuntime, Shape
-from kernelfunctions.shapes import check_concrete
 
 if TYPE_CHECKING:
     from .boundvariable import BoundVariable, BoundCall

@@ -4,7 +4,7 @@ from typing import Any, Optional
 import numpy as np
 
 from kernelfunctions.bindings.valuereftype import numpy_to_slang_value, slang_value_to_numpy
-from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
+from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext
 
 from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
 from kernelfunctions.types import DiffPair
@@ -47,7 +47,13 @@ class DiffPairType(BaseTypeImpl):
         self.needs_grad = needs_grad
         self.primal = primal_type
 
+        # A pure diff pair should be being passed to either a diff pair, or its primal. In both
+        # cases treating its shape as that of its primal is valid for the dispatch.
+        assert self.primal.concrete_shape.valid
+        self.concrete_shape = self.primal.concrete_shape
+
     # Values don't store a derivative - they're just a value
+
     @property
     def has_derivative(self) -> bool:
         return self.needs_grad and self.slang_type.differentiable
@@ -57,11 +63,21 @@ class DiffPairType(BaseTypeImpl):
     def is_writable(self) -> bool:
         return True
 
+    # A diff pair going to a diff pair is just a default cast. Otherwise
+    # attempt to cast to the primal.
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
-        if bound_type == self.slang_type.primal:
+        if bound_type.name == "DifferentialPair":
             return bound_type
         else:
-            return super().resolve_type(context, bound_type)
+            return self.primal.resolve_type(context, bound_type)
+
+    # A diff pair going to a diff pair has dimensionality of 0, otherwise use the
+    # resolve function for the primal
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'kfr.SlangType'):
+        if vector_target_type.name == "DifferentialPair":
+            return 0
+        else:
+            return self.primal.resolve_dimensionality(context, vector_target_type)
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
@@ -132,12 +148,6 @@ class DiffPairType(BaseTypeImpl):
                 val = numpy_to_slang_value(
                     prim_type, result[prim_name]['value'].to_numpy())
                 data.set(prim, val)
-
-    def get_shape(self, value: Optional[DiffPair] = None) -> Shape:
-        if value is not None:
-            return self.primal.get_shape(value.primal)
-        else:
-            return self.primal.get_shape()
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         return DiffPair(None, None)

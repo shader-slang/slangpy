@@ -1,6 +1,6 @@
 
 
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
 from kernelfunctions.backend import FunctionReflection, VariableReflection, ModifierID
 
@@ -162,8 +162,9 @@ def bound_runtime_variables_table(data: list['BoundVariableRuntime'], highlight:
 
 
 def bound_runtime_call_table(data: 'BoundCallRuntime', highlight: Optional['BoundVariableRuntime'] = None, filter: Optional[dict[str, bool]] = None):
-    # type: ignore
-    return bound_runtime_variables_table(data.args+list(data.kwargs.values()), highlight, filter)
+    args = cast(list['BoundVariableRuntime'], data.args)
+    kwargs = cast(dict[str, 'BoundVariableRuntime'], data.kwargs)
+    return bound_runtime_variables_table(args+list(kwargs.values()), highlight, filter)
 
 
 def function_reflection(slang_function: Optional[FunctionReflection]):

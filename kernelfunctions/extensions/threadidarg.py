@@ -2,7 +2,7 @@
 from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, AccessType, BoundVariable, Shape
 
 from kernelfunctions.backend import TypeReflection
-from kernelfunctions.core.reflection import SlangProgramLayout
+from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
 from kernelfunctions.typeregistry import PYTHON_TYPES
 
 
@@ -41,6 +41,9 @@ class ThreadIdArgType(BaseTypeImpl):
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
+
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'SlangType'):
+        return 1 - len(vector_target_type.shape)
 
 
 PYTHON_TYPES[ThreadIdArg] = lambda l, x: ThreadIdArgType(l, x.dims)

@@ -5,7 +5,7 @@ from kernelfunctions.core import CodeGenBlock, BindContext, BaseTypeImpl, Access
 
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.core.basetype import BaseType
-from kernelfunctions.core.reflection import SlangProgramLayout
+from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
 from kernelfunctions.typeregistry import PYTHON_TYPES
 
 
@@ -52,6 +52,9 @@ class WangHashArgType(BaseTypeImpl):
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
+
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'SlangType'):
+        return 1 - len(vector_target_type.shape)
 
 
 PYTHON_TYPES[WangHashArg] = lambda l, x: WangHashArgType(l, x.dims)

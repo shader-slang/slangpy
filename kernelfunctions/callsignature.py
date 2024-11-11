@@ -342,7 +342,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     cg.trampoline.append_line("void _trampoline(" + root_param_defs + ")")
     cg.trampoline.begin_block()
     cg.trampoline.append_indent()
-    if any(x.variable_name is '_result' for x in root_params):
+    if any(x.variable_name == '_result' for x in root_params):
         cg.trampoline.append_code(f"_result = ")
 
     # Get function name, if it's the init function, use the result type
