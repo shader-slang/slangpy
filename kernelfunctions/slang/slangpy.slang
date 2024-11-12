@@ -227,6 +227,11 @@ struct NDBuffer<T, let N : int>
     void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides)]; }
     void store_primal(IContext context, in T value) {};
 
+    void load_primal(IContext context, out NDBuffer<T,N> value) {
+        value = this;
+    }
+    void store_primal(IContext context, in NDBuffer<T, N> value) {};
+
     void load_primal(IContext context, out StructuredBuffer<T> value) {
         value = buffer;
     }
@@ -258,6 +263,11 @@ struct RWNDBuffer<T, let N : int>
 
     void load_primal(IContext context, out T value) { value = buffer[_idx(context, strides)]; }
     void store_primal(IContext context, in T value) { buffer[_idx(context, strides)] = value; }
+
+    void load_primal(IContext context, out RWNDBuffer<T, N> value) {
+        value = this;
+    }
+    void store_primal(IContext context, in RWNDBuffer<T, N> value) {};
 
     void load_primal<let VD : int>(IContext context, out vector<T, VD> value) {
 

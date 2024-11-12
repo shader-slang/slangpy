@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sgl import ProgramLayout, ResourceUsage
 
-from kernelfunctions.backend.slangpynativeemulation import Shape
+from kernelfunctions.backend.slangpynativeemulation import Shape, NativeSlangType
 
 from .enums import IOType
 from kernelfunctions.backend import TypeReflection as TR
@@ -97,7 +97,7 @@ class SlangLayout:
         return self._tlr.stride
 
 
-class SlangType:
+class SlangType(NativeSlangType):
     def __init__(self,
                  program: SlangProgramLayout,
                  refl: TypeReflection,
@@ -165,10 +165,6 @@ class SlangType:
     @property
     def num_dims(self) -> int:
         return len(self.shape)
-
-    @property
-    def python_type(self) -> type:
-        return type(None)
 
     @property
     def uniform_layout(self) -> SlangLayout:
@@ -364,11 +360,15 @@ class ByteAddressBufferType(ResourceType):
 
 
 class DifferentialPairType(SlangType):
-    def __init__(self, program: SlangProgramLayout, refl: TypeReflection, primal: SlangType):
-        # TODO: What should shape of this be? Seems like it should be treated as an opaque struct.
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl, local_shape=Shape())
-        assert primal.differentiable
-        self.primal = primal
+
+        args = program.get_resolved_generic_args(refl)
+        assert args is not None
+        assert len(args) == 1
+        assert isinstance(args[0], SlangType)
+        assert args[0].differentiable
+        self.primal = args[0]
 
     def build_differential_type(self):
         return self._program.find_type_by_name("DifferentialPair<" + self.primal.derivative.full_name + ">")
@@ -635,7 +635,7 @@ class SlangProgramLayout:
         handler = TYPE_OVERRIDES.get(refl.name)
         handler = TYPE_OVERRIDES.get(full_name, handler)
         if handler is not None:
-            return handler(self, refl, self._get_resolved_generic_args(refl))
+            return handler(self, refl)
 
         # Catch the remaining types
         if refl.kind == TR.Kind.struct:
@@ -677,7 +677,7 @@ class SlangProgramLayout:
     # Parse the arguments of a generic and resolve them into value args (i.e. ints) or slang types
     # This should really be extracted from the reflection API, but this is not currently implemented in SGL,
     # and we do it via string processing for now until this is fixed
-    def _get_resolved_generic_args(self, slang_type: TypeReflection) -> TGenericArgs:
+    def get_resolved_generic_args(self, slang_type: TypeReflection) -> TGenericArgs:
         full = slang_type.full_name
         # If full name does not end in >, this is not a generic
         if full[-1] != ">":
@@ -733,65 +733,13 @@ def can_convert_to_int(value: Any):
         return False
 
 
-# Let's prove we unquestionably need these before creating them, as they represent
-# a world of pain!
-"""
-
-SCALAR: dict[TR.ScalarType, ScalarType] = {}
-VECTOR: dict[TR.ScalarType | ScalarType, tuple[VectorType, ...]] = {}
-MATRIX: dict[TR.ScalarType | ScalarType, tuple[tuple[MatrixType, ...], ...]] = {}
-for scalar_type in scalar_names.keys():
-    st = ScalarType(scalar_type)
-    SCALAR[scalar_type] = st
-
-    VECTOR[scalar_type] = (None,) + tuple(VectorType(st, dim)  # type: ignore
-                                          for dim in (1, 2, 3, 4))
-    MATRIX[scalar_type] = (None,) + tuple((None,) + tuple(MatrixType(st, r, c)  # type: ignore
-                                                          for c in (1, 2, 3, 4)) for r in (1, 2, 3, 4))
-
-    VECTOR[st] = VECTOR[scalar_type]
-    MATRIX[st] = MATRIX[scalar_type]
-
-bool_ = SCALAR[TR.ScalarType.bool]
-int8 = SCALAR[TR.ScalarType.int8]
-int16 = SCALAR[TR.ScalarType.int16]
-int32 = SCALAR[TR.ScalarType.int32]
-int64 = SCALAR[TR.ScalarType.int64]
-uint8 = SCALAR[TR.ScalarType.uint8]
-uint16 = SCALAR[TR.ScalarType.uint16]
-uint32 = SCALAR[TR.ScalarType.uint32]
-uint64 = SCALAR[TR.ScalarType.uint64]
-float16 = SCALAR[TR.ScalarType.float16]
-float32 = SCALAR[TR.ScalarType.float32]
-float64 = SCALAR[TR.ScalarType.float64]
-half = float16
-double = float64
-
-float2 = VECTOR[float32][2]
-float3 = VECTOR[float32][3]
-float4 = VECTOR[float32][4]
-int2 = VECTOR[int32][2]
-int3 = VECTOR[int32][3]
-int4 = VECTOR[int32][4]
-uint2 = VECTOR[uint32][2]
-uint3 = VECTOR[uint32][3]
-uint4 = VECTOR[uint32][4]
-half2 = VECTOR[half][2]
-half3 = VECTOR[half][3]
-half4 = VECTOR[half][4]
-
-"""
-
 TGenericArgs = Optional[tuple[int | SlangType, ...]]
 TYPE_OVERRIDES: dict[str, Callable[[
-    SlangProgramLayout, TypeReflection, Optional[TGenericArgs]], SlangType]] = {}
+    SlangProgramLayout, TypeReflection], SlangType]] = {}
 
 
-def create_differential_pair(layout: SlangProgramLayout, refl: TypeReflection, args: Optional[TGenericArgs]) -> SlangType:
-    assert args is not None
-    assert len(args) == 1
-    assert isinstance(args[0], SlangType)
-    return DifferentialPairType(layout, refl, args[0])
+def create_differential_pair(layout: SlangProgramLayout, refl: TypeReflection) -> SlangType:
+    return DifferentialPairType(layout, refl)
 
 
 TYPE_OVERRIDES['DifferentialPair'] = create_differential_pair

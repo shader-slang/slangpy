@@ -316,5 +316,81 @@ int add_numbers(int a, int b) {
     assert np.all(res_data == a_data + b_data)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_buffer_to_buffer(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers",
+        r"""
+int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
+    return a[{0}]+b[{0}];
+}
+""",
+    )
+
+    a = kf.NDBuffer(
+        element_count=1,
+        device=device,
+        element_type=int,
+    )
+    a.buffer.from_numpy(rand_array_of_ints(a.element_count))
+
+    b = kf.NDBuffer(
+        element_count=1,
+        device=device,
+        element_type=int,
+    )
+    b.buffer.from_numpy(rand_array_of_ints(b.element_count))
+
+    # just verify it can be called with no exceptions
+    res = function(a, b)
+
+    a_data = a.buffer.to_numpy().view(np.int32)
+    b_data = b.buffer.to_numpy().view(np.int32)
+
+    assert np.all(res == a_data[0] + b_data[0])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_diff_buffer_to_buffer(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers",
+        r"""
+int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
+    return a[{0}]+b[{0}];
+}
+""",
+    )
+
+    a = kf.NDDifferentiableBuffer(
+        element_count=1,
+        device=device,
+        element_type=int,
+        requires_grad=True,
+    )
+    a.buffer.from_numpy(rand_array_of_ints(a.element_count))
+
+    b = kf.NDDifferentiableBuffer(
+        element_count=1,
+        device=device,
+        element_type=int,
+        requires_grad=True,
+    )
+    b.buffer.from_numpy(rand_array_of_ints(b.element_count))
+
+    # just verify it can be called with no exceptions
+    res = function(a, b)
+
+    a_data = a.buffer.to_numpy().view(np.int32)
+    b_data = b.buffer.to_numpy().view(np.int32)
+
+    assert np.all(res == a_data[0] + b_data[0])
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

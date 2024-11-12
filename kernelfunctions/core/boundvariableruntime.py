@@ -22,6 +22,8 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         self.access = source.access
         self.transform = source.vector_mapping
         self.python_type = source.python
+        self.vector_type = source.vector_type
+        self.call_dimensionality = source.call_dimensionality
 
         # Temp data stored / updated each call
         self.shape = Shape(None)
