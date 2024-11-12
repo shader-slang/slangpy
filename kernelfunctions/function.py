@@ -2,7 +2,7 @@ import json
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
 from kernelfunctions.core import hash_signature
 
-from kernelfunctions.backend import FunctionReflection, CommandBuffer
+from kernelfunctions.backend import FunctionReflection, CommandBuffer, TypeConformance
 from kernelfunctions.core.logging import runtime_exception_info
 from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES
@@ -96,6 +96,9 @@ class FunctionChainBase:
 
     def return_type(self, return_type: Any):
         return FunctionChainReturnType(self, return_type)
+
+    def type_conformance(self, type_conformances: list[TypeConformance]):
+        return FunctionChainTypeConformance(self, type_conformances)
 
     def debug_build_call_data(self, *args: Any, **kwargs: Any):
         return self._build_call_data(*args, **kwargs)
@@ -191,6 +194,12 @@ class FunctionChainReturnType(FunctionChainBase):
         super().__init__(parent)
         self.return_type = return_type
 
+
+class FunctionChainTypeConformance(FunctionChainBase):
+    def __init__(self, parent: FunctionChainBase, type_conformances: list[TypeConformance]) -> None:
+        super().__init__(parent)
+        self.type_conformances = type_conformances
+        self.slangpy_signature += f"[{','.join([str(tc) for tc in type_conformances])}]"
 
 # A callable kernel function. This assumes the function is in the root
 # of the module, however a parent in the abstract syntax tree can be provided

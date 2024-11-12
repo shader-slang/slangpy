@@ -3,8 +3,7 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from sgl import SlangCompileError
-
+from kernelfunctions.backend import SlangCompileError, TypeConformance
 from kernelfunctions.core import CallMode, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException
 
 from kernelfunctions.callsignature import (
@@ -72,7 +71,8 @@ class CallData(NativeCallData):
                 FunctionChainSet,
                 FunctionChainHook,
                 FunctionChainReturnType,
-                FunctionChainMap
+                FunctionChainMap,
+                FunctionChainTypeConformance
             )
             bindings = None
             slang_function = None
@@ -87,6 +87,7 @@ class CallData(NativeCallData):
             return_type = None
             positional_mapping = ()
             keyword_mapping = {}
+            type_conformances: list[TypeConformance] = []
 
             sets = {}
             for item in chain:
@@ -113,6 +114,8 @@ class CallData(NativeCallData):
                 if isinstance(item, FunctionChainMap):
                     positional_mapping = item.args
                     keyword_mapping = item.kwargs
+                if isinstance(item, FunctionChainTypeConformance):
+                    type_conformances += item.type_conformances
 
             self.vars = sets
             self.layout = function.module.layout
@@ -207,7 +210,7 @@ class CallData(NativeCallData):
             module = session.load_module_from_source(
                 hashlib.sha256(code.encode()).hexdigest()[0:16], code
             )
-            ep = module.entry_point("main")
+            ep = module.entry_point("main", type_conformances)
             program = session.link_program([module, function.module.device_module], [ep])
             self.kernel = device.create_compute_kernel(program)
             self.device = device
