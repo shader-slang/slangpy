@@ -10,35 +10,35 @@ from kernelfunctions.bindings.valuereftype import ValueRefType
 from kernelfunctions.core import ReturnContext
 
 
-class Test:
+class Foo:
     def __init__(self, x: int):
         super().__init__()
         self.x = x
 
 
-class TestType(ValueRefType):
+class FooType(ValueRefType):
     def __init__(self, layout: SlangProgramLayout):
         super().__init__(layout, layout.scalar_type(TypeReflection.ScalarType.int32))
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any):
-        return Test(super().read_output(context, binding, data))
+        return Foo(super().read_output(context, binding, data))
 
 
 def create_test_type(layout: SlangProgramLayout, value: Any):
-    if isinstance(value, Test):
-        return TestType(layout)
+    if isinstance(value, Foo):
+        return FooType(layout)
     elif isinstance(value, ReturnContext):
         if value.slang_type.name != "int":
             raise ValueError(f"Expected int, got {value.slang_type.name}")
         if value.bind_context.call_dimensionality != 0:
             raise ValueError(
                 f"Expected scalar, got {value.bind_context.call_dimensionality}")
-        return TestType(layout)
+        return FooType(layout)
     else:
         raise ValueError(f"Unexpected value {value}")
 
 
-tr.PYTHON_TYPES[Test] = create_test_type
+tr.PYTHON_TYPES[Foo] = create_test_type
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -55,9 +55,9 @@ int add_numbers(int a, int b) {
 """,
     )
 
-    res = function.return_type(Test).call(4, 5)
+    res = function.return_type(Foo).call(4, 5)
 
-    assert isinstance(res, Test)
+    assert isinstance(res, Foo)
     assert res.x == 9
 
 

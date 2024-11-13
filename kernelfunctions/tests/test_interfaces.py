@@ -37,7 +37,7 @@ float foo(ITest<float, 2> x) {
 """
 
 
-class Test:
+class Foo:
     def __init__(self, T: SlangType, N: int):
         super().__init__()
         self.T = T
@@ -45,7 +45,7 @@ class Test:
         self.slangpy_signature = f"{T.full_name}{N}"
 
 
-class TestImpl(ValueType):
+class FooImpl(ValueType):
     def __init__(self, layout: SlangProgramLayout, T: SlangType, N: int):
         super().__init__(layout)
         self.T = T
@@ -60,11 +60,11 @@ class TestImpl(ValueType):
 
 
 def create_test_impl(layout: SlangProgramLayout, value: Any):
-    assert isinstance(value, Test)
-    return TestImpl(layout, value.T, value.N)
+    assert isinstance(value, Foo)
+    return FooImpl(layout, value.T, value.N)
 
 
-tr.PYTHON_TYPES[Test] = create_test_impl
+tr.PYTHON_TYPES[Foo] = create_test_impl
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -75,8 +75,8 @@ def test_specialization(device_type: DeviceType):
     float32 = module.layout.scalar_type(TypeReflection.ScalarType.float32)
     int32 = module.layout.scalar_type(TypeReflection.ScalarType.int32)
 
-    test2f = Test(float32, 2)
-    test3i = Test(int32, 3)
+    test2f = Foo(float32, 2)
+    test3i = Foo(int32, 3)
 
     with pytest.raises(ValueError):
         module.bar(test3i)
