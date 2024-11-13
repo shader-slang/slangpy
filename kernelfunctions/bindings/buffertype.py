@@ -225,8 +225,10 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
             assert binding.vector_type is not None
             primal_target = binding.vector_type.full_name
             deriv_target = binding.vector_type.full_name + ".Differential"
+            
+            slang_context = f"ContextND<{binding.call_dimensionality}>"
 
-            cgb.append_code_indented(generate_differential_pair(name, primal_storage,
+            cgb.append_code_indented(generate_differential_pair(name, slang_context, primal_storage,
                                                                 deriv_storage, primal_target, deriv_target))
 
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: NDDifferentiableBuffer) -> Any:

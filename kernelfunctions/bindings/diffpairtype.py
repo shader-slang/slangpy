@@ -15,7 +15,7 @@ from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 import kernelfunctions.core.reflection as kfr
 
 
-def generate_differential_pair(name: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: Optional[str]):
+def generate_differential_pair(name: str, context: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: Optional[str]):
     assert primal_storage
     assert deriv_storage
     assert primal_target
@@ -27,10 +27,10 @@ struct _t_{name}
 {{
     {primal_storage} primal;
     {deriv_storage} derivative;
-    void load_primal(IContext context, out {primal_target} value) {{ primal.load_primal(context, value); }}
-    void store_primal(IContext context, in {primal_target} value) {{ primal.store_primal(context, value); }}
-    void load_derivative(IContext context, out {deriv_target} value) {{ derivative.load_primal(context, value); }}
-    void store_derivative(IContext context, in {deriv_target} value) {{ derivative.store_primal(context, value); }}
+    void load_primal({context} context, out {primal_target} value) {{ primal.load_primal(context, value); }}
+    void store_primal({context} context, in {primal_target} value) {{ primal.store_primal(context, value); }}
+    void load_derivative({context} context, out {deriv_target} value) {{ derivative.load_primal(context, value); }}
+    void store_derivative({context} context, in {deriv_target} value) {{ derivative.store_primal(context, value); }}
 }}
 """
     return DIFF_PAIR_CODE
@@ -105,7 +105,9 @@ class DiffPairType(BaseTypeImpl):
         primal_target = binding.vector_type.full_name
         deriv_target = binding.vector_type.full_name + ".Differential"
 
-        cgb.append_code_indented(generate_differential_pair(name, primal_storage,
+        slang_context = f"ContextND<{binding.call_dimensionality}>"
+
+        cgb.append_code_indented(generate_differential_pair(name, slang_context, primal_storage,
                                                             deriv_storage, primal_target, deriv_target))
 
     def get_type(self, prim: PrimType):

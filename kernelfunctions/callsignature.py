@@ -318,14 +318,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     cg.call_data.append_statement(f"uint3 _thread_count")
 
     # Generate the context structure
-    cg.context.append_line(f"struct Context: IContext")
-    cg.context.begin_block()
-    cg.context.append_statement(f"uint3 thread_id")
-    cg.context.append_statement(f"int[{max(1,call_data_len)}] call_id")
-    cg.context.append_line("uint3 get_thread_id() { return thread_id; }")
-    cg.context.append_line("int get_call_id(int dim) { return call_id[dim]; }")
-
-    cg.context.end_block()
+    cg.context.type_alias("Context", f"ContextND<{context.call_dimensionality}>")
 
     # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
@@ -374,15 +367,18 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     cg.kernel.append_statement(
         "if (any(dispatchThreadID >= call_data._thread_count)) return")
 
-    # Loads / initializes call id (inserting dummy if not vector call)
-    cg.kernel.append_statement("Context context")
-    cg.kernel.append_statement("context.thread_id = dispatchThreadID")
+    # Loads / initializes call id
+    context_args = "dispatchThreadID"
     if call_data_len > 0:
+        cg.kernel.append_line(f"int[{call_data_len}] call_id = {{")
+        cg.kernel.inc_indent()
         for i in range(call_data_len):
-            cg.kernel.append_statement(
-                f"context.call_id[{i}] = (dispatchThreadID.x/call_data._call_stride[{i}]) % call_data._call_dim[{i}]")
-    else:
-        cg.kernel.append_statement("context.call_id = {0}")
+            cg.kernel.append_line(
+                f"(dispatchThreadID.x/call_data._call_stride[{i}]) % call_data._call_dim[{i}],")
+        cg.kernel.dec_indent()
+        cg.kernel.append_statement("}")
+        context_args += ", call_id"
+    cg.kernel.append_statement(f"Context context = {{{context_args}}}")
 
     def declare_p(x: BoundVariable, has_suffix: bool = False):
         assert x.vector_type is not None
@@ -400,22 +396,22 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     def load_p(x: BoundVariable, has_suffix: bool = False):
         n = declare_p(x, has_suffix)
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.load_primal(ctx(context, _m_{x.variable_name}),{n})")
+            f"call_data.{x.variable_name}.load_primal(context.map(_m_{x.variable_name}),{n})")
         return n
 
     def load_d(x: BoundVariable, has_suffix: bool = False):
         n = declare_d(x, has_suffix)
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.load_derivative(ctx(context, _m_{x.variable_name}),{n})")
+            f"call_data.{x.variable_name}.load_derivative(context.map(_m_{x.variable_name}),{n})")
         return n
 
     def store_p(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_primal(ctx(context, _m_{x.variable_name}),{x.variable_name}{'_p' if has_suffix else ''})")
+            f"call_data.{x.variable_name}.store_primal(context.map(_m_{x.variable_name}),{x.variable_name}{'_p' if has_suffix else ''})")
 
     def store_d(x: BoundVariable, has_suffix: bool = False):
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_derivative(ctx(context, _m_{x.variable_name}),{x.variable_name}{'_d' if has_suffix else ''})")
+            f"call_data.{x.variable_name}.store_derivative(context.map(_m_{x.variable_name}),{x.variable_name}{'_d' if has_suffix else ''})")
 
     def create_pair(x: BoundVariable, inc_derivative: bool):
         p = load_p(x, True)
@@ -429,7 +425,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
 
     def store_pair_derivative(x: BoundVariable):
         cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_derivative(ctx(context, _m_{x.variable_name}),{x.variable_name}.d)")
+            f"call_data.{x.variable_name}.store_derivative(context.map(_m_{x.variable_name}),{x.variable_name}.d)")
 
     # Select either primals, derivatives or pairs for the trampoline function
     names: list[str] = []

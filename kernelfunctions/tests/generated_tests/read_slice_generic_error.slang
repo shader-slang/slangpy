@@ -8,13 +8,7 @@ Idx  Name       Input Type                 Output Type          Input Shape  Arg
 
 import "slangpy";
 
-struct Context: IContext
-{
-    uint3 thread_id;
-    int[1] call_id;
-    uint3 get_thread_id() { return thread_id; }
-    int get_call_id(int dim) { return call_id[dim]; }
-}
+typealias Context = ContextND<1>;
 
 typealias _index = NDBuffer<int,1>;
 typealias _texture = NDBuffer<float,3>;
@@ -23,10 +17,10 @@ struct __result
 {
     RWNDBuffer<float,1> primal;
     NoneType derivative;
-    void load_primal(IContext context, out float value) { primal.load_primal(context, value); }
-    void store_primal(IContext context, in float value) { primal.store_primal(context, value); }
-    void load_derivative(IContext context, out float value) { derivative.load_primal(context, value); }
-    void store_derivative(IContext context, in float value) { derivative.store_primal(context, value); }
+    void load_primal(Context1D context, out float value) { primal.load_primal(context, value); }
+    void store_primal(Context1D context, in float value) { primal.store_primal(context, value); }
+    void load_derivative(Context1D context, out float value) { derivative.load_primal(context, value); }
+    void store_derivative(Context1D context, in float value) { derivative.store_primal(context, value); }
 }
 
 struct CallData
@@ -57,9 +51,10 @@ void _trampoline(no_diff in vector<int,2> index, no_diff in NDBuffer<float,2> te
 void main(uint3 dispatchThreadID: SV_DispatchThreadID)
 {
     if (any(dispatchThreadID >= call_data._thread_count)) return;
-    Context context;
-    context.thread_id = dispatchThreadID;
-    context.call_id[0] = (dispatchThreadID.x/call_data._call_stride[0]) % call_data._call_dim[0];
+    int[1] call_id = {
+        (dispatchThreadID.x / call_data._call_stride[0]) % call_data._call_dim[0],
+    };
+    Context context = { dispatchThreadID, call_id };
     vector<int,2> index;
     call_data.index.load_primal(context,index);
     NDBuffer<float,2> texture;
