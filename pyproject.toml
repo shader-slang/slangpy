@@ -34,3 +34,18 @@ max-line-length = 90
 # pep8 defaults
 # E731: lambda->def
 ignore = "E226,E24,W50,W690,E731"
+
+[tool.coverage.run]
+branch = true
+omit = ["kernelfunctions/tests/*"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if.*TYPE_CHECKING.*",
+    "except ImportError",
+    "raise NotImplementedError"
+]
+ignore_errors = true
+
+[tool.coverage.html]
+directory = "htmlcov"

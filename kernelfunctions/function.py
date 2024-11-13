@@ -15,8 +15,6 @@ if TYPE_CHECKING:
     from kernelfunctions.module import Module
 
 ENABLE_CALLDATA_CACHE = True
-CALL_DATA_CACHE: dict[str, 'CallData'] = {}
-
 
 TDispatchHook = Callable[[dict[str, Any]], None]
 
@@ -38,8 +36,9 @@ class IThis(Protocol):
 
 
 class FunctionChainBase:
-    def __init__(self, parent: Optional["FunctionChainBase"]) -> None:
+    def __init__(self, parent: Optional["FunctionChainBase"], module: 'Module') -> None:
         super().__init__()
+        self.module = module
         self.parent = parent
         self.this: Any = parent.this if parent is not None else None
         self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
@@ -109,8 +108,11 @@ class FunctionChainBase:
     def _build_call_data(self, *args: Any, **kwargs: Any):
         sig = hash_signature(
             _cache_value_to_id, self, *args, **kwargs)
-        if ENABLE_CALLDATA_CACHE and sig in CALL_DATA_CACHE:
-            return CALL_DATA_CACHE[sig]
+        if ENABLE_CALLDATA_CACHE and sig in self.module.call_data_cache:
+            cd = self.module.call_data_cache[sig]
+            if cd.device != self.module.device:
+                raise NameError("Cached CallData is linked to wrong device")
+            return cd
 
         chain = []
         current = self
@@ -122,20 +124,20 @@ class FunctionChainBase:
         from .calldata import CallData
         res = CallData(chain, *args, **kwargs)
         if ENABLE_CALLDATA_CACHE:
-            CALL_DATA_CACHE[sig] = res
+            self.module.call_data_cache[sig] = res
         return res
 
 
 class FunctionChainMap(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
-        super().__init__(parent)
+        super().__init__(parent, parent.module)
         self.args = args
         self.kwargs = kwargs
 
 
 class FunctionChainSet(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
-        super().__init__(parent)
+        super().__init__(parent, parent.module)
         self.props: Optional[dict[str, Any]] = None
         self.callback: Optional[Callable] = None  # type: ignore
 
@@ -167,37 +169,37 @@ class FunctionChainOutputTransform(FunctionChainBase):
     def __init__(
         self, parent: FunctionChainBase, transforms: dict[str, TShapeOrTuple]
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent, parent.module)
         self.transforms = transforms
 
 
 class FunctionChainThis(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, this: IThis) -> None:
-        super().__init__(parent)
+        super().__init__(parent, parent.module)
         self.this = this
 
 
 class FunctionChainBwdsDiff(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase) -> None:
-        super().__init__(parent)
+        super().__init__(parent, parent.module)
 
 
 class FunctionChainHook(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, before_dispatch: Optional[TDispatchHook], after_dispatch: Optional[TDispatchHook]) -> None:
-        super().__init__(parent)
+        super().__init__(parent, parent.module)
         self.before_dispatch = before_dispatch
         self.after_dispatch = after_dispatch
 
 
 class FunctionChainReturnType(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, return_type: Any) -> None:
-        super().__init__(parent)
+        super().__init__(parent, parent.module)
         self.return_type = return_type
 
 
 class FunctionChainTypeConformance(FunctionChainBase):
     def __init__(self, parent: FunctionChainBase, type_conformances: list[TypeConformance]) -> None:
-        super().__init__(parent)
+        super().__init__(parent, parent.module)
         self.type_conformances = type_conformances
         self.slangpy_signature += f"[{','.join([str(tc) for tc in type_conformances])}]"
 
@@ -214,7 +216,7 @@ class Function(FunctionChainBase):
         func: Union[str, list[FunctionReflection], kfr.SlangFunction],
         options: dict[str, Any] = {},
     ) -> None:
-        super().__init__(None)
+        super().__init__(None, module)
         self.module = module
         self.options = options
 
@@ -252,7 +254,7 @@ class Function(FunctionChainBase):
 
         # Generate signature for hashing
         type_parent = self.type_reflection.full_name if self.type_reflection is not None else None
-        self.slangpy_signature = f"[{id(module)}][{type_parent or ''}::{self.name},{options_hash}]"
+        self.slangpy_signature = f"[{type_parent or ''}::{self.name},{options_hash}]"
 
     @property
     def name(self):

@@ -1,5 +1,6 @@
 
 
+import pdb
 from typing import Any, Optional, cast
 
 from kernelfunctions.bindings.diffpairtype import generate_differential_pair
@@ -11,6 +12,10 @@ from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
 from kernelfunctions.backend import ResourceUsage
 from kernelfunctions.typeregistry import PYTHON_TYPES
+
+
+class StopDebuggerException(Exception):
+    pass
 
 
 def _calc_broadcast(context: CallContext, binding: BoundVariableRuntime):
@@ -146,6 +151,9 @@ class NDBufferMarshall(BaseNDBufferMarshall):
                     f"_t_{name}", f"RWNDBuffer<{self.slang_element_type.full_name},{self.dims}>")
 
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: NDBuffer) -> Any:
+        if context.device != data.device:
+            raise NameError("Buffer is linked to wrong device")
+
         if isinstance(binding.vector_type, NDBufferType):
             return {
                 'buffer': data.buffer,

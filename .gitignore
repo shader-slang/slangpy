@@ -4,3 +4,5 @@ kernelfunctions.egg-info
 __pycache__
 junit*.xml
 .temp/
+htmlcov/
+.coverage

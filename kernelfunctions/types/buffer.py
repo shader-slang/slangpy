@@ -113,6 +113,7 @@ class NDBuffer:
 
         self.element_size = self.element_type.buffer_layout.size
         self.element_stride = self.element_type.buffer_layout.stride
+        self.device = device
 
         self.buffer = device.create_buffer(
             element_count=self.element_count,

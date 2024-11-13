@@ -1,12 +1,15 @@
 
 
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 from kernelfunctions.backend import SlangModule
 
 from kernelfunctions.core.reflection import SlangProgramLayout
 from kernelfunctions.function import Function
 from kernelfunctions.struct import Struct
 import kernelfunctions.typeregistry as tr
+
+if TYPE_CHECKING:
+    from kernelfunctions.calldata import CallData
 
 
 class Module:
@@ -16,6 +19,7 @@ class Module:
         self.device_module = device_module
         self.options = options
         self.layout = SlangProgramLayout(self.device_module.layout)
+        self.call_data_cache: dict[str, 'CallData'] = {}
 
     @property
     def name(self):
