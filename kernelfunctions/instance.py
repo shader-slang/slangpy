@@ -34,7 +34,7 @@ class InstanceList:
         if name in self._loaded_functions:
             return self._loaded_functions[name]
 
-        if isinstance(self._data, dict) and self._struct.fields is not None and name in self._struct.fields:
+        if isinstance(self._data, dict) and self._struct.struct.fields is not None and name in self._struct.struct.fields:
             return self._data.get(name)
 
         func = self._try_load_func(name)
@@ -47,7 +47,7 @@ class InstanceList:
     def __setattr__(self, name: str, value: Any) -> None:
         if name in ['_data', '_struct', '_loaded_functions', '_init']:
             return super().__setattr__(name, value)
-        if isinstance(self._data, dict) and self._struct.fields is not None and name in self._struct.fields:
+        if isinstance(self._data, dict) and self._struct.struct.fields is not None and name in self._struct.struct.fields:
             self._data[name] = value
         return super().__setattr__(name, value)
 

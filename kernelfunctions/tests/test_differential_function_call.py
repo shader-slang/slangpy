@@ -1,7 +1,7 @@
 import pytest
 from kernelfunctions.types import NDDifferentiableBuffer, diffPair
 import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.backend import DeviceType, float3, float1
+from kernelfunctions.backend import DeviceType, float3
 import numpy as np
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
@@ -244,7 +244,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     a_x = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=float1,
+        element_type=float,
         requires_grad=True,
     )
     a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
@@ -252,7 +252,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     a_y = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=float1,
+        element_type=float,
         requires_grad=True,
     )
     a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
@@ -260,7 +260,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     a_z = NDDifferentiableBuffer(
         element_count=32,
         device=device,
-        element_type=float1,
+        element_type=float,
         requires_grad=True,
     )
     a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))

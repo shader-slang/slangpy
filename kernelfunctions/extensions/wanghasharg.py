@@ -1,11 +1,12 @@
 
-from typing import Any, Optional
+from typing import Any
 
 from kernelfunctions.core import CodeGenBlock, BindContext, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
 
 from kernelfunctions.backend import TypeReflection
 from kernelfunctions.core.basetype import BaseType
-from kernelfunctions.typeregistry import PYTHON_TYPES, SLANG_SCALAR_TYPES, SLANG_VECTOR_TYPES
+from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
+from kernelfunctions.typeregistry import PYTHON_TYPES
 
 
 class WangHashArg:
@@ -25,21 +26,22 @@ class WangHashArg:
 
 
 class WangHashArgType(BaseTypeImpl):
-    def __init__(self, dims: int):
-        super().__init__()
+    def __init__(self, layout: SlangProgramLayout, dims: int):
+        super().__init__(layout)
         self.dims = dims
-        self.element_type = SLANG_SCALAR_TYPES[TypeReflection.ScalarType.uint32]
-        self.name = f"WangHashArg<{self.dims}>"
-
-    def get_container_shape(self, value: Optional[WangHashArg] = None) -> Shape:
-        return Shape(self.dims)
+        st = layout.find_type_by_name(f"WangHashArg<{self.dims}>")
+        if st is None:
+            raise ValueError(
+                f"Could not find WangHashArg slang type. This usually indicates the wanghasharg module has not been imported.")
+        self.slang_type = st
+        self.concrete_shape = Shape(self.dims)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("wanghasharg")
-            cgb.type_alias(f"_t_{name}", self.name)
+            cgb.type_alias(f"_t_{name}", self.slang_type.full_name)
 
     def create_calldata(self, context: CallContext, binding: BoundVariableRuntime, data: WangHashArg) -> Any:
         access = binding.access
@@ -49,7 +51,10 @@ class WangHashArgType(BaseTypeImpl):
             }
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
-        return SLANG_VECTOR_TYPES[TypeReflection.ScalarType.uint32][self.dims]
+        return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
+
+    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'SlangType'):
+        return 1 - len(vector_target_type.shape)
 
 
-PYTHON_TYPES[WangHashArg] = lambda x: WangHashArgType(x.dims)
+PYTHON_TYPES[WangHashArg] = lambda l, x: WangHashArgType(l, x.dims)

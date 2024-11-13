@@ -1,6 +1,6 @@
 from typing import Any
 import pytest
-from sgl import Buffer, Device, ResourceUsage
+from sgl import Buffer, Device
 from kernelfunctions.backend import DeviceType, float2, float3, math
 from kernelfunctions.extensions.randfloatarg import RandFloatArg
 from kernelfunctions.instance import InstanceList, InstanceListBuffer, InstanceListDifferentiableBuffer
@@ -9,7 +9,6 @@ from kernelfunctions.struct import Struct
 import kernelfunctions.tests.helpers as helpers
 from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 from kernelfunctions.types.valueref import ValueRef, floatRef
-from kernelfunctions.utils import find_type_layout_for_buffer
 import numpy as np
 import numpy.typing as npt
 
@@ -45,10 +44,8 @@ def test_this_interface(device_type: DeviceType):
     assert Particle is not None
     assert isinstance(Particle, Struct)
 
-    # Get particle type so we can allocate a buffer
-    particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
-    assert particle_type_layout is not None
-    buffer = NDBuffer(m.device, particle_type_layout, 1)
+    # Allocate a buffer
+    buffer = NDBuffer(m.device, Particle, 1)
 
     # Create a tiny wrapper around the buffer to provide the this interface
     this = ThisType(buffer)
@@ -116,10 +113,8 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     assert Particle is not None
     assert isinstance(Particle, Struct)
 
-    # Get particle type so we can allocate a buffer
-    particle_type_layout = find_type_layout_for_buffer(m.device_module.layout, "Particle")
-    assert particle_type_layout is not None
-    buffer = NDBuffer(m.device, particle_type_layout, 1)
+    # Sllocate a buffer
+    buffer = NDBuffer(m.device, Particle, 1)
 
     # Create a tiny wrapper around the buffer to provide the this interface
     instance = InstanceList(Particle, buffer)
@@ -306,11 +301,10 @@ class CustomInstanceList:
         self.data = data
 
     def get_this(self) -> Any:
-        device_buffer = self.device.create_buffer(element_count=len(
-            self.data), struct_size=8, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        buffer = NDBuffer(self.device, float2, len(self.data))
         np_data = np.array([[v.x, v.y] for v in self.data], dtype=np.float32)
-        device_buffer.from_numpy(np_data)
-        return device_buffer
+        buffer.from_numpy(np_data)
+        return buffer
 
     def update_this(self, value: Buffer) -> None:
         np_data = value.to_numpy().view(dtype=np.float32).reshape(-1, 2)

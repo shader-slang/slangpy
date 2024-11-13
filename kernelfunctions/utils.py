@@ -1,8 +1,5 @@
-from typing import Union, Optional
-
+from typing import Union
 from kernelfunctions.backend import ProgramLayout, TypeLayoutReflection, TypeReflection, DeclReflection
-from kernelfunctions.core import BaseType
-import kernelfunctions.typeregistry as tr
 
 
 def find_type_layout_for_buffer(program_layout: ProgramLayout, slang_type: Union[str, TypeReflection, TypeLayoutReflection]):
@@ -112,57 +109,6 @@ def _recurse_parse_generic_signature(name: str, start: int, end: int):
 
     # Return the end of the generic arguments, along with the name and children
     return (gend+1, type_name, args)
-
-
-# Parse the arguments of a generic and resolve them into value args (i.e. ints) or BaseTypes
-# This should really be extracted from the reflection API, but this is not currently implemented in SGL,
-# and we do it via string processing for now until this is fixed
-def get_resolved_generic_args(slang_type: TypeReflection) -> Optional[tuple[BaseType | int, ...]]:
-    full = slang_type.full_name
-    # If full name does not end in >, this is not a generic
-    if full[-1] != ">":
-        return None
-
-    # Parse backwards from right to left
-    # (because full_name could be e.g. OuterStruct<float>::InnerType<int>)
-    # Keep track of the current nesting level
-    # (because generics could be nested, e.g. vector<vector<float, 2>, 2>)
-    # Retrieve a list of generic args as string
-    head = full
-    idx = len(head) - 1
-    level = 0
-    pieces: list[str] = []
-    while idx > 0:
-        idx -= 1
-        if level > 0:
-            if head[idx] == "<":
-                level -= 1
-        else:
-            if head[idx] == ">":
-                level += 1
-            elif head[idx] == "," or head[idx] == "<":
-                pieces.append(head[idx+1:-1].strip())
-                head = head[:idx+1]
-            if head[idx] == "<":
-                break
-    if head[idx] != "<":
-        raise ValueError(f"Unable to parse generic '{full}'")
-
-    # Now resolve generics into ints or types
-    result = []
-    module = tr.cur_scope()
-    for piece in reversed(pieces):
-        try:
-            # Try int first; if it fails, try a type instead
-            x = int(piece)
-        except ValueError:
-            if module is None:
-                raise RuntimeError(
-                    "Trying to reflect type without setting current module")
-            x = tr.get_or_create_type(module.layout.find_type_by_name(piece))
-        result.append(x)
-
-    return tuple(result)
 
 
 def shape_to_contiguous_strides(shape: tuple[int, ...]) -> tuple[int, ...]:

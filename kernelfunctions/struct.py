@@ -1,48 +1,35 @@
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
+from kernelfunctions.function import Function
+from kernelfunctions.utils import try_find_function_overloads_via_ast
 
-from kernelfunctions.backend import TypeReflection
-
-from kernelfunctions.backend import SlangModule
-from kernelfunctions.function import Function, FunctionChainBase
-from kernelfunctions.typeregistry import get_or_create_type
-from kernelfunctions.utils import find_type_layout_for_buffer, try_find_function_overloads_via_ast, try_find_type_via_ast
+if TYPE_CHECKING:
+    from kernelfunctions import Module
+    from kernelfunctions.core.reflection import SlangType
 
 
 class Struct:
-    def __init__(self, device_module: SlangModule, name: str, type_reflection: Optional[TypeReflection] = None, options: dict[str, Any] = {}) -> None:
+    def __init__(self, module: 'Module', slang_struct: 'SlangType', options: dict[str, Any] = {}) -> None:
         super().__init__()
-        self.device_module = device_module
+        self.module = module
         self.options = options
-        self.name = name
-        if type_reflection is None:
-            type_reflection = self.device_module.layout.find_type_by_name(name)
-        if type_reflection is None:
-            raise ValueError(f"Type '{name}' not found in module {device_module.name}")
-        self.type = get_or_create_type(type_reflection)
-        if type_reflection.kind == TypeReflection.Kind.struct:
-            self.fields = {f.name: get_or_create_type(
-                f.type) for f in type_reflection.fields}
-        else:
-            self.fields = None
-
-    def get_struct_layout(self):
-        return find_type_layout_for_buffer(self.device_module.layout, self.name)
+        self.struct = slang_struct
+        self.slangpy_signature = self.struct.full_name
 
     @property
-    def layout(self):
-        return self.device_module.layout
+    def name(self) -> str:
+        return self.struct.full_name
 
     @property
     def session(self):
-        return self.device_module.session
+        return self.module.device_module.session
 
     @property
     def device(self):
         return self.session.device
 
     @property
-    def slangpy_signature(self) -> str:
-        return self.name
+    def device_module(self):
+        return self.module.device_module
 
     def try_get_child(self, name: str) -> Optional[Union['Struct', 'Function']]:
 
@@ -50,18 +37,17 @@ class Struct:
 
         # Search for name as a fully qualified child struct
         name_if_struct = f"{self.name}::{name}"
-        slang_struct = self.device_module.layout.find_type_by_name(name_if_struct)
+        slang_struct = self.module.layout.find_type_by_name(name_if_struct)
         if slang_struct is not None:
-            return Struct(self.device_module, name_if_struct, slang_struct, options=self.options)
+            return Struct(self.module, slang_struct, options=self.options)
 
         # Search for name as a child of this struct
         if name == "__init":
             name = "$init"
-        parent_slang_struct = self.device_module.layout.find_type_by_name(self.name)
-        slang_function = self.device_module.layout.find_function_by_name_in_type(
-            parent_slang_struct, name)
+        slang_function = self.module.layout.find_function_by_name_in_type(
+            self.struct, name)
         if slang_function is not None:
-            return Function(self.device_module, name, type_reflection=parent_slang_struct, func_reflections=[slang_function], options=self.options)
+            return Function(self.module, self, slang_function, options=self.options)
 
         # Currently have Slang issue finding the init function, so for none-generic classes,
         # try to find it via the AST.
@@ -69,7 +55,7 @@ class Struct:
             (type, funcs) = try_find_function_overloads_via_ast(
                 self.device_module.module_decl, self.name, name)
             if funcs is not None and len(funcs) > 0:
-                return Function(self.device_module, name, type_reflection=type, func_reflections=funcs, options=self.options)
+                return Function(self.module, self, funcs, options=self.options)
 
         return None
 

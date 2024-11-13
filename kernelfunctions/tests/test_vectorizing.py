@@ -1,8 +1,5 @@
-from typing import Any
 import pytest
-from sgl import float3, int3
-from kernelfunctions.backend import DeviceType, TypeReflection
-from kernelfunctions import Module
+from kernelfunctions.backend import DeviceType, int3
 from kernelfunctions.tests import helpers
 from kernelfunctions.types.buffer import NDBuffer
 
@@ -299,12 +296,12 @@ def test_implicit_tensor_to_vector(device_type: DeviceType):
     binding = call_data.debug_only_bindings.args[0]
     assert binding.vector_mapping.as_tuple() == (0,)
     assert binding.vector_type is not None
-    assert binding.vector_type.name == "vector<float,3>"
+    assert binding.vector_type.full_name == "vector<float,3>"
 
     result = call_data.debug_only_bindings.kwargs["_result"]
     assert result.vector_mapping.as_tuple() == (0,)
     assert result.vector_type is not None
-    assert result.vector_type.name == "vector<float,3>"
+    assert result.vector_type.full_name == "vector<float,3>"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

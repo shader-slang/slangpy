@@ -4,13 +4,12 @@ from kernelfunctions.backend import DeviceType, TypeReflection
 from kernelfunctions.core.basetype import BindContext
 from kernelfunctions.core.boundvariable import BoundVariable
 from kernelfunctions.core.codegen import CodeGenBlock
-from kernelfunctions.core.slangvariable import SlangFunction
+from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
 import kernelfunctions.tests.helpers as helpers
 import kernelfunctions.typeregistry as tr
 from kernelfunctions.bindings.valuetype import ValueType
-from kernelfunctions.core import BaseType, BaseTypeImpl, Shape
+from kernelfunctions.core import Shape
 from kernelfunctions import Module
-from kernelfunctions.utils import get_resolved_generic_args
 
 
 TEST_MODULE = """
@@ -38,73 +37,34 @@ float foo(ITest<float, 2> x) {
 """
 
 
-class ITest(BaseTypeImpl):
-    def __init__(self, reflection: TypeReflection):
-        super().__init__()
-        self.args = get_resolved_generic_args(reflection)
-        self.name = "ITest<float, 2>"
-
-    @property
-    def needs_specialization(self):
-        return True
-
-
-tr.SLANG_INTERFACE_TYPES_BY_NAME["ITest"] = ITest
-
-
 class Test:
-    def __init__(self, T: BaseType, N: int):
+    def __init__(self, T: SlangType, N: int):
         super().__init__()
         self.T = T
         self.N = N
-        self.slangpy_signature = f"{T.name}{N}"
+        self.slangpy_signature = f"{T.full_name}{N}"
 
 
 class TestImpl(ValueType):
-    def __init__(self, T: BaseType, N: int):
-        super().__init__()
+    def __init__(self, layout: SlangProgramLayout, T: SlangType, N: int):
+        super().__init__(layout)
         self.T = T
         self.N = N
-        self.name = f"Test{self.N}{self.T.name[0]}"
+        st = layout.find_type_by_name(f"Test{N}{T.full_name[0]}")
+        assert isinstance(st, SlangType)
+        self.slang_type = st
         self.concrete_shape = Shape()
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
-        cgb.type_alias(f"_t_{binding.variable_name}", self.name)
-
-    def specialize_type(self, type: BaseType):
-        if not isinstance(type, ITest):
-            return None
-        assert type.args is not None
-        assert isinstance(type.args[0], BaseType)
-        if type.args[0].name != self.T.name or type.args[1] != self.N:
-            return None
-        return self
+        cgb.type_alias(f"_t_{binding.variable_name}", self.slang_type.full_name)
 
 
-def create_test_impl(value: Any):
+def create_test_impl(layout: SlangProgramLayout, value: Any):
     assert isinstance(value, Test)
-    return TestImpl(value.T, value.N)
+    return TestImpl(layout, value.T, value.N)
 
 
-tr.SLANG_INTERFACE_TYPES_BY_NAME["ITest"] = ITest
 tr.PYTHON_TYPES[Test] = create_test_impl
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_interface_resolution(device_type: DeviceType):
-    device = helpers.get_device(device_type)
-    module = Module(device.load_module_from_source(
-        "test_interface_resolution", TEST_MODULE))
-
-    with tr.scope(module.device_module):
-        function = SlangFunction(module.foo.as_func().reflections[0])
-
-    param = function.parameters[0].primal
-
-    assert isinstance(param, ITest)
-    assert param.args is not None
-    assert isinstance(param.args[0], BaseType) and param.args[0].name == "float"
-    assert isinstance(param.args[1], int) and param.args[1] == 2
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -112,8 +72,8 @@ def test_specialization(device_type: DeviceType):
     device = helpers.get_device(device_type)
     module = Module(device.load_module_from_source("test_specialization", TEST_MODULE))
 
-    float32 = tr.SLANG_SCALAR_TYPES[TypeReflection.ScalarType.float32]
-    int32 = tr.SLANG_SCALAR_TYPES[TypeReflection.ScalarType.int32]
+    float32 = module.layout.scalar_type(TypeReflection.ScalarType.float32)
+    int32 = module.layout.scalar_type(TypeReflection.ScalarType.int32)
 
     test2f = Test(float32, 2)
     test3i = Test(int32, 3)

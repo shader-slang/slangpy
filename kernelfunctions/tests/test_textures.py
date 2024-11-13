@@ -1,13 +1,9 @@
 import pytest
-from kernelfunctions.backend import DeviceType, Format, int2, ResourceUsage, ResourceType
-from kernelfunctions.function import Function
+from kernelfunctions.backend import DeviceType, Format, ResourceUsage, ResourceType
 from kernelfunctions.instance import InstanceListBuffer
 from kernelfunctions.module import Module
-from kernelfunctions.struct import Struct
 import kernelfunctions.tests.helpers as helpers
 import numpy as np
-
-from kernelfunctions.types.buffer import NDBuffer
 
 
 def load_test_module(device_type: DeviceType):
