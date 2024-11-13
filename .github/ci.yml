@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  checks: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows, linux]
+        python: ["3.10"]
+        include:
+          # Builds running on self-hosted runners (build + tests + coverage)
+          - { os: windows, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: linux, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+
+    env:
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      # Environment variables used by ci.py
+      CI_PYTHON: ${{ matrix.python }}
+      CI_FLAGS: ${{ matrix.flags }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      # Setup Linux.
+      - name: Setup Linux
+        if: startsWith(matrix.os, 'linux') && !contains(matrix.runs-on, 'self-hosted')
+        run: |
+          sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
+
+      # Setup Python.
+      - name: Setup Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: 'pip'
+
+      # Setup MSVC.
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # CI.
+      - name: CI
+        run: python tools/ci.py setup
