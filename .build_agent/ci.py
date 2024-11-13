@@ -83,11 +83,13 @@ def install(args: argparse.Namespace):
 def test(args: argparse.Namespace):
     # run tests with native emulation
     env = {}
+    mode = 'nat'
     if args.emulated:
         env['SLANGPY_DISABLE_NATIVE'] = '1'
+        mode = 'emu'
     if args.device:
         env['SLANGPY_DEVICE'] = args.device
-    run_command("pytest --junit-xml=junit-test-emu.xml", env=env)
+    run_command(f"pytest --junit-xml=test-{mode}-{args.device}-junit.xml", env=env)
 
 
 def cleanup(args: argparse.Namespace):
