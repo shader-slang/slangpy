@@ -17,11 +17,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows, linux]
+        os: [windows] #add back linux for linux builds
         python: ["3.10"]
         include:
           # Builds running on self-hosted runners (build + tests + coverage)
           - { os: windows, runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: linux, runs-on: { group: nvrgfx, labels: [Linux, X64] } }
 
     env:
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
