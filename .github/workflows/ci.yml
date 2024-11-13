@@ -36,31 +36,25 @@ jobs:
           submodules: recursive
           lfs: true
 
-      # Setup Python.
       - name: Setup Python ${{ matrix.python }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
           cache: 'pip'
 
-      # Install dependencies
-      - name: CI
+      - name: Install dependencies
         run: python .build_agent/ci.py dependencies
 
-      # Run pre-commit checks
-      - name: CI
+      - name: Run precommit
         run: python .build_agent/ci.py precommit
 
-      # Install slangpy
-      - name: CI
+      - name: Install slangpy
         run: python .build_agent/ci.py install
 
-      # Run tests
-      - name: CI
+      - name: Run tests
         run: python .build_agent/ci.py test
 
-      # Run cleanup
-      - name: CI
+      - name: Cleanup
         if: always()
         run: python .build_agent/ci.py cleanup
 
