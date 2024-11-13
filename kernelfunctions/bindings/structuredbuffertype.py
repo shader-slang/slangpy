@@ -31,7 +31,7 @@ class StructuredBufferType(BaseTypeImpl):
             raise ValueError(
                 "Structured buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type")
 
-    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
         # structured buffer can only ever be taken to another structured buffer,
         if isinstance(vector_target_type, kfr.StructuredBufferType):
             return 0

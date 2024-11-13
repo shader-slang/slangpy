@@ -73,11 +73,11 @@ class DiffPairType(BaseTypeImpl):
 
     # A diff pair going to a diff pair has dimensionality of 0, otherwise use the
     # resolve function for the primal
-    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'kfr.SlangType'):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'kfr.SlangType'):
         if vector_target_type.name == "DifferentialPair":
             return 0
         else:
-            return self.primal.resolve_dimensionality(context, vector_target_type)
+            return self.primal.resolve_dimensionality(context, binding, vector_target_type)
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):

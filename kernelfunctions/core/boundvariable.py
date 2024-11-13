@@ -261,7 +261,7 @@ class BoundVariable:
         else:
             assert self.vector_type is not None
             self.call_dimensionality = self.python.resolve_dimensionality(
-                context, self.vector_type)
+                context, self, self.vector_type)
 
     def finalize_mappings(self, context: BindContext):
         """
