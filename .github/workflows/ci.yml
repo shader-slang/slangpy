@@ -22,13 +22,11 @@ jobs:
         include:
           # Builds running on self-hosted runners (build + tests + coverage)
           - { os: windows, runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          # - { os: linux, runs-on: { group: nvrgfx, labels: [Linux, X64] } }
 
     env:
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
       # Environment variables used by ci.py
       CI_PYTHON: ${{ matrix.python }}
-      CI_FLAGS: ${{ matrix.flags }}
 
     steps:
       - uses: actions/checkout@v4
