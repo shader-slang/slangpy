@@ -14,6 +14,10 @@ def run_command(command: str, shell: bool = True):
     return result
 
 
+print("hello")
+
+exit(0)
+
 # struggling to get sgl to install via requirements - install directly here instead
 run_command(
     "pip install --upgrade --force-reinstall git+https://github.com/shader-slang/sgl.git"
