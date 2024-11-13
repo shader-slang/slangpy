@@ -18,9 +18,7 @@ FAILED = False
 
 try:
     # struggling to get sgl to install via requirements - install directly here instead
-    run_command(
-        "pip install --upgrade --force-reinstall git+https://github.com/shader-slang/sgl.git"
-    )
+    run_command("pip install sgl")
 
     # install this package as editable
     run_command("pip install --editable .")
@@ -42,4 +40,4 @@ except Exception as e:
     print(e)
     FAILED = True
 
-run_command("pip uninstall -y git+https://github.com/shader-slang/sgl.git")
+run_command("pip uninstall -y sgl")
