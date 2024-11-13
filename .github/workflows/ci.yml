@@ -36,22 +36,12 @@ jobs:
           submodules: recursive
           lfs: true
 
-      # Setup Linux.
-      - name: Setup Linux
-        if: startsWith(matrix.os, 'linux') && !contains(matrix.runs-on, 'self-hosted')
-        run: |
-          sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
-
       # Setup Python.
       - name: Setup Python ${{ matrix.python }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
           cache: 'pip'
-
-      # Setup MSVC.
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
 
       # CI.
       - name: CI
