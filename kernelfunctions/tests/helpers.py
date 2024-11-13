@@ -13,6 +13,7 @@ from kernelfunctions.backend import (
     Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel,
     TypeReflection)
 from kernelfunctions.calldata import SLANG_PATH
+from kernelfunctions.module import Module
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 from kernelfunctions.core import BaseTypeImpl, Shape
 
@@ -78,68 +79,22 @@ def create_module(
 def create_function_from_module(
     device: Device, func_name: str, module_source: str, options: dict[str, Any] = {}
 ) -> kernelfunctions.Function:
-    module = device.load_module_from_source(
+
+    if not 'import "slangpy";' in module_source:
+        module_source = 'import "slangpy";\n' + module_source
+
+    slang_module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
+    module = Module(slang_module, options=options)
 
     names = func_name.split(".")
 
     if len(names) == 1:
-        function = kernelfunctions.Function(module, names[0], options=options)
+        function = module.find_function(names[0])
     else:
         type_name = "::".join(names[:-1])
-        function = kernelfunctions.Function(
-            module, names[-1], type_parent=type_name, options=options)
+        function = module.find_function_in_struct(type_name, names[-1])
+    if function is None:
+        raise ValueError(f"Could not find function {func_name}")
     return function
-
-
-class FakeSlangType:
-
-    def __init__(
-        self,
-        kind: TypeReflection.Kind,
-        name: str,
-        element_count: Optional[int] = None,
-        element_type: Optional[TypeReflection] = None,
-        row_count: Optional[int] = None,
-        col_count: Optional[int] = None,
-        scalar_type: Optional[TypeReflection.ScalarType] = None,
-    ):
-        super().__init__()
-        self.kind = kind
-        self.name = name
-        self.element_count = element_count
-        self.element_type = element_type
-        self.row_count = row_count
-        self.col_count = col_count
-        self.scalar_type = scalar_type
-# Dummy class that fakes a buffer of a given shape for testing
-
-
-class FakeBuffer:
-    def __init__(self, shape: tuple[int, ...]):
-        super().__init__()
-        self.shape = Shape(shape)
-
-
-class FakeBufferType(BaseTypeImpl):
-    def __init__(self):
-        super().__init__()
-        self.name = "FakeBuffer"
-        self.element_type = get_or_create_type(type(None))
-
-    @property
-    def has_derivative(self) -> bool:
-        return False
-
-    def is_writable(self, value: Any) -> bool:
-        return True
-
-    def get_container_shape(self, value: FakeBuffer) -> Shape:
-        return value.shape
-
-    def get_shape(self, value: Any = None) -> Shape:
-        return value.shape
-
-
-PYTHON_TYPES[FakeBuffer] = FakeBufferType()

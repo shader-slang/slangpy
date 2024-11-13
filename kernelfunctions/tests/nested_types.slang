@@ -118,4 +118,3 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID)
     _trampoline(a, b, _result);
     call_data._result.store_primal(context,_result);
 }
-

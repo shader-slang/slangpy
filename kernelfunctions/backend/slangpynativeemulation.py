@@ -7,7 +7,7 @@ To serve accurately, it should only import typing and the necessary backend type
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
-from . import uint3, CommandBuffer
+from . import uint3, CommandBuffer, ModifierID, TypeReflection
 
 if TYPE_CHECKING:
     from . import Device, ComputeKernel
@@ -94,6 +94,12 @@ class Shape:
         return iter(self.as_tuple())
 
 
+class NativeSlangType:
+    def __init__(self):
+        super().__init__()
+        self._reflection: TypeReflection = None  # type: ignore
+
+
 class NativeType:
     """
     Native base class for all type marshalls
@@ -101,23 +107,10 @@ class NativeType:
 
     def __init__(self):
         super().__init__()
-        self.name = ""
-        self.element_type: Optional['NativeType'] = None
         self.concrete_shape: Shape = Shape(None)
 
-    def get_byte_size(self, value: Any = None) -> int:
-        raise NotImplementedError()
-
-    def get_container_shape(self, value: Any = None) -> Shape:
-        return Shape()
-
     def get_shape(self, value: Any = None) -> Shape:
-        if self.concrete_shape.valid:
-            return self.concrete_shape
-        if self.element_type is not None:
-            return self.get_container_shape(value) + self.element_type.get_shape()
-        else:
-            return self.get_container_shape(value)
+        return self.concrete_shape
 
     def create_calldata(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any) -> Any:
         pass
@@ -192,8 +185,10 @@ class NativeBoundVariableRuntime:
         self.access: tuple[AccessType, AccessType] = (AccessType.none, AccessType.none)
         self.transform: Shape = None  # type: ignore
         self.python_type: NativeType = None  # type: ignore
+        self.vector_type: NativeSlangType = None  # type: ignore
         self.shape: Shape = None  # type: ignore
         self.variable_name = ""
+        self.call_dimensionality = 0
         self.children: Optional[dict[str, 'NativeBoundVariableRuntime']] = None
 
     def populate_call_shape(self, call_shape: list[int], value: Any):
@@ -209,7 +204,7 @@ class NativeBoundVariableRuntime:
             if self.python_type.concrete_shape.valid:
                 shape = self.python_type.concrete_shape
             else:
-                shape = self.python_type.get_container_shape(value)
+                shape = self.python_type.get_shape(value)
             tf = cast(Shape, self.transform)
             csl = len(call_shape)
             self.shape = shape

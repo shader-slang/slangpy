@@ -1,12 +1,12 @@
 
 
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
 from kernelfunctions.backend import FunctionReflection, VariableReflection, ModifierID
 
 if TYPE_CHECKING:
-    from .pythonvariable import PythonVariable, PythonFunctionCall
     from .boundvariable import BoundVariable, BoundCall
+    from .boundvariableruntime import BoundCallRuntime, BoundVariableRuntime
     from .basetype import BaseType
 
 
@@ -87,7 +87,20 @@ def _pyarg_name(value: Any) -> str:
 def _type_name(value: Optional['BaseType']) -> str:
     if value is None:
         return ""
-    return value.name
+
+    st = getattr(value, 'slang_type', None)
+    if st is not None:
+        return st.full_name
+
+    nm = getattr(value, 'full_name', None)
+    if nm is not None:
+        return nm
+
+    nm = getattr(value, 'name', None)
+    if nm is not None:
+        return nm
+
+    return str(value)
 
 
 def _type_shape(value: Optional['BaseType']) -> str:
@@ -96,42 +109,14 @@ def _type_shape(value: Optional['BaseType']) -> str:
     return str(value.get_shape())
 
 
-def python_variables_table(data: list['PythonVariable'], highlight: Optional['PythonVariable'] = None, filter: Optional[dict[str, bool]] = None):
-    columns = [
-        TableColumn("Name", 20, lambda x: _pyarg_name(x.name)),
-        TableColumn("Index", 10, "parameter_index"),
-        TableColumn("Type", 30, lambda x: _type_name(x.primal)),
-        TableColumn("VType", 30, lambda x: _type_name(x.vector_type)),
-        TableColumn("Shape", 20, lambda x: _type_shape(x.primal)),
-        TableColumn("VMap", 20, lambda x: x.vector_mapping),
-        TableColumn("Vector", 30, lambda x: x.vector_mapping if x.vector_mapping.valid else _type_name(
-            x.vector_type)),
-        TableColumn("Explicit", 10, "explicitly_vectorized")
-    ]
-
-    if filter is None:
-        filter = {c.name: True for c in columns}
-        filter['VMap'] = False
-        filter['VType'] = False
-        filter['Explicit'] = False
-
-    table = generate_table(columns, data, lambda x: x.fields.values()
-                           if x.fields is not None else None, highlight, filter)
-    return table
-
-
-def python_function_table(data: 'PythonFunctionCall', highlight: Optional['PythonVariable'] = None, filter: Optional[dict[str, bool]] = None):
-    return python_variables_table(data.args+list(data.kwargs.values()), highlight, filter)
-
-
 def bound_variables_table(data: list['BoundVariable'], highlight: Optional['BoundVariable'] = None, filter: Optional[dict[str, bool]] = None):
     columns = [
-        TableColumn("Name", 20, lambda x: _pyarg_name(x.slang.name)),
+        TableColumn("Name", 20, lambda x: _pyarg_name(x.name)),
         TableColumn("Index", 10, "param_index"),
-        TableColumn("PyType", 30, lambda x: _type_name(x.python.primal)),
-        TableColumn("SlType", 30, lambda x: _type_name(x.slang.primal)),
+        TableColumn("PyType", 30, lambda x: _type_name(x.python)),
+        TableColumn("SlType", 30, lambda x: _type_name(x.slang_type)),
         TableColumn("VType", 30, lambda x: _type_name(x.vector_type)),
-        TableColumn("Shape", 20, lambda x: _type_shape(x.python.primal)),
+        TableColumn("Shape", 20, lambda x: _type_shape(x.python)),
         TableColumn("Call Dim", 10, lambda x: x.call_dimensionality),
         TableColumn("VMap", 20, lambda x: x.vector_mapping),
         TableColumn("Vector", 30, lambda x: x.vector_mapping if x.vector_mapping.valid else _type_name(
@@ -151,6 +136,37 @@ def bound_call_table(data: 'BoundCall', highlight: Optional['BoundVariable'] = N
     return bound_variables_table(data.args+list(data.kwargs.values()), highlight, filter)
 
 
+def bound_runtime_variables_table(data: list['BoundVariableRuntime'], highlight: Optional['BoundVariableRuntime'] = None, filter: Optional[dict[str, bool]] = None):
+    columns = [
+        TableColumn("Name", 20, lambda x: _pyarg_name(x._source_for_exceptions.name)),
+        TableColumn("Index", 10, "param_index"),
+        TableColumn("PyType", 30, lambda x: _type_name(x._source_for_exceptions.python)),
+        TableColumn("SlType", 30, lambda x: _type_name(
+            x._source_for_exceptions.slang_type)),
+        TableColumn("VType", 30, lambda x: _type_name(
+            x._source_for_exceptions.vector_type)),
+        TableColumn("Shape", 20, lambda x: _type_shape(x._source_for_exceptions.python)),
+        TableColumn("Call Dim", 10, lambda x: x._source_for_exceptions.call_dimensionality),
+        TableColumn("VMap", 20, lambda x: x._source_for_exceptions.vector_mapping),
+        TableColumn("Vector", 30, lambda x: x._source_for_exceptions.vector_mapping if x._source_for_exceptions.vector_mapping.valid else _type_name(
+            x._source_for_exceptions.vector_type))
+    ]
+
+    if filter is None:
+        filter = {c.name: True for c in columns}
+        filter['Vector'] = False
+
+    table = generate_table(columns, data, lambda x: x.children.values()
+                           if x.children is not None else None, highlight, filter)
+    return table
+
+
+def bound_runtime_call_table(data: 'BoundCallRuntime', highlight: Optional['BoundVariableRuntime'] = None, filter: Optional[dict[str, bool]] = None):
+    args = cast(list['BoundVariableRuntime'], data.args)
+    kwargs = cast(dict[str, 'BoundVariableRuntime'], data.kwargs)
+    return bound_runtime_variables_table(args+list(kwargs.values()), highlight, filter)
+
+
 def function_reflection(slang_function: Optional[FunctionReflection]):
     if slang_function is None:
         return ""
@@ -167,7 +183,10 @@ def function_reflection(slang_function: Optional[FunctionReflection]):
         text.append(f"{slang_function.return_type.full_name} ")
     else:
         text.append("void ")
-    text.append(slang_function.name)
+    nm = slang_function.name
+    if nm is None:
+        nm = "<unknown>"
+    text.append(nm)
     text.append("(")
     parms = [
         f"{get_modifiers(x)}{x.type.full_name} {x.name}" for x in slang_function.parameters]
@@ -176,7 +195,7 @@ def function_reflection(slang_function: Optional[FunctionReflection]):
     return "".join(text)
 
 
-def mismatch_info(call: 'PythonFunctionCall', reflections: list[FunctionReflection]):
+def mismatch_info(call: 'BoundCall', reflections: list[FunctionReflection]):
     text: list[str] = []
 
     text.append(f"Possible overloads:")
@@ -186,27 +205,12 @@ def mismatch_info(call: 'PythonFunctionCall', reflections: list[FunctionReflecti
         text.append(f"  {function_reflection(r)}")
     text.append("")
     text.append(f"Python arguments:")
-    text.append(f"{python_function_table(call)}")
+    text.append(f"{bound_call_table(call)}")
 
     return "\n".join(text)
 
 
-def python_exception_info(call: 'PythonFunctionCall', reflections: list[FunctionReflection], variable: 'PythonVariable'):
-    text: list[str] = []
-
-    text.append(f"Possible overloads:")
-    if len(reflections) == 1 and reflections[0].is_overloaded:
-        reflections = [x for x in reflections[0].overloads]
-    for r in reflections:
-        text.append(f"  {function_reflection(r)}")
-    text.append("")
-    text.append(f"Python arguments:")
-    text.append(f"{python_function_table(call,highlight=variable)}")
-
-    return "\n".join(text)
-
-
-def bound_exception_info(call: 'BoundCall', concrete_reflection: FunctionReflection, variable: 'BoundVariable'):
+def bound_exception_info(call: 'BoundCall', concrete_reflection: FunctionReflection, variable: Optional['BoundVariable']):
     text: list[str] = []
 
     text.append(f"Selected overload:")
@@ -216,3 +220,7 @@ def bound_exception_info(call: 'BoundCall', concrete_reflection: FunctionReflect
     text.append(f"{bound_call_table(call,highlight=variable)}")
 
     return "\n".join(text)
+
+
+def runtime_exception_info(call: 'BoundCallRuntime', call_shape: list[int | None], variable: Optional['BoundVariableRuntime']):
+    pass

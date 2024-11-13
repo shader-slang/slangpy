@@ -1,60 +1,26 @@
-from typing import Any, Optional
+from typing import Any
 
 from kernelfunctions.core import BaseType, Shape
 
+from kernelfunctions.core.reflection import SlangProgramLayout
 import kernelfunctions.typeregistry as tr
 
 from .valuetype import ValueType
 
 
 class ArrayType(ValueType):
-    def __init__(self, element_type: BaseType, element_count: Optional[int]):
-        super().__init__()
-        self.element_type = element_type
-        self.ec = element_count
-        self.name = f"{self.element_type.name}[{self.ec}]"
+    def __init__(self, layout: SlangProgramLayout, element_type: BaseType, element_count: int):
+        super().__init__(layout)
+        self.slang_type = layout.array_type(element_type.slang_type, element_count)
 
-    def get_byte_size(self, value: Optional[list[Any]] = None) -> int:
-        assert self.element_type is not None
-        if self.ec is not None:
-            return self.ec * self.element_type.get_byte_size()
-        elif value is not None:
-            return len(value) * self.element_type.get_byte_size()
-        else:
-            raise ValueError("Array size must be known to compute byte size")
-
-    def get_container_shape(self, value: Optional[list[Any]] = None) -> Shape:
-        return Shape(self.ec if self.ec else -1)
-
-    @property
-    def differentiable(self):
-        return self.element_type.differentiable
-
-    @property
-    def derivative(self):
-        et = self.element_type.derivative
-        if et is not None:
-            return ArrayType(et, self.ec)
-        else:
-            return None
-
-    @property
-    def python_return_value_type(self) -> type:
-        return list
+    def get_shape(self, value: list[Any]) -> Shape:
+        slang_shape = self.slang_type.shape
+        return Shape((len(value),)+slang_shape.as_tuple()[1:])
 
 
-def slang_lookup_array_type(slang_type: tr.TypeReflection) -> BaseType:
-    assert slang_type.kind == tr.TypeReflection.Kind.array
-    et = tr.get_or_create_type(slang_type.element_type)
-    return ArrayType(et, slang_type.element_count)
-
-
-tr.SLANG_ARRAY_TYPE = slang_lookup_array_type
-
-
-def python_lookup_array_type(value: list[Any]) -> BaseType:
-    et = tr.get_or_create_type(value[0])
-    return ArrayType(et, len(value))
+def python_lookup_array_type(layout: SlangProgramLayout, value: list[Any]) -> BaseType:
+    et = tr.get_or_create_type(layout, value[0])
+    return ArrayType(layout, et, len(value))
 
 
 tr.PYTHON_TYPES[list] = python_lookup_array_type

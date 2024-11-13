@@ -23,11 +23,12 @@ def test_create_function(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
-    module = device.load_module_from_source(
+    slang_module = device.load_module_from_source(
         "simple_function_return_value", SIMPLE_FUNCTION_RETURN_VALUE
     )
-    function = kf.Function(module, "add_numbers")
-    assert function.module == module
+    module = kf.Module(slang_module)
+    function = module.find_function("add_numbers")
+    assert function is not None
     assert function.name == "add_numbers"
 
 
@@ -36,17 +37,12 @@ def test_create_in_type(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
-    module = device.load_module_from_source(
+    slang_module = device.load_module_from_source(
         "simple_function_create_in_type", SIMPLE_FUNCTION_IN_TYPE_RETURN_VALUE
     )
-    function = kf.Function(
-        module,
-        "add_numbers",
-        type_reflection=module.module_decl.find_first_child_of_kind(
-            DeclReflection.Kind.struct, "MyStruct"
-        ).as_type(),
-    )
-    assert function.module == module
+    module = kf.Module(slang_module)
+    function = module.find_function_in_struct("MyStruct", "add_numbers")
+    assert function is not None
     assert function.name == "add_numbers"
 
 

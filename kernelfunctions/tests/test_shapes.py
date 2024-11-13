@@ -1,8 +1,7 @@
 from typing import Any, Optional
 import pytest
 from sgl import float4
-from kernelfunctions.core import BaseType
-from kernelfunctions.backend import DeviceType, float1, float3
+from kernelfunctions.backend import DeviceType, float3
 from kernelfunctions.callsignature import BoundVariable
 import deepdiff
 
@@ -15,9 +14,6 @@ from kernelfunctions.types.valueref import ValueRef
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
-
-x = BaseType()
-x.get_shape(object())
 
 
 def make_int_buffer(device_type: DeviceType, shape: tuple[int, ...]):
@@ -240,7 +236,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 
     # pass an output, which is also broadcast so would in practice be a race condition
     shapes = dot_product(device_type, make_float_buffer(device_type,
-                                                        (100, 3)), make_float_buffer(device_type, (3,)), ValueRef(float1()))
+                                                        (100, 3)), make_float_buffer(device_type, (3,)), ValueRef(float()))
     diff = deepdiff.DeepDiff(
         shapes,
         {
