@@ -82,12 +82,12 @@ def install(args: argparse.Namespace):
 
 def test(args: argparse.Namespace):
     # run tests with native emulation
-    os.environ["SLANGPY_DISABLE_NATIVE"] = "1"
-    run_command("pytest --junit-xml=junit-test-emu.xml")
-
-    # run tests with native
-    del os.environ["SLANGPY_DISABLE_NATIVE"]
-    run_command("pytest --junit-xml=junit-test.xml")
+    env = {}
+    if args.emulated:
+        env['SLANGPY_DISABLE_NATIVE'] = '1'
+    if args.device:
+        env['SLANGPY_DEVICE'] = args.device
+    run_command("pytest --junit-xml=junit-test-emu.xml", env=env)
 
 
 def cleanup(args: argparse.Namespace):
@@ -115,9 +115,14 @@ def main():
 
     commands.add_parser("dependencies", help="install dependencies")
     commands.add_parser("install", help="install local slangpy")
-    commands.add_parser("test", help="run unit tests")
     commands.add_parser("cleanup", help="cleanup dependencies")
     commands.add_parser("precommit", help="run precommit hooks")
+
+    test_parser = commands.add_parser("test", help="run unit tests")
+    test_parser.add_argument("--emulated", action="store_true",
+                             help="run tests with native emulation")
+    test_parser.add_argument("--device", action="store",
+                             help="device type (d3d12/vulkan/metal)")
 
     # Read args
     args = parser.parse_args()
