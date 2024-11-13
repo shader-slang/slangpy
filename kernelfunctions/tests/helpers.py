@@ -31,7 +31,7 @@ else:
 DEVICE_CACHE: dict[DeviceType, Device] = {}
 
 # Enable this to make tests just run on d3d12 for faster testing
-DEFAULT_DEVICE_TYPES = [DeviceType.d3d12]
+# DEFAULT_DEVICE_TYPES = [DeviceType.d3d12]
 
 
 # Returns a unique random 16 character string for every variant of every test.
