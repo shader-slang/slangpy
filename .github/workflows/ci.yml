@@ -55,4 +55,4 @@ jobs:
 
       # CI.
       - name: CI
-        run: python tools/ci.py setup
+        run: python .build_agent/ci.py setup
