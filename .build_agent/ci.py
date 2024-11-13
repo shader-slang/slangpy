@@ -113,13 +113,11 @@ def main():
         dest="command", required=True, help="sub-command help"
     )
 
-    parser_dependencies = commands.add_parser("dependencies", help="install dependencies")
-
-    parser_install = commands.add_parser("install", help="install local slangpy")
-
-    parser_test = commands.add_parser(
-        "test", help="run unit tests"
-    )
+    commands.add_parser("dependencies", help="install dependencies")
+    commands.add_parser("install", help="install local slangpy")
+    commands.add_parser("test", help="run unit tests")
+    commands.add_parser("cleanup", help="cleanup dependencies")
+    commands.add_parser("precommit", help="run precommit hooks")
 
     # Read args
     args = parser.parse_args()
