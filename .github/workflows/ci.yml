@@ -43,6 +43,24 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: 'pip'
 
-      # CI.
+      # Install dependencies
       - name: CI
-        run: python .build_agent/ci.py setup
+        run: python .build_agent/ci.py dependencies
+
+      # Run pre-commit checks
+      - name: CI
+        run: python .build_agent/ci.py precommit
+
+      # Install slangpy
+      - name: CI
+        run: python .build_agent/ci.py install
+
+      # Run tests
+      - name: CI
+        run: python .build_agent/ci.py test
+
+      # Run cleanup
+      - name: CI
+        if: always()
+        run: python .build_agent/ci.py cleanup
+

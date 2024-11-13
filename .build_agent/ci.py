@@ -1,43 +1,162 @@
+import argparse
+import json
 import subprocess
 import sys
 import os
+from typing import Optional
+
+
+def get_os():
+    """
+    Return the OS name (windows, linux, macos).
+    """
+    platform = sys.platform
+    if platform == "win32":
+        return "windows"
+    elif platform == "linux" or platform == "linux2":
+        return "linux"
+    elif platform == "darwin":
+        return "macos"
+    else:
+        raise NameError(f"Unsupported OS: {sys.platform}")
 
 # Helper to run a command.
 
 
-def run_command(command: str, shell: bool = True):
-    print(command)
+def run_command(command: str, shell: bool = True, env: Optional[dict[str, str]] = None):
+    if get_os() == "windows":
+        command = command.replace("/", "\\")
+    if env != None:
+        new_env = os.environ.copy()
+        new_env.update(env)
+        env = new_env
+    print(f'Running "{command}" ...')
     sys.stdout.flush()
-    result = subprocess.run(command, shell=shell)
-    if result.returncode != 0:
-        raise NameError(f"Error running command: {command}")
-    return result
+
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        universal_newlines=True,
+        shell=shell,
+        env=env,
+    )
+    assert process.stdout is not None
+
+    out = ""
+    while True:
+        nextline = process.stdout.readline()
+        if nextline == "" and process.poll() is not None:
+            break
+        sys.stdout.write(nextline)
+        sys.stdout.flush()
+        out += nextline
+
+    process.communicate()
+    if process.returncode != 0:
+        raise RuntimeError(f'Error running "{command}"')
+
+    return out
 
 
 FAILED = False
 
-try:
+
+def dependencies(args: argparse.Namespace):
     # struggling to get sgl to install via requirements - install directly here instead
     run_command("pip install nv-sgl")
-
-    # install this package as editable
-    run_command("pip install --editable .")
 
     # install dev requirements
     run_command("pip install -r requirements-dev.txt")
 
-    # run precommit
+
+def precommit(args: argparse.Namespace):
     run_command("pre-commit run --all-files")
 
+
+def install(args: argparse.Namespace):
+    # install this package as editable
+    run_command("pip install --editable .")
+
+
+def test(args: argparse.Namespace):
     # run tests with native emulation
-    # os.environ["SLANGPY_DISABLE_NATIVE"] = "1"
-    # run_command("pytest --junit-xml=junit-test-emu.xml")
+    os.environ["SLANGPY_DISABLE_NATIVE"] = "1"
+    run_command("pytest --junit-xml=junit-test-emu.xml")
 
     # run tests with native
-    # del os.environ["SLANGPY_DISABLE_NATIVE"]
-    # run_command("pytest --junit-xml=junit-test.xml")
-except Exception as e:
-    print(e)
-    FAILED = True
+    del os.environ["SLANGPY_DISABLE_NATIVE"]
+    run_command("pytest --junit-xml=junit-test.xml")
 
-run_command("pip uninstall -y nv-sgl")
+
+def cleanup(args: argparse.Namespace):
+    try:
+        run_command("pip uninstall -y nv-sgl")
+    except Exception as e:
+        print(f"WARNING: Cleanup failed with exception:")
+        print(e)
+
+
+def main():
+
+    # Command line parsing
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--os", type=str, action="store", help="OS (windows, linux, macos)"
+    )
+    parser.add_argument("--python", type=str, action="store", help="Python version")
+    parser.add_argument("--flags", type=str, action="store", help="Additional flags")
+
+    commands = parser.add_subparsers(
+        dest="command", required=True, help="sub-command help"
+    )
+
+    parser_dependencies = commands.add_parser("dependencies", help="install dependencies")
+
+    parser_install = commands.add_parser("install", help="install local slangpy")
+
+    parser_test = commands.add_parser(
+        "test", help="run unit tests"
+    )
+
+    # Read args
+    args = parser.parse_args()
+    args = vars(args)
+
+    # Inject defaults worked out internally or from environment variables.
+    VARS = [
+        ("os", "CI_OS", get_os()),
+        ("config", "CI_CONFIG", "Debug"),
+        ("python", "CI_PYTHON", "3.9"),
+        ("flags", "CI_FLAGS", ""),
+    ]
+    for var, env_var, default_value in VARS:
+        if not var in args or args[var] == None:
+            args[var] = os.environ[env_var] if env_var in os.environ else default_value
+
+    # Split flags.
+    args["flags"] = args["flags"].split(",") if args["flags"] != "" else []
+
+    # Print all args
+    print("CI configuration:")
+    print(json.dumps(args, indent=4))
+
+    # Convert back to argparse format.
+    args = argparse.Namespace(**args)
+
+    # Call the requested command
+    commands = {
+        "precommit": precommit,
+        "dependencies": dependencies,
+        "install": install,
+        "test": test,
+        "cleanup": cleanup
+    }
+    commands[args.command](args)
+    return 0
+
+
+if __name__ == "__main__":
+    main()
