@@ -214,6 +214,9 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
     def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
         super().__init__(layout, element_type, dims, writable)
 
+        if not element_type.differentiable:
+            raise ValueError(f"Elements of differentiable buffer must be differentiable.")
+
     @property
     def has_derivative(self) -> bool:
         return True
