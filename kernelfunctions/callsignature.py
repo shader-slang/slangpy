@@ -7,7 +7,7 @@ from kernelfunctions.bindings.valuetype import NoneValueType, ValueType
 from kernelfunctions.core import (
     CodeGen,
     CallMode, AccessType,
-    BindContext, ReturnContext, BoundCall, BoundVariable,
+    BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangType
 )
 
@@ -328,12 +328,21 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     root_params = sorted(signature.values(), key=lambda x: x.param_index)
 
     # Generate the trampoline function
-    root_param_defs = [x._gen_trampoline_argument() for x in root_params]
-    root_param_defs = ", ".join(root_param_defs)
-    if signature.differentiable:
+    trampoline_fn = "_trampoline"
+    if context.call_mode != CallMode.prim:
         cg.trampoline.append_line("[Differentiable]")
-    cg.trampoline.append_line("void _trampoline(" + root_param_defs + ")")
+    cg.trampoline.append_line(f"void {trampoline_fn}(Context context, CallData data)")
     cg.trampoline.begin_block()
+
+    # Declare parameters and load inputs
+    for x in root_params:
+        assert x.vector_type is not None
+        cg.trampoline.declare(x.vector_type.full_name, x.variable_name)
+    for x in root_params:
+        if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
+            cg.trampoline.append_statement(
+                f"data.{x.variable_name}.load(context.map(_m_{x.variable_name}), {x.variable_name})")
+
     cg.trampoline.append_indent()
     if any(x.variable_name == '_result' for x in root_params):
         cg.trampoline.append_code(f"_result = ")
@@ -355,6 +364,15 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     # Internal call to the actual function
     cg.trampoline.append_code(
         f"{func_name}(" + ", ".join(x.variable_name for x in normal_params) + ");\n")
+
+    # For each writable trampoline parameter, potentially store it
+    for x in root_params:
+        if x.access[0] == AccessType.write or x.access[0] == AccessType.readwrite or x.access[1] == AccessType.read:
+            if not x.python.is_writable:
+                raise BoundVariableException(
+                    f"Cannot read back value for non-writable type", x)
+            cg.trampoline.append_statement(
+                f"data.{x.variable_name}.store(context.map(_m_{x.variable_name}), {x.variable_name})")
 
     cg.trampoline.end_block()
     cg.trampoline.append_line("")
@@ -380,89 +398,10 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
         context_args += ", call_id"
     cg.kernel.append_statement(f"Context context = {{{context_args}}}")
 
-    def declare_p(x: BoundVariable, has_suffix: bool = False):
-        assert x.vector_type is not None
-        name = f"{x.variable_name}{'_p' if has_suffix else ''}"
-        cg.kernel.append_statement(f"{x.vector_type.full_name} {name}")
-        return name
-
-    def declare_d(x: BoundVariable, has_suffix: bool = False):
-        assert x.vector_type is not None
-        name = f"{x.variable_name}{'_d' if has_suffix else ''}"
-        cg.kernel.append_statement(
-            f"{x.vector_type.full_name}.Differential {name}")
-        return name
-
-    def load_p(x: BoundVariable, has_suffix: bool = False):
-        n = declare_p(x, has_suffix)
-        cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.load_primal(context.map(_m_{x.variable_name}),{n})")
-        return n
-
-    def load_d(x: BoundVariable, has_suffix: bool = False):
-        n = declare_d(x, has_suffix)
-        cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.load_derivative(context.map(_m_{x.variable_name}),{n})")
-        return n
-
-    def store_p(x: BoundVariable, has_suffix: bool = False):
-        cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_primal(context.map(_m_{x.variable_name}),{x.variable_name}{'_p' if has_suffix else ''})")
-
-    def store_d(x: BoundVariable, has_suffix: bool = False):
-        cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_derivative(context.map(_m_{x.variable_name}),{x.variable_name}{'_d' if has_suffix else ''})")
-
-    def create_pair(x: BoundVariable, inc_derivative: bool):
-        p = load_p(x, True)
-        if not inc_derivative:
-            cg.kernel.append_statement(
-                f"var {x.variable_name} = diffPair({p})")
-        else:
-            d = load_d(x, True)
-            cg.kernel.append_statement(
-                f"var {x.variable_name} = diffPair({p}, {d})")
-
-    def store_pair_derivative(x: BoundVariable):
-        cg.kernel.append_statement(
-            f"call_data.{x.variable_name}.store_derivative(context.map(_m_{x.variable_name}),{x.variable_name}.d)")
-
-    # Select either primals, derivatives or pairs for the trampoline function
-    names: list[str] = []
-    for x in root_params:
-        (primal_access, derivative_access) = x.access
-        if primal_access != AccessType.none and derivative_access != AccessType.none:
-            assert not primal_access in [AccessType.write, AccessType.readwrite]
-            assert derivative_access in [AccessType.write, AccessType.readwrite]
-            create_pair(x, derivative_access == AccessType.readwrite)
-        else:
-            if primal_access == AccessType.read or primal_access == AccessType.readwrite:
-                load_p(x)
-            elif primal_access == AccessType.write:
-                declare_p(x)
-            if derivative_access == AccessType.read or derivative_access == AccessType.readwrite:
-                load_d(x)
-            elif derivative_access == AccessType.write:
-                declare_d(x)
-        if primal_access != AccessType.none or derivative_access != AccessType.none:
-            names.append(f"{x.variable_name}")
-
     # Call the trampoline function
-    fn = "_trampoline"
+    fn = trampoline_fn
     if context.call_mode == CallMode.bwds:
         fn = f"bwd_diff({fn})"
-    cg.kernel.append_statement(
-        f"{fn}(" + ", ".join(names) + ")")
-
-    # For each writable trampoline parameter, potentially store it
-    for x in root_params:
-        (primal_access, derivative_access) = x.access
-        if primal_access != AccessType.none and derivative_access != AccessType.none:
-            store_pair_derivative(x)
-        else:
-            if primal_access == AccessType.write or primal_access == AccessType.readwrite:
-                store_p(x)
-            if derivative_access == AccessType.write or derivative_access == AccessType.readwrite:
-                store_d(x)
+    cg.kernel.append_statement(f"{fn}(context, call_data)")
 
     cg.kernel.end_block()
