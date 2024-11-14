@@ -63,33 +63,20 @@ class CallData(NativeCallData):
         super().__init__()
 
         try:
-
+            # These will be populated later
             bindings = None
             slang_function = None
-            function = func
 
+            # Read temps from function
+            function = func
             return_type = function.python_return_type
             positional_mapping = function.map_args or ()
             keyword_mapping = function.map_kwargs or {}
-
-            self.vars = function.uniform_values.copy() if function.uniform_values is not None else {}
-            if function.uniform_callbacks is not None:
-                for x in function.uniform_callbacks:
-                    self.vars.update(x(self))
-
-            self.call_mode = function.mode
-
-            if function.before_dispatch is not None:
-                for x in function.before_dispatch:
-                    self.add_before_dispatch_hook(x)
-
-            if function.after_dispatch is not None:
-                for x in function.after_dispatch:
-                    self.add_after_dispatch_hook(x)
-
             type_conformances = function.type_conformances or []
 
+            # Store layout and callmode from function
             self.layout = function.module.layout
+            self.call_mode = function.mode
 
             # Build 'unpacked' args (that handle IThis)
             unpacked_args = tuple([unpack_arg(x) for x in args])

@@ -3,7 +3,7 @@ import json
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
 
 from sgl import TypeReflection
-from kernelfunctions.backend.slangpynativeemulation import CallMode
+from kernelfunctions.backend.slangpynativeemulation import CallMode, NativeCallRuntimeOptions
 from kernelfunctions.core import hash_signature
 
 from kernelfunctions.backend import FunctionReflection, CommandBuffer, TypeConformance
@@ -218,7 +218,12 @@ class Function:
             if self.this:
                 args = (self.this,)+args
             calldata = self._build_call_data(*args, **kwargs)
-            return calldata.call(*args, **kwargs)
+            opts = NativeCallRuntimeOptions()
+            opts.after_dispatch = self.after_dispatch
+            opts.before_dispatch = self.before_dispatch
+            opts.uniform_callbacks = self.uniform_callbacks
+            opts.uniform_values = self.uniform_values
+            return calldata.call(opts, *args, **kwargs)
         except ValueError as e:
             self._handle_error(e, calldata)
 
@@ -228,7 +233,12 @@ class Function:
             if self.this:
                 args = (self.this,)+args
             calldata = self._build_call_data(*args, **kwargs)
-            return calldata.append_to(command_buffer, *args, **kwargs)
+            opts = NativeCallRuntimeOptions()
+            opts.after_dispatch = self.after_dispatch
+            opts.before_dispatch = self.before_dispatch
+            opts.uniform_callbacks = self.uniform_callbacks
+            opts.uniform_values = self.uniform_values
+            return calldata.append_to(opts, command_buffer, *args, **kwargs)
         except ValueError as e:
             self._handle_error(e, calldata)
 
