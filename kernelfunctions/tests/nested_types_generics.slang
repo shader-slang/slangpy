@@ -15,10 +15,10 @@ struct _a
     _a__y y;
     _a__z z;
 
-    void load_primal(Context1D context, out primal_type value) {
-        x.load_primal(context, value.x);
-        y.load_primal(context, value.y);
-        z.load_primal(context, value.z);
+    void load(Context1D context, out primal_type value) {
+        x.load(context, value.x);
+        y.load(context, value.y);
+        z.load(context, value.z);
      }
 }
 
@@ -59,11 +59,11 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID)
     };
     Context context = { dispatchThreadID, call_id };
     float3 a;
-    call_data.a.load_primal(context, a);
+    call_data.a.load(context, a);
     float3 b;
-    call_data.b.load_primal(context, b);
+    call_data.b.load(context, b);
     float3 _result;
     _trampoline(a, b, _result);
-    call_data._result.store_primal(context,_result);
+    call_data._result.store(context,_result);
 }
 

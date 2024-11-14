@@ -57,70 +57,70 @@ public struct ImplicitCast<N>
 
 public struct NoneType
 {
-    public void load_primal<T, let N : int>(ContextND<N> context, out T value) { value = T();}
-    public void store_primal<T, let N : int>(ContextND<N> context, in T value) {};
+    public void load<T, let N : int>(ContextND<N> context, out T value) { value = T();}
+    public void store<T, let N : int>(ContextND<N> context, in T value) {};
 }
 
 public struct ValueType<T>
 {
     T value;
-    public void load_primal(Context0D context, out T value) { value = this.value; }
-    public void store_primal(Context0D context, in T value) {};
+    public void load(Context0D context, out T value) { value = this.value; }
+    public void store(Context0D context, in T value) {};
 }
 
 public struct StructuredBufferType<T>
 {
     StructuredBuffer<T> value;
 
-    public void load_primal(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
-    public void store_primal(Context1D context, in T value) {};
+    public void load(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
+    public void store(Context1D context, in T value) {};
 
-    public void load_primal(Context0D context, out StructuredBuffer<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in StructuredBuffer<T> value) {};
+    public void load(Context0D context, out StructuredBuffer<T> value) { value = this.value; }
+    public void store(Context0D context, in StructuredBuffer<T> value) {};
 }
 
 public struct RWStructuredBufferType<T> {
     RWStructuredBuffer<T> value;
-    public void load_primal(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
-    public void store_primal(Context1D context, in T value) { this.value[context.call_id[0]] = value; };
+    public void load(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
+    public void store(Context1D context, in T value) { this.value[context.call_id[0]] = value; };
 
-    public void load_primal(Context0D context, out RWStructuredBuffer<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in RWStructuredBuffer<T> value) {};
+    public void load(Context0D context, out RWStructuredBuffer<T> value) { value = this.value; }
+    public void store(Context0D context, in RWStructuredBuffer<T> value) {};
 }
 
 public struct Texture1DType<T> {
     Texture1D<T> value;
-    public void load_primal(Context1D context, out T value) { value = this.value[context.call_id_vec]; }
-    public void store_primal(Context1D context, in T value) {};
+    public void load(Context1D context, out T value) { value = this.value[context.call_id_vec]; }
+    public void store(Context1D context, in T value) {};
 
-    public void load_primal(Context0D context, out Texture1D<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in Texture1D<T> value) {};
+    public void load(Context0D context, out Texture1D<T> value) { value = this.value; }
+    public void store(Context0D context, in Texture1D<T> value) {};
 }
 
 public struct RWTexture1DType<T> {
     RWTexture1D<T> value;
-    public void load_primal(Context1D context, out T value) { value = this.value[context.call_id_vec]; }
-    public void store_primal(Context1D context, in T value) { this.value[context.call_id_vec] = value;};
+    public void load(Context1D context, out T value) { value = this.value[context.call_id_vec]; }
+    public void store(Context1D context, in T value) { this.value[context.call_id_vec] = value;};
 
-    public void load_primal(Context0D context, out RWTexture1D<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in RWTexture1D<T> value) {};
+    public void load(Context0D context, out RWTexture1D<T> value) { value = this.value; }
+    public void store(Context0D context, in RWTexture1D<T> value) {};
 }
 
 public struct Texture2DType<T> {
     Texture2D<T> value;
-    public void load_primal(Context2D context, out T value) { value = this.value[context.call_id_vec]; }
-    public void store_primal(Context2D context, in T value) {};
+    public void load(Context2D context, out T value) { value = this.value[context.call_id_vec]; }
+    public void store(Context2D context, in T value) {};
 
-    public void load_primal(Context0D context, out Texture2D<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in Texture2D<T> value) {};
+    public void load(Context0D context, out Texture2D<T> value) { value = this.value; }
+    public void store(Context0D context, in Texture2D<T> value) {};
 }
 public struct RWTexture2DType<T> {
     RWTexture2D<T> value;
-    public void load_primal(Context2D context, out T value) { value = this.value[context.call_id_vec]; }
-    public void store_primal(Context2D context, in T value) { this.value[context.call_id_vec] = value;};
+    public void load(Context2D context, out T value) { value = this.value[context.call_id_vec]; }
+    public void store(Context2D context, in T value) { this.value[context.call_id_vec] = value;};
 
-    public void load_primal(Context0D context, out RWTexture2D<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in RWTexture2D<T> value) {};
+    public void load(Context0D context, out RWTexture2D<T> value) { value = this.value; }
+    public void store(Context0D context, in RWTexture2D<T> value) {};
 }
 
 public struct Texture1DArrayType<T> {
@@ -129,39 +129,39 @@ public struct Texture1DArrayType<T> {
     int2 toidx(Context2D context) { return context.call_id_vec.yx; }
 
     Texture1DArray<T> value;
-    public void load_primal(Context2D context, out T value) { value = this.value[toidx(context)]; }
-    public void store_primal(Context2D context, in T value) {};
+    public void load(Context2D context, out T value) { value = this.value[toidx(context)]; }
+    public void store(Context2D context, in T value) {};
 
-    public void load_primal(Context0D context, out Texture1DArray<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in Texture1DArray<T> value) {};
+    public void load(Context0D context, out Texture1DArray<T> value) { value = this.value; }
+    public void store(Context0D context, in Texture1DArray<T> value) {};
 }
 public struct RWTexture1DArrayType<T> {
     // Map with the first index as the x coordinate and the second index as the array slice
     int2 toidx(Context2D context) { return context.call_id_vec.yx; }
 
     RWTexture1DArray<T> value;
-    public void load_primal(Context2D context, out T value) { value = this.value[toidx(context)]; }
-    public void store_primal(Context2D context, in T value) { this.value[toidx(context)] = value;};
+    public void load(Context2D context, out T value) { value = this.value[toidx(context)]; }
+    public void store(Context2D context, in T value) { this.value[toidx(context)] = value;};
 
-    public void load_primal(Context0D context, out RWTexture1DArray<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in RWTexture1DArray<T> value) {};
+    public void load(Context0D context, out RWTexture1DArray<T> value) { value = this.value; }
+    public void store(Context0D context, in RWTexture1DArray<T> value) {};
 }
 
 public struct Texture3DType<T> {
     Texture3D<T> value;
-    public void load_primal(Context3D context, out T value) { value = this.value[context.call_id_vec]; }
-    public void store_primal(Context3D context, in T value) {};
+    public void load(Context3D context, out T value) { value = this.value[context.call_id_vec]; }
+    public void store(Context3D context, in T value) {};
 
-    public void load_primal(Context0D context, out Texture3D<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in Texture3D<T> value) {};
+    public void load(Context0D context, out Texture3D<T> value) { value = this.value; }
+    public void store(Context0D context, in Texture3D<T> value) {};
 }
 public struct RWTexture3DType<T> {
     RWTexture3D<T> value;
-    public void load_primal(Context3D context, out T value) { value = this.value[context.call_id_vec]; }
-    public void store_primal(Context3D context, in T value) { this.value[context.call_id_vec] = value;};
+    public void load(Context3D context, out T value) { value = this.value[context.call_id_vec]; }
+    public void store(Context3D context, in T value) { this.value[context.call_id_vec] = value;};
 
-    public void load_primal(Context0D context, out RWTexture3D<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in RWTexture3D<T> value) {};
+    public void load(Context0D context, out RWTexture3D<T> value) { value = this.value; }
+    public void store(Context0D context, in RWTexture3D<T> value) {};
 }
 
 public struct Texture2DArrayType<T> {
@@ -169,36 +169,36 @@ public struct Texture2DArrayType<T> {
     int3 toidx(Context3D context) { return context.call_id_vec.yzx; }
 
     Texture2DArray<T> value;
-    public void load_primal(Context3D context, out T value) { value = this.value[toidx(context)]; }
-    public void store_primal(Context3D context, in T value) {};
+    public void load(Context3D context, out T value) { value = this.value[toidx(context)]; }
+    public void store(Context3D context, in T value) {};
 
-    public void load_primal(Context0D context, out Texture2DArray<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in Texture2DArray<T> value) {};
+    public void load(Context0D context, out Texture2DArray<T> value) { value = this.value; }
+    public void store(Context0D context, in Texture2DArray<T> value) {};
 }
 public struct RWTexture2DArrayType<T> {
     // slice is 0, xy are 1,2
     int3 toidx(Context3D context) { return context.call_id_vec.yzx; }
 
     RWTexture2DArray<T> value;
-    public void load_primal(Context3D context, out T value) { value = this.value[toidx(context)]; }
-    public void store_primal(Context3D context, in T value) { this.value[toidx(context)] = value;};
+    public void load(Context3D context, out T value) { value = this.value[toidx(context)]; }
+    public void store(Context3D context, in T value) { this.value[toidx(context)] = value;};
 
-    public void load_primal(Context0D context, out RWTexture2DArray<T> value) { value = this.value; }
-    public void store_primal(Context0D context, in RWTexture2DArray<T> value) {};
+    public void load(Context0D context, out RWTexture2DArray<T> value) { value = this.value; }
+    public void store(Context0D context, in RWTexture2DArray<T> value) {};
 }
 
 public struct ValueRef<T>
 {
     T value;
-    public void load_primal(Context0D context, out T value) { value = this.value; }
-    public void store_primal(Context0D context, in T value) {};
+    public void load(Context0D context, out T value) { value = this.value; }
+    public void store(Context0D context, in T value) {};
 }
 
 public struct RWValueRef<T>
 {
     RWStructuredBuffer<T> value;
-    public void load_primal(Context0D context, out T value) { value = this.value[0]; }
-    public void store_primal(Context0D context, in T value) { this.value[0] = value; }
+    public void load(Context0D context, out T value) { value = this.value[0]; }
+    public void store(Context0D context, in T value) { this.value[0] = value; }
 }
 
 public struct NDBuffer<T, let N : int>
@@ -209,20 +209,20 @@ public struct NDBuffer<T, let N : int>
     public T get(int[N] index) { return buffer[_idx(index, strides)]; }
     public __subscript(int[N] index)->T { get { return get(index); } }
 
-    public void load_primal(ContextND<N> context, out T value) { value = get(context.call_id); }
-    public void store_primal(ContextND<N> context, in T value) {};
+    public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
+    public void store(ContextND<N> context, in T value) {};
 
-    public void load_primal(Context0D context, out NDBuffer<T,N> value) {
+    public void load(Context0D context, out NDBuffer<T,N> value) {
         value = this;
     }
-    public void store_primal(Context0D context, in NDBuffer<T, N> value) {};
+    public void store(Context0D context, in NDBuffer<T, N> value) {};
 
-    public void load_primal(Context0D context, out StructuredBuffer<T> value) {
+    public void load(Context0D context, out StructuredBuffer<T> value) {
         value = buffer;
     }
-    public void store_primal(Context0D context, in StructuredBuffer<T> value) {};
+    public void store(Context0D context, in StructuredBuffer<T> value) {};
 
-    public void load_primal<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
+    public void load<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
 
         int call_id[N];
         for (int i = 0; i < N - 1; i++) { call_id[i] = context.call_id[i]; }
@@ -233,7 +233,7 @@ public struct NDBuffer<T, let N : int>
         }
     }
 
-    public void store_primal<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {}
+    public void store<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {}
 }
 
 public struct RWNDBuffer<T, let N : int>
@@ -246,15 +246,15 @@ public struct RWNDBuffer<T, let N : int>
 
     public __subscript(int[N] index)->T { get { return get(index); } set { set(index, newValue); } }
 
-    public void load_primal(ContextND<N> context, out T value) { value = get(context.call_id); }
-    public void store_primal(ContextND<N> context, in T value) { set(context.call_id, value); }
+    public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
+    public void store(ContextND<N> context, in T value) { set(context.call_id, value); }
 
-    public void load_primal(Context0D context, out RWNDBuffer<T, N> value) {
+    public void load(Context0D context, out RWNDBuffer<T, N> value) {
         value = this;
     }
-    public void store_primal(Context0D context, in RWNDBuffer<T, N> value) {};
+    public void store(Context0D context, in RWNDBuffer<T, N> value) {};
 
-    public void load_primal<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
+    public void load<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
         int call_id[N];
         for (int i = 0; i < N-1; i++) { call_id[i] = context.call_id[i]; }
         
@@ -264,7 +264,7 @@ public struct RWNDBuffer<T, let N : int>
         }
     }
 
-    public void store_primal<let VD : int>(ContextND<N - 1> context, in vector<T, VD> value) {
+    public void store<let VD : int>(ContextND<N - 1> context, in vector<T, VD> value) {
         int call_id[N];
         for (int i = 0; i < N - 1; i++) { call_id[i] = context.call_id[i]; }
 

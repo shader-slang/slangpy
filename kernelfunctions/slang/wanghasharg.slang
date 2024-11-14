@@ -15,7 +15,7 @@ struct WangHashArg<let N : int> {
 
     uint seed;
 
-    void load_primal(Context0D context, out T value) {
+    void load(Context0D context, out T value) {
         var tid = context.thread_id;
         var hash = tid.x ^ seed; 
         for (int i = 0; i < N; i++) {
@@ -23,5 +23,5 @@ struct WangHashArg<let N : int> {
             value[i] = hash;
         }
     }
-    void store_primal(Context0D context, in T value) {};
+    void store(Context0D context, in T value) {};
 }

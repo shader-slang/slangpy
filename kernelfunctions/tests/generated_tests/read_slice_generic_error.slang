@@ -17,10 +17,17 @@ struct __result
 {
     RWNDBuffer<float,1> primal;
     NoneType derivative;
-    void load_primal(Context1D context, out float value) { primal.load_primal(context, value); }
-    void store_primal(Context1D context, in float value) { primal.store_primal(context, value); }
-    void load_derivative(Context1D context, out float value) { derivative.load_primal(context, value); }
-    void store_derivative(Context1D context, in float value) { derivative.store_primal(context, value); }
+    [Differentiable, BackwardDerivative(load_bwd)]
+    void load(Context1D context, out float value) { primal.load(context, value); }
+    void load_bwd(Context1D context, in float value) { derivative.store(context, value); }
+    
+    [Differentiable, BackwardDerivative(store_bwd)]
+    void store(Context1D context, in float value) { primal.store(context, value); }
+    void store_bwd(Context1D context, inout DifferentialPair<float> value) {
+        float grad;
+        derivative.load(context, grad);
+        value = diffPair(value.p, grad);
+    }
 }
 
 struct CallData
@@ -56,11 +63,11 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID)
     };
     Context context = { dispatchThreadID, call_id };
     vector<int,2> index;
-    call_data.index.load_primal(context,index);
+    call_data.index.load(context.map(0),index);
     NDBuffer<float,2> texture;
-    call_data.texture.load_primal(context,texture);
+    call_data.texture.load(context,texture);
     float _result;
     _trampoline(index, texture, _result);
-    call_data._result.store_primal(context,_result);
+    call_data._result.store(context,_result);
 }
 
