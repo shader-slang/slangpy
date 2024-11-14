@@ -283,6 +283,15 @@ class NativeBoundVariableRuntime:
                 return self.python_type.read_output(context, self, data)
 
 
+class NativeCallRuntimeOptions:
+    def __init__(self):
+        super().__init__()
+        self.uniforms: Optional[list[Union[Callable[[
+            'NativeCallData'], Any], dict[str, Any]]]] = None
+        self.before_dispatch: Optional[list[TDispatchHook]] = None
+        self.after_dispatch: Optional[list[TDispatchHook]] = None
+
+
 class NativeCallData:
     """
     Native base for CallData
@@ -294,25 +303,16 @@ class NativeCallData:
         self.kernel: ComputeKernel = None  # type: ignore
         self.call_dimensionality = 0
         self.runtime: NativeBoundCallRuntime = None  # type: ignore
-        self.vars: dict[str, Any] = {}
         self.call_mode = CallMode.prim
-        self.before_dispatch_hooks: list[TDispatchHook] = []
-        self.after_dispatch_hooks: list[TDispatchHook] = []
         self.last_call_shape = Shape()
 
-    def add_before_dispatch_hook(self, hook: TDispatchHook):
-        self.before_dispatch_hooks.append(hook)
+    def call(self, opts: 'NativeCallRuntimeOptions', *args: Any, **kwargs: Any):
+        return self.exec(opts, None, *args, **kwargs)
 
-    def add_after_dispatch_hook(self, hook: TDispatchHook):
-        self.after_dispatch_hooks.append(hook)
+    def append_to(self, opts: NativeCallRuntimeOptions, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+        return self.exec(opts, command_buffer, *args, **kwargs)
 
-    def call(self, *args: Any, **kwargs: Any):
-        return self.exec(None, *args, **kwargs)
-
-    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
-        return self.exec(command_buffer, *args, **kwargs)
-
-    def exec(self, command_buffer: Optional[CommandBuffer],  *args: Any, **kwargs: Any):
+    def exec(self, opts: 'NativeCallRuntimeOptions', command_buffer: Optional[CommandBuffer],  *args: Any, **kwargs: Any):
 
         call_data = {}
         device = self.device
@@ -354,11 +354,17 @@ class NativeCallData:
             call_data["_call_dim"] = call_shape.as_list()
         call_data["_thread_count"] = uint3(total_threads, 1, 1)
 
-        vars = self.vars.copy()
+        vars = {}
+        if opts.uniforms is not None:
+            for u in opts.uniforms:
+                if isinstance(u, dict):
+                    vars.update(u)
+                else:
+                    vars.update(u(self))
         vars['call_data'] = call_data
 
-        if self.before_dispatch_hooks is not None:
-            for hook in self.before_dispatch_hooks:
+        if opts.before_dispatch is not None:
+            for hook in opts.before_dispatch:
                 hook(vars)
 
         # Dispatch the kernel.
@@ -368,8 +374,8 @@ class NativeCallData:
         if command_buffer is not None:
             return
 
-        if self.after_dispatch_hooks is not None:
-            for hook in self.after_dispatch_hooks:
+        if opts.after_dispatch is not None:
+            for hook in opts.after_dispatch:
                 hook(vars)
 
         self.runtime.read_call_data_post_dispatch(

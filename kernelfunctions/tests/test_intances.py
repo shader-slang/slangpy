@@ -51,7 +51,7 @@ def test_this_interface(device_type: DeviceType):
     this = ThisType(buffer)
 
     # Extend the Particle.reset function with the this interface and call it
-    Particle_reset = Particle.reset.instance(this)
+    Particle_reset = Particle.reset.bind(this)
     Particle_reset(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
@@ -93,7 +93,7 @@ def test_this_interface_soa(device_type: DeviceType):
     })
 
     # Extend the Particle.reset function with the this interface and call it
-    Particle_reset = Particle.reset.instance(this)
+    Particle_reset = Particle.reset.bind(this)
     Particle_reset(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated

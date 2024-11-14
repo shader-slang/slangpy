@@ -3,7 +3,7 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from kernelfunctions.backend import SlangCompileError, TypeConformance
+from kernelfunctions.backend import SlangCompileError
 from kernelfunctions.core import CallMode, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException
 
 from kernelfunctions.callsignature import (
@@ -25,8 +25,7 @@ from kernelfunctions.core.logging import bound_call_table, bound_exception_info,
 from kernelfunctions.core.reflection import SlangFunction
 
 if TYPE_CHECKING:
-    from kernelfunctions.function import FunctionChainBase
-    from kernelfunctions.shapes import TShapeOrTuple
+    from kernelfunctions.function import Function
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
 
@@ -56,69 +55,27 @@ def pack_arg(arg: Any, unpacked_arg: Any):
 class CallData(NativeCallData):
     def __init__(
         self,
-        chain: list["FunctionChainBase"],
+        func: "Function",
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__()
 
         try:
-
-            from kernelfunctions.function import (
-                Function,
-                FunctionChainBwdsDiff,
-                FunctionChainOutputTransform,
-                FunctionChainSet,
-                FunctionChainHook,
-                FunctionChainReturnType,
-                FunctionChainMap,
-                FunctionChainTypeConformance
-            )
+            # These will be populated later
             bindings = None
             slang_function = None
 
-            if not isinstance(chain[0], Function):
-                raise KernelGenException("First entry in chain should be a function")
-            self.call_mode = CallMode.prim
+            # Read temps from function
+            function = func
+            return_type = function.python_return_type
+            positional_mapping = function.map_args or ()
+            keyword_mapping = function.map_kwargs or {}
+            type_conformances = function.type_conformances or []
 
-            function = chain[0]
-            chain = chain
-            outut_transforms: dict[str, 'TShapeOrTuple'] = {}
-            return_type = None
-            positional_mapping = ()
-            keyword_mapping = {}
-            type_conformances: list[TypeConformance] = []
-
-            sets = {}
-            for item in chain:
-                if isinstance(item, FunctionChainSet):
-                    if item.props is not None:
-                        sets.update(item.props)
-                    elif item.callback is not None:
-                        sets.update(item.callback(self))
-                    else:
-                        raise KernelGenException(
-                            "FunctionChainSet must have either a props or callback"
-                        )
-                if isinstance(item, FunctionChainOutputTransform):
-                    outut_transforms.update(item.transforms)
-                if isinstance(item, FunctionChainBwdsDiff):
-                    self.call_mode = CallMode.bwds
-                if isinstance(item, FunctionChainHook):
-                    if item.before_dispatch is not None:
-                        self.add_before_dispatch_hook(item.before_dispatch)
-                    if item.after_dispatch is not None:
-                        self.add_after_dispatch_hook(item.after_dispatch)
-                if isinstance(item, FunctionChainReturnType):
-                    return_type = item.return_type
-                if isinstance(item, FunctionChainMap):
-                    positional_mapping = item.args
-                    keyword_mapping = item.kwargs
-                if isinstance(item, FunctionChainTypeConformance):
-                    type_conformances += item.type_conformances
-
-            self.vars = sets
+            # Store layout and callmode from function
             self.layout = function.module.layout
+            self.call_mode = function.mode
 
             # Build 'unpacked' args (that handle IThis)
             unpacked_args = tuple([unpack_arg(x) for x in args])
@@ -126,7 +83,7 @@ class CallData(NativeCallData):
 
             # Setup context
             context = BindContext(self.layout, self.call_mode,
-                                  function.module.device_module, function.options)
+                                  function.module.device_module, function.options or {})
 
             # Build the unbound signature from inputs
             bindings = BoundCall(context, *unpacked_args, **unpacked_kwargs)

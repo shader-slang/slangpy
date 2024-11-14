@@ -2,6 +2,7 @@ from typing import Any, Optional
 import pytest
 from sgl import float4
 from kernelfunctions.backend import DeviceType, float3
+from kernelfunctions.backend.slangpynativeemulation import NativeCallRuntimeOptions
 from kernelfunctions.callsignature import BoundVariable
 import deepdiff
 
@@ -52,7 +53,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
         function = function.map(**transforms)
 
     call_data = function._build_call_data(a=a, b=b, _result=result)
-    call_data.call(a=a, b=b, _result=result)
+    call_data.call(NativeCallRuntimeOptions(), a=a, b=b, _result=result)
 
     nodes: list[BoundVariable] = []
     for node in call_data.debug_only_bindings.kwargs.values():
@@ -84,7 +85,8 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
 
     call_data = function._build_call_data(
         index=index, texture=texture, _result=result)
-    call_data.call(index=index, texture=texture, _result=result)
+    call_data.call(NativeCallRuntimeOptions(), index=index,
+                   texture=texture, _result=result)
 
     nodes: list[BoundVariable] = []
     for node in call_data.debug_only_bindings.kwargs.values():
@@ -116,7 +118,7 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
 
     call_data = function._build_call_data(
         index=index, fr=frombuffer, to=tobuffer)
-    call_data.call(index=index, fr=frombuffer, to=tobuffer)
+    call_data.call(NativeCallRuntimeOptions(), index=index, fr=frombuffer, to=tobuffer)
 
     nodes: list[BoundVariable] = []
     for node in call_data.debug_only_bindings.kwargs.values():
