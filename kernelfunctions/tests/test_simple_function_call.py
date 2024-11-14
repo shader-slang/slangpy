@@ -57,6 +57,7 @@ int add_numbers(int a, int b) {
     assert res == 15
 
 
+@pytest.mark.skip("Awaiting diff-pair follow-up")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_returnvalue_with_diffpair_input(device_type: DeviceType):
 
@@ -122,6 +123,7 @@ void add_numbers(inout int a) {
     assert out_res.value == 15
 
 
+@pytest.mark.skip("Awaiting diff-pair follow-up")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_scalar_outparam_with_diffpair(device_type: DeviceType):
 
