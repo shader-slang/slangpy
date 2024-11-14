@@ -9,7 +9,7 @@ def test_simple_int_buffer_elcount(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
-    buffer = NDDifferentiableBuffer(device, element_type=int, element_count=10)
+    buffer = NDDifferentiableBuffer(device, element_type=float, element_count=10)
     assert buffer.element_count == 10
     assert buffer.shape == (10,)
     assert buffer.strides == (1,)
@@ -22,7 +22,7 @@ def test_simple_int_buffer_shape(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
-    buffer = NDDifferentiableBuffer(device, element_type=int, shape=(10,))
+    buffer = NDDifferentiableBuffer(device, element_type=float, shape=(10,))
     assert buffer.element_count == 10
     assert buffer.shape == (10,)
     assert buffer.strides == (1,)
@@ -35,7 +35,7 @@ def test_2d_int_buffer(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
-    buffer = NDDifferentiableBuffer(device, element_type=int, shape=(10, 5))
+    buffer = NDDifferentiableBuffer(device, element_type=float, shape=(10, 5))
     assert buffer.element_count == 50
     assert buffer.shape == (10, 5)
     assert buffer.strides == (5, 1)
@@ -48,7 +48,7 @@ def test_3d_int_buffer(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
 
-    buffer = NDDifferentiableBuffer(device, element_type=int, shape=(8, 10, 5))
+    buffer = NDDifferentiableBuffer(device, element_type=float, shape=(8, 10, 5))
     assert buffer.element_count == 400
     assert buffer.shape == (8, 10, 5)
     assert buffer.strides == (50, 5, 1)
