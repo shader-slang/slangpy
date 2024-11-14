@@ -2,7 +2,6 @@
 
 from typing import Any, Optional, cast
 
-from kernelfunctions.bindings.diffpairtype import generate_differential_pair
 from kernelfunctions.bindings.valuetype import slang_type_to_return_type
 from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
@@ -120,12 +119,10 @@ class NDBufferMarshall(BaseNDBufferMarshall):
     def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
         super().__init__(layout, element_type, dims, writable)
 
-    # Values don't store a derivative - they're just a value
     @property
     def has_derivative(self) -> bool:
         return False
 
-    # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
         name = binding.variable_name
@@ -183,6 +180,35 @@ def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
 PYTHON_TYPES[NDBuffer] = create_vr_type_for_value
 
 
+def generate_differential_buffer(name: str, context: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: Optional[str]):
+    assert primal_storage
+    assert deriv_storage
+    assert primal_target
+    if deriv_target is None:
+        deriv_target = primal_target
+
+    DIFF_PAIR_CODE = f"""
+struct _t_{name}
+{{
+    {primal_storage} primal;
+    {deriv_storage} derivative;
+
+    [Differentiable, BackwardDerivative(load_bwd)]
+    void load({context} context, out {primal_target} value) {{ primal.load(context, value); }}
+    void load_bwd({context} context, {deriv_target} value) {{ derivative.store(context, value); }}
+
+    [Differentiable, BackwardDerivative(store_bwd)]
+    void store({context} context, {primal_target} value) {{ primal.store(context, value); }}
+    void store_bwd({context} context, inout DifferentialPair<{primal_target}> value) {{
+        {deriv_target} grad;
+        derivative.load(context, grad);
+        value = diffPair(value.p, grad);
+    }}
+}}
+"""
+    return DIFF_PAIR_CODE
+
+
 class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
 
     def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
@@ -225,11 +251,11 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
             assert binding.vector_type is not None
             primal_target = binding.vector_type.full_name
             deriv_target = binding.vector_type.full_name + ".Differential"
-            
+
             slang_context = f"ContextND<{binding.call_dimensionality}>"
 
-            cgb.append_code_indented(generate_differential_pair(name, slang_context, primal_storage,
-                                                                deriv_storage, primal_target, deriv_target))
+            cgb.append_code_indented(generate_differential_buffer(name, slang_context, primal_storage,
+                                                                  deriv_storage, primal_target, deriv_target))
 
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: NDDifferentiableBuffer) -> Any:
         if isinstance(binding.vector_type, NDBufferType):
