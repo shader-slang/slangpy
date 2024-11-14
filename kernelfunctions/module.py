@@ -13,13 +13,14 @@ if TYPE_CHECKING:
 
 
 class Module:
-    def __init__(self, device_module: SlangModule, options: dict[str, Any] = {}):
+    def __init__(self, device_module: SlangModule, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
         super().__init__()
         assert isinstance(device_module, SlangModule)
         self.device_module = device_module
         self.options = options
         self.layout = SlangProgramLayout(self.device_module.layout)
         self.call_data_cache: dict[str, 'CallData'] = {}
+        self.link = [x.module if isinstance(x, Module) else x for x in link]
 
     @property
     def name(self):
@@ -47,7 +48,10 @@ class Module:
     def find_function(self, name: str):
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
-            return Function(self, None, slang_function, options=self.options)
+            res = Function()
+            res.attach(module=self, func=slang_function,
+                       struct=None, options=self.options)
+            return res
 
     def find_function_in_struct(self, struct: Union[Struct, str], name: str):
         if isinstance(struct, str):
@@ -71,7 +75,10 @@ class Module:
             # Search for name as a child of this struct
             slang_function = self.layout.find_function_by_name(name)
             if slang_function is not None:
-                return Function(self, None, slang_function, options=self.options)
+                res = Function()
+                res.attach(module=self, func=slang_function,
+                           struct=None, options=self.options)
+                return res
 
             raise AttributeError(
                 f"Type '{self.device_module.name}' has no attribute '{name}'")

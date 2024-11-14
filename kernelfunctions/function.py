@@ -1,5 +1,9 @@
+from copy import copy
 import json
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
+
+from sgl import TypeReflection
+from kernelfunctions.backend.slangpynativeemulation import CallMode
 from kernelfunctions.core import hash_signature
 
 from kernelfunctions.backend import FunctionReflection, CommandBuffer, TypeConformance
@@ -35,13 +39,178 @@ class IThis(Protocol):
         ...
 
 
-class FunctionChainBase:
-    def __init__(self, parent: Optional["FunctionChainBase"], module: 'Module') -> None:
+# A callable kernel function. This assumes the function is in the root
+# of the module, however a parent in the abstract syntax tree can be provided
+# to search for the function in a specific scope.
+class Function:
+    def __init__(self) -> None:
         super().__init__()
+        self.module: 'Module'
+        self.slangpy_signature: Optional[str] = None
+        self.type_reflection: Optional['TypeReflection']
+        self.reflections: list['FunctionReflection']
+
+        # Static options that affect compilation, and thus the signature
+        self.map_args: Optional[tuple[Any]] = None
+        self.map_kwargs: Optional[dict[str, Any]] = None
+        self.options: Optional[dict[str, Any]] = None
+        self.type_conformances: Optional[list[TypeConformance]] = None
+        self.mode = CallMode.prim
+        self.python_return_type: Optional[type] = None
+
+        # Runtime options that affect dispatch only
+        self.this: Optional[IThis] = None
+        self.uniform_values: Optional[dict[str, Any]] = None
+        self.uniform_callbacks: Optional[list[Callable[['CallData'], Any]]] = None
+        self.before_dispatch: Optional[list[TDispatchHook]] = None
+        self.after_dispatch: Optional[list[TDispatchHook]] = None
+
+    def _copy(self) -> 'Function':
+        res = copy(self)
+        res.slangpy_signature = None
+        return res
+
+    def attach(self, module: 'Module', func: Union[str, kfr.SlangFunction], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
         self.module = module
-        self.parent = parent
-        self.this: Any = parent.this if parent is not None else None
-        self.slangpy_signature = f"{parent.slangpy_signature}." if parent is not None else ""
+
+        if isinstance(func, str):
+            if struct is None:
+                sf = module.layout.find_function_by_name(func)
+            else:
+                sf = module.layout.find_function_by_name_in_type(struct.struct, func)
+            if sf is None:
+                raise ValueError(f"Function '{func}' not found")
+            func = sf
+
+        if isinstance(func, kfr.SlangFunction):
+            func_reflections = [func.reflection]
+        else:
+            func_reflections = func
+
+        # Store function reflections (should normally be 1 unless forced to do AST based search)
+        self.reflections = func_reflections
+
+        # Store type parent name if found
+        if struct is not None:
+            self.type_reflection = struct.struct.type_reflection
+        else:
+            self.type_reflection = None
+
+        # Calc hash of input options for signature
+        self.options = options.copy()
+        if not 'implicit_element_casts' in self.options:
+            self.options['implicit_element_casts'] = True
+        if not 'implicit_tensor_casts' in self.options:
+            self.options['implicit_tensor_casts'] = True
+        if not 'strict_broadcasting' in self.options:
+            self.options['strict_broadcasting'] = True
+
+        # Generate signature for hashing
+        # type_parent = self.type_reflection.full_name if self.type_reflection is not None else None
+        # self.slangpy_signature = f"[{type_parent or ''}::{self.name},{options_hash}]"
+
+    def bind(self, this: IThis) -> 'Function':
+        res = self._copy()
+        res.this = this
+        return res
+
+    def map(self, *args: Any, **kwargs: Any):
+        res = self._copy()
+        res.map_args = args
+        res.map_kwargs = kwargs
+        return res
+
+    def set(self, *args: Any, **kwargs: Any):
+        res = self._copy()
+
+        if len(args) > 0 and len(kwargs) > 0:
+            raise ValueError(
+                "Set accepts either positional or keyword arguments, not both"
+            )
+        if len(args) > 1:
+            raise ValueError(
+                "Set accepts only one positional argument (a dictionary or callback)"
+            )
+
+        if len(kwargs) > 0:
+            res._add_uniform_values(kwargs)
+        elif len(args) > 0:
+            if callable(args[0]):
+                res._add_uniform_callback(args[0])
+            elif isinstance(args[0], dict):
+                res._add_uniform_values(args[0])
+            else:
+                raise ValueError(
+                    "Set requires a dictionary or callback as a single positional argument"
+                )
+        else:
+            raise ValueError("Set requires at least one argument")
+
+        return res
+
+    def _add_uniform_values(self, uniform_values: dict[str, Any]):
+        if self.uniform_values is None:
+            self.uniform_values = uniform_values
+        else:
+            self.uniform_values = copy(self.uniform_values)
+            self.uniform_values.update(uniform_values)
+
+    def _add_uniform_callback(self, uniform_callback: Callable[['CallData'], Any]):
+        if self.uniform_callbacks is None:
+            self.uniform_callbacks = [uniform_callback]
+        else:
+            self.uniform_callbacks = copy(self.uniform_callbacks)
+            self.uniform_callbacks.append(uniform_callback)
+
+    def type_conformance(self, type_conformances: list[TypeConformance]):
+        res = self._copy()
+        if res.type_conformances is None:
+            res.type_conformances = type_conformances
+        else:
+            res.type_conformances = copy(res.type_conformances)
+            res.type_conformances.extend(type_conformances)
+        return res
+
+    def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None):
+        res = self._copy()
+        if before_dispatch is not None:
+            if res.before_dispatch is None:
+                res.before_dispatch = [before_dispatch]
+            else:
+                res.before_dispatch = copy(res.before_dispatch)
+                res.before_dispatch.append(before_dispatch)
+        if after_dispatch is not None:
+            if res.after_dispatch is None:
+                res.after_dispatch = [after_dispatch]
+            else:
+                res.after_dispatch = copy(res.after_dispatch)
+                res.after_dispatch.append(after_dispatch)
+        return res
+
+    @property
+    def bwds_diff(self):
+        res = self._copy()
+        res.mode = CallMode.bwds
+        return res
+
+    def return_type(self, return_type: type):
+        res = self._copy()
+        res.python_return_type = return_type
+        return res
+
+    @property
+    def name(self):
+        r = self.reflections[0]
+        if r.is_overloaded:
+            return r.overloads[0].name
+        else:
+            return r.name
+
+    def as_func(self) -> 'Function':
+        return self
+
+    def as_struct(self) -> 'Struct':
+        raise ValueError("Cannot convert a function to a struct")
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
         calldata: Optional['CallData'] = None
@@ -74,31 +243,6 @@ class FunctionChainBase:
             f"Exception dispatching kernel: {msg}\n."
             f"{runtime_exception_info(calldata.runtime, [], source)}\n")  # type: ignore
 
-    @property
-    def bwds_diff(self):
-        return FunctionChainBwdsDiff(self)
-
-    def set(self, *args: Any, **kwargs: Any):
-        return FunctionChainSet(self, *args, **kwargs)
-
-    def transform_output(self, transforms: dict[str, TShapeOrTuple]):
-        return FunctionChainOutputTransform(self, transforms)
-
-    def map(self, *args: Any, **kwargs: Any):
-        return FunctionChainMap(self, *args, **kwargs)
-
-    def instance(self, this: IThis):
-        return FunctionChainThis(self, this)
-
-    def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None):
-        return FunctionChainHook(self, before_dispatch, after_dispatch)
-
-    def return_type(self, return_type: Any):
-        return FunctionChainReturnType(self, return_type)
-
-    def type_conformance(self, type_conformances: list[TypeConformance]):
-        return FunctionChainTypeConformance(self, type_conformances)
-
     def debug_build_call_data(self, *args: Any, **kwargs: Any):
         return self._build_call_data(*args, **kwargs)
 
@@ -106,6 +250,21 @@ class FunctionChainBase:
         return self.call(*args, **kwargs)
 
     def _build_call_data(self, *args: Any, **kwargs: Any):
+
+        if self.slangpy_signature is None:
+            lines = []
+            if self.type_reflection is not None:
+                lines.append(f"{self.type_reflection.full_name}::{self.name}")
+            else:
+                lines.append(self.name)
+            lines.append(str(self.options))
+            lines.append(str(self.map_args))
+            lines.append(str(self.map_kwargs))
+            lines.append(str(self.type_conformances))
+            lines.append(str(self.mode))
+            lines.append(str(self.python_return_type))
+            self.slangpy_signature = "\n".join(lines)
+
         sig = hash_signature(
             _cache_value_to_id, self, *args, **kwargs)
         if ENABLE_CALLDATA_CACHE and sig in self.module.call_data_cache:
@@ -114,154 +273,8 @@ class FunctionChainBase:
                 raise NameError("Cached CallData is linked to wrong device")
             return cd
 
-        chain = []
-        current = self
-        while current is not None:
-            chain.append(current)
-            current = current.parent
-        chain.reverse()
-
         from .calldata import CallData
-        res = CallData(chain, *args, **kwargs)
+        res = CallData(self, *args, **kwargs)
         if ENABLE_CALLDATA_CACHE:
             self.module.call_data_cache[sig] = res
         return res
-
-
-class FunctionChainMap(FunctionChainBase):
-    def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
-        super().__init__(parent, parent.module)
-        self.args = args
-        self.kwargs = kwargs
-
-
-class FunctionChainSet(FunctionChainBase):
-    def __init__(self, parent: FunctionChainBase, *args: Any, **kwargs: Any) -> None:
-        super().__init__(parent, parent.module)
-        self.props: Optional[dict[str, Any]] = None
-        self.callback: Optional[Callable] = None  # type: ignore
-
-        if len(args) > 0 and len(kwargs) > 0:
-            raise ValueError(
-                "Set accepts either positional or keyword arguments, not both"
-            )
-        if len(args) > 1:
-            raise ValueError(
-                "Set accepts only one positional argument (a dictionary or callback)"
-            )
-
-        if len(kwargs) > 0:
-            self.props = kwargs
-        elif len(args) > 0:
-            if callable(args[0]):
-                self.callback = args[0]
-            elif isinstance(args[0], dict):
-                self.props = args[0]
-            else:
-                raise ValueError(
-                    "Set requires a dictionary or callback as a single positional argument"
-                )
-        else:
-            raise ValueError("Set requires at least one argument")
-
-
-class FunctionChainOutputTransform(FunctionChainBase):
-    def __init__(
-        self, parent: FunctionChainBase, transforms: dict[str, TShapeOrTuple]
-    ) -> None:
-        super().__init__(parent, parent.module)
-        self.transforms = transforms
-
-
-class FunctionChainThis(FunctionChainBase):
-    def __init__(self, parent: FunctionChainBase, this: IThis) -> None:
-        super().__init__(parent, parent.module)
-        self.this = this
-
-
-class FunctionChainBwdsDiff(FunctionChainBase):
-    def __init__(self, parent: FunctionChainBase) -> None:
-        super().__init__(parent, parent.module)
-
-
-class FunctionChainHook(FunctionChainBase):
-    def __init__(self, parent: FunctionChainBase, before_dispatch: Optional[TDispatchHook], after_dispatch: Optional[TDispatchHook]) -> None:
-        super().__init__(parent, parent.module)
-        self.before_dispatch = before_dispatch
-        self.after_dispatch = after_dispatch
-
-
-class FunctionChainReturnType(FunctionChainBase):
-    def __init__(self, parent: FunctionChainBase, return_type: Any) -> None:
-        super().__init__(parent, parent.module)
-        self.return_type = return_type
-
-
-class FunctionChainTypeConformance(FunctionChainBase):
-    def __init__(self, parent: FunctionChainBase, type_conformances: list[TypeConformance]) -> None:
-        super().__init__(parent, parent.module)
-        self.type_conformances = type_conformances
-        self.slangpy_signature += f"[{','.join([str(tc) for tc in type_conformances])}]"
-
-# A callable kernel function. This assumes the function is in the root
-# of the module, however a parent in the abstract syntax tree can be provided
-# to search for the function in a specific scope.
-
-
-class Function(FunctionChainBase):
-    def __init__(
-        self,
-        module: 'Module',
-        struct: Optional['Struct'],
-        func: Union[str, list[FunctionReflection], kfr.SlangFunction],
-        options: dict[str, Any] = {},
-    ) -> None:
-        super().__init__(None, module)
-        self.module = module
-        self.options = options
-
-        if isinstance(func, str):
-            if struct is None:
-                sf = module.layout.find_function_by_name(func)
-            else:
-                sf = module.layout.find_function_by_name_in_type(struct.struct, func)
-            if sf is None:
-                raise ValueError(f"Function '{func}' not found")
-            func = sf
-
-        if isinstance(func, kfr.SlangFunction):
-            func_reflections = [func.reflection]
-        else:
-            func_reflections = func
-
-        # Store function reflections (should normally be 1 unless forced to do AST based search)
-        self.reflections = func_reflections
-
-        # Store type parent name if found
-        if struct is not None:
-            self.type_reflection = struct.struct.type_reflection
-        else:
-            self.type_reflection = None
-
-        # Calc hash of input options for signature
-        if not 'implicit_element_casts' in self.options:
-            self.options['implicit_element_casts'] = True
-        if not 'implicit_tensor_casts' in self.options:
-            self.options['implicit_tensor_casts'] = True
-        if not 'strict_broadcasting' in self.options:
-            self.options['strict_broadcasting'] = True
-        options_hash = json.dumps(self.options)
-
-        # Generate signature for hashing
-        type_parent = self.type_reflection.full_name if self.type_reflection is not None else None
-        self.slangpy_signature = f"[{type_parent or ''}::{self.name},{options_hash}]"
-
-    @property
-    def name(self):
-        return self.reflections[0].name
-
-    def as_func(self) -> 'Function':
-        return self
-
-    def as_struct(self) -> 'Struct':
-        raise ValueError("Cannot convert a function to a struct")

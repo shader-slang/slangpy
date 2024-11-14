@@ -1,7 +1,7 @@
 
 
 from typing import Any, Optional
-from kernelfunctions.function import Function, FunctionChainBase
+from kernelfunctions.function import Function
 from kernelfunctions.struct import Struct
 from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 import numpy.typing as npt
@@ -12,7 +12,7 @@ class InstanceList:
         super().__init__()
         if data is None:
             data = {}
-        self._loaded_functions: dict[str, FunctionChainBase] = {}
+        self._loaded_functions: dict[str, Function] = {}
         self.set_data(data)
         self._struct = struct
         self._init = self._try_load_func("__init")
@@ -55,7 +55,7 @@ class InstanceList:
         func = self._struct.try_get_child(name)
         if isinstance(func, Function):
             if name != "__init":
-                func = func.instance(self)
+                func = func.bind(self)
             self._loaded_functions[name] = func
             return func
         else:

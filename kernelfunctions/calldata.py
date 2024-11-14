@@ -25,7 +25,7 @@ from kernelfunctions.core.logging import bound_call_table, bound_exception_info,
 from kernelfunctions.core.reflection import SlangFunction
 
 if TYPE_CHECKING:
-    from kernelfunctions.function import FunctionChainBase
+    from kernelfunctions.function import Function
     from kernelfunctions.shapes import TShapeOrTuple
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
@@ -56,7 +56,7 @@ def pack_arg(arg: Any, unpacked_arg: Any):
 class CallData(NativeCallData):
     def __init__(
         self,
-        chain: list["FunctionChainBase"],
+        func: "Function",
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -64,60 +64,31 @@ class CallData(NativeCallData):
 
         try:
 
-            from kernelfunctions.function import (
-                Function,
-                FunctionChainBwdsDiff,
-                FunctionChainOutputTransform,
-                FunctionChainSet,
-                FunctionChainHook,
-                FunctionChainReturnType,
-                FunctionChainMap,
-                FunctionChainTypeConformance
-            )
             bindings = None
             slang_function = None
+            function = func
 
-            if not isinstance(chain[0], Function):
-                raise KernelGenException("First entry in chain should be a function")
-            self.call_mode = CallMode.prim
+            return_type = function.python_return_type
+            positional_mapping = function.map_args or ()
+            keyword_mapping = function.map_kwargs or {}
 
-            function = chain[0]
-            chain = chain
-            outut_transforms: dict[str, 'TShapeOrTuple'] = {}
-            return_type = None
-            positional_mapping = ()
-            keyword_mapping = {}
-            type_conformances: list[TypeConformance] = []
+            self.vars = function.uniform_values.copy() if function.uniform_values is not None else {}
+            if function.uniform_callbacks is not None:
+                for x in function.uniform_callbacks:
+                    self.vars.update(x(self))
 
-            sets = {}
-            for item in chain:
-                if isinstance(item, FunctionChainSet):
-                    if item.props is not None:
-                        sets.update(item.props)
-                    elif item.callback is not None:
-                        sets.update(item.callback(self))
-                    else:
-                        raise KernelGenException(
-                            "FunctionChainSet must have either a props or callback"
-                        )
-                if isinstance(item, FunctionChainOutputTransform):
-                    outut_transforms.update(item.transforms)
-                if isinstance(item, FunctionChainBwdsDiff):
-                    self.call_mode = CallMode.bwds
-                if isinstance(item, FunctionChainHook):
-                    if item.before_dispatch is not None:
-                        self.add_before_dispatch_hook(item.before_dispatch)
-                    if item.after_dispatch is not None:
-                        self.add_after_dispatch_hook(item.after_dispatch)
-                if isinstance(item, FunctionChainReturnType):
-                    return_type = item.return_type
-                if isinstance(item, FunctionChainMap):
-                    positional_mapping = item.args
-                    keyword_mapping = item.kwargs
-                if isinstance(item, FunctionChainTypeConformance):
-                    type_conformances += item.type_conformances
+            self.call_mode = function.mode
 
-            self.vars = sets
+            if function.before_dispatch is not None:
+                for x in function.before_dispatch:
+                    self.add_before_dispatch_hook(x)
+
+            if function.after_dispatch is not None:
+                for x in function.after_dispatch:
+                    self.add_after_dispatch_hook(x)
+
+            type_conformances = function.type_conformances or []
+
             self.layout = function.module.layout
 
             # Build 'unpacked' args (that handle IThis)
@@ -126,7 +97,7 @@ class CallData(NativeCallData):
 
             # Setup context
             context = BindContext(self.layout, self.call_mode,
-                                  function.module.device_module, function.options)
+                                  function.module.device_module, function.options or {})
 
             # Build the unbound signature from inputs
             bindings = BoundCall(context, *unpacked_args, **unpacked_kwargs)
