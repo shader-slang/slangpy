@@ -286,8 +286,8 @@ class NativeBoundVariableRuntime:
 class NativeCallRuntimeOptions:
     def __init__(self):
         super().__init__()
-        self.uniform_values: Optional[dict[str, Any]] = None
-        self.uniform_callbacks: Optional[list[Callable[['NativeCallData'], Any]]] = None
+        self.uniforms: Optional[list[Union[Callable[[
+            'NativeCallData'], Any], dict[str, Any]]]] = None
         self.before_dispatch: Optional[list[TDispatchHook]] = None
         self.after_dispatch: Optional[list[TDispatchHook]] = None
 
@@ -354,10 +354,13 @@ class NativeCallData:
             call_data["_call_dim"] = call_shape.as_list()
         call_data["_thread_count"] = uint3(total_threads, 1, 1)
 
-        vars = opts.uniform_values.copy() if opts.uniform_values is not None else {}
-        if opts.uniform_callbacks is not None:
-            for cb in opts.uniform_callbacks:
-                vars.update(cb(self))
+        vars = {}
+        if opts.uniforms is not None:
+            for u in opts.uniforms:
+                if isinstance(u, dict):
+                    vars.update(u)
+                else:
+                    vars.update(u(self))
         vars['call_data'] = call_data
 
         if opts.before_dispatch is not None:

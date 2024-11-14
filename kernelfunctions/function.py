@@ -1,5 +1,4 @@
 from copy import copy
-import json
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
 
 from sgl import TypeReflection
@@ -8,7 +7,6 @@ from kernelfunctions.core import hash_signature
 
 from kernelfunctions.backend import FunctionReflection, CommandBuffer, TypeConformance
 from kernelfunctions.core.logging import runtime_exception_info
-from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
 import kernelfunctions.core.reflection as kfr
@@ -60,8 +58,8 @@ class Function:
 
         # Runtime options that affect dispatch only
         self.this: Optional[IThis] = None
-        self.uniform_values: Optional[dict[str, Any]] = None
-        self.uniform_callbacks: Optional[list[Callable[['CallData'], Any]]] = None
+        self.uniforms: Optional[list[Union[Callable[[
+            'CallData'], Any], dict[str, Any]]]] = None
         self.before_dispatch: Optional[list[TDispatchHook]] = None
         self.after_dispatch: Optional[list[TDispatchHook]] = None
 
@@ -149,18 +147,18 @@ class Function:
         return res
 
     def _add_uniform_values(self, uniform_values: dict[str, Any]):
-        if self.uniform_values is None:
-            self.uniform_values = uniform_values
+        if self.uniforms is None:
+            self.uniforms = [uniform_values]
         else:
-            self.uniform_values = copy(self.uniform_values)
-            self.uniform_values.update(uniform_values)
+            self.uniforms = copy(self.uniforms)
+            self.uniforms.append(uniform_values)
 
     def _add_uniform_callback(self, uniform_callback: Callable[['CallData'], Any]):
-        if self.uniform_callbacks is None:
-            self.uniform_callbacks = [uniform_callback]
+        if self.uniforms is None:
+            self.uniforms = [uniform_callback]
         else:
-            self.uniform_callbacks = copy(self.uniform_callbacks)
-            self.uniform_callbacks.append(uniform_callback)
+            self.uniforms = copy(self.uniforms)
+            self.uniforms.append(uniform_callback)
 
     def type_conformance(self, type_conformances: list[TypeConformance]):
         res = self._copy()
@@ -221,8 +219,7 @@ class Function:
             opts = NativeCallRuntimeOptions()
             opts.after_dispatch = self.after_dispatch
             opts.before_dispatch = self.before_dispatch
-            opts.uniform_callbacks = self.uniform_callbacks
-            opts.uniform_values = self.uniform_values
+            opts.uniforms = self.uniforms  # type: ignore
             return calldata.call(opts, *args, **kwargs)
         except ValueError as e:
             self._handle_error(e, calldata)
@@ -236,8 +233,7 @@ class Function:
             opts = NativeCallRuntimeOptions()
             opts.after_dispatch = self.after_dispatch
             opts.before_dispatch = self.before_dispatch
-            opts.uniform_callbacks = self.uniform_callbacks
-            opts.uniform_values = self.uniform_values
+            opts.uniforms = self.uniforms  # type: ignore
             return calldata.append_to(opts, command_buffer, *args, **kwargs)
         except ValueError as e:
             self._handle_error(e, calldata)

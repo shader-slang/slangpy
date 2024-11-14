@@ -3,7 +3,7 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from kernelfunctions.backend import SlangCompileError, TypeConformance
+from kernelfunctions.backend import SlangCompileError
 from kernelfunctions.core import CallMode, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException
 
 from kernelfunctions.callsignature import (
@@ -26,7 +26,6 @@ from kernelfunctions.core.reflection import SlangFunction
 
 if TYPE_CHECKING:
     from kernelfunctions.function import Function
-    from kernelfunctions.shapes import TShapeOrTuple
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
 
