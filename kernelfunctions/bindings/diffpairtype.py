@@ -1,7 +1,6 @@
 
 
 from typing import Any, Optional
-import numpy as np
 
 from kernelfunctions.bindings.valuereftype import numpy_to_slang_value, slang_value_to_numpy
 from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext
@@ -9,28 +8,39 @@ from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeIm
 from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
 from kernelfunctions.types import DiffPair
 
-from kernelfunctions.backend import Buffer, ResourceUsage
 from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
 
 import kernelfunctions.core.reflection as kfr
 
 
-def generate_differential_pair(name: str, context: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: Optional[str]):
+def generate_differential_pair(name: str, context: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: str):
     assert primal_storage
     assert deriv_storage
     assert primal_target
-    if deriv_target is None:
-        deriv_target = primal_target
 
     DIFF_PAIR_CODE = f"""
 struct _t_{name}
 {{
     {primal_storage} primal;
     {deriv_storage} derivative;
-    void load_primal({context} context, out {primal_target} value) {{ primal.load_primal(context, value); }}
-    void store_primal({context} context, in {primal_target} value) {{ primal.store_primal(context, value); }}
-    void load_derivative({context} context, out {deriv_target} value) {{ derivative.load_primal(context, value); }}
-    void store_derivative({context} context, in {deriv_target} value) {{ derivative.store_primal(context, value); }}
+    void load({context} context, out DifferentialPair<{primal_target}> value)
+    {{
+        {primal_target} p;
+        primal.load(context, p);"""
+    if deriv_storage == 'NoneType':
+        DIFF_PAIR_CODE += """
+        value = diffPair(p);"""
+    else:
+        DIFF_PAIR_CODE += f"""
+        {deriv_target} d;
+        derivative.load(d);
+        value = diffPair(p, d);"""
+    DIFF_PAIR_CODE += f"""}}
+    void store({context} context, in DifferentialPair<{primal_target}> value)
+    {{
+        primal.store(context, value.p);
+        derivative.store(context, value.d);
+    }}
 }}
 """
     return DIFF_PAIR_CODE
@@ -58,7 +68,6 @@ class DiffPairType(BaseTypeImpl):
     def has_derivative(self) -> bool:
         return self.needs_grad and self.slang_type.differentiable
 
-    # Refs can be written to!
     @property
     def is_writable(self) -> bool:
         return True
@@ -137,7 +146,6 @@ class DiffPairType(BaseTypeImpl):
 
         return res
 
-    # Read back from call data does nothing
     def read_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: DiffPair, result: Any) -> None:
         access = binding.access
         for prim in PrimType:
