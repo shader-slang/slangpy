@@ -1,11 +1,10 @@
 from copy import copy
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
 
-from sgl import TypeReflection
-from kernelfunctions.backend.slangpynativeemulation import CallMode, NativeCallRuntimeOptions
+from kernelfunctions.core.native import CallMode, NativeCallRuntimeOptions
 from kernelfunctions.core import hash_signature
 
-from kernelfunctions.backend import FunctionReflection, CommandBuffer, TypeConformance
+from kernelfunctions.backend import FunctionReflection, CommandBuffer, TypeConformance, TypeReflection
 from kernelfunctions.core.logging import runtime_exception_info
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
@@ -55,6 +54,7 @@ class Function:
         self.type_conformances: Optional[list[TypeConformance]] = None
         self.mode = CallMode.prim
         self.python_return_type: Optional[type] = None
+        self.constant_values: Optional[dict[str, Any]] = None
 
         # Runtime options that affect dispatch only
         self.this: Optional[IThis] = None
@@ -159,6 +159,15 @@ class Function:
         else:
             self.uniforms = copy(self.uniforms)
             self.uniforms.append(uniform_callback)
+
+    def constants(self, constants: dict[str, Any]):
+        res = self._copy()
+        if res.constant_values is None:
+            res.constant_values = constants
+        else:
+            res.constant_values = copy(res.constant_values)
+            res.constant_values.update(constants)
+        return res
 
     def type_conformance(self, type_conformances: list[TypeConformance]):
         res = self._copy()
@@ -269,6 +278,7 @@ class Function:
             lines.append(str(self.type_conformances))
             lines.append(str(self.mode))
             lines.append(str(self.python_return_type))
+            lines.append(str(self.constant_values))
             self.slangpy_signature = "\n".join(lines)
 
         sig = hash_signature(

@@ -1,8 +1,7 @@
 from types import NoneType
 from typing import Any, Optional, Union
 
-from sgl import ModifierID
-
+from kernelfunctions.backend import ModifierID
 from kernelfunctions.typeregistry import get_or_create_type
 
 from .enums import PrimType, IOType

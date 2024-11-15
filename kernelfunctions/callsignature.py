@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, Optional
 
-from sgl import FunctionReflection, ModifierID, TypeReflection
+from kernelfunctions.backend import FunctionReflection, ModifierID, TypeReflection
 
 from kernelfunctions.bindings.structtype import StructType
 from kernelfunctions.bindings.valuetype import NoneValueType, ValueType
@@ -309,6 +309,15 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     # Generate the header
     cg.add_import("slangpy")
     cg.add_import(function.module.name)
+
+    # Generate constants if specified
+    if function.constant_values is not None:
+        for k, v in function.constant_values.items():
+            if not isinstance(v, (int, float)):
+                raise KernelGenException(
+                    f"Constant value '{k}' must be an int or a float, not {type(v).__name__}")
+            cg.constants.append_statement(
+                f"export static const {type(v).__name__} {k} = {v}")
 
     # Generate call data inputs if vector call
     call_data_len = context.call_dimensionality

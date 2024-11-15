@@ -1,8 +1,6 @@
 from typing import Any, Optional
 
-from sgl import MemoryType, TypeReflection
-
-from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection
+from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, MemoryType, TypeReflection
 
 from kernelfunctions.core import BaseType, Shape
 from kernelfunctions.core.reflection import SlangProgramLayout, SlangType

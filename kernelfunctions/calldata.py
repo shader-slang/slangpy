@@ -3,7 +3,7 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from kernelfunctions.backend import SlangCompileError
+from kernelfunctions.backend import SlangCompileError, SlangLinkOptions
 from kernelfunctions.core import CallMode, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException
 
 from kernelfunctions.callsignature import (
@@ -145,7 +145,7 @@ class CallData(NativeCallData):
             code = codegen.finish(call_data=True, input_load_store=True,
                                   header=True, kernel=True, imports=True,
                                   trampoline=True, context=True, snippets=True,
-                                  call_data_structs=True)
+                                  call_data_structs=True, constants=True)
 
             # Write the shader to a file for debugging.
             os.makedirs(".temp", exist_ok=True)
@@ -168,7 +168,10 @@ class CallData(NativeCallData):
                 hashlib.sha256(code.encode()).hexdigest()[0:16], code
             )
             ep = module.entry_point("main", type_conformances)
-            program = session.link_program([module, function.module.device_module], [ep])
+            opts = SlangLinkOptions()
+            # opts.dump_intermediates = True
+            program = session.link_program(
+                [module, function.module.device_module]+function.module.link, [ep], opts)
             self.kernel = device.create_compute_kernel(program)
             self.device = device
 

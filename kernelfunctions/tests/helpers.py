@@ -67,12 +67,12 @@ def get_device(type: DeviceType, use_cache: bool = True) -> Device:
 
 
 def create_module(
-    device: Device, module_source: str
+    device: Device, module_source: str, link: list[Any] = [], options: dict[str, Any] = {}
 ) -> kernelfunctions.Module:
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
-    return kernelfunctions.Module(module)
+    return kernelfunctions.Module(module, link=link, options=options)
 
 # Helper that creates a module from source (if not already loaded) and find / returns
 # a kernel function for it. This helper supports nested functions and structs, e.g.
@@ -80,7 +80,7 @@ def create_module(
 
 
 def create_function_from_module(
-    device: Device, func_name: str, module_source: str, options: dict[str, Any] = {}
+    device: Device, func_name: str, module_source: str, link: list[Any] = [], options: dict[str, Any] = {}
 ) -> kernelfunctions.Function:
 
     if not 'import "slangpy";' in module_source:
@@ -89,7 +89,7 @@ def create_function_from_module(
     slang_module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
-    module = Module(slang_module, options=options)
+    module = Module(slang_module, link=link, options=options)
 
     names = func_name.split(".")
 

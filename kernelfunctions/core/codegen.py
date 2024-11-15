@@ -120,6 +120,7 @@ class CodeGen:
         self.imports: set[str] = set()
         self.trampoline = CodeGenBlock(self)
         self.context = CodeGenBlock(self)
+        self.constants = CodeGenBlock(self)
         self.snippets: dict[str, str] = {}
 
     def add_snippet(self, name: str, code: str):
@@ -138,7 +139,8 @@ class CodeGen:
                trampoline: bool = False,
                context: bool = False,
                snippets: bool = False,
-               call_data_structs: bool = False):
+               call_data_structs: bool = False,
+               constants: bool = False):
 
         self.call_data.end_block()
         self.call_data.append_statement("ParameterBlock<CallData> call_data")
@@ -149,6 +151,9 @@ class CodeGen:
             all_code.append("\n")
         if imports:
             all_code = all_code + [f'import "{x}";\n' for x in self.imports]
+            all_code.append("\n")
+        if constants:
+            all_code = all_code + self.constants.code
             all_code.append("\n")
         if context:
             all_code = all_code + self.context.code
