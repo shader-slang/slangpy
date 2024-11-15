@@ -28,21 +28,21 @@ struct _a__x
     typealias primal_type = float;
     typealias derivative_type = float;
     NDBuffer<primal_type, 1> primal;
-    void load_primal(Context context, out primal_type value) { value = this.primal[ { context.call_id[0] }]; }
+    void load(Context context, out primal_type value) { value = this.primal[ { context.call_id[0] }]; }
 }
 struct _a__y
 {
     typealias primal_type = float;
     typealias derivative_type = float;
     NDBuffer<primal_type, 1> primal;
-    void load_primal(Context context, out primal_type value) { value = this.primal[ { context.call_id[0] }]; }
+    void load(Context context, out primal_type value) { value = this.primal[ { context.call_id[0] }]; }
 }
 struct _a__z
 {
     typealias primal_type = float;
     typealias derivative_type = float;
     NDBuffer<primal_type, 1> primal;
-    void load_primal(Context context, out primal_type value) { value = this.primal[ { context.call_id[0] }]; }
+    void load(Context context, out primal_type value) { value = this.primal[ { context.call_id[0] }]; }
 }
 
 struct _a
@@ -54,10 +54,10 @@ struct _a
     _a__y y;
     _a__z z;
 
-    void load_primal(Context context, out primal_type value) {
-        x.load_primal(context, value.x);
-        y.load_primal(context, value.y);
-        z.load_primal(context, value.z);
+    void load(Context context, out primal_type value) {
+        x.load(context, value.x);
+        y.load(context, value.y);
+        z.load(context, value.z);
      }
 }
 
@@ -66,7 +66,7 @@ struct _b
     typealias primal_type = float3;
     typealias derivative_type = float3;
     NDBuffer<primal_type,1> primal;
-    void load_primal(Context context, out primal_type value) { value = this.primal[{context.call_id[0]}]; }
+    void load(Context context, out primal_type value) { value = this.primal[{context.call_id[0]}]; }
 }
 
 struct __result
@@ -74,8 +74,8 @@ struct __result
     typealias primal_type = float3;
     typealias derivative_type = float3;
     RWNDBuffer<primal_type,1> primal;
-    void load_primal(Context context, out primal_type value) { value = this.primal[{context.call_id[0]}]; }
-    void store_primal(Context context, in primal_type value) { this.primal[{context.call_id[0]}] = value; }
+    void load(Context context, out primal_type value) { value = this.primal[{context.call_id[0]}]; }
+    void store(Context context, in primal_type value) { this.primal.set({context.call_id[0]}, value); }
 }
 
 struct CallData
@@ -111,10 +111,10 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID)
     context.thread_id = dispatchThreadID;
     context.call_id[0] = (dispatchThreadID.x/call_data._call_stride[0]) % call_data._call_dim[0];
     _a::primal_type a;
-    call_data.a.load_primal(context,a);
+    call_data.a.load(context,a);
     _b::primal_type b;
-    call_data.b.load_primal(context,b);
+    call_data.b.load(context,b);
     __result::primal_type _result;
     _trampoline(a, b, _result);
-    call_data._result.store_primal(context,_result);
+    call_data._result.store(context,_result);
 }

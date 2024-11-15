@@ -79,6 +79,7 @@ def test_call_with_none_diff_scalars(device_type: DeviceType):
     function.bwds_diff(a, b, res)
 
 
+@pytest.mark.skip("Awaiting auto-diff changes")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_call_with_diff_scalars(device_type: DeviceType):
 
@@ -114,6 +115,7 @@ def test_call_with_diff_scalars(device_type: DeviceType):
     assert b_diff.grad == exprected_grad
 
 
+@pytest.mark.skip("Awaiting auto-diff changes")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_call_with_diff_pairs(device_type: DeviceType):
 

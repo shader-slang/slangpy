@@ -50,5 +50,5 @@ class BaseType(NativeType):
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         raise NotImplementedError()
 
-    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'SlangType'):
+    def resolve_dimensionality(self, context: BindContext, binding: 'BoundVariable', vector_target_type: 'SlangType'):
         raise NotImplementedError()

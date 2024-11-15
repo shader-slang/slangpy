@@ -22,7 +22,7 @@ interface IFoo {}
 
 struct Test2f : ITest<float, 2> {
     float sentinel() { return 42.0f; }
-    void load_primal(IContext ctx, out Test2f x) { x = this; }
+    void load(Context0D ctx, out Test2f x) { x = this; }
 }
 struct Test3i : ITest<int, 3> {
     float sentinel() { return 0.0f; }

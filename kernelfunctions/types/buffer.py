@@ -150,7 +150,7 @@ class NDDifferentiableBuffer(NDBuffer):
         super().__init__(device, element_type, element_count, shape, usage, memory_type, program_layout)
 
         if grad_type is None:
-            grad_type = self.element_type
+            grad_type = self.element_type.derivative
 
         self.grad_type = resolve_element_type(self.program_layout, element_type)
 

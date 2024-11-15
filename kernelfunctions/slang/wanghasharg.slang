@@ -15,13 +15,13 @@ struct WangHashArg<let N : int> {
 
     uint seed;
 
-    void load_primal(IContext context, out T value) {
-        var tid = context.get_thread_id();
+    void load(Context0D context, out T value) {
+        var tid = context.thread_id;
         var hash = tid.x ^ seed; 
         for (int i = 0; i < N; i++) {
             hash = wang_hash(hash);
             value[i] = hash;
         }
     }
-    void store_primal(IContext context, in T value) {};
+    void store(Context0D context, in T value) {};
 }
