@@ -5,7 +5,7 @@ from sgl import ModifierID
 
 from kernelfunctions.typeregistry import get_or_create_type
 
-from .enums import PrimType, IOType
+from .enums import IOType
 from .codegen import CodeGen
 from .native import AccessType, CallMode, Shape
 from .basetype import BindContext
@@ -364,58 +364,36 @@ class BoundVariable:
 
             cgb.begin_struct(f"_t_{self.variable_name}")
 
-            names: list[tuple[Any, ...]] = []
             for field, variable in self.children.items():
-                variable_name = variable.gen_call_data_code(cg, context, depth+1)
-                if variable_name is not None:
-                    assert variable.vector_type is not None
-                    names.append(
-                        (field, variable_name, variable.vector_type.full_name, variable.vector_type.full_name + ".Differential"))
+                variable.gen_call_data_code(cg, context, depth+1)
 
-            for name in names:
-                cgb.declare(f"_t_{name[1]}", name[1])
+            for var in self.children.values():
+                cgb.declare(f"_t_{var.variable_name}", var.variable_name)
 
-            for prim in PrimType:
-                if self.access[prim.value] == AccessType.none:
-                    continue
+            assert self.vector_type is not None
+            context_decl = f"ContextND<{self.call_dimensionality}> context"
+            value_decl = f"{self.vector_type.full_name} value"
+            prefix = "[Differentiable]" if self.access[1] != AccessType.none else ""
 
-                assert self.vector_type is not None
-                prim_name = prim.name
-                prim_type_name = self.vector_type.full_name
-                if prim != PrimType.primal:
-                    prim_type_name += ".Differential"
+            cgb.empty_line()
+            cgb.append_line(f"{prefix} void load({context_decl}, out {value_decl})")
+            cgb.begin_block()
+            for field, var in self.children.items():
+                cgb.append_statement(
+                    f"{var.variable_name}.load(context.map(_m_{var.variable_name}),value.{field})")
+            cgb.end_block()
 
-                cgb.empty_line()
-
-                cgb.empty_line()
-                cgb.append_line(
-                    f"void load_{prim_name}(ContextND<{self.call_dimensionality}> context, out {prim_type_name} value)")
-                cgb.begin_block()
-                for name in names:
-                    cgb.declare(name[2], name[0])
-                    cgb.append_statement(
-                        f"this.{name[1]}.load_{prim_name}(context.map(_m_{name[1]}),{name[0]})")
-                    cgb.assign(f"value.{name[0]}", f"{name[0]}")
-                cgb.end_block()
-
-                cgb.empty_line()
-                cgb.append_line(
-                    f"void store_{prim_name}(ContextND<{self.call_dimensionality}> context, in {prim_type_name} value)")
-                cgb.begin_block()
-                for name in names:
-                    cgb.append_statement(
-                        f"this.{name[1]}.store_{prim_name}(context.map(_m_{name[1]}),value.{name[0]})")
-                cgb.end_block()
+            cgb.empty_line()
+            cgb.append_line(f"{prefix} void store({context_decl}, in {value_decl})")
+            cgb.begin_block()
+            for field, var in self.children.items():
+                cgb.append_statement(
+                    f"{var.variable_name}.store(context.map(_m_{var.variable_name}),value.{field})")
+            cgb.end_block()
 
             cgb.end_struct()
 
         else:
-            # Raise error if attempting to write to non-writable type
-            if self.access[0] in [AccessType.write, AccessType.readwrite] and not self.python.is_writable:
-                if depth == 0:
-                    raise BoundVariableException(
-                        f"Cannot read back value for non-writable type", self)
-
             # Generate call data
             self.python.gen_calldata(cg.call_data_structs, context, self)
 
@@ -428,8 +406,6 @@ class BoundVariable:
 
         if depth == 0:
             cg.call_data.declare(f"_t_{self.variable_name}", self.variable_name)
-
-        return self.variable_name
 
     def _gen_trampoline_argument(self):
         assert self.vector_type is not None

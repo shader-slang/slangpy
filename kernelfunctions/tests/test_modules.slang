@@ -5,6 +5,7 @@ struct Material : IDifferentiable {
     float3 color;
     float3 emission;
 
+    [Differentiable]
     __init() {
         color = float3(1, 1, 1);
         emission = float3(0, 0, 0);
@@ -18,6 +19,7 @@ struct Particle : IDifferentiable {
     float size;
     Material material;
 
+    [Differentiable]
     __init() {
         position = float2(0, 0);
         velocity = float2(0, 0);
@@ -25,6 +27,7 @@ struct Particle : IDifferentiable {
         size = 0;
     }
 
+    [Differentiable]
     __init(float2 position, float2 velocity) {
         this.position = position;
         this.velocity = velocity;

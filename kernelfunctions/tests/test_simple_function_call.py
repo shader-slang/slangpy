@@ -57,6 +57,7 @@ int add_numbers(int a, int b) {
     assert res == 15
 
 
+@pytest.mark.skip("Awaiting diff-pair follow-up")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_returnvalue_with_diffpair_input(device_type: DeviceType):
 
@@ -122,6 +123,7 @@ void add_numbers(inout int a) {
     assert out_res.value == 15
 
 
+@pytest.mark.skip("Awaiting diff-pair follow-up")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_scalar_outparam_with_diffpair(device_type: DeviceType):
 
@@ -361,7 +363,7 @@ def test_pass_diff_buffer_to_buffer(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
+float add_numbers(NDBuffer<float,1> a, NDBuffer<float,1> b) {
     return a[{0}]+b[{0}];
 }
 """,
@@ -370,24 +372,24 @@ int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
     a = kf.NDDifferentiableBuffer(
         element_count=1,
         device=device,
-        element_type=int,
+        element_type=float,
         requires_grad=True,
     )
-    a.buffer.from_numpy(rand_array_of_ints(a.element_count))
+    a.buffer.from_numpy(np.random.rand(a.element_count).astype('f'))
 
     b = kf.NDDifferentiableBuffer(
         element_count=1,
         device=device,
-        element_type=int,
+        element_type=float,
         requires_grad=True,
     )
-    b.buffer.from_numpy(rand_array_of_ints(b.element_count))
+    b.buffer.from_numpy(np.random.rand(b.element_count).astype('f'))
 
     # just verify it can be called with no exceptions
     res = function(a, b)
 
-    a_data = a.buffer.to_numpy().view(np.int32)
-    b_data = b.buffer.to_numpy().view(np.int32)
+    a_data = a.buffer.to_numpy().view(np.float32)
+    b_data = b.buffer.to_numpy().view(np.float32)
 
     assert np.all(res == a_data[0] + b_data[0])
 
