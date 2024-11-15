@@ -101,7 +101,7 @@ class BaseNDBufferMarshall(BaseTypeImpl):
         # Default to just casting to itself (i.e. no implicit cast)
         return self.slang_type
 
-    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'SlangType'):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
         return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
 
     def get_shape(self, value: Optional[NDBuffer] = None) -> Shape:
@@ -225,8 +225,10 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
             assert binding.vector_type is not None
             primal_target = binding.vector_type.full_name
             deriv_target = binding.vector_type.full_name + ".Differential"
+            
+            slang_context = f"ContextND<{binding.call_dimensionality}>"
 
-            cgb.append_code_indented(generate_differential_pair(name, primal_storage,
+            cgb.append_code_indented(generate_differential_pair(name, slang_context, primal_storage,
                                                                 deriv_storage, primal_target, deriv_target))
 
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: NDDifferentiableBuffer) -> Any:

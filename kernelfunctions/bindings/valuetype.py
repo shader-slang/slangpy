@@ -155,7 +155,7 @@ class NoneValueType(ValueType):
         super().__init__(layout)
         self.slang_type = layout.scalar_type(kfr.TR.ScalarType.void)
 
-    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'BaseType'):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
         # None type can't resolve dimensionality
         return None
 

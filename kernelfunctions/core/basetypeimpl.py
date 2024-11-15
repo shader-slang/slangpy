@@ -1,7 +1,12 @@
 
 
+from typing import TYPE_CHECKING
+
 from .basetype import BaseType, BindContext
 from .reflection import SlangType, SlangProgramLayout
+
+if TYPE_CHECKING:
+    from .boundvariable import BoundVariable
 
 
 class BaseTypeImpl(BaseType):
@@ -20,7 +25,7 @@ class BaseTypeImpl(BaseType):
         # Default to just casting to itself (i.e. no implicit cast)
         return self.slang_type
 
-    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'SlangType'):
+    def resolve_dimensionality(self, context: BindContext, binding: 'BoundVariable', vector_target_type: SlangType):
         # Default implementation requires that both this type and the target type
         # have fully known element types. If so, dimensionality is just the difference
         # between the length of the 2 shapes

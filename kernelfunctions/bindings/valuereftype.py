@@ -76,7 +76,7 @@ class ValueRefType(BaseTypeImpl):
     def resolve_type(self, context: BindContext, bound_type: 'kfr.SlangType'):
         return self.value_type
 
-    def resolve_dimensionality(self, context: BindContext, vector_target_type: 'kfr.SlangType'):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'kfr.SlangType'):
         return len(self.value_type.shape) - len(vector_target_type.shape)
 
     # Call data can only be read access to primal, and simply declares it as a variable

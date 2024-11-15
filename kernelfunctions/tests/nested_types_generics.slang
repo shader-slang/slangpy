@@ -1,14 +1,6 @@
 import "slangpy";
 
-
-struct Context : IContext
-{
-    uint3 thread_id;
-    int[1] call_id;
-
-    uint3 get_thread_id() { return thread_id; }
-    int get_call_id(int dim) { return call_id[dim]; }
-}
+typealias Context = ContextND<1>;
 
 typealias _a__x = NDBuffer<float, 1>;
 typealias _a__y = NDBuffer<float, 1>;
@@ -23,7 +15,7 @@ struct _a
     _a__y y;
     _a__z z;
 
-    void load_primal(Context context, out primal_type value) {
+    void load_primal(Context1D context, out primal_type value) {
         x.load_primal(context, value.x);
         y.load_primal(context, value.y);
         z.load_primal(context, value.z);
@@ -62,9 +54,10 @@ void _trampoline(in float3 a, in float3 b, no_diff out float3 _result)
 void main(uint3 dispatchThreadID: SV_DispatchThreadID)
 {
     if (any(dispatchThreadID >= call_data._thread_count)) return;
-    Context context;
-    context.thread_id = dispatchThreadID;
-    context.call_id[0] = (dispatchThreadID.x/call_data._call_stride[0]) % call_data._call_dim[0];
+    int[1] call_id = {
+        (dispatchThreadID.x / call_data._call_stride[0]) % call_data._call_dim[0],
+    };
+    Context context = { dispatchThreadID, call_id };
     float3 a;
     call_data.a.load_primal(context, a);
     float3 b;

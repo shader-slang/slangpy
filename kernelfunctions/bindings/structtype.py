@@ -1,6 +1,6 @@
 from typing import Any
 
-from kernelfunctions.core import BaseType, Shape
+from kernelfunctions.core import BaseType, Shape, BoundVariable
 from kernelfunctions.core.basetype import BindContext
 from kernelfunctions.core.reflection import SlangProgramLayout
 from kernelfunctions.typeregistry import PYTHON_TYPES
@@ -31,6 +31,9 @@ class StructType(ValueType):
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         return bound_type
+    
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
+        return max(binding.children[name].call_dimensionality for name in self._fields.keys())
 
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: dict[str, Any]):

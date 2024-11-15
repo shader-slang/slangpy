@@ -261,7 +261,7 @@ class BoundVariable:
         else:
             assert self.vector_type is not None
             self.call_dimensionality = self.python.resolve_dimensionality(
-                context, self.vector_type)
+                context, self, self.vector_type)
 
     def finalize_mappings(self, context: BindContext):
         """
@@ -389,33 +389,25 @@ class BoundVariable:
 
                 cgb.empty_line()
                 cgb.append_line(
-                    f"void load_{prim_name}(IContext context, out {prim_type_name} value)")
+                    f"void load_{prim_name}(ContextND<{self.call_dimensionality}> context, out {prim_type_name} value)")
                 cgb.begin_block()
                 for name in names:
                     cgb.declare(name[2], name[0])
                     cgb.append_statement(
-                        f"this.{name[1]}.load_{prim_name}(ctx(context, _m_{name[1]}),{name[0]})")
+                        f"this.{name[1]}.load_{prim_name}(context.map(_m_{name[1]}),{name[0]})")
                     cgb.assign(f"value.{name[0]}", f"{name[0]}")
                 cgb.end_block()
 
                 cgb.empty_line()
                 cgb.append_line(
-                    f"void store_{prim_name}(IContext context, in {prim_type_name} value)")
+                    f"void store_{prim_name}(ContextND<{self.call_dimensionality}> context, in {prim_type_name} value)")
                 cgb.begin_block()
                 for name in names:
                     cgb.append_statement(
-                        f"this.{name[1]}.store_{prim_name}(ctx(context, _m_{name[1]}),value.{name[0]})")
+                        f"this.{name[1]}.store_{prim_name}(context.map(_m_{name[1]}),value.{name[0]})")
                 cgb.end_block()
 
             cgb.end_struct()
-
-            full_map = list(range(context.call_dimensionality))
-            if len(full_map) > 0:
-                cg.call_data_structs.append_statement(
-                    f"static const int[] _m_{self.variable_name} = {{ {','.join([str(x) for x in full_map])} }}")
-            else:
-                cg.call_data_structs.append_statement(
-                    f"static const int _m_{self.variable_name} = 0")
 
         else:
             # Raise error if attempting to write to non-writable type
@@ -427,12 +419,12 @@ class BoundVariable:
             # Generate call data
             self.python.gen_calldata(cg.call_data_structs, context, self)
 
-            if len(self.vector_mapping) > 0:
-                cg.call_data_structs.append_statement(
-                    f"static const int[] _m_{self.variable_name} = {{ {','.join([str(x) for x in self.vector_mapping.as_tuple()])} }}")
-            else:
-                cg.call_data_structs.append_statement(
-                    f"static const int _m_{self.variable_name} = 0")
+        if len(self.vector_mapping) > 0:
+            cg.call_data_structs.append_statement(
+                f"static const int[] _m_{self.variable_name} = {{ {','.join([str(x) for x in self.vector_mapping.as_tuple()])} }}")
+        else:
+            cg.call_data_structs.append_statement(
+                f"static const int _m_{self.variable_name} = 0")
 
         if depth == 0:
             cg.call_data.declare(f"_t_{self.variable_name}", self.variable_name)
