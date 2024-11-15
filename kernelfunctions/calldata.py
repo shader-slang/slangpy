@@ -162,7 +162,10 @@ class CallData(NativeCallData):
                 f.write(code)
 
             # Hash the code to get a unique identifier for the module.
-            code_minus_header = code[len(codegen.header):]
+            # We add type conformances to the start of the code to ensure that the hash is unique
+            assert function.slangpy_signature is not None
+            code_minus_header = str(function.type_conformances) + \
+                code[len(codegen.header):]
             hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 
             # Check if we've already built this module.
