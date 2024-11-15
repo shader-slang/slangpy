@@ -31,7 +31,7 @@ class StructType(ValueType):
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
         return bound_type
-    
+
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
         return max(binding.children[name].call_dimensionality for name in self._fields.keys())
 
