@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from sgl import ProgramLayout, ResourceUsage
-
-from kernelfunctions.backend.slangpynativeemulation import Shape, NativeSlangType
+from kernelfunctions.core.native import Shape, NativeSlangType
 
 from .enums import IOType
 from kernelfunctions.backend import TypeReflection as TR
-from kernelfunctions.backend import ModifierID, VariableReflection, TypeReflection, FunctionReflection, SlangModule, TypeLayoutReflection
+from kernelfunctions.backend import ModifierID, VariableReflection, TypeReflection, FunctionReflection, SlangModule, TypeLayoutReflection, ProgramLayout, ResourceUsage
 
 from typing import Optional, Callable, Any, Union, cast
 
