@@ -108,6 +108,10 @@ class ValueRefType(BaseTypeImpl):
                 'value': context.device.create_buffer(element_count=1, struct_size=npdata.size, data=npdata, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
             }
 
+    # Value ref just passes its value for raw dispatch
+    def create_dispatchdata(self, data: Any) -> Any:
+        return data
+
     # Read back from call data does nothing
     def read_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: ValueRef, result: Any) -> None:
         access = binding.access

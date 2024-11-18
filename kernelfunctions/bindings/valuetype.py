@@ -76,6 +76,10 @@ class ValueType(BaseTypeImpl):
                 'value': data
             }
 
+    # Values just return themselves for raw dispatch
+    def create_dispatchdata(self, data: Any) -> Any:
+        return data
+
     # No need to create any buffers for output data, as we're read only!
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         pass

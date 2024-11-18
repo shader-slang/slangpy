@@ -68,14 +68,14 @@ class CallData(NativeCallData):
 
             # Read temps from function
             function = func
-            return_type = function.python_return_type
-            positional_mapping = function.map_args or ()
-            keyword_mapping = function.map_kwargs or {}
-            type_conformances = function.type_conformances or []
+            return_type = function._return_type
+            positional_mapping = function._map_args or ()
+            keyword_mapping = function._map_kwargs or {}
+            type_conformances = function._type_conformances or []
 
             # Store layout and callmode from function
             self.layout = function.module.layout
-            self.call_mode = function.mode
+            self.call_mode = function._mode
 
             # Build 'unpacked' args (that handle IThis)
             unpacked_args = tuple([unpack_arg(x) for x in args])
@@ -83,7 +83,7 @@ class CallData(NativeCallData):
 
             # Setup context
             context = BindContext(self.layout, self.call_mode,
-                                  function.module.device_module, function.options or {})
+                                  function.module.device_module, function._options or {})
 
             # Build the unbound signature from inputs
             bindings = BoundCall(context, *unpacked_args, **unpacked_kwargs)

@@ -4,8 +4,9 @@ from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
 from kernelfunctions.core.native import CallMode, NativeCallRuntimeOptions
 from kernelfunctions.core import hash_signature
 
-from kernelfunctions.backend import FunctionReflection, CommandBuffer, TypeConformance, TypeReflection
+from kernelfunctions.backend import FunctionReflection, CommandBuffer, TypeConformance, TypeReflection, uint3
 from kernelfunctions.core.logging import runtime_exception_info
+from kernelfunctions.dispatchdata import DispatchData
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
 import kernelfunctions.core.reflection as kfr
@@ -48,13 +49,14 @@ class Function:
         self.reflections: list['FunctionReflection']
 
         # Static options that affect compilation, and thus the signature
-        self.map_args: Optional[tuple[Any]] = None
-        self.map_kwargs: Optional[dict[str, Any]] = None
-        self.options: Optional[dict[str, Any]] = None
-        self.type_conformances: Optional[list[TypeConformance]] = None
-        self.mode = CallMode.prim
-        self.python_return_type: Optional[type] = None
-        self.constant_values: Optional[dict[str, Any]] = None
+        self._map_args: Optional[tuple[Any]] = None
+        self._map_kwargs: Optional[dict[str, Any]] = None
+        self._options: Optional[dict[str, Any]] = None
+        self._type_conformances: Optional[list[TypeConformance]] = None
+        self._mode = CallMode.prim
+        self._return_type: Optional[type] = None
+        self._constants: Optional[dict[str, Any]] = None
+        self._thread_group_size: Optional[uint3] = None
 
         # Runtime options that affect dispatch only
         self.this: Optional[IThis] = None
@@ -95,13 +97,13 @@ class Function:
             self.type_reflection = None
 
         # Calc hash of input options for signature
-        self.options = options.copy()
-        if not 'implicit_element_casts' in self.options:
-            self.options['implicit_element_casts'] = True
-        if not 'implicit_tensor_casts' in self.options:
-            self.options['implicit_tensor_casts'] = True
-        if not 'strict_broadcasting' in self.options:
-            self.options['strict_broadcasting'] = True
+        self._options = options.copy()
+        if not 'implicit_element_casts' in self._options:
+            self._options['implicit_element_casts'] = True
+        if not 'implicit_tensor_casts' in self._options:
+            self._options['implicit_tensor_casts'] = True
+        if not 'strict_broadcasting' in self._options:
+            self._options['strict_broadcasting'] = True
 
         # Generate signature for hashing
         # type_parent = self.type_reflection.full_name if self.type_reflection is not None else None
@@ -114,8 +116,8 @@ class Function:
 
     def map(self, *args: Any, **kwargs: Any):
         res = self._copy()
-        res.map_args = args
-        res.map_kwargs = kwargs
+        res._map_args = args
+        res._map_kwargs = kwargs
         return res
 
     def set(self, *args: Any, **kwargs: Any):
@@ -162,20 +164,20 @@ class Function:
 
     def constants(self, constants: dict[str, Any]):
         res = self._copy()
-        if res.constant_values is None:
-            res.constant_values = constants
+        if res._constants is None:
+            res._constants = constants
         else:
-            res.constant_values = copy(res.constant_values)
-            res.constant_values.update(constants)
+            res._constants = copy(res._constants)
+            res._constants.update(constants)
         return res
 
-    def type_conformance(self, type_conformances: list[TypeConformance]):
+    def type_conformances(self, type_conformances: list[TypeConformance]):
         res = self._copy()
-        if res.type_conformances is None:
-            res.type_conformances = type_conformances
+        if res._type_conformances is None:
+            res._type_conformances = type_conformances
         else:
-            res.type_conformances = copy(res.type_conformances)
-            res.type_conformances.extend(type_conformances)
+            res._type_conformances = copy(res._type_conformances)
+            res._type_conformances.extend(type_conformances)
         return res
 
     def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None):
@@ -197,12 +199,17 @@ class Function:
     @property
     def bwds_diff(self):
         res = self._copy()
-        res.mode = CallMode.bwds
+        res._mode = CallMode.bwds
         return res
 
     def return_type(self, return_type: type):
         res = self._copy()
-        res.python_return_type = return_type
+        res._return_type = return_type
+        return res
+
+    def thread_group_size(self, thread_group_size: uint3):
+        res = self._copy()
+        res._thread_group_size = thread_group_size
         return res
 
     @property
@@ -247,6 +254,38 @@ class Function:
         except ValueError as e:
             self._handle_error(e, calldata)
 
+    def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: CommandBuffer | None = None, **kwargs: Any) -> None:
+        if ENABLE_CALLDATA_CACHE:
+            if self.slangpy_signature is None:
+                lines = []
+                if self.type_reflection is not None:
+                    lines.append(f"{self.type_reflection.full_name}::{self.name}")
+                else:
+                    lines.append(self.name)
+                lines.append(str(self._options))
+                lines.append(str(self._map_args))
+                lines.append(str(self._map_kwargs))
+                lines.append(str(self._type_conformances))
+                lines.append(str(self._mode))
+                lines.append(str(self._return_type))
+                lines.append(str(self._constants))
+                lines.append(str(self._thread_group_size))
+                self.slangpy_signature = "\n".join(lines)
+            sig = hash_signature(
+                _cache_value_to_id, self, **kwargs)
+
+            if sig in self.module.dispatch_data_cache:
+                dispatch_data = self.module.dispatch_data_cache[sig]
+                if dispatch_data.device != self.module.device:
+                    raise NameError("Cached CallData is linked to wrong device")
+            else:
+                dispatch_data = DispatchData(self, **kwargs)
+                self.module.dispatch_data_cache[sig] = dispatch_data
+        else:
+            dispatch_data = DispatchData(self, **kwargs)
+
+        dispatch_data.dispatch(thread_count, vars, command_buffer, **kwargs)
+
     def _handle_error(self, e: ValueError, calldata: Optional['CallData']):
         if len(e.args) != 1 or not isinstance(e.args[0], dict):
             raise e
@@ -272,13 +311,13 @@ class Function:
                 lines.append(f"{self.type_reflection.full_name}::{self.name}")
             else:
                 lines.append(self.name)
-            lines.append(str(self.options))
-            lines.append(str(self.map_args))
-            lines.append(str(self.map_kwargs))
-            lines.append(str(self.type_conformances))
-            lines.append(str(self.mode))
-            lines.append(str(self.python_return_type))
-            lines.append(str(self.constant_values))
+            lines.append(str(self._options))
+            lines.append(str(self._map_args))
+            lines.append(str(self._map_kwargs))
+            lines.append(str(self._type_conformances))
+            lines.append(str(self._mode))
+            lines.append(str(self._return_type))
+            lines.append(str(self._constants))
             self.slangpy_signature = "\n".join(lines)
 
         sig = hash_signature(

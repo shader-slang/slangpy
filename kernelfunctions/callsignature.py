@@ -311,8 +311,8 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     cg.add_import(function.module.name)
 
     # Generate constants if specified
-    if function.constant_values is not None:
-        for k, v in function.constant_values.items():
+    if function._constants is not None:
+        for k, v in function._constants.items():
             if not isinstance(v, (int, float)):
                 raise KernelGenException(
                     f"Constant value '{k}' must be an int or a float, not {type(v).__name__}")

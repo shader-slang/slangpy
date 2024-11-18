@@ -115,6 +115,9 @@ class NativeType:
     def create_calldata(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any) -> Any:
         pass
 
+    def create_dispatchdata(self, data: Any) -> Any:
+        raise NotImplementedError()
+
     def read_calldata(self, context: 'CallContext', binding: 'NativeBoundVariableRuntime', data: Any, result: Any) -> None:
         pass
 
@@ -173,6 +176,14 @@ class NativeBoundCallRuntime:
             sig_args[idx].read_call_data_post_dispatch(context, call_data, value)
         for key, value in kwargs.items():
             sig_kwargs[key].read_call_data_post_dispatch(context, call_data, value)
+
+    def write_raw_dispatch_data(self, call_data: dict[str, Any], **kwargs: Any):
+        """
+        Simplified write call data for raw dispatch
+        """
+        sig_kwargs = self.kwargs
+        for key, value in kwargs.items():
+            sig_kwargs[key].write_raw_dispatch_data(call_data, value)
 
 
 class NativeBoundVariableRuntime:
@@ -281,6 +292,19 @@ class NativeBoundVariableRuntime:
         else:
             if self.access[0] in [AccessType.write, AccessType.readwrite]:
                 return self.python_type.read_output(context, self, data)
+
+    def write_raw_dispatch_data(self, call_data: dict[str, Any], value: Any):
+        """Writes value to call data dictionary pre-dispatch"""
+        if self.children is not None:
+            res = {}
+            for name, child in self.children.items():
+                child.write_raw_dispatch_data(res, value[name])
+            if len(res) > 0:
+                call_data[self.variable_name] = res
+        else:
+            cd_val = self.python_type.create_dispatchdata(value)
+            if cd_val is not None:
+                call_data[self.variable_name] = cd_val
 
 
 class NativeCallRuntimeOptions:

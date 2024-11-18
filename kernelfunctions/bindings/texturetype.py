@@ -153,6 +153,10 @@ class TextureType(BaseTypeImpl):
                 'value': data
             }
 
+    # Textures just return themselves for raw dispatch
+    def create_dispatchdata(self, data: Any) -> Any:
+        return data
+
     # Container shape internally handles both textures or views onto textures,
     # which lets it deal with views onto none-zero mip levels of a texture.
     def get_shape(self, value: Optional[Union[Texture, ResourceView]] = None) -> Shape:
