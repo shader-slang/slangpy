@@ -161,20 +161,33 @@ class CallData(NativeCallData):
                 f.write("\n*/\n")
                 f.write(code)
 
-            # Build new module and link it with the one that contains the function being called.
-            session = function.module.session
-            device = session.device
-            module = session.load_module_from_source(
-                hashlib.sha256(code.encode()).hexdigest()[0:16], code
-            )
-            ep = module.entry_point("main", type_conformances)
-            opts = SlangLinkOptions()
-            # opts.dump_intermediates = True
-            program = session.link_program(
-                [module, function.module.device_module]+function.module.link, [ep], opts)
-            self.kernel = device.create_compute_kernel(program)
-            self.device = device
+            # Hash the code to get a unique identifier for the module.
+            # We add type conformances to the start of the code to ensure that the hash is unique
+            assert function.slangpy_signature is not None
+            code_minus_header = str(function.type_conformances) + \
+                code[len(codegen.header):]
+            hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 
+            # Check if we've already built this module.
+            if hash in function.module.kernel_cache:
+                # Get kernel from cache if we have
+                self.kernel = function.module.kernel_cache[hash]
+                self.device = function.module.device
+            else:
+                # Build new module and link it with the one that contains the function being called.
+                session = function.module.session
+                device = session.device
+                module = session.load_module_from_source(hash, code)
+                ep = module.entry_point(f"main", type_conformances)
+                opts = SlangLinkOptions()
+                # opts.dump_intermediates = True
+                program = session.link_program(
+                    [module, function.module.device_module]+function.module.link, [ep], opts)
+                self.kernel = device.create_compute_kernel(program)
+                function.module.kernel_cache[hash] = self.kernel
+                self.device = device
+
+            # Store the bindings and runtime for later use.
             self.debug_only_bindings = bindings
             self.runtime = BoundCallRuntime(bindings)
         except BoundVariableException as e:

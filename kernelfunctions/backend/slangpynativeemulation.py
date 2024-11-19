@@ -68,6 +68,18 @@ class Shape:
     def as_list(self) -> list[int]:
         return list(self.as_tuple())
 
+    def __repr__(self) -> str:
+        if self.valid:
+            return f"Shape({self.as_tuple()})"
+        else:
+            return "Shape(None)"
+
+    def __str__(self) -> str:
+        if self.valid:
+            return f"{self.as_tuple()}"
+        else:
+            return "<invalid>"
+
     @property
     def valid(self) -> bool:
         return self.shape is not None
