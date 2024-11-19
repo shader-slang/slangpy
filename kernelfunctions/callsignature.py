@@ -300,6 +300,16 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     node.python = python_type
 
 
+def generate_constants(function: 'Function', cg: CodeGen):
+    if function._constants is not None:
+        for k, v in function._constants.items():
+            if not isinstance(v, (int, float)):
+                raise KernelGenException(
+                    f"Constant value '{k}' must be an int or a float, not {type(v).__name__}")
+            cg.constants.append_statement(
+                f"export static const {type(v).__name__} {k} = {v}")
+
+
 def generate_code(context: BindContext, function: 'Function', signature: BoundCall, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
@@ -311,13 +321,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
     cg.add_import(function.module.name)
 
     # Generate constants if specified
-    if function._constants is not None:
-        for k, v in function._constants.items():
-            if not isinstance(v, (int, float)):
-                raise KernelGenException(
-                    f"Constant value '{k}' must be an int or a float, not {type(v).__name__}")
-            cg.constants.append_statement(
-                f"export static const {type(v).__name__} {k} = {v}")
+    generate_constants(function, cg)
 
     # Generate call data inputs if vector call
     call_data_len = context.call_dimensionality

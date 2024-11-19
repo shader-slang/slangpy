@@ -5,6 +5,9 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from kernelfunctions.backend import CommandBuffer, SlangLinkOptions, uint3
+from kernelfunctions.backend.slangpynativeemulation import NativeCallRuntimeOptions
+from kernelfunctions.callsignature import generate_constants
+from kernelfunctions.core.codegen import CodeGen
 from kernelfunctions.core.enums import IOType
 from kernelfunctions.core.native import CallMode, unpack_arg, pack_arg
 from kernelfunctions.core.basetype import BindContext
@@ -64,24 +67,33 @@ class DispatchData:
                 raise ValueError("Raw dispatch functions cannot have return values.")
 
             program = None
+            ep = None
+            codegen = CodeGen()
 
-            # Attempt to get entry point and link program, on the assumption that the function is a valid kernel.
-            # We only do this if user is not attempting to specify a different thread group size
-            if thread_group_size is None:
-                try:
-                    ep = function.module.device_module.entry_point(
-                        reflection.name, type_conformances)  # @IgnoreException
-                    opts = SlangLinkOptions()
-                    program = session.link_program(
-                        [function.module.device_module]+function.module.link, [ep], opts)
-                except RuntimeError as e:
-                    if not re.match(r'Entry point \"\w+\" not found.*', e.args[0]):
-                        raise e
-                    else:
-                        program = None
+            # Add constants
+            generate_constants(function, codegen)
+
+            # Try to load the entry point from the device module to see if there is an existing kernel.
+            try:
+                ep = function.module.device_module.entry_point(  # @IgnoreException
+                    reflection.name, type_conformances)
+            except RuntimeError as e:
+                if not re.match(r'Entry point \"\w+\" not found.*', e.args[0]):
+                    raise e
+                else:
+                    program = None
+
+            # Due to current slang crash, fail if entry point exists and we're trying to set thread group size.
+            if ep is not None and thread_group_size is not None:
+                raise ValueError(
+                    "Slang currently does not allow specifying thread_group_size for pre-existing kernels.")
+
+            # Clear entry point if overriding thread group size
+            if thread_group_size is not None:
+                ep = None
 
             # If not a valid kernel, need to generate one.
-            if program is None:
+            if ep is None:
 
                 # Check parameter requirements for raw dispatch kernel gen.
                 if len(reflection.parameters) < 1:
@@ -100,39 +112,76 @@ class DispatchData:
                     thread_group_size = uint3(32, 1, 1)
 
                 # Generate mini-kernel for calling the function.
-                code = f"""
-import "slangpy";
+                codegen.kernel.append_code(f"""
 import "{function.module.device_module.name}";
 [shader("compute")]
 [numthreads({thread_group_size.x}, {thread_group_size.y}, {thread_group_size.z})]
 void {reflection.name}_entrypoint({params}) {{
     {reflection.name}({args});
 }}          
-"""
-                # Write the shader to a file for debugging.
-                os.makedirs(".temp", exist_ok=True)
-                sanitized = re.sub(r"[<>, ]", "_", function.name)
-                fn = f".temp/{function.module.name}_{sanitized}_dispatch.slang"
-                with open(fn, "w",) as f:
-                    f.write(code)
+""")
 
-                # Load and link program
+            # Add imports
+            codegen.add_import("slangpy")
+
+            # Generate code
+            code = codegen.finish(call_data=True, input_load_store=True,
+                                  header=True, kernel=True, imports=True,
+                                  trampoline=True, context=True, snippets=True,
+                                  call_data_structs=True, constants=True)
+
+            # Write the shader to a file for debugging.
+            os.makedirs(".temp", exist_ok=True)
+            sanitized = re.sub(r"[<>, ]", "_", function.name)
+            fn = f".temp/{function.module.name}_{sanitized}_dispatch.slang"
+            with open(fn, "w",) as f:
+                f.write(code)
+
+            # Hash the code to get a unique identifier for the module.
+            # We add type conformances to the start of the code to ensure that the hash is unique
+            assert function.slangpy_signature is not None
+            code_minus_header = "[DispatchData]\n" + str(function._type_conformances) + \
+                code[len(codegen.header):]
+            hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
+
+            # Check if we've already built this module.
+            if hash in function.module.kernel_cache:
+                # Get kernel from cache if we have
+                self.kernel = function.module.kernel_cache[hash]
+                self.device = function.module.device
+            else:
+                # Load the module
                 module = session.load_module_from_source(
                     hashlib.sha256(code.encode()).hexdigest()[0:16], code
                 )
-                ep = module.entry_point(
-                    f"{reflection.name}_entrypoint", type_conformances)
+
+                # Get entry point if one wasn't specified
+                if ep is None:
+                    ep = module.entry_point(
+                        f"{reflection.name}_entrypoint", type_conformances)
+
+                # Link the program
                 opts = SlangLinkOptions()
                 program = session.link_program(
                     [module, function.module.device_module]+function.module.link, [ep], opts)
 
-            self.kernel = device.create_compute_kernel(program)
-            self.device = device
+                self.kernel = device.create_compute_kernel(program)
+                self.device = device
 
         except Exception as e:
             raise e
 
-    def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: CommandBuffer | None = None, **kwargs: dict[str, Any]) -> None:
+    def dispatch(self, opts: 'NativeCallRuntimeOptions', thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: CommandBuffer | None = None, **kwargs: dict[str, Any]) -> None:
+
+        # Merge uniforms
+        uniforms = {}
+        if opts.uniforms is not None:
+            for u in opts.uniforms:
+                if isinstance(u, dict):
+                    uniforms.update(u)
+                else:
+                    uniforms.update(u(self))
+        uniforms.update(vars)
 
         # Build 'unpacked' args (that handle IThis)
         unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
@@ -141,12 +190,20 @@ void {reflection.name}_entrypoint({params}) {{
         call_data = {}
         self.runtime.write_raw_dispatch_data(call_data, **unpacked_kwargs)
 
+        if opts.before_dispatch is not None:
+            for hook in opts.before_dispatch:
+                hook(uniforms)
+
         # Call dispatch
-        self.kernel.dispatch(thread_count, vars, command_buffer, **call_data)
+        self.kernel.dispatch(thread_count, uniforms, command_buffer, **call_data)
 
         # If just adding to command buffer, post dispatch is redundant
         if command_buffer is not None:
             return
+
+        if opts.after_dispatch is not None:
+            for hook in opts.after_dispatch:
+                hook(uniforms)
 
         # Push updated 'this' values back to original objects
         for (k, arg) in kwargs.items():
