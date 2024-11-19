@@ -37,6 +37,20 @@ void ndbuffer_multiply( uint3 dispatchThreadID, RWNDBuffer<uint3,1> buffer, uint
     buffer[{dispatchThreadID.x}] = dispatchThreadID * amount;
 }
 
+extern static const int VAL;
+void ndbuffer_multiply_const( uint3 dispatchThreadID, RWNDBuffer<uint3,1> buffer ) {
+    buffer[{dispatchThreadID.x}] = dispatchThreadID * VAL;
+}
+
+struct Params {
+    int k;
+}
+ParameterBlock<Params> params;
+
+void ndbuffer_multiply_uniform(uint3 dispatchThreadID, RWNDBuffer<uint3,1> buffer) {
+    buffer[{dispatchThreadID.x}] = dispatchThreadID * params.k;
+}
+
 """
 
 
@@ -101,6 +115,84 @@ def test_multiply_scalar(device_type: DeviceType):
     mod = load_test_module(device_type)
     buffer = NDBuffer(mod.device, mod.uint3, 32)
     mod.ndbuffer_multiply.dispatch(uint3(32, 1, 1), buffer=buffer, amount=10)
+    data = buffer.to_numpy().view(np.uint32).reshape(-1, 3)
+    expected = np.array([[i*10, 0, 0] for i in range(32)])
+    assert np.all(data == expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_multiply_const(device_type: DeviceType):
+    mod = load_test_module(device_type)
+    buffer = NDBuffer(mod.device, mod.uint3, 32)
+    mod.ndbuffer_multiply_const.constants({"VAL": 5}).dispatch(
+        uint3(32, 1, 1), buffer=buffer, amount=10)
+    data = buffer.to_numpy().view(np.uint32).reshape(-1, 3)
+    expected = np.array([[i*5, 0, 0] for i in range(32)])
+    assert np.all(data == expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_set(device_type: DeviceType):
+    mod = load_test_module(device_type)
+    assert mod is not None
+
+    func = mod.ndbuffer_multiply_uniform.as_func()
+    buffer = NDBuffer(mod.device, mod.uint3, 32)
+
+    func = func.set({'params': {
+        'k': 20
+    }})
+    func.dispatch(uint3(32, 1, 1), buffer=buffer)
+
+    data = buffer.to_numpy().view(np.uint32).reshape(-1, 3)
+    expected = np.array([[i*20, 0, 0] for i in range(32)])
+    assert np.all(data == expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_set_with_callback(device_type: DeviceType):
+    mod = load_test_module(device_type)
+    assert mod is not None
+
+    func = mod.ndbuffer_multiply_uniform.as_func()
+    buffer = NDBuffer(mod.device, mod.uint3, 32)
+
+    func = func.set(lambda x: {'params': {
+        'k': 30
+    }})
+    func.dispatch(uint3(32, 1, 1), buffer=buffer)
+
+    data = buffer.to_numpy().view(np.uint32).reshape(-1, 3)
+    expected = np.array([[i*30, 0, 0] for i in range(32)])
+    assert np.all(data == expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_hook(device_type: DeviceType):
+    mod = load_test_module(device_type)
+    assert mod is not None
+
+    func = mod.ndbuffer_multiply_uniform.as_func()
+    buffer = NDBuffer(mod.device, mod.uint3, 32)
+
+    hooks_called = 0
+
+    def before_call(args: dict[str, Any]):
+        nonlocal hooks_called
+        args['params'] = {
+            'k': 10
+        }
+        hooks_called += 1
+
+    def after_call(args: dict[str, Any]):
+        nonlocal hooks_called
+        assert args['params']['k'] == 10
+        hooks_called += 1
+
+    func = func.hook(before_dispatch=before_call, after_dispatch=after_call)
+
+    func.dispatch(uint3(32, 1, 1), buffer=buffer)
+
     data = buffer.to_numpy().view(np.uint32).reshape(-1, 3)
     expected = np.array([[i*10, 0, 0] for i in range(32)])
     assert np.all(data == expected)

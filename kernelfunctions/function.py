@@ -6,12 +6,12 @@ from kernelfunctions.core import hash_signature
 
 from kernelfunctions.backend import FunctionReflection, CommandBuffer, TypeConformance, TypeReflection, uint3
 from kernelfunctions.core.logging import runtime_exception_info
-from kernelfunctions.dispatchdata import DispatchData
 from kernelfunctions.typeregistry import PYTHON_SIGNATURES
 
 import kernelfunctions.core.reflection as kfr
 
 if TYPE_CHECKING:
+    from kernelfunctions.dispatchdata import DispatchData
     from kernelfunctions.calldata import CallData
     from kernelfunctions.struct import Struct
     from kernelfunctions.module import Module
@@ -279,12 +279,18 @@ class Function:
                 if dispatch_data.device != self.module.device:
                     raise NameError("Cached CallData is linked to wrong device")
             else:
+                from kernelfunctions.dispatchdata import DispatchData
                 dispatch_data = DispatchData(self, **kwargs)
                 self.module.dispatch_data_cache[sig] = dispatch_data
         else:
+            from kernelfunctions.dispatchdata import DispatchData
             dispatch_data = DispatchData(self, **kwargs)
 
-        dispatch_data.dispatch(thread_count, vars, command_buffer, **kwargs)
+        opts = NativeCallRuntimeOptions()
+        opts.after_dispatch = self.after_dispatch
+        opts.before_dispatch = self.before_dispatch
+        opts.uniforms = self.uniforms  # type: ignore
+        dispatch_data.dispatch(opts, thread_count, vars, command_buffer, **kwargs)
 
     def _handle_error(self, e: ValueError, calldata: Optional['CallData']):
         if len(e.args) != 1 or not isinstance(e.args[0], dict):
