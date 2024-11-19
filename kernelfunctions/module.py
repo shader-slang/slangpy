@@ -10,6 +10,7 @@ import kernelfunctions.typeregistry as tr
 
 if TYPE_CHECKING:
     from kernelfunctions.calldata import CallData
+    from kernelfunctions.dispatchdata import DispatchData
 
 
 class Module:
@@ -20,6 +21,7 @@ class Module:
         self.options = options
         self.layout = SlangProgramLayout(self.device_module.layout)
         self.call_data_cache: dict[str, 'CallData'] = {}
+        self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
         self.link = [x.module if isinstance(x, Module) else x for x in link]
 

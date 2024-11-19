@@ -102,6 +102,7 @@ class BoundVariable:
 
         # Store the python and slang marshall
         self.name = name
+        self.variable_name = name
         self.python = get_or_create_type(context.layout, type(value), value)
 
         # Init default properties
@@ -248,7 +249,7 @@ class BoundVariable:
 
         # Clear slang type info - it should never be used after this
         # Note: useful for debugging so keeping for now!
-        # self.slang_type = None
+        self.slang_type = None
 
         # Can now calculate dimensionality
         if self.vector_mapping.valid:

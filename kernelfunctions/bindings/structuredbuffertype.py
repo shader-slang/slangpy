@@ -75,6 +75,10 @@ class StructuredBufferType(BaseTypeImpl):
                 'value': data
             }
 
+    # Buffers just return themselves for raw dispatch
+    def create_dispatchdata(self, data: Any) -> Any:
+        return data
+
 
 class RWStructuredBufferType(StructuredBufferType):
     def __init__(self, layout: kfr.SlangProgramLayout):

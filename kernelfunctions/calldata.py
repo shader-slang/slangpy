@@ -68,14 +68,14 @@ class CallData(NativeCallData):
 
             # Read temps from function
             function = func
-            return_type = function.python_return_type
-            positional_mapping = function.map_args or ()
-            keyword_mapping = function.map_kwargs or {}
-            type_conformances = function.type_conformances or []
+            return_type = function._return_type
+            positional_mapping = function._map_args or ()
+            keyword_mapping = function._map_kwargs or {}
+            type_conformances = function._type_conformances or []
 
             # Store layout and callmode from function
             self.layout = function.module.layout
-            self.call_mode = function.mode
+            self.call_mode = function._mode
 
             # Build 'unpacked' args (that handle IThis)
             unpacked_args = tuple([unpack_arg(x) for x in args])
@@ -83,7 +83,7 @@ class CallData(NativeCallData):
 
             # Setup context
             context = BindContext(self.layout, self.call_mode,
-                                  function.module.device_module, function.options or {})
+                                  function.module.device_module, function._options or {})
 
             # Build the unbound signature from inputs
             bindings = BoundCall(context, *unpacked_args, **unpacked_kwargs)
@@ -164,7 +164,7 @@ class CallData(NativeCallData):
             # Hash the code to get a unique identifier for the module.
             # We add type conformances to the start of the code to ensure that the hash is unique
             assert function.slangpy_signature is not None
-            code_minus_header = str(function.type_conformances) + \
+            code_minus_header = str(function._type_conformances) + \
                 code[len(codegen.header):]
             hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 

@@ -35,6 +35,14 @@ class StructType(ValueType):
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
         return max(binding.children[name].call_dimensionality for name in self._fields.keys())
 
+    # A struct type should get a dictionary, and just return that for raw dispatch
+    def create_dispatchdata(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return data
+        else:
+            raise ValueError(
+                f"Expected dictionary for struct type, got {type(data)}")
+
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: dict[str, Any]):
     assert isinstance(value, dict)

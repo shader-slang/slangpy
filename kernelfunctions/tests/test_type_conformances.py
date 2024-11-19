@@ -41,10 +41,10 @@ def test_conformance(device_type: DeviceType):
         device,
         "getval", CONFORMING_MODULE)
 
-    res = function.type_conformance([TypeConformance("IVal", "Get10")])()
+    res = function.type_conformances([TypeConformance("IVal", "Get10")])()
     assert res == 10
 
-    res = function.type_conformance([TypeConformance("IVal", "Get20")])()
+    res = function.type_conformances([TypeConformance("IVal", "Get20")])()
     assert res == 20
 
 

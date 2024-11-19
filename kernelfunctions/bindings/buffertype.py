@@ -163,6 +163,13 @@ class NDBufferMarshall(BaseNDBufferMarshall):
                 'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))]
             }
 
+    # Buffers provide their buffer and strides for dispatch
+    def create_dispatchdata(self, data: Any) -> Any:
+        return {
+            'buffer': data.buffer,
+            'strides': data.strides
+        }
+
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         et = slang_type_to_return_type(self.slang_element_type)
         return NDBuffer(context.device, et, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
