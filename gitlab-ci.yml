@@ -1,0 +1,74 @@
+# -----------------------------------------------------------------------------
+# Rule templates
+# -----------------------------------------------------------------------------
+
+# Rule to trigger on merge requests and updates to default branch
+.default-rules:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == 'schedule'
+
+# -----------------------------------------------------------------------------
+# Job templates
+# -----------------------------------------------------------------------------
+
+# Windows (initializes conda environment then runs ci.py script)
+.windows-base:
+  stage: build
+  tags:
+    - windows
+    - gpu
+  variables:
+    CONDA_PATH: C:\Users\NvrGfxTest\FalcorMiniconda
+    CONDA_ENV: falcor2
+  script:
+    # Setup conda environment
+    - Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+    - |
+      & $CONDA_PATH\shell\condabin\conda-hook.ps1
+    - conda activate $CONDA_ENV
+
+    # Run CI script
+    - python -u .build_agent/ci.py dependencies
+    - python -u .build_agent/ci.py precommit
+    - python -u .build_agent/ci.py install
+    - python -u .build_agent/ci.py test --device=vulkan --emulated
+    - python -u .build_agent/ci.py test --device=vulkan
+    - python -u .build_agent/ci.py test --device=d3d12 --emulated
+    - python -u .build_agent/ci.py test --device=d3d12
+
+ #Linux (initializes conda environment then runs ci.py script)
+.linux-base:
+  stage: build
+  tags:
+    - linux
+    - gpu
+  variables:
+    CONDA_PATH: /home/gitlab-runner/FalcorMiniconda
+    CONDA_ENV: falcor2
+  script:
+    # Setup conda environment
+    - source ${CONDA_PATH}/bin/activate
+    - conda activate ${CONDA_ENV}
+    # Run CI script
+    - python -u .build_agent/ci.py dependencies
+    - python -u .build_agent/ci.py precommit
+    - python -u .build_agent/ci.py install
+    - python -u .build_agent/ci.py test --device=vulkan --emulated
+    - python -u .build_agent/ci.py test --device=vulkan
+
+# -----------------------------------------------------------------------------
+# Standard build job
+# -----------------------------------------------------------------------------
+
+windows:
+  extends:
+    - .default-rules
+    - .windows-base
+
+#linux:
+#  extends:
+#    - .default-rules
+#    - .linux-base
+#    - .unit-test
