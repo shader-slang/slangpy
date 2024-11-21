@@ -130,13 +130,12 @@ class NDBuffer:
     def from_numpy(self, data: npt.ArrayLike):
         self.buffer.from_numpy(data)
 
-    def cursor(self, start: Optional[int]=None, count: Optional[int]=None):
+    def cursor(self, start: Optional[int] = None, count: Optional[int] = None):
         start = start or 0
         count = count or self.element_count
         layout = self.element_type.buffer_layout
-        byte_offset = start * layout.stride
-        byte_size = count * layout.stride
-        return BufferCursor(layout.reflection, self.buffer, byte_size, byte_offset)
+        return BufferCursor(layout.reflection, self.buffer, count, start)
+
 
 class NDDifferentiableBuffer(NDBuffer):
     def __init__(
