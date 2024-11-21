@@ -83,6 +83,10 @@ class SlangLayout:
         self._tlr = tlr
 
     @property
+    def reflection(self) -> TypeLayoutReflection:
+        return self._tlr
+
+    @property
     def size(self) -> int:
         return self._tlr.size
 
