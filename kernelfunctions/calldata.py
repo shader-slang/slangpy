@@ -149,8 +149,9 @@ class CallData(NativeCallData):
 
             # Write the shader to a file for debugging.
             os.makedirs(".temp", exist_ok=True)
-            sanitized = re.sub(r"[<>, ]", "_", function.name)
-            fn = f".temp/{function.module.name}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
+            santized_module = re.sub(r"[<>, ./]", "_", function.module.name)
+            sanitized = re.sub(r"[<>, ./]", "_", function.name)
+            fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
 
             # with open(fn,"r") as f:
             #   self.code = f.read()

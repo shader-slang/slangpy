@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, MemoryType, TypeReflection
+from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, MemoryType, TypeReflection, BufferCursor
 
 from kernelfunctions.core import BaseType, Shape
 from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
@@ -129,6 +129,12 @@ class NDBuffer:
 
     def from_numpy(self, data: npt.ArrayLike):
         self.buffer.from_numpy(data)
+
+    def cursor(self, start: Optional[int] = None, count: Optional[int] = None):
+        start = start or 0
+        count = count or self.element_count
+        layout = self.element_type.buffer_layout
+        return BufferCursor(layout.reflection, self.buffer, count, start)
 
 
 class NDDifferentiableBuffer(NDBuffer):
