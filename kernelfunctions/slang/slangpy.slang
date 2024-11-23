@@ -50,7 +50,7 @@ int _idx<let N : int>(ContextND<N> index, int[N] stride) {
     return idx;
 }
 
-public struct ImplicitCast<N> 
+public struct ImplicitCast<N>
 {
 
 }
@@ -72,20 +72,30 @@ public struct StructuredBufferType<T>
 {
     StructuredBuffer<T> value;
 
-    public void load(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
-    public void store(Context1D context, in T value) {};
-
     public void load(Context0D context, out StructuredBuffer<T> value) { value = this.value; }
     public void store(Context0D context, in StructuredBuffer<T> value) {};
 }
 
 public struct RWStructuredBufferType<T> {
     RWStructuredBuffer<T> value;
-    public void load(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
-    public void store(Context1D context, in T value) { this.value[context.call_id[0]] = value; };
 
     public void load(Context0D context, out RWStructuredBuffer<T> value) { value = this.value; }
     public void store(Context0D context, in RWStructuredBuffer<T> value) {};
+}
+
+public struct ByteAddressBufferType
+{
+    ByteAddressBuffer value;
+
+    public void load(Context0D context, out ByteAddressBuffer value) { value = this.value; }
+    public void store(Context0D context, in ByteAddressBuffer value) {};
+}
+
+public struct RWByteAddressBufferType {
+    RWByteAddressBuffer value;
+
+    public void load(Context0D context, out RWByteAddressBuffer value) { value = this.value; }
+    public void store(Context0D context, in RWByteAddressBuffer value) {};
 }
 
 public struct Texture1DType<T> {
@@ -187,6 +197,14 @@ public struct RWTexture2DArrayType<T> {
     public void store(Context0D context, in RWTexture2DArray<T> value) {};
 }
 
+public struct RaytracingAccelerationStructureType
+{
+    RaytracingAccelerationStructure value;
+    public void load(Context0D context, out RaytracingAccelerationStructure value) { value = this.value; }
+    public void store(Context0D context, in RaytracingAccelerationStructure value) {};
+}
+
+
 public struct ValueRef<T>
 {
     T value;
@@ -257,7 +275,7 @@ public struct RWNDBuffer<T, let N : int>
     public void load<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
         int call_id[N];
         for (int i = 0; i < N-1; i++) { call_id[i] = context.call_id[i]; }
-        
+
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
             value[vi] = get(call_id);
