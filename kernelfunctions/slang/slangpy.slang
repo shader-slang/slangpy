@@ -35,6 +35,7 @@ public typealias Context1D = ContextND<1>;
 public typealias Context2D = ContextND<2>;
 public typealias Context3D = ContextND<3>;
 public typealias Context4D = ContextND<4>;
+public typealias Context5D = ContextND<5>;
 
 public struct Unknown {}
 
@@ -47,6 +48,11 @@ int _idx<let N : int>(int[N] index, int[N] stride) {
 int _idx<let N : int>(ContextND<N> index, int[N] stride) {
     int idx = 0;
     for (int i = 0; i < N; i++) { idx += index.call_id[i] * stride[i]; }
+    return idx;
+}
+int _idx<let N : int>(vector<int,N> index, int[N] stride) {
+    int idx = 0;
+    for (int i = 0; i < N; i++) { idx += index[i] * stride[i]; }
     return idx;
 }
 
@@ -222,10 +228,14 @@ public struct RWValueRef<T>
 public struct NDBuffer<T, let N : int>
 {
     StructuredBuffer<T> buffer;
-    int[N] strides;
+    public int[N] strides;
+    public int[N] shape;
 
     public T get(int[N] index) { return buffer[_idx(index, strides)]; }
+    public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
+
     public __subscript(int[N] index)->T { get { return get(index); } }
+    public __subscript(vector<int,N> index)->T { get { return get(index); } }
 
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
     public void store(ContextND<N> context, in T value) {};
@@ -257,12 +267,26 @@ public struct NDBuffer<T, let N : int>
 public struct RWNDBuffer<T, let N : int>
 {
     RWStructuredBuffer<T> buffer;
-    int[N] strides;
+    public int[N] strides;
+    public int[N] shape;
 
     public T get(int[N] index) { return buffer[_idx(index, strides)]; }
-    public void set(int[N] index, T value) { buffer[_idx(index, strides)] = value; }
+    public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
 
-    public __subscript(int[N] index)->T { get { return get(index); } set { set(index, newValue); } }
+    public void set(int[N] index, T value) { buffer[_idx(index, strides)] = value; }
+    public void set(vector<int,N> index, T value) { buffer[_idx(index, strides)] = value; }
+
+    public __subscript(vector<int,N> index)->T {
+        get { return get(index); }
+        [nonmutating]
+        set { set(index, newValue); }
+    }
+
+    public __subscript(int[N] index)->T {
+        get { return get(index); }
+        [nonmutating]
+        set { set(index, newValue); }
+    }
 
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
     public void store(ContextND<N> context, in T value) { set(context.call_id, value); }

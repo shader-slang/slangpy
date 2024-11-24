@@ -136,6 +136,12 @@ class NDBuffer:
         layout = self.element_type.buffer_layout
         return BufferCursor(layout.reflection, self.buffer, count, start)
 
+    def uniforms(self):
+        return {
+            'buffer': self.buffer,
+            'strides': self.strides,
+            'shape': self.shape.as_tuple(),
+        }
 
 class NDDifferentiableBuffer(NDBuffer):
     def __init__(
@@ -208,3 +214,7 @@ class NDDifferentiableBuffer(NDBuffer):
     def grad_from_numpy(self, data: npt.ArrayLike):
         assert self.grad is not None
         self.grad.from_numpy(data)
+
+    def get_grad(self):
+        assert self.grad is not None
+        return self.grad

@@ -564,6 +564,12 @@ class SlangProgramLayout:
         self._types_by_name[name] = res
         return res
 
+    def require_type_by_name(self, name: str) -> SlangType:
+        res = self.find_type_by_name(name)
+        if res is None:
+            raise ValueError(f"Type {name} not found")
+        return res
+
     def find_function_by_name(self, name: str) -> Optional[SlangFunction]:
         existing = self._functions_by_name.get(name)
         if existing is not None:
@@ -573,6 +579,12 @@ class SlangProgramLayout:
             return None
         res = self._get_or_create_function(func_refl, None)
         self._functions_by_name[name] = res
+        return res
+
+    def require_function_by_name(self, name: str) -> SlangFunction:
+        res = self.find_function_by_name(name)
+        if res is None:
+            raise ValueError(f"Function {name} not found")
         return res
 
     def find_function_by_name_in_type(self, type: SlangType, name: str) -> Optional[SlangFunction]:
@@ -589,6 +601,12 @@ class SlangProgramLayout:
         res = self._get_or_create_function(
             self.program_layout.find_function_by_name_in_type(type_refl, name), self._get_or_create_type(type_refl))
         self._functions_by_name[qualified_name] = res
+        return res
+
+    def require_function_by_name_in_type(self, type: SlangType, name: str) -> SlangFunction:
+        res = self.find_function_by_name_in_type(type, name)
+        if res is None:
+            raise ValueError(f"Function {name} not found in type {type.full_name}")
         return res
 
     def scalar_type(self, scalar_type: TR.ScalarType) -> ScalarType:

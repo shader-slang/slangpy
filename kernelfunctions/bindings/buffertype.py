@@ -154,21 +154,20 @@ class NDBufferMarshall(BaseNDBufferMarshall):
         if isinstance(binding.vector_type, NDBufferType):
             return {
                 'buffer': data.buffer,
-                'strides': data.strides
+                'strides': data.strides,
+                'shape': data.shape.as_tuple()
             }
         else:
             broadcast = _calc_broadcast(context, binding)
             return {
                 'buffer': data.buffer,
-                'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))]
+                'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
+                'shape': data.shape.as_tuple()
             }
 
     # Buffers provide their buffer and strides for dispatch
-    def create_dispatchdata(self, data: Any) -> Any:
-        return {
-            'buffer': data.buffer,
-            'strides': data.strides
-        }
+    def create_dispatchdata(self, data: NDBuffer) -> Any:
+        return data.uniforms()
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         et = slang_type_to_return_type(self.slang_element_type)
@@ -279,7 +278,8 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
         if isinstance(binding.vector_type, NDBufferType):
             return {
                 'buffer': data.buffer,
-                'strides': data.strides
+                'strides': data.strides,
+                'shape': data.shape.as_tuple()
             }
         else:
             broadcast = _calc_broadcast(context, binding)
@@ -295,7 +295,8 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
                     value = ndbuffer.buffer if prim == PrimType.primal else ndbuffer.buffer
                     res[prim_name] = {
                         'buffer': value,
-                        'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))]
+                        'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
+                        'shape': data.shape.as_tuple()
                     }
             return res
 
@@ -309,6 +310,8 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
 
+    def create_dispatchdata(self, data: NDDifferentiableBuffer) -> Any:
+        return data.uniforms()
 
 def create_gradvr_type_for_value(layout: SlangProgramLayout, value: Any):
     if isinstance(value, NDDifferentiableBuffer):
