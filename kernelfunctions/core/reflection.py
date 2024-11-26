@@ -220,7 +220,6 @@ class VoidType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl)
 
-
 class ScalarType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         assert refl.scalar_type not in (TR.ScalarType.none, TR.ScalarType.void)
@@ -395,8 +394,7 @@ class SlangFunction:
         self._reflection = refl
         self._program = program
         func_params = [x for x in refl.parameters]
-        self._cached_parameters = tuple(SlangParameter(
-            program, param, i) for i, param in enumerate(func_params))
+        self._cached_parameters: Optional[Tuple[SlangParameter]] = None
         self._cached_return_type: Optional[SlangType] = None
 
     @property
@@ -420,6 +418,9 @@ class SlangFunction:
 
     @property
     def parameters(self) -> tuple[SlangParameter, ...]:
+        if self._cached_parameters is None:
+            self._cached_parameters = tuple(
+                SlangParameter(self._program, param, i) for i, param in enumerate(self._reflection.parameters))
         return self._cached_parameters
 
     @property

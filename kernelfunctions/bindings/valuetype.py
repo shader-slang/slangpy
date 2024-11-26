@@ -202,9 +202,9 @@ PYTHON_TYPES[type(None)] = lambda layout, pytype: NoneValueType(layout)
 PYTHON_TYPES[bool] = lambda layout, pytype: ScalarType(
     layout, TypeReflection.ScalarType.bool)
 PYTHON_TYPES[float] = lambda layout, pytype: ScalarType(
-    layout, TypeReflection.ScalarType.float32)
+    layout, TypeReflection.ScalarType.float64)
 PYTHON_TYPES[int] = lambda layout, pytype: ScalarType(
-    layout, TypeReflection.ScalarType.int32)
+    layout, TypeReflection.ScalarType.int64)
 PYTHON_SIGNATURES[type(None)] = None
 PYTHON_SIGNATURES[bool] = None
 PYTHON_SIGNATURES[float] = None

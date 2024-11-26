@@ -50,7 +50,7 @@ int _idx<let N : int>(ContextND<N> index, int[N] stride) {
     for (int i = 0; i < N; i++) { idx += index.call_id[i] * stride[i]; }
     return idx;
 }
-int _idx<let N : int>(vector<int,N> index, int[N] stride) {
+int _idx_vec<let N : int>(vector<int,N> index, int[N] stride) {
     int idx = 0;
     for (int i = 0; i < N; i++) { idx += index[i] * stride[i]; }
     return idx;
@@ -232,10 +232,10 @@ public struct NDBuffer<T, let N : int>
     public int[N] shape;
 
     public T get(int[N] index) { return buffer[_idx(index, strides)]; }
-    public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
+    //public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
 
-    public __subscript(int[N] index)->T { get { return get(index); } }
-    public __subscript(vector<int,N> index)->T { get { return get(index); } }
+    //public __subscript(int[N] index)->T { get { return get(index); } }
+    public __subscript(vector<int,N> index)->T { get { return buffer[_idx_vec(index, strides)]; } }
 
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
     public void store(ContextND<N> context, in T value) {};
@@ -271,21 +271,21 @@ public struct RWNDBuffer<T, let N : int>
     public int[N] shape;
 
     public T get(int[N] index) { return buffer[_idx(index, strides)]; }
-    public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
+    //public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
 
     public void set(int[N] index, T value) { buffer[_idx(index, strides)] = value; }
-    public void set(vector<int,N> index, T value) { buffer[_idx(index, strides)] = value; }
+    //public void set(vector<int,N> index, T value) { buffer[_idx(index, strides)] = value; }
+
+    //public __subscript(int[N] index)->T {
+    //    get { return get(index); }
+    //    [nonmutating]
+    //    set { set(index, newValue); }
+    //}
 
     public __subscript(vector<int,N> index)->T {
-        get { return get(index); }
+        get { return buffer[_idx_vec(index, strides)]; }
         [nonmutating]
-        set { set(index, newValue); }
-    }
-
-    public __subscript(int[N] index)->T {
-        get { return get(index); }
-        [nonmutating]
-        set { set(index, newValue); }
+        set { buffer[_idx_vec(index, strides)] = newValue; }
     }
 
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
