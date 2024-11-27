@@ -1,17 +1,32 @@
 from typing import Any, Optional
 
-from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, MemoryType, TypeReflection, BufferCursor
+from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, MemoryType, TypeReflection, BufferCursor, DataType
 
 from kernelfunctions.core import BaseType, Shape
-from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
+from kernelfunctions.core.reflection import SlangProgramLayout, SlangType, ScalarType
 from kernelfunctions.shapes import TShapeOrTuple
 from kernelfunctions.struct import Struct
 from kernelfunctions.typeregistry import get_or_create_type
 
 import numpy.typing as npt
+import torch
 
 global_lookup_modules: dict[Device, SlangProgramLayout] = {}
 
+SLANG_TO_CUDA_TYPES = {
+    TypeReflection.ScalarType.float16: DataType.float16,
+    TypeReflection.ScalarType.float32: DataType.float32,
+    TypeReflection.ScalarType.float64: DataType.float64,
+    TypeReflection.ScalarType.int8: DataType.int8,
+    TypeReflection.ScalarType.int16: DataType.int16,
+    TypeReflection.ScalarType.int32: DataType.int32,
+    TypeReflection.ScalarType.int64: DataType.int64,
+    TypeReflection.ScalarType.uint8: DataType.uint8,
+    TypeReflection.ScalarType.uint16: DataType.uint16,
+    TypeReflection.ScalarType.uint32: DataType.uint32,
+    TypeReflection.ScalarType.uint64: DataType.uint64,
+    TypeReflection.ScalarType.bool: DataType.bool,
+}
 
 def get_lookup_module(device: Device) -> SlangProgramLayout:
     if device not in global_lookup_modules:
@@ -130,6 +145,12 @@ class NDBuffer:
     def from_numpy(self, data: npt.ArrayLike):
         self.buffer.from_numpy(data)
 
+    def to_torch(self, override_type: Optional[DataType] = None):
+        if isinstance(self.element_type, ScalarType):
+            return self.buffer.to_torch(type=SLANG_TO_CUDA_TYPES[self.element_type.slang_scalar_type], shape=self.shape.as_tuple(), strides=self.strides)
+        else:
+            raise ValueError("Only scalar types can be converted to torch tensors")
+
     def cursor(self, start: Optional[int] = None, count: Optional[int] = None):
         start = start or 0
         count = count or self.element_count
@@ -207,6 +228,9 @@ class NDDifferentiableBuffer(NDBuffer):
     def primal_from_numpy(self, data: npt.ArrayLike):
         self.from_numpy(data)
 
+    def primal_to_torch(self):
+        return self.to_torch()
+
     def grad_to_numpy(self):
         assert self.grad is not None
         return self.grad.to_numpy()
@@ -214,6 +238,10 @@ class NDDifferentiableBuffer(NDBuffer):
     def grad_from_numpy(self, data: npt.ArrayLike):
         assert self.grad is not None
         self.grad.from_numpy(data)
+
+    def grad_to_torch(self):
+        assert self.grad is not None
+        return self.grad.to_torch()
 
     def get_grad(self):
         assert self.grad is not None

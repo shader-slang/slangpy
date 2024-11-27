@@ -291,6 +291,15 @@ class ArrayType(SlangType):
     def num_elements(self) -> int:
         return self.shape[0]
 
+def is_matching_array_type(a: SlangType, b: SlangType) -> bool:
+    if not isinstance(a, ArrayType) or not isinstance(b, ArrayType):
+        return False
+    if a.element_type != b.element_type:
+        return False
+    if a.num_elements > 0 and b.num_elements > 0:
+        return a.num_elements == b.num_elements
+    return True
+
 
 class StructType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):

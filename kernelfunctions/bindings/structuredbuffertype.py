@@ -82,9 +82,12 @@ class StructuredBufferType(BaseTypeImpl):
         return (self.usage & ResourceUsage.unordered_access) != 0
 
 def _get_or_create_python_type(layout: kfr.SlangProgramLayout, value: Buffer):
-    assert isinstance(value, Buffer)
-    usage = value.desc.usage
-    return StructuredBufferType(layout, usage)
+    if isinstance(value, Buffer):
+        usage = value.desc.usage
+        return StructuredBufferType(layout, usage)
+    else:
+        # Handle user trying to pass types like torch tensors in to a structured buffer arg
+        return StructuredBufferType(layout, ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
 
 PYTHON_TYPES[Buffer] = _get_or_create_python_type

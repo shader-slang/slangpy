@@ -6,7 +6,7 @@ from typing import Any, Optional, cast
 from kernelfunctions.bindings.valuetype import slang_type_to_return_type
 from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
-from kernelfunctions.core.reflection import TYPE_OVERRIDES, SlangProgramLayout, SlangType, TypeReflection
+from kernelfunctions.core.reflection import TYPE_OVERRIDES, SlangProgramLayout, SlangType, TypeReflection, is_matching_array_type
 from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
 
 from kernelfunctions.backend import ResourceUsage
@@ -94,6 +94,8 @@ class BaseNDBufferMarshall(BaseTypeImpl):
         if context.options['implicit_element_casts']:
             if self.slang_element_type == bound_type:
                 return bound_type
+            if is_matching_array_type(bound_type, self.slang_element_type):
+                return self.slang_element_type
 
         # if implicit tensor casts enabled, allow conversion from vector/matrix to element type
         if context.options['implicit_tensor_casts']:
