@@ -220,6 +220,7 @@ class VoidType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl)
 
+
 class ScalarType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         assert refl.scalar_type not in (TR.ScalarType.none, TR.ScalarType.void)
@@ -290,6 +291,7 @@ class ArrayType(SlangType):
     @property
     def num_elements(self) -> int:
         return self.shape[0]
+
 
 def is_matching_array_type(a: SlangType, b: SlangType) -> bool:
     if not isinstance(a, ArrayType) or not isinstance(b, ArrayType):
@@ -383,9 +385,11 @@ class DifferentialPairType(SlangType):
     def build_differential_type(self):
         return self._program.find_type_by_name("DifferentialPair<" + self.primal.derivative.full_name + ">")
 
+
 class RaytracingAccelerationStructureType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl, local_shape=Shape())
+
 
 class UnhandledType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
@@ -775,6 +779,8 @@ TYPE_OVERRIDES: dict[str, Callable[[
 
 def create_differential_pair(layout: SlangProgramLayout, refl: TypeReflection) -> SlangType:
     return DifferentialPairType(layout, refl)
+
+
 TYPE_OVERRIDES['DifferentialPair'] = create_differential_pair
 
 # There is not currently a way to go from TypeReflection to the enclosing scope,

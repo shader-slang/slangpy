@@ -28,6 +28,7 @@ SLANG_TO_CUDA_TYPES = {
     TypeReflection.ScalarType.bool: DataType.bool,
 }
 
+
 def get_lookup_module(device: Device) -> SlangProgramLayout:
     if device not in global_lookup_modules:
         dummy_module = device.load_module_from_source(
@@ -163,6 +164,7 @@ class NDBuffer:
             'strides': self.strides,
             'shape': self.shape.as_tuple(),
         }
+
 
 class NDDifferentiableBuffer(NDBuffer):
     def __init__(

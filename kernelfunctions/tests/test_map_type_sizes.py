@@ -18,9 +18,10 @@ int64_t add_numbers(int64_t a, int64_t b) {
 """,
     )
 
-    res = function.map('int64_t','int64_t')(5000000000, 10000000000)
+    res = function.map('int64_t', 'int64_t')(5000000000, 10000000000)
 
     assert res == 15000000000
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_implicit_add_int64s(device_type: DeviceType):
@@ -40,6 +41,7 @@ int64_t add_numbers(int64_t a, int64_t b) {
 
     assert res == 15000000000
 
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_implicit_add_uint32s(device_type: DeviceType):
 
@@ -57,6 +59,7 @@ uint32_t add_numbers(uint32_t a, uint32_t b) {
     res = function(0x8000000, 1)
 
     assert res == 0x8000001
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
