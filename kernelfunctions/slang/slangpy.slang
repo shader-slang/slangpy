@@ -74,6 +74,15 @@ public struct ValueType<T>
     public void store(Context0D context, in T value) {};
 }
 
+public struct RangeType
+{
+    int start;
+    int stop;
+    int step;
+    public void load(Context1D context, out int value) { value = this.start + context.call_id_vec.x * this.step; }
+    public void store(Context1D context, in int value) {};
+}
+
 public struct StructuredBufferType<T>
 {
     StructuredBuffer<T> value;
