@@ -163,8 +163,8 @@ void {reflection.name}_entrypoint({params}) {{
 
                 # Link the program
                 opts = SlangLinkOptions()
-                #opts.dump_intermediates = True
-                #opts.dump_intermediates_prefix = sanitized
+                # opts.dump_intermediates = True
+                # opts.dump_intermediates_prefix = sanitized
                 program = session.link_program(
                     [module, function.module.device_module]+function.module.link, [ep], opts)
 

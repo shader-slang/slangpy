@@ -32,14 +32,16 @@ class KernelGenException(Exception):
         super().__init__(message)
         self.message = message
 
+
 def is_generic_vector(type: TypeReflection) -> bool:
     if type.kind != TypeReflection.Kind.vector:
         return False
     try:
-        if type.scalar_type != TypeReflection.Kind.none and type.col_count > 0: # @IgnoreException
+        if type.scalar_type != TypeReflection.Kind.none and type.col_count > 0:  # @IgnoreException
             return False
     finally:
         return True
+
 
 def specialize(
     context: BindContext,
@@ -121,8 +123,8 @@ def specialize(
             elif isinstance(python_arg.python, ValueType) and not isinstance(python_arg.python, StructType):
                 inputs.append(python_arg.python)
             elif is_generic_vector(slang_param.type):
-                #HACK! Let types with a 'slang_element_type' try to resolve generic vector types
-                sl_et = getattr(python_arg.python,'slang_element_type',None)
+                # HACK! Let types with a 'slang_element_type' try to resolve generic vector types
+                sl_et = getattr(python_arg.python, 'slang_element_type', None)
                 if isinstance(sl_et, slr.VectorType):
                     inputs.append(sl_et)
                 else:

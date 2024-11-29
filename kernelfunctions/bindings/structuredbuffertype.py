@@ -26,7 +26,7 @@ class StructuredBufferType(BaseTypeImpl):
             return Shape(-1)
 
     def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
-        if isinstance(bound_type, (kfr.StructuredBufferType,kfr.ByteAddressBufferType)):
+        if isinstance(bound_type, (kfr.StructuredBufferType, kfr.ByteAddressBufferType)):
             return bound_type
         else:
             raise ValueError(
@@ -34,7 +34,7 @@ class StructuredBufferType(BaseTypeImpl):
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
         # structured buffer can only ever be taken to another structured buffer,
-        if isinstance(vector_target_type, (kfr.StructuredBufferType,kfr.ByteAddressBufferType)):
+        if isinstance(vector_target_type, (kfr.StructuredBufferType, kfr.ByteAddressBufferType)):
             return 0
         else:
             raise ValueError(
@@ -64,8 +64,8 @@ class StructuredBufferType(BaseTypeImpl):
             raise ValueError(
                 "Raw buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type")
 
-
     # Call data just returns the primal
+
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
         access = binding.access
         if access[0] != AccessType.none:
@@ -80,6 +80,7 @@ class StructuredBufferType(BaseTypeImpl):
     @property
     def is_writable(self) -> bool:
         return (self.usage & ResourceUsage.unordered_access) != 0
+
 
 def _get_or_create_python_type(layout: kfr.SlangProgramLayout, value: Buffer):
     if isinstance(value, Buffer):

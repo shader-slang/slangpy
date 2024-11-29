@@ -315,6 +315,7 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
     def create_dispatchdata(self, data: NDDifferentiableBuffer) -> Any:
         return data.uniforms()
 
+
 def create_gradvr_type_for_value(layout: SlangProgramLayout, value: Any):
     if isinstance(value, NDDifferentiableBuffer):
         return NDDifferentiableBufferMarshall(layout, value.element_type,

@@ -38,8 +38,10 @@ class AccelerationStructureType(BaseTypeImpl):
     def create_dispatchdata(self, data: Any) -> Any:
         return data
 
+
 def _get_or_create_python_type(layout: kfr.SlangProgramLayout, value: AccelerationStructure):
     assert isinstance(value, AccelerationStructure)
     return AccelerationStructureType(layout)
+
 
 PYTHON_TYPES[AccelerationStructure] = _get_or_create_python_type
