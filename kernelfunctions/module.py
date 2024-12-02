@@ -62,6 +62,12 @@ class Module:
                        struct=None, options=self.options)
             return res
 
+    def require_function(self, name: str):
+        slang_function = self.find_function(name)
+        if slang_function is None:
+            raise ValueError(f"Could not find function '{name}'")
+        return slang_function
+
     def find_function_in_struct(self, struct: Union[Struct, str], name: str):
         if isinstance(struct, str):
             s = self.find_struct(struct)
