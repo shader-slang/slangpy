@@ -1,12 +1,10 @@
 from typing import Any
 
-from slangpy.core.native import AccessType, CallContext, Shape
-
 from slangpy.backend import TypeReflection
 from slangpy.bindings import (BaseType, BaseTypeImpl, BindContext,
                               BoundVariable, BoundVariableRuntime,
-                              CodeGenBlock)
-from slangpy.bindings.typeregistry import PYTHON_TYPES
+                              CodeGenBlock, PYTHON_TYPES, AccessType,
+                              CallContext, Shape)
 from slangpy.reflection import SlangProgramLayout, SlangType
 
 
@@ -29,6 +27,10 @@ class RandFloatArg:
 
 
 class RandFloatArgType(BaseTypeImpl):
+    """
+    Slangpy type extension for RandFloatArg
+    """
+
     def __init__(self, layout: SlangProgramLayout, dim: int):
         super().__init__(layout)
         self.dims = dim
@@ -55,7 +57,7 @@ class RandFloatArgType(BaseTypeImpl):
                 'max': data.max
             }
 
-    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         return context.layout.vector_type(TypeReflection.ScalarType.float32, self.dims)
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):

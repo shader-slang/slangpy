@@ -5,7 +5,7 @@ from slangpy.core.native import AccessType, CallContext, TypeReflection
 import slangpy.backend as kfbackend
 import slangpy.reflection as kfr
 from slangpy.backend import math
-from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, BaseType,
+from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES,
                               BaseTypeImpl, BindContext, BoundVariable,
                               BoundVariableRuntime, CodeGenBlock)
 from slangpy.reflection.reflectiontypes import (BOOL_TYPES, FLOAT_TYPES,
@@ -163,7 +163,7 @@ class NoneValueType(ValueType):
         super().__init__(layout)
         self.slang_type = layout.scalar_type(TypeReflection.ScalarType.void)
 
-    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: kfr.SlangType):
         # None type can't resolve dimensionality
         return None
 

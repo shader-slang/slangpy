@@ -1,12 +1,10 @@
 from typing import Any
 
-from slangpy.core.native import AccessType, CallContext, Shape
-
 from slangpy.backend import TypeReflection
 from slangpy.bindings import (BaseType, BaseTypeImpl, BindContext,
                               BoundVariable, BoundVariableRuntime,
-                              CodeGenBlock)
-from slangpy.bindings.typeregistry import PYTHON_TYPES
+                              CodeGenBlock, PYTHON_TYPES, AccessType,
+                              CallContext, Shape)
 from slangpy.reflection import SlangProgramLayout, SlangType
 
 
@@ -27,6 +25,10 @@ class WangHashArg:
 
 
 class WangHashArgType(BaseTypeImpl):
+    """
+    Slangpy type extension for WangHashArg
+    """
+
     def __init__(self, layout: SlangProgramLayout, dims: int):
         super().__init__(layout)
         self.dims = dims
@@ -37,7 +39,7 @@ class WangHashArgType(BaseTypeImpl):
         self.slang_type = st
         self.concrete_shape = Shape(self.dims)
 
-    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         access = binding.access
         name = binding.variable_name
         if access[0] == AccessType.read:
@@ -51,10 +53,10 @@ class WangHashArgType(BaseTypeImpl):
                 'seed': data.seed
             }
 
-    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
 
-    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: SlangType):
         return 1 - len(vector_target_type.shape)
 
 

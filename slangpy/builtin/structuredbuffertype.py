@@ -4,7 +4,7 @@ from slangpy.core.native import AccessType, CallContext, Shape
 
 import slangpy.reflection as kfr
 from slangpy.backend import (Buffer, ResourceUsage)
-from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, BaseType,
+from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES,
                               BaseTypeImpl, BindContext, BoundVariable,
                               BoundVariableRuntime, CodeGenBlock)
 
@@ -26,14 +26,14 @@ class StructuredBufferType(BaseTypeImpl):
         else:
             return Shape(-1)
 
-    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+    def resolve_type(self, context: BindContext, bound_type: kfr.SlangType):
         if isinstance(bound_type, (kfr.StructuredBufferType, kfr.ByteAddressBufferType)):
             return bound_type
         else:
             raise ValueError(
                 "Raw buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type")
 
-    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: kfr.SlangType):
         # structured buffer can only ever be taken to another structured buffer,
         if isinstance(vector_target_type, (kfr.StructuredBufferType, kfr.ByteAddressBufferType)):
             return 0
@@ -48,6 +48,7 @@ class StructuredBufferType(BaseTypeImpl):
         assert access == AccessType.read
 
         if isinstance(binding.vector_type, kfr.StructuredBufferType):
+            assert binding.vector_type.element_type is not None
             if binding.vector_type.writable:
                 cgb.type_alias(
                     f"_t_{name}", f"RWStructuredBufferType<{binding.vector_type.element_type.full_name}>")

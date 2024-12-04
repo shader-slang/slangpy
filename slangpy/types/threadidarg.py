@@ -1,9 +1,8 @@
-from slangpy.core.native import AccessType, Shape
-
 from slangpy.backend import TypeReflection
 from slangpy.bindings import (BaseType, BaseTypeImpl, BindContext,
-                              BoundVariable, CodeGenBlock)
-from slangpy.bindings.typeregistry import PYTHON_TYPES
+                              BoundVariable, BoundVariableRuntime,
+                              CodeGenBlock, PYTHON_TYPES, AccessType,
+                              CallContext, Shape)
 from slangpy.reflection import SlangProgramLayout, SlangType
 
 
@@ -33,14 +32,14 @@ class ThreadIdArgType(BaseTypeImpl):
         self.slang_type = st
         self.concrete_shape = Shape(self.dims)
 
-    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         access = binding.access
         name = binding.variable_name
         if access[0] == AccessType.read:
             cgb.add_import("threadidarg")
             cgb.type_alias(f"_t_{name}", self.slang_type.full_name)
 
-    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):

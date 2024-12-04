@@ -5,7 +5,7 @@ from slangpy.core.native import Shape
 import slangpy.bindings.typeregistry as tr
 from slangpy.bindings import (PYTHON_TYPES, BaseType, BindContext,
                               BoundVariable)
-from slangpy.reflection import SlangProgramLayout
+from slangpy.reflection import SlangProgramLayout, SlangType
 
 from .valuetype import ValueType
 
@@ -30,10 +30,10 @@ class StructType(ValueType):
     def is_writable(self) -> bool:
         return True
 
-    def resolve_type(self, context: BindContext, bound_type: 'BaseType'):
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         return bound_type
 
-    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: SlangType):
         return max(binding.children[name].call_dimensionality for name in self._fields.keys())
 
     # A struct type should get a dictionary, and just return that for raw dispatch
