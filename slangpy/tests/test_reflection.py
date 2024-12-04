@@ -1,10 +1,10 @@
 from typing import Any, Callable
 import pytest
-from slangpy.backend import DeviceType
-import slangpy.tests.helpers as helpers
-import slangpy.reflection as r
 from slangpy.core.native import TypeReflection
+from slangpy.backend import DeviceType
 from slangpy.reflection.reflectiontypes import is_float
+import slangpy.reflection as r
+import slangpy.tests.helpers as helpers
 
 MODULE = """
 import "slangpy";

@@ -1,12 +1,12 @@
-import pytest
-from slangpy.backend import DeviceType, float2, float3
-from slangpy.core.function import Function
-from slangpy import Module
-from slangpy.core.struct import Struct
-import slangpy.tests.helpers as helpers
-from slangpy.types.buffer import NDBuffer
-from slangpy.core.utils import find_type_layout_for_buffer
 import numpy as np
+import pytest
+from slangpy.core.function import Function
+from slangpy.core.struct import Struct
+from slangpy.core.utils import find_type_layout_for_buffer
+from slangpy import Module
+from slangpy.backend import DeviceType, float2, float3
+from slangpy.types.buffer import NDBuffer
+import slangpy.tests.helpers as helpers
 
 
 def load_test_module(device_type: DeviceType):

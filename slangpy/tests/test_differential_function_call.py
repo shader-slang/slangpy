@@ -1,8 +1,8 @@
+import numpy as np
 import pytest
+from slangpy.backend import DeviceType, float3
 from slangpy.types import NDDifferentiableBuffer, diffPair
 import slangpy.tests.helpers as helpers
-from slangpy.backend import DeviceType, float3
-import numpy as np
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 

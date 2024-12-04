@@ -1,9 +1,9 @@
+import numpy as np
 import pytest
 from slangpy.backend import DeviceType, float2
-import numpy as np
 from slangpy.types import NDBuffer
-import slangpy.tests.helpers as helpers
 from slangpy.types.buffer import NDDifferentiableBuffer
+import slangpy.tests.helpers as helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

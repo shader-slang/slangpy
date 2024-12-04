@@ -1,5 +1,5 @@
-import pytest
 from sgl import TypeConformance
+import pytest
 from slangpy.backend import DeviceType
 import slangpy.tests.helpers as helpers
 

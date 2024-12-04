@@ -1,8 +1,8 @@
-import pytest
 from sgl import float3, float4
+import pytest
 from slangpy.backend import DeviceType
-import slangpy.tests.helpers as helpers
 from slangpy.types.buffer import NDBuffer
+import slangpy.tests.helpers as helpers
 
 MODULE = """
 import "slangpy";

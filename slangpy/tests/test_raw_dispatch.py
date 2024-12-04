@@ -1,9 +1,9 @@
 from typing import Any
+import numpy as np
 import pytest
 from slangpy.backend import DeviceType, uint3
-import slangpy.tests.helpers as helpers
 from slangpy.types.buffer import NDBuffer
-import numpy as np
+import slangpy.tests.helpers as helpers
 
 MODULE = r"""
 import "slangpy";

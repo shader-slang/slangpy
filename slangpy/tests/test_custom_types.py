@@ -1,15 +1,11 @@
-
-
+import numpy as np
 import pytest
-
+from slangpy.backend import DeviceType, int3, uint3, float3
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.randfloatarg import RandFloatArg
 from slangpy.types.threadidarg import ThreadIdArg
-import numpy as np
-
 from slangpy.types.wanghasharg import WangHashArg
-from slangpy.backend import DeviceType, int3, uint3, float3
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

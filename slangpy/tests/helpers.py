@@ -1,16 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import hashlib
-from typing import Any
-
-import pytest
-import slangpy
-import sys
-import os
 from pathlib import Path
-
+from typing import Any
+import hashlib
+import os
+import pytest
+import sys
 from slangpy.backend import (
     Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel)
+import slangpy
 from slangpy.core.calldata import SLANG_PATH
 from slangpy import Module
 

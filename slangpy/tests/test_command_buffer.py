@@ -1,9 +1,9 @@
-import pytest
-from slangpy.backend import DeviceType, float3
-from slangpy import Module
-import slangpy.tests.helpers as helpers
-from slangpy.types.buffer import NDDifferentiableBuffer
 import numpy as np
+import pytest
+from slangpy import Module
+from slangpy.backend import DeviceType, float3
+from slangpy.types.buffer import NDDifferentiableBuffer
+import slangpy.tests.helpers as helpers
 
 
 def load_test_module(device_type: DeviceType):

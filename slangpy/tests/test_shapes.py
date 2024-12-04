@@ -1,12 +1,11 @@
-from typing import Any, Optional
-import pytest
 from sgl import float4
+from typing import Any, Optional
+import deepdiff
+import pytest
+from slangpy.core.callsignature import BoundVariable
+from slangpy.core.shapes import TShapeOrTuple
 from slangpy.backend import DeviceType, float3
 from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
-from slangpy.core.callsignature import BoundVariable
-import deepdiff
-
-from slangpy.core.shapes import TShapeOrTuple
 from slangpy.tests import helpers
 from slangpy.types import floatRef
 from slangpy.types.buffer import NDBuffer

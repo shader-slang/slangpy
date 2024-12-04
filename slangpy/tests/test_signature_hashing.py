@@ -1,13 +1,12 @@
 from time import time
 import pytest
-from slangpy.core.native import hash_signature
-from slangpy.backend import DeviceType, float3
 from slangpy.core.function import Function
+from slangpy.core.native import hash_signature
+import slangpy.core.function as kff
 from slangpy import Module
+from slangpy.backend import DeviceType, float3
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
-
-import slangpy.core.function as kff
 
 # We mess with cache in this suite, so make sure it gets turned on correctly before each test
 

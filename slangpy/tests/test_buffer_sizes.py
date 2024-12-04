@@ -1,7 +1,7 @@
 import pytest
-from slangpy.types import NDDifferentiableBuffer
-from slangpy.tests import helpers
 from slangpy.backend import DeviceType
+from slangpy.tests import helpers
+from slangpy.types import NDDifferentiableBuffer
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

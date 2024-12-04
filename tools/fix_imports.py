@@ -3,7 +3,7 @@
 from pathlib import Path
 
 
-root = Path(__file__).parent.parent / "slangpy/core"
+root = Path(__file__).parent.parent / "slangpy/tests"
 files = list(root.glob("**/*.py"))
 
 
@@ -46,10 +46,14 @@ for file in files:
     # split into array that start with "import" and array that doesn't
     imports = []
     rest = []
+    found_not_empty_line = False
     for line in lines:
-        if line.startswith("import") or line.startswith("from"):
+        if not found_not_empty_line and (line.startswith("import") or line.startswith("from")):
             imports.append(line)
         else:
+            stripped = line.strip()
+            if line.strip() != "" and not line.startswith("#"):
+                found_not_empty_line = True
             rest.append(line)
 
     # sort imports
