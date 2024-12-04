@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from slangpy.backend import TypeReflection
 from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable,
