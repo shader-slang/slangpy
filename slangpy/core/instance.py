@@ -1,10 +1,8 @@
-
-
 from typing import Any, Optional
+import numpy.typing as npt
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
-import numpy.typing as npt
 
 
 class InstanceList:

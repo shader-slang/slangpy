@@ -1,11 +1,8 @@
-
-
 from typing import TYPE_CHECKING, Any, Union
-from slangpy.backend import SlangModule, ComputeKernel
-
-from slangpy.reflection import SlangProgramLayout
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
+from slangpy.backend import SlangModule, ComputeKernel
+from slangpy.reflection import SlangProgramLayout
 import slangpy.bindings.typeregistry as tr
 
 if TYPE_CHECKING:

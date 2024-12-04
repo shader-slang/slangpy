@@ -1,7 +1,4 @@
-
-
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
-
 from slangpy.backend import FunctionReflection, VariableReflection, ModifierID
 
 if TYPE_CHECKING:
