@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any
 
-from slangpy.backend import TypeReflection
 from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime, CallContext,
                               CodeGenBlock, Shape)
-from slangpy.reflection import SlangProgramLayout, SlangType
+from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 
 
 class WangHashArg:
@@ -22,6 +21,10 @@ class WangHashArg:
     @property
     def slangpy_signature(self) -> str:
         return f"[{self.dims}]"
+
+
+def wang_hash(dim: int = 3, seed: int = 0):
+    return WangHashArg(dim, seed)
 
 
 class WangHashArgMarshall(Marshall):

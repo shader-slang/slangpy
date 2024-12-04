@@ -26,3 +26,6 @@ from .reflectiontypes import (
     is_matching_array_type,
     SCALAR_TYPE_TO_NUMPY_TYPE
 )
+
+# Regularly needed for access to scalar type by slang type
+from slangpy.backend import TypeReflection

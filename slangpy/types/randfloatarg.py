@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any
 
-from slangpy.backend import TypeReflection
 from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime, CallContext,
                               CodeGenBlock, Shape)
-from slangpy.reflection import SlangProgramLayout, SlangType
+from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 
 
 class RandFloatArg:
@@ -24,6 +23,10 @@ class RandFloatArg:
     @property
     def slangpy_signature(self) -> str:
         return f"[{self.dims}]"
+
+
+def rand_float(min: float = 0, max: float = 1, dim: int = 3, seed: int = 0):
+    return RandFloatArg(min, max, dim, seed)
 
 
 class RandFloatArgMarshall(Marshall):
