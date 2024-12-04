@@ -3,9 +3,9 @@ from typing import Any, Optional, Union
 from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection
 
 import slangpy.reflection as kfr
-from slangpy.backend import (FormatType, ResourceType, ResourceUsage, ResourceView,
-                             Texture, get_format_info)
-from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, BaseTypeImpl,
+from slangpy.backend import (FormatType, ResourceType, ResourceUsage,
+                             ResourceView, Texture, get_format_info)
+from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,
                               BindContext, BoundVariable, BoundVariableRuntime,
                               CodeGenBlock)
 
@@ -18,7 +18,7 @@ def prefix(usage: ResourceUsage):
     return "RW" if has_uav(usage) else ""
 
 
-class TextureType(BaseTypeImpl):
+class TextureMarshall(Marshall):
 
     def __init__(self, layout: kfr.SlangProgramLayout, resource_shape: TypeReflection.ResourceShape, element_type: kfr.SlangType, usage: ResourceUsage):
         super().__init__(layout)
@@ -233,7 +233,7 @@ def get_or_create_python_texture_type(layout: kfr.SlangProgramLayout, resource: 
         else:
             raise ValueError(f"Unsupported texture type {resource.desc.type}")
 
-    return TextureType(layout, resource_shape, element_type, usage)
+    return TextureMarshall(layout, resource_shape, element_type, usage)
 
 
 def _get_or_create_python_type(layout: kfr.SlangProgramLayout, value: Any):

@@ -1,13 +1,16 @@
+
+
 from typing import Any
 
 from slangpy.core.native import AccessType, CallContext, TypeReflection
 
-from slangpy.bindings import (PYTHON_TYPES, BaseTypeImpl, BindContext,
-                              BoundVariable, BoundVariableRuntime, CodeGenBlock)
-from slangpy.reflection import (SlangProgramLayout, SlangType)
+from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
+                              BoundVariable, BoundVariableRuntime,
+                              CodeGenBlock)
+from slangpy.reflection import SlangProgramLayout, SlangType
 
 
-class RangeType(BaseTypeImpl):
+class RangeMarshall(Marshall):
     def __init__(self, layout: SlangProgramLayout):
         super().__init__(layout)
         st = layout.find_type_by_name(f"RangeType")
@@ -42,4 +45,4 @@ class RangeType(BaseTypeImpl):
         return 1 - len(vector_target_type.shape)
 
 
-PYTHON_TYPES[range] = lambda l, x: RangeType(l)
+PYTHON_TYPES[range] = lambda l, x: RangeMarshall(l)

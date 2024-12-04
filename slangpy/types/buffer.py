@@ -9,7 +9,7 @@ from slangpy.core.struct import Struct
 from slangpy.backend import (BufferCursor, DataType, Device, MemoryType,
                              ResourceUsage, TypeLayoutReflection,
                              TypeReflection)
-from slangpy.bindings.basetype import BaseType
+from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType
 
@@ -43,7 +43,7 @@ def resolve_program_layout(device: Device, element_type: Any, program_layout: Op
     if program_layout is None:
         if isinstance(element_type, SlangType):
             program_layout = element_type.program
-        elif isinstance(element_type, BaseType):
+        elif isinstance(element_type, Marshall):
             program_layout = element_type.slang_type.program
         elif isinstance(element_type, Struct):
             program_layout = element_type.module.layout
@@ -66,7 +66,7 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
         element_type = program_layout.find_type(element_type)
     elif isinstance(element_type, TypeLayoutReflection):
         element_type = program_layout.find_type(element_type.type)
-    elif isinstance(element_type, BaseType):
+    elif isinstance(element_type, Marshall):
         if element_type.slang_type.program == program_layout:
             element_type = element_type.slang_type
         else:

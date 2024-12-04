@@ -5,12 +5,12 @@ from slangpy.core.native import AccessType, CallMode
 import slangpy.bindings.typeregistry as tr
 import slangpy.reflection as slr
 from slangpy.backend import FunctionReflection, ModifierID, TypeReflection
-from slangpy.bindings.basetype import BaseType, BindContext, ReturnContext
+from slangpy.bindings.marshall import Marshall, BindContext, ReturnContext
 from slangpy.bindings.boundvariable import (BoundCall, BoundVariable,
                                             BoundVariableException)
 from slangpy.bindings.codegen import CodeGen
-from slangpy.builtin.structtype import StructType
-from slangpy.builtin.valuetype import NoneValueType, ValueType
+from slangpy.builtin.struct import StructMarshall
+from slangpy.builtin.value import NoneMarshall, ValueMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
 from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
 from slangpy.types.valueref import ValueRef
@@ -118,7 +118,7 @@ def specialize(
             assert python_arg is not None
             if python_arg.vector_type is not None:
                 inputs.append(python_arg.vector_type)
-            elif isinstance(python_arg.python, ValueType) and not isinstance(python_arg.python, StructType):
+            elif isinstance(python_arg.python, ValueMarshall) and not isinstance(python_arg.python, StructMarshall):
                 inputs.append(python_arg.python)
             elif is_generic_vector(slang_param.type):
                 # HACK! Let types with a 'slang_element_type' try to resolve generic vector types
@@ -139,7 +139,7 @@ def specialize(
             arg.param_index = i
 
     def to_type_reflection(input: Any) -> TypeReflection:
-        if isinstance(input, BaseType):
+        if isinstance(input, Marshall):
             return input.slang_type.type_reflection
         elif isinstance(input, TypeReflection):
             return input
@@ -173,7 +173,7 @@ def validate_specialize(
                    if y.param_index >= 0 and y.param_index < len(function.parameters)]
 
     def to_type_reflection(input: Any) -> TypeReflection:
-        if isinstance(input, BaseType):
+        if isinstance(input, Marshall):
             return input.slang_type.type_reflection
         elif isinstance(input, TypeReflection):
             return input
@@ -294,7 +294,7 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     if context.call_mode != CallMode.prim:
         return
     node = signature.kwargs.get("_result")
-    if node is None or not isinstance(node.python, NoneValueType):
+    if node is None or not isinstance(node.python, NoneMarshall):
         return
 
     # Should have an explicit vector type by now.

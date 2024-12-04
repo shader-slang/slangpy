@@ -2,7 +2,7 @@ from io import StringIO
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from slangpy.backend import SlangModule
-from slangpy.bindings.basetype import BaseType
+from slangpy.bindings.marshall import Marshall
 
 if TYPE_CHECKING:
     from slangpy.reflection import SlangProgramLayout
@@ -18,7 +18,7 @@ PYTHON_SIGNATURE_HASH: dict[type, Optional[Callable[[StringIO, Any], Any]]] = {
     tuple: None,
 }
 
-TTypeLookup = Callable[['SlangProgramLayout', Any], BaseType]
+TTypeLookup = Callable[['SlangProgramLayout', Any], Marshall]
 
 # Dictionary of python types to corresponding base type
 PYTHON_TYPES: dict[type, TTypeLookup] = {}
@@ -49,7 +49,7 @@ class scope:
         _cur_module.pop()
 
 
-def get_or_create_type(layout: 'SlangProgramLayout', python_type: Any, value: Any = None) -> BaseType:
+def get_or_create_type(layout: 'SlangProgramLayout', python_type: Any, value: Any = None) -> Marshall:
     if isinstance(python_type, type):
         cb = PYTHON_TYPES.get(python_type)
         if cb is None:
@@ -58,7 +58,7 @@ def get_or_create_type(layout: 'SlangProgramLayout', python_type: Any, value: An
         if res is None:
             raise ValueError(f"Unsupported type {python_type}")
         return res
-    elif isinstance(python_type, BaseType):
+    elif isinstance(python_type, Marshall):
         return python_type
     else:
         raise ValueError(f"Unsupported type {python_type}")

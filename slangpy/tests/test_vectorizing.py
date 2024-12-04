@@ -142,7 +142,7 @@ def test_implicit_1d_vectorization(device_type: DeviceType):
 def test_fail_disabled_implicit_1d_vectorization(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
-    function = helpers.create_function_from_module(device, "foo", SIMPLE_FUNC, {
+    function = helpers.create_function_from_module(device, "foo", SIMPLE_FUNC, options={
         'implicit_element_casts': False
     })
 

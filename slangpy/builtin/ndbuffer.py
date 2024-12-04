@@ -4,10 +4,10 @@ from slangpy.core.enums import PrimType
 from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection
 
 from slangpy.backend import ResourceUsage
-from slangpy.bindings import (PYTHON_TYPES, BaseTypeImpl, BindContext,
+from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext)
-from slangpy.builtin.valuetype import slang_type_to_return_type
+from slangpy.builtin.value import slang_type_to_return_type
 from slangpy.reflection import (TYPE_OVERRIDES, SlangProgramLayout, SlangType,
                                 is_matching_array_type)
 from slangpy.types import NDBuffer, NDDifferentiableBuffer
@@ -47,7 +47,7 @@ TYPE_OVERRIDES["NDBuffer"] = NDBufferType
 TYPE_OVERRIDES["RWNDBuffer"] = NDBufferType
 
 
-class BaseNDBufferMarshall(BaseTypeImpl):
+class BaseNDBufferMarshall(Marshall):
     def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
         super().__init__(layout)
 

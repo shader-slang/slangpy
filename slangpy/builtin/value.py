@@ -5,9 +5,9 @@ from slangpy.core.native import AccessType, CallContext, TypeReflection
 import slangpy.backend as kfbackend
 import slangpy.reflection as kfr
 from slangpy.backend import math
-from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES,
-                              BaseTypeImpl, BindContext, BoundVariable,
-                              BoundVariableRuntime, CodeGenBlock)
+from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,
+                              BindContext, BoundVariable, BoundVariableRuntime,
+                              CodeGenBlock)
 from slangpy.reflection.reflectiontypes import (BOOL_TYPES, FLOAT_TYPES,
                                                 INT_TYPES, SIGNED_INT_TYPES,
                                                 UNSIGNED_INT_TYPES)
@@ -48,7 +48,7 @@ def slang_type_to_return_type(slang_type: kfr.SlangType) -> Any:
         raise ValueError(f"Slang type {slang_type} has no associated python value type")
 
 
-class ValueType(BaseTypeImpl):
+class ValueMarshall(Marshall):
     def __init__(self, layout: kfr.SlangProgramLayout):
         super().__init__(layout)
 
@@ -146,7 +146,7 @@ SCALAR_TYPE_SIZES: dict[TypeReflection.ScalarType, int] = {
 }
 
 
-class ScalarType(ValueType):
+class ScalarMarshall(ValueMarshall):
     def __init__(self, layout: kfr.SlangProgramLayout, scalar_type: TypeReflection.ScalarType):
         super().__init__(layout)
         self.slang_type = layout.scalar_type(scalar_type)
@@ -158,7 +158,7 @@ class ScalarType(ValueType):
         return self.slang_type
 
 
-class NoneValueType(ValueType):
+class NoneMarshall(ValueMarshall):
     def __init__(self, layout: kfr.SlangProgramLayout):
         super().__init__(layout)
         self.slang_type = layout.scalar_type(TypeReflection.ScalarType.void)
@@ -168,7 +168,7 @@ class NoneValueType(ValueType):
         return None
 
 
-class VectorType(ValueType):
+class VectorMarshall(ValueMarshall):
     def __init__(self, layout: kfr.SlangProgramLayout, scalar_type: TypeReflection.ScalarType, num_elements: int):
         super().__init__(layout)
         self.slang_type = layout.vector_type(scalar_type, num_elements)
@@ -184,7 +184,7 @@ class VectorType(ValueType):
             raise ValueError("Cannot reduce vector type by more than one dimension")
 
 
-class MatrixType(ValueType):
+class MatrixMarshall(ValueMarshall):
     def __init__(self, layout: kfr.SlangProgramLayout, scalar_type: TypeReflection.ScalarType, rows: int, cols: int):
         super().__init__(layout)
         self.slang_type = layout.matrix_type(scalar_type, rows, cols)
@@ -202,12 +202,12 @@ class MatrixType(ValueType):
 
 
 # Point built in python types at their slang equivalents
-PYTHON_TYPES[type(None)] = lambda layout, pytype: NoneValueType(layout)
-PYTHON_TYPES[bool] = lambda layout, pytype: ScalarType(
+PYTHON_TYPES[type(None)] = lambda layout, pytype: NoneMarshall(layout)
+PYTHON_TYPES[bool] = lambda layout, pytype: ScalarMarshall(
     layout, TypeReflection.ScalarType.bool)
-PYTHON_TYPES[float] = lambda layout, pytype: ScalarType(
+PYTHON_TYPES[float] = lambda layout, pytype: ScalarMarshall(
     layout, TypeReflection.ScalarType.float32)
-PYTHON_TYPES[int] = lambda layout, pytype: ScalarType(
+PYTHON_TYPES[int] = lambda layout, pytype: ScalarMarshall(
     layout, TypeReflection.ScalarType.int32)
 PYTHON_SIGNATURES[type(None)] = None
 PYTHON_SIGNATURES[bool] = None
@@ -216,7 +216,7 @@ PYTHON_SIGNATURES[int] = None
 
 
 # Python quaternion type
-PYTHON_TYPES[math.quatf] = lambda layout, pytype: VectorType(
+PYTHON_TYPES[math.quatf] = lambda layout, pytype: VectorMarshall(
     layout, TypeReflection.ScalarType.float32, 4)
 PYTHON_SIGNATURES[math.quatf] = None
 
@@ -228,7 +228,7 @@ for pair in zip(["int", "float", "bool", "uint", "float16_t"], [TypeReflection.S
     for dim in range(1, 5):
         vec_type: type = getattr(math, f"{base_name}{dim}")
         if vec_type is not None:
-            t = lambda layout, pytype, dim=dim, st=slang_scalar_type: VectorType(
+            t = lambda layout, pytype, dim=dim, st=slang_scalar_type: VectorMarshall(
                 layout, st, dim)
             PYTHON_TYPES[vec_type] = t
             PYTHON_SIGNATURES[vec_type] = None
@@ -237,7 +237,7 @@ for pair in zip(["int", "float", "bool", "uint", "float16_t"], [TypeReflection.S
         for col in range(2, 5):
             mat_type: type = getattr(math, f"float{row}x{col}", None)  # type: ignore
             if mat_type is not None:
-                t = lambda layout, pytype, row=row, st=slang_scalar_type, col=col: MatrixType(
+                t = lambda layout, pytype, row=row, st=slang_scalar_type, col=col: MatrixMarshall(
                     layout, st, row, col)
                 t.python_type = mat_type  # type: ignore
                 PYTHON_TYPES[mat_type] = t

@@ -29,18 +29,18 @@ class ReturnContext:
         self.bind_context = bind_context
 
 
-class BaseType(NativeType):
+class Marshall(NativeType):
     def __init__(self, layout: 'SlangProgramLayout'):
         super().__init__()
         self.slang_type: 'SlangType'
 
     @property
     def has_derivative(self) -> bool:
-        raise NotImplementedError()
+        return False
 
     @property
     def is_writable(self) -> bool:
-        raise NotImplementedError()
+        return False
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         raise NotImplementedError()
@@ -49,7 +49,14 @@ class BaseType(NativeType):
         raise NotImplementedError()
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
-        raise NotImplementedError()
+        # Default to just casting to itself (i.e. no implicit cast)
+        return self.slang_type
 
     def resolve_dimensionality(self, context: BindContext, binding: 'BoundVariable', vector_target_type: 'SlangType'):
-        raise NotImplementedError()
+        # Default implementation requires that both this type and the target type
+        # have fully known element types. If so, dimensionality is just the difference
+        # between the length of the 2 shapes
+        if self.slang_type is None:
+            raise ValueError(
+                f"Cannot resolve dimensionality of {type(self)} without slang type")
+        return len(self.slang_type.shape) - len(vector_target_type.shape)

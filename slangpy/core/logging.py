@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 from slangpy.backend import FunctionReflection, ModifierID, VariableReflection
 
 if TYPE_CHECKING:
-    from slangpy.bindings.basetype import BaseType
+    from slangpy.bindings.marshall import Marshall
     from slangpy.bindings.boundvariable import BoundCall, BoundVariable
     from slangpy.bindings.boundvariableruntime import (BoundCallRuntime,
                                                        BoundVariableRuntime)
@@ -83,7 +83,7 @@ def _pyarg_name(value: Any) -> str:
     return value
 
 
-def _type_name(value: Optional['BaseType']) -> str:
+def _type_name(value: Optional['Marshall']) -> str:
     if value is None:
         return ""
 
@@ -102,7 +102,7 @@ def _type_name(value: Optional['BaseType']) -> str:
     return str(value)
 
 
-def _type_shape(value: Optional['BaseType']) -> str:
+def _type_shape(value: Optional['Marshall']) -> str:
     if value is None:
         return ""
     return str(value.slang_type.shape)

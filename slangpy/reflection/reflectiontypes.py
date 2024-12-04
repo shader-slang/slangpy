@@ -410,7 +410,7 @@ class SlangFunction:
         self._reflection = refl
         self._program = program
         func_params = [x for x in refl.parameters]
-        self._cached_parameters: Optional[Tuple[SlangParameter]] = None
+        self._cached_parameters: Optional[tuple[SlangParameter, ...]] = None
         self._cached_return_type: Optional[SlangType] = None
 
     @property
@@ -435,8 +435,9 @@ class SlangFunction:
     @property
     def parameters(self) -> tuple[SlangParameter, ...]:
         if self._cached_parameters is None:
-            self._cached_parameters = tuple(
-                SlangParameter(self._program, param, i) for i, param in enumerate(self._reflection.parameters))
+            ref_params = [x for x in self._reflection.parameters]
+            self._cached_parameters = tuple([
+                SlangParameter(self._program, param, i) for i, param in enumerate(ref_params)])
         return self._cached_parameters
 
     @property

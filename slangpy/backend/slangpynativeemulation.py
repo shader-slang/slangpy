@@ -323,7 +323,7 @@ class NativeCallRuntimeOptions:
     def __init__(self):
         super().__init__()
         self.uniforms: Optional[list[Union[Callable[[
-            'NativeCallData'], Any], dict[str, Any]]]] = None
+            'NativeCallData'], dict[str, Any]], dict[str, Any]]]] = None
         self.before_dispatch: Optional[list[TDispatchHook]] = None
         self.after_dispatch: Optional[list[TDispatchHook]] = None
 

@@ -20,6 +20,7 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         super().__init__()
 
         # Data potentially used by type marshalls
+        assert source.vector_type is not None
         self.access = source.access
         self.transform = source.vector_mapping
         self.python_type = source.python

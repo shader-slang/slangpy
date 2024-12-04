@@ -6,13 +6,12 @@ from slangpy.core.enums import PrimType
 from slangpy.core.native import AccessType, CallContext
 
 import slangpy.reflection as kfr
-from slangpy.backend import (Buffer, ResourceUsage)
-from slangpy.bindings import (PYTHON_TYPES, BaseType, BaseTypeImpl,
-                              BindContext, BoundVariable, BoundVariableRuntime,
+from slangpy.backend import Buffer, ResourceUsage
+from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
+                              BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, get_or_create_type)
-from slangpy.builtin.valuereftype import (numpy_to_slang_value,
-                                          slang_value_to_numpy)
-from slangpy.reflection import (SlangProgramLayout, SlangType)
+from slangpy.builtin.valueref import numpy_to_slang_value, slang_value_to_numpy
+from slangpy.reflection import SlangProgramLayout, SlangType
 from slangpy.types import DiffPair
 
 
@@ -49,9 +48,9 @@ struct _t_{name}
     return DIFF_PAIR_CODE
 
 
-class DiffPairType(BaseTypeImpl):
+class DiffPairMarshall(Marshall):
 
-    def __init__(self, layout: SlangProgramLayout, primal_type: BaseType, derivative_type: Optional[BaseType], needs_grad: bool):
+    def __init__(self, layout: SlangProgramLayout, primal_type: Marshall, derivative_type: Optional[Marshall], needs_grad: bool):
         super().__init__(layout)
         slt = layout.find_type_by_name(
             f"DifferentialPair<{primal_type.slang_type.full_name}>")
@@ -171,7 +170,7 @@ class DiffPairType(BaseTypeImpl):
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
     assert isinstance(value, DiffPair)
-    return DiffPairType(layout, get_or_create_type(layout, type(value.primal)), get_or_create_type(layout, type(value.grad)), value.needs_grad)
+    return DiffPairMarshall(layout, get_or_create_type(layout, type(value.primal)), get_or_create_type(layout, type(value.grad)), value.needs_grad)
 
 
 PYTHON_TYPES[DiffPair] = create_vr_type_for_value

@@ -4,12 +4,12 @@ from slangpy.core.native import AccessType, CallContext, Shape
 
 import slangpy.reflection as kfr
 from slangpy.backend import AccelerationStructure
-from slangpy.bindings import (PYTHON_TYPES, BaseTypeImpl, BindContext,
+from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock)
 
 
-class AccelerationStructureType(BaseTypeImpl):
+class AccelerationStructureMarshall(Marshall):
 
     def __init__(self, layout: kfr.SlangProgramLayout):
         super().__init__(layout)
@@ -41,7 +41,7 @@ class AccelerationStructureType(BaseTypeImpl):
 
 def _get_or_create_python_type(layout: kfr.SlangProgramLayout, value: AccelerationStructure):
     assert isinstance(value, AccelerationStructure)
-    return AccelerationStructureType(layout)
+    return AccelerationStructureMarshall(layout)
 
 
 PYTHON_TYPES[AccelerationStructure] = _get_or_create_python_type

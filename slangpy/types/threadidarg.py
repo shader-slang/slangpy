@@ -1,8 +1,7 @@
 from slangpy.backend import TypeReflection
-from slangpy.bindings import (BaseType, BaseTypeImpl, BindContext,
-                              BoundVariable, BoundVariableRuntime,
-                              CodeGenBlock, PYTHON_TYPES, AccessType,
-                              CallContext, Shape)
+from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
+                              BoundVariable,
+                              CodeGenBlock, Shape)
 from slangpy.reflection import SlangProgramLayout, SlangType
 
 
@@ -21,7 +20,7 @@ class ThreadIdArg:
         return f"[{self.dims}]"
 
 
-class ThreadIdArgType(BaseTypeImpl):
+class ThreadIdArgMarshall(Marshall):
     def __init__(self, layout: SlangProgramLayout, dims: int):
         super().__init__(layout)
         self.dims = dims
@@ -46,4 +45,4 @@ class ThreadIdArgType(BaseTypeImpl):
         return 1 - len(vector_target_type.shape)
 
 
-PYTHON_TYPES[ThreadIdArg] = lambda l, x: ThreadIdArgType(l, x.dims)
+PYTHON_TYPES[ThreadIdArg] = lambda l, x: ThreadIdArgMarshall(l, x.dims)

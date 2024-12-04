@@ -69,7 +69,7 @@ class Function:
         res.slangpy_signature = None
         return res
 
-    def attach(self, module: 'Module', func: Union[str, kfr.SlangFunction], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
+    def attach(self, module: 'Module', func: Union[str, kfr.SlangFunction, list[FunctionReflection]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
         self.module = module
 
         if isinstance(func, str):

@@ -3,13 +3,13 @@ from typing import Any
 from slangpy.core.native import Shape
 
 import slangpy.bindings.typeregistry as tr
-from slangpy.bindings import BaseType
-from slangpy.builtin.valuetype import ValueType
+from slangpy.bindings import Marshall
+from slangpy.builtin.value import ValueMarshall
 from slangpy.reflection import SlangProgramLayout
 
 
-class ArrayType(ValueType):
-    def __init__(self, layout: SlangProgramLayout, element_type: BaseType, element_count: int):
+class ArrayMarshall(ValueMarshall):
+    def __init__(self, layout: SlangProgramLayout, element_type: Marshall, element_count: int):
         super().__init__(layout)
         self.slang_type = layout.array_type(element_type.slang_type, element_count)
 
@@ -26,9 +26,9 @@ class ArrayType(ValueType):
                 f"Expected list for array type, got {type(data)}")
 
 
-def python_lookup_array_type(layout: SlangProgramLayout, value: list[Any]) -> BaseType:
+def python_lookup_array_type(layout: SlangProgramLayout, value: list[Any]) -> Marshall:
     et = tr.get_or_create_type(layout, value[0])
-    return ArrayType(layout, et, len(value))
+    return ArrayMarshall(layout, et, len(value))
 
 
 tr.PYTHON_TYPES[list] = python_lookup_array_type

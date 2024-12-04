@@ -8,7 +8,7 @@ from slangpy.backend import DeviceType, TypeReflection
 from slangpy.backend.slangpynativeemulation import CallContext
 from slangpy.bindings import ReturnContext
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
-from slangpy.builtin.valuereftype import ValueRefType
+from slangpy.builtin.valueref import ValueRefMarshall
 from slangpy.reflection import SlangProgramLayout
 
 
@@ -18,7 +18,7 @@ class Foo:
         self.x = x
 
 
-class FooType(ValueRefType):
+class FooType(ValueRefMarshall):
     def __init__(self, layout: SlangProgramLayout):
         super().__init__(layout, layout.scalar_type(TypeReflection.ScalarType.int32))
 

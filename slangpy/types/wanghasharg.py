@@ -1,10 +1,9 @@
 from typing import Any
 
 from slangpy.backend import TypeReflection
-from slangpy.bindings import (BaseType, BaseTypeImpl, BindContext,
-                              BoundVariable, BoundVariableRuntime,
-                              CodeGenBlock, PYTHON_TYPES, AccessType,
-                              CallContext, Shape)
+from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
+                              BoundVariable, BoundVariableRuntime, CallContext,
+                              CodeGenBlock, Shape)
 from slangpy.reflection import SlangProgramLayout, SlangType
 
 
@@ -24,7 +23,7 @@ class WangHashArg:
         return f"[{self.dims}]"
 
 
-class WangHashArgType(BaseTypeImpl):
+class WangHashArgMarshall(Marshall):
     """
     Slangpy type extension for WangHashArg
     """
@@ -60,4 +59,4 @@ class WangHashArgType(BaseTypeImpl):
         return 1 - len(vector_target_type.shape)
 
 
-PYTHON_TYPES[WangHashArg] = lambda l, x: WangHashArgType(l, x.dims)
+PYTHON_TYPES[WangHashArg] = lambda l, x: WangHashArgMarshall(l, x.dims)

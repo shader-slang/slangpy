@@ -6,3 +6,4 @@ pytest-cov
 numpy
 deepdiff
 isort
+autoflake

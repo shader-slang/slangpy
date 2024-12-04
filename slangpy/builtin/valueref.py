@@ -1,19 +1,20 @@
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 from slangpy.core.native import AccessType, CallContext
 
 import slangpy.reflection as kfr
-from slangpy.backend import (Buffer, ResourceUsage)
-from slangpy.bindings import (PYTHON_TYPES, BaseTypeImpl, BindContext,
-                              BoundVariable, BoundVariableRuntime, CodeGenBlock,
-                              ReturnContext, get_or_create_type)
-from slangpy.builtin.valuetype import slang_type_to_return_type
+from slangpy.backend import Buffer, ResourceUsage
+from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
+                              BoundVariable, BoundVariableRuntime,
+                              CodeGenBlock, ReturnContext, get_or_create_type)
+from slangpy.builtin.value import slang_type_to_return_type
 from slangpy.types import ValueRef
 
 
-def slang_value_to_numpy(slang_type: kfr.SlangType, value: Any) -> np.ndarray:
+def slang_value_to_numpy(slang_type: kfr.SlangType, value: Any) -> npt.NDArray[Any]:
     if isinstance(slang_type, kfr.ScalarType):
         # value should be a basic python type (int/float/bool)
         return np.array([value], dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type])
@@ -28,7 +29,7 @@ def slang_value_to_numpy(slang_type: kfr.SlangType, value: Any) -> np.ndarray:
         raise ValueError(f"Can not convert slang type {slang_type} to numpy array")
 
 
-def numpy_to_slang_value(slang_type: kfr.SlangType, value: np.ndarray) -> Any:
+def numpy_to_slang_value(slang_type: kfr.SlangType, value: npt.NDArray[Any]) -> Any:
     python_type = slang_type_to_return_type(slang_type)
     if isinstance(slang_type, kfr.ScalarType):
         # convert first element of numpy array to basic python type
@@ -49,7 +50,7 @@ def numpy_to_slang_value(slang_type: kfr.SlangType, value: np.ndarray) -> Any:
         raise ValueError(f"Can not convert numpy array to slang type {slang_type}")
 
 
-class ValueRefType(BaseTypeImpl):
+class ValueRefMarshall(Marshall):
 
     def __init__(self, layout: kfr.SlangProgramLayout, value_type: kfr.SlangType):
         super().__init__(layout)
@@ -135,9 +136,9 @@ class ValueRefType(BaseTypeImpl):
 
 def create_vr_type_for_value(layout: kfr.SlangProgramLayout, value: Any):
     if isinstance(value, ValueRef):
-        return ValueRefType(layout, get_or_create_type(layout, type(value.value)).slang_type)
+        return ValueRefMarshall(layout, get_or_create_type(layout, type(value.value)).slang_type)
     elif isinstance(value, ReturnContext):
-        return ValueRefType(layout, value.slang_type)
+        return ValueRefMarshall(layout, value.slang_type)
     else:
         raise ValueError(f"Unsupported value type {type(value)}")
 

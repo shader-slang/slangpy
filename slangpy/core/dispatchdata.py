@@ -9,7 +9,7 @@ from slangpy.core.native import CallMode, pack_arg, unpack_arg
 
 from slangpy.backend import CommandBuffer, SlangLinkOptions, uint3
 from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
-from slangpy.bindings.basetype import BindContext
+from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.boundvariable import BoundCall
 from slangpy.bindings.boundvariableruntime import BoundCallRuntime
 from slangpy.bindings.codegen import CodeGen
@@ -182,6 +182,7 @@ void {reflection.name}_entrypoint({params}) {{
                 if isinstance(u, dict):
                     uniforms.update(u)
                 else:
+                    # type: ignore (need to work out native dispatch)
                     uniforms.update(u(self))
         uniforms.update(vars)
 

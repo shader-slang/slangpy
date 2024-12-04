@@ -3,13 +3,13 @@ from typing import Any, Optional
 from slangpy.core.native import AccessType, CallContext, Shape
 
 import slangpy.reflection as kfr
-from slangpy.backend import (Buffer, ResourceUsage)
-from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES,
-                              BaseTypeImpl, BindContext, BoundVariable,
-                              BoundVariableRuntime, CodeGenBlock)
+from slangpy.backend import Buffer, ResourceUsage
+from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,
+                              BindContext, BoundVariable, BoundVariableRuntime,
+                              CodeGenBlock)
 
 
-class StructuredBufferType(BaseTypeImpl):
+class BufferMarshall(Marshall):
 
     def __init__(self, layout: kfr.SlangProgramLayout, usage: ResourceUsage):
         super().__init__(layout)
@@ -87,10 +87,10 @@ class StructuredBufferType(BaseTypeImpl):
 def _get_or_create_python_type(layout: kfr.SlangProgramLayout, value: Buffer):
     if isinstance(value, Buffer):
         usage = value.desc.usage
-        return StructuredBufferType(layout, usage)
+        return BufferMarshall(layout, usage)
     else:
         # Handle user trying to pass types like torch tensors in to a structured buffer arg
-        return StructuredBufferType(layout, ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        return BufferMarshall(layout, ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
 
 PYTHON_TYPES[Buffer] = _get_or_create_python_type

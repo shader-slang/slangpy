@@ -1,10 +1,9 @@
 from typing import Any
 
 from slangpy.backend import TypeReflection
-from slangpy.bindings import (BaseType, BaseTypeImpl, BindContext,
-                              BoundVariable, BoundVariableRuntime,
-                              CodeGenBlock, PYTHON_TYPES, AccessType,
-                              CallContext, Shape)
+from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
+                              BoundVariable, BoundVariableRuntime, CallContext,
+                              CodeGenBlock, Shape)
 from slangpy.reflection import SlangProgramLayout, SlangType
 
 
@@ -26,7 +25,7 @@ class RandFloatArg:
         return f"[{self.dims}]"
 
 
-class RandFloatArgType(BaseTypeImpl):
+class RandFloatArgMarshall(Marshall):
     """
     Slangpy type extension for RandFloatArg
     """
@@ -64,4 +63,4 @@ class RandFloatArgType(BaseTypeImpl):
         return 1 - len(vector_target_type.shape)
 
 
-PYTHON_TYPES[RandFloatArg] = lambda l, x: RandFloatArgType(l, x.dims)
+PYTHON_TYPES[RandFloatArg] = lambda l, x: RandFloatArgMarshall(l, x.dims)

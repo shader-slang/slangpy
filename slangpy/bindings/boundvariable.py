@@ -5,7 +5,7 @@ from slangpy.core.enums import IOType
 from slangpy.core.native import AccessType, CallMode, Shape
 
 from slangpy.backend import ModifierID
-from slangpy.bindings.basetype import BindContext
+from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.codegen import CodeGen
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import (SlangField, SlangFunction, SlangParameter,
