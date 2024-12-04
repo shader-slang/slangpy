@@ -83,6 +83,10 @@ class SlangLayout:
         self._tlr = tlr
 
     @property
+    def reflection(self) -> TypeLayoutReflection:
+        return self._tlr
+
+    @property
     def size(self) -> int:
         return self._tlr.size
 
@@ -289,6 +293,16 @@ class ArrayType(SlangType):
         return self.shape[0]
 
 
+def is_matching_array_type(a: SlangType, b: SlangType) -> bool:
+    if not isinstance(a, ArrayType) or not isinstance(b, ArrayType):
+        return False
+    if a.element_type != b.element_type:
+        return False
+    if a.num_elements > 0 and b.num_elements > 0:
+        return a.num_elements == b.num_elements
+    return True
+
+
 class StructType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         # An opaque struct has no element type, but like a normal scalar has a 0D local shape
@@ -372,6 +386,11 @@ class DifferentialPairType(SlangType):
         return self._program.find_type_by_name("DifferentialPair<" + self.primal.derivative.full_name + ">")
 
 
+class RaytracingAccelerationStructureType(SlangType):
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        super().__init__(program, refl, local_shape=Shape())
+
+
 class UnhandledType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl)
@@ -388,8 +407,7 @@ class SlangFunction:
         self._reflection = refl
         self._program = program
         func_params = [x for x in refl.parameters]
-        self._cached_parameters = tuple(SlangParameter(
-            program, param, i) for i, param in enumerate(func_params))
+        self._cached_parameters: Optional[Tuple[SlangParameter]] = None
         self._cached_return_type: Optional[SlangType] = None
 
     @property
@@ -413,6 +431,9 @@ class SlangFunction:
 
     @property
     def parameters(self) -> tuple[SlangParameter, ...]:
+        if self._cached_parameters is None:
+            self._cached_parameters = tuple(
+                SlangParameter(self._program, param, i) for i, param in enumerate(self._reflection.parameters))
         return self._cached_parameters
 
     @property
@@ -557,6 +578,12 @@ class SlangProgramLayout:
         self._types_by_name[name] = res
         return res
 
+    def require_type_by_name(self, name: str) -> SlangType:
+        res = self.find_type_by_name(name)
+        if res is None:
+            raise ValueError(f"Type {name} not found")
+        return res
+
     def find_function_by_name(self, name: str) -> Optional[SlangFunction]:
         existing = self._functions_by_name.get(name)
         if existing is not None:
@@ -566,6 +593,12 @@ class SlangProgramLayout:
             return None
         res = self._get_or_create_function(func_refl, None)
         self._functions_by_name[name] = res
+        return res
+
+    def require_function_by_name(self, name: str) -> SlangFunction:
+        res = self.find_function_by_name(name)
+        if res is None:
+            raise ValueError(f"Function {name} not found")
         return res
 
     def find_function_by_name_in_type(self, type: SlangType, name: str) -> Optional[SlangFunction]:
@@ -582,6 +615,12 @@ class SlangProgramLayout:
         res = self._get_or_create_function(
             self.program_layout.find_function_by_name_in_type(type_refl, name), self._get_or_create_type(type_refl))
         self._functions_by_name[qualified_name] = res
+        return res
+
+    def require_function_by_name_in_type(self, type: SlangType, name: str) -> SlangFunction:
+        res = self.find_function_by_name_in_type(type, name)
+        if res is None:
+            raise ValueError(f"Function {name} not found in type {type.full_name}")
         return res
 
     def scalar_type(self, scalar_type: TR.ScalarType) -> ScalarType:
@@ -666,6 +705,8 @@ class SlangProgramLayout:
             return ByteAddressBufferType(self, refl)
         elif refl.resource_shape in texture_names:
             return TextureType(self, refl)
+        elif refl.resource_shape == TR.ResourceShape.acceleration_structure:
+            return RaytracingAccelerationStructureType(self, refl)
         else:
             return ResourceType(self, refl)
 

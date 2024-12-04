@@ -131,7 +131,7 @@ def test_bad_implicit_buffer_cast(device_type: DeviceType):
     buffer = NDBuffer(device, element_type=float4, shape=(10,))
 
     # fail to specialize a float3 against a float
-    with pytest.raises(ValueError, match=r'After implicit.*no Slang overload found'):
+    with pytest.raises(ValueError, match=r'Function signature mismatch.*'):
         function(buffer)
 
 

@@ -15,6 +15,7 @@ from kernelfunctions.core.basetype import BaseType
 from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
 from kernelfunctions.types.valueref import ValueRef
 import kernelfunctions.typeregistry as tr
+import kernelfunctions.core.reflection as slr
 
 if TYPE_CHECKING:
     from kernelfunctions.function import Function
@@ -30,6 +31,16 @@ class KernelGenException(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
+
+
+def is_generic_vector(type: TypeReflection) -> bool:
+    if type.kind != TypeReflection.Kind.vector:
+        return False
+    try:
+        if type.scalar_type != TypeReflection.Kind.none and type.col_count > 0:  # @IgnoreException
+            return False
+    finally:
+        return True
 
 
 def specialize(
@@ -111,6 +122,13 @@ def specialize(
                 inputs.append(python_arg.vector_type)
             elif isinstance(python_arg.python, ValueType) and not isinstance(python_arg.python, StructType):
                 inputs.append(python_arg.python)
+            elif is_generic_vector(slang_param.type):
+                # HACK! Let types with a 'slang_element_type' try to resolve generic vector types
+                sl_et = getattr(python_arg.python, 'slang_element_type', None)
+                if isinstance(sl_et, slr.VectorType):
+                    inputs.append(sl_et)
+                else:
+                    inputs.append(slang_param.type)
             elif slang_param.type.kind != TypeReflection.Kind.none and slang_param.type.kind != TypeReflection.Kind.interface:
                 inputs.append(slang_param.type)
             else:

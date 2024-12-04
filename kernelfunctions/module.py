@@ -48,6 +48,12 @@ class Module:
         else:
             return None
 
+    def require_struct(self, name: str):
+        slang_struct = self.find_struct(name)
+        if slang_struct is None:
+            raise ValueError(f"Could not find struct '{name}'")
+        return slang_struct
+
     def find_function(self, name: str):
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
@@ -55,6 +61,12 @@ class Module:
             res.attach(module=self, func=slang_function,
                        struct=None, options=self.options)
             return res
+
+    def require_function(self, name: str):
+        slang_function = self.find_function(name)
+        if slang_function is None:
+            raise ValueError(f"Could not find function '{name}'")
+        return slang_function
 
     def find_function_in_struct(self, struct: Union[Struct, str], name: str):
         if isinstance(struct, str):

@@ -35,6 +35,7 @@ public typealias Context1D = ContextND<1>;
 public typealias Context2D = ContextND<2>;
 public typealias Context3D = ContextND<3>;
 public typealias Context4D = ContextND<4>;
+public typealias Context5D = ContextND<5>;
 
 public struct Unknown {}
 
@@ -49,8 +50,13 @@ int _idx<let N : int>(ContextND<N> index, int[N] stride) {
     for (int i = 0; i < N; i++) { idx += index.call_id[i] * stride[i]; }
     return idx;
 }
+int _idx_vec<let N : int>(vector<int,N> index, int[N] stride) {
+    int idx = 0;
+    for (int i = 0; i < N; i++) { idx += index[i] * stride[i]; }
+    return idx;
+}
 
-public struct ImplicitCast<N> 
+public struct ImplicitCast<N>
 {
 
 }
@@ -68,12 +74,18 @@ public struct ValueType<T>
     public void store(Context0D context, in T value) {};
 }
 
+public struct RangeType
+{
+    int start;
+    int stop;
+    int step;
+    public void load(Context1D context, out int value) { value = this.start + context.call_id_vec.x * this.step; }
+    public void store(Context1D context, in int value) {};
+}
+
 public struct StructuredBufferType<T>
 {
     StructuredBuffer<T> value;
-
-    public void load(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
-    public void store(Context1D context, in T value) {};
 
     public void load(Context0D context, out StructuredBuffer<T> value) { value = this.value; }
     public void store(Context0D context, in StructuredBuffer<T> value) {};
@@ -81,11 +93,24 @@ public struct StructuredBufferType<T>
 
 public struct RWStructuredBufferType<T> {
     RWStructuredBuffer<T> value;
-    public void load(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
-    public void store(Context1D context, in T value) { this.value[context.call_id[0]] = value; };
 
     public void load(Context0D context, out RWStructuredBuffer<T> value) { value = this.value; }
     public void store(Context0D context, in RWStructuredBuffer<T> value) {};
+}
+
+public struct ByteAddressBufferType
+{
+    ByteAddressBuffer value;
+
+    public void load(Context0D context, out ByteAddressBuffer value) { value = this.value; }
+    public void store(Context0D context, in ByteAddressBuffer value) {};
+}
+
+public struct RWByteAddressBufferType {
+    RWByteAddressBuffer value;
+
+    public void load(Context0D context, out RWByteAddressBuffer value) { value = this.value; }
+    public void store(Context0D context, in RWByteAddressBuffer value) {};
 }
 
 public struct Texture1DType<T> {
@@ -187,6 +212,14 @@ public struct RWTexture2DArrayType<T> {
     public void store(Context0D context, in RWTexture2DArray<T> value) {};
 }
 
+public struct RaytracingAccelerationStructureType
+{
+    RaytracingAccelerationStructure value;
+    public void load(Context0D context, out RaytracingAccelerationStructure value) { value = this.value; }
+    public void store(Context0D context, in RaytracingAccelerationStructure value) {};
+}
+
+
 public struct ValueRef<T>
 {
     T value;
@@ -204,10 +237,14 @@ public struct RWValueRef<T>
 public struct NDBuffer<T, let N : int>
 {
     StructuredBuffer<T> buffer;
-    int[N] strides;
+    public int[N] strides;
+    public int[N] shape;
 
     public T get(int[N] index) { return buffer[_idx(index, strides)]; }
-    public __subscript(int[N] index)->T { get { return get(index); } }
+    //public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
+
+    //public __subscript(int[N] index)->T { get { return get(index); } }
+    public __subscript(vector<int,N> index)->T { get { return buffer[_idx_vec(index, strides)]; } }
 
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
     public void store(ContextND<N> context, in T value) {};
@@ -239,12 +276,26 @@ public struct NDBuffer<T, let N : int>
 public struct RWNDBuffer<T, let N : int>
 {
     RWStructuredBuffer<T> buffer;
-    int[N] strides;
+    public int[N] strides;
+    public int[N] shape;
 
     public T get(int[N] index) { return buffer[_idx(index, strides)]; }
-    public void set(int[N] index, T value) { buffer[_idx(index, strides)] = value; }
+    //public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
 
-    public __subscript(int[N] index)->T { get { return get(index); } set { set(index, newValue); } }
+    public void set(int[N] index, T value) { buffer[_idx(index, strides)] = value; }
+    //public void set(vector<int,N> index, T value) { buffer[_idx(index, strides)] = value; }
+
+    //public __subscript(int[N] index)->T {
+    //    get { return get(index); }
+    //    [nonmutating]
+    //    set { set(index, newValue); }
+    //}
+
+    public __subscript(vector<int,N> index)->T {
+        get { return buffer[_idx_vec(index, strides)]; }
+        [nonmutating]
+        set { buffer[_idx_vec(index, strides)] = newValue; }
+    }
 
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
     public void store(ContextND<N> context, in T value) { set(context.call_id, value); }
@@ -257,7 +308,7 @@ public struct RWNDBuffer<T, let N : int>
     public void load<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
         int call_id[N];
         for (int i = 0; i < N-1; i++) { call_id[i] = context.call_id[i]; }
-        
+
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
             value[vi] = get(call_id);

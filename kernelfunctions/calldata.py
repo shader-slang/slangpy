@@ -142,6 +142,8 @@ class CallData(NativeCallData):
             # Generate code.
             codegen = CodeGen()
             generate_code(context, function, bindings, codegen)
+            for link in function.module.link:
+                codegen.add_import(link.name)
             code = codegen.finish(call_data=True, input_load_store=True,
                                   header=True, kernel=True, imports=True,
                                   trampoline=True, context=True, snippets=True,
@@ -149,8 +151,9 @@ class CallData(NativeCallData):
 
             # Write the shader to a file for debugging.
             os.makedirs(".temp", exist_ok=True)
-            sanitized = re.sub(r"[<>, ]", "_", function.name)
-            fn = f".temp/{function.module.name}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
+            santized_module = re.sub(r"[<>, ./]", "_", function.module.name)
+            sanitized = re.sub(r"[<>, ./]", "_", function.name)
+            fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
 
             # with open(fn,"r") as f:
             #   self.code = f.read()

@@ -173,16 +173,19 @@ class BoundVariable:
         by the caller being stored on the corresponding bound variable.
         """
         if self.children is not None:
-            assert isinstance(mapping, dict)
-            for name, child in self.children.items():
-                child_mapping = mapping.get(name)
-                if child_mapping is not None:
-                    assert isinstance(child, BoundVariable)
-                    child.apply_explicit_vectorization(context, child_mapping)
 
-            type_mapping = mapping.get("$type")
-            if type_mapping is not None:
-                self._apply_explicit_vectorization(context, type_mapping)
+            if isinstance(mapping, dict):
+                for name, child in self.children.items():
+                    child_mapping = mapping.get(name)
+                    if child_mapping is not None:
+                        assert isinstance(child, BoundVariable)
+                        child.apply_explicit_vectorization(context, child_mapping)
+
+                type_mapping = mapping.get("$type")
+                if type_mapping is not None:
+                    self._apply_explicit_vectorization(context, type_mapping)
+            else:
+                self._apply_explicit_vectorization(context, mapping)
         else:
             self._apply_explicit_vectorization(context, mapping)
 

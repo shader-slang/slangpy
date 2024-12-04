@@ -106,7 +106,7 @@ def _type_name(value: Optional['BaseType']) -> str:
 def _type_shape(value: Optional['BaseType']) -> str:
     if value is None:
         return ""
-    return str(value.get_shape())
+    return str(value.slang_type.shape)
 
 
 def bound_variables_table(data: list['BoundVariable'], highlight: Optional['BoundVariable'] = None, filter: Optional[dict[str, bool]] = None):

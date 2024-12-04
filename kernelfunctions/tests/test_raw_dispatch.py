@@ -17,7 +17,7 @@ void func_threadparam( uint3 dispatchThreadID, RWStructuredBuffer<uint3> buffer 
 }
 
 void ndbuffer_threadparam( uint3 dispatchThreadID, RWNDBuffer<uint3,1> buffer ) {
-    buffer[{dispatchThreadID.x}] = dispatchThreadID;
+    buffer[dispatchThreadID.x] = dispatchThreadID;
 }
 
 [shader("compute")]
@@ -29,17 +29,17 @@ void func_entrypoint(uint3 dispatchThreadID: SV_DispatchThreadID, RWStructuredBu
 [shader("compute")]
 [numthreads(32, 1, 1)]
 void ndbuffer_entrypoint(uint3 dispatchThreadID: SV_DispatchThreadID, RWNDBuffer<uint3,1> buffer) {
-    buffer[{dispatchThreadID.x}] = dispatchThreadID;
+    buffer[dispatchThreadID.x] = dispatchThreadID;
 }
 
 
 void ndbuffer_multiply( uint3 dispatchThreadID, RWNDBuffer<uint3,1> buffer, uint amount ) {
-    buffer[{dispatchThreadID.x}] = dispatchThreadID * amount;
+    buffer[dispatchThreadID.x] = dispatchThreadID * amount;
 }
 
 extern static const int VAL;
 void ndbuffer_multiply_const( uint3 dispatchThreadID, RWNDBuffer<uint3,1> buffer ) {
-    buffer[{dispatchThreadID.x}] = dispatchThreadID * VAL;
+    buffer[dispatchThreadID.x] = dispatchThreadID * VAL;
 }
 
 struct Params {
@@ -48,7 +48,7 @@ struct Params {
 ParameterBlock<Params> params;
 
 void ndbuffer_multiply_uniform(uint3 dispatchThreadID, RWNDBuffer<uint3,1> buffer) {
-    buffer[{dispatchThreadID.x}] = dispatchThreadID * params.k;
+    buffer[dispatchThreadID.x] = dispatchThreadID * params.k;
 }
 
 """

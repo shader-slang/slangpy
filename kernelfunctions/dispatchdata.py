@@ -118,7 +118,7 @@ import "{function.module.device_module.name}";
 [numthreads({thread_group_size.x}, {thread_group_size.y}, {thread_group_size.z})]
 void {reflection.name}_entrypoint({params}) {{
     {reflection.name}({args});
-}}          
+}}
 """)
 
             # Add imports
@@ -132,8 +132,9 @@ void {reflection.name}_entrypoint({params}) {{
 
             # Write the shader to a file for debugging.
             os.makedirs(".temp", exist_ok=True)
+            santized_module = re.sub(r"[<>, ./]", "_", function.module.name)
             sanitized = re.sub(r"[<>, ]", "_", function.name)
-            fn = f".temp/{function.module.name}_{sanitized}_dispatch.slang"
+            fn = f".temp/{santized_module}_{sanitized}_dispatch.slang"
             with open(fn, "w",) as f:
                 f.write(code)
 
@@ -162,6 +163,8 @@ void {reflection.name}_entrypoint({params}) {{
 
                 # Link the program
                 opts = SlangLinkOptions()
+                # opts.dump_intermediates = True
+                # opts.dump_intermediates_prefix = sanitized
                 program = session.link_program(
                     [module, function.module.device_module]+function.module.link, [ep], opts)
 
