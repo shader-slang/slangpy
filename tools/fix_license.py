@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+SPDX_IDENTIFIER = "# SPDX-License-Identifier: Apache-2.0"
+
 
 def run(root: Path):
     files = list(root.glob("**/*.py"))
@@ -15,9 +17,9 @@ def run(root: Path):
             text = f.read()
 
         # split text into lines
-        lines = [x for x in text.split("\n") if not SPDX_IDENTIFIER in x]
+        lines = [x for x in text.split("\n") if not x.startswith(SPDX_IDENTIFIER)]
 
-        lines.insert(0, f"# {SPDX_IDENTIFIER}")
+        lines.insert(0, SPDX_IDENTIFIER)
 
         newtext = "\n".join(lines)
 
