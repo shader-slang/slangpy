@@ -1,12 +1,12 @@
 from time import time
 import pytest
-from kernelfunctions.core import hash_signature
-from kernelfunctions.backend import DeviceType, float3
-from kernelfunctions.function import Function
-from kernelfunctions.module import Module
-from kernelfunctions.tests import helpers
-from kernelfunctions.types.buffer import NDBuffer
-import kernelfunctions.function as kff
+from slangpy.core import hash_signature
+from slangpy.backend import DeviceType, float3
+from slangpy.function import Function
+from slangpy.module import Module
+from slangpy.tests import helpers
+from slangpy.types.buffer import NDBuffer
+import slangpy.function as kff
 
 # We mess with cache in this suite, so make sure it gets turned on correctly before each test
 

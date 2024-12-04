@@ -2,15 +2,15 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.bindings.valuereftype import numpy_to_slang_value, slang_value_to_numpy
-from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext
+from slangpy.bindings.valuereftype import numpy_to_slang_value, slang_value_to_numpy
+from slangpy.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext
 
-from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
-from kernelfunctions.types import DiffPair
+from slangpy.core.reflection import SlangProgramLayout, SlangType
+from slangpy.types import DiffPair
 
-from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
+from slangpy.typeregistry import PYTHON_TYPES, get_or_create_type
 
-import kernelfunctions.core.reflection as kfr
+import slangpy.core.reflection as kfr
 
 
 def generate_differential_pair(name: str, context: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: str):

@@ -3,15 +3,15 @@
 from typing import Any
 import numpy as np
 
-from kernelfunctions.bindings.valuetype import slang_type_to_return_type
-from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext
+from slangpy.bindings.valuetype import slang_type_to_return_type
+from slangpy.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext
 
-import kernelfunctions.core.reflection as kfr
+import slangpy.core.reflection as kfr
 
-from kernelfunctions.types import ValueRef
+from slangpy.types import ValueRef
 
-from kernelfunctions.backend import Buffer, ResourceUsage
-from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
+from slangpy.backend import Buffer, ResourceUsage
+from slangpy.typeregistry import PYTHON_TYPES, get_or_create_type
 
 
 def slang_value_to_numpy(slang_type: kfr.SlangType, value: Any) -> np.ndarray:

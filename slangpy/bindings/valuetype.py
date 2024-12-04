@@ -1,12 +1,12 @@
 from typing import Any
 
-from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext
+from slangpy.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext
 
-from kernelfunctions.backend import TypeReflection, math
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
+from slangpy.backend import TypeReflection, math
+from slangpy.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 
-import kernelfunctions.core.reflection as kfr
-import kernelfunctions.backend as kfbackend
+import slangpy.core.reflection as kfr
+import slangpy.backend as kfbackend
 
 """
 Common functionality for basic value types such as int, float, vector, matrix etc that aren't

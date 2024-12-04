@@ -1,10 +1,10 @@
 from typing import Any
 
-from kernelfunctions.core import BaseType, Shape, BoundVariable
-from kernelfunctions.core.basetype import BindContext
-from kernelfunctions.core.reflection import SlangProgramLayout
-from kernelfunctions.typeregistry import PYTHON_TYPES
-import kernelfunctions.typeregistry as tr
+from slangpy.core import BaseType, Shape, BoundVariable
+from slangpy.core.basetype import BindContext
+from slangpy.core.reflection import SlangProgramLayout
+from slangpy.typeregistry import PYTHON_TYPES
+import slangpy.typeregistry as tr
 
 from .valuetype import ValueType
 

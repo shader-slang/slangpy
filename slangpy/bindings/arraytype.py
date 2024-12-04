@@ -1,9 +1,9 @@
 from typing import Any
 
-from kernelfunctions.core import BaseType, Shape
+from slangpy.core import BaseType, Shape
 
-from kernelfunctions.core.reflection import SlangProgramLayout
-import kernelfunctions.typeregistry as tr
+from slangpy.core.reflection import SlangProgramLayout
+import slangpy.typeregistry as tr
 
 from .valuetype import ValueType
 

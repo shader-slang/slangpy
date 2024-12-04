@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
-from kernelfunctions.backend import FunctionReflection, VariableReflection, ModifierID
+from slangpy.backend import FunctionReflection, VariableReflection, ModifierID
 
 if TYPE_CHECKING:
     from .boundvariable import BoundVariable, BoundCall

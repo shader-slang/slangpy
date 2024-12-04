@@ -1,9 +1,9 @@
 
 
 from typing import Any, Optional
-from kernelfunctions.function import Function
-from kernelfunctions.struct import Struct
-from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
+from slangpy.function import Function
+from slangpy.struct import Struct
+from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
 import numpy.typing as npt
 
 

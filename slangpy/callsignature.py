@@ -1,24 +1,24 @@
 from typing import TYPE_CHECKING, Any, Optional
 
-from kernelfunctions.backend import FunctionReflection, ModifierID, TypeReflection
+from slangpy.backend import FunctionReflection, ModifierID, TypeReflection
 
-from kernelfunctions.bindings.structtype import StructType
-from kernelfunctions.bindings.valuetype import NoneValueType, ValueType
-from kernelfunctions.core import (
+from slangpy.bindings.structtype import StructType
+from slangpy.bindings.valuetype import NoneValueType, ValueType
+from slangpy.core import (
     CodeGen,
     CallMode, AccessType,
     BindContext, ReturnContext, BoundCall, BoundVariable, BoundVariableException,
     SlangFunction, SlangType
 )
 
-from kernelfunctions.core.basetype import BaseType
-from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
-from kernelfunctions.types.valueref import ValueRef
-import kernelfunctions.typeregistry as tr
-import kernelfunctions.core.reflection as slr
+from slangpy.core.basetype import BaseType
+from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
+from slangpy.types.valueref import ValueRef
+import slangpy.typeregistry as tr
+import slangpy.core.reflection as slr
 
 if TYPE_CHECKING:
-    from kernelfunctions.function import Function
+    from slangpy.function import Function
 
 
 class MismatchReason:

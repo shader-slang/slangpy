@@ -1,8 +1,8 @@
 from typing import Any
 import pytest
-from kernelfunctions.backend import DeviceType
-import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.types.buffer import NDBuffer
+from slangpy.backend import DeviceType
+import slangpy.tests.helpers as helpers
+from slangpy.types.buffer import NDBuffer
 
 BASE_MODULE = r"""
 import "slangpy";

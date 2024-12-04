@@ -1,13 +1,13 @@
 from typing import Any
 import pytest
-from kernelfunctions.backend import DeviceType, TypeReflection
-from kernelfunctions.backend.slangpynativeemulation import CallContext
-from kernelfunctions.core.boundvariableruntime import BoundVariableRuntime
-from kernelfunctions.core.reflection import SlangProgramLayout
-import kernelfunctions.tests.helpers as helpers
-import kernelfunctions.typeregistry as tr
-from kernelfunctions.bindings.valuereftype import ValueRefType
-from kernelfunctions.core import ReturnContext
+from slangpy.backend import DeviceType, TypeReflection
+from slangpy.backend.slangpynativeemulation import CallContext
+from slangpy.core.boundvariableruntime import BoundVariableRuntime
+from slangpy.core.reflection import SlangProgramLayout
+import slangpy.tests.helpers as helpers
+import slangpy.typeregistry as tr
+from slangpy.bindings.valuereftype import ValueRefType
+from slangpy.core import ReturnContext
 
 
 class Foo:

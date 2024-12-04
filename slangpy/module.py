@@ -1,16 +1,16 @@
 
 
 from typing import TYPE_CHECKING, Any, Union
-from kernelfunctions.backend import SlangModule, ComputeKernel
+from slangpy.backend import SlangModule, ComputeKernel
 
-from kernelfunctions.core.reflection import SlangProgramLayout
-from kernelfunctions.function import Function
-from kernelfunctions.struct import Struct
-import kernelfunctions.typeregistry as tr
+from slangpy.core.reflection import SlangProgramLayout
+from slangpy.function import Function
+from slangpy.struct import Struct
+import slangpy.typeregistry as tr
 
 if TYPE_CHECKING:
-    from kernelfunctions.calldata import CallData
-    from kernelfunctions.dispatchdata import DispatchData
+    from slangpy.calldata import CallData
+    from slangpy.dispatchdata import DispatchData
 
 
 class Module:

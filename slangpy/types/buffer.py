@@ -1,12 +1,12 @@
 from typing import Any, Optional
 
-from kernelfunctions.backend import Device, ResourceUsage, TypeLayoutReflection, MemoryType, TypeReflection, BufferCursor, DataType
+from slangpy.backend import Device, ResourceUsage, TypeLayoutReflection, MemoryType, TypeReflection, BufferCursor, DataType
 
-from kernelfunctions.core import BaseType, Shape
-from kernelfunctions.core.reflection import SlangProgramLayout, SlangType, ScalarType
-from kernelfunctions.shapes import TShapeOrTuple
-from kernelfunctions.struct import Struct
-from kernelfunctions.typeregistry import get_or_create_type
+from slangpy.core import BaseType, Shape
+from slangpy.core.reflection import SlangProgramLayout, SlangType, ScalarType
+from slangpy.shapes import TShapeOrTuple
+from slangpy.struct import Struct
+from slangpy.typeregistry import get_or_create_type
 
 import numpy.typing as npt
 import torch

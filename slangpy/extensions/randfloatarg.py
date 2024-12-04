@@ -2,11 +2,11 @@
 
 from typing import Any
 
-from kernelfunctions.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
+from slangpy.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, AccessType, BoundVariable, BoundVariableRuntime, CallContext, Shape
 
-from kernelfunctions.backend import TypeReflection
-from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
-from kernelfunctions.typeregistry import PYTHON_TYPES
+from slangpy.backend import TypeReflection
+from slangpy.core.reflection import SlangProgramLayout, SlangType
+from slangpy.typeregistry import PYTHON_TYPES
 
 
 class RandFloatArg:

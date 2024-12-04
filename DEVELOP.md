@@ -4,14 +4,14 @@
 
 ```
 #Create conda environment if needed
-conda create -n "kernelfunctions" python=3.9
+conda create -n "slangpy" python=3.9
 
 #Install SGL (will soon be done as normal requirement)
 pip install --upgrade --force-reinstall git+https://gitlab-master.nvidia.com/skallweit/sgl.git
 
 #Clone
-git clone https://gitlab-master.nvidia.com/ccummings/kernelfunctions.git
-cd kernelfunctions
+git clone https://gitlab-master.nvidia.com/ccummings/slangpy.git
+cd slangpy
 
 #Install as local, editable package
 pip install --editable .
@@ -41,6 +41,6 @@ To debug a test, simply run the corresponding test file
 
 ## Adding new tests
 
-`kernelfunctions/tests/test_sgl.py` is a very basic test example. Note it:
+`slangpy/tests/test_sgl.py` is a very basic test example. Note it:
 - Use parameterization to create a test that runs once per device type
 - Includes an `__main__` handler at the bottom to allow the file to be debugged

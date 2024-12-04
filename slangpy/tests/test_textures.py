@@ -1,8 +1,8 @@
 import pytest
-from kernelfunctions.backend import DeviceType, Format, ResourceUsage, ResourceType
-from kernelfunctions.instance import InstanceListBuffer
-from kernelfunctions.module import Module
-import kernelfunctions.tests.helpers as helpers
+from slangpy.backend import DeviceType, Format, ResourceUsage, ResourceType
+from slangpy.instance import InstanceListBuffer
+from slangpy.module import Module
+import slangpy.tests.helpers as helpers
 import numpy as np
 
 

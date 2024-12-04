@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from kernelfunctions.core.native import Shape, NativeSlangType
+from slangpy.core.native import Shape, NativeSlangType
 
 from .enums import IOType
-from kernelfunctions.backend import TypeReflection as TR
-from kernelfunctions.backend import ModifierID, VariableReflection, TypeReflection, FunctionReflection, SlangModule, TypeLayoutReflection, ProgramLayout, ResourceUsage
+from slangpy.backend import TypeReflection as TR
+from slangpy.backend import ModifierID, VariableReflection, TypeReflection, FunctionReflection, SlangModule, TypeLayoutReflection, ProgramLayout, ResourceUsage
 
 from typing import Optional, Callable, Any, Union, cast
 

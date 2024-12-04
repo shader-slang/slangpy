@@ -1,6 +1,6 @@
 import pytest
-from kernelfunctions.backend import DeviceType
-import kernelfunctions.tests.helpers as helpers
+from slangpy.backend import DeviceType
+import slangpy.tests.helpers as helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

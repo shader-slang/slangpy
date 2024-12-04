@@ -1,15 +1,15 @@
 
 
 import pytest
-from kernelfunctions.module import Module
-from kernelfunctions.tests import helpers
-from kernelfunctions.types.buffer import NDBuffer
-from kernelfunctions.extensions.randfloatarg import RandFloatArg
-from kernelfunctions.extensions.threadidarg import ThreadIdArg
+from slangpy.module import Module
+from slangpy.tests import helpers
+from slangpy.types.buffer import NDBuffer
+from slangpy.extensions.randfloatarg import RandFloatArg
+from slangpy.extensions.threadidarg import ThreadIdArg
 import numpy as np
 
-from kernelfunctions.extensions.wanghasharg import WangHashArg
-from kernelfunctions.backend import DeviceType, int3, uint3, float3
+from slangpy.extensions.wanghasharg import WangHashArg
+from slangpy.backend import DeviceType, int3, uint3, float3
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

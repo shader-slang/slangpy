@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kernelfunctions"
+name = "slangpy"
 authors = [
     {name = "Chris Cummings", email = "chriscummings@nvidia.com"},
     {name = "Benedikt Bitterli", email = "bbitterli@nvidia.com"}
@@ -14,10 +14,10 @@ requires-python = ">=3.9"
 dynamic = ["version"]
 
 [tool.setuptools]
-py-modules = ["kernelfunctions"]
+py-modules = ["slangpy"]
 
 [tool.pyright]
-include = ["./kernelfunctions"]
+include = ["./slangpy"]
 extraPaths = ["./tests"]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"
@@ -37,7 +37,7 @@ ignore = "E226,E24,W50,W690,E731"
 
 [tool.coverage.run]
 branch = true
-omit = ["kernelfunctions/tests/*"]
+omit = ["slangpy/tests/*"]
 
 [tool.coverage.report]
 exclude_also = [

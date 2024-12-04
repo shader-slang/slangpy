@@ -5,18 +5,18 @@ from types import NoneType
 from typing import Any, Optional
 
 import pytest
-import kernelfunctions
+import slangpy
 import sys
 import os
 from pathlib import Path
 
-from kernelfunctions.backend import (
+from slangpy.backend import (
     Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel,
     TypeReflection)
-from kernelfunctions.calldata import SLANG_PATH
-from kernelfunctions.module import Module
-from kernelfunctions.typeregistry import PYTHON_TYPES, get_or_create_type
-from kernelfunctions.core import BaseTypeImpl, Shape
+from slangpy.calldata import SLANG_PATH
+from slangpy.module import Module
+from slangpy.typeregistry import PYTHON_TYPES, get_or_create_type
+from slangpy.core import BaseTypeImpl, Shape
 
 SHADER_DIR = Path(__file__).parent
 
@@ -68,11 +68,11 @@ def get_device(type: DeviceType, use_cache: bool = True) -> Device:
 
 def create_module(
     device: Device, module_source: str, link: list[Any] = [], options: dict[str, Any] = {}
-) -> kernelfunctions.Module:
+) -> slangpy.Module:
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
-    return kernelfunctions.Module(module, link=link, options=options)
+    return slangpy.Module(module, link=link, options=options)
 
 # Helper that creates a module from source (if not already loaded) and find / returns
 # a kernel function for it. This helper supports nested functions and structs, e.g.
@@ -81,7 +81,7 @@ def create_module(
 
 def create_function_from_module(
     device: Device, func_name: str, module_source: str, link: list[Any] = [], options: dict[str, Any] = {}
-) -> kernelfunctions.Function:
+) -> slangpy.Function:
 
     if not 'import "slangpy";' in module_source:
         module_source = 'import "slangpy";\n' + module_source

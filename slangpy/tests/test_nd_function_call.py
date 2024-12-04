@@ -1,7 +1,7 @@
 import pytest
-from kernelfunctions.backend import DeviceType
-from kernelfunctions.types import NDBuffer
-import kernelfunctions.tests.helpers as helpers
+from slangpy.backend import DeviceType
+from slangpy.types import NDBuffer
+import slangpy.tests.helpers as helpers
 import numpy as np
 
 

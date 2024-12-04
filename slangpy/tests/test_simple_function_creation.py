@@ -1,7 +1,7 @@
 import pytest
-from kernelfunctions.backend import DeviceType, DeclReflection
-import kernelfunctions as kf
-import kernelfunctions.tests.helpers as helpers
+from slangpy.backend import DeviceType, DeclReflection
+import slangpy as kf
+import slangpy.tests.helpers as helpers
 
 SIMPLE_FUNCTION_RETURN_VALUE = r"""
 int add_numbers(int a, int b) {

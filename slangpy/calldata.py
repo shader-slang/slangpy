@@ -3,10 +3,10 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from kernelfunctions.backend import SlangCompileError, SlangLinkOptions
-from kernelfunctions.core import CallMode, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException
+from slangpy.backend import SlangCompileError, SlangLinkOptions
+from slangpy.core import CallMode, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException
 
-from kernelfunctions.callsignature import (
+from slangpy.callsignature import (
     KernelGenException,
     calculate_differentiability,
     apply_explicit_vectorization,
@@ -20,12 +20,12 @@ from kernelfunctions.callsignature import (
     specialize,
     validate_specialize
 )
-from kernelfunctions.core.boundvariable import BoundCall, BoundVariable
-from kernelfunctions.core.logging import bound_call_table, bound_exception_info, mismatch_info
-from kernelfunctions.core.reflection import SlangFunction
+from slangpy.core.boundvariable import BoundCall, BoundVariable
+from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
+from slangpy.core.reflection import SlangFunction
 
 if TYPE_CHECKING:
-    from kernelfunctions.function import Function
+    from slangpy.function import Function
 
 SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
 

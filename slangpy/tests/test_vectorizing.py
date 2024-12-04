@@ -1,7 +1,7 @@
 import pytest
-from kernelfunctions.backend import DeviceType, int3
-from kernelfunctions.tests import helpers
-from kernelfunctions.types.buffer import NDBuffer
+from slangpy.backend import DeviceType, int3
+from slangpy.tests import helpers
+from slangpy.types.buffer import NDBuffer
 
 SIMPLE_FUNC = """
 import "slangpy";

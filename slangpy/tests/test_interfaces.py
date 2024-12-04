@@ -1,15 +1,15 @@
 from typing import Any
 import pytest
-from kernelfunctions.backend import DeviceType, TypeReflection
-from kernelfunctions.core.basetype import BindContext
-from kernelfunctions.core.boundvariable import BoundVariable
-from kernelfunctions.core.codegen import CodeGenBlock
-from kernelfunctions.core.reflection import SlangProgramLayout, SlangType
-import kernelfunctions.tests.helpers as helpers
-import kernelfunctions.typeregistry as tr
-from kernelfunctions.bindings.valuetype import ValueType
-from kernelfunctions.core import Shape
-from kernelfunctions import Module
+from slangpy.backend import DeviceType, TypeReflection
+from slangpy.core.basetype import BindContext
+from slangpy.core.boundvariable import BoundVariable
+from slangpy.core.codegen import CodeGenBlock
+from slangpy.core.reflection import SlangProgramLayout, SlangType
+import slangpy.tests.helpers as helpers
+import slangpy.typeregistry as tr
+from slangpy.bindings.valuetype import ValueType
+from slangpy.core import Shape
+from slangpy import Module
 
 
 TEST_MODULE = """

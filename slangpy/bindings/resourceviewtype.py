@@ -1,10 +1,10 @@
 
 
 from typing import Any
-from kernelfunctions.backend import ResourceView, Texture, ResourceViewType, ResourceUsage
-from kernelfunctions.bindings.texturetype import get_or_create_python_texture_type
-from kernelfunctions.core.reflection import SlangProgramLayout
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
+from slangpy.backend import ResourceView, Texture, ResourceViewType, ResourceUsage
+from slangpy.bindings.texturetype import get_or_create_python_texture_type
+from slangpy.core.reflection import SlangProgramLayout
+from slangpy.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 
 
 def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):

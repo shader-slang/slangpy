@@ -8,7 +8,7 @@ from .codegen import CodeGenBlock
 if TYPE_CHECKING:
     from .boundvariable import BoundVariable
     from .reflection import SlangProgramLayout, SlangType
-    from kernelfunctions.backend import SlangModule
+    from slangpy.backend import SlangModule
 
 
 class BindContext:

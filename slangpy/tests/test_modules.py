@@ -1,11 +1,11 @@
 import pytest
-from kernelfunctions.backend import DeviceType, float2, float3
-from kernelfunctions.function import Function
-from kernelfunctions.module import Module
-from kernelfunctions.struct import Struct
-import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.types.buffer import NDBuffer
-from kernelfunctions.utils import find_type_layout_for_buffer
+from slangpy.backend import DeviceType, float2, float3
+from slangpy.function import Function
+from slangpy.module import Module
+from slangpy.struct import Struct
+import slangpy.tests.helpers as helpers
+from slangpy.types.buffer import NDBuffer
+from slangpy.utils import find_type_layout_for_buffer
 import numpy as np
 
 

@@ -1,14 +1,14 @@
 from typing import Any
 import pytest
 from sgl import Buffer, Device
-from kernelfunctions.backend import DeviceType, float2, float3, math
-from kernelfunctions.extensions.randfloatarg import RandFloatArg
-from kernelfunctions.instance import InstanceList, InstanceListBuffer, InstanceListDifferentiableBuffer
-from kernelfunctions.module import Module
-from kernelfunctions.struct import Struct
-import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.types.buffer import NDBuffer, NDDifferentiableBuffer
-from kernelfunctions.types.valueref import ValueRef, floatRef
+from slangpy.backend import DeviceType, float2, float3, math
+from slangpy.extensions.randfloatarg import RandFloatArg
+from slangpy.instance import InstanceList, InstanceListBuffer, InstanceListDifferentiableBuffer
+from slangpy.module import Module
+from slangpy.struct import Struct
+import slangpy.tests.helpers as helpers
+from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
+from slangpy.types.valueref import ValueRef, floatRef
 import numpy as np
 import numpy.typing as npt
 

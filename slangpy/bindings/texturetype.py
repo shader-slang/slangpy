@@ -2,15 +2,15 @@
 
 from typing import Any, Optional, Union
 
-from kernelfunctions.backend.slangpynativeemulation import CallContext
-from kernelfunctions.core import BaseTypeImpl, Shape, AccessType, BindContext, BoundVariable, CodeGenBlock
+from slangpy.backend.slangpynativeemulation import CallContext
+from slangpy.core import BaseTypeImpl, Shape, AccessType, BindContext, BoundVariable, CodeGenBlock
 
-from kernelfunctions.backend import Texture, TypeReflection, ResourceUsage, ResourceType, get_format_info, FormatType, ResourceView
+from slangpy.backend import Texture, TypeReflection, ResourceUsage, ResourceType, get_format_info, FormatType, ResourceView
 
-from kernelfunctions.core.boundvariableruntime import BoundVariableRuntime
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
+from slangpy.core.boundvariableruntime import BoundVariableRuntime
+from slangpy.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 
-import kernelfunctions.core.reflection as kfr
+import slangpy.core.reflection as kfr
 
 
 def has_uav(usage: ResourceUsage):

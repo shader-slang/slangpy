@@ -1,9 +1,9 @@
 from typing import Any
 import pytest
-from kernelfunctions.backend import DeviceType
-from kernelfunctions.module import Module
-import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.types.buffer import NDBuffer
+from slangpy.backend import DeviceType
+from slangpy.module import Module
+import slangpy.tests.helpers as helpers
+from slangpy.types.buffer import NDBuffer
 import numpy as np
 
 TEST_MODULE = r"""

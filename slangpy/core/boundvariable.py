@@ -1,8 +1,8 @@
 from types import NoneType
 from typing import Any, Optional, Union
 
-from kernelfunctions.backend import ModifierID
-from kernelfunctions.typeregistry import get_or_create_type
+from slangpy.backend import ModifierID
+from slangpy.typeregistry import get_or_create_type
 
 from .enums import IOType
 from .codegen import CodeGen

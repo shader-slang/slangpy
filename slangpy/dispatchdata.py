@@ -4,19 +4,19 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from kernelfunctions.backend import CommandBuffer, SlangLinkOptions, uint3
-from kernelfunctions.backend.slangpynativeemulation import NativeCallRuntimeOptions
-from kernelfunctions.callsignature import generate_constants
-from kernelfunctions.core.codegen import CodeGen
-from kernelfunctions.core.enums import IOType
-from kernelfunctions.core.native import CallMode, unpack_arg, pack_arg
-from kernelfunctions.core.basetype import BindContext
-from kernelfunctions.core.boundvariable import BoundCall
-from kernelfunctions.core.boundvariableruntime import BoundCallRuntime
+from slangpy.backend import CommandBuffer, SlangLinkOptions, uint3
+from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
+from slangpy.callsignature import generate_constants
+from slangpy.core.codegen import CodeGen
+from slangpy.core.enums import IOType
+from slangpy.core.native import CallMode, unpack_arg, pack_arg
+from slangpy.core.basetype import BindContext
+from slangpy.core.boundvariable import BoundCall
+from slangpy.core.boundvariableruntime import BoundCallRuntime
 
 
 if TYPE_CHECKING:
-    from kernelfunctions.function import Function
+    from slangpy.function import Function
 
 
 class DispatchData:

@@ -3,14 +3,14 @@
 import pdb
 from typing import Any, Optional, cast
 
-from kernelfunctions.bindings.valuetype import slang_type_to_return_type
-from kernelfunctions.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
+from slangpy.bindings.valuetype import slang_type_to_return_type
+from slangpy.core import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, AccessType, PrimType, BoundVariableRuntime, CallContext, Shape
 
-from kernelfunctions.core.reflection import TYPE_OVERRIDES, SlangProgramLayout, SlangType, TypeReflection, is_matching_array_type
-from kernelfunctions.types import NDBuffer, NDDifferentiableBuffer
+from slangpy.core.reflection import TYPE_OVERRIDES, SlangProgramLayout, SlangType, TypeReflection, is_matching_array_type
+from slangpy.types import NDBuffer, NDDifferentiableBuffer
 
-from kernelfunctions.backend import ResourceUsage
-from kernelfunctions.typeregistry import PYTHON_TYPES
+from slangpy.backend import ResourceUsage
+from slangpy.typeregistry import PYTHON_TYPES
 
 
 class StopDebuggerException(Exception):

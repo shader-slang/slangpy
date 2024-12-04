@@ -1,8 +1,8 @@
 from typing import Any, Callable
 import pytest
-from kernelfunctions.backend import DeviceType
-import kernelfunctions.tests.helpers as helpers
-import kernelfunctions.core.reflection as r
+from slangpy.backend import DeviceType
+import slangpy.tests.helpers as helpers
+import slangpy.core.reflection as r
 
 MODULE = """
 import "slangpy";

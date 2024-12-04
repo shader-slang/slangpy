@@ -1,16 +1,16 @@
 from typing import Any, Optional
 import pytest
 from sgl import float4
-from kernelfunctions.backend import DeviceType, float3
-from kernelfunctions.backend.slangpynativeemulation import NativeCallRuntimeOptions
-from kernelfunctions.callsignature import BoundVariable
+from slangpy.backend import DeviceType, float3
+from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
+from slangpy.callsignature import BoundVariable
 import deepdiff
 
-from kernelfunctions.shapes import TShapeOrTuple
-from kernelfunctions.tests import helpers
-from kernelfunctions.types import floatRef
-from kernelfunctions.types.buffer import NDBuffer
-from kernelfunctions.types.valueref import ValueRef
+from slangpy.shapes import TShapeOrTuple
+from slangpy.tests import helpers
+from slangpy.types import floatRef
+from slangpy.types.buffer import NDBuffer
+from slangpy.types.valueref import ValueRef
 
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }

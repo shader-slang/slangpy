@@ -2,10 +2,10 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.backend import ResourceUsage, Buffer
-from kernelfunctions.core import BindContext, BaseType, BaseTypeImpl, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, Shape
-from kernelfunctions.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
-import kernelfunctions.core.reflection as kfr
+from slangpy.backend import ResourceUsage, Buffer
+from slangpy.core import BindContext, BaseType, BaseTypeImpl, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, Shape
+from slangpy.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
+import slangpy.core.reflection as kfr
 
 
 class StructuredBufferType(BaseTypeImpl):

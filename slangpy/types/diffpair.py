@@ -1,7 +1,7 @@
 
 from typing import Any, Optional
 
-from kernelfunctions.core import PrimType
+from slangpy.core import PrimType
 
 
 class DiffPair:

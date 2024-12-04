@@ -1,7 +1,7 @@
 import pytest
-from kernelfunctions.types import NDDifferentiableBuffer
-from kernelfunctions.tests import helpers
-from kernelfunctions.backend import DeviceType
+from slangpy.types import NDDifferentiableBuffer
+from slangpy.tests import helpers
+from slangpy.backend import DeviceType
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

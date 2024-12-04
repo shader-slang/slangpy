@@ -2,12 +2,12 @@ from typing import Optional, Union
 import numpy as np
 import pytest
 from sgl import float3
-from kernelfunctions.backend import DeviceType, Device
-import kernelfunctions as kf
-import kernelfunctions.tests.helpers as helpers
+from slangpy.backend import DeviceType, Device
+import slangpy as kf
+import slangpy.tests.helpers as helpers
 
-from kernelfunctions.types.valueref import intRef
-from kernelfunctions.types.diffpair import diffPair, floatDiffPair
+from slangpy.types.valueref import intRef
+from slangpy.types.diffpair import diffPair, floatDiffPair
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

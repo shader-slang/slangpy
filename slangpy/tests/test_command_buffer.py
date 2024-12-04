@@ -1,8 +1,8 @@
 import pytest
-from kernelfunctions.backend import DeviceType, float3
-from kernelfunctions.module import Module
-import kernelfunctions.tests.helpers as helpers
-from kernelfunctions.types.buffer import NDDifferentiableBuffer
+from slangpy.backend import DeviceType, float3
+from slangpy.module import Module
+import slangpy.tests.helpers as helpers
+from slangpy.types.buffer import NDDifferentiableBuffer
 import numpy as np
 
 
