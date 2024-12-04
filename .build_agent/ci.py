@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 import argparse
 import json
 import subprocess
@@ -65,10 +66,10 @@ FAILED = False
 
 def dependencies(args: argparse.Namespace):
     # struggling to get sgl to install via requirements - install directly here instead
-    run_command("pip install nv-sgl")
+    run_command("pip install --upgrade nv-sgl")
 
     # install dev requirements
-    run_command("pip install -r requirements-dev.txt")
+    run_command("pip install --upgrade -r requirements-dev.txt")
 
 
 def precommit(args: argparse.Namespace):

@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kernelfunctions"
+name = "slangpy"
 authors = [
     {name = "Chris Cummings", email = "chriscummings@nvidia.com"},
     {name = "Benedikt Bitterli", email = "bbitterli@nvidia.com"}
@@ -14,10 +14,10 @@ requires-python = ">=3.9"
 dynamic = ["version"]
 
 [tool.setuptools]
-py-modules = ["kernelfunctions"]
+py-modules = ["slangpy"]
 
 [tool.pyright]
-include = ["./kernelfunctions"]
+include = ["./slangpy"]
 extraPaths = ["./tests"]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"
@@ -29,7 +29,7 @@ reportMissingTypeArgument = "warning"
 
 [tool.autopep8]
 in-place = true
-max-line-length = 90
+max-line-length = 100
 #ignore:
 # pep8 defaults
 # E731: lambda->def
@@ -37,7 +37,7 @@ ignore = "E226,E24,W50,W690,E731"
 
 [tool.coverage.run]
 branch = true
-omit = ["kernelfunctions/tests/*"]
+omit = ["slangpy/tests/*"]
 
 [tool.coverage.report]
 exclude_also = [
@@ -49,3 +49,8 @@ ignore_errors = true
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.isort]
+known_slangpycore = ["slangpy.core"]
+known_slangpy = ["slangpy"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "SLANGPYCORE", "SLANGPY", "LOCALFOLDER"]
