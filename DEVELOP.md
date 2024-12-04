@@ -1,4 +1,4 @@
-# Contributing / Developing
+# Developing with SlangPy
 
 ## Setup
 
