@@ -6,17 +6,17 @@ from typing import TYPE_CHECKING, Any
 
 from slangpy.backend import CommandBuffer, SlangLinkOptions, uint3
 from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
-from slangpy.callsignature import generate_constants
-from slangpy.core.codegen import CodeGen
+from slangpy.core.callsignature import generate_constants
+from slangpy.bindings.codegen import CodeGen
 from slangpy.core.enums import IOType
 from slangpy.core.native import CallMode, unpack_arg, pack_arg
-from slangpy.core.basetype import BindContext
-from slangpy.core.boundvariable import BoundCall
-from slangpy.core.boundvariableruntime import BoundCallRuntime
+from slangpy.bindings.basetype import BindContext
+from slangpy.bindings.boundvariable import BoundCall
+from slangpy.bindings.boundvariableruntime import BoundCallRuntime
 
 
 if TYPE_CHECKING:
-    from slangpy.function import Function
+    from slangpy.core.function import Function
 
 
 class DispatchData:

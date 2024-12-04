@@ -63,7 +63,7 @@ void user_func(float a, float b, out float c) {
     backwards_kernel = device.create_compute_kernel(backwards_program)
 
     # Create input buffer 0 with random numbers and an empty gradient buffer (ignored).
-    in_buffer_0 = kf.NDDifferentiableBuffer(
+    in_buffer_0 = kf.types.NDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_0.buffer.from_numpy(rand_array_of_floats(in_buffer_0.element_count))
@@ -71,7 +71,7 @@ void user_func(float a, float b, out float c) {
         np.zeros(in_buffer_0.element_count, dtype=np.float32))  # type: ignore
 
     # Same with input buffer 1.
-    in_buffer_1 = kf.NDDifferentiableBuffer(
+    in_buffer_1 = kf.types.NDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_1.buffer.from_numpy(rand_array_of_floats(in_buffer_1.element_count))
@@ -80,7 +80,7 @@ void user_func(float a, float b, out float c) {
 
     # Create empty output buffer with gradients initialized to 1 (as there is 1-1 correspondence between
     # output of user function and output of kernel)
-    out_buffer = kf.NDDifferentiableBuffer(
+    out_buffer = kf.types.NDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     out_buffer.buffer.from_numpy(np.zeros(out_buffer.element_count, dtype=np.float32))

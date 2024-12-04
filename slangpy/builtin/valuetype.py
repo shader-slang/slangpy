@@ -1,11 +1,9 @@
 from typing import Any
 
-from slangpy.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, AccessType, BoundVariableRuntime, CallContext
+from slangpy.builtin.commonimports import *
+from slangpy.backend import math
+from slangpy.reflection.reflectiontypes import FLOAT_TYPES, INT_TYPES, BOOL_TYPES, SIGNED_INT_TYPES, UNSIGNED_INT_TYPES
 
-from slangpy.backend import TypeReflection, math
-from slangpy.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
-
-import slangpy.core.reflection as kfr
 import slangpy.backend as kfbackend
 
 """
@@ -16,29 +14,29 @@ writable and don't store an additional derivative.
 
 def slang_type_to_return_type(slang_type: kfr.SlangType) -> Any:
     if isinstance(slang_type, kfr.ScalarType):
-        if slang_type.slang_scalar_type in kfr.FLOAT_TYPES:
+        if slang_type.slang_scalar_type in FLOAT_TYPES:
             return float
-        elif slang_type.slang_scalar_type in kfr.INT_TYPES:
+        elif slang_type.slang_scalar_type in INT_TYPES:
             return int
-        elif slang_type.slang_scalar_type in kfr.BOOL_TYPES:
+        elif slang_type.slang_scalar_type in BOOL_TYPES:
             return bool
     elif isinstance(slang_type, kfr.VectorType):
-        if slang_type.slang_scalar_type in kfr.FLOAT_TYPES:
+        if slang_type.slang_scalar_type in FLOAT_TYPES:
             return getattr(kfbackend, f'float{slang_type.num_elements}')
-        elif slang_type.slang_scalar_type in kfr.SIGNED_INT_TYPES:
+        elif slang_type.slang_scalar_type in SIGNED_INT_TYPES:
             return getattr(kfbackend, f'int{slang_type.num_elements}')
-        elif slang_type.slang_scalar_type in kfr.UNSIGNED_INT_TYPES:
+        elif slang_type.slang_scalar_type in UNSIGNED_INT_TYPES:
             return getattr(kfbackend, f'uint{slang_type.num_elements}')
-        elif slang_type.slang_scalar_type in kfr.BOOL_TYPES:
+        elif slang_type.slang_scalar_type in BOOL_TYPES:
             return getattr(kfbackend, f'bool{slang_type.num_elements}')
     elif isinstance(slang_type, kfr.MatrixType):
-        if slang_type.slang_scalar_type in kfr.FLOAT_TYPES:
+        if slang_type.slang_scalar_type in FLOAT_TYPES:
             return getattr(kfbackend, f'float{slang_type.rows}x{slang_type.cols}')
-        elif slang_type.slang_scalar_type in kfr.SIGNED_INT_TYPES:
+        elif slang_type.slang_scalar_type in SIGNED_INT_TYPES:
             return getattr(kfbackend, f'int{slang_type.rows}x{slang_type.cols}')
-        elif slang_type.slang_scalar_type in kfr.UNSIGNED_INT_TYPES:
+        elif slang_type.slang_scalar_type in UNSIGNED_INT_TYPES:
             return getattr(kfbackend, f'uint{slang_type.rows}x{slang_type.cols}')
-        elif slang_type.slang_scalar_type in kfr.BOOL_TYPES:
+        elif slang_type.slang_scalar_type in BOOL_TYPES:
             return getattr(kfbackend, f'bool{slang_type.rows}x{slang_type.cols}')
     else:
         raise ValueError(f"Slang type {slang_type} has no associated python value type")
@@ -157,7 +155,7 @@ class ScalarType(ValueType):
 class NoneValueType(ValueType):
     def __init__(self, layout: kfr.SlangProgramLayout):
         super().__init__(layout)
-        self.slang_type = layout.scalar_type(kfr.TR.ScalarType.void)
+        self.slang_type = layout.scalar_type(TypeReflection.ScalarType.void)
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: BaseType):
         # None type can't resolve dimensionality

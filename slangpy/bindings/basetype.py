@@ -2,13 +2,13 @@
 
 from typing import Any, TYPE_CHECKING
 
-from .native import NativeType, CallMode
-from .codegen import CodeGenBlock
+from slangpy.core.native import NativeType, CallMode
+from slangpy.bindings.codegen import CodeGenBlock
 
 if TYPE_CHECKING:
-    from .boundvariable import BoundVariable
-    from .reflection import SlangProgramLayout, SlangType
     from slangpy.backend import SlangModule
+    from slangpy.bindings.boundvariable import BoundVariable
+    from slangpy.reflection import SlangProgramLayout, SlangType
 
 
 class BindContext:

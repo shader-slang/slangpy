@@ -1,12 +1,14 @@
 import hashlib
 import os
+from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Any
 
 from slangpy.backend import SlangCompileError, SlangLinkOptions
-from slangpy.core import CallMode, CodeGen, BindContext, BoundCallRuntime, NativeCallData, BoundVariableException
+from slangpy.bindings import CodeGen, BindContext, BoundCallRuntime, BoundVariableException
+from slangpy.core.native import CallMode, NativeCallData
 
-from slangpy.callsignature import (
+from slangpy.core.callsignature import (
     KernelGenException,
     calculate_differentiability,
     apply_explicit_vectorization,
@@ -20,14 +22,14 @@ from slangpy.callsignature import (
     specialize,
     validate_specialize
 )
-from slangpy.core.boundvariable import BoundCall, BoundVariable
+from slangpy.bindings.boundvariable import BoundCall, BoundVariable
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
-from slangpy.core.reflection import SlangFunction
+from slangpy.reflection import SlangFunction
 
 if TYPE_CHECKING:
-    from slangpy.function import Function
+    from slangpy.core.function import Function
 
-SLANG_PATH = os.path.join(os.path.dirname(__file__), "slang")
+SLANG_PATH = Path(__file__).parent.parent / "slang"
 
 
 def unpack_arg(arg: Any) -> Any:

@@ -1,14 +1,14 @@
 from typing import Any
 import pytest
 from slangpy.backend import DeviceType, TypeReflection
-from slangpy.core.basetype import BindContext
-from slangpy.core.boundvariable import BoundVariable
-from slangpy.core.codegen import CodeGenBlock
-from slangpy.core.reflection import SlangProgramLayout, SlangType
+from slangpy.bindings.basetype import BindContext
+from slangpy.bindings.boundvariable import BoundVariable
+from slangpy.bindings.codegen import CodeGenBlock
+from slangpy.reflection import SlangProgramLayout, SlangType
 import slangpy.tests.helpers as helpers
-import slangpy.typeregistry as tr
-from slangpy.bindings.valuetype import ValueType
-from slangpy.core import Shape
+import slangpy.bindings.typeregistry as tr
+from slangpy.builtin.valuetype import ValueType
+from slangpy.core.native import Shape
 from slangpy import Module
 
 

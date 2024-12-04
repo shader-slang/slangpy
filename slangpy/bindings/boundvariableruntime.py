@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from .native import NativeBoundCallRuntime, NativeBoundVariableRuntime, Shape
+from slangpy.core.native import NativeBoundCallRuntime, NativeBoundVariableRuntime, Shape
 
 if TYPE_CHECKING:
     from .boundvariable import BoundVariable, BoundCall

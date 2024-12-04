@@ -1,14 +1,14 @@
 
 
 import pytest
-from slangpy.module import Module
+
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
-from slangpy.extensions.randfloatarg import RandFloatArg
-from slangpy.extensions.threadidarg import ThreadIdArg
+from slangpy.types.randfloatarg import RandFloatArg
+from slangpy.types.threadidarg import ThreadIdArg
 import numpy as np
 
-from slangpy.extensions.wanghasharg import WangHashArg
+from slangpy.types.wanghasharg import WangHashArg
 from slangpy.backend import DeviceType, int3, uint3, float3
 
 

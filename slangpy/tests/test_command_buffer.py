@@ -1,6 +1,6 @@
 import pytest
 from slangpy.backend import DeviceType, float3
-from slangpy.module import Module
+from slangpy import Module
 import slangpy.tests.helpers as helpers
 from slangpy.types.buffer import NDDifferentiableBuffer
 import numpy as np

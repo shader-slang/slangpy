@@ -2,11 +2,11 @@
 
 from typing import TYPE_CHECKING
 
-from .basetype import BaseType, BindContext
-from .reflection import SlangType, SlangProgramLayout
+from slangpy.bindings.basetype import BaseType, BindContext
+from slangpy.reflection import SlangType, SlangProgramLayout
 
 if TYPE_CHECKING:
-    from .boundvariable import BoundVariable
+    from slangpy.bindings.boundvariable import BoundVariable
 
 
 class BaseTypeImpl(BaseType):

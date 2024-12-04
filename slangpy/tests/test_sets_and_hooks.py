@@ -1,7 +1,7 @@
 from typing import Any
 import pytest
 from slangpy.backend import DeviceType
-from slangpy.module import Module
+from slangpy import Module
 import slangpy.tests.helpers as helpers
 from slangpy.types.buffer import NDBuffer
 import numpy as np

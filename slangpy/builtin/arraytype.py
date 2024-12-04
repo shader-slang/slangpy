@@ -1,11 +1,8 @@
 from typing import Any
 
-from slangpy.core import BaseType, Shape
+from slangpy.builtin.commonimports import *
 
-from slangpy.core.reflection import SlangProgramLayout
-import slangpy.typeregistry as tr
-
-from .valuetype import ValueType
+from slangpy.builtin.valuetype import ValueType
 
 
 class ArrayType(ValueType):

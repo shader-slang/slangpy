@@ -1,5 +1,5 @@
 import pytest
-from slangpy.backend import DeviceType, DeclReflection
+from slangpy.backend import DeviceType
 import slangpy as kf
 import slangpy.tests.helpers as helpers
 

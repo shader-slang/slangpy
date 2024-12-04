@@ -1,7 +1,7 @@
 import pytest
 from slangpy.backend import DeviceType, Format, ResourceUsage, ResourceType
-from slangpy.instance import InstanceListBuffer
-from slangpy.module import Module
+from slangpy import InstanceListBuffer
+from slangpy import Module
 import slangpy.tests.helpers as helpers
 import numpy as np
 

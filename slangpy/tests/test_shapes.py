@@ -3,10 +3,10 @@ import pytest
 from sgl import float4
 from slangpy.backend import DeviceType, float3
 from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
-from slangpy.callsignature import BoundVariable
+from slangpy.core.callsignature import BoundVariable
 import deepdiff
 
-from slangpy.shapes import TShapeOrTuple
+from slangpy.core.shapes import TShapeOrTuple
 from slangpy.tests import helpers
 from slangpy.types import floatRef
 from slangpy.types.buffer import NDBuffer

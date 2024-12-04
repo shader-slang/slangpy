@@ -15,9 +15,5 @@ from . import types
 # Slangpy reflection system
 from . import reflection
 
-from .core.basetype import BaseType
-from .core.basetypeimpl import BaseTypeImpl
-from .core.enums import (
-    IOType,
-    PrimType,
-)
+# Required for extending slangpy
+from . import bindings

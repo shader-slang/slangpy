@@ -3,14 +3,14 @@
 from typing import TYPE_CHECKING, Any, Union
 from slangpy.backend import SlangModule, ComputeKernel
 
-from slangpy.core.reflection import SlangProgramLayout
-from slangpy.function import Function
-from slangpy.struct import Struct
-import slangpy.typeregistry as tr
+from slangpy.reflection import SlangProgramLayout
+from slangpy.core.function import Function
+from slangpy.core.struct import Struct
+import slangpy.bindings.typeregistry as tr
 
 if TYPE_CHECKING:
-    from slangpy.calldata import CallData
-    from slangpy.dispatchdata import DispatchData
+    from slangpy.core.calldata import CallData
+    from slangpy.core.dispatchdata import DispatchData
 
 
 class Module:

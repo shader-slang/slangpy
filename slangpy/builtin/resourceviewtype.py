@@ -1,10 +1,9 @@
 
 
 from typing import Any
-from slangpy.backend import ResourceView, Texture, ResourceViewType, ResourceUsage
-from slangpy.bindings.texturetype import get_or_create_python_texture_type
-from slangpy.core.reflection import SlangProgramLayout
-from slangpy.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
+
+from slangpy.builtin.commonimports import *
+from slangpy.builtin.texturetype import get_or_create_python_texture_type
 
 
 def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):

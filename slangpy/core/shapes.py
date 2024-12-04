@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, TypedDict, Union
 
 if TYPE_CHECKING:
-    from slangpy.core import Shape
+    from slangpy.core.native import Shape
 
 TArgShapesResult = TypedDict(
     "TArgShapesResult",

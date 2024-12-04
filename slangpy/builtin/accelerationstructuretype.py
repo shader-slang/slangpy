@@ -1,12 +1,9 @@
 
 
-from typing import Any, Optional
+from typing import Any
 
-from slangpy.backend import ResourceUsage, Buffer
-from slangpy.core import BindContext, BaseType, BaseTypeImpl, BoundVariable, CodeGenBlock, AccessType, BoundVariableRuntime, CallContext, Shape
-from slangpy.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
-import slangpy.core.reflection as kfr
-from sgl import AccelerationStructure
+from slangpy.builtin.commonimports import *
+from slangpy.backend import AccelerationStructure
 
 
 class AccelerationStructureType(BaseTypeImpl):

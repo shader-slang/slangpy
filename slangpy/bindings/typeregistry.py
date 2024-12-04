@@ -1,12 +1,11 @@
 from io import StringIO
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
-from slangpy.core import BaseType
-
+from slangpy.bindings.basetype import BaseType
 from slangpy.backend import SlangModule
 
 if TYPE_CHECKING:
-    from slangpy.core.reflection import SlangProgramLayout
+    from slangpy.reflection import SlangProgramLayout
 
 # Dictionary of python types to corresponding hash functions
 PYTHON_SIGNATURE_HASH: dict[type, Optional[Callable[[StringIO, Any], Any]]] = {

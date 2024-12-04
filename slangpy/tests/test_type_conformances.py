@@ -1,10 +1,7 @@
 import pytest
 from sgl import TypeConformance
-from slangpy.backend import DeviceType, float2
-import numpy as np
-from slangpy.types import NDBuffer
+from slangpy.backend import DeviceType
 import slangpy.tests.helpers as helpers
-from slangpy.types.buffer import NDDifferentiableBuffer
 
 CONFORMING_MODULE = r"""
 import "slangpy";

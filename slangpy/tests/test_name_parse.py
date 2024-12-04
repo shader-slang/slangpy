@@ -1,5 +1,5 @@
 import pytest
-from slangpy.utils import parse_generic_signature
+from slangpy.core.utils import parse_generic_signature
 
 
 def test_no_generic():

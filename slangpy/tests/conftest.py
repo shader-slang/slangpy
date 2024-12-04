@@ -1,2 +1,2 @@
 import pytest  # type: ignore
-import slangpy.function as kff  # type: ignore
+import slangpy.core.function as kff  # type: ignore

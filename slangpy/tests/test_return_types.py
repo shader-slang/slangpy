@@ -2,12 +2,12 @@ from typing import Any
 import pytest
 from slangpy.backend import DeviceType, TypeReflection
 from slangpy.backend.slangpynativeemulation import CallContext
-from slangpy.core.boundvariableruntime import BoundVariableRuntime
-from slangpy.core.reflection import SlangProgramLayout
+from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
+from slangpy.reflection import SlangProgramLayout
 import slangpy.tests.helpers as helpers
-import slangpy.typeregistry as tr
-from slangpy.bindings.valuereftype import ValueRefType
-from slangpy.core import ReturnContext
+import slangpy.bindings.typeregistry as tr
+from slangpy.builtin.valuereftype import ValueRefType
+from slangpy.bindings import ReturnContext
 
 
 class Foo:

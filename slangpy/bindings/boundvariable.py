@@ -1,14 +1,16 @@
 from types import NoneType
 from typing import Any, Optional, Union
 
-from slangpy.backend import ModifierID
-from slangpy.typeregistry import get_or_create_type
+from slangpy.core.enums import IOType
+from slangpy.core.native import AccessType, CallMode, Shape
 
-from .enums import IOType
-from .codegen import CodeGen
-from .native import AccessType, CallMode, Shape
-from .basetype import BindContext
-from .reflection import BaseSlangVariable, SlangFunction, SlangType
+from slangpy.backend import ModifierID
+
+from slangpy.bindings.typeregistry import get_or_create_type
+from slangpy.bindings.codegen import CodeGen
+from slangpy.bindings.basetype import BindContext
+
+from slangpy.reflection import SlangFunction, SlangType, SlangField, SlangParameter
 
 
 class BoundVariableException(Exception):
@@ -129,7 +131,7 @@ class BoundVariable:
         else:
             self.children = None
 
-    def bind(self, slang: Union[BaseSlangVariable, SlangType], modifiers: set[ModifierID] = set(), override_name: Optional[str] = None):
+    def bind(self, slang: Union[SlangField, SlangParameter, SlangType], modifiers: set[ModifierID] = set(), override_name: Optional[str] = None):
         if isinstance(slang, SlangType):
             if self.name == '':
                 assert override_name is not None

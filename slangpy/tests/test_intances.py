@@ -2,10 +2,10 @@ from typing import Any
 import pytest
 from sgl import Buffer, Device
 from slangpy.backend import DeviceType, float2, float3, math
-from slangpy.extensions.randfloatarg import RandFloatArg
-from slangpy.instance import InstanceList, InstanceListBuffer, InstanceListDifferentiableBuffer
-from slangpy.module import Module
-from slangpy.struct import Struct
+from slangpy.types.randfloatarg import RandFloatArg
+from slangpy import InstanceList, InstanceListBuffer, InstanceListDifferentiableBuffer
+from slangpy import Module
+from slangpy.core.struct import Struct
 import slangpy.tests.helpers as helpers
 from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
 from slangpy.types.valueref import ValueRef, floatRef

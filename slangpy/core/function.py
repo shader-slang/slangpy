@@ -1,20 +1,18 @@
 from copy import copy
 from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
 
-from slangpy.core.native import CallMode, NativeCallRuntimeOptions
-from slangpy.core import hash_signature
+from slangpy.core.native import CallMode, NativeCallRuntimeOptions, hash_signature
 
 from slangpy.backend import FunctionReflection, CommandBuffer, TypeConformance, TypeReflection, uint3
 from slangpy.core.logging import runtime_exception_info
-from slangpy.typeregistry import PYTHON_SIGNATURES
+from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
-import slangpy.core.reflection as kfr
+import slangpy.reflection as kfr
 
 if TYPE_CHECKING:
-    from slangpy.dispatchdata import DispatchData
-    from slangpy.calldata import CallData
-    from slangpy.struct import Struct
-    from slangpy.module import Module
+    from slangpy.core.calldata import CallData
+    from slangpy.core.struct import Struct
+    from slangpy.core.module import Module
 
 ENABLE_CALLDATA_CACHE = True
 
@@ -279,11 +277,11 @@ class Function:
                 if dispatch_data.device != self.module.device:
                     raise NameError("Cached CallData is linked to wrong device")
             else:
-                from slangpy.dispatchdata import DispatchData
+                from slangpy.core.dispatchdata import DispatchData
                 dispatch_data = DispatchData(self, **kwargs)
                 self.module.dispatch_data_cache[sig] = dispatch_data
         else:
-            from slangpy.dispatchdata import DispatchData
+            from slangpy.core.dispatchdata import DispatchData
             dispatch_data = DispatchData(self, **kwargs)
 
         opts = NativeCallRuntimeOptions()

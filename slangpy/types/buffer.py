@@ -2,11 +2,12 @@ from typing import Any, Optional
 
 from slangpy.backend import Device, ResourceUsage, TypeLayoutReflection, MemoryType, TypeReflection, BufferCursor, DataType
 
-from slangpy.core import BaseType, Shape
-from slangpy.core.reflection import SlangProgramLayout, SlangType, ScalarType
-from slangpy.shapes import TShapeOrTuple
-from slangpy.struct import Struct
-from slangpy.typeregistry import get_or_create_type
+from slangpy.bindings.basetype import BaseType
+from slangpy.core.native import Shape
+from slangpy.reflection import SlangProgramLayout, SlangType, ScalarType
+from slangpy.core.shapes import TShapeOrTuple
+from slangpy.core.struct import Struct
+from slangpy.bindings.typeregistry import get_or_create_type
 
 import numpy.typing as npt
 

@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import hashlib
-from types import NoneType
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 import slangpy
@@ -11,12 +10,9 @@ import os
 from pathlib import Path
 
 from slangpy.backend import (
-    Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel,
-    TypeReflection)
-from slangpy.calldata import SLANG_PATH
-from slangpy.module import Module
-from slangpy.typeregistry import PYTHON_TYPES, get_or_create_type
-from slangpy.core import BaseTypeImpl, Shape
+    Device, DeviceType, SlangCompilerOptions, SlangDebugInfoLevel)
+from slangpy.core.calldata import SLANG_PATH
+from slangpy import Module
 
 SHADER_DIR = Path(__file__).parent
 

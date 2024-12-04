@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 from slangpy.backend import FunctionReflection, VariableReflection, ModifierID
 
 if TYPE_CHECKING:
-    from .boundvariable import BoundVariable, BoundCall
-    from .boundvariableruntime import BoundCallRuntime, BoundVariableRuntime
-    from .basetype import BaseType
+    from slangpy.bindings.boundvariable import BoundVariable, BoundCall
+    from slangpy.bindings.boundvariableruntime import BoundCallRuntime, BoundVariableRuntime
+    from slangpy.bindings.basetype import BaseType
 
 
 class TableColumn:

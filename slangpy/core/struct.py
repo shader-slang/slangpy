@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
-from slangpy.function import Function
-from slangpy.utils import try_find_function_overloads_via_ast
+from slangpy.core.function import Function
+from slangpy.core.utils import try_find_function_overloads_via_ast
 
 if TYPE_CHECKING:
     from slangpy import Module
-    from slangpy.core.reflection import SlangType
+    from slangpy.reflection import SlangType
 
 
 class Struct:

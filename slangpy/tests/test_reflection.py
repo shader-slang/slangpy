@@ -2,7 +2,9 @@ from typing import Any, Callable
 import pytest
 from slangpy.backend import DeviceType
 import slangpy.tests.helpers as helpers
-import slangpy.core.reflection as r
+import slangpy.reflection as r
+from slangpy.core.native import TypeReflection
+from slangpy.reflection.reflectiontypes import is_float
 
 MODULE = """
 import "slangpy";
@@ -22,8 +24,8 @@ def test_vector_types_correct(device_type: DeviceType):
     function = helpers.create_function_from_module(device, "foo2", MODULE)
     layout = function.module.layout
 
-    for st in r.TR.ScalarType:
-        if st == r.TR.ScalarType.void or st == r.TR.ScalarType.none:
+    for st in TypeReflection.ScalarType:
+        if st == TypeReflection.ScalarType.void or st == TypeReflection.ScalarType.none:
             continue
         for i in range(1, 4):
             assert layout.vector_type(st, i).num_elements == i
@@ -35,8 +37,8 @@ def test_matrix_types_correct(device_type: DeviceType):
     function = helpers.create_function_from_module(device, "foo2", MODULE)
     layout = function.module.layout
 
-    for st in r.TR.ScalarType:
-        if st == r.TR.ScalarType.void or st == r.TR.ScalarType.none:
+    for st in TypeReflection.ScalarType:
+        if st == TypeReflection.ScalarType.void or st == TypeReflection.ScalarType.none:
             continue
         for row in range(1, 4):
             for col in range(1, 4):
@@ -56,12 +58,12 @@ def test_basic_function_decl(device_type: DeviceType):
     assert res is not None
     assert res.name == "foo2"
     assert res.parameters[0].name == "a"
-    assert res.parameters[0].type == layout.scalar_type(r.TR.ScalarType.float32)
+    assert res.parameters[0].type == layout.scalar_type(TypeReflection.ScalarType.float32)
     assert res.parameters[1].name == "b"
-    assert res.parameters[1].type == layout.scalar_type(r.TR.ScalarType.float32)
+    assert res.parameters[1].type == layout.scalar_type(TypeReflection.ScalarType.float32)
 
 
-def check_texture(type: r.SlangType, resource_shape: r.TR.ResourceShape, resource_access: r.TR.ResourceAccess, num_dims: int, element_type: str):
+def check_texture(type: r.SlangType, resource_shape: TypeReflection.ResourceShape, resource_access: TypeReflection.ResourceAccess, num_dims: int, element_type: str):
     assert isinstance(type, r.TextureType)
     assert type.resource_shape == resource_shape
     assert type.resource_access == resource_access
@@ -73,13 +75,13 @@ def check_texture(type: r.SlangType, resource_shape: r.TR.ResourceShape, resourc
     assert type.element_type == et
 
 
-def check_scalar(type: r.SlangType, scalar_type: r.TR.ScalarType):
+def check_scalar(type: r.SlangType, scalar_type: TypeReflection.ScalarType):
     assert isinstance(type, r.ScalarType)
     assert type.slang_scalar_type == scalar_type
-    assert type.differentiable == r.is_float(scalar_type)
+    assert type.differentiable == is_float(scalar_type)
 
 
-def check_vector(type: r.SlangType, scalar_type: r.TR.ScalarType, size: int):
+def check_vector(type: r.SlangType, scalar_type: TypeReflection.ScalarType, size: int):
     assert isinstance(type, r.VectorType)
     assert isinstance(type.element_type, r.ScalarType)
     assert type.element_type.slang_scalar_type == scalar_type
@@ -87,7 +89,7 @@ def check_vector(type: r.SlangType, scalar_type: r.TR.ScalarType, size: int):
     assert type.differentiable == type.element_type.differentiable
 
 
-def check_matrix(type: r.SlangType, scalar_type: r.TR.ScalarType, rows: int, cols: int):
+def check_matrix(type: r.SlangType, scalar_type: TypeReflection.ScalarType, rows: int, cols: int):
     assert isinstance(type, r.MatrixType)
     assert isinstance(type.element_type, r.VectorType)
     assert type.rows == rows
@@ -95,13 +97,13 @@ def check_matrix(type: r.SlangType, scalar_type: r.TR.ScalarType, rows: int, col
     assert type.differentiable == type.element_type.differentiable
 
 
-def check_structured_buffer(type: r.SlangType, resource_access: r.TR.ResourceAccess, element_type: str):
+def check_structured_buffer(type: r.SlangType, resource_access: TypeReflection.ResourceAccess, element_type: str):
     assert isinstance(type, r.StructuredBufferType)
     assert type.element_type == type._program.find_type_by_name(element_type)
     assert type.resource_access == resource_access
 
 
-def check_address_buffer(type: r.SlangType, resource_access: r.TR.ResourceAccess):
+def check_address_buffer(type: r.SlangType, resource_access: TypeReflection.ResourceAccess):
     assert isinstance(type, r.ByteAddressBufferType)
     assert type.element_type == type._program.find_type_by_name('uint8_t')
     assert type.resource_access == resource_access
@@ -133,40 +135,42 @@ def check_interface(type: r.SlangType):
 
 
 ARG_TYPE_CHECKS = [
-    ("float16_t", lambda x: check_scalar(x, r.TR.ScalarType.float16)),
-    ("float", lambda x: check_scalar(x, r.TR.ScalarType.float32)),
-    ("int8_t", lambda x: check_scalar(x, r.TR.ScalarType.int8)),
-    ("int16_t", lambda x: check_scalar(x, r.TR.ScalarType.int16)),
-    ("int", lambda x: check_scalar(x, r.TR.ScalarType.int32)),
-    ("int64_t", lambda x: check_scalar(x, r.TR.ScalarType.int64)),
-    ("uint8_t", lambda x: check_scalar(x, r.TR.ScalarType.uint8)),
-    ("uint16_t", lambda x: check_scalar(x, r.TR.ScalarType.uint16)),
-    ("uint", lambda x: check_scalar(x, r.TR.ScalarType.uint32)),
-    ("uint64_t", lambda x: check_scalar(x, r.TR.ScalarType.uint64)),
-    ("float3", lambda x: check_vector(x, r.TR.ScalarType.float32, 3)),
-    ("float4", lambda x: check_vector(x, r.TR.ScalarType.float32, 4)),
-    ("vector<float,4>", lambda x: check_vector(x, r.TR.ScalarType.float32, 4)),
-    ("int3", lambda x: check_vector(x, r.TR.ScalarType.int32, 3)),
-    ("bool2", lambda x: check_vector(x, r.TR.ScalarType.bool, 2)),
-    ("uint1", lambda x: check_vector(x, r.TR.ScalarType.uint32, 1)),
-    ("float3x4", lambda x: check_matrix(x, r.TR.ScalarType.float32, 3, 4)),
-    ("matrix<float,3,4>", lambda x: check_matrix(x, r.TR.ScalarType.float32, 3, 4)),
+    ("float16_t", lambda x: check_scalar(x, TypeReflection.ScalarType.float16)),
+    ("float", lambda x: check_scalar(x, TypeReflection.ScalarType.float32)),
+    ("int8_t", lambda x: check_scalar(x, TypeReflection.ScalarType.int8)),
+    ("int16_t", lambda x: check_scalar(x, TypeReflection.ScalarType.int16)),
+    ("int", lambda x: check_scalar(x, TypeReflection.ScalarType.int32)),
+    ("int64_t", lambda x: check_scalar(x, TypeReflection.ScalarType.int64)),
+    ("uint8_t", lambda x: check_scalar(x, TypeReflection.ScalarType.uint8)),
+    ("uint16_t", lambda x: check_scalar(x, TypeReflection.ScalarType.uint16)),
+    ("uint", lambda x: check_scalar(x, TypeReflection.ScalarType.uint32)),
+    ("uint64_t", lambda x: check_scalar(x, TypeReflection.ScalarType.uint64)),
+    ("float3", lambda x: check_vector(x, TypeReflection.ScalarType.float32, 3)),
+    ("float4", lambda x: check_vector(x, TypeReflection.ScalarType.float32, 4)),
+    ("vector<float,4>", lambda x: check_vector(x, TypeReflection.ScalarType.float32, 4)),
+    ("int3", lambda x: check_vector(x, TypeReflection.ScalarType.int32, 3)),
+    ("bool2", lambda x: check_vector(x, TypeReflection.ScalarType.bool, 2)),
+    ("uint1", lambda x: check_vector(x, TypeReflection.ScalarType.uint32, 1)),
+    ("float3x4", lambda x: check_matrix(x, TypeReflection.ScalarType.float32, 3, 4)),
+    ("matrix<float,3,4>", lambda x: check_matrix(x, TypeReflection.ScalarType.float32, 3, 4)),
     ("Texture1D<float>", lambda x: check_texture(
-        x, r.TR.ResourceShape.texture_1d, r.TR.ResourceAccess.read, 1, 'float')),
+        x, TypeReflection.ResourceShape.texture_1d, TypeReflection.ResourceAccess.read, 1, 'float')),
     ("RWTexture1D<float>", lambda x: check_texture(
-        x, r.TR.ResourceShape.texture_1d, r.TR.ResourceAccess.read_write, 1, 'float')),
+        x, TypeReflection.ResourceShape.texture_1d, TypeReflection.ResourceAccess.read_write, 1, 'float')),
     ("Texture2D<float3>", lambda x: check_texture(
-        x, r.TR.ResourceShape.texture_2d, r.TR.ResourceAccess.read, 2, 'float3')),
+        x, TypeReflection.ResourceShape.texture_2d, TypeReflection.ResourceAccess.read, 2, 'float3')),
     ("RWTexture2D<float3>", lambda x: check_texture(
-        x, r.TR.ResourceShape.texture_2d, r.TR.ResourceAccess.read_write, 2, 'float3')),
+        x, TypeReflection.ResourceShape.texture_2d, TypeReflection.ResourceAccess.read_write, 2, 'float3')),
     ("StructuredBuffer<float>", lambda x: check_structured_buffer(
-        x, r.TR.ResourceAccess.read, 'float')),
+        x, TypeReflection.ResourceAccess.read, 'float')),
     ("RWStructuredBuffer<float4>", lambda x: check_structured_buffer(
-        x, r.TR.ResourceAccess.read_write, 'float4')),
+        x, TypeReflection.ResourceAccess.read_write, 'float4')),
     ("float[10]", lambda x: check_array(x, 'float', 10)),
     ("float3[]", lambda x: check_array(x, 'float3', 0)),
-    ("ByteAddressBuffer", lambda x: check_address_buffer(x, r.TR.ResourceAccess.read)),
-    ("RWByteAddressBuffer", lambda x: check_address_buffer(x, r.TR.ResourceAccess.read_write)),
+    ("ByteAddressBuffer", lambda x: check_address_buffer(
+        x, TypeReflection.ResourceAccess.read)),
+    ("RWByteAddressBuffer", lambda x: check_address_buffer(
+        x, TypeReflection.ResourceAccess.read_write)),
     ("TestStruct", lambda x: check_struct(x, {"foo": 'float'})),
     ("ITestInterface", lambda x: check_interface(x)),
 ]

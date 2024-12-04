@@ -1,8 +1,8 @@
 
 
 from typing import Any, Optional
-from slangpy.function import Function
-from slangpy.struct import Struct
+from slangpy.core.function import Function
+from slangpy.core.struct import Struct
 from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
 import numpy.typing as npt
 

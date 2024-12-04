@@ -1,9 +1,10 @@
 
-from slangpy.core import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, AccessType, BoundVariable, Shape
+from slangpy.bindings import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable
+from slangpy.core.native import AccessType, Shape
 
 from slangpy.backend import TypeReflection
-from slangpy.core.reflection import SlangProgramLayout, SlangType
-from slangpy.typeregistry import PYTHON_TYPES
+from slangpy.reflection import SlangProgramLayout, SlangType
+from slangpy.bindings.typeregistry import PYTHON_TYPES
 
 
 class ThreadIdArg:
