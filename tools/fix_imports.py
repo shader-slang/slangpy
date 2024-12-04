@@ -3,7 +3,7 @@
 from pathlib import Path
 
 
-root = Path(__file__).parent.parent / "slangpy/tests"
+root = Path(__file__).parent.parent / "slangpy/builtin"
 files = list(root.glob("**/*.py"))
 
 
