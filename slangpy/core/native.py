@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from slangpy.backend.slangpynativeemulation import *
 
 # import os

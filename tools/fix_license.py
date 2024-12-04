@@ -4,7 +4,7 @@ from pathlib import Path
 SPDX_IDENTIFIER = "SPDX-License-Identifier: Apache-2.0"
 
 
-root = Path(__file__).parent.parent / "slangpy/types"
+root = Path(__file__).parent.parent / "slangpy"
 files = list(root.glob("**/*.py"))
 
 
@@ -24,5 +24,6 @@ for file in files:
     newtext = "\n".join(lines)
 
     if newtext != text:
+        print(file)
         with open(file, "w") as f:
             f.write(newtext)

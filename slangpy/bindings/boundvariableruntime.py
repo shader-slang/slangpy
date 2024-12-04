@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from typing import TYPE_CHECKING
 
 from slangpy.core.native import (NativeBoundCallRuntime,
@@ -20,10 +21,10 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         super().__init__()
 
         # Data potentially used by type marshalls
-        assert source.vector_type is not None
         self.access = source.access
         self.transform = source.vector_mapping
         self.python_type = source.python
+        # type: ignore (can be none for raw dispatch)
         self.vector_type = source.vector_type
         self.call_dimensionality = source.call_dimensionality
 

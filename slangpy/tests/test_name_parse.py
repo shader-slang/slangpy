@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 import pytest
 
 from slangpy.core.utils import parse_generic_signature

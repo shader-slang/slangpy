@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from slangpy.core.function import Function

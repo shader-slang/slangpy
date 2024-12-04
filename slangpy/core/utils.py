@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from typing import Union
 
 from slangpy.backend import (DeclReflection, ProgramLayout,

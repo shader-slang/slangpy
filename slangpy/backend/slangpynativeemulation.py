@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from copy import copy
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from typing import TYPE_CHECKING, TypedDict, Union
 
 if TYPE_CHECKING:

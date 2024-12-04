@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from typing import Any
 
 from slangpy.core.native import Shape

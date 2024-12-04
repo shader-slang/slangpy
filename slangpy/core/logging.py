@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
 from slangpy.backend import FunctionReflection, ModifierID, VariableReflection
