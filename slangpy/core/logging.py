@@ -220,7 +220,3 @@ def bound_exception_info(call: 'BoundCall', concrete_reflection: FunctionReflect
     text.append(f"{bound_call_table(call,highlight=variable)}")
 
     return "\n".join(text)
-
-
-def runtime_exception_info(call: 'BoundCallRuntime', call_shape: list[int | None], variable: Optional['BoundVariableRuntime']):
-    pass

@@ -26,9 +26,7 @@ void add_numbers_nd(float a, float b, out float c) {
     b = NDBuffer(device, element_type=float, shape=(2, 2))
     c = NDBuffer(device, element_type=float, shape=(2, 2))
 
-    # type: ignore (shape is a tuple)
     a_data = np.random.rand(*a.shape).astype(np.float32)
-    # type: ignore (shape is a tuple)
     b_data = np.random.rand(*b.shape).astype(np.float32)
 
     a.buffer.from_numpy(a_data)

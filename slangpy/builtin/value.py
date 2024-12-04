@@ -236,10 +236,10 @@ for pair in zip(["int", "float", "bool", "uint", "float16_t"], [TypeReflection.S
 
     for row in range(2, 5):
         for col in range(2, 5):
-            mat_type: type = getattr(math, f"float{row}x{col}", None)  # type: ignore
+            mat_type = getattr(math, f"float{row}x{col}", None)
             if mat_type is not None:
                 t = lambda layout, pytype, row=row, st=slang_scalar_type, col=col: MatrixMarshall(
                     layout, st, row, col)
-                t.python_type = mat_type  # type: ignore
+                t.python_type = mat_type
                 PYTHON_TYPES[mat_type] = t
                 PYTHON_SIGNATURES[mat_type] = None

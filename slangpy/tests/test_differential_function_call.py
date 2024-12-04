@@ -239,12 +239,6 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         device, "polynomial", POLYNOMIAL_V3
     )
 
-    class Vec:
-        def __init__(self, x, y, z):  # type: ignore
-            self.x = x
-            self.y = y
-            self.z = z
-
     a_x = NDDifferentiableBuffer(
         element_count=32,
         device=device,

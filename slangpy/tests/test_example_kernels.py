@@ -73,7 +73,7 @@ void user_func(float a, float b, out float c) {
     )
     in_buffer_0.buffer.from_numpy(rand_array_of_floats(in_buffer_0.element_count))
     in_buffer_0.grad.buffer.from_numpy(
-        np.zeros(in_buffer_0.element_count, dtype=np.float32))  # type: ignore
+        np.zeros(in_buffer_0.element_count, dtype=np.float32))
 
     # Same with input buffer 1.
     in_buffer_1 = kf.types.NDDifferentiableBuffer(
@@ -81,7 +81,7 @@ void user_func(float a, float b, out float c) {
     )
     in_buffer_1.buffer.from_numpy(rand_array_of_floats(in_buffer_1.element_count))
     in_buffer_1.grad.buffer.from_numpy(
-        np.zeros(in_buffer_1.element_count, dtype=np.float32))  # type: ignore
+        np.zeros(in_buffer_1.element_count, dtype=np.float32))
 
     # Create empty output buffer with gradients initialized to 1 (as there is 1-1 correspondence between
     # output of user function and output of kernel)
@@ -90,7 +90,7 @@ void user_func(float a, float b, out float c) {
     )
     out_buffer.buffer.from_numpy(np.zeros(out_buffer.element_count, dtype=np.float32))
     out_buffer.grad.buffer.from_numpy(
-        np.ones(out_buffer.element_count, dtype=np.float32))  # type: ignore
+        np.ones(out_buffer.element_count, dtype=np.float32))
 
     # Dispatch the forward kernel.
     kernel.dispatch(
@@ -127,8 +127,8 @@ void user_func(float a, float b, out float c) {
     )
 
     # Read and validate backward kernel results (expecting a_grad = 2*a, b_grad = 1)
-    in_grad_0 = in_buffer_0.grad.buffer.to_numpy().view(np.float32)  # type: ignore
-    in_grad_1 = in_buffer_1.grad.buffer.to_numpy().view(np.float32)  # type: ignore
+    in_grad_0 = in_buffer_0.grad.buffer.to_numpy().view(np.float32)
+    in_grad_1 = in_buffer_1.grad.buffer.to_numpy().view(np.float32)
     eval_grad_0 = 2 * in_data_0
     eval_grad_1 = np.ones(in_data_1.shape)
     assert np.allclose(in_grad_0, eval_grad_0)

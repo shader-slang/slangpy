@@ -29,7 +29,7 @@ def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Mo
 @pytest.mark.skip(reason="Perf test only")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_signature_gen(device_type: DeviceType):
-    func: Function = load_module(device_type).get_particle_quad  # type: ignore
+    func: Function = load_module(device_type).get_particle_quad.as_func()
 
     buffer = NDBuffer(helpers.get_device(device_type), int, 4)
 
@@ -45,7 +45,7 @@ def test_signature_gen(device_type: DeviceType):
 # @pytest.mark.skip(reason="Perf test only")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_kernel_reuse(device_type: DeviceType):
-    add_vectors: Function = load_module(device_type).add_vectors  # type: ignore
+    add_vectors: Function = load_module(device_type).add_vectors.as_func()
 
     buffer = NDBuffer(helpers.get_device(device_type), int, 4)
 

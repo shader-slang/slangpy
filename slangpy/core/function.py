@@ -2,7 +2,6 @@
 from copy import copy
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union
 
-from slangpy.core.logging import runtime_exception_info
 from slangpy.core.native import (CallMode, NativeCallRuntimeOptions,
                                  hash_signature)
 
@@ -235,7 +234,7 @@ class Function:
             opts = NativeCallRuntimeOptions()
             opts.after_dispatch = self.after_dispatch
             opts.before_dispatch = self.before_dispatch
-            opts.uniforms = self.uniforms  # type: ignore
+            opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
             return calldata.call(opts, *args, **kwargs)
         except ValueError as e:
             self._handle_error(e, calldata)
@@ -249,7 +248,7 @@ class Function:
             opts = NativeCallRuntimeOptions()
             opts.after_dispatch = self.after_dispatch
             opts.before_dispatch = self.before_dispatch
-            opts.uniforms = self.uniforms  # type: ignore
+            opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
             return calldata.append_to(opts, command_buffer, *args, **kwargs)
         except ValueError as e:
             self._handle_error(e, calldata)
@@ -289,7 +288,7 @@ class Function:
         opts = NativeCallRuntimeOptions()
         opts.after_dispatch = self.after_dispatch
         opts.before_dispatch = self.before_dispatch
-        opts.uniforms = self.uniforms  # type: ignore
+        opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
         dispatch_data.dispatch(opts, thread_count, vars, command_buffer, **kwargs)
 
     def _handle_error(self, e: ValueError, calldata: Optional['CallData']):
@@ -300,8 +299,7 @@ class Function:
         msg = e.args[0]['message']
         source = e.args[0]['source']
         raise ValueError(
-            f"Exception dispatching kernel: {msg}\n."
-            f"{runtime_exception_info(calldata.runtime, [], source)}\n")  # type: ignore
+            f"Exception dispatching kernel: {msg}\n.")
 
     def debug_build_call_data(self, *args: Any, **kwargs: Any):
         return self._build_call_data(*args, **kwargs)
