@@ -177,7 +177,7 @@ void {reflection.name}_entrypoint({params}) {{
     def dispatch(self, opts: 'NativeCallRuntimeOptions', thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: CommandBuffer | None = None, **kwargs: dict[str, Any]) -> None:
 
         # Merge uniforms
-        uniforms = {}
+        uniforms: dict[str, Any] = {}
         if opts.uniforms is not None:
             for u in opts.uniforms:
                 if isinstance(u, dict):

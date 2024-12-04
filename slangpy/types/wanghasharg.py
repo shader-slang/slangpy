@@ -1,12 +1,9 @@
-
 from typing import Any
-
-from slangpy.bindings import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, BoundVariableRuntime
 from slangpy.core.native import AccessType, CallContext, Shape
-
 from slangpy.backend import TypeReflection
-from slangpy.reflection import SlangProgramLayout, SlangType
+from slangpy.bindings import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, BoundVariableRuntime
 from slangpy.bindings.typeregistry import PYTHON_TYPES
+from slangpy.reflection import SlangProgramLayout, SlangType
 
 
 class WangHashArg:

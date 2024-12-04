@@ -1,6 +1,4 @@
-
 from typing import Any, Optional
-
 from slangpy.core.enums import PrimType
 
 
