@@ -1,7 +1,6 @@
-from typing import Any
-
-from slangpy.builtin.commonimports import *
 from .valuetype import ValueType
+from typing import Any
+from slangpy.builtin.commonimports import *
 
 
 class StructType(ValueType):

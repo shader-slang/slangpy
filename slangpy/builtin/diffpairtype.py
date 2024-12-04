@@ -1,12 +1,8 @@
-
-
 from typing import Any, Optional
-
 import numpy as np
-
 from slangpy.builtin.commonimports import *
-from slangpy.types import DiffPair
 from slangpy.builtin.valuereftype import slang_value_to_numpy, numpy_to_slang_value
+from slangpy.types import DiffPair
 
 
 def generate_differential_pair(name: str, context: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: str):

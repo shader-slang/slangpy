@@ -1,5 +1,4 @@
 from typing import Any, Optional, cast
-
 from slangpy.builtin.commonimports import *
 from slangpy.builtin.valuetype import slang_type_to_return_type
 

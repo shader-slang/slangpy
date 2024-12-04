@@ -1,9 +1,7 @@
 from typing import Any
-
-from slangpy.builtin.commonimports import *
 from slangpy.backend import math
+from slangpy.builtin.commonimports import *
 from slangpy.reflection.reflectiontypes import FLOAT_TYPES, INT_TYPES, BOOL_TYPES, SIGNED_INT_TYPES, UNSIGNED_INT_TYPES
-
 import slangpy.backend as kfbackend
 
 """

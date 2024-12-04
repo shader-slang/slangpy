@@ -1,8 +1,5 @@
-
-
 from typing import Any
 import numpy as np
-
 from slangpy.builtin.commonimports import *
 from slangpy.builtin.valuetype import slang_type_to_return_type
 from slangpy.types import ValueRef

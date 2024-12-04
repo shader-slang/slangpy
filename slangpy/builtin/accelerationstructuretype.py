@@ -1,9 +1,6 @@
-
-
 from typing import Any
-
-from slangpy.builtin.commonimports import *
 from slangpy.backend import AccelerationStructure
+from slangpy.builtin.commonimports import *
 
 
 class AccelerationStructureType(BaseTypeImpl):

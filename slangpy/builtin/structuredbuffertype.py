@@ -1,7 +1,4 @@
-
-
 from typing import Any, Optional
-
 from slangpy.builtin.commonimports import *
 
 

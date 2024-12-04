@@ -1,7 +1,4 @@
-
-
 from typing import Any
-
 from slangpy.builtin.commonimports import *
 from slangpy.builtin.texturetype import get_or_create_python_texture_type
 

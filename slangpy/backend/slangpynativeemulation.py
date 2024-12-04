@@ -1,13 +1,12 @@
+from . import uint3, CommandBuffer, ModifierID, TypeReflection
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
 """
 This file contains python-only emulation for the current native functionality of slangpy embedded in SGL.
 To serve accurately, it should only import typing and the necessary backend types.
 """
 
-from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
-
-from . import uint3, CommandBuffer, ModifierID, TypeReflection
 
 if TYPE_CHECKING:
     from . import Device, ComputeKernel

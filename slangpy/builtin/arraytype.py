@@ -1,7 +1,5 @@
 from typing import Any
-
 from slangpy.builtin.commonimports import *
-
 from slangpy.builtin.valuetype import ValueType
 
 
