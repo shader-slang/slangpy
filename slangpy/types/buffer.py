@@ -70,9 +70,9 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
         else:
             element_type = program_layout.find_type_by_name(
                 element_type.slang_type.full_name)
-    #elif element_type == float:
+    # elif element_type == float:
     #    element_type = program_layout.scalar_type(TypeReflection.ScalarType.float32)
-    #elif element_type == int:
+    # elif element_type == int:
     #    element_type = program_layout.scalar_type(TypeReflection.ScalarType.int32)
     else:
         bt = get_or_create_type(program_layout, element_type)

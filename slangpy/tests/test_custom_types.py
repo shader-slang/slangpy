@@ -157,6 +157,7 @@ Particle rand_float_soa(Particle input) {
     assert np.all(pos >= -100.0) and np.all(pos <= 100.0)
     assert np.all(dir >= 0) and np.all(dir <= np.pi*2)
 
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_range(device_type: DeviceType):
 
@@ -171,11 +172,12 @@ int range_test(int input) {
     )
 
     # Call function with 3D random arg
-    res = kernel_output_values(range(10,20,2))
+    res = kernel_output_values(range(10, 20, 2))
 
     # Should get random numbers
     data = res.buffer.to_numpy().view("int32")
-    assert np.all(data==[10,12,14,16,18])
+    assert np.all(data == [10, 12, 14, 16, 18])
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

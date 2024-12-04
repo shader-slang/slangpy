@@ -3,6 +3,7 @@ import pytest
 from slangpy.backend import DeviceType
 import slangpy.tests.helpers as helpers
 
+
 @pytest.mark.skip(reason="Not implemented yet")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_explicit_add_int64s(device_type: DeviceType):

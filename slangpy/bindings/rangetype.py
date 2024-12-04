@@ -7,7 +7,6 @@ from slangpy.core.reflection import SlangProgramLayout, SlangType
 from slangpy.typeregistry import PYTHON_TYPES
 
 
-
 class RangeType(BaseTypeImpl):
     def __init__(self, layout: SlangProgramLayout):
         super().__init__(layout)
