@@ -2,11 +2,16 @@
 
 from pathlib import Path
 
-SPDX_IDENTIFIER = "# SPDX-License-Identifier: Apache-2.0"
+PYTHON_SPDX_IDENTIFIER = "# SPDX-License-Identifier: Apache-2.0"
+C_SPDX_IDENTIFIER = "// SPDX-License-Identifier: Apache-2.0"
 
 
 def process_file(file: Path):
-    if not file.name.endswith(".py"):
+    if file.name.endswith(".py"):
+        sp = PYTHON_SPDX_IDENTIFIER
+    elif file.name.endswith(".slang") or file.name.endswith(".cpp") or file.name.endswith(".c") or file.name.endswith(".h"):
+        sp = C_SPDX_IDENTIFIER
+    else:
         return
 
     # read whole file as text
@@ -14,9 +19,9 @@ def process_file(file: Path):
         text = f.read()
 
     # split text into lines
-    lines = [x for x in text.split("\n") if not x.startswith(SPDX_IDENTIFIER)]
+    lines = [x for x in text.split("\n") if not x.startswith(sp)]
 
-    lines.insert(0, SPDX_IDENTIFIER)
+    lines.insert(0, sp)
 
     newtext = "\n".join(lines)
 
