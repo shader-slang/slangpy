@@ -65,7 +65,7 @@ FAILED = False
 
 def dependencies(args: argparse.Namespace):
     # struggling to get sgl to install via requirements - install directly here instead
-    run_command("pip install nv-sgl")
+    run_command("pip install --upgrade nv-sgl")
 
     # install dev requirements
     run_command("pip install -r requirements-dev.txt")
