@@ -68,7 +68,7 @@ def dependencies(args: argparse.Namespace):
     run_command("pip install --upgrade nv-sgl")
 
     # install dev requirements
-    run_command("pip install -r requirements-dev.txt")
+    run_command("pip install --upgrade -r requirements-dev.txt")
 
 
 def precommit(args: argparse.Namespace):
