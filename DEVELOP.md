@@ -6,8 +6,8 @@
 #Create conda environment if needed
 conda create -n "slangpy" python=3.9
 
-#Install SGL (will soon be done as normal requirement)
-pip install --upgrade --force-reinstall git+https://gitlab-master.nvidia.com/skallweit/sgl.git
+#Install SGL unless building locally
+pip install --upgrade nv-sgl
 
 #Clone
 git clone https://gitlab-master.nvidia.com/ccummings/slangpy.git
@@ -17,7 +17,7 @@ cd slangpy
 pip install --editable .
 
 #Install developer extras
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 #Install precommit hooks
 pre-commit install
