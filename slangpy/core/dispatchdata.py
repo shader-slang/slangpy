@@ -1,10 +1,12 @@
-from typing import TYPE_CHECKING, Any
 import hashlib
 import os
 import re
+from typing import TYPE_CHECKING, Any
+
 from slangpy.core.callsignature import generate_constants
 from slangpy.core.enums import IOType
-from slangpy.core.native import CallMode, unpack_arg, pack_arg
+from slangpy.core.native import CallMode, pack_arg, unpack_arg
+
 from slangpy.backend import CommandBuffer, SlangLinkOptions, uint3
 from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
 from slangpy.bindings.basetype import BindContext

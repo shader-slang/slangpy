@@ -1,12 +1,16 @@
-from helpers import test_id  # type: ignore (pytest fixture)
 from pathlib import Path
+
 import numpy as np
 import pytest
-from slangpy.backend import DeviceType, float3, float1, uint3
-from slangpy.tests import helpers
-from slangpy.tests.test_differential_function_call import python_eval_polynomial, python_eval_polynomial_a_deriv, python_eval_polynomial_b_deriv
-from slangpy.types import NDDifferentiableBuffer
+from helpers import test_id  # type: ignore (pytest fixture)
+
 import slangpy as kf
+from slangpy.backend import DeviceType, float1, float3, uint3
+from slangpy.tests import helpers
+from slangpy.tests.test_differential_function_call import (
+    python_eval_polynomial, python_eval_polynomial_a_deriv,
+    python_eval_polynomial_b_deriv)
+from slangpy.types import NDDifferentiableBuffer
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 

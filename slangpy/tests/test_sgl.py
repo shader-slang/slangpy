@@ -1,6 +1,7 @@
 import pytest
-from slangpy.backend import DeviceType
+
 import slangpy.tests.helpers as helpers
+from slangpy.backend import DeviceType
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

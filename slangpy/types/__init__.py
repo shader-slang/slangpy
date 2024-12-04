@@ -2,7 +2,7 @@
 
 from .buffer import NDBuffer, NDDifferentiableBuffer
 from .diffpair import DiffPair, diffPair, floatDiffPair
-from .valueref import ValueRef, intRef, floatRef
 from .randfloatarg import RandFloatArg
 from .threadidarg import ThreadIdArg
+from .valueref import ValueRef, floatRef, intRef
 from .wanghasharg import WangHashArg

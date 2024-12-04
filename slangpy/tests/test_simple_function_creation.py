@@ -1,7 +1,8 @@
 import pytest
-from slangpy.backend import DeviceType
+
 import slangpy as kf
 import slangpy.tests.helpers as helpers
+from slangpy.backend import DeviceType
 
 SIMPLE_FUNCTION_RETURN_VALUE = r"""
 int add_numbers(int a, int b) {

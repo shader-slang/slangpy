@@ -1,9 +1,11 @@
 from typing import Any
+
 from slangpy.core.native import Shape
-from slangpy.bindings import BaseType
-from slangpy.reflection import SlangProgramLayout
+
 import slangpy.bindings.typeregistry as tr
+from slangpy.bindings import BaseType
 from slangpy.builtin.valuetype import ValueType
+from slangpy.reflection import SlangProgramLayout
 
 
 class ArrayType(ValueType):

@@ -1,16 +1,19 @@
 from typing import TYPE_CHECKING, Any, Optional
+
 from slangpy.core.native import AccessType, CallMode
+
+import slangpy.bindings.typeregistry as tr
+import slangpy.reflection as slr
 from slangpy.backend import FunctionReflection, ModifierID, TypeReflection
 from slangpy.bindings.basetype import BaseType, BindContext, ReturnContext
-from slangpy.bindings.boundvariable import BoundCall, BoundVariable, BoundVariableException
+from slangpy.bindings.boundvariable import (BoundCall, BoundVariable,
+                                            BoundVariableException)
 from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.structtype import StructType
 from slangpy.builtin.valuetype import NoneValueType, ValueType
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
 from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
 from slangpy.types.valueref import ValueRef
-import slangpy.bindings.typeregistry as tr
-import slangpy.reflection as slr
 
 if TYPE_CHECKING:
     from slangpy.core.function import Function

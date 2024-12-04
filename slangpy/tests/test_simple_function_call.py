@@ -1,12 +1,14 @@
-from sgl import float3
 from typing import Optional, Union
+
 import numpy as np
 import pytest
-from slangpy.backend import DeviceType, Device
+from sgl import float3
+
+import slangpy.tests.helpers as helpers
+from slangpy.backend import Device, DeviceType
 from slangpy.types import NDBuffer, NDDifferentiableBuffer
 from slangpy.types.diffpair import diffPair, floatDiffPair
 from slangpy.types.valueref import intRef
-import slangpy.tests.helpers as helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

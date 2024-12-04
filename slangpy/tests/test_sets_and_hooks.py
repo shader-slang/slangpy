@@ -1,10 +1,12 @@
 from typing import Any
+
 import numpy as np
 import pytest
+
+import slangpy.tests.helpers as helpers
 from slangpy import Module
 from slangpy.backend import DeviceType
 from slangpy.types.buffer import NDBuffer
-import slangpy.tests.helpers as helpers
 
 TEST_MODULE = r"""
 import "slangpy";

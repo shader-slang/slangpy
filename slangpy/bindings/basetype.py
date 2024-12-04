@@ -1,8 +1,9 @@
 
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from slangpy.core.native import NativeType, CallMode
+from slangpy.core.native import CallMode, NativeType
+
 from slangpy.bindings.codegen import CodeGenBlock
 
 if TYPE_CHECKING:

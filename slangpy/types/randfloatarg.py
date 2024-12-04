@@ -1,7 +1,11 @@
 from typing import Any
+
 from slangpy.core.native import AccessType, CallContext, Shape
+
 from slangpy.backend import TypeReflection
-from slangpy.bindings import CodeGenBlock, BindContext, BaseType, BaseTypeImpl, BoundVariable, BoundVariableRuntime
+from slangpy.bindings import (BaseType, BaseTypeImpl, BindContext,
+                              BoundVariable, BoundVariableRuntime,
+                              CodeGenBlock)
 from slangpy.bindings.typeregistry import PYTHON_TYPES
 from slangpy.reflection import SlangProgramLayout, SlangType
 

@@ -1,7 +1,9 @@
 from typing import Any
+
 import pytest
-from slangpy.backend import DeviceType
+
 import slangpy.tests.helpers as helpers
+from slangpy.backend import DeviceType
 
 BASE_MODULE = r"""
 import "slangpy";

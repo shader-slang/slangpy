@@ -1,15 +1,14 @@
-import runpy
+# pyright: reportUnusedImport=false
+# isort: skip_file
 
-# Call all binding modules to register types
-runpy.run_module("slangpy.builtin.valuetype")
-runpy.run_module("slangpy.builtin.valuereftype")
-runpy.run_module("slangpy.builtin.diffpairtype")
-runpy.run_module("slangpy.builtin.buffertype")
-runpy.run_module("slangpy.builtin.structtype")
-runpy.run_module("slangpy.builtin.interfacetype")
-runpy.run_module("slangpy.builtin.structuredbuffertype")
-runpy.run_module("slangpy.builtin.texturetype")
-runpy.run_module("slangpy.builtin.arraytype")
-runpy.run_module("slangpy.builtin.resourceviewtype")
-runpy.run_module("slangpy.builtin.accelerationstructuretype")
-runpy.run_module("slangpy.builtin.rangetype")
+from .valuetype import ValueType
+from .valuereftype import ValueRefType
+from .diffpairtype import DiffPairType
+from .buffertype import NDBufferMarshall, NDDifferentiableBufferMarshall
+from .structtype import StructType
+from .structuredbuffertype import StructuredBufferType
+from .texturetype import TextureType
+from .arraytype import ArrayType
+from .resourceviewtype import ResourceViewType
+from .accelerationstructuretype import AccelerationStructureType
+from .rangetype import RangeType

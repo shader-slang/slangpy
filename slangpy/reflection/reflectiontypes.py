@@ -1,10 +1,17 @@
 from __future__ import annotations
-from typing import Optional, Callable, Any, Union, cast
+
+from typing import Any, Callable, Optional, Union, cast
+
 import numpy as np
+
 from slangpy.core.enums import IOType
-from slangpy.core.native import Shape, NativeSlangType
-from slangpy.backend import ModifierID, VariableReflection, TypeReflection, FunctionReflection, SlangModule, TypeLayoutReflection, ProgramLayout, ResourceUsage
+from slangpy.core.native import NativeSlangType, Shape
+
+from slangpy.backend import (FunctionReflection, ModifierID, ProgramLayout,
+                             ResourceUsage, SlangModule, TypeLayoutReflection)
+from slangpy.backend import TypeReflection
 from slangpy.backend import TypeReflection as TR
+from slangpy.backend import VariableReflection
 
 scalar_names = {
     TR.ScalarType.void: "void",

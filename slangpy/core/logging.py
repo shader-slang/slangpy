@@ -1,10 +1,12 @@
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
-from slangpy.backend import FunctionReflection, VariableReflection, ModifierID
+
+from slangpy.backend import FunctionReflection, ModifierID, VariableReflection
 
 if TYPE_CHECKING:
-    from slangpy.bindings.boundvariable import BoundVariable, BoundCall
-    from slangpy.bindings.boundvariableruntime import BoundCallRuntime, BoundVariableRuntime
     from slangpy.bindings.basetype import BaseType
+    from slangpy.bindings.boundvariable import BoundCall, BoundVariable
+    from slangpy.bindings.boundvariableruntime import (BoundCallRuntime,
+                                                       BoundVariableRuntime)
 
 
 class TableColumn:

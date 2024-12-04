@@ -1,9 +1,10 @@
 import numpy as np
 import pytest
+
+import slangpy.tests.helpers as helpers
 from slangpy import Module
 from slangpy.backend import DeviceType, float3
 from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
-import slangpy.tests.helpers as helpers
 
 
 def load_test_module(device_type: DeviceType):

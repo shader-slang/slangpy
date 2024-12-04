@@ -1,4 +1,5 @@
 # pyright: reportUnusedImport=false
+# isort: skip_file
 
 # Useful slangpy types
 from . import types

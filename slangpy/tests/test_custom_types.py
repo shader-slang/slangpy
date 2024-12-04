@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
-from slangpy.backend import DeviceType, int3, uint3, float3
+
+from slangpy.backend import DeviceType, float3, int3, uint3
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.randfloatarg import RandFloatArg

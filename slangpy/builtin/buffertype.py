@@ -1,11 +1,16 @@
 from typing import Any, Optional, cast
+
 from slangpy.core.enums import PrimType
-from slangpy.core.native import Shape, CallContext, AccessType, TypeReflection
+from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection
+
 from slangpy.backend import ResourceUsage
-from slangpy.bindings import CodeGenBlock, BindContext, ReturnContext, BaseTypeImpl, BoundVariable, PYTHON_TYPES, BoundVariableRuntime
-from slangpy.reflection import SlangProgramLayout, SlangType, TYPE_OVERRIDES, is_matching_array_type
-from slangpy.types import NDBuffer, NDDifferentiableBuffer
+from slangpy.bindings import (PYTHON_TYPES, BaseTypeImpl, BindContext,
+                              BoundVariable, BoundVariableRuntime,
+                              CodeGenBlock, ReturnContext)
 from slangpy.builtin.valuetype import slang_type_to_return_type
+from slangpy.reflection import (TYPE_OVERRIDES, SlangProgramLayout, SlangType,
+                                is_matching_array_type)
+from slangpy.types import NDBuffer, NDDifferentiableBuffer
 
 
 class StopDebuggerException(Exception):

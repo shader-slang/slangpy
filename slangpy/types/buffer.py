@@ -1,12 +1,17 @@
 from typing import Any, Optional
+
 import numpy.typing as npt
+
 from slangpy.core.native import Shape
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.struct import Struct
-from slangpy.backend import Device, ResourceUsage, TypeLayoutReflection, MemoryType, TypeReflection, BufferCursor, DataType
+
+from slangpy.backend import (BufferCursor, DataType, Device, MemoryType,
+                             ResourceUsage, TypeLayoutReflection,
+                             TypeReflection)
 from slangpy.bindings.basetype import BaseType
 from slangpy.bindings.typeregistry import get_or_create_type
-from slangpy.reflection import SlangProgramLayout, SlangType, ScalarType
+from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType
 
 global_lookup_modules: dict[Device, SlangProgramLayout] = {}
 

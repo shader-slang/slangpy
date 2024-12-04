@@ -49,3 +49,8 @@ ignore_errors = true
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.isort]
+known_slangpycore = ["slangpy.core"]
+known_slangpy = ["slangpy"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "SLANGPYCORE", "SLANGPY", "LOCALFOLDER"]

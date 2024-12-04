@@ -1,4 +1,5 @@
 # pyright: reportUnusedImport=false
+# isort: skip_file
 
 from .reflectiontypes import (
     SlangLayout,

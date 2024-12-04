@@ -1,6 +1,11 @@
 from typing import Any
+
 import pytest
+
 from slangpy.core.native import Shape
+
+import slangpy.bindings.typeregistry as tr
+import slangpy.tests.helpers as helpers
 from slangpy import Module
 from slangpy.backend import DeviceType, TypeReflection
 from slangpy.bindings.basetype import BindContext
@@ -8,8 +13,6 @@ from slangpy.bindings.boundvariable import BoundVariable
 from slangpy.bindings.codegen import CodeGenBlock
 from slangpy.builtin.valuetype import ValueType
 from slangpy.reflection import SlangProgramLayout, SlangType
-import slangpy.bindings.typeregistry as tr
-import slangpy.tests.helpers as helpers
 
 TEST_MODULE = """
 import slangpy;

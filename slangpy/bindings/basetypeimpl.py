@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING
 
 from slangpy.bindings.basetype import BaseType, BindContext
-from slangpy.reflection import SlangType, SlangProgramLayout
+from slangpy.reflection import SlangProgramLayout, SlangType
 
 if TYPE_CHECKING:
     from slangpy.bindings.boundvariable import BoundVariable

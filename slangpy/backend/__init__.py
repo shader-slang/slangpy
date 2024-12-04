@@ -1,4 +1,6 @@
 # pyright: reportWildcardImportFromLibrary=false, reportUnusedImport=false
+# isort: skip_file
+
 import sys
 import os
 

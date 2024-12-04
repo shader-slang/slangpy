@@ -1,8 +1,11 @@
 from time import time
+
 import pytest
+
+import slangpy.core.function as kff
 from slangpy.core.function import Function
 from slangpy.core.native import hash_signature
-import slangpy.core.function as kff
+
 from slangpy import Module
 from slangpy.backend import DeviceType, float3
 from slangpy.tests import helpers

@@ -1,15 +1,19 @@
 from copy import copy
-from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union
+
 from slangpy.core.logging import runtime_exception_info
-from slangpy.core.native import CallMode, NativeCallRuntimeOptions, hash_signature
-from slangpy.backend import FunctionReflection, CommandBuffer, TypeConformance, TypeReflection, uint3
-from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
+from slangpy.core.native import (CallMode, NativeCallRuntimeOptions,
+                                 hash_signature)
+
 import slangpy.reflection as kfr
+from slangpy.backend import (CommandBuffer, FunctionReflection,
+                             TypeConformance, TypeReflection, uint3)
+from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
     from slangpy.core.calldata import CallData
-    from slangpy.core.struct import Struct
     from slangpy.core.module import Module
+    from slangpy.core.struct import Struct
 
 ENABLE_CALLDATA_CACHE = True
 

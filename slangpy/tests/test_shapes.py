@@ -1,9 +1,12 @@
-from sgl import float4
 from typing import Any, Optional
+
 import deepdiff
 import pytest
+from sgl import float4
+
 from slangpy.core.callsignature import BoundVariable
 from slangpy.core.shapes import TShapeOrTuple
+
 from slangpy.backend import DeviceType, float3
 from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
 from slangpy.tests import helpers

@@ -5,3 +5,4 @@ pytest-xdist
 pytest-cov
 numpy
 deepdiff
+isort

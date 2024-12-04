@@ -1,4 +1,5 @@
 # pyright: reportUnusedImport=false
+# isort: skip_file
 
 from slangpy.bindings.basetype import BaseType, BindContext, ReturnContext
 from slangpy.bindings.basetypeimpl import BaseTypeImpl

@@ -1,4 +1,5 @@
 import pytest
+
 from slangpy.backend import DeviceType, int3
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer

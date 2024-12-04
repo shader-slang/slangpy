@@ -1,9 +1,12 @@
 from typing import Any
-from slangpy.backend import AccelerationStructure
 
-from slangpy.core.native import Shape, CallContext, AccessType
-from slangpy.bindings import CodeGenBlock, BindContext, BaseTypeImpl, BoundVariable, PYTHON_TYPES, BoundVariableRuntime
+from slangpy.core.native import AccessType, CallContext, Shape
+
 import slangpy.reflection as kfr
+from slangpy.backend import AccelerationStructure
+from slangpy.bindings import (PYTHON_TYPES, BaseTypeImpl, BindContext,
+                              BoundVariable, BoundVariableRuntime,
+                              CodeGenBlock)
 
 
 class AccelerationStructureType(BaseTypeImpl):

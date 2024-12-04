@@ -1,16 +1,19 @@
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
 import hashlib
 import os
 import re
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
 from slangpy.core.callsignature import *
-from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
+from slangpy.core.logging import (bound_call_table, bound_exception_info,
+                                  mismatch_info)
 from slangpy.core.native import CallMode, NativeCallData
+
 from slangpy.backend import SlangCompileError, SlangLinkOptions
-from slangpy.bindings import CodeGen, BindContext, BoundCallRuntime, BoundVariableException
+from slangpy.bindings import (BindContext, BoundCallRuntime,
+                              BoundVariableException, CodeGen)
 from slangpy.bindings.boundvariable import BoundCall, BoundVariable
 from slangpy.reflection import SlangFunction
-
 
 if TYPE_CHECKING:
     from slangpy.core.function import Function

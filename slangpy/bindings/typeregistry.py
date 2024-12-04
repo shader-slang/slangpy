@@ -1,8 +1,8 @@
 from io import StringIO
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
-from slangpy.bindings.basetype import BaseType
 from slangpy.backend import SlangModule
+from slangpy.bindings.basetype import BaseType
 
 if TYPE_CHECKING:
     from slangpy.reflection import SlangProgramLayout

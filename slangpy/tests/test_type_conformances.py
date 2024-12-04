@@ -1,7 +1,8 @@
-from sgl import TypeConformance
 import pytest
-from slangpy.backend import DeviceType
+from sgl import TypeConformance
+
 import slangpy.tests.helpers as helpers
+from slangpy.backend import DeviceType
 
 CONFORMING_MODULE = r"""
 import "slangpy";

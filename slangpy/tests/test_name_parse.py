@@ -1,4 +1,5 @@
 import pytest
+
 from slangpy.core.utils import parse_generic_signature
 
 

@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
-from slangpy import InstanceListBuffer
-from slangpy import Module
-from slangpy.backend import DeviceType, Format, ResourceUsage, ResourceType
+
 import slangpy.tests.helpers as helpers
+from slangpy import InstanceListBuffer, Module
+from slangpy.backend import DeviceType, Format, ResourceType, ResourceUsage
 
 
 def load_test_module(device_type: DeviceType):
