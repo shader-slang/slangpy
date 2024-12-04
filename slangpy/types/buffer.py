@@ -9,7 +9,6 @@ from slangpy.struct import Struct
 from slangpy.typeregistry import get_or_create_type
 
 import numpy.typing as npt
-import torch
 
 global_lookup_modules: dict[Device, SlangProgramLayout] = {}
 
