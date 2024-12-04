@@ -39,7 +39,6 @@ def test_signature_gen(device_type: DeviceType):
     end = time()
     print(f"Time taken per signature: {1000.0*(end-start)/count}ms")
     print(hash_text)
-    pass
 
 
 # @pytest.mark.skip(reason="Perf test only")
@@ -83,8 +82,6 @@ def test_kernel_reuse(device_type: DeviceType):
         add_vectors.append_to(buffer, a, b, _result=res)
     end = time()
     print(f"Time taken cached: {1000.0*(end-start)/count}ms")
-
-    pass
 
 
 if __name__ == "__main__":

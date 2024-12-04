@@ -34,7 +34,6 @@ class ThisType:
 
     def update_this(self, value: Any) -> None:
         self.update_called += 1
-        pass
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

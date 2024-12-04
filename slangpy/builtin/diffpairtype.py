@@ -2,23 +2,18 @@ from typing import Any, Optional
 
 import numpy as np
 
-from slangpy.core.enums import IOType, PrimType
-from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection
+from slangpy.core.enums import PrimType
+from slangpy.core.native import AccessType, CallContext
 
-import slangpy.bindings.typeregistry as tr
 import slangpy.reflection as kfr
-from slangpy.backend import (Buffer, FormatType, ResourceType, ResourceUsage,
-                             ResourceView, ResourceViewType, Texture,
-                             get_format_info)
-from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, BaseType,
-                              BaseTypeImpl, BindContext, BoundVariable,
-                              BoundVariableRuntime, CodeGenBlock,
-                              ReturnContext, get_or_create_type)
+from slangpy.backend import (Buffer, ResourceUsage)
+from slangpy.bindings import (PYTHON_TYPES, BaseType, BaseTypeImpl,
+                              BindContext, BoundVariable, BoundVariableRuntime,
+                              CodeGenBlock, get_or_create_type)
 from slangpy.builtin.valuereftype import (numpy_to_slang_value,
                                           slang_value_to_numpy)
-from slangpy.reflection import (TYPE_OVERRIDES, SlangProgramLayout, SlangType,
-                                is_matching_array_type)
-from slangpy.types import DiffPair, NDBuffer, NDDifferentiableBuffer
+from slangpy.reflection import (SlangProgramLayout, SlangType)
+from slangpy.types import DiffPair
 
 
 def generate_differential_pair(name: str, context: str, primal_storage: str, deriv_storage: str, primal_target: str, deriv_target: str):

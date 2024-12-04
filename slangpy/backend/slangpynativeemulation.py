@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
-from . import CommandBuffer, ModifierID, TypeReflection, uint3
+from . import CommandBuffer, TypeReflection, uint3
 
 """
 This file contains python-only emulation for the current native functionality of slangpy embedded in SGL.
