@@ -183,8 +183,7 @@ void {reflection.name}_entrypoint({params}) {{
                 if isinstance(u, dict):
                     uniforms.update(u)
                 else:
-                    # type: ignore (need to work out native dispatch)
-                    uniforms.update(u(self))
+                    uniforms.update(u(self))  # type: ignore (need to work out native dispatch)
         uniforms.update(vars)
 
         # Build 'unpacked' args (that handle IThis)
