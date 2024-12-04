@@ -1,4 +1,6 @@
 # pyright: reportUnusedImport=false
+
+# Core slangpy interface
 from .core.function import Function
 from .core.module import Module
 from .core.instance import (
@@ -6,6 +8,16 @@ from .core.instance import (
     InstanceListBuffer,
     InstanceListDifferentiableBuffer
 )
+
+# Useful slangpy types
 from . import types
+
+# Slangpy reflection system
 from . import reflection
-from . import extensions
+
+from .core.basetype import BaseType
+from .core.basetypeimpl import BaseTypeImpl
+from .core.enums import (
+    IOType,
+    PrimType,
+)
