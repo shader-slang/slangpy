@@ -237,7 +237,7 @@ public struct RWValueRef<T>
 
 public struct NDBuffer<T, let N : int>
 {
-    StructuredBuffer<T> buffer;
+    public StructuredBuffer<T> buffer;
     public int[N] strides;
     public int[N] shape;
 
@@ -276,7 +276,7 @@ public struct NDBuffer<T, let N : int>
 
 public struct RWNDBuffer<T, let N : int>
 {
-    RWStructuredBuffer<T> buffer;
+    public RWStructuredBuffer<T> buffer;
     public int[N] strides;
     public int[N] shape;
 

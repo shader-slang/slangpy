@@ -249,6 +249,10 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
             assert isinstance(binding.vector_type, NDBufferType)
             cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
         else:
+
+            if context.call_mode != CallMode.prim and self.writable and access[0] == AccessType.none:
+                access = (AccessType.write, access[1])
+
             # If broadcasting to an element, use full diff pair logic
             prim_el = self.slang_element_type.full_name
             deriv_el = prim_el + ".Differential"
