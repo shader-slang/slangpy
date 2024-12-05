@@ -2,7 +2,7 @@
 from typing import Any, Optional, cast
 
 from slangpy.core.enums import PrimType
-from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection
+from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection, CallMode
 
 from slangpy.backend import ResourceUsage
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
