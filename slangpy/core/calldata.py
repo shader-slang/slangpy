@@ -175,7 +175,7 @@ class CallData(NativeCallData):
                 module = session.load_module_from_source(hash, code)
                 ep = module.entry_point(f"main", type_conformances)
                 opts = SlangLinkOptions()
-                opts.dump_intermediates = True
+                opts.dump_intermediates = False
                 program = session.link_program(
                     [module, function.module.device_module]+function.module.link, [ep], opts)
                 self.kernel = device.create_compute_kernel(program)
