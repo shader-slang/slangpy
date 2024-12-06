@@ -13,3 +13,4 @@ from .array import ArrayMarshall
 from .resourceview import ResourceViewType
 from .accelerationstructure import AccelerationStructureMarshall
 from .range import RangeMarshall
+from .numpy import NumpyMarshall

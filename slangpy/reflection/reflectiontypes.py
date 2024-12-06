@@ -53,6 +53,8 @@ SCALAR_TYPE_TO_NUMPY_TYPE = {
     TR.ScalarType.bool: np.int8,
 }
 
+NUMPY_TYPE_TO_SCALAR_TYPE = {np.dtype(v): k for k, v in SCALAR_TYPE_TO_NUMPY_TYPE.items()}
+
 texture_names = {
     TR.ResourceShape.texture_1d: "Texture1D",
     TR.ResourceShape.texture_2d: "Texture2D",
