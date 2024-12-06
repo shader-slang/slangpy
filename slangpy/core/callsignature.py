@@ -320,11 +320,18 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
 def generate_constants(function: 'Function', cg: CodeGen):
     if function._constants is not None:
         for k, v in function._constants.items():
-            if not isinstance(v, (int, float)):
+            if isinstance(v, bool):
+                cg.constants.append_statement(
+                    f"export static const bool {k} = {'true' if v else 'false'}"
+                )
+            elif isinstance(v, (int, float)):
+                cg.constants.append_statement(
+                    f"export static const {type(v).__name__} {k} = {v}"
+                )
+            else:
                 raise KernelGenException(
-                    f"Constant value '{k}' must be an int or a float, not {type(v).__name__}")
-            cg.constants.append_statement(
-                f"export static const {type(v).__name__} {k} = {v}")
+                    f"Constant value '{k}' must be an int, float or bool, not {type(v).__name__}"
+                )
 
 
 def generate_code(context: BindContext, function: 'Function', signature: BoundCall, cg: CodeGen):
