@@ -6,6 +6,7 @@ from slangpy.core.native import (NativeBoundCallRuntime,
 
 if TYPE_CHECKING:
     from .boundvariable import BoundCall, BoundVariable
+    from slangpy.reflection.reflectiontypes import SlangType
 
 
 class BoundCallRuntime(NativeBoundCallRuntime):
@@ -24,7 +25,7 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         self.access = source.access
         self.transform = source.vector_mapping
         self.python_type = source.python
-        self.vector_type = source.vector_type  # type: ignore (can be none for raw dispatch)
+        self.vector_type: 'SlangType' = source.vector_type  # type: ignore
         self.call_dimensionality = source.call_dimensionality
 
         # Temp data stored / updated each call
