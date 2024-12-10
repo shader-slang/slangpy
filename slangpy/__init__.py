@@ -5,6 +5,7 @@ import runpy
 
 # Useful slangpy types
 from . import types
+from .types import NDBuffer, NDDifferentiableBuffer
 
 # Slangpy reflection system
 from . import reflection
