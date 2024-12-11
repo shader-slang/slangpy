@@ -127,6 +127,13 @@ class SlangType(NativeSlangType):
         else:
             self._cached_shape = local_shape
 
+    def on_hot_reload(self, refl: TypeReflection):
+        self._reflection = refl
+        self._cached_fields = None
+        self._cached_differential = None
+        self._cached_uniform_layout = None
+        self._cached_buffer_layout = None
+
     @property
     def program(self) -> SlangProgramLayout:
         return self._program
@@ -410,9 +417,13 @@ class SlangFunction:
         self._this = this
         self._reflection = refl
         self._program = program
-        func_params = [x for x in refl.parameters]
         self._cached_parameters: Optional[tuple[SlangParameter, ...]] = None
         self._cached_return_type: Optional[SlangType] = None
+
+    def on_hot_reload(self, refl: FunctionReflection):
+        self._reflection = refl
+        self._cached_parameters = None
+        self._cached_return_type = None
 
     @property
     def reflection(self) -> FunctionReflection:
@@ -563,6 +574,51 @@ class SlangProgramLayout:
         self._functions_by_name: dict[str, SlangFunction] = {}
         self._functions_by_reflection: dict[FunctionReflection, SlangFunction] = {}
 
+    def on_hot_reload(self, program_layout: ProgramLayout):
+        if program_layout == self.program_layout:
+            return
+        self.program_layout = program_layout
+
+        print("Attempting to rebuild program layout after hot reload")
+
+        new_types_by_name: dict[str, SlangType] = {}
+        new_types_by_reflection: dict[TypeReflection, SlangType] = {}
+
+        # Re-lookup all types.
+        for name,type in self._types_by_name.items():
+            trefl = program_layout.find_type_by_name(name)
+            assert trefl is not None
+            type.on_hot_reload(trefl)
+            new_types_by_name[name] = type
+            new_types_by_reflection[trefl] = type
+
+        self._types_by_name = new_types_by_name
+        self._types_by_reflection = new_types_by_reflection
+
+        new_functions_by_name: dict[str, SlangFunction] = {}
+        new_functions_by_reflection: dict[FunctionReflection, SlangFunction] = {}
+
+        # Re-lookup all functions.
+        for name,func in self._functions_by_name.items():
+            if '::' in name:
+                idx = name.index('::')
+                type_name = name[:idx]
+                func_name = name[idx+2:]
+                type = self.find_type_by_name(type_name)
+                assert type is not None
+                frefl = program_layout.find_function_by_name_in_type(type.type_reflection, func_name)
+                assert frefl is not None
+                func.on_hot_reload(frefl)
+            else:
+                frefl = program_layout.find_function_by_name(name)
+                assert frefl is not None
+                func.on_hot_reload(frefl)
+            new_functions_by_name[name] = func
+            new_functions_by_reflection[frefl] = func
+
+        self._functions_by_name = new_functions_by_name
+        self._functions_by_reflection = new_functions_by_reflection
+
     def find_type(self, refl: TypeReflection) -> SlangType:
         return self._get_or_create_type(refl)
 
@@ -580,7 +636,6 @@ class SlangProgramLayout:
         if type_refl is None:
             return None
         res = self._get_or_create_type(type_refl)
-        self._types_by_name[name] = res
         return res
 
     def require_type_by_name(self, name: str) -> SlangType:
@@ -597,7 +652,6 @@ class SlangProgramLayout:
         if func_refl is None:
             return None
         res = self._get_or_create_function(func_refl, None)
-        self._functions_by_name[name] = res
         return res
 
     def require_function_by_name(self, name: str) -> SlangFunction:
@@ -619,7 +673,6 @@ class SlangProgramLayout:
             return None
         res = self._get_or_create_function(
             self.program_layout.find_function_by_name_in_type(type_refl, name), self._get_or_create_type(type_refl))
-        self._functions_by_name[qualified_name] = res
         return res
 
     def require_function_by_name_in_type(self, type: SlangType, name: str) -> SlangFunction:
@@ -649,6 +702,7 @@ class SlangProgramLayout:
             return existing
         res = self._reflect_type(refl)
         self._types_by_reflection[refl] = res
+        self._types_by_name[res.full_name] = res
         return res
 
     def _get_or_create_function(self, refl: FunctionReflection, this: Optional[SlangType]):
@@ -657,6 +711,11 @@ class SlangProgramLayout:
             return existing
         res = self._reflect_function(refl, this)
         self._functions_by_reflection[refl] = res
+
+        if this is not None:
+            self._functions_by_name[f"{this.full_name}::{res.name}"] = res
+        else:
+            self._functions_by_name[res.name] = res
         return res
 
     def _reflect_type(self, refl: TypeReflection):
