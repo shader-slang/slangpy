@@ -16,11 +16,13 @@ if TYPE_CHECKING:
 
 LOADED_MODULES = weakref.WeakValueDictionary()
 
+
 def check_for_hot_reload():
     global LOADED_MODULES
     for module in LOADED_MODULES.values():
         if module is not None:
             module.on_hot_reload()
+
 
 class Module:
     def __init__(self, device_module: SlangModule, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):

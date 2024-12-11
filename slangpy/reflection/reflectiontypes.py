@@ -585,7 +585,7 @@ class SlangProgramLayout:
         new_types_by_reflection: dict[TypeReflection, SlangType] = {}
 
         # Re-lookup all types.
-        for name,type in self._types_by_name.items():
+        for name, type in self._types_by_name.items():
             trefl = program_layout.find_type_by_name(name)
             assert trefl is not None
             type.on_hot_reload(trefl)
@@ -599,14 +599,15 @@ class SlangProgramLayout:
         new_functions_by_reflection: dict[FunctionReflection, SlangFunction] = {}
 
         # Re-lookup all functions.
-        for name,func in self._functions_by_name.items():
+        for name, func in self._functions_by_name.items():
             if '::' in name:
                 idx = name.index('::')
                 type_name = name[:idx]
                 func_name = name[idx+2:]
                 type = self.find_type_by_name(type_name)
                 assert type is not None
-                frefl = program_layout.find_function_by_name_in_type(type.type_reflection, func_name)
+                frefl = program_layout.find_function_by_name_in_type(
+                    type.type_reflection, func_name)
                 assert frefl is not None
                 func.on_hot_reload(frefl)
             else:
