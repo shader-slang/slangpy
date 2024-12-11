@@ -147,7 +147,7 @@ class CallData(NativeCallData):
             sanitized = re.sub(r"[<>, ./]", "_", function.name)
             fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
 
-            #with open(fn,"r") as f:
+            # with open(fn,"r") as f:
             #  code = f.read()
 
             with open(fn, "w",) as f:
