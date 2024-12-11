@@ -147,7 +147,7 @@ class CallData(NativeCallData):
             sanitized = re.sub(r"[<>, ./]", "_", function.name)
             fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
 
-            #with open(fn,"r") as f:
+            # with open(fn,"r") as f:
             #  code = f.read()
 
             with open(fn, "w",) as f:
@@ -175,7 +175,7 @@ class CallData(NativeCallData):
                 module = session.load_module_from_source(hash, code)
                 ep = module.entry_point(f"main", type_conformances)
                 opts = SlangLinkOptions()
-                opts.dump_intermediates = True
+                opts.dump_intermediates = False
                 program = session.link_program(
                     [module, function.module.device_module]+function.module.link, [ep], opts)
                 self.kernel = device.create_compute_kernel(program)
