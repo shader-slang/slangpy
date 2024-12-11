@@ -5,7 +5,9 @@ import runpy
 
 # Useful slangpy types
 from . import types
-from .types import NDBuffer, NDDifferentiableBuffer
+
+# Bring all shared types into the top level namespace
+from .types import *
 
 # Slangpy reflection system
 from . import reflection

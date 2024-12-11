@@ -8,9 +8,20 @@ import slangpy.bindings.typeregistry as tr
 from slangpy.backend import ComputeKernel, SlangModule
 from slangpy.reflection import SlangProgramLayout
 
+import weakref
+
 if TYPE_CHECKING:
     from slangpy.core.calldata import CallData
     from slangpy.core.dispatchdata import DispatchData
+
+LOADED_MODULES = weakref.WeakValueDictionary()
+
+
+def check_for_hot_reload():
+    global LOADED_MODULES
+    for module in LOADED_MODULES.values():
+        if module is not None:
+            module.on_hot_reload()
 
 
 class Module:
@@ -24,6 +35,7 @@ class Module:
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
         self.link = [x.module if isinstance(x, Module) else x for x in link]
+        LOADED_MODULES[self.device_module.name] = self
 
     @property
     def name(self):
@@ -78,6 +90,9 @@ class Module:
         if child is None:
             return None
         return child.as_func()
+
+    def on_hot_reload(self):
+        self.layout.on_hot_reload(self.device_module.layout)
 
     def __getattr__(self, name: str):
         with tr.scope(self.device_module):
