@@ -581,8 +581,6 @@ class SlangProgramLayout:
             return
         self.program_layout = program_layout
 
-        print("Attempting to rebuild program layout after hot reload")
-
         new_types_by_name: dict[str, SlangType] = {}
         new_types_by_reflection: dict[TypeReflection, SlangType] = {}
 
