@@ -5,7 +5,7 @@ from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
 import slangpy.bindings.typeregistry as tr
-from slangpy.backend import ComputeKernel, SlangModule
+from slangpy.backend import ComputeKernel, SlangModule, Device
 from slangpy.reflection import SlangProgramLayout
 
 import weakref
@@ -17,16 +17,25 @@ if TYPE_CHECKING:
 LOADED_MODULES = weakref.WeakValueDictionary()
 
 
-def check_for_hot_reload():
+def _check_for_hot_reload(event_info: Any = None):
     global LOADED_MODULES
     for module in LOADED_MODULES.values():
         if module is not None:
             module.on_hot_reload()
 
 
+def _register_hot_reload_hook(device: Device):
+    for x in LOADED_MODULES.values():
+        if isinstance(x, Module):
+            if (x.device == device):
+                return
+    device.register_shader_hot_reload_callback(_check_for_hot_reload)
+
+
 class Module:
     def __init__(self, device_module: SlangModule, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
         super().__init__()
+        _register_hot_reload_hook(device_module.session.device)
         assert isinstance(device_module, SlangModule)
         self.device_module = device_module
         self.options = options
