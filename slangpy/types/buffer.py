@@ -32,11 +32,17 @@ SLANG_TO_CUDA_TYPES = {
 }
 
 
+def _on_device_close(device: Device):
+    del global_lookup_modules[device]
+
+
 def get_lookup_module(device: Device) -> SlangProgramLayout:
     if device not in global_lookup_modules:
         dummy_module = device.load_module_from_source(
             "slangpy_layout", 'import "slangpy";')
         global_lookup_modules[device] = SlangProgramLayout(dummy_module.layout)
+        device.register_device_close_callback(_on_device_close)
+
     return global_lookup_modules[device]
 
 
