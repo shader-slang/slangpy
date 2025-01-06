@@ -1,9 +1,11 @@
 typing_extensions
+numpy
+nv-sgl >= 0.4.0
+
 pre-commit
 pytest
 pytest-xdist
 pytest-cov
-numpy
 deepdiff
 isort
 autoflake
