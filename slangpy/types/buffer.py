@@ -166,10 +166,10 @@ class NDBuffer:
             raise ValueError("Only scalar types can be converted to torch tensors")
 
     def cursor(self, start: Optional[int] = None, count: Optional[int] = None):
-        start = start or 0
-        count = count or self.element_count
+        size = (count or self.element_count) * self.element_stride
+        offset = (start or 0) * self.element_stride
         layout = self.element_type.buffer_layout
-        return BufferCursor(layout.reflection, self.buffer, count, start)
+        return BufferCursor(layout.reflection, self.buffer, size, offset)
 
     def uniforms(self):
         return {
