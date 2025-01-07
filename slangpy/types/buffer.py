@@ -119,7 +119,10 @@ class NDBuffer:
         if element_count is not None and shape is not None:
             raise ValueError("Only one of element_count or shape can be provided")
 
+        #: Slang program layout of module that defines the element type for this buffer.
         self.program_layout = resolve_program_layout(device, element_type, program_layout)
+
+        #: Slang element type.
         self.element_type = resolve_element_type(self.program_layout, element_type)
 
         if element_count is None:
@@ -136,8 +139,10 @@ class NDBuffer:
             self.element_count = element_count
             self.shape = Shape(element_count)
 
+        #: Buffer resource usage.
         self.usage = usage
 
+        #: Slangpy type signature.
         self.slangpy_signature = f"[{self.element_type.full_name},{len(self.shape)},{self.is_writable}]"
 
         strides = []
@@ -147,10 +152,16 @@ class NDBuffer:
             total *= dim
         self.strides = tuple(reversed(strides))
 
+        #: Element size in bytes.
         self.element_size = self.element_type.buffer_layout.size
+
+        #: Element stride in bytes.
         self.element_stride = self.element_type.buffer_layout.stride
+
+        #: SGL device.
         self.device = device
 
+        #: Internal structured buffer.
         self.buffer = device.create_buffer(
             element_count=self.element_count,
             struct_size=self.element_size,
@@ -240,8 +251,10 @@ class NDDifferentiableBuffer(NDBuffer):
         if grad_type is None:
             grad_type = self.element_type.derivative
 
+        #: Slang element type for the gradient.
         self.grad_type = resolve_element_type(self.program_layout, element_type)
 
+        #: Whether gradient buffer is required.
         self.requires_grad = requires_grad
 
         if grad_usage is not None:
@@ -250,6 +263,7 @@ class NDDifferentiableBuffer(NDBuffer):
             memory_type = grad_memory_type
 
         if self.requires_grad:
+            #: Gradient buffer.
             self.grad = NDDifferentiableBuffer(
                 device=device,
                 element_type=grad_type,
@@ -267,6 +281,7 @@ class NDDifferentiableBuffer(NDBuffer):
             self.grad = None
             self.slangpy_signature += "[]"
 
+        #: Gradient resource usage.
         self.grad_usage = grad_usage if grad_usage is not None else self.usage
 
     @property

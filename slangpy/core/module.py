@@ -43,7 +43,10 @@ class Module:
         assert isinstance(device_module, SlangModule)
         self.device_module = device_module
         self.options = options
+
+        #: Reflection / layout information for the module.
         self.layout = SlangProgramLayout(self.device_module.layout)
+
         self.call_data_cache: dict[str, 'CallData'] = {}
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
