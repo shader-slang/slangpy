@@ -25,13 +25,18 @@ calls the function.
 
     import sgl
     import slangpy as spy
-    import numpy as np
+    import pathlib
 
-    # Create an SGL device
-    device = sgl.Device()
+    # Create an SGL device with the slangpy+local include paths
+    device = sgl.Device(compiler_options={
+        "include_paths": [
+            spy.SHADER_PATH,
+            pathlib.Path(__file__).parent.absolute(),
+        ],
+    })
 
     # Create a simple function
-    module = spy.Module(device, "example.slang")
+    module = spy.Module.load_from_file(device, "example.slang")
 
     # Call the function and print the result
     result = module.add(1.0,2.0)
@@ -65,29 +70,6 @@ we can choose to call the function with arrays instead:
     # Print the first 10
     print(result[:10])
 
-SlangPy deals with many different types, and can handle arbitrary numbers of dimensions. Let's 
-adjust the code to do something more useful and increase the brightness of a texture:
-
-.. code-block:: python
-
-    ## main.py
-
-    #.... init here ....
-
-    # Load a texture
-    loader = TextureLoader(device)
-    texture = loader.load_texture("your_photo.jpg")
-
-    # Pre-allocate a texture to read the result to
-    output_texture = device.create_texture(width=texture.width, height=texture.height, format=sgl.TextureFormat.RGBA32F)
-
-    # Add a constant to every pixel 
-    module.add(texture, 0.1, _result=output_texture)
-
-    # Display it (requires tev installsed)
-    sgl.tev.view(output_texture)
-
-This example shows how a single slang function can be written and called in many different ways. 
-Here we've used scalars, numpy arrays and textures, but SlangPy supports many other types such 
-as buffers and PyTorch tensors. 
-
+SlangPy deals with many different types, and can handle arbitrary numbers of dimensions. This example shows how a single slang 
+function can be written and called in a couple of simple ways - using scalars and numpy arrays, but SlangPy supports many other types such 
+as buffers, textures and tensors. 
