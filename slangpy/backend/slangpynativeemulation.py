@@ -28,6 +28,7 @@ class CallMode(Enum):
 
 
 TDispatchHook = Callable[[dict[str, Any]], None]
+TCallDataHook = Callable[['CallContext', tuple['Any'], dict[str, 'Any']], None]
 
 
 class Shape:
@@ -327,6 +328,8 @@ class NativeCallRuntimeOptions:
             'NativeCallData'], dict[str, Any]], dict[str, Any]]]] = None
         self.before_dispatch: Optional[list[TDispatchHook]] = None
         self.after_dispatch: Optional[list[TDispatchHook]] = None
+        self.before_write_call_data: Optional[list[TCallDataHook]] = None
+        self.after_read_call_data: Optional[list[TCallDataHook]] = None
 
 
 class NativeCallData:
@@ -376,6 +379,10 @@ class NativeCallData:
                 unpacked_kwargs["_result"] = kwargs["_result"]
                 rv_node.populate_call_shape(call_shape.as_list(), kwargs["_result"])
 
+        if opts.before_write_call_data is not None:
+            for hook in opts.before_write_call_data:
+                hook(context, unpacked_args, unpacked_kwargs)
+
         self.runtime.write_calldata_pre_dispatch(context,
                                                  call_data, *unpacked_args, **unpacked_kwargs)
 
@@ -417,6 +424,10 @@ class NativeCallData:
 
         self.runtime.read_call_data_post_dispatch(
             context, call_data, *unpacked_args, **unpacked_kwargs)
+
+        if opts.after_read_call_data is not None:
+            for hook in opts.after_read_call_data:
+                hook(context, unpacked_args, unpacked_kwargs)
 
         # Push updated 'this' values back to original objects
         for (i, arg) in enumerate(args):

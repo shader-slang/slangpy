@@ -3,7 +3,7 @@ from copy import copy
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union
 
 from slangpy.core.native import (CallMode, NativeCallRuntimeOptions,
-                                 hash_signature)
+                                 hash_signature, TDispatchHook, TCallDataHook)
 
 import slangpy.reflection as kfr
 from slangpy.backend import (CommandBuffer, FunctionReflection,
@@ -16,8 +16,6 @@ if TYPE_CHECKING:
     from slangpy.core.struct import Struct
 
 ENABLE_CALLDATA_CACHE = True
-
-TDispatchHook = Callable[[dict[str, Any]], None]
 
 
 def _cache_value_to_id(val: Any) -> str:
@@ -65,6 +63,8 @@ class Function:
             'CallData'], Any], dict[str, Any]]]] = None
         self.before_dispatch: Optional[list[TDispatchHook]] = None
         self.after_dispatch: Optional[list[TDispatchHook]] = None
+        self.before_write_call_data: Optional[list[TCallDataHook]] = None
+        self.after_read_call_data: Optional[list[TCallDataHook]] = None
 
     def _copy(self) -> 'Function':
         res = copy(self)
@@ -209,24 +209,24 @@ class Function:
             res._type_conformances.extend(type_conformances)
         return res
 
-    def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None):
+    def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None,
+             before_write_call_data: Optional['TCallDataHook'] = None, after_read_call_data: Optional['TCallDataHook'] = None):
         """
         Attach hooks to the function that kick in whenever the function is called at different points
         in the dispatch process.
         """
+        safe_append = lambda list, elem: [elem] if list is None else list + [elem]
+
         res = self._copy()
         if before_dispatch is not None:
-            if res.before_dispatch is None:
-                res.before_dispatch = [before_dispatch]
-            else:
-                res.before_dispatch = copy(res.before_dispatch)
-                res.before_dispatch.append(before_dispatch)
+            res.before_dispatch = safe_append(res.before_dispatch, before_dispatch)
         if after_dispatch is not None:
-            if res.after_dispatch is None:
-                res.after_dispatch = [after_dispatch]
-            else:
-                res.after_dispatch = copy(res.after_dispatch)
-                res.after_dispatch.append(after_dispatch)
+            res.after_dispatch = safe_append(res.after_dispatch, after_dispatch)
+        if before_write_call_data is not None:
+            res.before_write_call_data = safe_append(
+                res.before_write_call_data, before_write_call_data)
+        if after_read_call_data is not None:
+            res.after_read_call_data = safe_append(res.after_read_call_data, after_read_call_data)
         return res
 
     @property
@@ -305,7 +305,9 @@ class Function:
             calldata = self._build_call_data(*args, **kwargs)
             opts = NativeCallRuntimeOptions()
             opts.after_dispatch = self.after_dispatch
+            opts.after_read_call_data = self.after_read_call_data
             opts.before_dispatch = self.before_dispatch
+            opts.before_write_call_data = self.before_write_call_data
             opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
             return calldata.call(opts, *args, **kwargs)
         except ValueError as e:
@@ -324,7 +326,9 @@ class Function:
             calldata = self._build_call_data(*args, **kwargs)
             opts = NativeCallRuntimeOptions()
             opts.after_dispatch = self.after_dispatch
+            opts.after_read_call_data = self.after_read_call_data
             opts.before_dispatch = self.before_dispatch
+            opts.before_write_call_data = self.before_write_call_data
             opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
             return calldata.append_to(opts, command_buffer, *args, **kwargs)
         except ValueError as e:
@@ -369,7 +373,9 @@ class Function:
 
         opts = NativeCallRuntimeOptions()
         opts.after_dispatch = self.after_dispatch
+        opts.after_read_call_data = self.after_read_call_data
         opts.before_dispatch = self.before_dispatch
+        opts.before_write_call_data = self.before_write_call_data
         opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
         dispatch_data.dispatch(opts, thread_count, vars, command_buffer, **kwargs)
 
