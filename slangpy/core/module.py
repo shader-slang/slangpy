@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any, Union
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
-import slangpy.bindings.typeregistry as tr
 from slangpy.backend import ComputeKernel, SlangModule, Device
 from slangpy.reflection import SlangProgramLayout
 
@@ -145,23 +144,21 @@ class Module:
         Attribute accessor attempts to find either a struct or function 
         with the specified attribute name.
         """
-        with tr.scope(self.device_module):
+        # Search for name as a fully qualified child struct
+        slang_struct = self.find_struct(name)
+        if slang_struct is not None:
+            return slang_struct
 
-            # Search for name as a fully qualified child struct
-            slang_struct = self.find_struct(name)
-            if slang_struct is not None:
-                return slang_struct
+        # Search for name as a child of this struct
+        slang_function = self.layout.find_function_by_name(name)
+        if slang_function is not None:
+            res = Function()
+            res.attach(module=self, func=slang_function,
+                       struct=None, options=self.options)
+            return res
 
-            # Search for name as a child of this struct
-            slang_function = self.layout.find_function_by_name(name)
-            if slang_function is not None:
-                res = Function()
-                res.attach(module=self, func=slang_function,
-                           struct=None, options=self.options)
-                return res
-
-            raise AttributeError(
-                f"Type '{self.device_module.name}' has no attribute '{name}'")
+        raise AttributeError(
+            f"Type '{self.device_module.name}' has no attribute '{name}'")
 
     def __getitem__(self, name: str):
         """

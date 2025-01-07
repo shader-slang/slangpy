@@ -9,7 +9,7 @@ from slangpy.core.enums import IOType
 from slangpy.core.native import NativeSlangType, Shape
 
 from slangpy.backend import (FunctionReflection, ModifierID, ProgramLayout,
-                             ResourceUsage, SlangModule, TypeLayoutReflection)
+                             ResourceUsage, TypeLayoutReflection)
 from slangpy.backend import TypeReflection
 from slangpy.backend import TypeReflection as TR
 from slangpy.backend import VariableReflection
@@ -1148,22 +1148,3 @@ def create_differential_pair(layout: SlangProgramLayout, refl: TypeReflection) -
 
 
 TYPE_OVERRIDES['DifferentialPair'] = create_differential_pair
-
-# There is not currently a way to go from TypeReflection to the enclosing scope,
-# so we need this global state to retain it for now. The reflection API should be
-# changed to allow removing this in the future
-_cur_module: Optional[SlangModule] = None
-
-
-class scope:
-    def __init__(self, module: SlangModule):
-        super().__init__()
-        self.module = module
-
-    def __enter__(self):
-        global _cur_module
-        _cur_module = self.module
-
-    def __exit__(self, exception_type: Any, exception_value: Any, exception_traceback: Any):
-        global _cur_module
-        _cur_module = None
