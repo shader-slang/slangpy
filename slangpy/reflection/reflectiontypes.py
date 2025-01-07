@@ -94,22 +94,39 @@ class SlangLayout:
 
     @property
     def reflection(self) -> TypeLayoutReflection:
+        """
+        Underlying SGL TypeLayoutReflection for this layout.
+        """
         return self._tlr
 
     @property
     def size(self) -> int:
+        """
+        Size in bytes of the type. Note: when calculating size in
+        a buffer, use the `stride` property instead.
+        """
         return self._tlr.size
 
     @property
     def alignment(self) -> int:
+        """
+        Alignment in bytes of the type.
+        """
         return self._tlr.alignment
 
     @property
     def stride(self) -> int:
+        """
+        Stride in bytes of the type.
+        """
         return self._tlr.stride
 
 
 class SlangType(NativeSlangType):
+    """
+    Base class for all Slang types.
+    """
+
     def __init__(self,
                  program: SlangProgramLayout,
                  refl: TypeReflection,
@@ -134,6 +151,10 @@ class SlangType(NativeSlangType):
             self._cached_shape = local_shape
 
     def on_hot_reload(self, refl: TypeReflection):
+        """
+        Called when the type reflection is hot reloaded. Stores updated reflection and clears 
+        cached data.
+        """
         self._reflection = refl
         self._cached_fields = None
         self._cached_differential = None
@@ -142,38 +163,66 @@ class SlangType(NativeSlangType):
 
     @property
     def program(self) -> SlangProgramLayout:
+        """
+        Program layout this type is part of.
+        """
         return self._program
 
     @property
     def type_reflection(self) -> TypeReflection:
+        """
+        Underlying SGL TypeReflection for this type.
+        """
         return self._reflection
 
     @property
     def name(self) -> str:
+        """
+        Short name of this type. For generics, this
+        will not include the generic arguments.
+        """
         return self._reflection.name
 
     @property
     def full_name(self) -> str:
+        """
+        Fully qualified name of this type.
+        """
         return self._reflection.full_name
 
     @property
     def element_type(self) -> Optional[SlangType]:
+        """
+        Element type for arrays, vectors, matrices, etc.
+        """
         return self._element_type
 
     @property
     def fields(self) -> dict[str, SlangField]:
+        """
+        Fields of this type. For non-struct types, this will be empty.
+        """
         return self._get_fields()
 
     @property
     def shape(self) -> Shape:
+        """
+        Shape of this type.
+        """
         return self._cached_shape
 
     @property
     def differentiable(self) -> bool:
+        """
+        Whether this type is differentiable.
+        """
         return self._get_differential() is not None
 
     @property
     def derivative(self) -> SlangType:
+        """
+        Get derivative type of this type.
+        """
         if self.differentiable:
             res = self._get_differential()
             assert res is not None
@@ -183,10 +232,16 @@ class SlangType(NativeSlangType):
 
     @property
     def num_dims(self) -> int:
+        """
+        Number of dimensions of this type.
+        """
         return len(self.shape)
 
     @property
     def uniform_layout(self) -> SlangLayout:
+        """
+        Get the layout of this type when used as a uniform / in a constant buffer.
+        """
         if self._cached_uniform_layout is None:
             sl = self._program.program_layout.get_type_layout(self.type_reflection)
             if sl is None:
@@ -197,6 +252,9 @@ class SlangType(NativeSlangType):
 
     @property
     def buffer_layout(self) -> SlangLayout:
+        """
+        Get the layout of this type when used in a structured buffer.
+        """
         if self._cached_buffer_layout is None:
             buffer_type = self._program.program_layout.find_type_by_name(
                 f"StructuredBuffer<{self.full_name}>")
@@ -208,9 +266,15 @@ class SlangType(NativeSlangType):
         return self._cached_buffer_layout
 
     def build_differential_type(self) -> Optional[SlangType]:
+        """
+        Overridable function to build the differential type for this type.
+        """
         return self._program.find_type_by_name(self.full_name + ".Differential")
 
     def build_fields(self) -> dict[str, Union[SlangType, SlangField]]:
+        """
+        Overridable function to build fields for this type.
+        """
         return {}
 
     def _get_differential(self) -> Optional[SlangType]:
@@ -234,21 +298,36 @@ class SlangType(NativeSlangType):
 
 
 class VoidType(SlangType):
+    """
+    Represents the void type.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl)
 
 
 class ScalarType(SlangType):
+    """
+    Represents any scalar type such as int/float/bool. See `sgl.TypeReflection.ScalarType`.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         assert refl.scalar_type not in (TR.ScalarType.none, TR.ScalarType.void)
         super().__init__(program, refl, element_type=self, local_shape=Shape())
 
     @property
     def slang_scalar_type(self) -> TR.ScalarType:
+        """
+        Slang scalar type id.
+        """
         return self._reflection.scalar_type
 
 
 class VectorType(SlangType):
+    """
+    Represents a vector type such as int3/float3/vector<float,3> etc.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         element_type = program.scalar_type(refl.scalar_type)
         dims = refl.col_count
@@ -259,23 +338,39 @@ class VectorType(SlangType):
 
     @property
     def num_elements(self) -> int:
+        """
+        Number of elements in the vector.
+        """
         return self.shape[0]
 
     @property
     def scalar_type(self) -> ScalarType:
+        """
+        Scalar element type of the vector.
+        """
         return cast(ScalarType, self.element_type)
 
     @property
     def slang_scalar_type(self) -> TR.ScalarType:
+        """
+        Slang scalar element type id.
+        """
         assert isinstance(self.element_type, ScalarType)
         return self.element_type.slang_scalar_type
 
     def build_fields(self):
+        """
+        Build fields for this vector type generates the x/y/z/w fields.
+        """
         names = ['x', 'y', 'z', 'w']
         return {names[i]: self.scalar_type for i in range(self.num_elements)}
 
 
 class MatrixType(SlangType):
+    """
+    Represents a matrix type such as float3x3/matrix<float,3,3> etc.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl,
                          element_type=program.vector_type(
@@ -284,33 +379,58 @@ class MatrixType(SlangType):
 
     @property
     def rows(self) -> int:
+        """
+        Number of rows in the matrix.
+        """
         return self.shape[0]
 
     @property
     def cols(self) -> int:
+        """
+        Number of columns in the matrix.
+        """
         return self.shape[1]
 
     @property
     def scalar_type(self) -> ScalarType:
+        """
+        Scalar element type of the matrix.
+        """
         assert isinstance(self.element_type, VectorType)
         return cast(ScalarType, self.element_type.scalar_type)
 
     @property
     def slang_scalar_type(self) -> TR.ScalarType:
+        """
+        Slang scalar element type id.
+        """
         return self.scalar_type.slang_scalar_type
 
 
 class ArrayType(SlangType):
+    """
+    Represents an array type such as float[3]/array<float,3> etc.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl, program.find_type(
             refl.element_type), local_shape=Shape((refl.element_count,)))
 
     @property
     def num_elements(self) -> int:
+        """
+        Number of elements in the array.
+        """
         return self.shape[0]
 
 
 def is_matching_array_type(a: SlangType, b: SlangType) -> bool:
+    """
+    Helper to check if 2 array types are compatible. This handles
+    the situation in which one or both of the array types have
+    unknown dimensions. In this case, the dimensions are considered
+    compatible.
+    """
     if not isinstance(a, ArrayType) or not isinstance(b, ArrayType):
         return False
     if a.element_type != b.element_type:
@@ -321,6 +441,11 @@ def is_matching_array_type(a: SlangType, b: SlangType) -> bool:
 
 
 class StructType(SlangType):
+    """
+    Represents a struct type.They are treated as opaque types
+    with no element type and 0D local shape.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         # An opaque struct has no element type, but like a normal scalar has a 0D local shape
         super().__init__(program, refl, local_shape=Shape())
@@ -330,24 +455,41 @@ class StructType(SlangType):
 
 
 class InterfaceType(SlangType):
+    """
+    Represents an interface type.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl)
 
 
 class ResourceType(SlangType):
+    """
+    Base class for all resource types such as textures, buffers, etc.
+    """
+
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
     @property
     def resource_shape(self) -> TR.ResourceShape:
+        """
+        Resource shape of this resource. See `sgl.TypeReflection.ResourceShape`.
+        """
         return self.type_reflection.resource_shape
 
     @property
     def resource_access(self) -> TR.ResourceAccess:
+        """
+        Resource access of this resource. See `sgl.TypeReflection.ResourceAccess`.
+        """
         return self.type_reflection.resource_access
 
     @property
     def writable(self) -> bool:
+        """
+        Whether this resource is writable.
+        """
         if self.resource_access == TR.ResourceAccess.read_write:
             return True
         elif self.resource_access == TR.ResourceAccess.read:
@@ -357,6 +499,9 @@ class ResourceType(SlangType):
 
     @property
     def usage(self) -> ResourceUsage:
+        """
+        Supported shader resource usage.
+        """
         if self.writable:
             return ResourceUsage.unordered_access
         else:
@@ -364,6 +509,10 @@ class ResourceType(SlangType):
 
 
 class TextureType(ResourceType):
+    """
+    Represents one of the texture types, including textures, texture arrays and cube maps.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
 
         self.texture_dims = texture_dims[refl.resource_shape]
@@ -374,6 +523,10 @@ class TextureType(ResourceType):
 
 
 class StructuredBufferType(ResourceType):
+    """
+    Represents a structured buffer type.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
 
         super().__init__(program, refl,
@@ -382,6 +535,10 @@ class StructuredBufferType(ResourceType):
 
 
 class ByteAddressBufferType(ResourceType):
+    """
+    Represents a byte address buffer type.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl,
                          element_type=program.scalar_type(TR.ScalarType.uint8),
@@ -389,6 +546,10 @@ class ByteAddressBufferType(ResourceType):
 
 
 class DifferentialPairType(SlangType):
+    """
+    Represents a Slang differential pair.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl, local_shape=Shape())
 
@@ -400,15 +561,26 @@ class DifferentialPairType(SlangType):
         self.primal = args[0]
 
     def build_differential_type(self):
+        """
+        Differential type for a differential pair is `DifferentialPair<Primal.Derivative>`.
+        """
         return self._program.find_type_by_name("DifferentialPair<" + self.primal.derivative.full_name + ">")
 
 
 class RaytracingAccelerationStructureType(SlangType):
+    """
+    Represents a raytracing acceleration structure type.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl, local_shape=Shape())
 
 
 class UnhandledType(SlangType):
+    """
+    Represents an unhandled type.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl)
 
