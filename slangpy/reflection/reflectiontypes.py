@@ -825,10 +825,11 @@ class SlangProgramLayout:
     from an sgl ProgramLayout.
     """
 
-    def __init__(self, program_layout: ProgramLayout):
+    def __init__(self, program_layout: ProgramLayout, slangpy_program_layout: Optional[ProgramLayout] = None):
         super().__init__()
         assert isinstance(program_layout, ProgramLayout)
         self.program_layout = program_layout
+        self.slangpy_program_layout = slangpy_program_layout
         self._types_by_name: dict[str, SlangType] = {}
         self._types_by_reflection: dict[TypeReflection, SlangType] = {}
         self._functions_by_name: dict[str, SlangFunction] = {}
@@ -901,6 +902,8 @@ class SlangProgramLayout:
         if existing is not None:
             return existing
         type_refl = self.program_layout.find_type_by_name(name)
+        if type_refl is None and self.slangpy_program_layout is not None:
+            type_refl = self.slangpy_program_layout.find_type_by_name(name)
         if type_refl is None:
             return None
         res = self._get_or_create_type(type_refl)

@@ -238,11 +238,17 @@ class Function:
         res._mode = CallMode.bwds
         return res
 
-    def return_type(self, return_type: type):
+    def return_type(self, return_type: Union[type, str]):
         """
         Explicitly specify the desired return type from the function.
         """
         res = self._copy()
+        if isinstance(return_type, str):
+            if return_type == 'numpy':
+                import numpy as np
+                return_type = np.ndarray
+            else:
+                raise ValueError(f"Unknown return type '{return_type}'")
         res._return_type = return_type
         return res
 
@@ -283,6 +289,15 @@ class Function:
         Call the function with a given set of arguments. This will generate and compile
         a new kernel if need be, then immediately dispatch it and return any results.
         """
+
+        # Handle result type override (e.g. for numpy) by checking
+        # for override, and if found, deleting the _result arg and
+        # calling the function with the override type.
+        resval = kwargs.get('_result', None)
+        if isinstance(resval, (type, str)):
+            del kwargs['_result']
+            return self.return_type(resval).call(*args, **kwargs)
+
         calldata: Optional['CallData'] = None
         try:
             if self.this:

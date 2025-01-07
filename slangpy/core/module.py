@@ -43,14 +43,41 @@ class Module:
         self.device_module = device_module
         self.options = options
 
+        #: The slangpy device module.
+        self.slangpy_device_module = device_module.session.load_module('slangpy')
+
         #: Reflection / layout information for the module.
-        self.layout = SlangProgramLayout(self.device_module.layout)
+        self.layout = SlangProgramLayout(self.device_module.layout,
+                                         self.slangpy_device_module.layout)
 
         self.call_data_cache: dict[str, 'CallData'] = {}
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
         self.link = [x.module if isinstance(x, Module) else x for x in link]
         LOADED_MODULES[self.device_module.name] = self
+
+    @staticmethod
+    def load_from_source(device: Device, name: str, source: str, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
+        """
+        Load a module from a string.
+        """
+        module = device.load_module_from_source(name, source)
+        return Module(module, options=options, link=link)
+
+    @staticmethod
+    def load_from_file(device: Device, path: str, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
+        """
+        Load a module from a file.
+        """
+        module = device.load_module(path)
+        return Module(module, options=options, link=link)
+
+    @staticmethod
+    def load_from_module(device: Device, module: SlangModule, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
+        """
+        Load a module from a Slang module.
+        """
+        return Module(module, options=options, link=link)
 
     @property
     def name(self):
