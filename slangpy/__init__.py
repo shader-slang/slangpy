@@ -2,6 +2,7 @@
 # pyright: reportUnusedImport=false
 # isort: skip_file
 import runpy
+import pathlib
 
 # Useful slangpy types
 from . import types
@@ -27,3 +28,6 @@ from .core.instance import (
     InstanceListBuffer,
     InstanceListDifferentiableBuffer
 )
+
+# Get shader include path for slangpy
+SHADER_PATH = str(pathlib.Path(__file__).parent.absolute() / "slang")
