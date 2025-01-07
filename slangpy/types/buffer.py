@@ -92,6 +92,10 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
 
 
 class NDBuffer:
+    """
+    An N dimensional buffer of a given slang type.
+    """
+
     def __init__(
         self,
         device: Device,
@@ -180,6 +184,10 @@ class NDBuffer:
 
 
 class NDDifferentiableBuffer(NDBuffer):
+    """
+    An N dimensional buffer of a given slang type, with optional additional buffer of gradients.
+    """
+
     def __init__(
         self,
         device: Device,

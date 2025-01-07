@@ -33,6 +33,10 @@ def _register_hot_reload_hook(device: Device):
 
 
 class Module:
+    """
+    A Slang module, created either by loading a slang file or providing a loaded SGL module.
+    """
+
     def __init__(self, device_module: SlangModule, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
         super().__init__()
         _register_hot_reload_hook(device_module.session.device)

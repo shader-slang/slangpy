@@ -36,10 +36,11 @@ class IThis(Protocol):
         ...
 
 
-# A callable kernel function. This assumes the function is in the root
-# of the module, however a parent in the abstract syntax tree can be provided
-# to search for the function in a specific scope.
 class Function:
+    """
+    Callable class that represents a Slang function in a loaded module.
+    """
+
     def __init__(self) -> None:
         super().__init__()
         self.module: 'Module'

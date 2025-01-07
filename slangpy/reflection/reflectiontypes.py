@@ -84,6 +84,10 @@ def is_float(kind: TR.ScalarType):
 
 
 class SlangLayout:
+    """
+    Size, alignment and stride of a type.
+    """
+
     def __init__(self, tlr: TypeLayoutReflection):
         super().__init__()
         self._tlr = tlr
