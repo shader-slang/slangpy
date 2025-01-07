@@ -18,6 +18,9 @@ PYTHON_SIGNATURES: dict[type, Optional[Callable[[Any], str]]] = {}
 
 
 def get_or_create_type(layout: 'SlangProgramLayout', python_type: Any, value: Any = None) -> Marshall:
+    """
+    Use the type registry to get or create a type marshall for a given python type.
+    """
     if isinstance(python_type, type):
         cb = PYTHON_TYPES.get(python_type)
         if cb is None:
