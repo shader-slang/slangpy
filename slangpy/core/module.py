@@ -52,21 +52,36 @@ class Module:
 
     @property
     def name(self):
+        """
+        The name of the module.
+        """
         return self.device_module.name
 
     @property
     def module(self):
+        """
+        The SGL Slang module this wraps.
+        """
         return self.device_module
 
     @property
     def session(self):
+        """
+        The SGL Slang session this module is part of.
+        """
         return self.device_module.session
 
     @property
     def device(self):
+        """
+        The SGL device this module is part of.
+        """
         return self.session.device
 
     def find_struct(self, name: str):
+        """
+        Find a struct by name, return None if not found.
+        """
         slang_struct = self.layout.find_type_by_name(name)
         if slang_struct is not None:
             return Struct(self, slang_struct, options=self.options)
@@ -74,12 +89,18 @@ class Module:
             return None
 
     def require_struct(self, name: str):
+        """
+        Find a struct by name, raise an error if not found.
+        """
         slang_struct = self.find_struct(name)
         if slang_struct is None:
             raise ValueError(f"Could not find struct '{name}'")
         return slang_struct
 
     def find_function(self, name: str):
+        """
+        Find a function by name, return None if not found.
+        """
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function()
@@ -88,12 +109,18 @@ class Module:
             return res
 
     def require_function(self, name: str):
+        """
+        Find a function by name, raise an error if not found.
+        """
         slang_function = self.find_function(name)
         if slang_function is None:
             raise ValueError(f"Could not find function '{name}'")
         return slang_function
 
     def find_function_in_struct(self, struct: Union[Struct, str], name: str):
+        """
+        Find a function in a struct by name, return None if not found.
+        """
         if isinstance(struct, str):
             s = self.find_struct(struct)
             if s is None:
@@ -105,9 +132,16 @@ class Module:
         return child.as_func()
 
     def on_hot_reload(self):
+        """
+        Called by device when the module is hot reloaded.
+        """
         self.layout.on_hot_reload(self.device_module.layout)
 
     def __getattr__(self, name: str):
+        """
+        Attribute accessor attempts to find either a struct or function 
+        with the specified attribute name.
+        """
         with tr.scope(self.device_module):
 
             # Search for name as a fully qualified child struct
@@ -127,4 +161,8 @@ class Module:
                 f"Type '{self.device_module.name}' has no attribute '{name}'")
 
     def __getitem__(self, name: str):
+        """
+        Item accessor attempts to find either a struct or function
+        with the specified item name (by calling __getattr__).
+        """
         return self.__getattr__(name)

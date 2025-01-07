@@ -38,7 +38,8 @@ class IThis(Protocol):
 
 class Function:
     """
-    Callable class that represents a Slang function in a loaded module.
+    Callable class that represents a Slang function in a loaded module. Typically created
+    by calling `module.function_name` or `mystruct.function_name` on a loaded module/struct.
     """
 
     def __init__(self) -> None:
@@ -71,6 +72,10 @@ class Function:
         return res
 
     def attach(self, module: 'Module', func: Union[str, kfr.SlangFunction, list[FunctionReflection]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
+        """
+        Links a function to its parent module or struct. Typically only called internally by SlangPy.
+        """
+
         self.module = module
 
         if isinstance(func, str):
@@ -110,17 +115,33 @@ class Function:
         # self.slangpy_signature = f"[{type_parent or ''}::{self.name},{options_hash}]"
 
     def bind(self, this: IThis) -> 'Function':
+        """
+        Bind a `this` object to the function. Typically
+        this is called automatically when calling a function on a struct.
+        """
         res = self._copy()
         res.this = this
         return res
 
     def map(self, *args: Any, **kwargs: Any):
+        """
+        Apply dimension or type mapping to all or some of the arguments.
+
+        myfunc.map((1,)(0,))(arg1, arg2) # Map arg1 to dimension 1, arg2 to dimension 0
+
+        myfunc.map(module.Foo, module.Bar)(arg1, arg2) # Cast arg1 to Foo, arg2 to Bar
+        """
         res = self._copy()
         res._map_args = args
         res._map_kwargs = kwargs
         return res
 
     def set(self, *args: Any, **kwargs: Any):
+        """
+        Specify additional uniform values that should be set whenever the function's kernel
+        is dispatched. Useful for setting constants or other values that are not passed as arguments.
+        """
+
         res = self._copy()
 
         if len(args) > 0 and len(kwargs) > 0:
@@ -163,6 +184,11 @@ class Function:
             self.uniforms.append(uniform_callback)
 
     def constants(self, constants: dict[str, Any]):
+        """
+        Specify link time constants that should be set when the function is compiled. These are
+        the most optimal way of specifying unchanging data, however note that changing a constant
+        will result in the function being recompiled.
+        """
         res = self._copy()
         if res._constants is None:
             res._constants = constants
@@ -172,6 +198,9 @@ class Function:
         return res
 
     def type_conformances(self, type_conformances: list[TypeConformance]):
+        """
+        Specify Slang type conformances to use when compiling the function.
+        """
         res = self._copy()
         if res._type_conformances is None:
             res._type_conformances = type_conformances
@@ -181,6 +210,10 @@ class Function:
         return res
 
     def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None):
+        """
+        Attach hooks to the function that kick in whenever the function is called at different points
+        in the dispatch process.
+        """
         res = self._copy()
         if before_dispatch is not None:
             if res.before_dispatch is None:
@@ -198,22 +231,35 @@ class Function:
 
     @property
     def bwds_diff(self):
+        """
+        Return a new function object that represents the backwards deriviative of the current function.
+        """
         res = self._copy()
         res._mode = CallMode.bwds
         return res
 
     def return_type(self, return_type: type):
+        """
+        Explicitly specify the desired return type from the function.
+        """
         res = self._copy()
         res._return_type = return_type
         return res
 
     def thread_group_size(self, thread_group_size: uint3):
+        """
+        Override the default thread group size for the function. Currently only used for
+        raw dispatch.
+        """
         res = self._copy()
         res._thread_group_size = thread_group_size
         return res
 
     @property
     def name(self):
+        """
+        Get the name of the function.
+        """
         r = self.reflections[0]
         if r.is_overloaded:
             return r.overloads[0].name
@@ -221,12 +267,22 @@ class Function:
             return r.name
 
     def as_func(self) -> 'Function':
+        """
+        Typing helper to cast the function to a function (i.e. a no-op)
+        """
         return self
 
     def as_struct(self) -> 'Struct':
+        """
+        Typing helper to detect attempting to treat a function as a struct.
+        """
         raise ValueError("Cannot convert a function to a struct")
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Call the function with a given set of arguments. This will generate and compile
+        a new kernel if need be, then immediately dispatch it and return any results.
+        """
         calldata: Optional['CallData'] = None
         try:
             if self.this:
@@ -241,6 +297,11 @@ class Function:
             self._handle_error(e, calldata)
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+        """
+        Append the function to a command buffer without dispatching it. As with calling,
+        this will generate and compile a new kernel if need be. However the dispatch
+        is just added to the command list and no results are returned.
+        """
         calldata: Optional['CallData'] = None
         try:
             if self.this:
@@ -255,6 +316,11 @@ class Function:
             self._handle_error(e, calldata)
 
     def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: CommandBuffer | None = None, **kwargs: Any) -> None:
+        """
+        Perform a raw dispatch, bypassing the majority of SlangPy's typing/code gen logic. This is
+        useful if you just want to explicitly call an existing kernel, or treat a slang function
+        as a kernel entry point directly.
+        """
         if ENABLE_CALLDATA_CACHE:
             if self.slangpy_signature is None:
                 lines = []
@@ -306,6 +372,9 @@ class Function:
         return self._build_call_data(*args, **kwargs)
 
     def __call__(self, *args: Any, **kwargs: Any):
+        """
+        Call operator, maps to `call` method.
+        """
         return self.call(*args, **kwargs)
 
     def _build_call_data(self, *args: Any, **kwargs: Any):
