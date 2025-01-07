@@ -590,6 +590,10 @@ class UnhandledType(SlangType):
 
 
 class SlangFunction:
+    """
+    Represents a Slang function.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: FunctionReflection, this: Optional[SlangType]):
         super().__init__()
         self._this = this
@@ -605,18 +609,30 @@ class SlangFunction:
 
     @property
     def reflection(self) -> FunctionReflection:
+        """
+        Underlying SGL FunctionReflection for this function.
+        """
         return self._reflection
 
     @property
     def name(self) -> str:
+        """
+        Name of this function.
+        """
         return self._reflection.name
 
     @property
     def this(self) -> Optional[SlangType]:
+        """
+        Type that this function is a method of, or None if it is a global function.
+        """
         return self._this
 
     @property
     def return_type(self) -> Optional[SlangType]:
+        """
+        Return type of this function.
+        """
         if self._cached_return_type is None and self._reflection.return_type is not None:
             self._cached_return_type = self._program.find_type(
                 self._reflection.return_type)
@@ -624,6 +640,9 @@ class SlangFunction:
 
     @property
     def parameters(self) -> tuple[SlangParameter, ...]:
+        """
+        Parameters of this function.
+        """
         if self._cached_parameters is None:
             ref_params = [x for x in self._reflection.parameters]
             self._cached_parameters = tuple([
@@ -632,18 +651,33 @@ class SlangFunction:
 
     @property
     def have_return_value(self) -> bool:
+        """
+        Return true if this function doesn't return void.
+        """
         return not isinstance(self.return_type, VoidType)
 
     @property
     def differentiable(self) -> bool:
+        """
+        Whether this function is differentiable - i.e. does it have the differentiable
+        attribute in slang.
+        """
         return self.reflection.has_modifier(ModifierID.differentiable)
 
     @property
     def mutating(self) -> bool:
+        """
+        Whether this function is mutating - i.e. does it have the mutating
+        attribute in slang. Only relevant for type methods.
+        """
         return self.reflection.has_modifier(ModifierID.mutating)
 
 
 class BaseSlangVariable:
+    """
+    Base class for slang variables (fields and parameters).
+    """
+
     def __init__(self, program: SlangProgramLayout, slang_type: SlangType, name: str, modifiers: set[ModifierID]):
         super().__init__()
         self._program = program
@@ -653,23 +687,38 @@ class BaseSlangVariable:
 
     @property
     def type(self) -> SlangType:
+        """
+        Type of this variable.
+        """
         return self._type
 
     @property
     def name(self) -> str:
+        """
+        Name of this variable.
+        """
         return self._name
 
     @property
     def modifiers(self) -> set[ModifierID]:
+        """
+        Slang modifiers for this variable.
+        """
         return self._modifiers
 
     @property
     def declaration(self) -> str:
+        """
+        String representation of the declaration of this variable.
+        """
         mods = [str(mod) for mod in self.modifiers]
         return " ".join(mods + [f"{self.type.full_name} {self.name}"])
 
     @property
     def io_type(self) -> IOType:
+        """
+        Calculate IOType of this variable (in/inout/out) based on modifiers.
+        """
         have_in = ModifierID.inn in self.modifiers
         have_out = ModifierID.out in self.modifiers
         have_inout = ModifierID.inout in self.modifiers
@@ -683,16 +732,26 @@ class BaseSlangVariable:
 
     @property
     def no_diff(self) -> bool:
+        """
+        Whether this variable has the no_diff modifier.
+        """
         return ModifierID.nodiff in self.modifiers
 
     @property
     def differentiable(self) -> bool:
+        """
+        Whether this variable is differentiable. Requires type
+        to be differentiable + not have the no_diff modifier.
+        """
         if self.no_diff:
             return False
         return self.type.differentiable
 
     @property
     def derivative(self) -> SlangType:
+        """
+        Get derivative type of this variable.
+        """
         if self.differentiable:
             return self.type.derivative
         else:
@@ -700,6 +759,11 @@ class BaseSlangVariable:
 
 
 class SlangField(BaseSlangVariable):
+    """
+    Variable that represents a field in a struct, typically constructed when a type's
+    fields are enumerated.
+    """
+
     def __init__(self, program: SlangProgramLayout, slang_type: Optional[SlangType] = None, name: Optional[str] = None, modifiers: Optional[set[ModifierID]] = None, refl: Optional[VariableReflection] = None):
 
         if not ((slang_type is not None) ^ (refl is not None)):
@@ -723,6 +787,11 @@ class SlangField(BaseSlangVariable):
 
 
 class SlangParameter(BaseSlangVariable):
+    """
+    Variable that represents a parameter in a function, typically constructed when a function's
+    parameters are enumerated.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: VariableReflection, index: int):
         slang_type = program.find_type(refl.type)
         name = refl.name
@@ -735,14 +804,27 @@ class SlangParameter(BaseSlangVariable):
 
     @property
     def index(self) -> int:
+        """
+        Index of this parameter in the function.
+        """
         return self._index
 
     @property
     def has_default(self) -> bool:
+        """
+        Whether this parameter has a default value.
+        """
         return self._has_default
 
 
 class SlangProgramLayout:
+    """
+    Program layout for a module. This is the main entry point for any reflection queries,
+    and provides a way to look up types, functions, etc. Typically this is accessed via
+    the loaded module with `module.layout`, however it can be constructed explicitly 
+    from an sgl ProgramLayout.
+    """
+
     def __init__(self, program_layout: ProgramLayout):
         super().__init__()
         assert isinstance(program_layout, ProgramLayout)
@@ -797,15 +879,24 @@ class SlangProgramLayout:
         self._functions_by_reflection = new_functions_by_reflection
 
     def find_type(self, refl: TypeReflection) -> SlangType:
+        """
+        Find slangpy reflection for a given slang TypeReflection.
+        """
         return self._get_or_create_type(refl)
 
     def find_function(self, refl: FunctionReflection, this_refl: Optional[TypeReflection]) -> SlangFunction:
+        """
+        Find slangpy reflection for a given slang FunctionReflection, optionally as a method of a type.
+        """
         if this_refl is None:
             return self._get_or_create_function(refl, None)
         else:
             return self._get_or_create_function(refl, self._get_or_create_type(this_refl))
 
     def find_type_by_name(self, name: str) -> Optional[SlangType]:
+        """
+        Find a type by name.
+        """
         existing = self._types_by_name.get(name)
         if existing is not None:
             return existing
@@ -816,12 +907,18 @@ class SlangProgramLayout:
         return res
 
     def require_type_by_name(self, name: str) -> SlangType:
+        """
+        Require a type by name, raising an error if it is not found.
+        """
         res = self.find_type_by_name(name)
         if res is None:
             raise ValueError(f"Type {name} not found")
         return res
 
     def find_function_by_name(self, name: str) -> Optional[SlangFunction]:
+        """
+        Find a function by name.
+        """
         existing = self._functions_by_name.get(name)
         if existing is not None:
             return existing
@@ -832,12 +929,18 @@ class SlangProgramLayout:
         return res
 
     def require_function_by_name(self, name: str) -> SlangFunction:
+        """
+        Require a function by name, raising an error if it is not found.
+        """
         res = self.find_function_by_name(name)
         if res is None:
             raise ValueError(f"Function {name} not found")
         return res
 
     def find_function_by_name_in_type(self, type: SlangType, name: str) -> Optional[SlangFunction]:
+        """
+        Find a function by name in an already loaded type.
+        """
         qualified_name = f"{type.full_name}::{name}"
         existing = self._functions_by_name.get(qualified_name)
         if existing is not None:
@@ -853,21 +956,36 @@ class SlangProgramLayout:
         return res
 
     def require_function_by_name_in_type(self, type: SlangType, name: str) -> SlangFunction:
+        """
+        Require a function by name in an already loaded type, raising an error if it is not found.
+        """
         res = self.find_function_by_name_in_type(type, name)
         if res is None:
             raise ValueError(f"Function {name} not found in type {type.full_name}")
         return res
 
     def scalar_type(self, scalar_type: TR.ScalarType) -> ScalarType:
+        """
+        Helper to get a scalar type given a Slang scalar type id.
+        """
         return cast(ScalarType, self.find_type_by_name(scalar_names[scalar_type]))
 
     def vector_type(self, scalar_type: TR.ScalarType, size: int) -> VectorType:
+        """
+        Helper to get a vector type given a Slang scalar type id and size.
+        """
         return cast(VectorType, self.find_type_by_name(f"vector<{scalar_names[scalar_type]},{size}>"))
 
     def matrix_type(self, scalar_type: TR.ScalarType, rows: int, cols: int) -> MatrixType:
+        """
+        Helper to get a matrix type given a Slang scalar type id and rows/cols.
+        """
         return cast(MatrixType, self.find_type_by_name(f"matrix<{scalar_names[scalar_type]},{rows},{cols}>"))
 
     def array_type(self, element_type: SlangType, count: int) -> ArrayType:
+        """
+        Helper to get an array type given an element type and count.
+        """
         if count > 0:
             return cast(ArrayType, self.find_type_by_name(f"{element_type.full_name}[{count}]"))
         else:
@@ -954,10 +1072,13 @@ class SlangProgramLayout:
     def _reflect_function(self, function: FunctionReflection, this: Optional[SlangType]) -> SlangFunction:
         return SlangFunction(self, function, this)
 
-    # Parse the arguments of a generic and resolve them into value args (i.e. ints) or slang types
-    # This should really be extracted from the reflection API, but this is not currently implemented in SGL,
-    # and we do it via string processing for now until this is fixed
     def get_resolved_generic_args(self, slang_type: TypeReflection) -> TGenericArgs:
+        """ 
+        Parse the arguments of a generic and resolve them into value args (i.e. ints) or slang types.
+        """
+        # TODO: This should really be extracted from the reflection API, but this is not
+        # currently implemented in SGL, and we do it via string processing for now until this is fixed
+
         full = slang_type.full_name
         # If full name does not end in >, this is not a generic
         if full[-1] != ">":
@@ -1002,6 +1123,7 @@ class SlangProgramLayout:
 
 
 def can_convert_to_int(value: Any):
+
     # Check if it's an integer or a float that can be cast to an int
     if isinstance(value, int):
         return True
@@ -1014,6 +1136,9 @@ def can_convert_to_int(value: Any):
 
 
 TGenericArgs = Optional[tuple[int | SlangType, ...]]
+
+#: Mapping from a type name to a callable that creates a SlangType from a TypeReflection.
+#: This can be used to extend the type system and wrap custom types in their own reflection types.
 TYPE_OVERRIDES: dict[str, Callable[[
     SlangProgramLayout, TypeReflection], SlangType]] = {}
 
