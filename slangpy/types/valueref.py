@@ -18,8 +18,14 @@ class ValueRef:
 
 
 def intRef(init_value: int = 0) -> ValueRef:
+    """
+    Helper to create a ValueRef to hold an integer value.
+    """
     return ValueRef(int(init_value))
 
 
 def floatRef(init_value: float = 0.0) -> ValueRef:
+    """
+    Helper to create a ValueRef to hold an float value.
+    """
     return ValueRef(float(init_value))

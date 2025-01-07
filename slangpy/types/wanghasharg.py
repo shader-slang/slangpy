@@ -9,8 +9,8 @@ from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 
 class WangHashArg:
     """
-    Request random uints using a wang hash function. eg
-    void myfunc(uint3 input) { }
+    Generates a random int/vector per thread when passed as an argument using a wang
+    hash of the thread id.
     """
 
     def __init__(self, dims: int = 3, seed: int = 0):
@@ -24,13 +24,14 @@ class WangHashArg:
 
 
 def wang_hash(dim: int = 3, seed: int = 0):
+    """
+    Create a WangHashArg to pass to a SlangPy function, which generates a
+    random int/vector per thread using a wang hash of the thread id.
+    """
     return WangHashArg(dim, seed)
 
 
 class WangHashArgMarshall(Marshall):
-    """
-    Slangpy type extension for WangHashArg
-    """
 
     def __init__(self, layout: SlangProgramLayout, dims: int):
         super().__init__(layout)

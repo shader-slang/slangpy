@@ -92,6 +92,15 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
 
 
 class NDBuffer:
+    """
+    An N dimensional buffer of a given slang type. The supplied type can come from a SlangType (via
+    reflection), a struct read from a Module, or simply a name.
+
+    When specifying just a type name, it is advisable to also supply the program_layout for the
+    module in question (see Module.layout), as this ensures type information is looked up from
+    the right place.
+    """
+
     def __init__(
         self,
         device: Device,
@@ -110,7 +119,10 @@ class NDBuffer:
         if element_count is not None and shape is not None:
             raise ValueError("Only one of element_count or shape can be provided")
 
+        #: Slang program layout of module that defines the element type for this buffer.
         self.program_layout = resolve_program_layout(device, element_type, program_layout)
+
+        #: Slang element type.
         self.element_type = resolve_element_type(self.program_layout, element_type)
 
         if element_count is None:
@@ -127,8 +139,10 @@ class NDBuffer:
             self.element_count = element_count
             self.shape = Shape(element_count)
 
+        #: Buffer resource usage.
         self.usage = usage
 
+        #: Slangpy type signature.
         self.slangpy_signature = f"[{self.element_type.full_name},{len(self.shape)},{self.is_writable}]"
 
         strides = []
@@ -138,10 +152,16 @@ class NDBuffer:
             total *= dim
         self.strides = tuple(reversed(strides))
 
+        #: Element size in bytes.
         self.element_size = self.element_type.buffer_layout.size
+
+        #: Element stride in bytes.
         self.element_stride = self.element_type.buffer_layout.stride
+
+        #: SGL device.
         self.device = device
 
+        #: Internal structured buffer.
         self.buffer = device.create_buffer(
             element_count=self.element_count,
             struct_size=self.element_size,
@@ -151,27 +171,47 @@ class NDBuffer:
 
     @property
     def is_writable(self):
+        """
+        Returns True if this buffer is writable from the GPU, i.e. if it has unordered access resource usage.
+        """
         return (self.usage & ResourceUsage.unordered_access) != 0
 
     def to_numpy(self):
+        """
+        Returns the buffer as a numpy array.
+        """
         return self.buffer.to_numpy()
 
     def from_numpy(self, data: npt.ArrayLike):
+        """
+        Sets the buffer from a numpy array.
+        """
         self.buffer.from_numpy(data)
 
     def to_torch(self, override_type: Optional[DataType] = None):
+        """
+        Returns the buffer as a torch tensor.
+        """
         if isinstance(self.element_type, ScalarType):
             return self.buffer.to_torch(type=SLANG_TO_CUDA_TYPES[self.element_type.slang_scalar_type], shape=self.shape.as_tuple(), strides=self.strides)
         else:
             raise ValueError("Only scalar types can be converted to torch tensors")
 
     def cursor(self, start: Optional[int] = None, count: Optional[int] = None):
+        """
+        Returns a BufferCursor for the buffer, starting at the given index and with the given count
+        of elements.
+        """
         size = (count or self.element_count) * self.element_stride
         offset = (start or 0) * self.element_stride
         layout = self.element_type.buffer_layout
         return BufferCursor(layout.reflection, self.buffer, size, offset)
 
     def uniforms(self):
+        """
+        Returns a dictionary of uniforms for this buffer, suitable for use with a compute kernel. These
+        are useful when manually passing the buffer to a kernel, rather than going via a slangpy function.
+        """
         return {
             'buffer': self.buffer,
             'strides': self.strides,
@@ -180,6 +220,17 @@ class NDBuffer:
 
 
 class NDDifferentiableBuffer(NDBuffer):
+    """
+    An N dimensional buffer of a given slang type, with optional additional buffer of gradients. 
+    The supplied type can come from a SlangType (via reflection), a struct read from a Module, 
+    or simply a name. If unspecified, the type of the gradient is assumed to match that of the 
+    primal.
+
+    When specifying just a type name, it is advisable to also supply the program_layout for the
+    module in question (see Module.layout), as this ensures type information is looked up from
+    the right place.
+    """
+
     def __init__(
         self,
         device: Device,
@@ -200,8 +251,10 @@ class NDDifferentiableBuffer(NDBuffer):
         if grad_type is None:
             grad_type = self.element_type.derivative
 
+        #: Slang element type for the gradient.
         self.grad_type = resolve_element_type(self.program_layout, element_type)
 
+        #: Whether gradient buffer is required.
         self.requires_grad = requires_grad
 
         if grad_usage is not None:
@@ -210,6 +263,7 @@ class NDDifferentiableBuffer(NDBuffer):
             memory_type = grad_memory_type
 
         if self.requires_grad:
+            #: Gradient buffer.
             self.grad = NDDifferentiableBuffer(
                 device=device,
                 element_type=grad_type,
@@ -227,37 +281,65 @@ class NDDifferentiableBuffer(NDBuffer):
             self.grad = None
             self.slangpy_signature += "[]"
 
+        #: Gradient resource usage.
         self.grad_usage = grad_usage if grad_usage is not None else self.usage
 
     @property
     def is_differentiable(self):
+        """
+        Returns True if this buffer is differentiable, i.e. if it has a gradient.
+        """
         return self.requires_grad
 
     @property
     def is_writable(self):
+        """
+        Returns True if this buffer is writable from the GPU, i.e. if it has unordered access resource usage.
+        """
         return (self.usage & ResourceUsage.unordered_access) != 0
 
     def primal_to_numpy(self):
+        """
+        Returns the primal buffer as a numpy array (alias for to_numpy).
+        """
         return self.to_numpy()
 
     def primal_from_numpy(self, data: npt.ArrayLike):
+        """
+        Sets the primal buffer from a numpy array (alias for from_numpy).
+        """
         self.from_numpy(data)
 
     def primal_to_torch(self):
+        """
+        Returns the primal buffer as a torch tensor (alias for to_torch).
+        """
         return self.to_torch()
 
     def grad_to_numpy(self):
+        """
+        Returns the gradient buffer as a numpy array.
+        """
         assert self.grad is not None
         return self.grad.to_numpy()
 
     def grad_from_numpy(self, data: npt.ArrayLike):
+        """
+        Sets the gradient buffer from a numpy array.
+        """
         assert self.grad is not None
         self.grad.from_numpy(data)
 
     def grad_to_torch(self):
+        """
+        Returns the gradient buffer as a torch tensor.
+        """
         assert self.grad is not None
         return self.grad.to_torch()
 
     def get_grad(self):
+        """
+        Returns the gradient buffer, raising exception if not valid.
+        """
         assert self.grad is not None
         return self.grad

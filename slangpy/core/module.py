@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any, Union
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
-import slangpy.bindings.typeregistry as tr
 from slangpy.backend import ComputeKernel, SlangModule, Device
 from slangpy.reflection import SlangProgramLayout
 
@@ -33,36 +32,85 @@ def _register_hot_reload_hook(device: Device):
 
 
 class Module:
+    """
+    A Slang module, created either by loading a slang file or providing a loaded SGL module.
+    """
+
     def __init__(self, device_module: SlangModule, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
         super().__init__()
         _register_hot_reload_hook(device_module.session.device)
         assert isinstance(device_module, SlangModule)
         self.device_module = device_module
         self.options = options
-        self.layout = SlangProgramLayout(self.device_module.layout)
+
+        #: The slangpy device module.
+        self.slangpy_device_module = device_module.session.load_module('slangpy')
+
+        #: Reflection / layout information for the module.
+        self.layout = SlangProgramLayout(self.device_module.layout,
+                                         self.slangpy_device_module.layout)
+
         self.call_data_cache: dict[str, 'CallData'] = {}
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
         self.link = [x.module if isinstance(x, Module) else x for x in link]
         LOADED_MODULES[self.device_module.name] = self
 
+    @staticmethod
+    def load_from_source(device: Device, name: str, source: str, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
+        """
+        Load a module from a string.
+        """
+        module = device.load_module_from_source(name, source)
+        return Module(module, options=options, link=link)
+
+    @staticmethod
+    def load_from_file(device: Device, path: str, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
+        """
+        Load a module from a file.
+        """
+        module = device.load_module(path)
+        return Module(module, options=options, link=link)
+
+    @staticmethod
+    def load_from_module(device: Device, module: SlangModule, options: dict[str, Any] = {}, link: list[Union['Module', SlangModule]] = []):
+        """
+        Load a module from a Slang module.
+        """
+        return Module(module, options=options, link=link)
+
     @property
     def name(self):
+        """
+        The name of the module.
+        """
         return self.device_module.name
 
     @property
     def module(self):
+        """
+        The SGL Slang module this wraps.
+        """
         return self.device_module
 
     @property
     def session(self):
+        """
+        The SGL Slang session this module is part of.
+        """
         return self.device_module.session
 
     @property
     def device(self):
+        """
+        The SGL device this module is part of.
+        """
         return self.session.device
 
     def find_struct(self, name: str):
+        """
+        Find a struct by name, return None if not found.
+        """
         slang_struct = self.layout.find_type_by_name(name)
         if slang_struct is not None:
             return Struct(self, slang_struct, options=self.options)
@@ -70,12 +118,18 @@ class Module:
             return None
 
     def require_struct(self, name: str):
+        """
+        Find a struct by name, raise an error if not found.
+        """
         slang_struct = self.find_struct(name)
         if slang_struct is None:
             raise ValueError(f"Could not find struct '{name}'")
         return slang_struct
 
     def find_function(self, name: str):
+        """
+        Find a function by name, return None if not found.
+        """
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function()
@@ -84,12 +138,18 @@ class Module:
             return res
 
     def require_function(self, name: str):
+        """
+        Find a function by name, raise an error if not found.
+        """
         slang_function = self.find_function(name)
         if slang_function is None:
             raise ValueError(f"Could not find function '{name}'")
         return slang_function
 
     def find_function_in_struct(self, struct: Union[Struct, str], name: str):
+        """
+        Find a function in a struct by name, return None if not found.
+        """
         if isinstance(struct, str):
             s = self.find_struct(struct)
             if s is None:
@@ -101,26 +161,35 @@ class Module:
         return child.as_func()
 
     def on_hot_reload(self):
+        """
+        Called by device when the module is hot reloaded.
+        """
         self.layout.on_hot_reload(self.device_module.layout)
 
     def __getattr__(self, name: str):
-        with tr.scope(self.device_module):
+        """
+        Attribute accessor attempts to find either a struct or function 
+        with the specified attribute name.
+        """
+        # Search for name as a fully qualified child struct
+        slang_struct = self.find_struct(name)
+        if slang_struct is not None:
+            return slang_struct
 
-            # Search for name as a fully qualified child struct
-            slang_struct = self.find_struct(name)
-            if slang_struct is not None:
-                return slang_struct
+        # Search for name as a child of this struct
+        slang_function = self.layout.find_function_by_name(name)
+        if slang_function is not None:
+            res = Function()
+            res.attach(module=self, func=slang_function,
+                       struct=None, options=self.options)
+            return res
 
-            # Search for name as a child of this struct
-            slang_function = self.layout.find_function_by_name(name)
-            if slang_function is not None:
-                res = Function()
-                res.attach(module=self, func=slang_function,
-                           struct=None, options=self.options)
-                return res
-
-            raise AttributeError(
-                f"Type '{self.device_module.name}' has no attribute '{name}'")
+        raise AttributeError(
+            f"Type '{self.device_module.name}' has no attribute '{name}'")
 
     def __getitem__(self, name: str):
+        """
+        Item accessor attempts to find either a struct or function
+        with the specified item name (by calling __getattr__).
+        """
         return self.__getattr__(name)

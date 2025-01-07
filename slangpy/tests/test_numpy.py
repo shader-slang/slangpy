@@ -56,6 +56,20 @@ def test_return_numpy_floats(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_return_numpy_floats_auto(device_type: DeviceType):
+
+    module = load_test_module(device_type)
+
+    a = np.random.rand(2, 2).astype(np.float32)
+    b = np.random.rand(2, 2).astype(np.float32)
+
+    res = module.add_floats(a, b, _result='numpy')
+    res_expected = a + b
+
+    assert np.allclose(res, res_expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_returntype_numpy_floats(device_type: DeviceType):
 
     module = load_test_module(device_type)

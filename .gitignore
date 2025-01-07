@@ -6,3 +6,5 @@ junit*.xml
 .temp/
 htmlcov/
 .coverage
+
+docs/_build/

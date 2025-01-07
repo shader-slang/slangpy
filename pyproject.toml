@@ -12,6 +12,11 @@ description = "Easily call Slang functions and integrate with PyTorch auto diff 
 readme = "README.md"
 requires-python = ">=3.9"
 dynamic = ["version"]
+dependencies = [
+  "typing_extensions",
+  "numpy",
+  "nv-sgl>=0.4.0"
+]
 
 [tool.setuptools]
 py-modules = ["slangpy"]

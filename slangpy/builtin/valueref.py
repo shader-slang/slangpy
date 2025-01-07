@@ -56,6 +56,7 @@ class ValueRefMarshall(Marshall):
     def __init__(self, layout: kfr.SlangProgramLayout, value_type: kfr.SlangType):
         super().__init__(layout)
         self.value_type = value_type
+
         st = layout.find_type_by_name(f"ValueRef<{value_type.full_name}>")
         if st is None:
             raise ValueError(

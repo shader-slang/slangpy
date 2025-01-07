@@ -8,8 +8,7 @@ from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 
 class ThreadIdArg:
     """
-    Request the thread id. eg
-    void myfunc(int3 input) { }
+    Passes the thread id as an argument to a SlangPy function.
     """
 
     def __init__(self, dims: int = 3):
@@ -22,6 +21,9 @@ class ThreadIdArg:
 
 
 def thread_id(dims: int):
+    """
+    Create a ThreadIdArg to pass to a SlangPy function, which passes the thread id.
+    """
     return ThreadIdArg(dims)
 
 

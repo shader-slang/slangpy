@@ -109,26 +109,61 @@ class CodeGenBlock:
 
 
 class CodeGen:
+    """
+    Tool for generating the code for a SlangPy kernel. Contains a set of
+    different code blocks that can be filled in and then combined to
+    generate the final code.
+    """
+
     def __init__(self):
         super().__init__()
+
+        #: Structs that contain code for loading/storing call data.
         self.call_data_structs = CodeGenBlock(self)
+
+        #: The main call data uniforms struct.
         self.call_data = CodeGenBlock(self)
         self.call_data.append_line("struct CallData")
         self.call_data.begin_block()
+
+        # legacy
         self.input_load_store = CodeGenBlock(self)
+
+        #: File header
         self.header = ""
+
+        #: Main kernel code
         self.kernel = CodeGenBlock(self)
+
+        #: Imports list
         self.imports: set[str] = set()
+
+        #: Trampoline function
         self.trampoline = CodeGenBlock(self)
+
+        #: Context struct
         self.context = CodeGenBlock(self)
+
+        #: Link time constants
         self.constants = CodeGenBlock(self)
+
+        #: Code snippets.
         self.snippets: dict[str, str] = {}
 
     def add_snippet(self, name: str, code: str):
+        """
+        Add an arbitrary snippet of code to the kernel, typically
+        used for adding utility functions or other code that doesn't
+        fit into the other code blocks. Use 'name' parameter to
+        deduplicate.
+        """
         if not name in self.snippets:
             self.snippets[name] = code
 
     def add_import(self, import_name: str):
+        """
+        Add an import to the kernel.
+        """
         self.imports.add(import_name)
 
     def finish(self,
@@ -142,6 +177,9 @@ class CodeGen:
                snippets: bool = False,
                call_data_structs: bool = False,
                constants: bool = False):
+        """
+        Generate the final code for the kernel.
+        """
 
         self.call_data.end_block()
         self.call_data.append_statement("ParameterBlock<CallData> call_data")

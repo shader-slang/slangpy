@@ -10,6 +10,11 @@ if TYPE_CHECKING:
 
 
 class Struct:
+    """
+    A Slang struct, typically created by accessing it via a module or parent struct. i.e. mymodule.Foo,
+    or mymodule.Foo.Bar. 
+    """
+
     def __init__(self, module: 'Module', slang_struct: 'SlangType', options: dict[str, Any] = {}) -> None:
         super().__init__()
         self.module = module
@@ -19,21 +24,36 @@ class Struct:
 
     @property
     def name(self) -> str:
+        """
+        The name of the struct.
+        """
         return self.struct.full_name
 
     @property
     def session(self):
+        """
+        The Slang session the struct's module belongs to.
+        """
         return self.module.device_module.session
 
     @property
     def device(self):
+        """
+        The device the struct's module belongs to.
+        """
         return self.session.device
 
     @property
     def device_module(self):
+        """
+        The Slang module the struct belongs to.
+        """
         return self.module.device_module
 
     def try_get_child(self, name: str) -> Optional[Union['Struct', 'Function']]:
+        """
+        Attempt to get either a child struct or method of this struct.
+        """
 
         # First try to find the child using the search functions in the reflection API
 
@@ -68,19 +88,31 @@ class Struct:
         return None
 
     def __getattr__(self, name: str) -> Union['Struct', 'Function']:
+        """
+        Get a child struct or method of this struct.
+        """
         child = self.try_get_child(name)
         if child is not None:
             return child
         raise AttributeError(f"Type '{self.name}' has no attribute '{name}'")
 
     def __getitem__(self, name: str):
+        """
+        Get a child struct or method of this struct.
+        """
         return self.__getattr__(name)
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         raise AttributeError(f"Type '{self.name}' is not callable")
 
     def as_func(self) -> 'Function':
+        """
+        Typing helper to detect attempting to treat the struct as a function.
+        """
         raise ValueError("Cannot convert a struct to a function")
 
     def as_struct(self) -> 'Struct':
+        """
+        Typing helper to cast the struct to struct (no-op).
+        """
         return self

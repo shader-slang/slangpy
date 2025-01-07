@@ -14,6 +14,11 @@ from slangpy.reflection import (SlangField, SlangFunction, SlangParameter,
 
 
 class BoundVariableException(Exception):
+    """
+    Custom exception type that carries a message and the variable that caused 
+    the exception.
+    """
+
     def __init__(self, message: str, variable: 'BoundVariable') -> NoneType:
         super().__init__(message)
         self.message = message
@@ -21,25 +26,45 @@ class BoundVariableException(Exception):
 
 
 class BoundCall:
+    """
+    Stores the binding of python arguments to slang parameters during kernel
+    generation. This is initialized purely with a set of python arguments and
+    later bound to corresponding slang parameters during function resolution.
+    """
+
     def __init__(self, context: 'BindContext', *args: Any, **kwargs: Any) -> NoneType:
         super().__init__()
         self.args = [BoundVariable(context, x, None, "") for x in args]
         self.kwargs = {n: BoundVariable(context, v, None, n) for n, v in kwargs.items()}
 
     def bind(self, slang: SlangFunction):
+        """
+        Stores slang function this call is bound to.
+        """
         self.slang = slang
 
     @property
     def differentiable(self) -> bool:
+        """
+        Returns whether this call is differentiable.
+        """
         return self.slang.differentiable
 
     @property
     def num_function_args(self) -> int:
+        """
+        Returns total arguments passed to the function, excluding
+        special values such as _this and _result.
+        """
         total = len(self.args) + self.num_function_kwargs
         return total
 
     @property
     def num_function_kwargs(self) -> int:
+        """
+        Returns total keyword arguments passed to the function, excluding
+        special values such as _this and _result.
+        """
         total = len(self.kwargs)
         if "_this" in self.kwargs:
             total -= 1
@@ -49,13 +74,27 @@ class BoundCall:
 
     @property
     def has_implicit_args(self) -> bool:
+        """
+        Returns whether any arguments need their types resolving
+        implicitly.
+        """
         return any(x.vector_type is None for x in self.args)
 
     @property
     def has_implicit_mappings(self) -> bool:
+        """
+        Returns whether any arguments need their mappings resolving
+        implicitly.
+        """
         return any(not x.vector_mapping.valid for x in self.args)
 
     def apply_explicit_vectorization(self, context: 'BindContext', args: tuple[Any, ...], kwargs: dict[str, Any]):
+        """
+        Calls apply_explicit_vectorization on all arguments, which calculates
+        the vector type and mapping for each argument based on explicitly
+        provided information via function.map().
+        """
+
         if len(args) > len(self.args):
             raise ValueError("Too many arguments supplied for explicit vectorization")
         if len(kwargs) > len(self.kwargs):
@@ -71,9 +110,18 @@ class BoundCall:
             self.kwargs[name].apply_explicit_vectorization(context, arg)
 
     def values(self) -> list['BoundVariable']:
+        """
+        Return list of all bound variables in the call.
+        """
         return self.args + list(self.kwargs.values())
 
     def apply_implicit_vectorization(self, context: BindContext):
+        """
+        Calls apply_implicit_vectorization on all arguments, which attempts
+        to calculate any remaining vector types once binding to
+        a slang function is complete.
+        """
+
         for arg in self.args:
             arg.apply_implicit_vectorization(context)
 
@@ -81,6 +129,10 @@ class BoundCall:
             arg.apply_implicit_vectorization(context)
 
     def finalize_mappings(self, context: BindContext):
+        """
+        Calls finalize_mappings on all arguments, which ensures all vector
+        mappings are valid and consistent.
+        """
         for arg in self.args:
             arg.finalize_mappings(context)
 
@@ -91,7 +143,7 @@ class BoundCall:
 class BoundVariable:
     """
     Node in a built signature tree, maintains a pairing of python+slang marshall,
-    and a potential set of child nodes
+    and a potential set of child nodes for use during kernel generation.
     """
 
     def __init__(self,
@@ -103,22 +155,42 @@ class BoundVariable:
         super().__init__()
 
         # Store the python and slang marshall
+        #: The name of the variable
         self.name = name
+
+        #: The name of the variable in the generated code
         self.variable_name = name
+
+        #: The python marshall for this variable
         self.python = get_or_create_type(context.layout, type(value), value)
 
-        # Init default properties
+        #: Access type for primal and derivative
         self.access = (AccessType.none, AccessType.none)
+
+        #: Is this variable differentiable
         self.differentiable = False
+
+        #: Call dimensionality of this variable.
         self.call_dimensionality = None
+
+        #: Parameter index in slang function parameter list.
         self.param_index = -1
+
+        #: Mapping of variable dimensions to call dimensions.
         self.vector_mapping: Shape = Shape(None)
+
+        #: Vector type variable will mapped to.
         self.vector_type: Optional[SlangType] = None
+
+        #: Whether this type had vectorization explicitly specified
         self.explicitly_vectorized = False
+
+        #: Slang type this variable is bound to.
         self.slang_type: Optional[SlangType] = None
 
         # Initialize path
         if parent is None:
+            # Path relative to root.
             self.path = self.name
         else:
             self.path = f"{parent.path}.{self.name}"
@@ -126,12 +198,17 @@ class BoundVariable:
         # Create children
         # TODO: Should this be based off type fields
         if isinstance(value, dict):
+            # Child variables.
             self.children = {n: BoundVariable(context, v, self, n)
                              for n, v in value.items()}
         else:
             self.children = None
 
     def bind(self, slang: Union[SlangField, SlangParameter, SlangType], modifiers: set[ModifierID] = set(), override_name: Optional[str] = None):
+        """
+        Bind to a given slang field, parameter or type. Stores the slang type and modifiers,
+        and recursively binds children.
+        """
         if isinstance(slang, SlangType):
             if self.name == '':
                 assert override_name is not None
@@ -153,6 +230,10 @@ class BoundVariable:
 
     @property
     def io_type(self) -> IOType:
+        """
+        Returns the IO type of this variable based on slang modifiers.
+        """
+
         have_in = ModifierID.inn in self.slang_modifiers
         have_out = ModifierID.out in self.slang_modifiers
         have_inout = ModifierID.inout in self.slang_modifiers
@@ -166,6 +247,9 @@ class BoundVariable:
 
     @property
     def no_diff(self) -> bool:
+        """
+        Returns whether this variable is marked as no_diff.
+        """
         return ModifierID.nodiff in self.slang_modifiers
 
     def apply_explicit_vectorization(self, context: 'BindContext', mapping: Any):
@@ -221,7 +305,7 @@ class BoundVariable:
         """
         Apply implicit vectorization to this variable. This inspects
         the slang type being bound to in an attempt to get a concrete
-        type to provide to the specialization system.
+        type once the slang function is known.
         """
         if self.children is not None:
             for child in self.children.values():

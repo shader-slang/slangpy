@@ -9,8 +9,8 @@ from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 
 class RandFloatArg:
     """
-    Request random floats from a wang hash function. eg
-    void myfunc(float3 input) { }
+    Generates a random float/vector per thread when passed as an argument
+    to a SlangPy function. The min and max values are inclusive.
     """
 
     def __init__(self, min: float, max: float, dim: int, seed: int = 0):
@@ -26,13 +26,14 @@ class RandFloatArg:
 
 
 def rand_float(min: float = 0, max: float = 1, dim: int = 3, seed: int = 0):
+    """
+    Create a RandFloatArg to pass to a SlangPy function, which generates a 
+    random float/vector per thread. The min and max values are inclusive.
+    """
     return RandFloatArg(min, max, dim, seed)
 
 
 class RandFloatArgMarshall(Marshall):
-    """
-    Slangpy type extension for RandFloatArg
-    """
 
     def __init__(self, layout: SlangProgramLayout, dim: int):
         super().__init__(layout)
