@@ -1,60 +1,80 @@
 Brighten A Texture
 ==================
 
-In this simple example we'll see the use of SlangPy to read/write a texture, along with 
-the use of simple broadcasting and inout parameters. `tev <https://github.com/Tom94/tev>`_ is 
-required to run the example and see results.
+In this example, we'll use SlangPy to read from and write to a texture, showcasing simple broadcasting and ``inout`` parameters. To view the results, you'll need `tev <https://github.com/Tom94/tev>`_.
 
-The full code for this example can be found `here <https://github.com/shader-slang/slangpy/tree/main/examples/textures>`_.
+You can find the complete code for this example `here <https://github.com/shader-slang/slangpy/tree/main/examples/textures>`_.
 
-The Slang code is a very simple function that takes a constant and adds it to the value 
-of an ``inout`` parameter.
+Slang Code
+----------
+
+This Slang code defines a simple function that adds a value to an ``inout`` parameter:
 
 .. code-block::
-    
+
     // Add an amount to a given pixel
     void brighten(float4 amount, inout float4 pixel)
     {
         pixel += amount;
     }
 
-We'll skip device initialization, and go straight to creating/showing a random texture:
+Generating the Texture
+----------------------
+
+We'll skip the device initialization and module loading steps and go straight to generating and displaying a random texture:
 
 .. code-block:: python
 
-    #... device init + module load here ...
+    # ... device initialization and module loading here ...
 
     # Generate a random image
-    rand_image = np.random.rand(128*128*4).astype(np.float32)*0.25
-    tex = device.create_texture(width=128, height=128, format=sgl.Format.rgba32_float,
-                                usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access,
-                                data=rand_image)
+    rand_image = np.random.rand(128 * 128 * 4).astype(np.float32) * 0.25
+    tex = device.create_texture(
+        width=128,
+        height=128,
+        format=sgl.Format.rgba32_float,
+        usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access,
+        data=rand_image
+    )
 
     # Display it with tev
     sgl.tev.show(tex, name='photo')
 
-Note the texture as created is both a shader resource and an unordered access resource so it 
-can be read and written to in a shader.
+*Note:* The texture is created with both ``shader_resource`` and ``unordered_access`` usage flags, enabling it to be both read from and written to in a shader.
 
-We can now call the ``brighten`` function and show the result as usual:
+Brightening the Texture
+-----------------------
+
+Next, we call the ``brighten`` function and display the updated texture:
 
 .. code-block:: python
 
-    # Call the module's add function, passing:
-    # - a float4 constant that'll be broadcast to every pixel
-    # - the texture to an inout parameter
+    # Call the module's brighten function, passing:
+    # - a float4 constant broadcast to every pixel
+    # - the texture as an inout parameter
     module.brighten(sgl.float4(0.5), tex)
 
-    # Show the result
+    # Display the result
     sgl.tev.show(tex, name='brighter')
 
-In this case SlangPy infers that this is a `2D` call, because it's passing a 2D texture of float4s
-into a function that takes a float4. As the first parameter is a single float4, it gets broadcast
-to every thread. Because the second parameter is an inout, SlangPy knows to both read and write
-to the texture.
+In this example:
 
-This very simple example shows manipulation of texture pixels and broadcasting. We could equally
-have used the same function to add together 2 textures, or buffers, or a buffer and a texture, or 
-a numpy array to a texture etc etc!
+- SlangPy infers a **2D dispatch** because a 2D texture of ``float4`` is passed into the function.
+- The **first parameter** (a single ``float4``) is **broadcast** to every thread.
+- The **second parameter** (marked ``inout``) allows both reading from and writing to the texture.
 
+Summary
+-------
 
+In this example we've seen:
+
+- **Textures:** How to read and write each pixel of a texture.
+- **Broadcasting:** How a single scalar can be broadcast to every thread.
+
+The same `brighten` function could also be used in many other ways, such as:
+
+- Adding two textures together.
+- Adding a buffer to a texture.
+- Adding a texture to a buffer.
+
+SlangPy's flexibility allows seamless integration between these types, making it easy to extend this example for more advanced scenarios.

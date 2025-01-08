@@ -10,7 +10,7 @@ from slangpy.core.struct import Struct
 
 import slangpy.tests.helpers as helpers
 from slangpy import (InstanceList, InstanceBuffer,
-                     InstanceListDifferentiableBuffer, Module)
+                     InstanceDifferentiableBuffer, Module)
 from slangpy.backend import DeviceType, float2, float3, math
 from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
 from slangpy.types.randfloatarg import RandFloatArg
@@ -390,7 +390,7 @@ def test_backwards_diff(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create storage for particles in a simple buffer
-    particles = InstanceListDifferentiableBuffer(Particle, shape=(1000,))
+    particles = InstanceDifferentiableBuffer(Particle, shape=(1000,))
 
     # Call the slang constructor on all particles in the buffer,
     # assigning each a constant starting position and a random velocity

@@ -61,7 +61,7 @@ Initialization follows the same steps as in the previous example:
 Creating Buffers
 ----------------
 
-We'll now create and initialize two buffers of type `Pixel`. The first will use a buffer cursor for manual population, while the second will be populated using a NumPy array.
+We'll now create and initialize two buffers of type ``Pixel``. The first will use a buffer cursor for manual population, while the second will be populated using a NumPy array.
 
 .. code-block:: python
 
@@ -88,14 +88,14 @@ While using a cursor is more verbose, it offers powerful tools for reading and w
 Calling the Function
 --------------------
 
-Once our data is ready, we can call the `add` function as usual:
+Once our data is ready, we can call the ``add`` function as usual:
 
 .. code-block:: python
 
     # Call the module's add function
     result = module.add(image_1, image_2)
 
-SlangPy understands that these buffers are effectively 2D arrays of `Pixel`. It infers a 2D dispatch (16×16 threads in this case), where each thread reads one `Pixel` from each buffer, adds them together, and writes the result into a third buffer. By default, SlangPy automatically allocates and returns a new ``NDBuffer``.
+SlangPy understands that these buffers are effectively 2D arrays of ``Pixel``. It infers a 2D dispatch (16×16 threads in this case), where each thread reads one ``Pixel`` from each buffer, adds them together, and writes the result into a third buffer. By default, SlangPy automatically allocates and returns a new ``NDBuffer``.
 
 Alternatively, we can pre-allocate the result buffer and pass it explicitly:
 
@@ -133,7 +133,7 @@ Finally, let's print the result and, if available, use `tev` to visualize it:
 Summary
 -------
 
-That's it! This tutorial demonstrated how to use `NDBuffer` to manipulate structured data in SlangPy. While we focused on basic buffer operations, there’s much more to explore, such as:
+That's it! This tutorial demonstrated how to use ``NDBuffer`` to manipulate structured data in SlangPy. While we focused on basic buffer operations, there’s much more to explore, such as:
 
 - Using ``InstanceLists`` to call type methods.
 - Leveraging ``NDDifferentiableBuffer`` for differentiable data manipulation.
