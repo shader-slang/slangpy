@@ -25,6 +25,8 @@ By bringing these 2 technologies together with a simple and flexible Python libr
    firstfunctions
    buffers
    textures
+   nested
+   typemethods
 
 .. toctree::
    :hidden:

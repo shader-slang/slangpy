@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 import slangpy.tests.helpers as helpers
-from slangpy import InstanceListBuffer, Module
+from slangpy import InstanceBuffer, Module
 from slangpy.backend import DeviceType, Format, ResourceType, ResourceUsage
 
 
@@ -154,7 +154,7 @@ def test_read_write_texture(
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
     dims = len(grid_coords_data.shape) - 1
-    grid_coords = InstanceListBuffer(struct=getattr(
+    grid_coords = InstanceBuffer(struct=getattr(
         m, f"int{dims}").as_struct(), shape=grid_coords_data.shape[0:-1])
     grid_coords.from_numpy(grid_coords_data)
 
@@ -210,7 +210,7 @@ def test_read_write_texture_with_resource_views(
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
     dims = len(grid_coords_data.shape) - 1
-    grid_coords = InstanceListBuffer(struct=getattr(
+    grid_coords = InstanceBuffer(struct=getattr(
         m, f"int{dims}").as_struct(), shape=grid_coords_data.shape[0:-1])
     grid_coords.from_numpy(grid_coords_data)
 
@@ -264,7 +264,7 @@ def test_read_write_texture_with_invalid_resource_views(
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
     dims = len(grid_coords_data.shape) - 1
-    grid_coords = InstanceListBuffer(struct=getattr(
+    grid_coords = InstanceBuffer(struct=getattr(
         m, f"int{dims}").as_struct(), shape=grid_coords_data.shape[0:-1])
     grid_coords.from_numpy(grid_coords_data)
 

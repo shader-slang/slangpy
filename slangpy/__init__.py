@@ -25,7 +25,7 @@ from .core.struct import Struct
 from .core.module import Module
 from .core.instance import (
     InstanceList,
-    InstanceListBuffer,
+    InstanceBuffer,
     InstanceListDifferentiableBuffer
 )
 
