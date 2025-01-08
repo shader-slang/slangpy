@@ -1,5 +1,5 @@
-Type Methods and Instance Lists
-===============================
+Type Methods
+============
 
 Thus far we've seen how SlangPy can understand both basic and user defined Slang types, and 
 vectorise across global functions written in Slang. However it can also understand and 

@@ -1,5 +1,5 @@
 Nested Types 
-------------
+============
 
 SlangPy supports various ways of passing structured data to functions, but the simplest is through
 the use of Python dictionaries. This example will show how a structure can be passed in SOA form, 
