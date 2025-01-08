@@ -4,11 +4,13 @@ Your First Function
 In this simple example we're going to initial SGL, create a simple slang function, and 
 call it from Python.
 
+The code for this example can be found `here <https://github.com/shader-slang/slangpy/tree/main/examples/first_function/>`_.
+
 First let's create a simple slang function to add 2 numbers together.
 
 .. code-block::
     
-    ## example.slang
+    // example.slang
 
     // A simple function that adds two numbers together
     float add(float a, float b)
@@ -35,7 +37,7 @@ calls the function.
         ],
     })
 
-    # Create a simple function
+    # Load module
     module = spy.Module.load_from_file(device, "example.slang")
 
     # Call the function and print the result
