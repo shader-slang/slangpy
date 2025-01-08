@@ -5,7 +5,7 @@ In this simple example we'll see the use of SlangPy to read/write a texture, alo
 the use of simple broadcasting and inout parameters. `tev <https://github.com/Tom94/tev>`_ is 
 required to run the example and see results.
 
-The full code for this example can be found `here <>`_
+The full code for this example can be found `here <https://github.com/shader-slang/slangpy/tree/main/examples/textures>`_.
 
 The Slang code is a very simple function that takes a constant and adds it to the value 
 of an ``inout`` parameter.
