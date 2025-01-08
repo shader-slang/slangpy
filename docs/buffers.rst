@@ -1,21 +1,18 @@
 Buffers
 =======
 
-SlangPy supplies 2 important wrappers around a classic structured
-buffer (represented in SGL as a Buffer object). These are the ``NDBuffer`` 
-and ``NDDifferentiableBuffer``.
+SlangPy provides two key wrappers around classic structured buffers (represented in SGL as `Buffer` objects): ``NDBuffer`` and ``NDDifferentiableBuffer``.
 
-The ``NDBuffer`` types take a structured buffer that has a stride / size, and 
-add to it:
+The ``NDBuffer`` type takes a structured buffer with a defined stride and size and adds:
 
-* Element type - a ``SlangType``, which can be a primitive type such as float or vector, or a user defined Slang struct.
-* Shape - a tuple of integers as with a classic numpy array or torch tensor.
+- **Element type**: A ``SlangType``, which can be a primitive type (e.g., float, vector) or a user-defined Slang struct.  
+- **Shape**: A tuple of integers describing the size of each dimension, similar to the shape of a NumPy array or Torch tensor.
 
-Let's start with a simple slang program that uses a custom type:
+Let's start with a simple Slang program that uses a custom type:
 
 .. code-block::
-    
-    // currently, to use custom types with slangpy it needs to be imported
+
+    // Currently, to use custom types with SlangPy, they need to be explicitly imported.
     import "slangpy";
 
     // example.slang
@@ -26,7 +23,7 @@ Let's start with a simple slang program that uses a custom type:
         float b;
     };
 
-    // Add 2 pixels together
+    // Add two pixels together
     Pixel add(Pixel a, Pixel b)
     {
         Pixel result;
@@ -36,10 +33,12 @@ Let's start with a simple slang program that uses a custom type:
         return result;
     }
 
-Note that currently, in many situations a slang module needs to import the slangpy module for kernel 
-generation to resolve all types correctly. This is an issue we aim to address in the near future.
+*Note:* In many cases, a Slang module must import the ``slangpy`` module to resolve all types correctly during kernel generation. This is a known issue that we aim to address in the near future.
 
-Initialization is the same as the first function example:
+Initialization
+--------------
+
+Initialization follows the same steps as in the previous example:
 
 .. code-block:: python
 
@@ -48,7 +47,7 @@ Initialization is the same as the first function example:
     import pathlib
     import numpy as np
 
-    # Create an SGL device with the slangpy+local include paths
+    # Create an SGL device with SlangPy and local include paths
     device = sgl.Device(compiler_options={
         "include_paths": [
             spy.SHADER_PATH,
@@ -56,75 +55,86 @@ Initialization is the same as the first function example:
         ],
     })
 
-    # Load module
+    # Load the module
     module = spy.Module.load_from_file(device, "example.slang")
 
-Now we'll construct and initialize 2 buffers of type Pixel. We'll use a buffer cursor to 
-populate the first, and a pure numpy array of floats to populate the 2nd.
+Creating Buffers
+----------------
+
+We'll now create and initialize two buffers of type `Pixel`. The first will use a buffer cursor for manual population, while the second will be populated using a NumPy array.
 
 .. code-block:: python
 
-    # Create a couple of 2D 16x16 buffers
-    image_1 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16,16))
-    image_2 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16,16))
+    # Create two 2D buffers of size 16x16
+    image_1 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
+    image_2 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
 
-    # Use a cursor to fill the first buffer with readable structured data.
+    # Populate the first buffer using a cursor
     cursor_1 = image_1.cursor()
     for x in range(16):
         for y in range(16):      
-            cursor_1[x+y*16].write({
-                'r': (x+y)/32.0,
+            cursor_1[x + y * 16].write({
+                'r': (x + y) / 32.0,
                 'g': 0,
                 'b': 0,
             })
     cursor_1.apply()
 
-    # Use the fact that we know the buffers are just 16x16 grids of 3 floats
-    # to populate the 2nd buffer straight from random numpy array
-    image_2.from_numpy(0.1*np.random.rand(16*16*3).astype(np.float32))
+    # Populate the second buffer directly from a NumPy array
+    image_2.from_numpy(0.1 * np.random.rand(16 * 16 * 3).astype(np.float32))
 
-Whilst the cursor is definitely more wordy, it can be a very useful tool in both SGL and SlangPy,
-as it allows you to both read and write structured data, and even view the contents of a GPU
-buffer in the VSCode watch window.
+While using a cursor is more verbose, it offers powerful tools for reading and writing structured data. It even allows inspection of GPU buffer contents directly in the VSCode watch window.
 
-Once the data is ready, we can call our function as normal:
+Calling the Function
+--------------------
+
+Once our data is ready, we can call the `add` function as usual:
 
 .. code-block:: python
 
     # Call the module's add function
     result = module.add(image_1, image_2)
 
-As SlangPy knows the 2 buffers are in effect 2D arrays of Pixels, it can infer that this is 
-a `2D` dispatch (in this case of 16*16 threads), in which each thread will read a Pixel from 
-each buffer, add them together and write the result to a 3rd buffer. In the absence of any 
-override, slangpy automatically allocates and returns a new NDBuffer.
+SlangPy understands that these buffers are effectively 2D arrays of `Pixel`. It infers a 2D dispatch (16×16 threads in this case), where each thread reads one `Pixel` from each buffer, adds them together, and writes the result into a third buffer. By default, SlangPy automatically allocates and returns a new ``NDBuffer``.
 
-Alternatively, we can pre-allocate the buffer and pass it in:
+Alternatively, we can pre-allocate the result buffer and pass it explicitly:
 
 .. code-block:: python
 
-    # Alternative - pre-allocate the buffer
-    result = spy.NDBuffer(device, element_type=module.Pixel, shape=(16,16))
+    # Pre-allocate the result buffer
+    result = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
     module.add(image_1, image_2, _result=result)
 
-This can be very useful in scenarios in which you have all your inputs/outputs pre-allocated up 
-front.
+This approach is useful when inputs and outputs are pre-allocated upfront for efficiency.
 
-Finally, let's both print out the result and (if it's running) use tev to display the result:
+Reading the Results
+-------------------------------------
+
+Finally, let's print the result and, if available, use `tev` to visualize it:
 
 .. code-block:: python
 
-    # Use a cursor to read and print pixels (would also be readable in the watch window)
+    # Read and print pixel data using a cursor
     result_cursor = result.cursor()
     for x in range(16):
         for y in range(16):
-            pixel = result_cursor[x+y*16].read()
+            pixel = result_cursor[x + y * 16].read()
             print(f"Pixel ({x},{y}): {pixel}")
 
-    # Or if installed, we can use tev to show the result (https://github.com/Tom94/tev)
-    tex = device.create_texture(data=result.to_numpy(), width=16, height=16, format=sgl.Format.rgb32_float)
+    # Display the result with tev (https://github.com/Tom94/tev)
+    tex = device.create_texture(
+        data=result.to_numpy(),
+        width=16,
+        height=16,
+        format=sgl.Format.rgb32_float
+    )
     sgl.tev.show(tex)
 
-That's the lot! This tutorial demonstrated how to use NDBuffers to manipulate structured data in SlangPy. 
-What it hasn't covered is the use of ``InstanceLists`` to actually call type methods, or the use 
-of ``NDDifferentiableBuffer`` to store and manipulate differentiable data.
+Summary
+-------
+
+That's it! This tutorial demonstrated how to use `NDBuffer` to manipulate structured data in SlangPy. While we focused on basic buffer operations, there’s much more to explore, such as:
+
+- Using ``InstanceLists`` to call type methods.
+- Leveraging ``NDDifferentiableBuffer`` for differentiable data manipulation.
+
