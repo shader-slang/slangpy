@@ -41,7 +41,7 @@ def test_id(request: Any):
 
 
 # Helper to get device of a given type
-def get_device(type: DeviceType, use_cache: bool = True) -> Device:
+def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = False) -> Device:
     if use_cache and type in DEVICE_CACHE:
         return DEVICE_CACHE[type]
     device = Device(
@@ -53,6 +53,7 @@ def get_device(type: DeviceType, use_cache: bool = True) -> Device:
                 "debug_info": SlangDebugInfoLevel.standard,
             }
         ),
+        enable_cuda_interop=cuda_interop
     )
     device.run_garbage_collection()
     if use_cache:

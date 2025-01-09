@@ -11,13 +11,13 @@ import os
 def get_test_tensors(device: Device, N: int = 4):
     np.random.seed(0)
 
-    np_weights = np.random.randn(8, 8).astype(np.float32)
-    np_biases = np.random.randn(8).astype(np.float32)
+    np_weights = np.random.randn(5, 8).astype(np.float32)
+    np_biases = np.random.randn(5).astype(np.float32)
     np_x = np.random.randn(8).astype(np.float32)
     np_result = np.tile(np_weights.dot(np_x) + np_biases, (N, 1))
 
-    weights = Tensor.from_numpy(np_weights, device).broadcast_to((N, 8, 8))
-    biases = Tensor.from_numpy(np_biases, device).broadcast_to((N, 8))
+    weights = Tensor.from_numpy(np_weights, device).broadcast_to((N, 5, 8))
+    biases = Tensor.from_numpy(np_biases, device).broadcast_to((N, 5))
     x = Tensor.from_numpy(np_x, device).broadcast_to((N, 8))
 
     return weights, biases, x, np_result
@@ -68,7 +68,7 @@ def test_interface_parameters(device_type: DeviceType):
 def test_generic_call(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
-    func = get_func(device, "matrix_vector_generic<8, 8>").return_type(Tensor)
+    func = get_func(device, "matrix_vector_generic<8, 5>").return_type(Tensor)
     weights, biases, x, np_result = get_test_tensors(device)
     y = func(weights, biases, x)
     compare_tensors(y.to_numpy(), np_result)
