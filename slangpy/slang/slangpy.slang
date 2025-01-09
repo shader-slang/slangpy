@@ -3,11 +3,16 @@ module slangpy;
 
 public struct ContextND<let N: int>
 {
-    private uint3 _thread_id;
+    // Workaround for slang bug #6039
+    public uint3 thread_id;
+    public int[N] call_id;
+    
+    /*private uint3 _thread_id;
     private int[N] _call_id;
 
     public property uint3 thread_id { get { return _thread_id; } }
-    public property int[N] call_id { get { return _call_id; } }
+    public property int[N] call_id { get { return _call_id; } }*/
+
     public property vector<int, N> call_id_vec {
         get {
             vector<int, N> result;
@@ -25,9 +30,9 @@ public struct ContextND<let N: int>
     public ContextND<M> map<let M : int>(int[M] mapping)
     {
         ContextND<M> result;
-        result._thread_id = thread_id;
+        result.thread_id = thread_id;
         for (int i = 0; i < M; ++i)
-            result._call_id[i] = call_id[mapping[i]];
+            result.call_id[i] = call_id[mapping[i]];
         return result;
     }
 }
