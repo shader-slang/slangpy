@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import helpers;
+import staticarray;
 
 // Interface for types which support atomic adds.
 // "Atomic" is used loosely in the sense that memory will be consistent
