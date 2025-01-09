@@ -2,10 +2,10 @@
 import tensor;
 
 [Differentiable]
-float[8] matrix_vector_direct(float[8][8] weights, float[8] biases, float[8] x)
+float[5] matrix_vector_direct(float weights[5][8], float biases[5], float[8] x)
 {
-    float[8] result;
-    for (int r = 0; r < 8; ++r)
+    float[5] result;
+    for (int r = 0; r < 5; ++r)
     {
         float y = biases[r];
         for (int c = 0; c < 8; ++c)
@@ -14,10 +14,10 @@ float[8] matrix_vector_direct(float[8][8] weights, float[8] biases, float[8] x)
     }
     return result;
 }
-float[8] matrix_vector_tensorized(Tensor<float, 2> weights, Tensor<float, 1> biases, float[8] x)
+float[5] matrix_vector_tensorized(Tensor<float, 2> weights, Tensor<float, 1> biases, float[8] x)
 {
-    float[8] result;
-    for (int r = 0; r < 8; ++r)
+    float[5] result;
+    for (int r = 0; r < 5; ++r)
     {
         float y = biases[r];
         for (int c = 0; c < 8; ++c)
@@ -29,10 +29,10 @@ float[8] matrix_vector_tensorized(Tensor<float, 2> weights, Tensor<float, 1> bia
 }
 
 [Differentiable]
-float[8] matrix_vector_interfaces(ITensor<float, 2> weights, ITensor<float, 1> biases, float[8] x)
+float[5] matrix_vector_interfaces(ITensor<float, 2> weights, ITensor<float, 1> biases, float[8] x)
 {
-    float[8] result;
-    for (int r = 0; r < 8; ++r)
+    float[5] result;
+    for (int r = 0; r < 5; ++r)
     {
         float y = biases.get({r}); // Workaround for slang bug #5921: Have to avoid [] operator, or derivatives vanish
         for (int c = 0; c < 8; ++c)
