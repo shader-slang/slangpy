@@ -11,13 +11,13 @@ import os
 def get_test_tensors(device: Device, N: int = 4):
     np.random.seed(0)
 
-    np_weights = np.random.randn(8, 8).astype(np.float32)
-    np_biases = np.random.randn(8).astype(np.float32)
+    np_weights = np.random.randn(5, 8).astype(np.float32)
+    np_biases = np.random.randn(5).astype(np.float32)
     np_x = np.random.randn(8).astype(np.float32)
     np_result = np.tile(np_weights.dot(np_x) + np_biases, (N, 1))
 
-    weights = Tensor.from_numpy(np_weights, device).broadcast_to((N, 8, 8))
-    biases = Tensor.from_numpy(np_biases, device).broadcast_to((N, 8))
+    weights = Tensor.from_numpy(np_weights, device).broadcast_to((N, 5, 8))
+    biases = Tensor.from_numpy(np_biases, device).broadcast_to((N, 5))
     x = Tensor.from_numpy(np_x, device).broadcast_to((N, 8))
 
     weights = weights.with_grads(None, Tensor.zeros_like(weights))
