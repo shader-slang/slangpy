@@ -3,11 +3,13 @@ import pytest
 from slangpy.backend import DeviceType, Device
 from slangpy.builtin.torch import TorchModule
 import slangpy.tests.helpers as helpers
-import numpy as np
 import hashlib
-import torch
 import os
 
+try:
+    import torch
+except ImportError:
+    pytest.skip("Pytorch not installed", allow_module_level=True)
 
 TEST_CODE = """
 import tensor;
