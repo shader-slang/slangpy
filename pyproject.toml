@@ -6,7 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "slangpy"
 authors = [
     {name = "Chris Cummings", email = "chriscummings@nvidia.com"},
-    {name = "Benedikt Bitterli", email = "bbitterli@nvidia.com"}
+    {name = "Benedikt Bitterli", email = "bbitterli@nvidia.com"},
+    {name = "Sai Bangaru", email = "sbangaru@nvidia.com"},
+    {name = "Yong He", email = "yhe@nvidia.com"}
 ]
 description = "Easily call Slang functions and integrate with PyTorch auto diff directly from Python."
 readme = "README.md"

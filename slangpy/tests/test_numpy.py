@@ -4,7 +4,6 @@ import pytest
 
 import slangpy.tests.helpers as helpers
 from slangpy.backend import DeviceType
-from slangpy.types import NDBuffer
 
 NUMPY_MODULE = r"""
 import "slangpy";

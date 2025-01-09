@@ -173,8 +173,7 @@ class NDBufferMarshall(BaseNDBufferMarshall):
         return data.uniforms()
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        et = slang_type_to_return_type(self.slang_element_type)
-        return NDBuffer(context.device, et, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        return NDBuffer(context.device, self.slang_element_type, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
@@ -308,8 +307,7 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
             return res
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        et = slang_type_to_return_type(self.slang_element_type)
-        return NDDifferentiableBuffer(context.device, et,
+        return NDDifferentiableBuffer(context.device, self.slang_element_type,
                                       shape=context.call_shape,
                                       requires_grad=True,
                                       usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)

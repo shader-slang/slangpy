@@ -1,14 +1,15 @@
 Your First Function
 ===================
 
-In this simple example we're going to initial SGL, create a simple slang function, and 
-call it from Python.
+In this example, we'll initialize SGL, create a simple Slang function, and call it from Python.
 
-First let's create a simple slang function to add 2 numbers together.
+You can find the complete code for this example `here <https://github.com/shader-slang/slangpy/tree/main/examples/first_function/>`_.
+
+First, let's define a simple Slang function to add two numbers together:
 
 .. code-block::
-    
-    ## example.slang
+
+    // example.slang
 
     // A simple function that adds two numbers together
     float add(float a, float b)
@@ -16,8 +17,7 @@ First let's create a simple slang function to add 2 numbers together.
         return a + b;
     }
 
-Now create a simple Python script that starts up SGL, loads the slang module and 
-calls the function.
+Next, we'll create a Python script to initialize SGL, load the Slang module, and call the function:
 
 .. code-block:: python
 
@@ -27,7 +27,7 @@ calls the function.
     import slangpy as spy
     import pathlib
 
-    # Create an SGL device with the slangpy+local include paths
+    # Create an SGL device with slangpy and local include paths
     device = sgl.Device(compiler_options={
         "include_paths": [
             spy.SHADER_PATH,
@@ -35,41 +35,35 @@ calls the function.
         ],
     })
 
-    # Create a simple function
+    # Load the module
     module = spy.Module.load_from_file(device, "example.slang")
 
     # Call the function and print the result
-    result = module.add(1.0,2.0)
+    result = module.add(1.0, 2.0)
     print(result)
 
     # SlangPy also supports named parameters
     result = module.add(a=1.0, b=2.0)
     print(result)
 
-Under the hood, the first time the function is invoked SlangPy will generate a compute kernel 
-(and save a copy to a .temp folder) that loads the scalar inputs from buffers, calls the 
-``add`` function and writes the scalar result back to a buffer. 
+Under the hood, the first time this function is invoked, SlangPy generates a compute kernel (and caches it in a temporary folder). This kernel handles loading scalar inputs from buffers, calling the ``add`` function, and writing the scalar result back to a buffer.
 
-This is fun, but obviously not particularly useful or efficient. Dispatching a compute kernel 
-just to add 2 numbers together is a bit overkill! However, now that we can add 2 numbers, 
-we can choose to call the function with arrays instead:
+While this is a fun demonstration, dispatching a compute kernel just to add two numbers isn't particularly efficient! However, now that we have a functioning setup, we can scale it up and call the function with arrays instead:
 
 .. code-block:: python
 
     ## main.py
 
-    #.... init here ....
+    # ... initialization here ...
 
-    # Create a couple of buffers with 1,000,000 random floats in
+    # Create a couple of buffers with 1,000,000 random floats
     a = np.random.rand(1000000)
     b = np.random.rand(1000000)
 
-    # Call our function and ask for a numpy array back (the default would be a buffer)
+    # Call our function and request a numpy array as the result (default would be a buffer)
     result = module.add(a, b, _result='numpy')
 
-    # Print the first 10
+    # Print the first 10 results
     print(result[:10])
 
-SlangPy deals with many different types, and can handle arbitrary numbers of dimensions. This example shows how a single slang 
-function can be written and called in a couple of simple ways - using scalars and numpy arrays, but SlangPy supports many other types such 
-as buffers, textures and tensors. 
+SlangPy supports a wide range of data types and can handle arrays with arbitrary dimensions. This example demonstrates how a single Slang function can be called with both scalars and NumPy arrays. Beyond this, SlangPy also supports many more types such as buffers, textures, and tensors.

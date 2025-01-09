@@ -13,7 +13,7 @@ device = sgl.Device(compiler_options={
     ],
 })
 
-# Create a simple function
+# Load module
 module = spy.Module.load_from_file(device, "example.slang")
 
 # Create a couple of buffers with 1,000,000 random floats in

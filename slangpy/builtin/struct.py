@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 from slangpy.core.native import Shape
 
@@ -12,13 +12,14 @@ from .value import ValueMarshall
 
 class StructMarshall(ValueMarshall):
 
-    def __init__(self, layout: SlangProgramLayout, fields: dict[str, Marshall]):
+    def __init__(self, layout: SlangProgramLayout, fields: dict[str, Marshall], slang_type: Optional[SlangType] = None):
         super().__init__(layout)
-        st = layout.find_type_by_name("Unknown")
-        if st is None:
-            raise ValueError(
-                f"Could not find Struct slang type. This usually indicates the slangpy module has not been imported.")
-        self.slang_type = st
+        if slang_type is None:
+            slang_type = layout.find_type_by_name("Unknown")
+            if slang_type is None:
+                raise ValueError(
+                    f"Could not find Struct slang type. This usually indicates the slangpy module has not been imported.")
+        self.slang_type = slang_type
         self.concrete_shape = Shape()
         self._fields = fields
 
@@ -49,9 +50,19 @@ class StructMarshall(ValueMarshall):
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: dict[str, Any]):
     assert isinstance(value, dict)
+    slang_type: Optional[SlangType] = None
+
+    if "_type" in value:
+        type_name = value["_type"]
+        slang_type = layout.find_type_by_name(type_name)
+        if slang_type is None:
+            raise ValueError(f"Could not find type {type_name}")
+        del value["_type"]
+
     fields = {name: tr.get_or_create_type(layout, type(val), val)
               for name, val in value.items()}
-    return StructMarshall(layout, fields)
+
+    return StructMarshall(layout, fields, slang_type)
 
 
 PYTHON_TYPES[dict] = create_vr_type_for_value

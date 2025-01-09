@@ -119,6 +119,8 @@ def specialize(
             assert python_arg is not None
             if python_arg.vector_type is not None:
                 inputs.append(python_arg.vector_type)
+            elif isinstance(python_arg.python, StructMarshall) and python_arg.python.slang_type.name != 'Unknown':
+                inputs.append(python_arg.python.slang_type)
             elif isinstance(python_arg.python, ValueMarshall) and not isinstance(python_arg.python, StructMarshall):
                 inputs.append(python_arg.python)
             elif is_generic_vector(slang_param.type):
@@ -128,7 +130,7 @@ def specialize(
                     inputs.append(sl_et)
                 else:
                     inputs.append(slang_param.type)
-            elif slang_param.type.kind != TypeReflection.Kind.none and slang_param.type.kind != TypeReflection.Kind.interface:
+            elif slang_param.type.kind != TypeReflection.Kind.none:
                 inputs.append(slang_param.type)
             else:
                 return MismatchReason(

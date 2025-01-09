@@ -59,6 +59,26 @@ int add_numbers(int a, int b) {
     assert res == 15
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_call_specialized_function(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "return_number<int>",
+        r"""
+T return_number<T: IInteger>() {
+    return T(42);
+}
+""",
+    )
+
+    assert function.name == "return_number<int>"
+
+    res = function()
+    assert res == 42
+
+
 @pytest.mark.skip("Awaiting diff-pair follow-up")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_returnvalue_with_diffpair_input(device_type: DeviceType):

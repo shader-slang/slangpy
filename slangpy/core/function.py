@@ -49,6 +49,7 @@ class Function:
         self.slangpy_signature: Optional[str] = None
         self.type_reflection: Optional['TypeReflection']
         self.reflections: list['FunctionReflection']
+        self._name: str
 
         # Static options that affect compilation, and thus the signature
         self._map_args: Optional[tuple[Any]] = None
@@ -94,8 +95,11 @@ class Function:
 
         if isinstance(func, kfr.SlangFunction):
             func_reflections = [func.reflection]
+            # Track fully specialized name where available
+            self._name = func.full_name
         else:
             func_reflections = func
+            self._name = func[0].name
 
         # Store function reflections (should normally be 1 unless forced to do AST based search)
         self.reflections = func_reflections
@@ -270,11 +274,7 @@ class Function:
         """
         Get the name of the function.
         """
-        r = self.reflections[0]
-        if r.is_overloaded:
-            return r.overloads[0].name
-        else:
-            return r.name
+        return self._name
 
     def as_func(self) -> 'Function':
         """

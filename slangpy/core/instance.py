@@ -90,7 +90,7 @@ class InstanceList:
             return None
 
 
-class InstanceListBuffer(InstanceList):
+class InstanceBuffer(InstanceList):
     """
     Simplified implementation of InstanceList that uses a single buffer for all instances and
     provides buffer convenience functions for accessing its data.
@@ -131,7 +131,7 @@ class InstanceListBuffer(InstanceList):
         self.buffer.from_numpy(data)
 
 
-class InstanceListDifferentiableBuffer(InstanceList):
+class InstanceDifferentiableBuffer(InstanceList):
     """
     Simplified implementation of InstanceList that uses a single differentiable buffer for all instances and
     provides buffer convenience functions for accessing its data.

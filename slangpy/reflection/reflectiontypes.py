@@ -594,13 +594,17 @@ class SlangFunction:
     Represents a Slang function.
     """
 
-    def __init__(self, program: SlangProgramLayout, refl: FunctionReflection, this: Optional[SlangType]):
+    def __init__(self, program: SlangProgramLayout, refl: FunctionReflection, this: Optional[SlangType], full_name: Optional[str]):
         super().__init__()
         self._this = this
         self._reflection = refl
         self._program = program
         self._cached_parameters: Optional[tuple[SlangParameter, ...]] = None
         self._cached_return_type: Optional[SlangType] = None
+
+        if full_name is None:
+            full_name = refl.name
+        self._full_name = full_name
 
     def on_hot_reload(self, refl: FunctionReflection):
         self._reflection = refl
@@ -620,6 +624,20 @@ class SlangFunction:
         Name of this function.
         """
         return self._reflection.name
+
+    @property
+    def full_name(self) -> str:
+        """
+        Fully qualified name of this function, including generic arguments (if any).
+        """
+        return self._full_name
+
+    @property
+    def full_name(self) -> str:
+        """
+        Fully qualified name of this function, including generic arguments (if any).
+        """
+        return self._full_name
 
     @property
     def this(self) -> Optional[SlangType]:
@@ -890,9 +908,9 @@ class SlangProgramLayout:
         Find slangpy reflection for a given slang FunctionReflection, optionally as a method of a type.
         """
         if this_refl is None:
-            return self._get_or_create_function(refl, None)
+            return self._get_or_create_function(refl, None, None)
         else:
-            return self._get_or_create_function(refl, self._get_or_create_type(this_refl))
+            return self._get_or_create_function(refl, self._get_or_create_type(this_refl), None)
 
     def find_type_by_name(self, name: str) -> Optional[SlangType]:
         """
@@ -928,7 +946,7 @@ class SlangProgramLayout:
         func_refl = self.program_layout.find_function_by_name(name)
         if func_refl is None:
             return None
-        res = self._get_or_create_function(func_refl, None)
+        res = self._get_or_create_function(func_refl, None, name)
         return res
 
     def require_function_by_name(self, name: str) -> SlangFunction:
@@ -955,7 +973,7 @@ class SlangProgramLayout:
         if func_refl is None:
             return None
         res = self._get_or_create_function(
-            self.program_layout.find_function_by_name_in_type(type_refl, name), self._get_or_create_type(type_refl))
+            self.program_layout.find_function_by_name_in_type(type_refl, name), self._get_or_create_type(type_refl), name)
         return res
 
     def require_function_by_name_in_type(self, type: SlangType, name: str) -> SlangFunction:
@@ -1003,11 +1021,11 @@ class SlangProgramLayout:
         self._types_by_name[res.full_name] = res
         return res
 
-    def _get_or_create_function(self, refl: FunctionReflection, this: Optional[SlangType]):
+    def _get_or_create_function(self, refl: FunctionReflection, this: Optional[SlangType], full_name: Optional[str]):
         existing = self._functions_by_reflection.get(refl)
         if existing is not None:
             return existing
-        res = self._reflect_function(refl, this)
+        res = self._reflect_function(refl, this, full_name)
         self._functions_by_reflection[refl] = res
 
         if this is not None:
@@ -1072,8 +1090,8 @@ class SlangProgramLayout:
         else:
             return ResourceType(self, refl)
 
-    def _reflect_function(self, function: FunctionReflection, this: Optional[SlangType]) -> SlangFunction:
-        return SlangFunction(self, function, this)
+    def _reflect_function(self, function: FunctionReflection, this: Optional[SlangType], full_name: Optional[str]) -> SlangFunction:
+        return SlangFunction(self, function, this, full_name)
 
     def get_resolved_generic_args(self, slang_type: TypeReflection) -> TGenericArgs:
         """ 

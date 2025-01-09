@@ -7,3 +7,4 @@ from .randfloatarg import RandFloatArg, rand_float
 from .threadidarg import ThreadIdArg, thread_id
 from .valueref import ValueRef, floatRef, intRef
 from .wanghasharg import WangHashArg, wang_hash
+from .tensor import Tensor

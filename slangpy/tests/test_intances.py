@@ -9,8 +9,8 @@ from sgl import Buffer, Device
 from slangpy.core.struct import Struct
 
 import slangpy.tests.helpers as helpers
-from slangpy import (InstanceList, InstanceListBuffer,
-                     InstanceListDifferentiableBuffer, Module)
+from slangpy import (InstanceList, InstanceBuffer,
+                     InstanceDifferentiableBuffer, Module)
 from slangpy.backend import DeviceType, float2, float3, math
 from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
 from slangpy.types.randfloatarg import RandFloatArg
@@ -228,7 +228,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create storage for particles in a simple buffer
-    particles = InstanceListBuffer(Particle, shape=(1000,))
+    particles = InstanceBuffer(Particle, shape=(1000,))
 
     # Call the slang constructor on all particles in the buffer,
     # assigning each a constant starting position and a random velocity
@@ -248,7 +248,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     # Define a 'Quad' type which is just an array of float2s, and make a buffer for them
     Quad = m['float2[4]']
     assert isinstance(Quad, Struct)
-    quads = InstanceListBuffer(Quad, particles.shape)
+    quads = InstanceBuffer(Quad, particles.shape)
 
     # Call the slang function 'get_particle_quad' which takes particles and returns quads
     m.get_particle_quad(particles, _result=quads)
@@ -278,7 +278,7 @@ def test_pass_nested_instance_to_function(device_type: DeviceType):
         'position': NDBuffer(m.device, float2, 1000),
         'velocity': float2(0, 0),
         'size': 0.5,
-        'material': InstanceListBuffer(Material, shape=(1000,))
+        'material': InstanceBuffer(Material, shape=(1000,))
     })
 
     # Call the slang constructor on all particles in the buffer,
@@ -390,7 +390,7 @@ def test_backwards_diff(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create storage for particles in a simple buffer
-    particles = InstanceListDifferentiableBuffer(Particle, shape=(1000,))
+    particles = InstanceDifferentiableBuffer(Particle, shape=(1000,))
 
     # Call the slang constructor on all particles in the buffer,
     # assigning each a constant starting position and a random velocity

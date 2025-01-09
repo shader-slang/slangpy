@@ -67,6 +67,22 @@ def test_basic_function_decl(device_type: DeviceType):
     assert res.parameters[1].type == layout.scalar_type(TypeReflection.ScalarType.float32)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_generic_specialization(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(device, "foo_generic<float>", MODULE)
+    assert function is not None
+
+    layout = function.module.layout
+
+    res = layout.find_function_by_name("foo_generic<float>")
+    assert res is not None
+    assert res.name == "foo_generic"
+    assert res.full_name == "foo_generic<float>"
+    assert res.parameters[0].name == "a"
+    assert res.parameters[0].type == layout.scalar_type(TypeReflection.ScalarType.float32)
+
+
 def check_texture(type: r.SlangType, resource_shape: TypeReflection.ResourceShape, resource_access: TypeReflection.ResourceAccess, num_dims: int, element_type: str):
     assert isinstance(type, r.TextureType)
     assert type.resource_shape == resource_shape
