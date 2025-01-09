@@ -130,7 +130,7 @@ def specialize(
                     inputs.append(sl_et)
                 else:
                     inputs.append(slang_param.type)
-            elif slang_param.type.kind != TypeReflection.Kind.none and slang_param.type.kind != TypeReflection.Kind.interface:
+            elif slang_param.type.kind != TypeReflection.Kind.none:
                 inputs.append(slang_param.type)
             else:
                 return MismatchReason(
