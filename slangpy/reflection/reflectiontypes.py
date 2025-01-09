@@ -624,7 +624,7 @@ class SlangFunction:
         Name of this function.
         """
         return self._reflection.name
-    
+
     @property
     def full_name(self) -> str:
         """
