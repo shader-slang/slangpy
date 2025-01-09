@@ -624,6 +624,13 @@ class SlangFunction:
         Name of this function.
         """
         return self._reflection.name
+    
+    @property
+    def full_name(self) -> str:
+        """
+        Fully qualified name of this function, including generic arguments (if any).
+        """
+        return self._full_name
 
     @property
     def full_name(self) -> str:
