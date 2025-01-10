@@ -27,6 +27,8 @@
     - Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
     - |
       & $CONDA_PATH\shell\condabin\conda-hook.ps1
+    - $condaEnvExists = conda env list | Select-String -Pattern "^\s*$CONDA_ENV\s"
+    - if (-not $condaEnvExists) { conda create -n $CONDA_ENV -y python=3.10 }
     - conda activate $CONDA_ENV
 
     # Run CI script
@@ -50,6 +52,13 @@
   script:
     # Setup conda environment
     - source ${CONDA_PATH}/bin/activate
+    - if conda env list | grep -q "^${CONDA_ENV}\s"; then
+        echo "Conda environment '${CONDA_ENV}' already exists.";
+      else
+        echo "Conda environment '${CONDA_ENV}' does not exist. Creating it...";
+        conda create --name ${CONDA_ENV} python=3.10 -y;
+        echo "Conda environment '${CONDA_ENV}' created successfully.";
+      fi
     - conda activate ${CONDA_ENV}
     # Run CI script
     - python -u .build_agent/ci.py dependencies
