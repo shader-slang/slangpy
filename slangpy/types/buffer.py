@@ -219,8 +219,10 @@ class NDBuffer:
         }
 
 
-class NDDifferentiableBuffer(NDBuffer):
+class DeprecatedNDDifferentiableBuffer(NDBuffer):
     """
+    Deprecated: Use slangpy.Tensor instead.
+
     An N dimensional buffer of a given slang type, with optional additional buffer of gradients. 
     The supplied type can come from a SlangType (via reflection), a struct read from a Module, 
     or simply a name. If unspecified, the type of the gradient is assumed to match that of the 
@@ -264,7 +266,7 @@ class NDDifferentiableBuffer(NDBuffer):
 
         if self.requires_grad:
             #: Gradient buffer.
-            self.grad = NDDifferentiableBuffer(
+            self.grad = DeprecatedNDDifferentiableBuffer(
                 device=device,
                 element_type=grad_type,
                 element_count=element_count,

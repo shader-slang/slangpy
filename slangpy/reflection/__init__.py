@@ -17,6 +17,7 @@ from .reflectiontypes import (
     ByteAddressBufferType,
     DifferentialPairType,
     RaytracingAccelerationStructureType,
+    SamplerStateType,
     UnhandledType,
     SlangFunction,
     SlangField,

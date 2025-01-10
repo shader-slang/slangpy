@@ -13,7 +13,7 @@ from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.struct import StructMarshall
 from slangpy.builtin.value import NoneMarshall, ValueMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
-from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
+from slangpy.types.buffer import NDBuffer, DeprecatedNDDifferentiableBuffer
 from slangpy.types.valueref import ValueRef
 
 if TYPE_CHECKING:
@@ -118,11 +118,8 @@ def specialize(
             slang_param = function_parameters[i]
             assert python_arg is not None
             if python_arg.vector_type is not None:
+                # Always take explicit vector types if provided
                 inputs.append(python_arg.vector_type)
-            elif isinstance(python_arg.python, StructMarshall) and python_arg.python.slang_type.name != 'Unknown':
-                inputs.append(python_arg.python.slang_type)
-            elif isinstance(python_arg.python, ValueMarshall) and not isinstance(python_arg.python, StructMarshall):
-                inputs.append(python_arg.python)
             elif is_generic_vector(slang_param.type):
                 # HACK! Let types with a 'slang_element_type' try to resolve generic vector types
                 sl_et = getattr(python_arg.python, 'slang_element_type', None)
@@ -131,7 +128,14 @@ def specialize(
                 else:
                     inputs.append(slang_param.type)
             elif slang_param.type.kind != TypeReflection.Kind.none:
+                # If the type is fully resolved, use it
                 inputs.append(slang_param.type)
+            elif isinstance(python_arg.python, ValueMarshall) and not isinstance(python_arg.python, StructMarshall):
+                # If passing basic type to generic, resolve from its python type
+                inputs.append(python_arg.python)
+            elif isinstance(python_arg.python, StructMarshall) and python_arg.python.slang_type.name != 'Unknown':
+                # If passing struct to generic, resolve from its slang type
+                inputs.append(python_arg.python.slang_type)
             else:
                 return MismatchReason(
                     f"Parameter {i} is a generic or interface, so must either be passed a value type or have an explicit vector type.")
@@ -308,7 +312,7 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
         if context.call_dimensionality == 0:
             return_type = ValueRef
         elif node.vector_type.differentiable:
-            return_type = NDDifferentiableBuffer
+            return_type = DeprecatedNDDifferentiableBuffer
         else:
             return_type = NDBuffer
 

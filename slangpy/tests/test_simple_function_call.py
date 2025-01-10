@@ -7,7 +7,7 @@ from sgl import float3
 
 import slangpy.tests.helpers as helpers
 from slangpy.backend import Device, DeviceType
-from slangpy.types import NDBuffer, NDDifferentiableBuffer
+from slangpy.types import NDBuffer, DeprecatedNDDifferentiableBuffer
 from slangpy.types.diffpair import diffPair, floatDiffPair
 from slangpy.types.valueref import intRef
 
@@ -391,7 +391,7 @@ float add_numbers(NDBuffer<float,1> a, NDBuffer<float,1> b) {
 """,
     )
 
-    a = NDDifferentiableBuffer(
+    a = DeprecatedNDDifferentiableBuffer(
         element_count=1,
         device=device,
         element_type=float,
@@ -399,7 +399,7 @@ float add_numbers(NDBuffer<float,1> a, NDBuffer<float,1> b) {
     )
     a.buffer.from_numpy(np.random.rand(a.element_count).astype('f'))
 
-    b = NDDifferentiableBuffer(
+    b = DeprecatedNDDifferentiableBuffer(
         element_count=1,
         device=device,
         element_type=float,

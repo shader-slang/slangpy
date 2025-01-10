@@ -576,6 +576,15 @@ class RaytracingAccelerationStructureType(SlangType):
         super().__init__(program, refl, local_shape=Shape())
 
 
+class SamplerStateType(SlangType):
+    """
+    Represents a sampler type.
+    """
+
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        super().__init__(program, refl, local_shape=Shape())
+
+
 class UnhandledType(SlangType):
     """
     Represents an unhandled type.
@@ -1045,6 +1054,8 @@ class SlangProgramLayout:
             return self._reflect_array(refl)
         elif refl.kind == TR.Kind.resource:
             return self._reflect_resource(refl)
+        elif refl.kind == TR.Kind.sampler_state:
+            return SamplerStateType(self, refl)
 
         # It's not any of the fundamental types. Check if a custom handler was defined,
         # giving precedence to handlers that match the fully specialized name

@@ -12,7 +12,7 @@ import slangpy.tests.helpers as helpers
 from slangpy import (InstanceList, InstanceBuffer,
                      InstanceDifferentiableBuffer, Module)
 from slangpy.backend import DeviceType, float2, float3, math
-from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
+from slangpy.types.buffer import NDBuffer, DeprecatedNDDifferentiableBuffer
 from slangpy.types.randfloatarg import RandFloatArg
 from slangpy.types.valueref import ValueRef, floatRef
 
@@ -342,8 +342,8 @@ def test_custom_instance_list(device_type: DeviceType):
 class ExtendedInstanceList(InstanceList):
     def __init__(self, struct: Struct):
         super().__init__(struct)
-        self.position = NDDifferentiableBuffer(struct.device, float2, 1000)
-        self.velocity = NDDifferentiableBuffer(struct.device, float2, 1000)
+        self.position = DeprecatedNDDifferentiableBuffer(struct.device, float2, 1000)
+        self.velocity = DeprecatedNDDifferentiableBuffer(struct.device, float2, 1000)
         self.size = 0.5
         self.material = {
             'color': float3(1, 1, 1),
@@ -404,11 +404,11 @@ def test_backwards_diff(device_type: DeviceType):
     next_positions.grad_from_numpy(np.ones((1000, 2), dtype=np.float32))
 
     # Make a buffer of 1000 identical dts, so we can get back the unique grads for each one
-    dts = NDDifferentiableBuffer(m.device, float, 1000, requires_grad=True)
+    dts = DeprecatedNDDifferentiableBuffer(m.device, float, 1000, requires_grad=True)
     dts.primal_from_numpy(np.full((1000,), 1.0/60.0, dtype=np.float32))
 
     # Backwards pass
-    particles.calc_next_position.bwds_diff(dt=dts, _result=next_positions)
+    particles.calc_next_position.bwds(dt=dts, _result=next_positions)
 
     # Read back all primals and gradients we ended up with into numpy arrays
     particle_primals = particles.primal_to_numpy().view(dtype=np.float32).reshape(-1, 11)

@@ -80,6 +80,17 @@ public struct ValueType<T>
     public void store(Context0D context, in T value) {};
 }
 
+public struct VectorValueType<T,let N: int>
+{
+    vector<T,N> value;
+
+    public void load(Context0D context, out vector<T,N> value) { value = this.value; }
+    public void store(Context0D context, in vector<T,N> value) {};
+
+    public void load(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
+    public void store(Context1D context, in T value) {};
+}
+
 public struct RangeType
 {
     int start;
@@ -225,6 +236,12 @@ public struct RaytracingAccelerationStructureType
     public void store(Context0D context, in RaytracingAccelerationStructure value) {};
 }
 
+public struct SamplerStateType
+{
+    public SamplerState value;
+    public void load(Context0D context, out SamplerState value) { value = this.value; }
+    public void store(Context0D context, in SamplerState value) {};
+}
 
 public struct ValueRef<T>
 {

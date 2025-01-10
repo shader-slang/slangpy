@@ -58,7 +58,7 @@ def test_differentiable_interface_parameters(device_type: DeviceType):
     y.grad_in.storage.from_numpy(np.random.rand(
         *y.shape, *y.dtype.shape.as_tuple()).astype(np.float32))
 
-    func.bwds_diff(weights, biases, x, y)
+    func.bwds(weights, biases, x, y)
 
     weight_grad_ref = y.grad_in.to_numpy()[..., np.newaxis] * x.to_numpy()[..., np.newaxis, :]
     bias_grad_ref = y.grad_in.to_numpy()

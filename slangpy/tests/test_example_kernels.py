@@ -11,7 +11,7 @@ from slangpy.tests import helpers
 from slangpy.tests.test_differential_function_call import (
     python_eval_polynomial, python_eval_polynomial_a_deriv,
     python_eval_polynomial_b_deriv)
-from slangpy.types import NDDifferentiableBuffer
+from slangpy.types import DeprecatedNDDifferentiableBuffer
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 
@@ -68,7 +68,7 @@ void user_func(float a, float b, out float c) {
     backwards_kernel = device.create_compute_kernel(backwards_program)
 
     # Create input buffer 0 with random numbers and an empty gradient buffer (ignored).
-    in_buffer_0 = kf.types.NDDifferentiableBuffer(
+    in_buffer_0 = kf.types.DeprecatedNDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_0.buffer.from_numpy(rand_array_of_floats(in_buffer_0.element_count))
@@ -76,7 +76,7 @@ void user_func(float a, float b, out float c) {
         np.zeros(in_buffer_0.element_count, dtype=np.float32))
 
     # Same with input buffer 1.
-    in_buffer_1 = kf.types.NDDifferentiableBuffer(
+    in_buffer_1 = kf.types.DeprecatedNDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     in_buffer_1.buffer.from_numpy(rand_array_of_floats(in_buffer_1.element_count))
@@ -85,7 +85,7 @@ void user_func(float a, float b, out float c) {
 
     # Create empty output buffer with gradients initialized to 1 (as there is 1-1 correspondence between
     # output of user function and output of kernel)
-    out_buffer = kf.types.NDDifferentiableBuffer(
+    out_buffer = kf.types.DeprecatedNDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
     out_buffer.buffer.from_numpy(np.zeros(out_buffer.element_count, dtype=np.float32))
@@ -149,7 +149,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         str(Path(__file__).parent / "generated_tests/polynomial_soa_backwards.slang"), ["main"])
     kernel_eval_polynomial_backwards = device.create_compute_kernel(bwds_program)
 
-    a_x = NDDifferentiableBuffer(
+    a_x = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float1,
@@ -157,7 +157,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     )
     a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_y = NDDifferentiableBuffer(
+    a_y = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float1,
@@ -165,7 +165,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     )
     a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_z = NDDifferentiableBuffer(
+    a_z = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float1,
@@ -173,7 +173,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     )
     a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    b = NDDifferentiableBuffer(
+    b = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float3,
@@ -181,7 +181,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    res = NDDifferentiableBuffer(
+    res = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float3,
@@ -257,7 +257,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
         str(Path(__file__).parent / "nested_types.slang"), ["main"])
     kernel_eval_polynomial = device.create_compute_kernel(prim_program)
 
-    a_x = NDDifferentiableBuffer(
+    a_x = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float1,
@@ -265,7 +265,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
     )
     a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_y = NDDifferentiableBuffer(
+    a_y = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float1,
@@ -273,7 +273,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
     )
     a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_z = NDDifferentiableBuffer(
+    a_z = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float1,
@@ -281,7 +281,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
     )
     a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    b = NDDifferentiableBuffer(
+    b = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float3,
@@ -289,7 +289,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    res = NDDifferentiableBuffer(
+    res = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float3,
@@ -334,7 +334,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
         str(Path(__file__).parent / "nested_types_generics.slang"), ["main"])
     kernel_eval_polynomial = device.create_compute_kernel(prim_program)
 
-    a_x = NDDifferentiableBuffer(
+    a_x = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float1,
@@ -342,7 +342,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
     )
     a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_y = NDDifferentiableBuffer(
+    a_y = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float1,
@@ -350,7 +350,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
     )
     a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_z = NDDifferentiableBuffer(
+    a_z = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float1,
@@ -358,7 +358,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
     )
     a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    b = NDDifferentiableBuffer(
+    b = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float3,
@@ -366,7 +366,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    res = NDDifferentiableBuffer(
+    res = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float3,

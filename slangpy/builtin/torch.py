@@ -90,9 +90,9 @@ class TorchModule(Module):
 
         if isinstance(result, Function):
             result = result \
-                .hook(before_call=_TORCH_STATE.before_call, after_call=_TORCH_STATE.after_call,
-                      before_dispatch=_TORCH_STATE.before_dispatch, after_dispatch=_TORCH_STATE.after_dispatch,
-                      before_write_call_data=_TORCH_STATE.before_write_calldata, after_read_call_data=_TORCH_STATE.after_read_calldata) \
+                ._internal_hook(before_call=_TORCH_STATE.before_call, after_call=_TORCH_STATE.after_call,
+                                before_dispatch=_TORCH_STATE.before_dispatch, after_dispatch=_TORCH_STATE.after_dispatch,
+                                before_write_call_data=_TORCH_STATE.before_write_calldata, after_read_call_data=_TORCH_STATE.after_read_calldata) \
                 .return_type(torch.Tensor)
 
         return result
@@ -404,7 +404,7 @@ if torch is not None:
             assert all(t is not None or not needs_grad for t,
                        needs_grad in zip(input_grads, needs_input_grad))
 
-            slangpy_func.bwds_diff(*filtered_args, **filtered_kwargs)
+            slangpy_func.bwds(*filtered_args, **filtered_kwargs)
 
             result: list[Optional[torch.Tensor]] = [None] * tensor_offset
             for t, needs_grad in zip(input_grads, needs_input_grad):

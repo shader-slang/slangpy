@@ -192,7 +192,7 @@ def test_hook(device_type: DeviceType):
         assert args['params']['k'] == 10
         hooks_called += 1
 
-    func = func.hook(before_dispatch=before_call, after_dispatch=after_call)
+    func = func._internal_hook(before_dispatch=before_call, after_dispatch=after_call)
 
     func.dispatch(uint3(32, 1, 1), buffer=buffer)
 

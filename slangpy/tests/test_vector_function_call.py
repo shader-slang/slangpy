@@ -5,7 +5,7 @@ import pytest
 import slangpy.tests.helpers as helpers
 from slangpy.backend import DeviceType, float2
 from slangpy.types import NDBuffer
-from slangpy.types.buffer import NDDifferentiableBuffer
+from slangpy.types.buffer import DeprecatedNDDifferentiableBuffer
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -136,7 +136,7 @@ void add_numbers_diffpair(float2 a, float2 b, out float2 res) {
     )
 
     a_data = np.random.rand(100, 2).astype(np.float32)
-    a = NDDifferentiableBuffer(device=device, shape=(100, 2), element_type=float)
+    a = DeprecatedNDDifferentiableBuffer(device=device, shape=(100, 2), element_type=float)
     a.buffer.from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)

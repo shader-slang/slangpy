@@ -5,7 +5,7 @@ import pytest
 import slangpy.tests.helpers as helpers
 from slangpy import Module
 from slangpy.backend import DeviceType, float3
-from slangpy.types.buffer import NDDifferentiableBuffer
+from slangpy.types.buffer import DeprecatedNDDifferentiableBuffer
 
 
 def load_test_module(device_type: DeviceType):
@@ -22,9 +22,9 @@ def test_command_buffer(device_type: DeviceType):
 
     command_buffer = m.device.create_command_buffer()
 
-    a = NDDifferentiableBuffer(m.device, float3, 10, requires_grad=True)
-    b = NDDifferentiableBuffer(m.device, float3, 10, requires_grad=True)
-    res = NDDifferentiableBuffer(m.device, float3, 10, requires_grad=True)
+    a = DeprecatedNDDifferentiableBuffer(m.device, float3, 10, requires_grad=True)
+    b = DeprecatedNDDifferentiableBuffer(m.device, float3, 10, requires_grad=True)
+    res = DeprecatedNDDifferentiableBuffer(m.device, float3, 10, requires_grad=True)
 
     a_data = np.random.rand(10, 3).astype(np.float32)
     b_data = np.random.rand(10, 3).astype(np.float32)
@@ -36,7 +36,7 @@ def test_command_buffer(device_type: DeviceType):
     res.grad_from_numpy(np.ones_like(res_data))
 
     polynomial.append_to(command_buffer, a, b, _result=res)
-    polynomial.bwds_diff.append_to(command_buffer, a, b, _result=res)
+    polynomial.bwds.append_to(command_buffer, a, b, _result=res)
 
     command_buffer.submit()
 

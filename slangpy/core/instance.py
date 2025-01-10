@@ -6,7 +6,7 @@ import numpy.typing as npt
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
-from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
+from slangpy.types.buffer import NDBuffer, DeprecatedNDDifferentiableBuffer
 
 
 class InstanceList:
@@ -137,10 +137,10 @@ class InstanceDifferentiableBuffer(InstanceList):
     provides buffer convenience functions for accessing its data.
     """
 
-    def __init__(self, struct: Struct, shape: tuple[int, ...], data: Optional[NDDifferentiableBuffer] = None):
+    def __init__(self, struct: Struct, shape: tuple[int, ...], data: Optional[DeprecatedNDDifferentiableBuffer] = None):
         if data is None:
-            data = NDDifferentiableBuffer(struct.device_module.session.device,
-                                          element_type=struct, shape=shape, requires_grad=True)
+            data = DeprecatedNDDifferentiableBuffer(struct.device_module.session.device,
+                                                    element_type=struct, shape=shape, requires_grad=True)
         super().__init__(struct, data)
         if data is None:
             data = {}
