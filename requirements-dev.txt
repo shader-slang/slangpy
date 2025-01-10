@@ -1,6 +1,6 @@
 typing_extensions
 numpy
-nv-sgl >= 0.4.0
+nv-sgl >= 0.5.0
 
 pre-commit
 pytest

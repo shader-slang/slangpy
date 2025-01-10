@@ -218,10 +218,11 @@ class Function:
             res._type_conformances.extend(type_conformances)
         return res
 
-    def hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None,
-             before_write_call_data: Optional['TCallDataHook'] = None, after_read_call_data: Optional['TCallDataHook'] = None,
-             before_call: Optional[TCallHook] = None, after_call: Optional[TCallHook] = None):
+    def _internal_hook(self, before_dispatch: Optional[TDispatchHook] = None, after_dispatch: Optional[TDispatchHook] = None,
+                       before_write_call_data: Optional['TCallDataHook'] = None, after_read_call_data: Optional['TCallDataHook'] = None,
+                       before_call: Optional[TCallHook] = None, after_call: Optional[TCallHook] = None):
         """
+        EXPERIMENTAL - May be removed.
         Attach hooks to the function that kick in whenever the function is called at different points
         in the dispatch process.
         """
@@ -238,7 +239,7 @@ class Function:
         return res
 
     @property
-    def bwds_diff(self):
+    def bwds(self):
         """
         Return a new function object that represents the backwards deriviative of the current function.
         """

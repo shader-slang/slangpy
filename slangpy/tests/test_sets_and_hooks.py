@@ -133,10 +133,10 @@ def test_hook(device_type: DeviceType):
         assert hooks_called == 5
         hooks_called += 1
 
-    add_k = add_k.hook(before_dispatch=before_dispatch, after_dispatch=after_dispatch,
-                       before_write_call_data=before_write_call_data,
-                       after_read_call_data=after_read_call_data,
-                       before_call=before_call, after_call=after_call)
+    add_k = add_k._internal_hook(before_dispatch=before_dispatch, after_dispatch=after_dispatch,
+                                 before_write_call_data=before_write_call_data,
+                                 after_read_call_data=after_read_call_data,
+                                 before_call=before_call, after_call=after_call)
 
     res = add_k(val)
 

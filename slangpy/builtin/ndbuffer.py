@@ -8,10 +8,9 @@ from slangpy.backend import ResourceUsage
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext)
-from slangpy.builtin.value import slang_type_to_return_type
 from slangpy.reflection import (TYPE_OVERRIDES, SlangProgramLayout, SlangType,
                                 is_matching_array_type)
-from slangpy.types import NDBuffer, NDDifferentiableBuffer
+from slangpy.types import NDBuffer, DeprecatedNDDifferentiableBuffer
 
 
 class StopDebuggerException(Exception):
@@ -175,7 +174,7 @@ class NDBufferMarshall(BaseNDBufferMarshall):
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         return NDBuffer(context.device, self.slang_element_type, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
-    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: DeprecatedNDDifferentiableBuffer) -> Any:
         return data
 
 
@@ -280,7 +279,7 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
             cgb.append_code_indented(generate_differential_buffer(name, slang_context, primal_storage,
                                                                   deriv_storage, primal_target, deriv_target))
 
-    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: NDDifferentiableBuffer) -> Any:
+    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: DeprecatedNDDifferentiableBuffer) -> Any:
         if isinstance(binding.vector_type, NDBufferType):
             return {
                 'buffer': data.buffer,
@@ -307,20 +306,20 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
             return res
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return NDDifferentiableBuffer(context.device, self.slang_element_type,
-                                      shape=context.call_shape,
-                                      requires_grad=True,
-                                      usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        return DeprecatedNDDifferentiableBuffer(context.device, self.slang_element_type,
+                                                shape=context.call_shape,
+                                                requires_grad=True,
+                                                usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
 
-    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: DeprecatedNDDifferentiableBuffer) -> Any:
         return data
 
-    def create_dispatchdata(self, data: NDDifferentiableBuffer) -> Any:
+    def create_dispatchdata(self, data: DeprecatedNDDifferentiableBuffer) -> Any:
         return data.uniforms()
 
 
 def create_gradvr_type_for_value(layout: SlangProgramLayout, value: Any):
-    if isinstance(value, NDDifferentiableBuffer):
+    if isinstance(value, DeprecatedNDDifferentiableBuffer):
         return NDDifferentiableBufferMarshall(layout, value.element_type,
                                               len(value.shape),
                                               (value.usage & ResourceUsage.unordered_access) != 0)
@@ -333,4 +332,4 @@ def create_gradvr_type_for_value(layout: SlangProgramLayout, value: Any):
             f"Unexpected type {type(value)} attempting to create NDDifferentiableBuffer marshall")
 
 
-PYTHON_TYPES[NDDifferentiableBuffer] = create_gradvr_type_for_value
+PYTHON_TYPES[DeprecatedNDDifferentiableBuffer] = create_gradvr_type_for_value

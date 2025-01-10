@@ -107,6 +107,13 @@ class Module:
         """
         return self.session.device
 
+    def torch(self):
+        """
+        Returns a pytorch wrapper around this module
+        """
+        import slangpy.builtin.torch as spytorch
+        return spytorch.TorchModule(self)
+
     def find_struct(self, name: str):
         """
         Find a struct by name, return None if not found.

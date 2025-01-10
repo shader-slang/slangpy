@@ -4,7 +4,7 @@ import pytest
 
 import slangpy.tests.helpers as helpers
 from slangpy.backend import DeviceType, float3
-from slangpy.types import NDDifferentiableBuffer, diffPair
+from slangpy.types import DeprecatedNDDifferentiableBuffer, diffPair
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 
@@ -62,7 +62,7 @@ def test_call_none_differentiable(device_type: DeviceType):
     assert res == python_eval_polynomial(a, b)
 
     with pytest.raises(ValueError, match="Could not call function 'polynomial': Function is not differentiable"):
-        function.bwds_diff(a, b, res)
+        function.bwds(a, b, res)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -78,7 +78,7 @@ def test_call_with_none_diff_scalars(device_type: DeviceType):
     res = function(a, b)
     assert res == python_eval_polynomial(a, b)
 
-    function.bwds_diff(a, b, res)
+    function.bwds(a, b, res)
 
 
 @pytest.mark.skip("Awaiting auto-diff changes")
@@ -99,18 +99,18 @@ def test_call_with_diff_scalars(device_type: DeviceType):
     res_diff = diffPair(d=1.0)
 
     a_diff = diffPair(p=a)
-    kernel_eval_polynomial.bwds_diff(a_diff, b, res_diff)
+    kernel_eval_polynomial.bwds(a_diff, b, res_diff)
     exprected_grad = python_eval_polynomial_a_deriv(a, b)
     assert a_diff.grad == exprected_grad
 
     b_diff = diffPair(p=b)
-    kernel_eval_polynomial.bwds_diff(a, b_diff, res_diff)
+    kernel_eval_polynomial.bwds(a, b_diff, res_diff)
     exprected_grad = python_eval_polynomial_b_deriv(a, b)
     assert b_diff.grad == exprected_grad
 
     a_diff = diffPair(p=a)
     b_diff = diffPair(p=b)
-    kernel_eval_polynomial.bwds_diff(a_diff, b_diff, res_diff)
+    kernel_eval_polynomial.bwds(a_diff, b_diff, res_diff)
     exprected_grad = python_eval_polynomial_a_deriv(a, b)
     assert a_diff.grad == exprected_grad
     exprected_grad = python_eval_polynomial_b_deriv(a, b)
@@ -132,7 +132,7 @@ def test_call_with_diff_pairs(device_type: DeviceType):
     expected = python_eval_polynomial(a.primal, b.primal)
     assert res == expected
 
-    kernel_eval_polynomial.bwds_diff(a, b, diffPair(d=1.0))
+    kernel_eval_polynomial.bwds(a, b, diffPair(d=1.0))
     exprected_grad = python_eval_polynomial_a_deriv(a.primal, b.primal)
     assert a.grad == exprected_grad
     exprected_grad = python_eval_polynomial_b_deriv(a.primal, b.primal)
@@ -147,7 +147,7 @@ def test_call_with_buffers(device_type: DeviceType):
         device, "polynomial", POLYNOMIAL_WITH_RETURN_VALUE_DOT_SLANG
     )
 
-    a = NDDifferentiableBuffer(
+    a = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float,
@@ -155,7 +155,7 @@ def test_call_with_buffers(device_type: DeviceType):
     )
     a.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    b = NDDifferentiableBuffer(
+    b = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float,
@@ -163,7 +163,7 @@ def test_call_with_buffers(device_type: DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    res: NDDifferentiableBuffer = kernel_eval_polynomial(a, b)
+    res: DeprecatedNDDifferentiableBuffer = kernel_eval_polynomial(a, b)
 
     a_data = a.buffer.to_numpy().view(np.float32)
     b_data = b.buffer.to_numpy().view(np.float32)
@@ -174,7 +174,7 @@ def test_call_with_buffers(device_type: DeviceType):
 
     res.grad.buffer.from_numpy(np.ones(res.shape.as_tuple(), dtype=np.float32))
 
-    kernel_eval_polynomial.bwds_diff(a, b, res)
+    kernel_eval_polynomial.bwds(a, b, res)
     a_grad_data = a.grad.buffer.to_numpy().view(np.float32)
     b_grad_data = b.grad.buffer.to_numpy().view(np.float32)
 
@@ -193,7 +193,7 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
         device, "polynomial", POLYNOMIAL_V3
     )
 
-    a = NDDifferentiableBuffer(
+    a = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float3,
@@ -201,7 +201,7 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
     )
     a.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    b = NDDifferentiableBuffer(
+    b = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float3,
@@ -209,7 +209,7 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    res: NDDifferentiableBuffer = kernel_eval_polynomial(a, b)
+    res: DeprecatedNDDifferentiableBuffer = kernel_eval_polynomial(a, b)
 
     a_data = a.buffer.to_numpy().view(np.float32).reshape(-1, 3)
     b_data = b.buffer.to_numpy().view(np.float32).reshape(-1, 3)
@@ -220,7 +220,7 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
 
     res.grad.buffer.from_numpy(np.ones(32*3, dtype=np.float32))
 
-    kernel_eval_polynomial.bwds_diff(a, b, res)
+    kernel_eval_polynomial.bwds(a, b, res)
     a_grad_data = a.grad.buffer.to_numpy().view(np.float32).reshape(-1, 3)
     b_grad_data = b.grad.buffer.to_numpy().view(np.float32).reshape(-1, 3)
 
@@ -239,7 +239,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         device, "polynomial", POLYNOMIAL_V3
     )
 
-    a_x = NDDifferentiableBuffer(
+    a_x = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float,
@@ -247,7 +247,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     )
     a_x.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_y = NDDifferentiableBuffer(
+    a_y = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float,
@@ -255,7 +255,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     )
     a_y.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    a_z = NDDifferentiableBuffer(
+    a_z = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float,
@@ -263,7 +263,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     )
     a_z.buffer.from_numpy(np.random.rand(32).astype(np.float32))
 
-    b = NDDifferentiableBuffer(
+    b = DeprecatedNDDifferentiableBuffer(
         element_count=32,
         device=device,
         element_type=float3,
@@ -271,7 +271,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     )
     b.buffer.from_numpy(np.random.rand(32*3).astype(np.float32))
 
-    res: NDDifferentiableBuffer = kernel_eval_polynomial({
+    res: DeprecatedNDDifferentiableBuffer = kernel_eval_polynomial({
         'x': a_x,
         'y': a_y,
         'z': a_z
@@ -289,7 +289,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
     res.grad.buffer.from_numpy(np.ones(32*3, dtype=np.float32))
 
-    kernel_eval_polynomial.bwds_diff({
+    kernel_eval_polynomial.bwds({
         'x': a_x,
         'y': a_y,
         'z': a_z

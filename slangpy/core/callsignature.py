@@ -13,7 +13,7 @@ from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.struct import StructMarshall
 from slangpy.builtin.value import NoneMarshall, ValueMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
-from slangpy.types.buffer import NDBuffer, NDDifferentiableBuffer
+from slangpy.types.buffer import NDBuffer, DeprecatedNDDifferentiableBuffer
 from slangpy.types.valueref import ValueRef
 
 if TYPE_CHECKING:
@@ -308,7 +308,7 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
         if context.call_dimensionality == 0:
             return_type = ValueRef
         elif node.vector_type.differentiable:
-            return_type = NDDifferentiableBuffer
+            return_type = DeprecatedNDDifferentiableBuffer
         else:
             return_type = NDBuffer
 
