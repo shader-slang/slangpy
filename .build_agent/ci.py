@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import os
@@ -101,6 +102,17 @@ def cleanup(args: argparse.Namespace):
         print(e)
 
 
+def build(args: argparse.Namespace):
+    try:
+        if os.path.exists("./dist"):
+            shutil.rmtree("./dist", ignore_errors=True)
+        run_command("pip install build")
+        run_command("python -m build")
+    except Exception as e:
+        print(f"WARNING: Cleanup failed with exception:")
+        print(e)
+
+
 def main():
 
     # Command line parsing
@@ -120,6 +132,7 @@ def main():
     commands.add_parser("install", help="install local slangpy")
     commands.add_parser("cleanup", help="cleanup dependencies")
     commands.add_parser("precommit", help="run precommit hooks")
+    commands.add_parser("build", help="build wheels to ./dist")
 
     test_parser = commands.add_parser("test", help="run unit tests")
     test_parser.add_argument("--emulated", action="store_true",
@@ -158,7 +171,8 @@ def main():
         "dependencies": dependencies,
         "install": install,
         "test": test,
-        "cleanup": cleanup
+        "cleanup": cleanup,
+        "build": build
     }
     commands[args.command](args)
     return 0

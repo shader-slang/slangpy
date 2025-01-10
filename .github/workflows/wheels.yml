@@ -1,0 +1,62 @@
+name: wheels
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'Upload wheels to PyPI? (0: no, 1: yes)'
+        required: true
+        default: '0'
+
+permissions:
+  contents: read
+  checks: write
+  id-token: write
+
+jobs:
+  wheels:
+    name: Build wheels
+    runs-on: ubuntu-latest
+  
+    env:
+      CI_PYTHON: "3.10"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+
+      - name: Build
+        run: python .build_agent/ci.py build
+
+      - name: Copy wheels to artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-package-distributions
+          path: ./dist/
+
+  upload_pypi:
+    name: Upload wheels to PyPI
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.upload == '1'}}
+    needs: [wheels]
+    environment: pypi
+  
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: wheels
+          path: dist
+  
+      - uses: pypa/gh-action-pypi-publish@v1.5.1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_TOKEN }}
+        
