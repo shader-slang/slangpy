@@ -67,8 +67,7 @@ windows:
     - .default-rules
     - .windows-base
 
-#linux:
-#  extends:
-#    - .default-rules
-#    - .linux-base
-#    - .unit-test
+linux:
+ extends:
+    - .default-rules
+    - .linux-base
