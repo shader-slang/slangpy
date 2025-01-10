@@ -14,7 +14,6 @@ authors = [
 description = "Easily call Slang functions and integrate with PyTorch auto diff directly from Python."
 readme = "README.md"
 requires-python = ">=3.9"
-dynamic = ["version"]
 dependencies = [
   "typing_extensions",
   "numpy",
