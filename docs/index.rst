@@ -18,7 +18,7 @@ By bringing these 2 technologies together with a simple and flexible Python libr
 
 .. toctree::
    :hidden:
-   :maxdepth: 1
+   :maxdepth: 0
    
    changelog
 
