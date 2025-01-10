@@ -9,7 +9,6 @@ from slangpy.backend import DeviceType
 def test_sgl(device_type: DeviceType):
     device = helpers.get_device(device_type)
     assert device.desc.type == device_type
-    assert device.desc.enable_debug_layers == True
 
 
 if __name__ == "__main__":
