@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: wheels
+          name: python-package-distributions
           path: dist
   
       - uses: pypa/gh-action-pypi-publish@v1.5.1
