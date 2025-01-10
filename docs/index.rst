@@ -18,14 +18,13 @@ By bringing these 2 technologies together with a simple and flexible Python libr
 
 .. toctree::
    :hidden:
-   :maxdepth: 2
+   :maxdepth: 1
    
-   index
    changelog
 
 .. toctree::
    :hidden:
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Basics
    
    installation
@@ -37,7 +36,7 @@ By bringing these 2 technologies together with a simple and flexible Python libr
 
 .. toctree::
    :hidden:
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: API
    
    api/slangpy
