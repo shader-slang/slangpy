@@ -51,17 +51,6 @@ def test_not_enough_args(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_type_mismatch(device_type: DeviceType):
-
-    device = helpers.get_device(device_type)
-    function = helpers.create_function_from_module(device, "foo", MODULE)
-
-    # fail to specialize a float3 against a float
-    with pytest.raises(ValueError, match=r'No Slang overload found'):
-        function(float3(1.0, 2.0, 3.0))
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_not_enough_args_2(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
@@ -111,17 +100,6 @@ def test_pass_string(device_type: DeviceType):
     # Currently hits error as 'None' does not implement reduce
     with pytest.raises(ValueError, match=r'Unsupported type'):
         function.call("hello")
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_bad_explicit_cast(device_type: DeviceType):
-
-    device = helpers.get_device(device_type)
-    function = helpers.create_function_from_module(device, "foo", MODULE)
-
-    # fail to specialize a float3 against a float
-    with pytest.raises(ValueError, match=r'Failed to load slang module'):
-        function.map(float)(float3(1.0, 2.0, 3.0))
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

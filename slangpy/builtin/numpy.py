@@ -5,7 +5,7 @@ from slangpy.backend import Buffer
 from slangpy.backend.slangpynativeemulation import AccessType, CallContext
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.bindings.marshall import ReturnContext
-from slangpy.bindings.typeregistry import PYTHON_TYPES
+from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 from slangpy.core.native import Shape
 from slangpy.builtin.ndbuffer import NDBufferMarshall
 
@@ -76,3 +76,10 @@ def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
 
 
 PYTHON_TYPES[np.ndarray] = create_vr_type_for_value
+
+
+def hash_numpy(value: npt.NDArray[Any]) -> str:
+    return f"numpy.ndarray[{value.dtype},{value.ndim}]"
+
+
+PYTHON_SIGNATURES[np.ndarray] = hash_numpy

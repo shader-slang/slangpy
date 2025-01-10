@@ -107,6 +107,30 @@ def test_fail_numpy_float3s(device_type: DeviceType):
     with pytest.raises(ValueError, match="Element shape mismatch"):
         module.add_float3s.return_type(np.ndarray)(a, b)
 
+# Ensure numpy array kernels are cached correctly
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_cache(device_type: DeviceType):
+
+    module = load_test_module(device_type)
+
+    a = np.random.rand(3, 2, 2).astype(np.float32)
+    b = np.random.rand(3, 2, 2).astype(np.float32)
+
+    res = module.add_floats.return_type(np.ndarray)(a, b)
+    res_expected = a + b
+
+    assert np.allclose(res, res_expected)
+
+    a = np.random.rand(2, 2).astype(np.float32)
+    b = np.random.rand(2, 2).astype(np.float32)
+
+    res = module.add_floats.return_type(np.ndarray)(a, b)
+    res_expected = a + b
+
+    assert np.allclose(res, res_expected)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

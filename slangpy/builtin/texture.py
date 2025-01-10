@@ -4,7 +4,7 @@ from typing import Any, Optional, Union
 from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection
 
 import slangpy.reflection as kfr
-from slangpy.backend import (FormatType, ResourceType, ResourceUsage,
+from slangpy.backend import (FormatType, ResourceType, ResourceUsage, Sampler,
                              ResourceView, Texture, get_format_info)
 from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,
                               BindContext, BoundVariable, BoundVariableRuntime,
@@ -245,3 +245,41 @@ def _get_or_create_python_type(layout: kfr.SlangProgramLayout, value: Any):
 
 PYTHON_TYPES[Texture] = _get_or_create_python_type
 PYTHON_SIGNATURES[Texture] = lambda x: f"[{x.desc.type},{x.desc.usage},{x.desc.format},{x.array_size>1}]"
+
+
+class SamplerMarshall(Marshall):
+
+    def __init__(self, layout: kfr.SlangProgramLayout):
+        super().__init__(layout)
+        st = layout.find_type_by_name("SamplerState")
+        if st is None:
+            raise ValueError(
+                f"Could not find Sampler slang type. This usually indicates the slangpy module has not been imported.")
+        self.slang_type = st
+        self.concrete_shape = Shape()
+
+    # Call data can only be read access to primal, and simply declares it as a variable
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
+        name = binding.variable_name
+        assert isinstance(binding.vector_type, kfr.SamplerStateType)
+        cgb.type_alias(f"_t_{name}", f"SamplerStateType")
+
+    # Call data just returns the primal
+    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
+        access = binding.access
+        if access[0] != AccessType.none:
+            return {
+                'value': data
+            }
+
+    # Buffers just return themselves for raw dispatch
+    def create_dispatchdata(self, data: Any) -> Any:
+        return data
+
+
+def _get_or_create_sampler_python_type(layout: kfr.SlangProgramLayout, value: Sampler):
+    assert isinstance(value, Sampler)
+    return SamplerMarshall(layout)
+
+
+PYTHON_TYPES[Sampler] = _get_or_create_sampler_python_type

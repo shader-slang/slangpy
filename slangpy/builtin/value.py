@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+from typing import Any, cast
 
 from slangpy.core.native import AccessType, CallContext, TypeReflection
 
@@ -183,6 +183,22 @@ class VectorMarshall(ValueMarshall):
             return self_type
         else:
             raise ValueError("Cannot reduce vector type by more than one dimension")
+
+    def resolve_type(self, context: BindContext, bound_type: 'kfr.SlangType'):
+        if bound_type == self.slang_type.element_type:
+            return self.slang_type.element_type
+        return super().resolve_type(context, bound_type)
+
+    # Call data can only be read access to primal, and simply declares it as a variable
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
+        access = binding.access
+        name = binding.variable_name
+        if access[0] in [AccessType.read, AccessType.readwrite]:
+            st = cast(kfr.VectorType, self.slang_type)
+            cgb.type_alias(
+                f"_t_{name}", f"VectorValueType<{st.element_type.full_name},{st.num_elements}>")
+        else:
+            cgb.type_alias(f"_t_{name}", f"NoneType")
 
 
 class MatrixMarshall(ValueMarshall):
