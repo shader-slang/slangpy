@@ -46,7 +46,7 @@ def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = Fa
         return DEVICE_CACHE[type]
     device = Device(
         type=type,
-        enable_debug_layers=True,
+        enable_debug_layers=sys.platform == "win32",
         compiler_options=SlangCompilerOptions(
             {
                 "include_paths": [SHADER_DIR, SLANG_PATH],
