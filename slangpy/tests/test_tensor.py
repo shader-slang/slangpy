@@ -6,6 +6,10 @@ import slangpy.tests.helpers as helpers
 import numpy as np
 from typing import Any
 import os
+import sys
+
+if sys.platform != "win32":
+    pytest.skip("Test only runs on Windows", allow_module_level=True)
 
 
 def get_test_tensors(device: Device, N: int = 4):
