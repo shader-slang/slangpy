@@ -13,5 +13,5 @@ float3 add_vectors(float3 a, float3 b)
 
 float4 sample_texture_at_uv(float2 uv, SamplerState sampler, Texture2D<float4> texture)
 {
-    return texture.Sample(sampler, uv);
+    return texture.SampleLevel(sampler, uv, 0);
 }

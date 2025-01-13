@@ -12,13 +12,13 @@ are passed either equally sized buffers, or single values. For example:
 
 .. code-block:: python
 
-    # Adding 2 buffers of equal size
+    # Adding all elements in 2 buffers of equal size
     mymodule.add(np.array([1, 2, 3]), np.array([4, 5, 6])
 
     # Adding a single value to every element of a buffer 
     mymodule.add(5, np.array([4, 5, 6])    
 
-    # Adding 2 2D buffers of the same shape (2x2)
+    # Adding all elements in 2 2D buffers of the same shape (2x2)
     mymodule.add(np.array([[1, 2], [3, 4]]), np.array([[5, 6], [7, 8]]))
 
 The process of taking the arguments and inferring how to vectorize the function is known as 
@@ -29,6 +29,8 @@ Before diving in, some terminology:
 - `Dimensionality`: The number of dimensions of a value. For example, a 1D buffer has a `dimensionality` of 1, 
   a 2D buffer has a `dimensionality` of 2, a volume texture has a `dimensionality` of 3 etc.
 - `Shape`: The size of each dimension of a value. For example, a 1D buffer of size 3 has a `shape` of (3,), a 32x32x32 volume texture has a shape of (32,32,32).
+
+In effect, `dimensionality` is equal to the length of the `shape` tuple.
 
 Note: For those new to broadcasting, a common point of confusion is that a `3D vector` does **not** have
 a `dimensionality` of 3! Instead, it has a `dimensionality` of 1, and its `shape` is (3,).
@@ -69,16 +71,20 @@ and generates an output of a given **shape**:
     B       (5,3,4)
     Out     Error
 
-SlangPy will also support broadcasting a single value to all dimensions of the output. Conceptually,
-this is similar to adding dimensions of size 1 to the value until it matches the output's dimensionality:
+SlangPy will also support broadcasting a single value to all dimensions of the output. Programmatically,
+a single value can be thought of as a value that isn't indexed - its dimensionality is 0, and its shape 
+is (). 
+
+Conceptually, broadcasting the same value to all dimensions is similar to adding dimensions of size 
+1 to the value until it matches the output's dimensionality:
 
 .. code-block:: python
 
     # For a function Out[x,y,z] = A[x,y,z] + B[x,y,z]
 
     # A single value is broadcast to all dimensions of the output
-    # Out[x,y,z] = A[0] + B[x,y,z]
-    A       (1)
+    # Out[x,y,z] = A + B[x,y,z]
+    A       ()
     B       (10,3,4)
     Out     (10,3,4)
 
