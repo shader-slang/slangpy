@@ -34,6 +34,7 @@ By bringing these 2 technologies together with a simple and flexible Python libr
    nested
    typemethods
    broadcasting
+   mapping
 
 .. toctree::
    :hidden:

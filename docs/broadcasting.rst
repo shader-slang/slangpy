@@ -1,5 +1,5 @@
 Broadcasting
-------------
+============
 
 As we've seen so far in these tutorials, SlangPy's primary job is to take a function
 that is designed to run on a single unit of data, and convert it to a `vector` function that 
