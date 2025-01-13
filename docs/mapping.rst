@@ -3,11 +3,13 @@ Mapping
 
 In the previous broadcasting section, we saw how SlangPy applies broadcasting rules to automatically vectorize a function. Mapping gives more control over this process by allowing the user to explicitly specify the relationship between argument and kernel dimensions.
 
+Consider the following simple call to an `add` function that adds 2 floats:
+
 .. code-block:: python 
 
     a = np.random.rand(10,3,4)
     b = np.random.rand(10,3,4)
-    result = mymodule.add(a,b, _result=numpy)
+    result = mymodule.add(a,b, _result='numpy')
 
 In this example:
 
@@ -26,9 +28,9 @@ Re-mapping dimensions
 
     a = np.random.rand(10,3,4)
     b = np.random.rand(10,3,4)
-    result = mymodule.add.map((0,1,2), (0,1,2))(a,b, _result=numpy)
+    result = mymodule.add.map((0,1,2), (0,1,2))(a,b, _result='numpy')
 
-The tuples passed to map specify how to map dimensions for each argument. In this case we're mapping dimension 0 to dimension 0, dimension 1 to dimension 1 and dimension 2 to dimension 2 etc. This 1-to-1 mapping is the default behaviour. 
+The tuples passed to map specify how to map dimensions for each argument. In this case we're mapping dimension 0 to dimension 0, dimension 1 to dimension 1 and dimension 2 to dimension 2 for both a and b. This 1-to-1 mapping is the default behaviour. 
 
 Mapping works with named parameters too, which can be a little clearer:
 
@@ -37,7 +39,7 @@ Mapping works with named parameters too, which can be a little clearer:
     # Assume the slang add function has signature add(float3 a, float3 b)
     a = np.random.rand(10,3,4)
     b = np.random.rand(10,3,4)
-    result = mymodule.add.map(a=(0,1,2), b=(0,1,2))(a=a,b=b, _result=numpy)
+    result = mymodule.add.map(a=(0,1,2), b=(0,1,2))(a=a,b=b, _result='numpy')
 
 ----
 
@@ -47,23 +49,19 @@ As we've already seen, unlike Numpy, SlangPy by design doesn't auto-pad dimensio
 
 .. code-block:: python 
 
-    a = np.random.rand(8,8)
-    b = np.random.rand(8)
+    a = np.random.rand(8,8).astype(np.float32)
+    b = np.random.rand(8).astype(np.float32)
 
     # Fails in SlangPy, as b is not auto-extended
-    result = mymodule.add(a,b, _result=numpy)
+    result = mymodule.add(a,b, _result='numpy')
 
     # Works, as we are explicilty mapping 
     # This is equivalent to padding b with empty dimensions, as numpy would
     # result[i,j] = a[i,j] + b[j]
-    result = mymodule.add.map(a=(0,1), b=(1,))(a=a,b=b, _result=numpy)
+    result = mymodule.add.map(a=(0,1), b=(1,))(a=a,b=b, _result='numpy')
 
     # The same thing (didn't need to specify a as 1-to-1 mapping is default)
-    result = mymodule.add.map(b=(1,))(a=a,b=b, _result=numpy)
-
-    # Also works, as we are explicilty mapping 
-    # result[i,j] = a[i,j] + b[i]
-    result = mymodule.add.map(b=(0,))(a=a,b=b, _result=numpy)
+    result = mymodule.add.map(b=(1,))(a=a,b=b, _result='numpy')
 
 ----
 
@@ -78,9 +76,9 @@ Another use case is performing some operation in which you wish to broadcast all
     # b is mapped to dimension 1, giving kernel dimension [1] size 20
     # overall kernel (and thus result) shape is (10,20)
     # result[i,j] = a[i] * b[j]
-    a = np.random.rand(10)
-    b = np.random.rand(20)
-    result = mymodule.multiply.map(a=(0,), b=(1,))(a=a,b=b, _result=numpy)
+    a = np.random.rand(10).astype(np.float32)
+    b = np.random.rand(20).astype(np.float32)
+    result = mymodule.multiply.map(a=(0,), b=(1,))(a=a,b=b, _result='numpy')
 
 ----
 
@@ -93,14 +91,14 @@ Similarly, dimension indices can be adjusted to re-order the dimensions of an ar
     # Assume the slang copy function has signature float copy(float val)
     # and just returns the value you pass it.
     # result[i,j] = a[j,i]
-    a = np.random.rand(10,20)
-    result = mymodule.copy.map(val=(1,0))(val=a, _result=numpy)
+    a = np.random.rand(10,20).astype(np.float32)
+    result = mymodule.copy.map(val=(1,0))(val=a, _result='numpy')
 
 ----
 
 **Mapping to resolve ambiguities**
 
-In addition to performaning more complex broadcasting, mapping can also be used to resolve ambiguities that would prevent SlangPy vectorizing normally. For example, consider the following generic function (from the `nested` section):
+Mapping can also be used to resolve ambiguities that would prevent SlangPy vectorizing normally. For example, consider the following generic function (from the `nested` section):
 
 .. code-block::
 
@@ -114,12 +112,48 @@ One way to resolve the ambiguities is to map dimensions as follows:
 .. code-block:: python
 
     # Map argument types explicitly
-    src = np.random.rand(100)
-    dest = np.zeros_like(a)
+    src = np.random.rand(100).astype(np.float32)
+    dest = np.zeros_like(src)
     module.copy_generic.map(src=(0,), dest=(0,))(
         src=src,
         dest=dest
     )
 
-By telling SlangPy that both `src` and `dest` should map 1 dimension, and they are both 1D arrays of floats, SlangPy can infer that you want to pass `float` into `copy_generic` and generates the correct kernel.
+Slangpy now knows:
+
+- ``src`` and ``dest`` should map 1 dimension
+- ``src`` and ``dest`` are both 1D arrays of ``float``
+
+Thus it can infer that you want to pass ``float`` into ``copy_generic`` and generates the correct kernel.
+
+Mapping types
+-------------
+
+Mapping can also be used to specify the type of the argument. Whilst this approach cannot be used 
+to re-order dimensions, it can be a more readable way to resolve simple ambiguities. For example, we
+could write the ``copy_generic`` call from above as follows:
+
+.. code-block:: python
+
+    # Map argument types explicitly
+    src = np.random.rand(100)
+    dest = np.zeros_like(src)
+    module.copy_generic.map(src='float', dest='float')(
+        src=src,
+        dest=dest
+    )
+
+Where in the previous example SlangPy inferred type from dimensionality, it now knows:
+
+- ``src`` and ``dest`` should map to ``float``
+- ``src`` and ``dest`` are both 1D arrays of ``float``
+
+Thus it can infer that you want a 1D kernel.
+
+Summary
+-------
+
+This section has shown how to use the ``map`` function to fully control how arguments are mapped to kernel dimensions in SlangPy. This powerful functionality allows the vectorization of algorithms
+that are more than simply running the same function on many elements in an array.
+
 
