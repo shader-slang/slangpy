@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from slangpy.backend import Device, Buffer, ResourceUsage, TypeReflection, uint4
 from slangpy.core.utils import shape_to_contiguous_strides
-from slangpy.reflection import SlangType, ScalarType
+from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
 from slangpy.reflection import reflectiontypes
-from .buffer import get_lookup_module
+from .buffer import get_lookup_module, resolve_element_type, resolve_program_layout
 
 from typing import Optional, cast, Any
 import numpy as np
@@ -139,13 +139,24 @@ class Tensor:
 
         return np.lib.stride_tricks.as_strided(data, shape, strides)
 
-    def with_grads(self, grad_in: Optional[Tensor], grad_out: Optional[Tensor]) -> Tensor:
+    def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None) -> Tensor:
         """
-        Returns a new tensor view with input gradients grad_in and output gradients grad_out attached.
+        Returns a new tensor view with gradients attached. If called with no arguments, the
+        tensor defaults to attaching a zeros-like initialized gradient tensor for both input and 
+        output gradients.
+
+        Specifying input gradients (grad_in) and/or output gradients (grad_out) allows more precise
+        control over the gradient tensors, and is key when using a function that has inout parameters,
+        so will want to both read and write gradients without causing race conditions. 
+
         When differentiating a slang call that wrote results to a tensor, gradients of the output will
         be read from grad_in (if not None). When differentiating a slang call that read inputs from a
         tensor, input gradients will be written to grad_out (if not None).
         """
+        if grad_in is None and grad_out is None:
+            grad_in = Tensor.zeros(
+                shape=self.shape, dtype=self.dtype.derivative, device=self.storage.device)
+            grad_out = grad_in
 
         result = Tensor(self.storage, self.dtype, self.shape, self.strides, self.offset)
         result.grad_in = grad_in
@@ -157,7 +168,7 @@ class Tensor:
         return f"Tensor[{self.dtype.name},{len(self.shape)}]"
 
     @staticmethod
-    def from_numpy(ndarray: np.ndarray[Any, Any], device: Device) -> Tensor:
+    def from_numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
         """
         Creates a new tensor with the same contents, shape and strides as the given numpy array.
         """
@@ -181,10 +192,15 @@ class Tensor:
         return Tensor(buffer, dtype, tuple(ndarray.shape), strides)
 
     @staticmethod
-    def empty(shape: tuple[int, ...], dtype: SlangType, device: Device) -> Tensor:
+    def empty(device: Device, shape: tuple[int, ...], dtype: Any, program_layout: Optional[SlangProgramLayout] = None) -> Tensor:
         """
         Creates a tensor with the requested shape and element type without attempting to initialize the data.
         """
+
+        # If dtype supplied is not a SlangType, resolve it using the same mechanism as NDBuffer
+        if not isinstance(dtype, SlangType):
+            program_layout = resolve_program_layout(device, dtype, program_layout)
+            dtype = resolve_element_type(program_layout, dtype)
 
         usage = ResourceUsage.shader_resource | ResourceUsage.unordered_access
         buffer = device.create_buffer(
@@ -193,12 +209,12 @@ class Tensor:
         return Tensor(buffer, dtype, shape)
 
     @staticmethod
-    def zeros(shape: tuple[int, ...], dtype: SlangType, device: Device) -> Tensor:
+    def zeros(device: Device, shape: tuple[int, ...], dtype: Any) -> Tensor:
         """
         Creates a zero-initialized tensor with the requested shape and element type.
         """
 
-        tensor = Tensor.empty(shape, dtype, device)
+        tensor = Tensor.empty(device, shape, dtype)
         cmd = device.create_command_buffer()
         cmd.clear_resource_view(tensor.storage.get_uav(), uint4(0, 0, 0, 0))
         cmd.submit()
@@ -210,7 +226,7 @@ class Tensor:
         Creates a new tensor with the same shape and element type as the given tensor, without initializing the data.
         """
 
-        return Tensor.empty(other.shape, other.dtype, other.storage.device)
+        return Tensor.empty(other.storage.device, other.shape, other.dtype)
 
     @staticmethod
     def zeros_like(other: Tensor) -> Tensor:
@@ -218,4 +234,4 @@ class Tensor:
         Creates a zero-initialized tensor with the same shape and element type as the given tensor.
         """
 
-        return Tensor.zeros(other.shape, other.dtype, other.storage.device)
+        return Tensor.zeros(other.storage.device, other.shape, other.dtype)

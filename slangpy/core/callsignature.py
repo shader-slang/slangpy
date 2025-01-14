@@ -67,7 +67,7 @@ def specialize(
         ModifierID.static) and function.name != "$init"
 
     # Require '_result' argument for derivative calls, either as '_result' named parameter or last positional argument
-    last_arg_is_retval = function.return_type is not None and not "_result" in signature.kwargs and context.call_mode != CallMode.prim
+    last_arg_is_retval = function.return_type is not None and function.return_type.name != 'void' and not "_result" in signature.kwargs and context.call_mode != CallMode.prim
 
     # Select the positional arguments we need to match against
     signature_args = signature.args

@@ -368,7 +368,7 @@ class NativeCallData:
         self.last_call_shape = call_shape
 
         # Setup context
-        context = CallContext(device, call_shape)
+        context = CallContext(device, call_shape, self.call_mode)
 
         # Allocate a return value if not provided in kw args
         # This is redundant if command buffer supplied, as we don't return anything
@@ -446,10 +446,11 @@ class CallContext:
     Native call context
     """
 
-    def __init__(self, device: 'Device', call_shape: Shape):
+    def __init__(self, device: 'Device', call_shape: Shape, call_mode: CallMode):
         super().__init__()
         self.device = device
         self.call_shape = call_shape
+        self.call_mode = call_mode
 
 
 def unpack_arg(arg: Any) -> Any:

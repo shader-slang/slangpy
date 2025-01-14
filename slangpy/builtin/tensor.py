@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection
+from slangpy.core.native import AccessType, CallContext, CallMode, Shape, TypeReflection
 
 from slangpy.types.tensor import Tensor, innermost_type
 
@@ -220,10 +220,15 @@ class TensorMarshall(Marshall):
                 raise ValueError("Missing tensor to hold output gradients")
             result['d_out'] = self.d_out.create_calldata(context, binding, data.grad_out)
 
+        if context.call_mode != CallMode.prim and data.grad_in is not None and data.grad_in is data.grad_out:
+            if binding.access[1] == AccessType.readwrite:
+                raise ValueError(
+                    "inout parameter gradients need separate buffers for inputs and outputs (see Tensor.with_grads)")
+
         return result
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return Tensor.empty(context.call_shape.as_tuple(), self.element_type, context.device)
+        return Tensor.empty(context.device, context.call_shape.as_tuple(), self.element_type)
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any) -> Any:
         return data
