@@ -168,7 +168,7 @@ class Tensor:
         return f"Tensor[{self.dtype.name},{len(self.shape)}]"
 
     @staticmethod
-    def from_numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
+    def numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
         """
         Creates a new tensor with the same contents, shape and strides as the given numpy array.
         """
