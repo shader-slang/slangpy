@@ -31,6 +31,10 @@ class KernelGenException(Exception):
         super().__init__(message)
         self.message = message
 
+# This detects if a type is a vector with its length defined by a generic
+# parameter. As exceptions can be raised attempting to read col count
+# of generic vectors, we handle the exception as a generic vector.
+
 
 def is_generic_vector(type: TypeReflection) -> bool:
     if type.kind != TypeReflection.Kind.vector:
@@ -38,8 +42,9 @@ def is_generic_vector(type: TypeReflection) -> bool:
     try:
         if type.scalar_type != TypeReflection.Kind.none and type.col_count > 0:  # @IgnoreException
             return False
-    finally:
+    except:
         return True
+    return True
 
 
 def specialize(
@@ -122,20 +127,18 @@ def specialize(
                 inputs.append(python_arg.vector_type)
             elif is_generic_vector(slang_param.type):
                 # HACK! Let types with a 'slang_element_type' try to resolve generic vector types
+                # Failing that, fall back to python marshall
                 sl_et = getattr(python_arg.python, 'slang_element_type', None)
                 if isinstance(sl_et, slr.VectorType):
                     inputs.append(sl_et)
                 else:
-                    inputs.append(slang_param.type)
+                    inputs.append(python_arg.python)
             elif slang_param.type.kind != TypeReflection.Kind.none:
                 # If the type is fully resolved, use it
                 inputs.append(slang_param.type)
-            elif isinstance(python_arg.python, ValueMarshall) and not isinstance(python_arg.python, StructMarshall):
+            elif isinstance(python_arg.python, ValueMarshall) and python_arg.python.slang_type.name != 'Unknown':
                 # If passing basic type to generic, resolve from its python type
                 inputs.append(python_arg.python)
-            elif isinstance(python_arg.python, StructMarshall) and python_arg.python.slang_type.name != 'Unknown':
-                # If passing struct to generic, resolve from its slang type
-                inputs.append(python_arg.python.slang_type)
             else:
                 return MismatchReason(
                     f"Parameter {i} is a generic or interface, so must either be passed a value type or have an explicit vector type.")

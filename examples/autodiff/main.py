@@ -2,6 +2,7 @@
 
 import slangpy as spy
 import pathlib
+import numpy as np
 
 # Create an SGL device with the local folder for slangpy includes
 device = spy.create_device(include_paths=[
@@ -11,10 +12,5 @@ device = spy.create_device(include_paths=[
 # Load module
 module = spy.Module.load_from_file(device, "example.slang")
 
-# Call the function and print the result
-result = module.add(1.0, 2.0)
-print(result)
-
-# SlangPy also supports named parameters
-result = module.add(a=1.0, b=2.0)
-print(result)
+tensor = spy.Tensor.zeros(device, module, (3, 4),
+                          spy.reflectiontypes.scalar_names[spy.reflectiontypes.ScalarType.float32])

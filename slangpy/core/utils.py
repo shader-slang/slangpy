@@ -1,8 +1,32 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Union
+from os import PathLike
+import pathlib
+from typing import Sequence, Union
 
 from slangpy.backend import (DeclReflection, ProgramLayout,
-                             TypeLayoutReflection, TypeReflection)
+                             TypeLayoutReflection, TypeReflection,
+                             DeviceType, Device)
+
+
+def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False, adapter_luid: Sequence[int] | None = None, include_paths: Sequence[str | PathLike] = []):
+    """
+    Create an SGL device with basic settings for SlangPy. For full control over device init, 
+    use sgl.create_device directly, being sure to add slangpy.SHADER_PATH
+    to the list of include paths for the compiler.
+    """
+
+    shaderpath = str(pathlib.Path(__file__).parent.parent.absolute() / "slang")
+
+    return Device(
+        type=type,
+        compiler_options={
+            "include_paths": [
+                shaderpath,
+            ]+list(include_paths),
+        },
+        enable_cuda_interop=True,
+        enable_debug_layers=enable_debug_layers,
+        adapter_luid=adapter_luid)
 
 
 def find_type_layout_for_buffer(program_layout: ProgramLayout, slang_type: Union[str, TypeReflection, TypeLayoutReflection]):
