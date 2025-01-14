@@ -256,6 +256,9 @@ class Function:
             if return_type == 'numpy':
                 import numpy as np
                 return_type = np.ndarray
+            elif return_type == 'tensor':
+                from slangpy.types import Tensor
+                return_type = Tensor
             else:
                 raise ValueError(f"Unknown return type '{return_type}'")
         res._return_type = return_type

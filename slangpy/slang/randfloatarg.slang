@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
-import "slangpy";
-import "wanghasharg";
+implementing slangpy;
 
-struct RandFloatArg<let N : int>  {
-    typealias T = vector<float, N>;
+public struct RandFloatArg<let N : int> {
+    public typealias T = vector<float, N>;
 
-    uint seed;
-    float min;
-    float max;
+    public uint seed;
+    public float min;
+    public float max;
 
-    void load(Context0D context, out float value) {
+    public void load(Context0D context, out float value) {
         var tid = context.thread_id;
         var hash = wang_hash(wang_hash(tid.x) ^ seed);
         value = lerp(min, max, saturate((hash % 1000000) / 1000000.0f));
     }
-    void store(Context0D context, in float value) {};
+    public void store(Context0D context, in float value) {};
 
-    void load(Context0D context, out T value) {
+    public void load(Context0D context, out T value) {
         var tid = context.thread_id;
         var hash = wang_hash(tid.x) ^ seed;
         for (int i = 0; i < N; i++) {
@@ -24,5 +23,5 @@ struct RandFloatArg<let N : int>  {
             value[i] = lerp(min,max, saturate((hash % 1000000) / 1000000.0f));
         }
     }
-    void store(Context0D context, in T value) {};
+    public void store(Context0D context, in T value) {};
 }

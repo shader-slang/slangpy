@@ -12,5 +12,9 @@ device = spy.create_device(include_paths=[
 # Load module
 module = spy.Module.load_from_file(device, "example.slang")
 
-tensor = spy.Tensor.zeros(device, module, (3, 4),
-                          spy.reflectiontypes.scalar_names[spy.reflectiontypes.ScalarType.float32])
+# Create a tensor with attached grads from a numpy array
+tensor = spy.Tensor.numpy(device, np.array([1, 2, 3, 4], dtype=np.float32)).with_grads()
+
+# evaluate the polynomial
+result = module.polynomial(a=2, b=8, c=-1, x=tensor)
+print(result)

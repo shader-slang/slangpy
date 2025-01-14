@@ -7,7 +7,7 @@ from sgl import float3
 
 import slangpy.tests.helpers as helpers
 from slangpy.backend import Device, DeviceType
-from slangpy.types import NDBuffer, DeprecatedNDDifferentiableBuffer
+from slangpy.types import NDBuffer, Tensor
 from slangpy.types.diffpair import diffPair, floatDiffPair
 from slangpy.types.valueref import intRef
 

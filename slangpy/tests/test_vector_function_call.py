@@ -4,8 +4,7 @@ import pytest
 
 import slangpy.tests.helpers as helpers
 from slangpy.backend import DeviceType, float2
-from slangpy.types import NDBuffer
-from slangpy.types.buffer import DeprecatedNDDifferentiableBuffer
+from slangpy.types import NDBuffer, Tensor
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

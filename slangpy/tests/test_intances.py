@@ -12,7 +12,7 @@ import slangpy.tests.helpers as helpers
 from slangpy import (InstanceList, InstanceBuffer,
                      InstanceDifferentiableBuffer, Module)
 from slangpy.backend import DeviceType, float2, float3, math
-from slangpy.types.buffer import NDBuffer, DeprecatedNDDifferentiableBuffer
+from slangpy.types import NDBuffer, Tensor
 from slangpy.types.randfloatarg import RandFloatArg
 from slangpy.types.valueref import ValueRef, floatRef
 

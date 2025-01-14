@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import staticarray;
+implementing slangpy;
 
 // Interface for types which support atomic adds.
 // "Atomic" is used loosely in the sense that memory will be consistent
@@ -8,21 +8,21 @@ import staticarray;
 // is an observable state where e.g. x and y have been added but z and w have not yet.
 // This definition is sufficient for our purposes (gradient accumulation),
 // where the memory that is accumulated into is not read until the kernel completes
-interface IAtomicAddable
+public interface IAtomicAddable
 {
-    static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value);
+    public static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value);
 }
-extension uint : IAtomicAddable
+public extension uint : IAtomicAddable
 {
-    static void atomicAdd(RWByteAddressBuffer buf, uint addr, uint value) { buf.InterlockedAdd(addr, value); }
+    public static void atomicAdd(RWByteAddressBuffer buf, uint addr, uint value) { buf.InterlockedAdd(addr, value); }
 }
-extension int64_t : IAtomicAddable
+public extension int64_t : IAtomicAddable
 {
-    static void atomicAdd(RWByteAddressBuffer buf, uint addr, int64_t value) { buf.InterlockedAddI64(addr, value); }
+    public static void atomicAdd(RWByteAddressBuffer buf, uint addr, int64_t value) { buf.InterlockedAddI64(addr, value); }
 }
-extension float : IAtomicAddable
+public extension float : IAtomicAddable
 {
-    static void atomicAdd(RWByteAddressBuffer buf, uint addr, float value) {
+    public static void atomicAdd(RWByteAddressBuffer buf, uint addr, float value) {
         buf.InterlockedAddF32(addr, value);
 
         // TODO: Atomic adds can be a performance issue, and there's a big benefit of local reductions like
@@ -43,22 +43,22 @@ extension float : IAtomicAddable
     }
 }
 [__requiresNVAPI]
-extension half2 : IAtomicAddable
+public extension half2 : IAtomicAddable
 {
-    static void atomicAdd(RWByteAddressBuffer buf, uint addr, half2 value) { buf._NvInterlockedAddFp16x2(addr, impl::asuint(value)); }
+    public static void atomicAdd(RWByteAddressBuffer buf, uint addr, half2 value) { buf._NvInterlockedAddFp16x2(addr, impl::asuint(value)); }
 }
-extension half : IAtomicAddable
+public extension half : IAtomicAddable
 {
-    static void atomicAdd(RWByteAddressBuffer buf, uint addr, half value)
+    public static void atomicAdd(RWByteAddressBuffer buf, uint addr, half value)
     {
         half discardOut;
         buf.InterlockedAddF16(addr, value, discardOut);
     }
 }
 
-extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAtomicAddable
+public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAtomicAddable
 {
-    static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
+    public static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
     {
         [ForceUnroll]
         for (int i = 0; i < D; ++i)

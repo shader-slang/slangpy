@@ -5,7 +5,7 @@ import pytest
 import slangpy.tests.helpers as helpers
 from slangpy import Module
 from slangpy.backend import DeviceType, float3
-from slangpy.types.buffer import NDBuffer, DeprecatedNDDifferentiableBuffer
+from slangpy.types import NDBuffer, Tensor
 
 
 def load_test_module(device_type: DeviceType):
@@ -265,13 +265,13 @@ def test_add_vectors_broadcast_from_diff_buffer(device_type: DeviceType):
     # Test the output transform, where we take 2 1D buffers with different
     # sizes and braodcast each to a different dimension.
 
-    a = DeprecatedNDDifferentiableBuffer(device=m.device, shape=(1, 5), element_type=float3)
+    a = Tensor.empty(device=m.device, shape=(1, 5), dtype=float3)
     b = NDBuffer(device=m.device, shape=(10, 5), element_type=float3)
 
     a_data = np.random.rand(a.shape[0], a.shape[1], 3).astype(np.float32)
     b_data = np.random.rand(b.shape[0], b.shape[1], 3).astype(np.float32)
 
-    a.from_numpy(a_data)
+    a.storage.from_numpy(a_data)
     b.from_numpy(b_data)
 
     res: NDBuffer = m.add_vectors(a, b)

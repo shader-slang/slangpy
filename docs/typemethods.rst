@@ -13,7 +13,7 @@ First, let's define a simple ``Particle`` class that can be constructed and upda
 
 .. code-block::
 
-    import "randfloatarg";
+    import "slangpy";
 
     struct Particle
     {
@@ -33,7 +33,7 @@ First, let's define a simple ``Particle`` class that can be constructed and upda
         }
     };
 
-*Note:* Importing ``randfloatarg`` is necessary because in this example we use it to pass random floating-point values to the constructor. This requirement will be addressed in a future update.
+*Note:* Importing ``slangpy`` is necessary because in this example we use it to pass random floating-point values to the constructor. This requirement will be addressed in a future update.
 
 Creating and Initializing Particles
 -----------------------------------

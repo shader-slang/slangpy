@@ -49,7 +49,7 @@ class RandFloatArgMarshall(Marshall):
         access = binding.access
         name = binding.variable_name
         if access[0] == AccessType.read:
-            cgb.add_import("randfloatarg")
+            # cgb.add_import("randfloatarg")
             cgb.type_alias(f"_t_{name}", self.slang_type.full_name)
 
     def create_calldata(self, context: CallContext, binding: BoundVariableRuntime, data: RandFloatArg) -> Any:

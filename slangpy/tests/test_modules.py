@@ -94,7 +94,7 @@ def test_call_read_only_func(device_type: DeviceType):
     # Get next position of all particles
     next_pos = Particle.calc_next_position(buffer, 0.5)
 
-    data = next_pos.buffer.to_numpy().view(dtype=np.float32)
+    data = next_pos.storage.to_numpy().view(dtype=np.float32)
     assert np.allclose(data, [0.05, 0.1])
 
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import "randfloatarg";
+import "slangpy";
 
 void copy(float4 src, out float4 dest)
 {

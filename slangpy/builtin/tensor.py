@@ -196,7 +196,7 @@ class TensorMarshall(Marshall):
             self.element_type, self.dims, writable, self.d_in is not None, self.d_out is not None)
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
-        cgb.add_import("tensor")
+        # cgb.add_import("tensor")
 
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Tensor) -> Any:
         strides = tuple(0 if dim == 1 else stride for dim, stride in zip(data.shape, data.strides))

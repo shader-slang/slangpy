@@ -75,7 +75,6 @@ def test_fail_shared_inout_grad_buffers(device_type: DeviceType):
         device,
         "inc",
         r"""
-import "tensor"; 
 [Differentiable]
 void inc(float amount, inout float val) { val += amount; }
 """)
