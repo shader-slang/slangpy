@@ -61,7 +61,7 @@ def test_init_particle(device_type: DeviceType):
     # Call constructor, which returns particles
     Particle.__init(float2(1.0, 2.0), float2(3.0, 4.0), _result=buffer)
 
-    data = buffer.buffer.to_numpy().view(dtype=np.float32)
+    data = buffer.storage.to_numpy().view(dtype=np.float32)
     assert len(data) == 11
     # position
     assert data[0] == 1.0
@@ -94,7 +94,7 @@ def test_call_read_only_func(device_type: DeviceType):
     # Get next position of all particles
     next_pos = Particle.calc_next_position(buffer, 0.5)
 
-    data = next_pos.buffer.to_numpy().view(dtype=np.float32)
+    data = next_pos.storage.to_numpy().view(dtype=np.float32)
     assert np.allclose(data, [0.05, 0.1])
 
 
@@ -111,7 +111,7 @@ def test_call_mutable_func(device_type: DeviceType):
     # Update position of all particles
     Particle.update_position(buffer, 0.5)
 
-    data = buffer.buffer.to_numpy().view(dtype=np.float32)
+    data = buffer.storage.to_numpy().view(dtype=np.float32)
     assert np.allclose(data[:2], [0.05, 0.1])
 
 
@@ -133,7 +133,7 @@ def test_read_back_with_global_func(device_type: DeviceType):
     results = NDBuffer(m.device, quad_type_layout, 1)
     m.get_particle_quad(buffer, _result=results)
 
-    data = results.buffer.to_numpy().view(dtype=np.float32).reshape(-1, 2)
+    data = results.storage.to_numpy().view(dtype=np.float32).reshape(-1, 2)
     assert np.allclose(data, [[-0.5, 0.6], [0.5, 0.6], [0.5, -0.4], [-0.5, -0.4]])
 
 
@@ -159,7 +159,7 @@ def test_soa_particles(device_type: DeviceType):
     # Update position of all particles
     Particle.update_position(soa_particles, 0.5)
 
-    data = soa_particles['position'].buffer.to_numpy().view(dtype=np.float32)
+    data = soa_particles['position'].storage.to_numpy().view(dtype=np.float32)
     assert np.allclose(data, [0.5, 0])
 
 

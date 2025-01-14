@@ -108,7 +108,7 @@ def test_bad_implicit_buffer_cast(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "foo_v3", MODULE)
 
-    buffer = NDBuffer(device, element_type=float4, shape=(10,))
+    buffer = NDBuffer(device, dtype=float4, shape=(10,))
 
     # fail to specialize a float3 against a float
     with pytest.raises(ValueError, match=r'After implicit casting.*'):
@@ -121,8 +121,8 @@ def test_invalid_broadcast(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "foo2", MODULE)
 
-    buffer = NDBuffer(device, element_type=float, shape=(10,))
-    buffer2 = NDBuffer(device, element_type=float, shape=(10, 10))
+    buffer = NDBuffer(device, dtype=float, shape=(10,))
+    buffer2 = NDBuffer(device, dtype=float, shape=(10, 10))
 
     # fail to specialize a float3 against a float
     with pytest.raises(ValueError, match=r'Strict broadcasting is enabled'):

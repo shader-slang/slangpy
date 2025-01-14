@@ -199,9 +199,9 @@ void add_numbers(int a, int b, out int c) {
         in_buffer_0 = NDBuffer(
             element_count=in_buffer_0_size,
             device=device,
-            element_type=int,
+            dtype=int,
         )
-        in_buffer_0.buffer.from_numpy(rand_array_of_ints(in_buffer_0.element_count))
+        in_buffer_0.storage.from_numpy(rand_array_of_ints(in_buffer_0.element_count))
 
     in_buffer_1: Union[int, NDBuffer]
     if in_buffer_1_size == 0:
@@ -210,15 +210,15 @@ void add_numbers(int a, int b, out int c) {
         in_buffer_1 = NDBuffer(
             element_count=in_buffer_1_size,
             device=device,
-            element_type=int,
+            dtype=int,
         )
-        in_buffer_1.buffer.from_numpy(rand_array_of_ints(in_buffer_1.element_count))
+        in_buffer_1.storage.from_numpy(rand_array_of_ints(in_buffer_1.element_count))
 
     # Setup output buffer
     out_buffer = NDBuffer(
         element_count=out_buffer_size,
         device=device,
-        element_type=int,
+        dtype=int,
     )
 
     # Call function
@@ -228,12 +228,12 @@ void add_numbers(int a, int b, out int c) {
     if isinstance(in_buffer_0, int):
         in_data_0 = np.array([in_buffer_0] * out_buffer_size)
     else:
-        in_data_0 = in_buffer_0.buffer.to_numpy().view(np.int32)
+        in_data_0 = in_buffer_0.storage.to_numpy().view(np.int32)
     if isinstance(in_buffer_1, int):
         in_data_1 = np.array([in_buffer_1] * out_buffer_size)
     else:
-        in_data_1 = in_buffer_1.buffer.to_numpy().view(np.int32)
-    out_data = out_buffer.buffer.to_numpy().view(np.int32)
+        in_data_1 = in_buffer_1.storage.to_numpy().view(np.int32)
+    out_data = out_buffer.storage.to_numpy().view(np.int32)
     for i in range(32):
         assert out_data[i] == in_data_0[i] + in_data_1[i]
 
@@ -281,23 +281,23 @@ void add_numbers_remap(int a, int b, out int c) {
     a = NDBuffer(
         element_count=100,
         device=device,
-        element_type=int,
+        dtype=int,
     )
-    a.buffer.from_numpy(rand_array_of_ints(a.element_count))
+    a.storage.from_numpy(rand_array_of_ints(a.element_count))
 
     b = NDBuffer(
         element_count=50,
         device=device,
-        element_type=int,
+        dtype=int,
     )
-    b.buffer.from_numpy(rand_array_of_ints(b.element_count))
+    b.storage.from_numpy(rand_array_of_ints(b.element_count))
 
     c = NDBuffer(
         shape=(50, 100),
         device=device,
-        element_type=int,
+        dtype=int,
     )
-    c.buffer.from_numpy(rand_array_of_ints(c.element_count))
+    c.storage.from_numpy(rand_array_of_ints(c.element_count))
 
     function.map((1,), (0,))(a, b, c)
 
@@ -319,23 +319,23 @@ int add_numbers(int a, int b) {
     a = NDBuffer(
         element_count=50,
         device=device,
-        element_type=int,
+        dtype=int,
     )
-    a.buffer.from_numpy(rand_array_of_ints(a.element_count))
+    a.storage.from_numpy(rand_array_of_ints(a.element_count))
 
     b = NDBuffer(
         element_count=50,
         device=device,
-        element_type=int,
+        dtype=int,
     )
-    b.buffer.from_numpy(rand_array_of_ints(b.element_count))
+    b.storage.from_numpy(rand_array_of_ints(b.element_count))
 
     # just verify it can be called with no exceptions
     res: NDBuffer = function(a, b)
 
-    a_data = a.buffer.to_numpy().view(np.int32)
-    b_data = b.buffer.to_numpy().view(np.int32)
-    res_data = res.buffer.to_numpy().view(np.int32)
+    a_data = a.storage.to_numpy().view(np.int32)
+    b_data = b.storage.to_numpy().view(np.int32)
+    res_data = res.storage.to_numpy().view(np.int32)
 
     assert np.all(res_data == a_data + b_data)
 
@@ -357,22 +357,22 @@ int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
     a = NDBuffer(
         element_count=1,
         device=device,
-        element_type=int,
+        dtype=int,
     )
-    a.buffer.from_numpy(rand_array_of_ints(a.element_count))
+    a.storage.from_numpy(rand_array_of_ints(a.element_count))
 
     b = NDBuffer(
         element_count=1,
         device=device,
-        element_type=int,
+        dtype=int,
     )
-    b.buffer.from_numpy(rand_array_of_ints(b.element_count))
+    b.storage.from_numpy(rand_array_of_ints(b.element_count))
 
     # just verify it can be called with no exceptions
     res = function(a, b)
 
-    a_data = a.buffer.to_numpy().view(np.int32)
-    b_data = b.buffer.to_numpy().view(np.int32)
+    a_data = a.storage.to_numpy().view(np.int32)
+    b_data = b.storage.to_numpy().view(np.int32)
 
     assert np.all(res == a_data[0] + b_data[0])
 

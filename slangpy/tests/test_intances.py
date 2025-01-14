@@ -10,11 +10,12 @@ from slangpy.core.struct import Struct
 
 import slangpy.tests.helpers as helpers
 from slangpy import (InstanceList, InstanceBuffer,
-                     DeprecatedInstanceDifferentiableBuffer, Module)
+                     Module)
 from slangpy.backend import DeviceType, float2, float3, math
 from slangpy.types import NDBuffer, Tensor
 from slangpy.types.randfloatarg import RandFloatArg
 from slangpy.types.valueref import ValueRef, floatRef
+from slangpy.experimental.diffinstancelist import InstanceDifferentiableBuffer
 
 
 def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Module:
@@ -58,7 +59,7 @@ def test_this_interface(device_type: DeviceType):
     Particle_reset(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = buffer.buffer.to_numpy().view(dtype=np.float32)
+    data = buffer.storage.to_numpy().view(dtype=np.float32)
     assert len(data) == 11
     # position
     assert data[0] == 1.0
@@ -100,7 +101,7 @@ def test_this_interface_soa(device_type: DeviceType):
     Particle_reset(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = this.data['position'].buffer.to_numpy().view(dtype=np.float32)
+    data = this.data['position'].storage.to_numpy().view(dtype=np.float32)
     assert len(data) == 2
     assert data[0] == 1.0
     assert data[1] == 2.0
@@ -124,7 +125,7 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     instance.construct(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = buffer.buffer.to_numpy().view(dtype=np.float32)
+    data = buffer.storage.to_numpy().view(dtype=np.float32)
     assert len(data) == 11
     assert data[0] == 1.0
     assert data[1] == 2.0
@@ -138,7 +139,7 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     instance.update_position(1.0)
 
     # Check the buffer has been correctly updated
-    data = buffer.buffer.to_numpy().view(dtype=np.float32)
+    data = buffer.storage.to_numpy().view(dtype=np.float32)
     assert len(data) == 11
     assert data[0] == 0.0
     assert data[1] == 1.0
@@ -170,7 +171,7 @@ def test_loose_instance_soa(device_type: DeviceType):
     instance.construct(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = instance.position.buffer.to_numpy().view(dtype=np.float32)
+    data = instance.position.storage.to_numpy().view(dtype=np.float32)
     assert data[0] == 1.0
     assert data[1] == 2.0
 
@@ -181,7 +182,7 @@ def test_loose_instance_soa(device_type: DeviceType):
     instance.update_position(1.0)
 
     # Check the buffer has been correctly updated
-    data = instance.position.buffer.to_numpy().view(dtype=np.float32)
+    data = instance.position.storage.to_numpy().view(dtype=np.float32)
     assert len(data) == 2
     assert data[0] == 0.0
     assert data[1] == 1.0
@@ -234,7 +235,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     # assigning each a constant starting position and a random velocity
     particles.construct(position=float2(10, 10),
                         velocity=RandFloatArg(min=-1, max=1, dim=2))
-    expected_particles = particles._data.buffer.to_numpy().view(dtype=np.float32).reshape(-1, 11)
+    expected_particles = particles._data.storage.to_numpy().view(dtype=np.float32).reshape(-1, 11)
 
     # Call the slang function 'Particle::update_position' to update them
     # and do the same for the python version
@@ -242,7 +243,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     particle_update_positions(expected_particles, 1.0/60.0)
 
     # Check the numpy buffer and the slang buffer are the same
-    particle_data = particles._data.buffer.to_numpy().view(dtype=np.float32).reshape(-1, 11)
+    particle_data = particles._data.storage.to_numpy().view(dtype=np.float32).reshape(-1, 11)
     assert np.allclose(particle_data, expected_particles)
 
     # Define a 'Quad' type which is just an array of float2s, and make a buffer for them
@@ -255,7 +256,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     expected_quads = get_particle_quads(expected_particles)
 
     # Read out all the quads as numpy arrays of floats
-    quad_data = quads._data.buffer.to_numpy().view(dtype=np.float32).reshape(-1, 4, 2)
+    quad_data = quads._data.storage.to_numpy().view(dtype=np.float32).reshape(-1, 4, 2)
     assert np.allclose(quad_data, expected_quads)
 
 
@@ -286,7 +287,7 @@ def test_pass_nested_instance_to_function(device_type: DeviceType):
     particles.construct(position=float2(10, 10), velocity=float2(0, 0))
 
     # Check colors are white and emission is black!
-    material_data = particles._data['material']._data.buffer.to_numpy().view(
+    material_data = particles._data['material']._data.storage.to_numpy().view(
         dtype=np.float32).reshape(-1, 6)
     for i in range(0, len(material_data)):
         material_data[i][0] = 1
@@ -390,7 +391,7 @@ def test_backwards_diff(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create storage for particles in a simple buffer
-    particles = DeprecatedInstanceDifferentiableBuffer(Particle, shape=(1000,))
+    particles = InstanceDifferentiableBuffer(Particle, shape=(1000,))
 
     # Call the slang constructor on all particles in the buffer,
     # assigning each a constant starting position and a random velocity

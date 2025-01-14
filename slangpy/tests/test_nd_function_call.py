@@ -22,20 +22,20 @@ void add_numbers_nd(float a, float b, out float c) {
 """,
     )
 
-    a = NDBuffer(device, element_type=float, shape=(2, 2))
-    b = NDBuffer(device, element_type=float, shape=(2, 2))
-    c = NDBuffer(device, element_type=float, shape=(2, 2))
+    a = NDBuffer(device, dtype=float, shape=(2, 2))
+    b = NDBuffer(device, dtype=float, shape=(2, 2))
+    c = NDBuffer(device, dtype=float, shape=(2, 2))
 
     a_data = np.random.rand(*a.shape).astype(np.float32)
     b_data = np.random.rand(*b.shape).astype(np.float32)
 
-    a.buffer.from_numpy(a_data)
-    b.buffer.from_numpy(b_data)
+    a.storage.from_numpy(a_data)
+    b.storage.from_numpy(b_data)
 
     function(a, b, c)
 
     c_expected = a_data + b_data
-    c_data = c.buffer.to_numpy().view(np.float32).reshape(*c.shape)
+    c_data = c.storage.to_numpy().view(np.float32).reshape(*c.shape)
     assert np.allclose(c_data, c_expected, atol=0.01)
 
 

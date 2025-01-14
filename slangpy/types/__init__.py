@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # pyright: reportUnusedImport=false
 
-from .buffer import NDBuffer, DeprecatedNDDifferentiableBuffer
+from .buffer import NDBuffer
 from .diffpair import DiffPair, diffPair, floatDiffPair
 from .randfloatarg import RandFloatArg, rand_float
 from .threadidarg import ThreadIdArg, thread_id

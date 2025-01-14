@@ -6,7 +6,7 @@ import numpy.typing as npt
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
-from slangpy.types.buffer import NDBuffer, DeprecatedNDDifferentiableBuffer
+from slangpy.types.buffer import NDBuffer
 
 
 class InstanceList:
@@ -99,7 +99,7 @@ class InstanceBuffer(InstanceList):
     def __init__(self, struct: Struct, shape: tuple[int, ...], data: Optional[NDBuffer] = None):
         if data is None:
             data = NDBuffer(struct.device_module.session.device,
-                            element_type=struct, shape=shape)
+                            dtype=struct, shape=shape)
         super().__init__(struct, data)
         if data is None:
             data = {}
@@ -129,56 +129,3 @@ class InstanceBuffer(InstanceList):
         Set the buffer from a numpy array.
         """
         self.buffer.from_numpy(data)
-
-
-class DeprecatedInstanceDifferentiableBuffer(InstanceList):
-    """
-    Simplified implementation of InstanceList that uses a single differentiable buffer for all instances and
-    provides buffer convenience functions for accessing its data.
-    """
-
-    def __init__(self, struct: Struct, shape: tuple[int, ...], data: Optional[DeprecatedNDDifferentiableBuffer] = None):
-        if data is None:
-            data = DeprecatedNDDifferentiableBuffer(struct.device_module.session.device,
-                                                    element_type=struct, shape=shape, requires_grad=True)
-        super().__init__(struct, data)
-        if data is None:
-            data = {}
-
-    @property
-    def shape(self):
-        """
-        Get the shape of the buffer.
-        """
-        return self._data.shape
-
-    @property
-    def buffer(self):
-        """
-        Get the buffer.
-        """
-        return self._data
-
-    def primal_to_numpy(self):
-        """
-        Convert the primal buffer to a numpy array.
-        """
-        return self.buffer.primal_to_numpy()
-
-    def primal_from_numpy(self, data: npt.ArrayLike):
-        """
-        Set the primal buffer from a numpy array.
-        """
-        self.buffer.primal_from_numpy(data)
-
-    def grad_to_numpy(self):
-        """
-        Convert the gradient buffer to a numpy array.
-        """
-        return self.buffer.grad_to_numpy()
-
-    def grad_from_numpy(self, data: npt.ArrayLike):
-        """
-        Set the gradient buffer from a numpy array.
-        """
-        self.buffer.grad_from_numpy(data)

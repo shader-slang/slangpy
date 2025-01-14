@@ -37,7 +37,7 @@ class NumpyMarshall(NDBufferMarshall):
                 raise ValueError(
                     f"{binding.variable_name}: Element shape mismatch: val={el_shape}, expected={vec_shape}")
 
-        buffer = NDBuffer(context.device, element_type=self.slang_element_type, shape=shape)
+        buffer = NDBuffer(context.device, dtype=self.slang_element_type, shape=shape)
         buffer.from_numpy(data)
         return super().create_calldata(context, binding, buffer)
 

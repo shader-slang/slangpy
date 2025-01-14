@@ -161,8 +161,8 @@ class TensorMarshall(Marshall):
             if types_equal(self.element_type, innermost_type(bound_type)):
                 if is_nested_array(bound_type) and len(bound_type.shape) <= 2:
                     return bound_type
-            if isinstance(bound_type, VectorType) and types_equal(self.element_type, bound_type.element_type):
-                return bound_type
+                if isinstance(bound_type, VectorType):
+                    return bound_type
 
         # Default to casting to itself
         return self.slang_type
