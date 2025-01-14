@@ -131,7 +131,7 @@ class InstanceBuffer(InstanceList):
         self.buffer.from_numpy(data)
 
 
-class InstanceDifferentiableBuffer(InstanceList):
+class DeprecatedInstanceDifferentiableBuffer(InstanceList):
     """
     Simplified implementation of InstanceList that uses a single differentiable buffer for all instances and
     provides buffer convenience functions for accessing its data.

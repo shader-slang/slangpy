@@ -129,6 +129,13 @@ class Tensor:
         """
         return self.grad_out
 
+    @property
+    def element_count(self) -> int:
+        element_count = 1
+        for dim in self.shape:
+            element_count *= dim
+        return element_count
+
     def to_numpy(self) -> np.ndarray[Any, Any]:
         """
         Copies tensor data into a numpy array with the same shape and strides. This may fail if the

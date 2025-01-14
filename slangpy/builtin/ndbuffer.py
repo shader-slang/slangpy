@@ -8,7 +8,7 @@ from slangpy.backend import ResourceUsage
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext)
-from slangpy.reflection import (TYPE_OVERRIDES, SlangProgramLayout, SlangType,
+from slangpy.reflection import (TYPE_OVERRIDES, SlangProgramLayout, SlangType, VectorType,
                                 is_matching_array_type)
 from slangpy.types import NDBuffer, DeprecatedNDDifferentiableBuffer
 
@@ -97,11 +97,9 @@ class BaseNDBufferMarshall(Marshall):
             if is_matching_array_type(bound_type, self.slang_element_type):
                 return self.slang_element_type
 
-        # if implicit tensor casts enabled, allow conversion from vector/matrix to element type
+        # if implicit tensor casts enabled, allow conversion from vector to element type
         if context.options['implicit_tensor_casts']:
-            if bound_type.full_name.startswith('vector<') and self.slang_element_type == bound_type.element_type:
-                return bound_type
-            elif bound_type.full_name.startswith('matrix<') and self.slang_element_type == bound_type.element_type:
+            if isinstance(bound_type, VectorType) and self.slang_element_type == bound_type.element_type:
                 return bound_type
 
         # Default to just casting to itself (i.e. no implicit cast)

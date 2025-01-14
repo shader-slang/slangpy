@@ -27,7 +27,7 @@ from .core.module import Module
 from .core.instance import (
     InstanceList,
     InstanceBuffer,
-    InstanceDifferentiableBuffer
+    DeprecatedInstanceDifferentiableBuffer
 )
 
 # Get shader include path for slangpy

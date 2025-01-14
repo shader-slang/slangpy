@@ -10,7 +10,7 @@ from slangpy.core.struct import Struct
 
 import slangpy.tests.helpers as helpers
 from slangpy import (InstanceList, InstanceBuffer,
-                     InstanceDifferentiableBuffer, Module)
+                     DeprecatedInstanceDifferentiableBuffer, Module)
 from slangpy.backend import DeviceType, float2, float3, math
 from slangpy.types import NDBuffer, Tensor
 from slangpy.types.randfloatarg import RandFloatArg
@@ -342,8 +342,8 @@ def test_custom_instance_list(device_type: DeviceType):
 class ExtendedInstanceList(InstanceList):
     def __init__(self, struct: Struct):
         super().__init__(struct)
-        self.position = DeprecatedNDDifferentiableBuffer(struct.device, float2, 1000)
-        self.velocity = DeprecatedNDDifferentiableBuffer(struct.device, float2, 1000)
+        self.position = NDBuffer(struct.device, float2, 1000)
+        self.velocity = NDBuffer(struct.device, float2, 1000)
         self.size = 0.5
         self.material = {
             'color': float3(1, 1, 1),
@@ -375,7 +375,7 @@ def test_extended_instance_list(device_type: DeviceType):
     particles.update()
 
     # Check the buffer has been correctly updated
-    data = particles.position.primal_to_numpy().view(dtype=np.float32).reshape(-1, 2)
+    data = particles.position.to_numpy().view(dtype=np.float32).reshape(-1, 2)
     assert np.allclose(data, [10, 10+1.0/60.0])
 
 
@@ -390,7 +390,7 @@ def test_backwards_diff(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create storage for particles in a simple buffer
-    particles = InstanceDifferentiableBuffer(Particle, shape=(1000,))
+    particles = DeprecatedInstanceDifferentiableBuffer(Particle, shape=(1000,))
 
     # Call the slang constructor on all particles in the buffer,
     # assigning each a constant starting position and a random velocity
@@ -398,14 +398,15 @@ def test_backwards_diff(device_type: DeviceType):
                         velocity=RandFloatArg(min=-1, max=1, dim=2))
 
     # Get next position of particles (automatically returns differentiable buffer of correct size)
-    next_positions = particles.calc_next_position(dt=1.0/60.0)
+    next_positions = particles.calc_next_position(dt=1.0/60.0, _result='tensor')
+    next_positions = next_positions.with_grads()
 
     # Init the gradients of next positions to 1 for the backwards pass
-    next_positions.grad_from_numpy(np.ones((1000, 2), dtype=np.float32))
+    next_positions.grad.storage.from_numpy(np.ones((1000, 2), dtype=np.float32))
 
     # Make a buffer of 1000 identical dts, so we can get back the unique grads for each one
-    dts = DeprecatedNDDifferentiableBuffer(m.device, float, 1000, requires_grad=True)
-    dts.primal_from_numpy(np.full((1000,), 1.0/60.0, dtype=np.float32))
+    dts = Tensor.empty(m.device, shape=(1000,), dtype=float).with_grads()
+    dts.storage.from_numpy(np.full((1000,), 1.0/60.0, dtype=np.float32))
 
     # Backwards pass
     particles.calc_next_position.bwds(dt=dts, _result=next_positions)
@@ -413,8 +414,8 @@ def test_backwards_diff(device_type: DeviceType):
     # Read back all primals and gradients we ended up with into numpy arrays
     particle_primals = particles.primal_to_numpy().view(dtype=np.float32).reshape(-1, 11)
     particle_grads = particles.grad_to_numpy().view(dtype=np.float32).reshape(-1, 11)
-    dt_grads = dts.grad_to_numpy().view(dtype=np.float32)
-    next_positions = next_positions.primal_to_numpy().view(dtype=np.float32).reshape(-1, 2)
+    dt_grads = dts.grad.storage.to_numpy().view(dtype=np.float32)
+    next_positions = next_positions.storage.to_numpy().view(dtype=np.float32).reshape(-1, 2)
 
     for particle_idx in range(0, len(particle_primals)):
         pos = particle_primals[particle_idx][0:2]

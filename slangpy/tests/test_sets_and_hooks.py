@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import pytest
@@ -10,7 +10,6 @@ from slangpy.backend import DeviceType
 from slangpy.types.buffer import NDBuffer
 from slangpy.bindings import CallContext
 from slangpy.core.function import Function
-from slangpy.types.tensor import Tensor
 
 TEST_MODULE = r"""
 import "slangpy";
@@ -87,7 +86,7 @@ def test_hook(device_type: DeviceType):
 
     hooks_called = 0
 
-    def check_result(res: Union[NDBuffer, Tensor]):
+    def check_result(res: NDBuffer):
         res_data = res.to_numpy().view(dtype=np.float32)
         assert np.allclose(res_data, val_data + 10)
 
@@ -123,7 +122,7 @@ def test_hook(device_type: DeviceType):
     def after_read_call_data(ctx: CallContext, unpacked_args: tuple[Any], unpacked_kwargs: dict[str, Any]):
         nonlocal hooks_called
         assert '_result' in unpacked_kwargs
-        assert isinstance(unpacked_kwargs['_result'], Tensor)
+        assert isinstance(unpacked_kwargs['_result'], NDBuffer)
         check_result(unpacked_kwargs['_result'])
         assert hooks_called == 4
         hooks_called += 1

@@ -121,7 +121,22 @@ namespace impl
             idx[i] = ctx.call_id[i];                                                        \
                                                                                             \
         [ForceUnroll]                                                                       \
-        for (int i = 0; i < N; i++) {                                                                                   \
+        for (int i = 0; i < N; i++) {                                                       \
+            idx[D - 1] = i;                                                                 \
+            value[i] = get(idx);                                                            \
+        }                                                                                   \
+    }                                                                                       \
+    [Differentiable]                                                                        \
+    public void load<let N : int>(ContextND<D - 1> ctx, out vector<T,N> value)              \
+    {                                                                                       \
+        int idx[D];                                                                         \
+        /*[ForceUnroll]*/                                                                   \
+        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        for (int i = 0; i < D - 1; ++i)                                                     \
+            idx[i] = ctx.call_id[i];                                                        \
+                                                                                            \
+        [ForceUnroll]                                                                       \
+        for (int i = 0; i < N; i++) {                                                       \
             idx[D - 1] = i;                                                                 \
             value[i] = get(idx);                                                            \
         }                                                                                   \
@@ -129,23 +144,24 @@ namespace impl
                                                                                             \
     [Differentiable]                                                                        \
     public void load<let M : int, let N : int>(ContextND<D - 2> context, out T value[M][N]) \
-    { \
-        int idx[D]; \
-        /*[ForceUnroll]*/ \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */ \
-        for (int i = 0; i < D - 2; ++i) \
-            idx[i] = context.call_id[i]; \
-        [ForceUnroll] \
-        for (int i = 0; i < M; i++) { \
-            [ForceUnroll] \
-            for (int j = 0; j < N; j++) { \
-                idx[D - 2] = i; \
-                idx[D - 1] = j; \
-    \
-                value[i][j] = get(idx); \
-            } \
-        } \
+    {                                                                                       \
+        int idx[D];                                                                         \
+        /*[ForceUnroll]*/                                                                   \
+        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        for (int i = 0; i < D - 2; ++i)                                                     \
+            idx[i] = context.call_id[i];                                                    \
+        [ForceUnroll]                                                                       \
+        for (int i = 0; i < M; i++) {                                                       \
+            [ForceUnroll]                                                                   \
+            for (int j = 0; j < N; j++) {                                                   \
+                idx[D - 2] = i;                                                             \
+                idx[D - 1] = j;                                                             \
+                                                                                            \
+                value[i][j] = get(idx);                                                     \
+            }                                                                               \
+        }                                                                                   \
     }
+
 
 #define IRWTensorStores                                                                     \
     [Differentiable]                                                                        \
@@ -163,7 +179,22 @@ namespace impl
         for (int i = 0; i < D - 1; ++i)                                                     \
             idx[i] = context.call_id[i];                                                    \
         [ForceUnroll]                                                                       \
-        for (int i = 0; i < N; i++) {                                                                                   \
+        for (int i = 0; i < N; i++) {                                                       \
+            idx[D - 1] = i;                                                                 \
+            set(idx, value[i]);                                                             \
+        }                                                                                   \
+    }                                                                                       \
+                                                                                            \
+    [Differentiable]                                                                        \
+    public void store<let N : int>(ContextND<D - 1> context, in vector<T,N> value)          \
+    {                                                                                       \
+        int idx[D];                                                                         \
+        /*[ForceUnroll]*/                                                                   \
+        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        for (int i = 0; i < D - 1; ++i)                                                     \
+            idx[i] = context.call_id[i];                                                    \
+        [ForceUnroll]                                                                       \
+        for (int i = 0; i < N; i++) {                                                       \
             idx[D - 1] = i;                                                                 \
             set(idx, value[i]);                                                             \
         }                                                                                   \
@@ -171,22 +202,22 @@ namespace impl
                                                                                             \
     [Differentiable]                                                                        \
     public void store<let M : int, let N : int>(ContextND<D - 2> context, in T value[M][N]) \
-    { \
-        int idx[D]; \
-        /*[ForceUnroll]*/ \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */ \
-        for (int i = 0; i < D - 2; ++i) \
-            idx[i] = context.call_id[i]; \
-        [ForceUnroll] \
-        for (int i = 0; i < M; i++) { \
-            [ForceUnroll] \
-            for (int j = 0; j < N; j++) { \
-                idx[D - 2] = i; \
-                idx[D - 1] = j; \
-                \
-                set(idx, value[i][j]); \
-            } \
-        } \
+    {                                                                                       \
+        int idx[D];                                                                         \
+        /*[ForceUnroll]*/                                                                   \
+        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        for (int i = 0; i < D - 2; ++i)                                                     \
+            idx[i] = context.call_id[i];                                                    \
+        [ForceUnroll]                                                                       \
+        for (int i = 0; i < M; i++) {                                                       \
+            [ForceUnroll]                                                                   \
+            for (int j = 0; j < N; j++) {                                                   \
+                idx[D - 2] = i;                                                             \
+                idx[D - 1] = j;                                                             \
+                                                                                            \
+                set(idx, value[i][j]);                                                      \
+            }                                                                               \
+        }                                                                                   \
     }
 
 public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
