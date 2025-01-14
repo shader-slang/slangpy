@@ -7,7 +7,7 @@ from sgl import float3
 
 import slangpy.tests.helpers as helpers
 from slangpy.backend import Device, DeviceType
-from slangpy.types import NDBuffer, DeprecatedNDDifferentiableBuffer
+from slangpy.types import NDBuffer, Tensor
 from slangpy.types.diffpair import diffPair, floatDiffPair
 from slangpy.types.valueref import intRef
 
@@ -373,45 +373,6 @@ int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
 
     a_data = a.buffer.to_numpy().view(np.int32)
     b_data = b.buffer.to_numpy().view(np.int32)
-
-    assert np.all(res == a_data[0] + b_data[0])
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_pass_diff_buffer_to_buffer(device_type: DeviceType):
-
-    device = helpers.get_device(device_type)
-    function = helpers.create_function_from_module(
-        device,
-        "add_numbers",
-        r"""
-float add_numbers(NDBuffer<float,1> a, NDBuffer<float,1> b) {
-    return a[{0}]+b[{0}];
-}
-""",
-    )
-
-    a = DeprecatedNDDifferentiableBuffer(
-        element_count=1,
-        device=device,
-        element_type=float,
-        requires_grad=True,
-    )
-    a.buffer.from_numpy(np.random.rand(a.element_count).astype('f'))
-
-    b = DeprecatedNDDifferentiableBuffer(
-        element_count=1,
-        device=device,
-        element_type=float,
-        requires_grad=True,
-    )
-    b.buffer.from_numpy(np.random.rand(b.element_count).astype('f'))
-
-    # just verify it can be called with no exceptions
-    res = function(a, b)
-
-    a_data = a.buffer.to_numpy().view(np.float32)
-    b_data = b.buffer.to_numpy().view(np.float32)
 
     assert np.all(res == a_data[0] + b_data[0])
 

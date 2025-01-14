@@ -42,18 +42,14 @@ Initialization follows the same steps as in the previous example:
 
 .. code-block:: python
 
-    import sgl
     import slangpy as spy
     import pathlib
     import numpy as np
 
-    # Create an SGL device with SlangPy and local include paths
-    device = sgl.Device(compiler_options={
-        "include_paths": [
-            spy.SHADER_PATH,
+    # Create an SGL device with the local folder for slangpy includes
+    device = spy.create_device(include_paths=[
             pathlib.Path(__file__).parent.absolute(),
-        ],
-    })
+    ])
 
     # Load the module
     module = spy.Module.load_from_file(device, "example.slang")

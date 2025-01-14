@@ -47,7 +47,7 @@ class WangHashArgMarshall(Marshall):
         access = binding.access
         name = binding.variable_name
         if access[0] == AccessType.read:
-            cgb.add_import("wanghasharg")
+            # cgb.add_import("wanghasharg")
             cgb.type_alias(f"_t_{name}", self.slang_type.full_name)
 
     def create_calldata(self, context: CallContext, binding: BoundVariableRuntime, data: WangHashArg) -> Any:

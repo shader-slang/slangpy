@@ -17,7 +17,6 @@ def test_thread_id(device_type: DeviceType):
     device = helpers.get_device(device_type)
     kernel_output_values = helpers.create_function_from_module(
         device, "thread_ids", """
-import "threadidarg";
 int3 thread_ids(int3 input) {
     return input;
 }
@@ -48,7 +47,6 @@ def test_wang_hash(device_type: DeviceType):
     device = helpers.get_device(device_type)
     kernel_output_values = helpers.create_function_from_module(
         device, "wang_hashes", """
-import "wanghasharg";
 uint3 wang_hashes(uint3 input) {
     return input;
 }
@@ -93,7 +91,6 @@ def test_rand_float(device_type: DeviceType):
     device = helpers.get_device(device_type)
     kernel_output_values = helpers.create_function_from_module(
         device, "rand_float", """
-import "randfloatarg";
 float3 rand_float(float3 input) {
     return input;
 }
@@ -122,7 +119,6 @@ def test_rand_soa(device_type: DeviceType):
     device = helpers.get_device(device_type)
     kernel_output_values = helpers.create_function_from_module(
         device, "rand_float_soa", """
-import "randfloatarg";
 struct Particle {
     float3 pos;
     float3 vel;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import "slangpy";
+implementing slangpy;
 
-uint wang_hash(uint seed)
+public uint wang_hash(uint seed)
 {
     seed = (seed ^ 61) ^ (seed >> 16);
     seed *= 9;
@@ -11,12 +11,12 @@ uint wang_hash(uint seed)
     return seed;
 }
 
-struct WangHashArg<let N : int> {
-    typealias T = vector<uint, N>;
+public struct WangHashArg<let N : int> {
+    public typealias T = vector<uint, N>;
 
-    uint seed;
+    public uint seed;
 
-    void load(Context0D context, out T value) {
+    public void load(Context0D context, out T value) {
         var tid = context.thread_id;
         var hash = tid.x ^ seed; 
         for (int i = 0; i < N; i++) {
@@ -24,5 +24,5 @@ struct WangHashArg<let N : int> {
             value[i] = hash;
         }
     }
-    void store(Context0D context, in T value) {};
+    public void store(Context0D context, in T value) {};
 }

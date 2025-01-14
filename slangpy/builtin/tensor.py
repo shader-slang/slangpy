@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from slangpy.core.native import AccessType, CallContext, CallMode, Shape, TypeReflection
 
+from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorType
 from slangpy.types.tensor import Tensor, innermost_type
 
 from slangpy.backend import TypeReflection
@@ -146,13 +147,21 @@ class TensorMarshall(Marshall):
 
             return build_tensor_type(self.layout, bound_type.dtype, bound_type.dims, bound_type.writable, self.d_in is not None, self.d_out is not None)
 
-        if types_equal(self.element_type, bound_type):
-            # Passing tensor to its element type is ok
-            return bound_type
+        # if implicit element casts enabled, allow conversion from type to element type
+        if context.options['implicit_element_casts']:
+            if types_equal(self.element_type, bound_type):
+                return bound_type
+            if is_matching_array_type(bound_type, self.element_type):
+                return self.element_type
 
-        # Be lenient and allow e.g. passing float to float[N] or float[M][N]
-        if types_equal(self.element_type, innermost_type(bound_type)):
-            if is_nested_array(bound_type) and len(bound_type.shape) <= 2:
+        # if implicit tensor casts enabled, allow conversion from vector to element type
+        # or array type
+        if context.options['implicit_tensor_casts']:
+            # Be lenient and allow e.g. passing float to float[N] or float[M][N]
+            if types_equal(self.element_type, innermost_type(bound_type)):
+                if is_nested_array(bound_type) and len(bound_type.shape) <= 2:
+                    return bound_type
+            if isinstance(bound_type, VectorType) and types_equal(self.element_type, bound_type.element_type):
                 return bound_type
 
         # Default to casting to itself
@@ -173,12 +182,8 @@ class TensorMarshall(Marshall):
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
         if isinstance(vector_target_type, ITensorType):
             return self.dims - vector_target_type.dims
-        elif types_equal(self.element_type, vector_target_type):
-            return self.dims
-        elif is_nested_array(vector_target_type) and len(vector_target_type.shape) <= 2:
-            return self.dims - len(vector_target_type.shape)
         else:
-            return 0
+            return self.dims + len(self.element_type.shape) - len(vector_target_type.shape)
 
     def get_shape(self, value: Optional[Tensor] = None) -> Shape:
         if value is not None:
@@ -196,7 +201,7 @@ class TensorMarshall(Marshall):
             self.element_type, self.dims, writable, self.d_in is not None, self.d_out is not None)
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
-        cgb.add_import("tensor")
+        # cgb.add_import("tensor")
 
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Tensor) -> Any:
         strides = tuple(0 if dim == 1 else stride for dim, stride in zip(data.shape, data.strides))

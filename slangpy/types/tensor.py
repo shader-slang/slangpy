@@ -5,9 +5,11 @@ from slangpy.backend import Device, Buffer, ResourceUsage, TypeReflection, uint4
 from slangpy.core.utils import shape_to_contiguous_strides
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
 from slangpy.reflection import reflectiontypes
-from .buffer import get_lookup_module, resolve_element_type, resolve_program_layout
+from slangpy.core.native import Shape
+from slangpy.core.shapes import TShapeOrTuple
+from slangpy.types.buffer import get_lookup_module, resolve_element_type, resolve_program_layout
 
-from typing import Optional, cast, Any
+from typing import Optional, Any
 import numpy as np
 import math
 
@@ -58,21 +60,21 @@ class Tensor:
     If omitted, a dense N-D grid is assumed (row-major).
     """
 
-    def __init__(self, storage: Buffer, dtype: SlangType, shape: tuple[int, ...],
+    def __init__(self, storage: Buffer, dtype: SlangType, shape: TShapeOrTuple,
                  strides: Optional[tuple[int, ...]] = None, offset: int = 0):
 
         super().__init__()
 
         self.storage = storage
         self.dtype = dtype
-        self.shape = shape
+        self.shape = Shape(shape)
         self.offset = offset
 
         self.grad_in: Optional[Tensor] = None
         self.grad_out: Optional[Tensor] = None
 
         if strides is None:
-            strides = shape_to_contiguous_strides(self.shape)
+            strides = shape_to_contiguous_strides(self.shape.as_tuple())
 
         if len(strides) != len(self.shape):
             raise ValueError("Number of strides must match number of dimensions")
@@ -85,20 +87,24 @@ class Tensor:
         dtype_strides = shape_to_contiguous_strides(dtype_shape)
         stride_multiplier = math.prod(dtype_shape)
 
-        new_shape = self.shape + dtype_shape
+        new_shape = self.shape.as_tuple() + dtype_shape
         new_strides = tuple(s * stride_multiplier for s in self.strides) + dtype_strides
         new_offset = self.offset * stride_multiplier
 
         return Tensor(self.storage, new_dtype, new_shape, new_strides, new_offset)
 
-    def broadcast_to(self, shape: tuple[int, ...]) -> Tensor:
+    def broadcast_to(self, shape: TShapeOrTuple) -> Tensor:
         """
         Returns a new tensor view of the same buffer with the requested shape, following standard broadcasting rules.
         """
         D = len(shape) - len(self.shape)
         if D < 0:
             raise ValueError(f"Broadcast shape must be larger than tensor shape")
-        if any(a != b and a != 1 for a, b in zip(shape[D:], self.shape)):
+
+        shape = Shape(shape)
+        st = shape.as_tuple()
+
+        if any(a != b and a != 1 for a, b in zip(st[D:], self.shape)):
             raise ValueError(
                 f"Tensor with shape {self.shape} can't be broadcast to {shape}")
 
@@ -116,6 +122,20 @@ class Tensor:
         else:
             return str(ndarray)
 
+    @property
+    def grad(self) -> Optional[Tensor]:
+        """
+        Alias for grad_out
+        """
+        return self.grad_out
+
+    @property
+    def element_count(self) -> int:
+        element_count = 1
+        for dim in self.shape:
+            element_count *= dim
+        return element_count
+
     def to_numpy(self) -> np.ndarray[Any, Any]:
         """
         Copies tensor data into a numpy array with the same shape and strides. This may fail if the
@@ -128,10 +148,10 @@ class Tensor:
                 f"Tensor element type {self.dtype.full_name} is not compatible with numpy")
         dtype_size = self.dtype.buffer_layout.size
         elem_size = innermost_type(self.dtype).buffer_layout.size
-        dtype_shape = tuple(cast(int, x) for x in self.dtype.shape)
+        dtype_shape = self.dtype.shape.as_tuple()
         dtype_strides = shape_to_contiguous_strides(dtype_shape)
 
-        shape = self.shape + dtype_shape
+        shape = self.shape.as_tuple() + dtype_shape
         strides = tuple(s * dtype_size for s in self.strides) + \
             tuple(s * elem_size for s in dtype_strides)
 
@@ -168,7 +188,7 @@ class Tensor:
         return f"Tensor[{self.dtype.name},{len(self.shape)}]"
 
     @staticmethod
-    def from_numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
+    def numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
         """
         Creates a new tensor with the same contents, shape and strides as the given numpy array.
         """
@@ -192,7 +212,7 @@ class Tensor:
         return Tensor(buffer, dtype, tuple(ndarray.shape), strides)
 
     @staticmethod
-    def empty(device: Device, shape: tuple[int, ...], dtype: Any, program_layout: Optional[SlangProgramLayout] = None) -> Tensor:
+    def empty(device: Device, shape: TShapeOrTuple, dtype: Any, program_layout: Optional[SlangProgramLayout] = None) -> Tensor:
         """
         Creates a tensor with the requested shape and element type without attempting to initialize the data.
         """
@@ -209,7 +229,7 @@ class Tensor:
         return Tensor(buffer, dtype, shape)
 
     @staticmethod
-    def zeros(device: Device, shape: tuple[int, ...], dtype: Any) -> Tensor:
+    def zeros(device: Device, shape: TShapeOrTuple, dtype: Any) -> Tensor:
         """
         Creates a zero-initialized tensor with the requested shape and element type.
         """

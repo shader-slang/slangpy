@@ -23,17 +23,13 @@ Next, we'll create a Python script to initialize SGL, load the Slang module, and
 
     ## main.py
 
-    import sgl
     import slangpy as spy
     import pathlib
 
-    # Create an SGL device with slangpy and local include paths
-    device = sgl.Device(compiler_options={
-        "include_paths": [
-            spy.SHADER_PATH,
+    # Create an SGL device with the local folder for slangpy includes
+    device = spy.create_device(include_paths=[
             pathlib.Path(__file__).parent.absolute(),
-        ],
-    })
+    ])
 
     # Load the module
     module = spy.Module.load_from_file(device, "example.slang")

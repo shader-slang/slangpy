@@ -2,6 +2,7 @@
 
 import slangpy as spy
 import pathlib
+import numpy as np
 
 # Create an SGL device with the local folder for slangpy includes
 device = spy.create_device(include_paths=[
@@ -11,10 +12,9 @@ device = spy.create_device(include_paths=[
 # Load module
 module = spy.Module.load_from_file(device, "example.slang")
 
-# Call the function and print the result
-result = module.add(1.0, 2.0)
-print(result)
+# Create a tensor with attached grads from a numpy array
+tensor = spy.Tensor.numpy(device, np.array([1, 2, 3, 4], dtype=np.float32)).with_grads()
 
-# SlangPy also supports named parameters
-result = module.add(a=1.0, b=2.0)
+# evaluate the polynomial
+result = module.polynomial(a=2, b=8, c=-1, x=tensor)
 print(result)

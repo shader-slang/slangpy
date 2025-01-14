@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # pyright: reportUnusedImport=false
 # isort: skip_file
+from .core.utils import create_device
 import runpy
 import pathlib
 
@@ -26,8 +27,10 @@ from .core.module import Module
 from .core.instance import (
     InstanceList,
     InstanceBuffer,
-    InstanceDifferentiableBuffer
+    DeprecatedInstanceDifferentiableBuffer
 )
 
 # Get shader include path for slangpy
 SHADER_PATH = str(pathlib.Path(__file__).parent.absolute() / "slang")
+
+# Helper to create devices

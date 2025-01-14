@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import tensor;
+import slangpy;
 
 [Differentiable]
 float[5] matrix_vector_direct(float weights[5][8], float biases[5], float[8] x)

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 import "slangpy";
-import "randfloatarg";
 
 struct Material : IDifferentiable {
     float3 color;
