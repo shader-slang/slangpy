@@ -16,12 +16,12 @@ def get_test_tensors(device: Device, N: int = 4):
     np_x = np.random.randn(8).astype(np.float32)
     np_result = np.tile(np_weights.dot(np_x) + np_biases, (N, 1))
 
-    weights = Tensor.from_numpy(np_weights, device).broadcast_to((N, 5, 8))
-    biases = Tensor.from_numpy(np_biases, device).broadcast_to((N, 5))
-    x = Tensor.from_numpy(np_x, device).broadcast_to((N, 8))
+    weights = Tensor.from_numpy(device, np_weights).broadcast_to((N, 5, 8))
+    biases = Tensor.from_numpy(device, np_biases).broadcast_to((N, 5))
+    x = Tensor.from_numpy(device, np_x).broadcast_to((N, 8))
 
-    weights = weights.with_grads(None, Tensor.zeros_like(weights))
-    biases = biases.with_grads(None, Tensor.zeros_like(biases))
+    weights = weights.with_grads()
+    biases = biases.with_grads()
 
     return weights, biases, x, np_result
 
@@ -65,6 +65,29 @@ def test_differentiable_interface_parameters(device_type: DeviceType):
 
     compare_tensors(weights.grad_out.to_numpy(), weight_grad_ref)
     compare_tensors(biases.grad_out.to_numpy(), bias_grad_ref)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_fail_shared_inout_grad_buffers(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+
+    function = helpers.create_function_from_module(
+        device,
+        "inc",
+        r"""
+import "tensor"; 
+[Differentiable]
+void inc(float amount, inout float val) { val += amount; }
+""")
+
+    amount = Tensor.from_numpy(device, np.array([1.0], dtype=np.float32))
+    val = Tensor.zeros(device, (1,), "float").with_grads()
+
+    function(amount, val)
+    assert np.allclose(val.to_numpy(), amount.to_numpy())
+
+    with pytest.raises(ValueError, match="inout param"):
+        function.bwds(amount, val)
 
 
 if __name__ == "__main__":
