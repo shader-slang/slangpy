@@ -5,9 +5,9 @@ from slangpy.backend import Device, Buffer, ResourceUsage, TypeReflection, uint4
 from slangpy.core.utils import shape_to_contiguous_strides
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
 from slangpy.reflection import reflectiontypes
-from slangpy.types.buffer import get_lookup_module, resolve_element_type, resolve_program_layout
 from slangpy.core.native import Shape
 from slangpy.core.shapes import TShapeOrTuple
+from slangpy.types.buffer import get_lookup_module, resolve_element_type, resolve_program_layout
 
 from typing import Optional, Any
 import numpy as np
