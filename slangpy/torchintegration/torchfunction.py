@@ -27,7 +27,7 @@ def unpack_arg(arg: Any, tensors: list[torch.Tensor]) -> Any:
     return arg
 
 
-def alloc_gradients(arg: Any, tensors: list[torch.Tensor]) -> Any:
+def alloc_gradients(arg: Any, tensors: list[Optional[torch.Tensor]]) -> Any:
     if hasattr(arg, "get_this"):
         arg = arg.get_this()
     if isinstance(arg, dict):
@@ -35,9 +35,12 @@ def alloc_gradients(arg: Any, tensors: list[torch.Tensor]) -> Any:
     if isinstance(arg, (list, tuple)):
         arg = [alloc_gradients(v, tensors) for v in arg]
     if isinstance(arg, WrappedTensor):
-        grad = torch.zeros_like(arg.primal)
-        arg.grad_out = WrappedTensor(grad)
-        tensors.append(grad)
+        if arg.primal.requires_grad:
+            grad = torch.zeros_like(arg.primal)
+            arg.grad_out = WrappedTensor(grad)
+            tensors.append(grad)
+        else:
+            tensors.append(None)
     return arg
 
 
@@ -87,7 +90,7 @@ class TorchAutoGradFunction(torch.autograd.Function):
         # Alloc gradients and get list back. As alloc_gradients
         # runs the same process as unpack_arg, the gradients list
         # will match 1-to-1 the input tensors list.
-        gradients: list[torch.Tensor] = []
+        gradients: list[Optional[torch.Tensor]] = []
         alloc_gradients((unpacked_args, unpacked_kwargs), gradients)
 
         # Sync device with cuda
