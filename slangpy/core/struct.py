@@ -50,6 +50,16 @@ class Struct:
         """
         return self.module.device_module
 
+    def torch(self):
+        """
+        Returns a pytorch wrapper around this struct
+        """
+        import slangpy.torchintegration as spytorch
+        if spytorch.TORCH_ENABLED:
+            return spytorch.TorchStruct(self)
+        else:
+            raise RuntimeError("Pytorch integration is not enabled")
+
     def try_get_child(self, name: str) -> Optional[Union['Struct', 'Function']]:
         """
         Attempt to get either a child struct or method of this struct.
