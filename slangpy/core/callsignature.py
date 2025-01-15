@@ -10,7 +10,6 @@ from slangpy.bindings.marshall import Marshall, BindContext, ReturnContext
 from slangpy.bindings.boundvariable import (BoundCall, BoundVariable,
                                             BoundVariableException)
 from slangpy.bindings.codegen import CodeGen
-from slangpy.builtin.struct import StructMarshall
 from slangpy.builtin.value import NoneMarshall, ValueMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
 from slangpy.types.buffer import NDBuffer

@@ -21,20 +21,20 @@ from slangpy.types.valueref import ValueRef
 
 
 def make_int_buffer(device_type: DeviceType, shape: tuple[int, ...]):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, element_type=int)
+    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=int)
 
 
 def make_float_buffer(device_type: DeviceType, shape: tuple[int, ...]):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, element_type=float)
+    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float)
 
 
 def make_vec4_buffer(device_type: DeviceType, shape: tuple[int, ...]):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, element_type=float4)
+    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float4)
 
 
 def make_vec4_raw_buffer(device_type: DeviceType, count: int):
     nd = make_vec4_buffer(device_type, (count,))
-    return nd.buffer
+    return nd.storage
 
 
 def list_or_none(x: Any):

@@ -41,16 +41,16 @@ void add_numbers(float2 a, float2 b, out float2 res) {
     a = float2(a_data[0], a_data[1])
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = NDBuffer(device=device, element_count=100, element_type=float2)
-    b.buffer.from_numpy(b_data)
+    b = NDBuffer(device=device, element_count=100, dtype=float2)
+    b.storage.from_numpy(b_data)
 
     res = NDBuffer(
-        device=device, element_count=100, element_type=float2)
+        device=device, element_count=100, dtype=float2)
 
     function(a, b, res)
 
     expected = a_data + b_data
-    actual = res.buffer.to_numpy().view(np.float32).reshape(-1, 2)
+    actual = res.storage.to_numpy().view(np.float32).reshape(-1, 2)
 
     assert np.allclose(expected, actual)
 
@@ -70,20 +70,20 @@ void add_numbers(float2 a, float2 b, out float2 res) {
     )
 
     a_data = np.random.rand(100, 2).astype(np.float32)
-    a = NDBuffer(device=device, shape=(100, 2), element_type=float)
-    a.buffer.from_numpy(a_data)
+    a = NDBuffer(device=device, shape=(100, 2), dtype=float)
+    a.storage.from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = NDBuffer(device=device, element_count=100, element_type=float2)
-    b.buffer.from_numpy(b_data)
+    b = NDBuffer(device=device, element_count=100, dtype=float2)
+    b.storage.from_numpy(b_data)
 
     res = NDBuffer(
-        device=device, element_count=100, element_type=float2)
+        device=device, element_count=100, dtype=float2)
 
     function(a, b, res)
 
     expected = a_data + b_data
-    actual = res.buffer.to_numpy().view(np.float32).reshape(-1, 2)
+    actual = res.storage.to_numpy().view(np.float32).reshape(-1, 2)
 
     assert np.allclose(expected, actual)
 
@@ -103,19 +103,19 @@ void add_numbers_vecreadwrite(float2 a, float2 b, out float2 res) {
     )
 
     a_data = np.random.rand(100, 2).astype(np.float32)
-    a = NDBuffer(device=device, shape=(100, 2), element_type=float)
-    a.buffer.from_numpy(a_data)
+    a = NDBuffer(device=device, shape=(100, 2), dtype=float)
+    a.storage.from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = NDBuffer(device=device, element_count=100, element_type=float2)
-    b.buffer.from_numpy(b_data)
+    b = NDBuffer(device=device, element_count=100, dtype=float2)
+    b.storage.from_numpy(b_data)
 
-    res = NDBuffer(device=device, shape=(100, 2), element_type=float)
+    res = NDBuffer(device=device, shape=(100, 2), dtype=float)
 
     function(a, b, res)
 
     expected = a_data + b_data
-    actual = res.buffer.to_numpy().view(np.float32).reshape(-1, 2)
+    actual = res.storage.to_numpy().view(np.float32).reshape(-1, 2)
 
     assert np.allclose(expected, actual)
 
@@ -139,15 +139,15 @@ void add_numbers_diffpair(float2 a, float2 b, out float2 res) {
     a.storage.from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = NDBuffer(device=device, element_count=100, element_type=float2)
-    b.buffer.from_numpy(b_data)
+    b = NDBuffer(device=device, element_count=100, dtype=float2)
+    b.storage.from_numpy(b_data)
 
-    res = NDBuffer(device=device, shape=(100, 2), element_type=float)
+    res = NDBuffer(device=device, shape=(100, 2), dtype=float)
 
     function(a, b, res)
 
     expected = a_data + b_data
-    actual = res.buffer.to_numpy().view(np.float32).reshape(-1, 2)
+    actual = res.storage.to_numpy().view(np.float32).reshape(-1, 2)
 
     assert np.allclose(expected, actual)
 

@@ -48,8 +48,8 @@ def test_share_kernel_with_same_mapping(device_type: DeviceType):
 
     func = m.foo.as_func()
 
-    b0 = NDBuffer(device, program_layout=m.layout, element_type=float, shape=(100,))
-    b1 = NDBuffer(device, program_layout=m.layout, element_type=float, shape=(100,))
+    b0 = NDBuffer(device, program_layout=m.layout, dtype=float, shape=(100,))
+    b1 = NDBuffer(device, program_layout=m.layout, dtype=float, shape=(100,))
 
     float_float_cd = func.debug_build_call_data(b0, b1)
     mapped_float_float_cd = func.map((0,), (0,)).debug_build_call_data(b0, b1)

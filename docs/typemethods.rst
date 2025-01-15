@@ -140,5 +140,4 @@ This example demonstrated:
 
 ``InstanceBuffer`` especially is a very lightweight wrapper, and can be used interchangeably with normal 
 ``NDBuffers``. As a result, favouring the use of an ``InstanceBuffer`` unless you have a good reason 
-not to is generally recommended. Just as with ``NDBuffer``, an additional ``InstanceDifferentiableBuffer``
-exists for when you also want to store gradients.
+not to is generally recommended.

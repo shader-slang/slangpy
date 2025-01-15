@@ -27,7 +27,7 @@ int3 thread_ids(int3 input) {
     results = NDBuffer(
         element_count=128,
         device=device,
-        element_type=int3
+        dtype=int3
     )
 
     # Call function with 3D thread arg. Pass results in, so it forces
@@ -35,7 +35,7 @@ int3 thread_ids(int3 input) {
     kernel_output_values(ThreadIdArg(3), _result=results)
 
     # Should get out the thread ids
-    data = results.buffer.to_numpy().view("int32").reshape((-1, 3))
+    data = results.storage.to_numpy().view("int32").reshape((-1, 3))
     expected = [[i, 0, 0] for i in range(128)]
     assert np.allclose(data, expected)
 
@@ -57,14 +57,14 @@ uint3 wang_hashes(uint3 input) {
     results = NDBuffer(
         element_count=16,
         device=device,
-        element_type=uint3
+        dtype=uint3
     )
 
     # Call function with 3D wang hash arg
     kernel_output_values(WangHashArg(3), _result=results)
 
     # Should get out the following precalculated wang hashes
-    data = results.buffer.to_numpy().view("uint32").reshape((-1, 3))
+    data = results.storage.to_numpy().view("uint32").reshape((-1, 3))
     expected = [[3232319850, 3075307816,  755367838],
                 [663891101, 1738326990,  801461103],
                 [3329832309,  685338552, 3175962347],
@@ -101,14 +101,14 @@ float3 rand_float(float3 input) {
     results = NDBuffer(
         element_count=16,
         device=device,
-        element_type=float3
+        dtype=float3
     )
 
     # Call function with 3D random arg
     kernel_output_values(RandFloatArg(1.0, 2.0, 3), _result=results)
 
     # Should get random numbers
-    data = results.buffer.to_numpy().view("float32").reshape((-1, 3))
+    data = results.storage.to_numpy().view("float32").reshape((-1, 3))
     assert np.all(data >= 1.0) and np.all(data <= 2.0)
 
 
@@ -136,7 +136,7 @@ Particle rand_float_soa(Particle input) {
     results = NDBuffer(
         element_count=16,
         device=device,
-        element_type=module.layout.find_type_by_name("Particle")
+        dtype=module.layout.find_type_by_name("Particle")
     )
 
     # Call function with 3D random arg
@@ -146,7 +146,7 @@ Particle rand_float_soa(Particle input) {
     }, _result=results)
 
     # Should get random numbers
-    data = results.buffer.to_numpy().view("float32")[0:16*6].reshape((-1, 6))
+    data = results.storage.to_numpy().view("float32")[0:16*6].reshape((-1, 6))
     (pos, dir) = np.split(data, 2, axis=1)
     assert np.all(pos >= -100.0) and np.all(pos <= 100.0)
     assert np.all(dir >= 0) and np.all(dir <= np.pi*2)
@@ -169,7 +169,7 @@ int range_test(int input) {
     res = kernel_output_values(range(10, 20, 2))
 
     # Should get random numbers
-    data = res.buffer.to_numpy().view("int32")
+    data = res.storage.to_numpy().view("int32")
     assert np.all(data == [10, 12, 14, 16, 18])
 
 

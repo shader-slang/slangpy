@@ -125,7 +125,7 @@ def test_implicit_1d_vectorization(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "foo", SIMPLE_FUNC)
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10,))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
     call_data = function.debug_build_call_data(buffer)
 
@@ -148,7 +148,7 @@ def test_fail_disabled_implicit_1d_vectorization(device_type: DeviceType):
         'implicit_element_casts': False
     })
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10,))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
     with pytest.raises(ValueError):
         call_data = function.debug_build_call_data(buffer)
@@ -160,7 +160,7 @@ def test_fail_implicit_float_to_int_1d_vectorization(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "intfoo", SIMPLE_FUNC)
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10,))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
     with pytest.raises(ValueError):
         call_data = function.debug_build_call_data(buffer)
@@ -172,7 +172,7 @@ def test_explicit_map_float_to_int_1d_vectorization(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "intfoo", SIMPLE_FUNC)
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10,))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
     call_data = function.map((0,)).debug_build_call_data(buffer)
 
@@ -193,7 +193,7 @@ def test_explicit_cast_float_to_int_1d_vectorization(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "intfoo", SIMPLE_FUNC)
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10,))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
     call_data = function.map(float).debug_build_call_data(buffer)
 
@@ -214,7 +214,7 @@ def test_generic_1d_explicit_vectorization(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "genericfoo", SIMPLE_FUNC)
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10,))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
     call_data = function.map((0,)).debug_build_call_data(buffer)
 
@@ -236,7 +236,7 @@ def test_genericconstrained_1d_explicit_vectorization(device_type: DeviceType):
     function = helpers.create_function_from_module(
         device, "genericconstrainedfoo", SIMPLE_FUNC)
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10,))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
     call_data = function.map((0,)).debug_build_call_data(buffer)
 
@@ -258,7 +258,7 @@ def test_genericconstrained_1d_explicit_typed_vectorization(device_type: DeviceT
     function = helpers.create_function_from_module(
         device, "genericconstrainedfoo", SIMPLE_FUNC)
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10,))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
     call_data = function.map("float").debug_build_call_data(buffer)
 
@@ -280,7 +280,7 @@ def test_genericconstrained_1d_fail_implicit_vectorization(device_type: DeviceTy
     function = helpers.create_function_from_module(
         device, "genericconstrainedfoo", SIMPLE_FUNC)
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10,))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
     with pytest.raises(ValueError):
         call_data = function.debug_build_call_data(buffer)
@@ -292,7 +292,7 @@ def test_implicit_tensor_to_vector(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "foo3", SIMPLE_FUNC)
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10, 3))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10, 3))
 
     call_data = function.debug_build_call_data(buffer)
 
@@ -315,7 +315,7 @@ def test_fail_disabled_implicit_tensor_to_vector(device_type: DeviceType):
         'implicit_tensor_casts': False
     })
 
-    buffer = NDBuffer(device=device, element_type=float, shape=(10, 3))
+    buffer = NDBuffer(device=device, dtype=float, shape=(10, 3))
 
     with pytest.raises(ValueError):
         call_data = function.debug_build_call_data(buffer)
@@ -327,8 +327,8 @@ def test_fail_implicit_dimension_adding_vectorization(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "add", SIMPLE_FUNC)
 
-    a = NDBuffer(device=device, element_type=float, shape=(10, 10))
-    b = NDBuffer(device=device, element_type=float, shape=(10,))
+    a = NDBuffer(device=device, dtype=float, shape=(10, 10))
+    b = NDBuffer(device=device, dtype=float, shape=(10,))
 
     with pytest.raises(Exception):
         call_data = function.debug_build_call_data(a, b)
@@ -342,8 +342,8 @@ def test_none_strict_implicit_dimension_adding_vectorization(device_type: Device
         'strict_broadcasting': False
     })
 
-    a = NDBuffer(device=device, element_type=float, shape=(10, 10))
-    b = NDBuffer(device=device, element_type=float, shape=(10,))
+    a = NDBuffer(device=device, dtype=float, shape=(10, 10))
+    b = NDBuffer(device=device, dtype=float, shape=(10,))
 
     call_data = function.debug_build_call_data(a, b)
 

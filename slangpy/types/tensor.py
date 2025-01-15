@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-from slangpy.backend import Device, Buffer, ResourceUsage, TypeReflection, uint4
+from slangpy.backend import Device, Buffer, ResourceUsage, TypeReflection, uint4, BufferCursor, CommandBuffer
 from slangpy.core.utils import shape_to_contiguous_strides
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
 from slangpy.reflection import reflectiontypes
@@ -123,10 +123,11 @@ class Tensor:
             return str(ndarray)
 
     @property
-    def grad(self) -> Optional[Tensor]:
+    def grad(self) -> Tensor:
         """
         Alias for grad_out
         """
+        assert self.grad_out is not None
         return self.grad_out
 
     @property
@@ -159,7 +160,7 @@ class Tensor:
 
         return np.lib.stride_tricks.as_strided(data, shape, strides)
 
-    def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None) -> Tensor:
+    def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None, zero: bool = False) -> Tensor:
         """
         Returns a new tensor view with gradients attached. If called with no arguments, the
         tensor defaults to attaching a zeros-like initialized gradient tensor for both input and 
@@ -174,14 +175,33 @@ class Tensor:
         tensor, input gradients will be written to grad_out (if not None).
         """
         if grad_in is None and grad_out is None:
-            grad_in = Tensor.zeros(
+            grad_in = Tensor.empty(
                 shape=self.shape, dtype=self.dtype.derivative, device=self.storage.device)
             grad_out = grad_in
 
         result = Tensor(self.storage, self.dtype, self.shape, self.strides, self.offset)
         result.grad_in = grad_in
         result.grad_out = grad_out
+
+        if zero:
+            if grad_in is not None:
+                grad_in.clear()
+            if grad_out is not None:
+                grad_out.clear()
         return result
+
+    def clear(self, command_buffer: Optional[CommandBuffer] = None):
+        """
+        Fill the tensor with zeros. If no command buffer is provided, a new one is created and
+        immediately submitted. If a command buffer is provided the clear is simply appended to it
+        but not automatically submitted.
+        """
+        if command_buffer:
+            command_buffer.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
+        else:
+            cmd = self.storage.device.create_command_buffer()
+            cmd.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
+            cmd.submit()
 
     @property
     def slangpy_signature(self) -> str:
@@ -255,3 +275,25 @@ class Tensor:
         """
 
         return Tensor.zeros(other.storage.device, other.shape, other.dtype)
+
+    def cursor(self, start: Optional[int] = None, count: Optional[int] = None):
+        """
+        Returns a BufferCursor for the buffer, starting at the given index and with the given count
+        of elements.
+        """
+        el_stride = self.dtype.buffer_layout.stride
+        size = (count or self.element_count) * el_stride
+        offset = (start or 0) * el_stride
+        layout = self.dtype.buffer_layout
+        return BufferCursor(layout.reflection, self.storage, size, offset)
+
+    def uniforms(self):
+        """
+        Returns a dictionary of uniforms for this buffer, suitable for use with a compute kernel. These
+        are useful when manually passing the buffer to a kernel, rather than going via a slangpy function.
+        """
+        return {
+            'buffer': self.storage,
+            'strides': self.strides,
+            'shape': self.shape.as_tuple(),
+        }

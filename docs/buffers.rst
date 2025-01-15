@@ -1,7 +1,7 @@
 Buffers
 =======
 
-SlangPy provides two key wrappers around classic structured buffers (represented in SGL as `Buffer` objects): ``NDBuffer`` and ``NDDifferentiableBuffer``.
+SlangPy provides two key wrappers around classic structured buffers (represented in SGL as `Buffer` objects): ``NDBuffer`` and ``Tensor``.
 
 The ``NDBuffer`` type takes a structured buffer with a defined stride and size and adds:
 
@@ -132,5 +132,5 @@ Summary
 That's it! This tutorial demonstrated how to use ``NDBuffer`` to manipulate structured data in SlangPy. While we focused on basic buffer operations, there’s much more to explore, such as:
 
 - Using ``InstanceLists`` to call type methods.
-- Leveraging ``NDDifferentiableBuffer`` for differentiable data manipulation.
+- Leveraging ``Tensor`` for differentiable data manipulation.
 

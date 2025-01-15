@@ -66,7 +66,7 @@ def load_test_module(device_type: DeviceType, link: list[Any] = [], options: dic
 def test_dispatch_entrypoint(device_type: DeviceType):
     mod = load_test_module(device_type)
     buffer = NDBuffer(mod.device, mod.uint3, 32)
-    mod.func_entrypoint.dispatch(uint3(32, 1, 1), buffer=buffer.buffer)
+    mod.func_entrypoint.dispatch(uint3(32, 1, 1), buffer=buffer.storage)
     data = buffer.to_numpy().view(np.uint32).reshape(-1, 3)
     expected = np.array([[i, 0, 0] for i in range(32)])
     assert np.all(data == expected)
@@ -86,7 +86,7 @@ def test_dispatch_ndbuffer_entrypoint(device_type: DeviceType):
 def test_dispatch_func(device_type: DeviceType):
     mod = load_test_module(device_type)
     buffer = NDBuffer(mod.device, mod.uint3, 32)
-    mod.func_threadparam.dispatch(uint3(32, 1, 1), buffer=buffer.buffer)
+    mod.func_threadparam.dispatch(uint3(32, 1, 1), buffer=buffer.storage)
     data = buffer.to_numpy().view(np.uint32).reshape(-1, 3)
     expected = np.array([[i, 0, 0] for i in range(32)])
     assert np.all(data == expected)
@@ -107,7 +107,7 @@ def test_override_threadgroup(device_type: DeviceType):
     mod = load_test_module(device_type)
     buffer = NDBuffer(mod.device, mod.uint3, 32)
     mod.func_threadparam.thread_group_size(uint3(1, 1, 1)).dispatch(
-        uint3(32, 1, 1), buffer=buffer.buffer)
+        uint3(32, 1, 1), buffer=buffer.storage)
     data = buffer.to_numpy().view(np.uint32).reshape(-1, 3)
     expected = np.array([[i, 0, 0] for i in range(32)])
     assert np.all(data == expected)
