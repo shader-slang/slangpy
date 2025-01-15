@@ -1,4 +1,4 @@
-Auto-diff
+Basic Auto-diff
 =========
 
 One Slang's most powerful features is it's auto-diff capabilities, documented in detail `here <https://shader-slang.com/slang/user-guide/autodiff.html>`_. SlangPy carries this feature over to Python, allowing you to easily the backwards derivative of a function.
