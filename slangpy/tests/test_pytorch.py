@@ -12,7 +12,6 @@ except ImportError:
     pytest.skip("Pytorch not installed", allow_module_level=True)
 
 TEST_CODE = """
-import tensor;
 [Differentiable]
 float square(float x) {
     return x * x;
