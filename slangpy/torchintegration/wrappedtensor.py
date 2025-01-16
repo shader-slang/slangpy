@@ -8,7 +8,7 @@ import torch
 
 from slangpy.backend.slangpynativeemulation import AccessType, CallContext, CallMode, Shape
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
-from slangpy.bindings.marshall import ReturnContext
+from slangpy.bindings.marshall import Marshall, ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 from slangpy.builtin.tensor import TensorMarshall, is_nested_array
 from slangpy.reflection.reflectiontypes import SlangProgramLayout, SlangType, ScalarType
@@ -174,3 +174,12 @@ def hash_tensor(value: Any) -> str:
 
 PYTHON_TYPES[WrappedTensor] = create_tensor_marshall
 PYTHON_SIGNATURES[WrappedTensor] = hash_tensor
+
+
+def error_tensor_marshall(layout: SlangProgramLayout, value: Any):
+    raise ValueError(f"torch.Tensor types can not be directly passed to SlangPy. Either use the \
+                     pytorch integration (via TorchModule/TorchStruct/TorchFunction) or use a SlangPy \
+                     tensor type.")
+
+
+PYTHON_TYPES[torch.Tensor] = error_tensor_marshall

@@ -23,7 +23,7 @@ def unpack_arg(arg: Any, tensors: list[torch.Tensor]) -> Any:
         arg = [unpack_arg(v, tensors) for v in arg]
     if isinstance(arg, torch.Tensor):
         id = len(tensors)
-        tensors.append(arg)
+        tensors.append(arg.contiguous())
         arg = WrappedTensor(id=id)
     return arg
 
@@ -84,11 +84,18 @@ class TorchAutoGradFunction(torch.autograd.Function):
         ctx.unpacked_args = unpacked_args
         ctx.unpacked_kwargs = unpacked_kwargs
 
+        # Gather streams from tensors
+        streams: set[int] = set()
+        for tensor in tensors:
+            if tensor.is_cuda:
+                streams.add(torch.cuda.current_stream(tensor.device).cuda_stream)
+
         # Fill out the tensors before passing to the function
         populate_tensor_refs((unpacked_args, unpacked_kwargs), tensors)
 
         # Sync device with cuda
-        spy_function.module.device.sync_to_cuda()
+        for stream in streams:
+            spy_function.module.device.sync_to_cuda(stream)
 
         # Get the result (will be a slangpy wrapped tensor)
         wrapped_tensor = spy_function(*unpacked_args, **unpacked_kwargs)
@@ -96,7 +103,8 @@ class TorchAutoGradFunction(torch.autograd.Function):
         result = wrapped_tensor.primal
 
         # Sync cuda with device
-        spy_function.module.device.sync_to_device()
+        for stream in streams:
+            spy_function.module.device.sync_to_device(stream)
 
         # Clear the tensors after passing to the function
         clear_tensor_refs((unpacked_args, unpacked_kwargs))
@@ -119,6 +127,15 @@ class TorchAutoGradFunction(torch.autograd.Function):
         result = WrappedTensor(ctx.saved_tensors[-1])
         result.grad_in = WrappedTensor(result_grad_tensor)
 
+        # Gather streams from tensors (both saved tensors + args)
+        streams: set[int] = set()
+        for tensor in ctx.saved_tensors:
+            if tensor.is_cuda:
+                streams.add(torch.cuda.current_stream(tensor.device).cuda_stream)
+        for arg in args:
+            if arg.is_cuda:
+                streams.add(torch.cuda.current_stream(arg.device).cuda_stream)
+
         # Fill out the tensors before passing to the function
         populate_tensor_refs((unpacked_args, unpacked_kwargs), ctx.saved_tensors)
 
@@ -128,14 +145,21 @@ class TorchAutoGradFunction(torch.autograd.Function):
         gradients: list[Optional[torch.Tensor]] = []
         alloc_gradients((unpacked_args, unpacked_kwargs), gradients)
 
+        # Gather streams from gradients
+        for grad in gradients:
+            if grad is not None:
+                streams.add(torch.cuda.current_stream(grad.device).cuda_stream)
+
         # Sync device with cuda
-        spy_function.module.device.sync_to_cuda()
+        for stream in streams:
+            spy_function.module.device.sync_to_cuda(stream)
 
         # Run backwards pass
         spy_function.bwds(*unpacked_args, **unpacked_kwargs, _result=result)
 
         # Sync cuda with device
-        spy_function.module.device.sync_to_device()
+        for stream in streams:
+            spy_function.module.device.sync_to_device(stream)
 
         # Clear the tensors after passing to the function
         clear_tensor_refs((unpacked_args, unpacked_kwargs))
