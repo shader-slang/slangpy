@@ -83,5 +83,26 @@ def test_polynomial(device_type: DeviceType):
     compare_tensors(2*a*x+b, x.grad)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_polynomial_outparam(device_type: DeviceType):
+    torch.autograd.grad_mode.set_multithreading_enabled(False)
+
+    module = load_test_module(device_type)
+
+    a = 2.0
+    b = 4.0
+    c = 1.0
+    x = torch.randn((10,), dtype=torch.float32, device=torch.device('cuda'), requires_grad=True)
+    res = torch.zeros_like(x)
+
+    module.polynomial_outparam(a, b, c, x, res)
+
+    compare_tensors(a*x*x+b*x+c, res)
+
+    res.backward(torch.ones_like(res))
+
+    compare_tensors(2*a*x+b, x.grad)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

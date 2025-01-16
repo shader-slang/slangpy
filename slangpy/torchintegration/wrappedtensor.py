@@ -11,6 +11,7 @@ from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.bindings.marshall import Marshall, ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 from slangpy.builtin.tensor import TensorMarshall, is_nested_array
+from slangpy.core.enums import IOType
 from slangpy.reflection.reflectiontypes import SlangProgramLayout, SlangType, ScalarType
 from slangpy.types.tensor import innermost_type
 
@@ -46,8 +47,9 @@ class WrappedTensor:
         self.primal = primal
         self.grad_in: Optional[WrappedTensor] = None
         self.grad_out: Optional[WrappedTensor] = None
+        self.last_access_type: tuple[AccessType, AccessType] = (AccessType.none, AccessType.none)
 
-    def collect_streams(self, streams: set, include_meta: bool):
+    def collect_streams(self, streams: set[int], include_meta: bool):
         if self.primal is not None and (self.primal.is_cuda or (self.primal.is_meta and include_meta)):
             device = self.primal.device if self.primal.is_cuda else None
             stream = torch.cuda.current_stream(device).cuda_stream
@@ -88,6 +90,7 @@ class WrappedTensorMarshall(TensorMarshall):
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: WrappedTensor) -> Any:
         if data.primal is None:
             raise ValueError("Missing required tensor data")
+        data.last_access_type = binding.access
 
         shape = tuple(data.primal.shape)
         offset = data.primal.storage_offset()

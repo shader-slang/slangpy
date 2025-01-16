@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
 import torch
 
+from slangpy.backend.slangpynativeemulation import AccessType
 from slangpy.torchintegration.wrappedtensor import WrappedTensor
 from slangpy.core.function import Function, IThis
 import slangpy.reflection as kfr
@@ -23,8 +24,9 @@ def unpack_arg(arg: Any, tensors: list[torch.Tensor]) -> Any:
         arg = [unpack_arg(v, tensors) for v in arg]
     if isinstance(arg, torch.Tensor):
         id = len(tensors)
-        tensors.append(arg.contiguous())
-        arg = WrappedTensor(id=id)
+        tensor = arg.contiguous()
+        tensors.append(tensor)
+        arg = WrappedTensor(id=id, primal=tensor)
     return arg
 
 
@@ -55,6 +57,41 @@ def clear_tensor_refs(arg: Any) -> Any:
     return arg
 
 
+def gather_and_clear_primal_tensors(arg: Any,
+                                    primal_in_tensors: list[torch.Tensor],
+                                    primal_out_tensors: list[torch.Tensor]) -> Any:
+
+    if isinstance(arg, dict):
+        arg = {k: gather_and_clear_primal_tensors(
+            v, primal_in_tensors, primal_out_tensors) for k, v in arg.items()}
+    if isinstance(arg, (list, tuple)):
+        arg = [gather_and_clear_primal_tensors(
+            v, primal_in_tensors, primal_out_tensors) for v in arg]
+    if isinstance(arg, WrappedTensor) and arg.id >= 0:
+        if arg.last_access_type[0] in (AccessType.read, AccessType.readwrite):
+            primal_in_tensors.append(arg.primal)
+        if arg.last_access_type[0] in (AccessType.write, AccessType.readwrite):
+            primal_out_tensors.append(arg.primal)
+    return arg
+
+
+def assign_primal_and_grad_tensors(arg: Any, all_tensors: list[torch.Tensor], grad_in_tensors: list[torch.Tensor], grad_out_tensors: list[torch.Tensor]) -> Any:
+    if isinstance(arg, dict):
+        arg = {k: assign_primal_and_grad_tensors(
+            v, all_tensors, grad_in_tensors, grad_out_tensors) for k, v in arg.items()}
+    if isinstance(arg, (list, tuple)):
+        arg = [assign_primal_and_grad_tensors(
+            v, all_tensors, grad_in_tensors, grad_out_tensors) for v in arg]
+    if isinstance(arg, WrappedTensor) and arg.id >= 0:
+        arg.primal = all_tensors[arg.id]
+        if arg.last_access_type[0] in (AccessType.read, AccessType.readwrite):
+            arg.grad_out = WrappedTensor(primal=torch.zeros_like(arg.primal))
+            grad_out_tensors.append(arg.grad_out.primal)
+        if arg.last_access_type[0] in (AccessType.write, AccessType.readwrite):
+            arg.grad_in = WrappedTensor(primal=grad_in_tensors.pop(0).contiguous())
+    return arg
+
+
 def alloc_gradients(arg: Any, tensors: list[Optional[torch.Tensor]]) -> Any:
     if isinstance(arg, dict):
         arg = {k: alloc_gradients(v, tensors) for k, v in arg.items()}
@@ -77,6 +114,9 @@ class TorchAutoGradFunction(torch.autograd.Function):
         spy_function: Function,
         unpacked_args: tuple[Any, ...],
         unpacked_kwargs: dict[str, Any],
+        primal_in_tensors: tuple[torch.Tensor],
+        primal_out_tensors: tuple[torch.Tensor],
+        all_tensors: tuple[torch.Tensor],
         *tensors: torch.Tensor
     ):
         # Store inputs
@@ -84,34 +124,9 @@ class TorchAutoGradFunction(torch.autograd.Function):
         ctx.unpacked_args = unpacked_args
         ctx.unpacked_kwargs = unpacked_kwargs
 
-        # Gather streams from tensors
-        streams: set[int] = set()
-        for tensor in tensors:
-            if tensor.is_cuda:
-                streams.add(torch.cuda.current_stream(tensor.device).cuda_stream)
-
-        # Fill out the tensors before passing to the function
-        populate_tensor_refs((unpacked_args, unpacked_kwargs), tensors)
-
-        # Sync device with cuda
-        for stream in streams:
-            spy_function.module.device.sync_to_cuda(stream)
-
-        # Get the result (will be a slangpy wrapped tensor)
-        wrapped_tensor = spy_function(*unpacked_args, **unpacked_kwargs)
-        assert isinstance(wrapped_tensor, WrappedTensor)
-        result = wrapped_tensor.primal
-
-        # Sync cuda with device
-        for stream in streams:
-            spy_function.module.device.sync_to_device(stream)
-
-        # Clear the tensors after passing to the function
-        clear_tensor_refs((unpacked_args, unpacked_kwargs))
-
         # Save inputs and outputs for backwards pass then return result
-        ctx.save_for_backward(*tensors+(result,))
-        return result
+        ctx.save_for_backward(*all_tensors)
+        return primal_out_tensors
 
     @staticmethod
     def backward(ctx: Any, *args: torch.Tensor):
@@ -120,43 +135,45 @@ class TorchAutoGradFunction(torch.autograd.Function):
         unpacked_args: tuple[Any, ...] = ctx.unpacked_args
         unpacked_kwargs: dict[str, Any] = ctx.unpacked_kwargs
 
-        # Get the color gradient tensor
-        assert len(args) == 1
-        result_grad_tensor = args[0].contiguous()
+        all_tensors = list(ctx.saved_tensors)
+        grad_in_tensors: list[torch.Tensor] = list(args)
+        grad_out_tensors: list[torch.Tensor] = []
+        assign_primal_and_grad_tensors((unpacked_args, unpacked_kwargs),
+                                       all_tensors, grad_in_tensors, grad_out_tensors)
 
-        # Setup the result input tensor
-        result = WrappedTensor(ctx.saved_tensors[-1])
-        result.grad_in = WrappedTensor(result_grad_tensor)
+        # Check for a final tensor from the args, which would be the return value if there was one
+        if len(grad_in_tensors) > 0:
+            assert len(grad_in_tensors) == 1
+            result_grad_tensor = args[0].contiguous()
+
+            # Setup the result input tensor
+            result = WrappedTensor(ctx.saved_tensors[-1])
+            result.grad_in = WrappedTensor(result_grad_tensor)
+        else:
+            result_grad_tensor = None
+            result = None
 
         # Gather streams from tensors (both saved tensors + args)
         streams: set[int] = set()
-        for tensor in ctx.saved_tensors:
+        for tensor in all_tensors:
             if tensor.is_cuda:
                 streams.add(torch.cuda.current_stream(tensor.device).cuda_stream)
+        for gout in grad_out_tensors:
+            if gout.is_cuda:
+                streams.add(torch.cuda.current_stream(gout.device).cuda_stream)
         for arg in args:
             if arg.is_cuda:
                 streams.add(torch.cuda.current_stream(arg.device).cuda_stream)
-
-        # Fill out the tensors before passing to the function
-        populate_tensor_refs((unpacked_args, unpacked_kwargs), ctx.saved_tensors)
-
-        # Alloc gradients and get list back. As alloc_gradients
-        # runs the same process as unpack_arg, the gradients list
-        # will match 1-to-1 the input tensors list.
-        gradients: list[Optional[torch.Tensor]] = []
-        alloc_gradients((unpacked_args, unpacked_kwargs), gradients)
-
-        # Gather streams from gradients
-        for grad in gradients:
-            if grad is not None:
-                streams.add(torch.cuda.current_stream(grad.device).cuda_stream)
 
         # Sync device with cuda
         for stream in streams:
             spy_function.module.device.sync_to_cuda(stream)
 
         # Run backwards pass
-        spy_function.bwds(*unpacked_args, **unpacked_kwargs, _result=result)
+        if result is not None:
+            spy_function.bwds(*unpacked_args, **unpacked_kwargs, _result=result)
+        else:
+            spy_function.bwds(*unpacked_args, **unpacked_kwargs)
 
         # Sync cuda with device
         for stream in streams:
@@ -166,22 +183,8 @@ class TorchAutoGradFunction(torch.autograd.Function):
         clear_tensor_refs((unpacked_args, unpacked_kwargs))
 
         # Return the gradients
-        res = (None, None, None) + tuple(gradients)
+        res = (None, None, None, None, None, None) + tuple(grad_out_tensors)
         return res
-
-
-def find_tensors(element: Any, tensors: list[torch.Tensor]):
-    if torch is None:
-        raise RuntimeError("Torch support is not available because torch is not installed")
-
-    if isinstance(element, dict):
-        for k, v in element.items():
-            find_tensors(v, tensors)
-    elif isinstance(element, (list, tuple)):
-        for v in element:
-            find_tensors(v, tensors)
-    elif isinstance(element, (torch.Tensor,)):
-        tensors.append(element)
 
 
 class TorchFunction(torch.nn.Module):
@@ -192,13 +195,56 @@ class TorchFunction(torch.nn.Module):
 
     def forward(self, *args: Any, **kwargs: Any):
         # Build 'unpacked' args (that handle IThis)
-        tensors: list[torch.Tensor] = []
-        unpacked_args = tuple([unpack_arg(x, tensors) for x in args])
-        unpacked_kwargs = {k: unpack_arg(v, tensors) for k, v in kwargs.items()}
+        all_tensors: list[torch.Tensor] = []
+        unpacked_args = tuple([unpack_arg(x, all_tensors) for x in args])
+        unpacked_kwargs = {k: unpack_arg(v, all_tensors) for k, v in kwargs.items()}
 
-        find_tensors((unpacked_args, unpacked_kwargs), tensors)
+        # Gather streams from tensors
+        streams: set[int] = set()
+        for tensor in all_tensors:
+            if tensor.is_cuda:
+                streams.add(torch.cuda.current_stream(tensor.device).cuda_stream)
 
-        return TorchAutoGradFunction.apply(self.function, unpacked_args, unpacked_kwargs, *tensors)
+        # Sync device with cuda
+        for stream in streams:
+            self.function.module.device.sync_to_cuda(stream)
+
+        # Get the result
+        result = self.function(*unpacked_args, **unpacked_kwargs)
+
+        if isinstance(result, WrappedTensor):
+            assert result.primal is not None
+            result = result.primal
+            if result.is_cuda:
+                streams.add(torch.cuda.current_stream(result.device).cuda_stream)
+
+        # Sync cuda with device
+        for stream in streams:
+            self.function.module.device.sync_to_device(stream)
+
+        # Gather up all tensors in the arguments into in/out lists and clear references so
+        # garbage collect works properly
+        primal_in_tensors: list[torch.Tensor] = []
+        primal_out_tensors: list[torch.Tensor] = []
+        gather_and_clear_primal_tensors(
+            (unpacked_args, unpacked_kwargs), primal_in_tensors, primal_out_tensors)
+
+        # If result is a tensor, add it to the list of all and result tensors
+        if isinstance(result, torch.Tensor):
+            all_tensors.append(result)
+            primal_out_tensors.append(result)
+
+        # Call the dummy auto-grad apply function, which critically takes the primal input list
+        # as arguments and returns the primal output list as results
+        TorchAutoGradFunction.apply(
+            self.function, unpacked_args, unpacked_kwargs,
+            tuple(primal_in_tensors),
+            tuple(primal_out_tensors),
+            tuple(all_tensors),
+            *primal_in_tensors)
+
+        # Return the single result
+        return result
 
     def attach(self, module: 'Module', func: Union[str, kfr.SlangFunction, list[FunctionReflection]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
         """
