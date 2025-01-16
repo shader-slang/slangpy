@@ -22,20 +22,46 @@ def unpack_arg(arg: Any, tensors: list[torch.Tensor]) -> Any:
     if isinstance(arg, (list, tuple)):
         arg = [unpack_arg(v, tensors) for v in arg]
     if isinstance(arg, torch.Tensor):
+        id = len(tensors)
         tensors.append(arg)
-        arg = WrappedTensor(arg)
+        arg = WrappedTensor(id=id)
+    return arg
+
+
+def populate_tensor_refs(arg: Any, tensors: tuple[torch.Tensor, ...]) -> Any:
+    if isinstance(arg, dict):
+        arg = {k: populate_tensor_refs(v, tensors) for k, v in arg.items()}
+    if isinstance(arg, (list, tuple)):
+        arg = [populate_tensor_refs(v, tensors) for v in arg]
+    if isinstance(arg, WrappedTensor) and arg.id >= 0:
+        arg.primal = tensors[arg.id]
+        if arg.grad_in is not None:
+            arg.grad_in = populate_tensor_refs(arg.grad_in, tensors)
+        if arg.grad_out is not None:
+            arg.grad_out = populate_tensor_refs(arg.grad_out, tensors)
+
+
+def clear_tensor_refs(arg: Any) -> Any:
+    if isinstance(arg, dict):
+        arg = {k: clear_tensor_refs(v) for k, v in arg.items()}
+    if isinstance(arg, (list, tuple)):
+        arg = [clear_tensor_refs(v) for v in arg]
+    if isinstance(arg, WrappedTensor) and arg.id >= 0:
+        arg.primal = None
+        if arg.grad_in is not None:
+            arg.grad_in = clear_tensor_refs(arg.grad_in)
+        if arg.grad_out is not None:
+            arg.grad_out = clear_tensor_refs(arg.grad_out)
     return arg
 
 
 def alloc_gradients(arg: Any, tensors: list[Optional[torch.Tensor]]) -> Any:
-    if hasattr(arg, "get_this"):
-        arg = arg.get_this()
     if isinstance(arg, dict):
         arg = {k: alloc_gradients(v, tensors) for k, v in arg.items()}
     if isinstance(arg, (list, tuple)):
         arg = [alloc_gradients(v, tensors) for v in arg]
     if isinstance(arg, WrappedTensor):
-        if arg.primal.requires_grad:
+        if arg.primal is not None and arg.primal.requires_grad:
             grad = torch.zeros_like(arg.primal)
             arg.grad_out = WrappedTensor(grad)
             tensors.append(grad)
@@ -58,6 +84,9 @@ class TorchAutoGradFunction(torch.autograd.Function):
         ctx.unpacked_args = unpacked_args
         ctx.unpacked_kwargs = unpacked_kwargs
 
+        # Fill out the tensors before passing to the function
+        populate_tensor_refs((unpacked_args, unpacked_kwargs), tensors)
+
         # Sync device with cuda
         spy_function.module.device.sync_to_cuda()
 
@@ -68,6 +97,9 @@ class TorchAutoGradFunction(torch.autograd.Function):
 
         # Sync cuda with device
         spy_function.module.device.sync_to_device()
+
+        # Clear the tensors after passing to the function
+        clear_tensor_refs((unpacked_args, unpacked_kwargs))
 
         # Save inputs and outputs for backwards pass then return result
         ctx.save_for_backward(*tensors+(result,))
@@ -87,6 +119,9 @@ class TorchAutoGradFunction(torch.autograd.Function):
         result = WrappedTensor(ctx.saved_tensors[-1])
         result.grad_in = WrappedTensor(result_grad_tensor)
 
+        # Fill out the tensors before passing to the function
+        populate_tensor_refs((unpacked_args, unpacked_kwargs), ctx.saved_tensors)
+
         # Alloc gradients and get list back. As alloc_gradients
         # runs the same process as unpack_arg, the gradients list
         # will match 1-to-1 the input tensors list.
@@ -101,6 +136,9 @@ class TorchAutoGradFunction(torch.autograd.Function):
 
         # Sync cuda with device
         spy_function.module.device.sync_to_device()
+
+        # Clear the tensors after passing to the function
+        clear_tensor_refs((unpacked_args, unpacked_kwargs))
 
         # Return the gradients
         res = (None, None, None) + tuple(gradients)

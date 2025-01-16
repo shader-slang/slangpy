@@ -39,15 +39,16 @@ def _torch_dtype_to_slang(torch_dtype: 'torch.dtype', layout: SlangProgramLayout
 
 
 class WrappedTensor:
-    def __init__(self, primal: 'torch.Tensor'):
+    def __init__(self, primal: Optional[torch.Tensor] = None, id: int = -1):
         super().__init__()
 
+        self.id = id
         self.primal = primal
         self.grad_in: Optional[WrappedTensor] = None
         self.grad_out: Optional[WrappedTensor] = None
 
     def collect_streams(self, streams: set, include_meta: bool):
-        if self.primal.is_cuda or (self.primal.is_meta and include_meta):
+        if self.primal is not None and (self.primal.is_cuda or (self.primal.is_meta and include_meta)):
             device = self.primal.device if self.primal.is_cuda else None
             stream = torch.cuda.current_stream(device).cuda_stream
             streams.add(stream)
@@ -85,6 +86,8 @@ class WrappedTensorMarshall(TensorMarshall):
             return Shape((-1,) * self.dims)
 
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: WrappedTensor) -> Any:
+        if data.primal is None:
+            raise ValueError("Missing required tensor data")
 
         shape = tuple(data.primal.shape)
         offset = data.primal.storage_offset()
