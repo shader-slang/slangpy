@@ -121,7 +121,8 @@ class TorchAutoGradFunction(torch.autograd.Function):
         unpacked_kwargs: dict[str, Any] = ctx.unpacked_kwargs
 
         # Get the color gradient tensor
-        result_grad_tensor = args[0]
+        assert len(args) == 1
+        result_grad_tensor = args[0].contiguous()
 
         # Setup the result input tensor
         result = WrappedTensor(ctx.saved_tensors[-1])
