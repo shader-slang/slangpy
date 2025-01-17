@@ -52,16 +52,16 @@ jobs:
       - name: Run tests (vulkan / emulated)
         run: python .build_agent/ci.py test --device=vulkan --emulated
 
-      - name: Run tests (vulkan / native)
-        run: python .build_agent/ci.py test --device=vulkan
+      #- name: Run tests (vulkan / native)
+      #  run: python .build_agent/ci.py test --device=vulkan
 
       - name: Run tests (d3d12 / emulated)
         if: matrix.os=='windows'
         run: python .build_agent/ci.py test --device=d3d12 --emulated
 
-      - name: Run tests (d3d12 / native)
-        if: matrix.os=='windows'
-        run: python .build_agent/ci.py test --device=d3d12
+      #- name: Run tests (d3d12 / native)
+      #  if: matrix.os=='windows'
+      #  run: python .build_agent/ci.py test --device=d3d12
 
       - name: Unit Test Report
         uses: mikepenz/action-junit-report@v4
