@@ -17,10 +17,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows]
+        os: [windows, linux]
         python: ["3.10"]
         include:
           - { os: windows, runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: linux, runs-on: { group: nvrgfx, labels: [Linux, X64] } }
   
     env:
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
