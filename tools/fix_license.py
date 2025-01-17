@@ -1,15 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # SPDX-License-Identifier: Apache-2.0
 
 from pathlib import Path
 
-PYTHON_SPDX_IDENTIFIER = "# SPDX-License-Identifier: Apache-2.0"
-C_SPDX_IDENTIFIER = "// SPDX-License-Identifier: Apache-2.0"
+PYTHON_SPDX_IDENTIFIER = "# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception"
+C_SPDX_IDENTIFIER = "// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception"
 
 
 def process_file(file: Path):
     if file.name.endswith(".py"):
+        sp_start = "# SPDX-License-Identifier:"
         sp = PYTHON_SPDX_IDENTIFIER
     elif file.name.endswith(".slang") or file.name.endswith(".cpp") or file.name.endswith(".c") or file.name.endswith(".h"):
+        sp_start = "// SPDX-License-Identifier:"
         sp = C_SPDX_IDENTIFIER
     else:
         return
