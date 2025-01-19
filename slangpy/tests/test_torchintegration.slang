@@ -23,6 +23,26 @@ float[5] add_arrays(float[5] a, float[5] b) {
     return res;
 }
 
+[Differentiable]
+void add_out(float a, float b, out float res) {
+    res = a + b;
+}
+
+[Differentiable]
+void add_vectors_out(float3 a, float3 b, out float3 res) {
+    res = a + b;
+}
+
+[Differentiable]
+void add_vectors_generic_out<let N : int>(vector<float, N> a, vector<float, N> b, out vector<float, N> res) {
+    res = a + b;
+}
+
+[Differentiable]
+void add_arrays_out(float[5] a, float[5] b, out float[5] res) {
+    for (int i = 0; i < 5; i++)
+        res[i] = a[i] + b[i];
+}
 
 [Differentiable]
 float polynomial(float a, float b, float c, float x) {
@@ -30,7 +50,31 @@ float polynomial(float a, float b, float c, float x) {
 }
 
 [Differentiable]
-void polynomial_outparam(float a, float b, float c, float x, out float res) {
+void polynomial_out(float a, float b, float c, float x, out float res) {
     res = a * x * x + b * x + c;
 }
 
+[Differentiable]
+float3 polynomial_vectors(float a, float b, float c, float3 x) {
+    return a * x * x + b * x + c;
+}
+
+[Differentiable]
+void polynomial_vectors_out(float a, float b, float c, float3 x, out float3 res) {
+    res = a * x * x + b * x + c;
+}
+
+[Differentiable]
+float[5] polynomial_arrays(float a, float b, float c, float[5] x) {
+    float[5] res;
+    for (int i = 0; i < 5; i++)
+        res[i] = a * x[i] * x[i] + b * x[i] + c;
+    return res;
+}
+
+[Differentiable]
+void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] res) {
+    float[5] res;
+    for (int i = 0; i < 5; i++)
+        res[i] = a * x[i] * x[i] + b * x[i] + c;
+}

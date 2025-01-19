@@ -140,6 +140,7 @@ class TorchAutoGradFunction(torch.autograd.Function):
         spy_function: Function = ctx.spy_function
         unpacked_args: tuple[Any, ...] = ctx.unpacked_args
         unpacked_kwargs: dict[str, Any] = ctx.unpacked_kwargs
+        result_out_provided = "_result" in unpacked_kwargs
 
         all_tensors = list(ctx.saved_tensors)
         grad_in_tensors: list[torch.Tensor] = list(args)
@@ -148,7 +149,9 @@ class TorchAutoGradFunction(torch.autograd.Function):
                                        all_tensors, grad_in_tensors, grad_out_tensors)
 
         # Check for a final tensor from the args, which would be the return value if there was one
-        if len(grad_in_tensors) > 0:
+        # This is only necessary if user did not supply an _result argument (if they did, the
+        # assign_primal_and_grad_tensors function will have already set it up correctly).
+        if not result_out_provided and len(grad_in_tensors) > 0:
             assert len(grad_in_tensors) == 1
             result_grad_tensor = args[0].contiguous()
 
@@ -205,6 +208,7 @@ class TorchFunction(torch.nn.Module):
         all_tensors: list[torch.Tensor] = []
         unpacked_args = tuple([unpack_arg(x, all_tensors) for x in args])
         unpacked_kwargs = {k: unpack_arg(v, all_tensors) for k, v in kwargs.items()}
+        result_out_provided = "_result" in unpacked_kwargs
 
         # Gather streams from tensors
         streams: set[int] = set()
@@ -237,7 +241,7 @@ class TorchFunction(torch.nn.Module):
             (unpacked_args, unpacked_kwargs), primal_in_tensors, primal_out_tensors)
 
         # If result is a tensor, add it to the list of all and result tensors
-        if isinstance(result, torch.Tensor):
+        if not result_out_provided and isinstance(result, torch.Tensor):
             all_tensors.append(result)
             primal_out_tensors.append(result)
 

@@ -44,27 +44,6 @@ def compare_tensors(a: torch.Tensor, b: torch.Tensor):
     assert err < 1e-4, f"Tensor deviates by {err} from reference"
 
 
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("extra_dims", [0, 1, 3, 5])
-def test_add_floats(device_type: DeviceType, extra_dims: int):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
-
-    module = load_test_module(device_type)
-
-    extra_shape = (5,) * extra_dims
-
-    a = torch.randn((10,), dtype=torch.float32, device=torch.device('cuda'))
-    b = torch.randn((10,), dtype=torch.float32, device=torch.device('cuda'))
-
-    func = module.add
-    assert isinstance(func, TorchFunction)
-
-    res = func(a, b)
-    assert isinstance(res, torch.Tensor)
-
-    compare_tensors(a+b, res)
-
-
 ADD_TESTS = [
     ('add', ()),
     ('add_vectors', (3,)),
@@ -75,8 +54,9 @@ ADD_TESTS = [
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("extra_dims", [0, 1, 3, 5])
-@pytest.mark.parametrize("func_and_shape", ADD_TESTS)
-def test_add_values(device_type: DeviceType, extra_dims: int, func_and_shape: tuple[str, tuple[int]]):
+@pytest.mark.parametrize("func_and_shape", ADD_TESTS, ids=[f"{name}_{shape}" for name, shape in ADD_TESTS])
+@pytest.mark.parametrize("result_mode", ['return', 'pass', 'out'])
+def test_add_values(device_type: DeviceType, extra_dims: int, func_and_shape: tuple[str, tuple[int]], result_mode: str):
     torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
@@ -90,7 +70,18 @@ def test_add_values(device_type: DeviceType, extra_dims: int, func_and_shape: tu
     b = torch.randn(extra_shape+val_shape, dtype=torch.float32,
                     device=torch.device('cuda'), requires_grad=True)
 
-    res = module[func_name](a, b)
+    if result_mode == 'return':
+        res = module[func_name](a, b)
+    elif result_mode == 'pass':
+        res = torch.empty_like(a)
+        module[func_name](a, b, _result=res)
+    else:  # out
+        res = torch.empty_like(a)
+        if '<' in func_name:
+            func_name = func_name.replace('<', '_out<')
+        else:
+            func_name += '_out'
+        module[func_name](a, b, res)
     assert isinstance(res, torch.Tensor)
 
     compare_tensors(a+b, res)
@@ -176,7 +167,55 @@ def test_polynomial_outparam(device_type: DeviceType):
     x = torch.randn((10,), dtype=torch.float32, device=torch.device('cuda'), requires_grad=True)
     res = torch.zeros_like(x)
 
-    module.polynomial_outparam(a, b, c, x, res)
+    module.polynomial_out(a, b, c, x, res)
+
+    compare_tensors(a*x*x+b*x+c, res)
+
+    res.backward(torch.ones_like(res))
+
+    compare_tensors(2*a*x+b, x.grad)
+
+
+# Enable the vectors+arrays tests to reproduce compiler bugs
+POLYNOMIAL_TESTS = [
+    ('polynomial', ()),
+    ('polynomial_vectors', (3,)),
+    ('polynomial_arrays', (5,))
+]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("extra_dims", [0, 1, 3, 5])
+@pytest.mark.parametrize("func_and_shape", POLYNOMIAL_TESTS, ids=[f"{name}_{shape}" for name, shape in POLYNOMIAL_TESTS])
+@pytest.mark.parametrize("result_mode", ['return', 'pass', 'out'])
+def test_polynomials(device_type: DeviceType, extra_dims: int, func_and_shape: tuple[str, tuple[int]], result_mode: str):
+    torch.autograd.grad_mode.set_multithreading_enabled(False)
+
+    module = load_test_module(device_type)
+
+    func_name = func_and_shape[0]
+    val_shape = func_and_shape[1]
+    extra_shape = (5,) * extra_dims
+
+    a = 2.0
+    b = 4.0
+    c = 1.0
+    x = torch.randn(extra_shape+val_shape, dtype=torch.float32,
+                    device=torch.device('cuda'), requires_grad=True)
+
+    if result_mode == 'return':
+        res = module[func_name](a, b, c, x)
+    elif result_mode == 'pass':
+        res = torch.empty_like(x)
+        module[func_name](a, b, c, x, _result=res)
+    else:  # out
+        res = torch.empty_like(x)
+        if '<' in func_name:
+            func_name = func_name.replace('<', '_out<')
+        else:
+            func_name += '_out'
+        module[func_name](a, b, c, x, res)
+    assert isinstance(res, torch.Tensor)
 
     compare_tensors(a*x*x+b*x+c, res)
 
