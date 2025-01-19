@@ -7,12 +7,18 @@ from slangpy.backend.slangpynativeemulation import AccessType
 from slangpy.torchintegration.wrappedtensor import WrappedTensor
 from slangpy.core.function import Function, IThis
 import slangpy.reflection as kfr
-from slangpy.backend import (FunctionReflection, TypeConformance)
+from slangpy.backend import (FunctionReflection, TypeConformance, Device)
 
 if TYPE_CHECKING:
     from slangpy.core.module import Module
     from slangpy.core.struct import Struct
     from slangpy.torchintegration.torchstruct import TorchStruct
+
+
+def check_cuda_enabled(device: Device):
+    if not device.supports_cuda_interop:
+        raise RuntimeError("Cuda interop must be enabled for torch support "
+                           "create SGL device with Device..., enable_cuda_interop=True")
 
 
 def unpack_arg(arg: Any, tensors: list[torch.Tensor]) -> Any:
@@ -191,6 +197,7 @@ class TorchFunction(torch.nn.Module):
 
     def __init__(self, function: Function):
         super().__init__()
+        check_cuda_enabled(function.module.device)
         self.function = function.return_type(WrappedTensor)
 
     def forward(self, *args: Any, **kwargs: Any):

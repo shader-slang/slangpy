@@ -3,7 +3,7 @@ from typing import Any, Optional, Union
 
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
-from slangpy.torchintegration.torchfunction import TorchFunction
+from slangpy.torchintegration.torchfunction import TorchFunction, check_cuda_enabled
 
 
 class TorchStruct:
@@ -14,6 +14,7 @@ class TorchStruct:
 
     def __init__(self, struct: Struct) -> None:
         super().__init__()
+        check_cuda_enabled(struct.module.device)
         self.struct = struct
 
     @property

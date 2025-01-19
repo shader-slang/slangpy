@@ -123,7 +123,11 @@ class WrappedTensorMarshall(TensorMarshall):
         return result
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return WrappedTensor(torch.empty(context.call_shape.as_tuple(), dtype=self.torch_dtype, device=torch.device('cuda')))
+        # Overall shape of tensor must contain the call, plus the shape of the slang datatype
+        # i.e. if a float tensor is to store 4x4 matrix results, it needs the shape to be
+        # extended by (4,4)
+        combined_shape = context.call_shape.as_tuple() + self.slang_dtype.shape.as_tuple()
+        return WrappedTensor(torch.empty(combined_shape, dtype=self.torch_dtype, device=torch.device('cuda')))
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any) -> Any:
         return data
@@ -135,7 +139,7 @@ def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
             return tr.get_or_create_type(layout, ValueRef, value)
         else:
             slang_dtype = value.slang_type
-            torch_dtype = _slang_dtype_to_torch(slang_dtype)
+            torch_dtype = _slang_dtype_to_torch(innermost_type(slang_dtype))
             if torch_dtype is None:
                 raise ValueError(f"Unsupported slang type {value.slang_type}")
             marshall = WrappedTensorMarshall(layout, torch_dtype, slang_dtype,

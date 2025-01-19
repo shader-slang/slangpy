@@ -7,7 +7,7 @@ from slangpy.core.struct import Struct
 from slangpy.backend import SlangModule, Device
 from slangpy.core.module import Module
 
-from slangpy.torchintegration.torchfunction import TorchFunction
+from slangpy.torchintegration.torchfunction import TorchFunction, check_cuda_enabled
 from slangpy.torchintegration.torchstruct import TorchStruct
 
 
@@ -18,6 +18,7 @@ class TorchModule:
 
     def __init__(self, module: 'Module'):
         super().__init__()
+        check_cuda_enabled(module.device)
         self.module = module
 
     @staticmethod

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from slangpy.backend import DeviceType, Device
-from slangpy.builtin.torch import TorchModule
+from slangpy.torchintegration import TorchModule
 import slangpy.tests.helpers as helpers
 import hashlib
 import os
@@ -35,7 +35,7 @@ def get_module(device: Device):
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
-    return TorchModule(module)
+    return TorchModule.load_from_module(device, module)
 
 
 def compare_tensors(a: torch.Tensor, b: torch.Tensor):
@@ -61,7 +61,7 @@ def test_missing_torch_context(device_type: DeviceType):
     module = helpers.create_module(device, TEST_CODE)
 
     a = torch.randn((8, 5), dtype=torch.float32, device=torch.device('cuda'), requires_grad=True)
-    with pytest.raises(RuntimeError, match=r"Failed to access current torch context.*"):
+    with pytest.raises(ValueError, match=r"Tensor types can not be directly passed to SlangPy"):
         b = module.square(a)
 
 
