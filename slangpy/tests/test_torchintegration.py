@@ -227,5 +227,33 @@ def test_polynomials(device_type: DeviceType, extra_dims: int, func_and_shape: t
     compare_tensors(2*a*x+b, x.grad)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("extra_dims", [0, 1, 3, 5])
+def test_add_tensors(device_type: DeviceType, extra_dims: int):
+    torch.autograd.grad_mode.set_multithreading_enabled(False)
+
+    if extra_dims > 0:
+        pytest.skip("Adding sliced tensors currently not working")
+
+    module = load_test_module(device_type)
+
+    func_name = 'add_tensors'
+    val_shape = (8, 5)
+    extra_shape = (5,) * extra_dims
+
+    a = torch.randn(extra_shape+val_shape, dtype=torch.float32,
+                    device=torch.device('cuda'), requires_grad=True)
+    b = torch.randn(extra_shape+val_shape, dtype=torch.float32,
+                    device=torch.device('cuda'), requires_grad=True)
+
+    res = torch.empty_like(a)
+    module[func_name](a, b, res)
+
+    compare_tensors(a+b, res)
+
+    # Should this work??
+    # res.backward(torch.ones_like(res))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

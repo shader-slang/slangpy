@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import slangpy;
 
 [Differentiable]
 float add(float a, float b) {
@@ -13,6 +14,15 @@ float3 add_vectors(float3 a, float3 b) {
 [Differentiable]
 vector<float,N> add_vectors_generic<let N:int>(vector<float,N> a, vector<float,N> b) {
     return a + b;
+}
+
+[Differentiable]
+void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, RWTensor<float, 2> res) {
+    [MaxIters(8)]
+    for (int i = 0; i < a.shape[0]; i++)
+        [MaxIters(8)]
+        for (int j = 0; j < a.shape[1]; j++)
+            res.set({i, j}, a[i,j] + b[i, j]);
 }
 
 [Differentiable]
