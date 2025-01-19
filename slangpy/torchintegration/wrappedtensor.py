@@ -12,7 +12,7 @@ from slangpy.bindings.marshall import Marshall, ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 from slangpy.builtin.tensor import TensorMarshall, is_nested_array
 from slangpy.core.enums import IOType
-from slangpy.reflection.reflectiontypes import SlangProgramLayout, SlangType, ScalarType
+from slangpy.reflection.reflectiontypes import SlangProgramLayout, SlangType, ScalarType, VectorType
 from slangpy.types.tensor import innermost_type
 
 ST = TypeReflection.ScalarType
@@ -68,7 +68,9 @@ class WrappedTensorMarshall(TensorMarshall):
                  d_out: Optional['WrappedTensorMarshall']):
 
         dtype = innermost_type(slang_dtype)
-        if not is_nested_array(slang_dtype) or not isinstance(dtype, ScalarType) or len(slang_dtype.shape) > 2:
+        can_convert = is_nested_array(slang_dtype) or isinstance(
+            slang_dtype, (VectorType, ScalarType))
+        if not can_convert or len(slang_dtype.shape) > 2:
             raise ValueError(
                 f"Torch tensors do not support data type {slang_dtype.full_name}")
 
@@ -95,6 +97,11 @@ class WrappedTensorMarshall(TensorMarshall):
         shape = tuple(data.primal.shape)
         offset = data.primal.storage_offset()
         strides = data.primal.stride()
+
+        bound_shape = shape[-len(binding.vector_type.shape):]
+        if any([b != -1 and a != b for a, b in zip(bound_shape, binding.vector_type.shape)]):
+            raise ValueError(
+                f"Tensor shape {shape} does not match expected shape {binding.vector_type.shape}")
 
         primal_calldata = {
             'buffer': data.primal,

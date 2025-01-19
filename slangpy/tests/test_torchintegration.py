@@ -45,10 +45,13 @@ def compare_tensors(a: torch.Tensor, b: torch.Tensor):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_floats(device_type: DeviceType):
+@pytest.mark.parametrize("extra_dims", [0, 1, 3, 5])
+def test_add_floats(device_type: DeviceType, extra_dims: int):
     torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
+
+    extra_shape = (5,) * extra_dims
 
     a = torch.randn((10,), dtype=torch.float32, device=torch.device('cuda'))
     b = torch.randn((10,), dtype=torch.float32, device=torch.device('cuda'))
@@ -57,6 +60,84 @@ def test_add_floats(device_type: DeviceType):
     assert isinstance(func, TorchFunction)
 
     res = func(a, b)
+    assert isinstance(res, torch.Tensor)
+
+    compare_tensors(a+b, res)
+
+
+ADD_TESTS = [
+    ('add', ()),
+    ('add_vectors', (3,)),
+    ('add_vectors_generic<4>', (4,)),
+    ('add_arrays', (5,))
+]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("extra_dims", [0, 1, 3, 5])
+@pytest.mark.parametrize("func_and_shape", ADD_TESTS)
+def test_add_values(device_type: DeviceType, extra_dims: int, func_and_shape: tuple[str, tuple[int]]):
+    torch.autograd.grad_mode.set_multithreading_enabled(False)
+
+    module = load_test_module(device_type)
+
+    func_name = func_and_shape[0]
+    val_shape = func_and_shape[1]
+    extra_shape = (5,) * extra_dims
+
+    a = torch.randn(extra_shape+val_shape, dtype=torch.float32,
+                    device=torch.device('cuda'), requires_grad=True)
+    b = torch.randn(extra_shape+val_shape, dtype=torch.float32,
+                    device=torch.device('cuda'), requires_grad=True)
+
+    res = module[func_name](a, b)
+    assert isinstance(res, torch.Tensor)
+
+    compare_tensors(a+b, res)
+
+    # Not much to check for backwards pass of an 'add', but call it
+    # so we at least catch any exceptions that fire.
+    res.backward(torch.ones_like(res))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("extra_dims", [0, 1, 3, 5])
+@pytest.mark.parametrize("func_and_shape", ADD_TESTS)
+def test_add_values_fail(device_type: DeviceType, extra_dims: int, func_and_shape: tuple[str, tuple[int]]):
+    torch.autograd.grad_mode.set_multithreading_enabled(False)
+
+    module = load_test_module(device_type)
+
+    func_name = func_and_shape[0]
+    val_shape = func_and_shape[1]
+    if len(val_shape) == 0:
+        pytest.skip("No shape to fail")
+
+    extra_shape = (5,) * extra_dims
+
+    val_shape = val_shape[0:-1] + (val_shape[-1] + 1,)
+
+    a = torch.randn(extra_shape+val_shape, dtype=torch.float32, device=torch.device('cuda'))
+    b = torch.randn(extra_shape+val_shape, dtype=torch.float32, device=torch.device('cuda'))
+
+    with pytest.raises(ValueError, match="does not match expected shape"):
+        res = module.add_vectors(a, b)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("extra_dims", [0, 1, 3, 5])
+def test_add_vectors_generic_explicit(device_type: DeviceType, extra_dims: int):
+    torch.autograd.grad_mode.set_multithreading_enabled(False)
+
+    module = load_test_module(device_type)
+
+    extra_shape = (5,) * extra_dims
+
+    a = torch.randn(extra_shape+(3,), dtype=torch.float32, device=torch.device('cuda'))
+    b = torch.randn(extra_shape+(3,), dtype=torch.float32, device=torch.device('cuda'))
+
+    # Can't currently infer generic vector from tensor shape, but explicit type map should work
+    res = module.add_vectors_generic.map('float3', 'float3')(a, b)
     assert isinstance(res, torch.Tensor)
 
     compare_tensors(a+b, res)
