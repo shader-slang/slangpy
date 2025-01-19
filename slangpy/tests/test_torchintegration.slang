@@ -74,7 +74,6 @@ float[5] polynomial_arrays(float a, float b, float c, float[5] x) {
 
 [Differentiable]
 void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] res) {
-    float[5] res;
     for (int i = 0; i < 5; i++)
         res[i] = a * x[i] * x[i] + b * x[i] + c;
 }
