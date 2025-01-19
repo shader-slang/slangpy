@@ -72,6 +72,16 @@ class Function:
         self.before_call: Optional[list[TCallHook]] = None
         self.after_call: Optional[list[TCallHook]] = None
 
+    def torch(self):
+        """
+        Returns a pytorch wrapper around this function
+        """
+        import slangpy.torchintegration as spytorch
+        if spytorch.TORCH_ENABLED:
+            return spytorch.TorchFunction(self)
+        else:
+            raise RuntimeError("Pytorch integration is not enabled")
+
     def _copy(self) -> 'Function':
         res = copy(self)
         res.slangpy_signature = None

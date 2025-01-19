@@ -16,8 +16,8 @@ module = spy.Module.load_from_file(device, "example.slang")
 particles = spy.InstanceList(
     struct=module.Particle.as_struct(),
     data={
-        "position": spy.NDBuffer(device, element_type=module.float3, shape=(10,)),
-        "velocity": spy.NDBuffer(device, element_type=module.float3, shape=(10,)),
+        "position": spy.NDBuffer(device, dtype=module.float3, shape=(10,)),
+        "velocity": spy.NDBuffer(device, dtype=module.float3, shape=(10,)),
     })
 
 # Construct every particle with position of 0, and use slangpy's rand_float

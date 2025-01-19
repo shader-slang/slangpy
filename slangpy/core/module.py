@@ -111,8 +111,11 @@ class Module:
         """
         Returns a pytorch wrapper around this module
         """
-        import slangpy.builtin.torch as spytorch
-        return spytorch.TorchModule(self)
+        import slangpy.torchintegration as spytorch
+        if spytorch.TORCH_ENABLED:
+            return spytorch.TorchModule(self)
+        else:
+            raise RuntimeError("Pytorch integration is not enabled")
 
     def find_struct(self, name: str):
         """

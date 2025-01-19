@@ -192,8 +192,8 @@ class TensorMarshall(Marshall):
             return Shape((-1,) * self.dims)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
-        if isinstance(binding.slang_type, ITensorType):
-            writable = binding.slang_type.writable
+        if isinstance(binding.vector_type, ITensorType):
+            writable = binding.vector_type.writable
         else:
             writable = binding.access[0] in (AccessType.write, AccessType.readwrite)
 
