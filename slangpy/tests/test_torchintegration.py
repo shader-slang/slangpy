@@ -197,6 +197,9 @@ def test_polynomials(device_type: DeviceType, extra_dims: int, func_and_shape: t
     val_shape = func_and_shape[1]
     extra_shape = (5,) * extra_dims
 
+    if func_name == 'polynomial_vectors':
+        pytest.skip("Slang bug currently causing derivatives to return 0")
+
     a = 2.0
     b = 4.0
     c = 1.0
