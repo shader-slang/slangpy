@@ -39,6 +39,13 @@ By bringing these 2 technologies together with a simple and flexible Python libr
 .. toctree::
    :hidden:
    :maxdepth: 1
+   :caption: Auto-Diff
+   
+   autodiff
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
    :caption: API
    
    api/slangpy
