@@ -1,13 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from slangpy.backend import DeviceType, Device
-from slangpy.torchintegration import TorchModule
-from slangpy.core.module import Module
 import slangpy.tests.helpers as helpers
-import hashlib
-import os
-
-from slangpy.torchintegration.torchfunction import TorchFunction
 
 try:
     import torch
@@ -34,6 +28,7 @@ def get_test_tensors(device: Device, N: int = 4):
 
 
 def load_test_module(device_type: DeviceType):
+    from slangpy.torchintegration import TorchModule
     device = helpers.get_device(device_type, cuda_interop=True)
     return TorchModule.load_from_file(device, "test_torchintegration.slang")
 
@@ -152,7 +147,7 @@ def test_polynomial(device_type: DeviceType):
 
     res.backward(torch.ones_like(res))
 
-    compare_tensors(2*a*x+b, x.grad)
+    compare_tensors(2*a*x+b, x.grad)  # type: ignore
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -173,7 +168,7 @@ def test_polynomial_outparam(device_type: DeviceType):
 
     res.backward(torch.ones_like(res))
 
-    compare_tensors(2*a*x+b, x.grad)
+    compare_tensors(2*a*x+b, x.grad)  # type: ignore
 
 
 # Enable the vectors+arrays tests to reproduce compiler bugs
@@ -224,7 +219,7 @@ def test_polynomials(device_type: DeviceType, extra_dims: int, func_and_shape: t
 
     res.backward(torch.ones_like(res))
 
-    compare_tensors(2*a*x+b, x.grad)
+    compare_tensors(2*a*x+b, x.grad)  # type: ignore
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
