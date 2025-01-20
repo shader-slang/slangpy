@@ -315,7 +315,8 @@ class Function:
                 args = (self.this,)+args
             calldata = self._build_call_data(*args, **kwargs)
             opts = NativeCallRuntimeOptions()
-            opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
+            if self.uniforms is not None:
+                opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
             return calldata.append_to(opts, command_buffer, *args, **kwargs)
         except ValueError as e:
             self._handle_error(e, calldata)
@@ -358,7 +359,8 @@ class Function:
             dispatch_data = DispatchData(self, **kwargs)
 
         opts = NativeCallRuntimeOptions()
-        opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
+        if self.uniforms is not None:
+            opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
         dispatch_data.dispatch(opts, thread_count, vars, command_buffer, **kwargs)
 
     def _handle_error(self, e: ValueError, calldata: Optional['CallData']):

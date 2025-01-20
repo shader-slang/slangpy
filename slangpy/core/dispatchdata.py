@@ -191,11 +191,7 @@ void {reflection.name}_entrypoint({params}) {{
 
         # Use python marshalls to convert provided arguments to dispatch args.
         call_data = {}
-        self.runtime.write_raw_dispatch_data(call_data, **unpacked_kwargs)
-
-        if opts.before_dispatch is not None:
-            for hook in opts.before_dispatch:
-                hook(uniforms)
+        self.runtime.write_raw_dispatch_data(call_data, unpacked_kwargs)
 
         # Call dispatch
         self.kernel.dispatch(thread_count, uniforms, command_buffer, **call_data)
@@ -203,10 +199,6 @@ void {reflection.name}_entrypoint({params}) {{
         # If just adding to command buffer, post dispatch is redundant
         if command_buffer is not None:
             return
-
-        if opts.after_dispatch is not None:
-            for hook in opts.after_dispatch:
-                hook(uniforms)
 
         # Push updated 'this' values back to original objects
         for (k, arg) in kwargs.items():

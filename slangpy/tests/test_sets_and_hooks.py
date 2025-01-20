@@ -73,6 +73,7 @@ def test_set_with_callback(device_type: DeviceType):
     assert np.allclose(res_data, val_data + 10)
 
 
+@pytest.mark.skip("Removed hooks")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_hook(device_type: DeviceType):
     m = load_test_module(device_type)
