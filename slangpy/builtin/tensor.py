@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from slangpy.core.native import AccessType, CallContext, CallMode, Shape, TypeReflection
+from slangpy.core.native import AccessType, CallContext, CallMode, Shape
 
 from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorType
 from slangpy.types.tensor import Tensor, innermost_type

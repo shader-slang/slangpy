@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Optional, Union
 
-from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection
+from slangpy.core.native import AccessType, CallContext, Shape
+from slangpy.backend import TypeReflection
 
 import slangpy.reflection as kfr
 from slangpy.backend import (FormatType, ResourceType, ResourceUsage, Sampler,

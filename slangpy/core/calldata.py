@@ -103,7 +103,7 @@ class CallData(NativeCallData):
                 rvalnode = BoundVariable(context, None, None, "_result")
                 bindings.kwargs["_result"] = rvalnode
 
-            # Create bound variable information now that we have concrete data for path sides
+           # Create bound variable information now that we have concrete data for path sides
             bindings = bind(context, bindings, slang_function)
 
             # Run Python side implicit vectorization to do any remaining type resolution
@@ -185,6 +185,7 @@ class CallData(NativeCallData):
             # Store the bindings and runtime for later use.
             self.debug_only_bindings = bindings
             self.runtime = BoundCallRuntime(bindings)
+
         except BoundVariableException as e:
             if bindings is not None:
                 ref = slang_function.reflection if isinstance(

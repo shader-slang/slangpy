@@ -3,7 +3,8 @@
 
 from typing import Any
 
-from slangpy.core.native import AccessType, CallContext, TypeReflection
+from slangpy.core.native import AccessType, CallContext
+from slangpy.backend import TypeReflection
 
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,

@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
 import torch
 
-from slangpy.backend.slangpynativeemulation import AccessType
+from slangpy.core.native import AccessType
 from slangpy.torchintegration.wrappedtensor import WrappedTensor
 from slangpy.core.function import Function, IThis
 import slangpy.reflection as kfr

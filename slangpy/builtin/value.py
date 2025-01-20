@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, cast
 
-from slangpy.core.native import AccessType, CallContext, TypeReflection
+from slangpy.core.native import AccessType, CallContext
 
 import slangpy.backend as kfbackend
+from slangpy.backend import TypeReflection
 import slangpy.reflection as kfr
 from slangpy.backend import math
 from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,

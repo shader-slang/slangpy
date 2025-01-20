@@ -2,9 +2,9 @@
 from typing import Any, Optional, cast
 
 from slangpy.core.enums import PrimType
-from slangpy.core.native import AccessType, CallContext, Shape, TypeReflection, CallMode
+from slangpy.core.native import AccessType, CallContext, Shape, CallMode
 
-from slangpy.backend import ResourceUsage
+from slangpy.backend import ResourceUsage, TypeReflection
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext)

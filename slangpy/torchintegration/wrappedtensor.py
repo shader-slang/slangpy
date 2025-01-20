@@ -6,7 +6,7 @@ from numpy import ScalarType
 from sgl import TypeReflection
 import torch
 
-from slangpy.backend.slangpynativeemulation import AccessType, CallContext, CallMode, Shape
+from slangpy.core.native import AccessType, CallContext, CallMode, Shape
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.bindings.marshall import Marshall, ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES

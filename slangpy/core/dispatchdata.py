@@ -9,7 +9,7 @@ from slangpy.core.enums import IOType
 from slangpy.core.native import CallMode, pack_arg, unpack_arg
 
 from slangpy.backend import CommandBuffer, SlangLinkOptions, uint3
-from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
+from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.boundvariable import BoundCall
 from slangpy.bindings.boundvariableruntime import BoundCallRuntime
