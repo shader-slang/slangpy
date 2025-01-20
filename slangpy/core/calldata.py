@@ -95,7 +95,7 @@ class CallData(NativeCallData):
             # Check for differentiability error
             if not slang_function.differentiable and self.call_mode != CallMode.prim:
                 raise KernelGenException(
-                    "Could not call function 'polynomial': Function is not differentiable\n\n"
+                    f"Could not call function '{function.name}': Function is not differentiable\n\n"
                     f"{mismatch_info(bindings, function.reflections)}\n")
 
             # Inject a dummy node into the Python signature if we need a result back
