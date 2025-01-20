@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from slangpy.backend import DeviceType, Device
-from slangpy.builtin.torch import TorchModule
 import slangpy.tests.helpers as helpers
 import hashlib
 import os
@@ -30,12 +29,13 @@ def get_test_tensors(device: Device, N: int = 4):
 
 
 def get_module(device: Device):
+    from slangpy.torchintegration import TorchModule
     path = os.path.split(__file__)[0] + "/test_tensor.slang"
     module_source = open(path, "r").read()
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
-    return TorchModule(module)
+    return TorchModule.load_from_module(device, module)
 
 
 def compare_tensors(a: torch.Tensor, b: torch.Tensor):
@@ -46,6 +46,7 @@ def compare_tensors(a: torch.Tensor, b: torch.Tensor):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_missing_cuda_interop(device_type: DeviceType):
+    from slangpy.torchintegration import TorchModule
     torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     device = helpers.get_device(device_type, use_cache=False, cuda_interop=False)
@@ -61,12 +62,13 @@ def test_missing_torch_context(device_type: DeviceType):
     module = helpers.create_module(device, TEST_CODE)
 
     a = torch.randn((8, 5), dtype=torch.float32, device=torch.device('cuda'), requires_grad=True)
-    with pytest.raises(RuntimeError, match=r"Failed to access current torch context.*"):
+    with pytest.raises(ValueError, match=r"Tensor types can not be directly passed to SlangPy"):
         b = module.square(a)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_basic_tensor_arguments(device_type: DeviceType):
+    from slangpy.torchintegration import TorchModule
     torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     device = helpers.get_device(device_type, use_cache=False, cuda_interop=True)
@@ -80,6 +82,7 @@ def test_basic_tensor_arguments(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_basic_autograd(device_type: DeviceType):
+    from slangpy.torchintegration import TorchModule
     torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     device = helpers.get_device(device_type, use_cache=False, cuda_interop=True)
