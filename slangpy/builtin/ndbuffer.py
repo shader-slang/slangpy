@@ -2,7 +2,7 @@
 from typing import Any, Optional, cast
 
 from slangpy.core.enums import PrimType
-from slangpy.core.native import AccessType, CallContext, Shape, CallMode
+from slangpy.core.native import AccessType, CallContext, Shape, CallMode, NativeNDBuffer
 
 from slangpy.backend import ResourceUsage, TypeReflection
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
@@ -48,6 +48,51 @@ TYPE_OVERRIDES["NDBuffer"] = NDBufferType
 TYPE_OVERRIDES["RWNDBuffer"] = NDBufferType
 
 
+def ndbuffer_reduce_type(self: 'BaseNDBufferMarshall', context: BindContext, dimensions: int):
+    if dimensions == 0:
+        return self.slang_type
+    elif dimensions == self.dims:
+        return self.slang_element_type
+    elif dimensions < self.dims:
+        # Not sure how to handle this yet - what do we want if reducing by some dimensions
+        # Should this return a smaller buffer? How does that end up being cast to, eg, vector.
+        return None
+    else:
+        raise ValueError("Cannot reduce dimensions of NDBuffer")
+
+
+def ndbuffer_resolve_type(self: 'BaseNDBufferMarshall', context: BindContext, bound_type: 'SlangType'):
+
+    if isinstance(bound_type, NDBufferType):
+        # If the bound type is an NDBuffer, verify properties match then just use it
+        if bound_type.writable and not self.writable:
+            raise ValueError(
+                "Attempted to bind a writable buffer to a read-only buffer")
+        if bound_type.element_type != self.slang_element_type:
+            raise ValueError(
+                "Attempted to bind a buffer with a different element type")
+        return bound_type
+
+    # if implicit element casts enabled, allow conversion from type to element type
+    if context.options['implicit_element_casts']:
+        if self.slang_element_type == bound_type:
+            return bound_type
+        if is_matching_array_type(bound_type, self.slang_element_type):
+            return self.slang_element_type
+
+    # if implicit tensor casts enabled, allow conversion from vector to element type
+    if context.options['implicit_tensor_casts']:
+        if isinstance(bound_type, VectorType) and self.slang_element_type == bound_type.element_type:
+            return bound_type
+
+    # Default to just casting to itself (i.e. no implicit cast)
+    return self.slang_type
+
+
+def ndbuffer_resolve_dimensionality(self: 'BaseNDBufferMarshall', context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+    return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
+
+
 class BaseNDBufferMarshall(Marshall):
     def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
         super().__init__(layout)
@@ -66,48 +111,6 @@ class BaseNDBufferMarshall(Marshall):
             f"{prefix}NDBuffer<{self.slang_element_type.full_name},{self.dims}>")
         assert slt is not None
         self.slang_type = slt
-
-    def reduce_type(self, context: BindContext, dimensions: int):
-        if dimensions == 0:
-            return self.slang_type
-        elif dimensions == self.dims:
-            return self.slang_element_type
-        elif dimensions < self.dims:
-            # Not sure how to handle this yet - what do we want if reducing by some dimensions
-            # Should this return a smaller buffer? How does that end up being cast to, eg, vector.
-            return None
-        else:
-            raise ValueError("Cannot reduce dimensions of NDBuffer")
-
-    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
-
-        if isinstance(bound_type, NDBufferType):
-            # If the bound type is an NDBuffer, verify properties match then just use it
-            if bound_type.writable and not self.writable:
-                raise ValueError(
-                    "Attempted to bind a writable buffer to a read-only buffer")
-            if bound_type.element_type != self.slang_element_type:
-                raise ValueError(
-                    "Attempted to bind a buffer with a different element type")
-            return bound_type
-
-        # if implicit element casts enabled, allow conversion from type to element type
-        if context.options['implicit_element_casts']:
-            if self.slang_element_type == bound_type:
-                return bound_type
-            if is_matching_array_type(bound_type, self.slang_element_type):
-                return self.slang_element_type
-
-        # if implicit tensor casts enabled, allow conversion from vector to element type
-        if context.options['implicit_tensor_casts']:
-            if isinstance(bound_type, VectorType) and self.slang_element_type == bound_type.element_type:
-                return bound_type
-
-        # Default to just casting to itself (i.e. no implicit cast)
-        return self.slang_type
-
-    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
-        return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
 
     def get_shape(self, value: Optional[NDBuffer] = None) -> Shape:
         if value is not None:
@@ -128,6 +131,15 @@ class NDBufferMarshall(BaseNDBufferMarshall):
     @property
     def has_derivative(self) -> bool:
         return False
+
+    def reduce_type(self, context: BindContext, dimensions: int):
+        return ndbuffer_reduce_type(self, context, dimensions)
+
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
+        return ndbuffer_resolve_type(self, context, bound_type)
+
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+        return ndbuffer_resolve_dimensionality(self, context, binding, vector_target_type)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
@@ -234,6 +246,15 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
     @property
     def has_derivative(self) -> bool:
         return True
+
+    def reduce_type(self, context: BindContext, dimensions: int):
+        return ndbuffer_reduce_type(self, context, dimensions)
+
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
+        return ndbuffer_resolve_type(self, context, bound_type)
+
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+        return ndbuffer_resolve_dimensionality(self, context, binding, vector_target_type)
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):

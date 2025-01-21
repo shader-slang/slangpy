@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.native import AccessType, CallMode
+from slangpy.core.native import AccessType, CallMode, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
 import slangpy.reflection as slr
@@ -148,7 +148,7 @@ def specialize(
             arg.param_index = i
 
     def to_type_reflection(input: Any) -> TypeReflection:
-        if isinstance(input, Marshall):
+        if isinstance(input, NativeMarshall):
             return input.slang_type.type_reflection
         elif isinstance(input, TypeReflection):
             return input

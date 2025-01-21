@@ -8,7 +8,7 @@ from slangpy.core.shapes import TShapeOrTuple
 from slangpy.backend import (Device, MemoryType,
                              ResourceUsage)
 from slangpy.reflection import SlangProgramLayout
-from slangpy.types.buffer import NDBuffer, resolve_element_type
+from slangpy.types.buffer import NDBuffer, resolve_element_type, resolve_program_layout
 
 
 class NDDifferentiableBuffer(NDBuffer):
@@ -45,8 +45,10 @@ class NDDifferentiableBuffer(NDBuffer):
         if grad_type is None:
             grad_type = self.dtype.derivative
 
+        program_layout = resolve_program_layout(device, grad_type, program_layout)
+
         #: Slang element type for the gradient.
-        self.grad_type = resolve_element_type(self.program_layout, element_type)
+        self.grad_type = resolve_element_type(program_layout, element_type)
 
         #: Whether gradient buffer is required.
         self.requires_grad = requires_grad
@@ -69,7 +71,7 @@ class NDDifferentiableBuffer(NDBuffer):
                 grad_type=None,
                 grad_usage=None,
                 grad_memory_type=None,
-                program_layout=self.program_layout)
+                program_layout=program_layout)
             self.slangpy_signature += self.grad.slangpy_signature
         else:
             self.grad = None
