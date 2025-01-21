@@ -2,7 +2,7 @@
 from typing import Any, Optional, cast
 
 from slangpy.core.enums import PrimType
-from slangpy.core.native import AccessType, CallContext, Shape, CallMode, NativeNDBuffer
+from slangpy.core.native import AccessType, CallContext, Shape, CallMode, NativeNDBuffer, NativeNDBufferMarshall
 
 from slangpy.backend import ResourceUsage, TypeReflection
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
@@ -112,21 +112,20 @@ class BaseNDBufferMarshall(Marshall):
         assert slt is not None
         self.slang_type = slt
 
-    def get_shape(self, value: Optional[NDBuffer] = None) -> Shape:
-        if value is not None:
-            return value.shape+self.slang_element_type.shape
-        else:
-            return Shape((-1,)*self.dims)+self.slang_element_type.shape
 
-    @property
-    def is_writable(self) -> bool:
-        return self.writable
-
-
-class NDBufferMarshall(BaseNDBufferMarshall):
+class NDBufferMarshall(NativeNDBufferMarshall):
 
     def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
-        super().__init__(layout, element_type, dims, writable)
+
+        slang_el_type = layout.find_type_by_name(element_type.full_name)
+        assert slang_el_type is not None
+
+        prefix = "RW" if writable else ""
+        slang_buffer_type = layout.find_type_by_name(
+            f"{prefix}NDBuffer<{slang_el_type.full_name},{dims}>")
+        assert slang_buffer_type is not None
+
+        super().__init__(dims, writable, slang_buffer_type, slang_el_type)
 
     @property
     def has_derivative(self) -> bool:
@@ -160,21 +159,22 @@ class NDBufferMarshall(BaseNDBufferMarshall):
                 cgb.type_alias(
                     f"_t_{name}", f"RWNDBuffer<{self.slang_element_type.full_name},{self.dims}>")
 
-    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: NDBuffer) -> Any:
+    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: NativeNDBuffer) -> Any:
         if context.device != data.device:
             raise NameError("Buffer is linked to wrong device")
 
         if isinstance(binding.vector_type, NDBufferType):
             return {
                 'buffer': data.storage,
-                'strides': data.strides,
+                'strides': data.strides.as_tuple(),
                 'shape': data.shape.as_tuple()
             }
         else:
             broadcast = _calc_broadcast(context, binding)
+            strides = data.strides.as_tuple()
             return {
                 'buffer': data.storage,
-                'strides': [data.strides[i] if not broadcast[i] else 0 for i in range(len(data.strides))],
+                'strides': [strides[i] if not broadcast[i] else 0 for i in range(len(strides))],
                 'shape': data.shape.as_tuple()
             }
 
@@ -187,6 +187,16 @@ class NDBufferMarshall(BaseNDBufferMarshall):
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
+
+    def get_shape(self, value: Optional[NDBuffer] = None) -> Shape:
+        if value is not None:
+            return value.shape+self.slang_element_type.shape
+        else:
+            return Shape((-1,)*self.dims)+self.slang_element_type.shape
+
+    @property
+    def is_writable(self) -> bool:
+        return self.writable
 
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
@@ -336,6 +346,16 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
 
     def create_dispatchdata(self, data: NDDifferentiableBuffer) -> Any:
         return data.uniforms()
+
+    def get_shape(self, value: Optional[NDBuffer] = None) -> Shape:
+        if value is not None:
+            return value.shape+self.slang_element_type.shape
+        else:
+            return Shape((-1,)*self.dims)+self.slang_element_type.shape
+
+    @property
+    def is_writable(self) -> bool:
+        return self.writable
 
 
 def create_gradvr_type_for_value(layout: SlangProgramLayout, value: Any):
