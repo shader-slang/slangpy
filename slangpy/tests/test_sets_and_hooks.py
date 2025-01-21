@@ -39,7 +39,7 @@ def test_set(device_type: DeviceType):
     add_k = m.add_k.as_func()
 
     val = NDBuffer(m.device, float, 10)
-    val_data = np.random.rand(10).astype(np.float32)
+    val_data = np.zeros(10, dtype=np.float32)  # np.random.rand(10).astype(np.float32)
     val.from_numpy(val_data)
 
     add_k = add_k.set({'params': {
