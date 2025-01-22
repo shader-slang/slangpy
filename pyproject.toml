@@ -17,7 +17,7 @@ requires-python = ">=3.9"
 dependencies = [
   "typing_extensions",
   "numpy",
-  "nv-sgl>=0.6.2"
+  "nv-sgl==0.7.0"
 ]
 
 [tool.setuptools]
