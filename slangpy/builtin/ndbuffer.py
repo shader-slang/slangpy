@@ -120,12 +120,14 @@ class NDBufferMarshall(NativeNDBufferMarshall):
         slang_el_type = layout.find_type_by_name(element_type.full_name)
         assert slang_el_type is not None
 
+        slang_el_layout = slang_el_type.buffer_layout
+
         prefix = "RW" if writable else ""
         slang_buffer_type = layout.find_type_by_name(
             f"{prefix}NDBuffer<{slang_el_type.full_name},{dims}>")
         assert slang_buffer_type is not None
 
-        super().__init__(dims, writable, slang_buffer_type, slang_el_type)
+        super().__init__(dims, writable, slang_buffer_type, slang_el_type, slang_el_layout.stride)
 
     @property
     def has_derivative(self) -> bool:
@@ -181,18 +183,6 @@ class NDBufferMarshall(NativeNDBufferMarshall):
     # Buffers provide their buffer and strides for dispatch
     def create_dispatchdata(self, data: NDBuffer) -> Any:
         return data.uniforms()
-
-    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return NDBuffer(context.device, self.slang_element_type, shape=context.call_shape, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
-
-    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
-        return data
-
-    def get_shape(self, value: Optional[NDBuffer] = None) -> Shape:
-        if value is not None:
-            return value.shape+self.slang_element_type.shape
-        else:
-            return Shape((-1,)*self.dims)+self.slang_element_type.shape
 
     @property
     def is_writable(self) -> bool:
