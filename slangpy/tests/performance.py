@@ -164,7 +164,7 @@ def run_for_profiling():
     command_buffer.submit()
     device.wait_for_idle()
 
-    sleep(5)
+    sleep(1)
 
     command_buffer = device.create_command_buffer()
     start = time()
@@ -174,7 +174,7 @@ def run_for_profiling():
     command_buffer.submit()
     device.wait_for_idle()
 
-    sleep(5)
+    sleep(1)
 
     print(f"Direct dispatch: {direct_dispatch}")
     print(f"Spy append:      {spy_append}")

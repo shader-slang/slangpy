@@ -164,18 +164,6 @@ class NDBuffer(NativeNDBuffer):
         """
         return (self.usage & ResourceUsage.unordered_access) != 0
 
-    def to_numpy(self):
-        """
-        Returns the buffer as a numpy array.
-        """
-        return self.storage.to_numpy()
-
-    def from_numpy(self, data: npt.ArrayLike):
-        """
-        Sets the buffer from a numpy array.
-        """
-        self.storage.from_numpy(data)
-
     def to_torch(self, override_type: Optional[DataType] = None):
         """
         Returns the buffer as a torch tensor.
