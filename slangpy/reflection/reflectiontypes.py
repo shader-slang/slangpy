@@ -145,12 +145,13 @@ class SlangType(NativeSlangType):
         self._cached_uniform_layout: Optional[SlangLayout] = None
         self._cached_buffer_layout: Optional[SlangLayout] = None
 
+        # Native shape storage
         if self._element_type == self:
-            self._cached_shape = local_shape
+            self.shape = local_shape
         elif local_shape.valid and self._element_type is not None:
-            self._cached_shape = local_shape + self._element_type.shape
+            self.shape = local_shape + self._element_type.shape
         else:
-            self._cached_shape = local_shape
+            self.shape = local_shape
 
     def on_hot_reload(self, refl: TypeReflection):
         """
@@ -198,13 +199,6 @@ class SlangType(NativeSlangType):
         Fields of this type. For non-struct types, this will be empty.
         """
         return self._get_fields()
-
-    @property
-    def shape(self) -> Shape:
-        """
-        Shape of this type.
-        """
-        return self._cached_shape
 
     @property
     def differentiable(self) -> bool:

@@ -93,6 +93,26 @@ def ndbuffer_resolve_dimensionality(self: 'BaseNDBufferMarshall', context: BindC
     return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
 
 
+def ndbuffer_gen_calldata(self: 'BaseNDBufferMarshall', cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
+    access = binding.access
+    name = binding.variable_name
+    assert access[0] != AccessType.none
+    assert access[1] == AccessType.none
+    if isinstance(binding.vector_type, NDBufferType):
+        # If passing to NDBuffer, just use the NDBuffer type
+        assert access[0] == AccessType.read
+        assert isinstance(binding.vector_type, NDBufferType)
+        cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
+    else:
+        # If broadcasting to an element, use the type of this buffer for code gen
+        if access[0] == AccessType.read:
+            cgb.type_alias(
+                f"_t_{name}", f"NDBuffer<{self.slang_element_type.full_name},{self.dims}>")
+        else:
+            cgb.type_alias(
+                f"_t_{name}", f"RWNDBuffer<{self.slang_element_type.full_name},{self.dims}>")
+
+
 class BaseNDBufferMarshall(Marshall):
     def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool):
         super().__init__(layout)
@@ -133,6 +153,10 @@ class NDBufferMarshall(NativeNDBufferMarshall):
     def has_derivative(self) -> bool:
         return False
 
+    @property
+    def is_writable(self) -> bool:
+        return self.writable
+
     def reduce_type(self, context: BindContext, dimensions: int):
         return ndbuffer_reduce_type(self, context, dimensions)
 
@@ -143,50 +167,7 @@ class NDBufferMarshall(NativeNDBufferMarshall):
         return ndbuffer_resolve_dimensionality(self, context, binding, vector_target_type)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
-        access = binding.access
-        name = binding.variable_name
-        assert access[0] != AccessType.none
-        assert access[1] == AccessType.none
-        if isinstance(binding.vector_type, NDBufferType):
-            # If passing to NDBuffer, just use the NDBuffer type
-            assert access[0] == AccessType.read
-            assert isinstance(binding.vector_type, NDBufferType)
-            cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
-        else:
-            # If broadcasting to an element, use the type of this buffer for code gen
-            if access[0] == AccessType.read:
-                cgb.type_alias(
-                    f"_t_{name}", f"NDBuffer<{self.slang_element_type.full_name},{self.dims}>")
-            else:
-                cgb.type_alias(
-                    f"_t_{name}", f"RWNDBuffer<{self.slang_element_type.full_name},{self.dims}>")
-
-    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: NativeNDBuffer) -> Any:
-        if context.device != data.device:
-            raise NameError("Buffer is linked to wrong device")
-
-        if isinstance(binding.vector_type, NDBufferType):
-            return {
-                'buffer': data.storage,
-                'strides': data.strides.as_tuple(),
-                'shape': data.shape.as_tuple()
-            }
-        else:
-            broadcast = _calc_broadcast(context, binding)
-            strides = data.strides.as_tuple()
-            return {
-                'buffer': data.storage,
-                'strides': [strides[i] if not broadcast[i] else 0 for i in range(len(strides))],
-                'shape': data.shape.as_tuple()
-            }
-
-    # Buffers provide their buffer and strides for dispatch
-    def create_dispatchdata(self, data: NDBuffer) -> Any:
-        return data.uniforms()
-
-    @property
-    def is_writable(self) -> bool:
-        return self.writable
+        return ndbuffer_gen_calldata(self, cgb, context, binding)
 
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
