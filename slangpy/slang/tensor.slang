@@ -10,6 +10,8 @@ public interface ITensor<T : IDifferentiable, let D : int>
     {
         [BackwardDifferentiable] get;
     }
+
+    public property shape : uint[D];
 }
 public interface IRWTensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
@@ -224,7 +226,9 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
     public StructuredBuffer<T> buffer;
     public StridedLayout<D> layout;
-    public int[D] shape;
+    private uint _shape[D];
+
+    public property shape : uint[D] { get { return _shape; } }
 
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
@@ -234,7 +238,7 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
         for (int i = 0; i < SliceD; ++i)
-            value.shape[i] = shape[D - SliceD + i];
+            value._shape[i] = _shape[D - SliceD + i];
     }
 
     ITensorSubscript
@@ -245,7 +249,9 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
 {
     public RWStructuredBuffer<T> buffer;
     public StridedLayout<D> layout;
-    public int[D] shape;
+    private uint _shape[D];
+
+    public property shape : uint[D] { get { return _shape; } }
 
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
@@ -258,7 +264,7 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
         for (int i = 0; i < SliceD; ++i)
-            value.shape[i] = shape[D - SliceD + i];
+            value._shape[i] = _shape[D - SliceD + i];
     }
 
     IRWTensorSubscript
@@ -270,7 +276,9 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
 {
     public RWByteAddressBuffer buffer;
     public StridedLayout<D> layout;
-    public int[D] shape;
+    private uint _shape[D];
+
+    public property shape : uint[D] { get { return _shape; } }
 
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer.Load<T>(layout.at(idx) * sizeof(T), sizeof(T)); }
@@ -288,7 +296,7 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
         for (int i = 0; i < SliceD; ++i)
-            value.shape[i] = shape[D - SliceD + i];
+            value._shape[i] = _shape[D - SliceD + i];
     }
 
     IRWTensorSubscript
@@ -300,6 +308,8 @@ public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D> wh
 {
     public Tensor<T, D> primal;
     public AtomicTensor<T.Differential, D> d_out;
+
+    public property shape : uint[D] { get { return primal.shape; } }
 
     [Differentiable]
     public T get(int[D] idx) { return primal.get(idx); }
@@ -324,6 +334,8 @@ public struct GradInTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
 {
     public RWTensor<T, D> primal;
     public Tensor<T.Differential, D> d_in;
+
+    public property shape : uint[D] { get { return primal.shape; } }
 
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return primal.get(idx); }
@@ -350,6 +362,8 @@ public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D
     public RWTensor<T, D> primal;
     public AtomicTensor<T.Differential, D> d_out;
     public Tensor<T.Differential, D> d_in;
+
+    public property shape : uint[D] { get { return primal.shape; } }
 
     [Differentiable]
     public T get(int[D] idx) { return primal.get(idx); }
