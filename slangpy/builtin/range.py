@@ -3,7 +3,8 @@
 
 from typing import Any
 
-from slangpy.core.native import AccessType, CallContext, TypeReflection
+from slangpy.core.native import AccessType, CallContext, Shape
+from slangpy.backend import TypeReflection
 
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
@@ -37,7 +38,7 @@ class RangeMarshall(Marshall):
 
     def get_shape(self, data: range):
         s = ((data.stop-data.start)//data.step,)
-        return s
+        return Shape(s)
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         return context.layout.scalar_type(TypeReflection.ScalarType.int32)

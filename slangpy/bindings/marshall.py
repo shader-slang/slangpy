@@ -3,7 +3,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-from slangpy.core.native import CallMode, NativeType
+from slangpy.core.native import CallMode, NativeMarshall
 
 from slangpy.bindings.codegen import CodeGenBlock
 
@@ -52,7 +52,7 @@ class ReturnContext:
         self.bind_context = bind_context
 
 
-class Marshall(NativeType):
+class Marshall(NativeMarshall):
     """
     Base class for a type marshall that describes how to pass a given type to/from a
     SlangPy kernel. When a kernel is generated, a marshall is instantiated for each

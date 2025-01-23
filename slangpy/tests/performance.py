@@ -1,0 +1,187 @@
+# SPDX-License-Identifier: Apache-2.0
+from pathlib import Path
+from typing import Any
+import sgl
+import slangpy as spy
+import numpy as np
+from timeit import timeit
+from time import sleep, time
+
+SHADER_DIR = Path(__file__).parent
+
+
+def raw_compute_test(compute_kernel: sgl.ComputeKernel, a: spy.NDBuffer, b: spy.NDBuffer, res: spy.NDBuffer, threads: int):
+    compute_kernel.dispatch(sgl.uint3(threads, 1, 1), vars={
+        'addKernelData': {
+            "a": a.storage,
+            "b": b.storage,
+            "res": res.storage,
+            "count": threads
+        }
+    })
+
+
+def raw_queue_kernel_test(compute_kernel: sgl.ComputeKernel, a: spy.NDBuffer, b: spy.NDBuffer, res: spy.NDBuffer, threads: int, cb: sgl.CommandBuffer):
+    compute_kernel.dispatch(sgl.uint3(threads, 1, 1), vars={
+        'addKernelData': {
+            "a": a.storage,
+            "b": b.storage,
+            "res": res.storage,
+            "count": threads
+        }
+    }, command_buffer=cb)
+
+
+def perf_test(name: str, device: sgl.Device, func: Any):
+    device.wait_for_idle()
+    res = timeit(func, number=1000)
+    device.wait_for_idle()
+    av = 1000 * res/1000
+    print(f"{name}: {av}ms")
+    return av
+
+
+def run():
+    device = spy.create_device(sgl.DeviceType.d3d12, include_paths=[SHADER_DIR])
+
+    sgl_module = device.load_module("performance.slang")
+    sgl_program = device.link_program([sgl_module], [sgl_module.entry_point("addkernel")])
+
+    spy_module = spy.Module.load_from_module(device, sgl_module)
+
+    compute_kernel = device.create_compute_kernel(sgl_program)
+
+    a = spy.NDBuffer(device, spy_module.float, 10000000)
+    b = spy.NDBuffer(device, spy_module.float, 10000000)
+    res = spy.NDBuffer(device, spy_module.float, 10000000)
+
+    a_data = np.random.rand(10000000).astype(np.float32)
+    b_data = np.random.rand(10000000).astype(np.float32)
+    a.from_numpy(a_data)
+    b.from_numpy(b_data)
+
+    raw_compute_test(compute_kernel, a, b, res, 1000)
+    res_data = res.to_numpy().view(dtype=np.float32)[0:1000]
+    expected = (a_data + b_data)[0:1000]
+    assert np.allclose(res_data, expected)
+
+    a_small = spy.NDBuffer(device, spy_module.float, 1000)
+    b_small = spy.NDBuffer(device, spy_module.float, 1000)
+    res_small = spy.NDBuffer(device, spy_module.float, 1000)
+    a.from_numpy(a_data[0:1000])
+    b.from_numpy(b_data[0:1000])
+
+    # Ensure compilation of spy module
+    spy_module.add(a=a, b=b, _result=res)
+    spy_module.add(a=a_small, b=b_small, _result=res_small)
+
+    sql_dispatch = perf_test("Small direct dispatch", device,
+                             lambda: raw_compute_test(compute_kernel, a, b, res, 1000))
+
+    perf_test("Large direct dispatch", device, lambda: raw_compute_test(
+        compute_kernel, a, b, res, 10000000))
+
+    command_buffer = device.create_command_buffer()
+    sgl_queue = perf_test("Queue dispatch", device, lambda: raw_queue_kernel_test(
+        compute_kernel, a, b, res, 10000000, command_buffer))
+    command_buffer.submit()
+    device.wait_for_idle()
+
+    perf_test("Spy small invoke", device, lambda: spy_module.add(
+        a=a_small, b=b_small, _result=res_small))
+
+    perf_test("Spy large invoke", device, lambda: spy_module.add(a=a, b=b, _result=res))
+
+    command_buffer = device.create_command_buffer()
+    spy_queue = perf_test("Spy append", device, lambda: spy_module.add.append_to(
+        command_buffer, a=a, b=b, _result=res))
+    command_buffer.submit()
+    device.wait_for_idle()
+
+    perf_test("Spy large dispatch", device, lambda: spy_module.addkernel.dispatch(sgl.uint3(10000000, 1, 1), vars={
+        'addKernelData': {
+            "a": a.storage,
+            "b": b.storage,
+            "res": res.storage,
+            "count": 10000000
+        }
+    }))
+
+    # read a character to wait for quit
+    input("Press Enter to quit")
+
+
+def run_for_profiling():
+    device = spy.create_device(sgl.DeviceType.d3d12, include_paths=[SHADER_DIR])
+
+    sgl_module = device.load_module("performance.slang")
+    sgl_program = device.link_program([sgl_module], [sgl_module.entry_point("addkernel")])
+
+    spy_module = spy.Module.load_from_module(device, sgl_module)
+
+    compute_kernel = device.create_compute_kernel(sgl_program)
+
+    a = spy.NDBuffer(device, spy_module.float, 10000000)
+    b = spy.NDBuffer(device, spy_module.float, 10000000)
+    res = spy.NDBuffer(device, spy_module.float, 10000000)
+
+    a_data = np.random.rand(10000000).astype(np.float32)
+    b_data = np.random.rand(10000000).astype(np.float32)
+    a.from_numpy(a_data)
+    b.from_numpy(b_data)
+
+    raw_compute_test(compute_kernel, a, b, res, 1000)
+    res_data = res.to_numpy().view(dtype=np.float32)[0:1000]
+    expected = (a_data + b_data)[0:1000]
+    assert np.allclose(res_data, expected)
+
+    a_small = spy.NDBuffer(device, spy_module.float, 1000)
+    b_small = spy.NDBuffer(device, spy_module.float, 1000)
+    res_small = spy.NDBuffer(device, spy_module.float, 1000)
+    a.from_numpy(a_data[0:1000])
+    b.from_numpy(b_data[0:1000])
+
+    # Ensure compilation of spy module
+    spy_module.add(a=a, b=b, _result=res)
+    spy_module.add(a=a_small, b=b_small, _result=res_small)
+
+    input("Press Enter to start")
+
+    device.wait_for_idle()
+
+    command_buffer = device.create_command_buffer()
+    start = time()
+    for i in range(0, 100000):
+        compute_kernel.dispatch(sgl.uint3(32, 1, 1), vars={
+            'addKernelData': {
+                "a": a_small.storage,
+                "b": b_small.storage,
+                "res": res_small.storage,
+                "count": 32
+            }
+        }, command_buffer=command_buffer)
+    direct_dispatch = time() - start
+    command_buffer.submit()
+    device.wait_for_idle()
+
+    sleep(1)
+
+    command_buffer = device.create_command_buffer()
+    start = time()
+    for i in range(0, 100000):
+        spy_module.add.append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
+    spy_append = time() - start
+    command_buffer.submit()
+    device.wait_for_idle()
+
+    sleep(1)
+
+    print(f"Direct dispatch: {direct_dispatch}")
+    print(f"Spy append:      {spy_append}")
+
+    input("Press Enter to finish")
+
+
+if __name__ == "__main__":
+
+    run_for_profiling()

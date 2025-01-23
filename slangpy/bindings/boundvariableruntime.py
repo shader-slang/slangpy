@@ -7,6 +7,7 @@ from slangpy.core.native import (NativeBoundCallRuntime,
 if TYPE_CHECKING:
     from .boundvariable import BoundCall, BoundVariable
     from slangpy.reflection.reflectiontypes import SlangType
+    from slangpy.bindings.marshall import Marshall
 
 
 class BoundCallRuntime(NativeBoundCallRuntime):
@@ -42,10 +43,12 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         self.transform = source.vector_mapping
 
         #: Python type of variable.
-        self.python_type = source.python
+        if source.python is not None:
+            self.python_type: 'Marshall' = source.python
 
         #: Slang type being passed to.
-        self.vector_type: 'SlangType' = source.vector_type  # type: ignore
+        if source.vector_type is not None:
+            self.vector_type: 'SlangType' = source.vector_type  # type: ignore
 
         #: Call dimensionality of variable.
         self.call_dimensionality = source.call_dimensionality

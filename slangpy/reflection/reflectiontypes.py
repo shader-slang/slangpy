@@ -134,8 +134,10 @@ class SlangType(NativeSlangType):
                  local_shape: Shape = Shape(None)):
         super().__init__()
 
+        #: Underlying SGL TypeReflection for this type.
+        self.type_reflection = refl
+
         self._program = program
-        self._reflection = refl
         self._element_type = element_type
 
         self._cached_fields: Optional[dict[str, SlangField]] = None
@@ -155,7 +157,7 @@ class SlangType(NativeSlangType):
         Called when the type reflection is hot reloaded. Stores updated reflection and clears 
         cached data.
         """
-        self._reflection = refl
+        self.type_reflection = refl
         self._cached_fields = None
         self._cached_differential = None
         self._cached_uniform_layout = None
@@ -169,26 +171,19 @@ class SlangType(NativeSlangType):
         return self._program
 
     @property
-    def type_reflection(self) -> TypeReflection:
-        """
-        Underlying SGL TypeReflection for this type.
-        """
-        return self._reflection
-
-    @property
     def name(self) -> str:
         """
         Short name of this type. For generics, this
         will not include the generic arguments.
         """
-        return self._reflection.name
+        return self.type_reflection.name
 
     @property
     def full_name(self) -> str:
         """
         Fully qualified name of this type.
         """
-        return self._reflection.full_name
+        return self.type_reflection.full_name
 
     @property
     def element_type(self) -> Optional[SlangType]:
@@ -320,7 +315,7 @@ class ScalarType(SlangType):
         """
         Slang scalar type id.
         """
-        return self._reflection.scalar_type
+        return self.type_reflection.scalar_type
 
 
 class VectorType(SlangType):
@@ -633,13 +628,6 @@ class SlangFunction:
         Name of this function.
         """
         return self._reflection.name
-
-    @property
-    def full_name(self) -> str:
-        """
-        Fully qualified name of this function, including generic arguments (if any).
-        """
-        return self._full_name
 
     @property
     def full_name(self) -> str:

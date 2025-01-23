@@ -2,7 +2,7 @@
 from typing import Any, Optional
 
 from slangpy.backend import Buffer
-from slangpy.backend.slangpynativeemulation import AccessType, CallContext
+from slangpy.core.native import AccessType, CallContext
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.bindings.marshall import ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES

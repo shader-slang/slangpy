@@ -11,7 +11,7 @@ except ImportError:
 import numpy as np
 
 from slangpy.backend import TypeReflection, SlangModule, Buffer, ResourceUsage, DataType
-from slangpy.backend.slangpynativeemulation import NativeBoundVariableRuntime
+from slangpy.core.native import NativeBoundVariableRuntime
 from slangpy.bindings import ReturnContext, BoundVariableRuntime, CallContext, Shape, AccessType
 from slangpy.bindings import PYTHON_TYPES, PYTHON_SIGNATURES
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout

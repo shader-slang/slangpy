@@ -6,7 +6,7 @@ import pytest
 import slangpy.bindings.typeregistry as tr
 import slangpy.tests.helpers as helpers
 from slangpy.backend import DeviceType, TypeReflection
-from slangpy.backend.slangpynativeemulation import CallContext
+from slangpy.core.native import CallContext
 from slangpy.bindings import ReturnContext
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.builtin.valueref import ValueRefMarshall
