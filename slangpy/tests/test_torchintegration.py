@@ -227,9 +227,6 @@ def test_polynomials(device_type: DeviceType, extra_dims: int, func_and_shape: t
 def test_add_tensors(device_type: DeviceType, extra_dims: int):
     torch.autograd.grad_mode.set_multithreading_enabled(False)
 
-    if extra_dims > 0:
-        pytest.skip("Adding sliced tensors currently not working")
-
     module = load_test_module(device_type)
 
     func_name = 'add_tensors'

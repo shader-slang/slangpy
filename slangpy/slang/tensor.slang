@@ -233,6 +233,8 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        for (int i = 0; i < SliceD; ++i)
+            value.shape[i] = shape[D - SliceD + i];
     }
 
     ITensorSubscript
@@ -255,6 +257,8 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        for (int i = 0; i < SliceD; ++i)
+            value.shape[i] = shape[D - SliceD + i];
     }
 
     IRWTensorSubscript
@@ -283,6 +287,8 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        for (int i = 0; i < SliceD; ++i)
+            value.shape[i] = shape[D - SliceD + i];
     }
 
     IRWTensorSubscript
