@@ -117,8 +117,7 @@ namespace impl
     public void load<let N : int>(ContextND<D - 1> ctx, out T[N] value)                     \
     {                                                                                       \
         int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        [ForceUnroll]                                                                       \
         for (int i = 0; i < D - 1; ++i)                                                     \
             idx[i] = ctx.call_id[i];                                                        \
                                                                                             \
@@ -132,8 +131,7 @@ namespace impl
     public void load<let N : int>(ContextND<D - 1> ctx, out vector<T,N> value)              \
     {                                                                                       \
         int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        [ForceUnroll]                                                                       \
         for (int i = 0; i < D - 1; ++i)                                                     \
             idx[i] = ctx.call_id[i];                                                        \
                                                                                             \
@@ -148,8 +146,7 @@ namespace impl
     public void load<let M : int, let N : int>(ContextND<D - 2> context, out T value[M][N]) \
     {                                                                                       \
         int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        [ForceUnroll]                                                                       \
         for (int i = 0; i < D - 2; ++i)                                                     \
             idx[i] = context.call_id[i];                                                    \
         [ForceUnroll]                                                                       \
@@ -176,8 +173,7 @@ namespace impl
     public void store<let N : int>(ContextND<D - 1> context, in T[N] value)                 \
     {                                                                                       \
         int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        [ForceUnroll]                                                                       \
         for (int i = 0; i < D - 1; ++i)                                                     \
             idx[i] = context.call_id[i];                                                    \
         [ForceUnroll]                                                                       \
@@ -191,8 +187,7 @@ namespace impl
     public void store<let N : int>(ContextND<D - 1> context, in vector<T,N> value)          \
     {                                                                                       \
         int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        [ForceUnroll]                                                                       \
         for (int i = 0; i < D - 1; ++i)                                                     \
             idx[i] = context.call_id[i];                                                    \
         [ForceUnroll]                                                                       \
@@ -206,8 +201,7 @@ namespace impl
     public void store<let M : int, let N : int>(ContextND<D - 2> context, in T value[M][N]) \
     {                                                                                       \
         int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
+        [ForceUnroll]                                                                       \
         for (int i = 0; i < D - 2; ++i)                                                     \
             idx[i] = context.call_id[i];                                                    \
         [ForceUnroll]                                                                       \
