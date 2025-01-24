@@ -2,7 +2,7 @@
 from copy import copy
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union
 
-from slangpy.core.native import (CallMode, NativeCallRuntimeOptions,
+from slangpy.core.native import (CallMode, NativeCallRuntimeOptions, NativeObject,
                                  hash_signature)
 
 import slangpy.reflection as kfr
@@ -37,7 +37,7 @@ class IThis(Protocol):
         ...
 
 
-class Function:
+class Function(NativeObject):
     """
     Callable class that represents a Slang function in a loaded module. Typically created
     by calling `module.function_name` or `mystruct.function_name` on a loaded module/struct.
@@ -46,7 +46,6 @@ class Function:
     def __init__(self) -> None:
         super().__init__()
         self.module: 'Module'
-        self.slangpy_signature: Optional[str] = None
         self.type_reflection: Optional['TypeReflection']
         self.reflections: list['FunctionReflection']
         self._name: str
@@ -77,8 +76,22 @@ class Function:
             raise RuntimeError("Pytorch integration is not enabled")
 
     def _copy(self) -> 'Function':
-        res = copy(self)
-        res.slangpy_signature = None
+        res = Function()
+        res.module = self.module
+        res.type_reflection = self.type_reflection
+        res.reflections = self.reflections
+        res._name = self._name
+        res._map_args = self._map_args
+        res._map_kwargs = self._map_kwargs
+        res._options = self._options
+        res._type_conformances = self._type_conformances
+        res._mode = self._mode
+        res._return_type = self._return_type
+        res._constants = self._constants
+        res._thread_group_size = self._thread_group_size
+        res.this = self.this
+        res.uniforms = self.uniforms
+        res.slangpy_signature = ''
         return res
 
     def attach(self, module: 'Module', func: Union[str, kfr.SlangFunction, list[FunctionReflection]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
@@ -328,7 +341,7 @@ class Function:
         as a kernel entry point directly.
         """
         if ENABLE_CALLDATA_CACHE:
-            if self.slangpy_signature is None:
+            if self.slangpy_signature == '':
                 lines = []
                 if self.type_reflection is not None:
                     lines.append(f"{self.type_reflection.full_name}::{self.name}")
@@ -384,7 +397,7 @@ class Function:
 
     def _build_call_data(self, *args: Any, **kwargs: Any):
 
-        if self.slangpy_signature is None:
+        if self.slangpy_signature == '':
             lines = []
             if self.type_reflection is not None:
                 lines.append(f"{self.type_reflection.full_name}::{self.name}")
