@@ -416,8 +416,8 @@ class Function(NativeObject):
             _cache_value_to_id, self, *args, **kwargs)
         if ENABLE_CALLDATA_CACHE and sig in self.module.call_data_cache:
             cd = self.module.call_data_cache[sig]
-            if cd.device != self.module.device:
-                raise NameError("Cached CallData is linked to wrong device")
+            # if cd.device != self.module.device:
+            #    raise NameError("Cached CallData is linked to wrong device")
             return cd
 
         from .calldata import CallData
