@@ -16,13 +16,13 @@ from slangpy.bindings.boundvariableruntime import BoundCallRuntime
 from slangpy.bindings.codegen import CodeGen
 
 if TYPE_CHECKING:
-    from slangpy.core.function import Function
+    from slangpy.core.function import FunctionNode
 
 
 class DispatchData:
     def __init__(
         self,
-        func: "Function",
+        func: "FunctionNode",
         **kwargs: dict[str, Any]
     ) -> None:
         super().__init__()

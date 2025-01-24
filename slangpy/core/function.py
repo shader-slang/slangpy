@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 from copy import copy
-from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast
 
-from slangpy.core.native import (CallMode, NativeCallRuntimeOptions, NativeObject,
-                                 hash_signature)
+from slangpy.core.native import (CallMode, NativeCallRuntimeOptions, NativeFunctionNode,
+                                 hash_signature, FunctionNodeType)
 
 import slangpy.reflection as kfr
 from slangpy.backend import (CommandBuffer, FunctionReflection,
@@ -37,69 +37,301 @@ class IThis(Protocol):
         ...
 
 
-class Function(NativeObject):
-    """
-    Callable class that represents a Slang function in a loaded module. Typically created
-    by calling `module.function_name` or `mystruct.function_name` on a loaded module/struct.
-    """
-
+class FunctionBuildInfo:
     def __init__(self) -> None:
         super().__init__()
+
+        # Will always be populated by the root
+        self.name: str
         self.module: 'Module'
-        self.type_reflection: Optional['TypeReflection']
-        self.reflections: list['FunctionReflection']
-        self._name: str
+        self.reflections: list[FunctionReflection]
+        self.type_reflection: Optional[TypeReflection]
 
-        # Static options that affect compilation, and thus the signature
-        self._map_args: Optional[tuple[Any]] = None
-        self._map_kwargs: Optional[dict[str, Any]] = None
-        self._options: Optional[dict[str, Any]] = None
-        self._type_conformances: Optional[list[TypeConformance]] = None
-        self._mode = CallMode.prim
-        self._return_type: Optional[type] = None
-        self._constants: Optional[dict[str, Any]] = None
-        self._thread_group_size: Optional[uint3] = None
+        # Optional value that will be set depending on the chain.
+        self.map_args: tuple[Any, ...] = ()
+        self.map_kwargs: dict[str, Any] = {}
+        self.type_conformances: list[TypeConformance] = []
+        self.call_mode: CallMode = CallMode.prim
+        self.options: dict[str, Any] = {}
+        self.constants: dict[str, Any] = {}
+        self.thread_group_size: uint3 = uint3(1, 1, 32)
+        self.return_type: Optional[Union[type, str]] = None
 
-        # Runtime options that affect dispatch only
-        self.this: Optional[IThis] = None
-        self.uniforms: Optional[list[Union[Callable[[
-            'CallData'], Any], dict[str, Any]]]] = None
+
+class FunctionNode(NativeFunctionNode):
+    @property
+    def root(self):
+        """
+        Get the root function node
+        """
+        return cast(Function, self._find_native_root())
+
+    @property
+    def name(self):
+        """
+        Get the name of the function.
+        """
+        return self.root._name
+
+    @property
+    def parent(self):
+        """
+        Get the parent function node
+        """
+        return cast(FunctionNode, self._native_parent)
+
+    @property
+    def module(self):
+        """
+        Get the module that the function is part of
+        """
+        return self.root.module
 
     def torch(self):
         """
         Returns a pytorch wrapper around this function
         """
-        import slangpy.torchintegration as spytorch
-        if spytorch.TORCH_ENABLED:
-            return spytorch.TorchFunction(self)
+        pass
+
+    def bind(self, this: IThis) -> 'FunctionNode':
+        """
+        Bind a `this` object to the function. Typically
+        this is called automatically when calling a function on a struct.
+        """
+        return FunctionNodeBind(self, this)
+
+    def map(self, *args: Any, **kwargs: Any):
+        """
+        Apply dimension or type mapping to all or some of the arguments.
+
+        myfunc.map((1,)(0,))(arg1, arg2) # Map arg1 to dimension 1, arg2 to dimension 0
+
+        myfunc.map(module.Foo, module.Bar)(arg1, arg2) # Cast arg1 to Foo, arg2 to Bar
+        """
+        return FunctionNodeMap(self, args, kwargs)
+
+    def set(self, *args: Any, **kwargs: Any):
+        """
+        Specify additional uniform values that should be set whenever the function's kernel
+        is dispatched. Useful for setting constants or other values that are not passed as arguments.
+        """
+        if len(args) > 0 and len(kwargs) > 0:
+            raise ValueError(
+                "Set accepts either positional or keyword arguments, not both"
+            )
+        if len(args) > 1:
+            raise ValueError(
+                "Set accepts only one positional argument (a dictionary or callback)"
+            )
+        if len(kwargs) > 0:
+            return FunctionNodeSet(self, kwargs)
+        elif len(args) > 0 and (callable(args[0]) or isinstance(args[0], dict)):
+            return FunctionNodeSet(self, args[0])
         else:
-            raise RuntimeError("Pytorch integration is not enabled")
+            raise ValueError(
+                "Set requires either keyword arguments or 1 dictionary / hook argument")
 
-    def _copy(self) -> 'Function':
-        res = Function()
-        res.module = self.module
-        res.type_reflection = self.type_reflection
-        res.reflections = self.reflections
-        res._name = self._name
-        res._map_args = self._map_args
-        res._map_kwargs = self._map_kwargs
-        res._options = self._options
-        res._type_conformances = self._type_conformances
-        res._mode = self._mode
-        res._return_type = self._return_type
-        res._constants = self._constants
-        res._thread_group_size = self._thread_group_size
-        res.this = self.this
-        res.uniforms = self.uniforms
-        res.slangpy_signature = ''
-        return res
-
-    def attach(self, module: 'Module', func: Union[str, kfr.SlangFunction, list[FunctionReflection]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
+    def constants(self, constants: dict[str, Any]):
         """
-        Links a function to its parent module or struct. Typically only called internally by SlangPy.
+        Specify link time constants that should be set when the function is compiled. These are
+        the most optimal way of specifying unchanging data, however note that changing a constant
+        will result in the function being recompiled.
         """
+        return FunctionNodeConstants(self, constants)
 
-        self.module = module
+    def type_conformances(self, type_conformances: list[TypeConformance]):
+        """
+        Specify Slang type conformances to use when compiling the function.
+        """
+        return FunctionNodeTypeConformances(self, type_conformances)
+
+    @property
+    def bwds(self):
+        """
+        Return a new function object that represents the backwards deriviative of the current function.
+        """
+        return FunctionNodeBwds(self)
+
+    def return_type(self, return_type: Union[type, str]):
+        """
+        Explicitly specify the desired return type from the function.
+        """
+        return FunctionNodeReturnType(self, return_type)
+
+    def thread_group_size(self, thread_group_size: uint3):
+        """
+        Override the default thread group size for the function. Currently only used for
+        raw dispatch.
+        """
+        return FunctionNodeThreadGroupSize(self, thread_group_size)
+
+    def as_func(self) -> 'FunctionNode':
+        """
+        Typing helper to cast the function to a function (i.e. a no-op)
+        """
+        return self
+
+    def as_struct(self) -> 'Struct':
+        """
+        Typing helper to detect attempting to treat a function as a struct.
+        """
+        raise ValueError("Cannot convert a function to a struct")
+
+    def call(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Call the function with a given set of arguments. This will generate and compile
+        a new kernel if need be, then immediately dispatch it and return any results.
+        """
+        pass
+
+    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+        """
+        Append the function to a command buffer without dispatching it. As with calling,
+        this will generate and compile a new kernel if need be. However the dispatch
+        is just added to the command list and no results are returned.
+        """
+        pass
+
+    def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: CommandBuffer | None = None, **kwargs: Any) -> None:
+        """
+        Perform a raw dispatch, bypassing the majority of SlangPy's typing/code gen logic. This is
+        useful if you just want to explicitly call an existing kernel, or treat a slang function
+        as a kernel entry point directly.
+        """
+        pass
+
+    def calc_build_info(self):
+        info = FunctionBuildInfo()
+        self._populate_build_info_recurse(info)
+        return info
+
+    def _populate_build_info_recurse(self, info: FunctionBuildInfo):
+        if self._native_parent is not None:
+            self.parent._populate_build_info_recurse(info)
+        self._populate_build_info(info)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        pass
+
+    def _handle_error(self, e: ValueError, calldata: Optional['CallData']):
+        pass
+
+    def debug_build_call_data(self, *args: Any, **kwargs: Any):
+        pass
+
+    def __call__(self, *args: Any, **kwargs: Any):
+        pass
+
+    def _build_call_data(self, *args: Any, **kwargs: Any):
+        pass
+
+
+class FunctionNodeBind(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, this: IThis) -> None:
+        super().__init__(parent, FunctionNodeType.this, this)
+
+    @property
+    def this(self):
+        return cast(IThis, self._native_data)
+
+
+class FunctionNodeMap(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, map_args: tuple[Any], map_kwargs: dict[str, Any]) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, (map_args, map_kwargs))
+        self.slangpy_signature = str((map_args, map_kwargs))
+
+    @property
+    def mapping(self):
+        return cast(tuple[tuple[Any, ...], dict[str, Any]], self._native_data)
+
+    @property
+    def args(self):
+        return self.mapping[0]
+
+    @property
+    def kwargs(self):
+        return self.mapping[1]
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.map_args = self.args
+        info.map_kwargs = self.kwargs
+
+
+class FunctionNodeSet(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, value: Any) -> None:
+        super().__init__(parent, FunctionNodeType.uniforms, value)
+
+    @property
+    def uniforms(self):
+        return self._native_data
+
+
+class FunctionNodeConstants(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, constants: dict[str, Any]) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, constants)
+        self.slangpy_signature = str(constants)
+
+    @property
+    def constants(self):
+        return cast(dict[str, Any], self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.constants.update(self.constants)
+
+
+class FunctionNodeTypeConformances(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, type_conformances: list[TypeConformance]) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, type_conformances)
+        self.slangpy_signature = str(type_conformances)
+
+    @property
+    def type_conformances(self):
+        return cast(list[TypeConformance], self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.type_conformances.extend(self.type_conformances)
+
+
+class FunctionNodeBwds(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, None)
+        self.slangpy_signature = 'bwds'
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.call_mode = CallMode.bwds
+
+
+class FunctionNodeReturnType(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, return_type: Union[type, str]) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, return_type)
+        self.slangpy_signature = str(return_type)
+
+    @property
+    def return_type(self):
+        return cast(Union[type, str], self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.return_type = self.return_type
+
+
+class FunctionNodeThreadGroupSize(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, thread_group_size: uint3) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, thread_group_size)
+        self.slangpy_signature = str(thread_group_size)
+
+    @property
+    def thread_group_size(self):
+        return cast(uint3, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.thread_group_size = self.thread_group_size
+
+
+class Function(FunctionNode):
+    def __init__(self, module: 'Module', func: Union[str, kfr.SlangFunction, list[FunctionReflection]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
+        super().__init__(None, FunctionNodeType.kernelgen, None)
+
+        self._module = module
 
         if isinstance(func, str):
             if struct is None:
@@ -119,13 +351,13 @@ class Function(NativeObject):
             self._name = func[0].name
 
         # Store function reflections (should normally be 1 unless forced to do AST based search)
-        self.reflections = func_reflections
+        self._reflections = func_reflections
 
         # Store type parent name if found
         if struct is not None:
-            self.type_reflection = struct.struct.type_reflection
+            self._type_reflection = struct.struct.type_reflection
         else:
-            self.type_reflection = None
+            self._type_reflection = None
 
         # Calc hash of input options for signature
         self._options = options.copy()
@@ -137,291 +369,17 @@ class Function(NativeObject):
             self._options['strict_broadcasting'] = True
 
         # Generate signature for hashing
-        # type_parent = self.type_reflection.full_name if self.type_reflection is not None else None
-        # self.slangpy_signature = f"[{type_parent or ''}::{self.name},{options_hash}]"
-
-    def bind(self, this: IThis) -> 'Function':
-        """
-        Bind a `this` object to the function. Typically
-        this is called automatically when calling a function on a struct.
-        """
-        res = self._copy()
-        res.this = this
-        return res
-
-    def map(self, *args: Any, **kwargs: Any):
-        """
-        Apply dimension or type mapping to all or some of the arguments.
-
-        myfunc.map((1,)(0,))(arg1, arg2) # Map arg1 to dimension 1, arg2 to dimension 0
-
-        myfunc.map(module.Foo, module.Bar)(arg1, arg2) # Cast arg1 to Foo, arg2 to Bar
-        """
-        res = self._copy()
-        res._map_args = args
-        res._map_kwargs = kwargs
-        return res
-
-    def set(self, *args: Any, **kwargs: Any):
-        """
-        Specify additional uniform values that should be set whenever the function's kernel
-        is dispatched. Useful for setting constants or other values that are not passed as arguments.
-        """
-
-        res = self._copy()
-
-        if len(args) > 0 and len(kwargs) > 0:
-            raise ValueError(
-                "Set accepts either positional or keyword arguments, not both"
-            )
-        if len(args) > 1:
-            raise ValueError(
-                "Set accepts only one positional argument (a dictionary or callback)"
-            )
-
-        if len(kwargs) > 0:
-            res._add_uniform_values(kwargs)
-        elif len(args) > 0:
-            if callable(args[0]):
-                res._add_uniform_callback(args[0])
-            elif isinstance(args[0], dict):
-                res._add_uniform_values(args[0])
-            else:
-                raise ValueError(
-                    "Set requires a dictionary or callback as a single positional argument"
-                )
+        lines = []
+        if self._type_reflection is not None:
+            lines.append(f"{self._type_reflection.full_name}::{self.name}")
         else:
-            raise ValueError("Set requires at least one argument")
+            lines.append(self.name)
+        lines.append(str(self._options))
+        self.slangpy_signature = "\n".join(lines)
 
-        return res
-
-    def _add_uniform_values(self, uniform_values: dict[str, Any]):
-        if self.uniforms is None:
-            self.uniforms = [uniform_values]
-        else:
-            self.uniforms = copy(self.uniforms)
-            self.uniforms.append(uniform_values)
-
-    def _add_uniform_callback(self, uniform_callback: Callable[['CallData'], Any]):
-        if self.uniforms is None:
-            self.uniforms = [uniform_callback]
-        else:
-            self.uniforms = copy(self.uniforms)
-            self.uniforms.append(uniform_callback)
-
-    def constants(self, constants: dict[str, Any]):
-        """
-        Specify link time constants that should be set when the function is compiled. These are
-        the most optimal way of specifying unchanging data, however note that changing a constant
-        will result in the function being recompiled.
-        """
-        res = self._copy()
-        if res._constants is None:
-            res._constants = constants
-        else:
-            res._constants = copy(res._constants)
-            res._constants.update(constants)
-        return res
-
-    def type_conformances(self, type_conformances: list[TypeConformance]):
-        """
-        Specify Slang type conformances to use when compiling the function.
-        """
-        res = self._copy()
-        if res._type_conformances is None:
-            res._type_conformances = type_conformances
-        else:
-            res._type_conformances = copy(res._type_conformances)
-            res._type_conformances.extend(type_conformances)
-        return res
-
-    @property
-    def bwds(self):
-        """
-        Return a new function object that represents the backwards deriviative of the current function.
-        """
-        res = self._copy()
-        res._mode = CallMode.bwds
-        return res
-
-    def return_type(self, return_type: Union[type, str]):
-        """
-        Explicitly specify the desired return type from the function.
-        """
-        res = self._copy()
-        if isinstance(return_type, str):
-            if return_type == 'numpy':
-                import numpy as np
-                return_type = np.ndarray
-            elif return_type == 'tensor':
-                from slangpy.types import Tensor
-                return_type = Tensor
-            else:
-                raise ValueError(f"Unknown return type '{return_type}'")
-        res._return_type = return_type
-        return res
-
-    def thread_group_size(self, thread_group_size: uint3):
-        """
-        Override the default thread group size for the function. Currently only used for
-        raw dispatch.
-        """
-        res = self._copy()
-        res._thread_group_size = thread_group_size
-        return res
-
-    @property
-    def name(self):
-        """
-        Get the name of the function.
-        """
-        return self._name
-
-    def as_func(self) -> 'Function':
-        """
-        Typing helper to cast the function to a function (i.e. a no-op)
-        """
-        return self
-
-    def as_struct(self) -> 'Struct':
-        """
-        Typing helper to detect attempting to treat a function as a struct.
-        """
-        raise ValueError("Cannot convert a function to a struct")
-
-    def call(self, *args: Any, **kwargs: Any) -> Any:
-        """
-        Call the function with a given set of arguments. This will generate and compile
-        a new kernel if need be, then immediately dispatch it and return any results.
-        """
-
-        # Handle result type override (e.g. for numpy) by checking
-        # for override, and if found, deleting the _result arg and
-        # calling the function with the override type.
-        resval = kwargs.get('_result', None)
-        if isinstance(resval, (type, str)):
-            del kwargs['_result']
-            return self.return_type(resval).call(*args, **kwargs)
-
-        calldata: Optional['CallData'] = None
-        try:
-            if self.this:
-                args = (self.this,)+args
-            calldata = self._build_call_data(*args, **kwargs)
-            opts = NativeCallRuntimeOptions()
-            if self.uniforms is not None:
-                opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
-            res = calldata.call(opts, *args, **kwargs)
-            return res
-        except ValueError as e:
-            self._handle_error(e, calldata)
-
-    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
-        """
-        Append the function to a command buffer without dispatching it. As with calling,
-        this will generate and compile a new kernel if need be. However the dispatch
-        is just added to the command list and no results are returned.
-        """
-        calldata: Optional['CallData'] = None
-        try:
-            if self.this:
-                args = (self.this,)+args
-            calldata = self._build_call_data(*args, **kwargs)
-            opts = NativeCallRuntimeOptions()
-            if self.uniforms is not None:
-                opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
-            return calldata.append_to(opts, command_buffer, *args, **kwargs)
-        except ValueError as e:
-            self._handle_error(e, calldata)
-
-    def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: CommandBuffer | None = None, **kwargs: Any) -> None:
-        """
-        Perform a raw dispatch, bypassing the majority of SlangPy's typing/code gen logic. This is
-        useful if you just want to explicitly call an existing kernel, or treat a slang function
-        as a kernel entry point directly.
-        """
-        if ENABLE_CALLDATA_CACHE:
-            if self.slangpy_signature == '':
-                lines = []
-                if self.type_reflection is not None:
-                    lines.append(f"{self.type_reflection.full_name}::{self.name}")
-                else:
-                    lines.append(self.name)
-                lines.append(str(self._options))
-                lines.append(str(self._map_args))
-                lines.append(str(self._map_kwargs))
-                lines.append(str(self._type_conformances))
-                lines.append(str(self._mode))
-                lines.append(str(self._return_type))
-                lines.append(str(self._constants))
-                lines.append(str(self._thread_group_size))
-                self.slangpy_signature = "\n".join(lines)
-            sig = hash_signature(
-                _cache_value_to_id, self, **kwargs)
-
-            if sig in self.module.dispatch_data_cache:
-                dispatch_data = self.module.dispatch_data_cache[sig]
-                if dispatch_data.device != self.module.device:
-                    raise NameError("Cached CallData is linked to wrong device")
-            else:
-                from slangpy.core.dispatchdata import DispatchData
-                dispatch_data = DispatchData(self, **kwargs)
-                self.module.dispatch_data_cache[sig] = dispatch_data
-        else:
-            from slangpy.core.dispatchdata import DispatchData
-            dispatch_data = DispatchData(self, **kwargs)
-
-        opts = NativeCallRuntimeOptions()
-        if self.uniforms is not None:
-            opts.uniforms = self.uniforms  # type: ignore (can't work out this type)
-        dispatch_data.dispatch(opts, thread_count, vars, command_buffer, **kwargs)
-
-    def _handle_error(self, e: ValueError, calldata: Optional['CallData']):
-        if len(e.args) != 1 or not isinstance(e.args[0], dict):
-            raise e
-        if not 'message' in e.args[0] or not 'source' in e.args[0]:
-            raise e
-        msg = e.args[0]['message']
-        source = e.args[0]['source']
-        raise ValueError(
-            f"Exception dispatching kernel: {msg}\n.")
-
-    def debug_build_call_data(self, *args: Any, **kwargs: Any):
-        return self._build_call_data(*args, **kwargs)
-
-    def __call__(self, *args: Any, **kwargs: Any):
-        """
-        Call operator, maps to `call` method.
-        """
-        return self.call(*args, **kwargs)
-
-    def _build_call_data(self, *args: Any, **kwargs: Any):
-
-        if self.slangpy_signature == '':
-            lines = []
-            if self.type_reflection is not None:
-                lines.append(f"{self.type_reflection.full_name}::{self.name}")
-            else:
-                lines.append(self.name)
-            lines.append(str(self._options))
-            lines.append(str(self._map_args))
-            lines.append(str(self._map_kwargs))
-            lines.append(str(self._type_conformances))
-            lines.append(str(self._mode))
-            lines.append(str(self._return_type))
-            lines.append(str(self._constants))
-            self.slangpy_signature = "\n".join(lines)
-
-        sig = hash_signature(
-            _cache_value_to_id, self, *args, **kwargs)
-        if ENABLE_CALLDATA_CACHE and sig in self.module.call_data_cache:
-            cd = self.module.call_data_cache[sig]
-            # if cd.device != self.module.device:
-            #    raise NameError("Cached CallData is linked to wrong device")
-            return cd
-
-        from .calldata import CallData
-        res = CallData(self, *args, **kwargs)
-        if ENABLE_CALLDATA_CACHE:
-            self.module.call_data_cache[sig] = res
-        return res
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.name = self.name
+        info.module = self.module
+        info.options.update(self._options)
+        info.reflections = self._reflections
+        info.type_reflection = self._type_reflection

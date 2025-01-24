@@ -145,9 +145,8 @@ class Module:
         """
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
-            res = Function()
-            res.attach(module=self, func=slang_function,
-                       struct=None, options=self.options)
+            res = Function(module=self, func=slang_function,
+                           struct=None, options=self.options)
             return res
 
     def require_function(self, name: str):
@@ -198,9 +197,8 @@ class Module:
         # Search for name as a child of this struct
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
-            res = Function()
-            res.attach(module=self, func=slang_function,
-                       struct=None, options=self.options)
+            res = Function(module=self, func=slang_function,
+                           struct=None, options=self.options)
             self._attr_cache[name] = res
             return res
 

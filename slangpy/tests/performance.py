@@ -192,16 +192,18 @@ def run_for_profiling():
     command_buffer = device.create_command_buffer()
     start = time()
     for i in range(0, iterations):
-        spy_module.add.append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
+        spy_module.add.map().map().map().map().map().map().map().map().append_to(
+            command_buffer, a=a_small, b=b_small, _result=res_small)
     spy_append = time() - start
     command_buffer.submit()
     device.wait_for_idle()
 
     sleep(1)
 
-    print(f"Bare:     {direct_dispatch}")
-    print(f"NDBuffer: {direct_dispatch_2}")
-    print(f"SlangPy:  {spy_append}")
+    # print(f"Bare:     {direct_dispatch}")
+    print(f"types=NDBuffer[float,1] func=add, its={iterations}:")
+    print(f"  SGL:      {direct_dispatch_2}")
+    print(f"  SlangPy:  {spy_append}")
 
     sleep(0.25)
 
@@ -301,7 +303,7 @@ def run_for_sig_test():
     command_buffer = device.create_command_buffer()
     start = time()
     for i in range(0, iterations):
-        spy_module.add.append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
+        spy_module.add.map().append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
     spy_append = time() - start
     command_buffer.submit()
     device.wait_for_idle()
