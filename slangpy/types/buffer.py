@@ -191,6 +191,6 @@ class NDBuffer(NativeNDBuffer):
         """
         return {
             'buffer': self.storage,
-            'strides': self.strides,
+            'strides': self.strides.as_tuple(),
             'shape': self.shape.as_tuple(),
         }
