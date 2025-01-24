@@ -54,6 +54,9 @@ class Module:
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
         self.link = [x.module if isinstance(x, Module) else x for x in link]
+
+        self._attr_cache: dict[str, Union[Function, Struct]] = {}
+
         LOADED_MODULES[self.device_module.name] = self
 
     @staticmethod
@@ -181,9 +184,15 @@ class Module:
         Attribute accessor attempts to find either a struct or function 
         with the specified attribute name.
         """
+
+        # Check the cache first
+        if name in self._attr_cache:
+            return self._attr_cache[name]
+
         # Search for name as a fully qualified child struct
         slang_struct = self.find_struct(name)
         if slang_struct is not None:
+            self._attr_cache[name] = slang_struct
             return slang_struct
 
         # Search for name as a child of this struct
@@ -192,6 +201,7 @@ class Module:
             res = Function()
             res.attach(module=self, func=slang_function,
                        struct=None, options=self.options)
+            self._attr_cache[name] = res
             return res
 
         raise AttributeError(
