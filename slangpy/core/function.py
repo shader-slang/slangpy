@@ -271,7 +271,7 @@ class FunctionNode(NativeFunctionNode):
         """
         return self.call(*args, **kwargs)
 
-    def generate_call_data(self, *args: Any, **kwargs: Any):
+    def generate_call_data(self, args: Any, kwargs: Any):
         from .calldata import CallData
         return CallData(self, *args, **kwargs)
 
