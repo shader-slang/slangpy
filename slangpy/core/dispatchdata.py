@@ -30,10 +30,11 @@ class DispatchData:
         try:
             # Read temps from function.
             function = func
-            type_conformances = function._type_conformances or []
-            session = function.module.session
+            build_info = function.calc_build_info()
+            type_conformances = build_info.type_conformances or []
+            session = build_info.module.session
             device = session.device
-            thread_group_size = function._thread_group_size
+            thread_group_size = build_info.thread_group_size
 
             # Build 'unpacked' args (that handle IThis)
             unpacked_kwargs = {k: unpack_arg(v) for k, v in kwargs.items()}
@@ -41,7 +42,7 @@ class DispatchData:
             # Bind
             # Setup context
             context = BindContext(func.module.layout, CallMode.prim,
-                                  function.module.device_module, function._options or {})
+                                  build_info.module.device_module, build_info.options)
 
             # Build the unbound signature from inputs and convert straight
             # to runtime data - don't need anything fancy for raw dispatch,
@@ -51,13 +52,13 @@ class DispatchData:
             self.runtime = BoundCallRuntime(bindings)
 
             # Verify and get reflection data.
-            if len(function.reflections) > 1 or function.reflections[0].is_overloaded:
+            if len(build_info.reflections) > 1 or build_info.reflections[0].is_overloaded:
                 raise ValueError("Cannot use raw dispatch on overloaded functions.")
-            if function.type_reflection is not None:
+            if build_info.type_reflection is not None:
                 raise ValueError("Cannot use raw dispatch on type methods.")
 
-            reflection = function.reflections[0]
-            slang_function = function.module.layout.find_function(reflection, None)
+            reflection = build_info.reflections[0]
+            slang_function = build_info.module.layout.find_function(reflection, None)
 
             # Ensure the function has no out or inout parameters, and no return value.
             if any([x.io_type != IOType.inn for x in slang_function.parameters]):
@@ -71,11 +72,11 @@ class DispatchData:
             codegen = CodeGen()
 
             # Add constants
-            generate_constants(function, codegen)
+            generate_constants(build_info, codegen)
 
             # Try to load the entry point from the device module to see if there is an existing kernel.
             try:
-                ep = function.module.device_module.entry_point(  # @IgnoreException
+                ep = build_info.module.device_module.entry_point(  # @IgnoreException
                     reflection.name, type_conformances)
             except RuntimeError as e:
                 if not re.match(r'Entry point \"\w+\" not found.*', e.args[0]):
@@ -113,7 +114,7 @@ class DispatchData:
 
                 # Generate mini-kernel for calling the function.
                 codegen.kernel.append_code(f"""
-import "{function.module.device_module.name}";
+import "{build_info.module.device_module.name}";
 [shader("compute")]
 [numthreads({thread_group_size.x}, {thread_group_size.y}, {thread_group_size.z})]
 void {reflection.name}_entrypoint({params}) {{
@@ -132,24 +133,23 @@ void {reflection.name}_entrypoint({params}) {{
 
             # Write the shader to a file for debugging.
             os.makedirs(".temp", exist_ok=True)
-            santized_module = re.sub(r"[<>, ./]", "_", function.module.name)
-            sanitized = re.sub(r"[<>, ]", "_", function.name)
+            santized_module = re.sub(r"[<>, ./]", "_", build_info.module.name)
+            sanitized = re.sub(r"[<>, ]", "_", build_info.name)
             fn = f".temp/{santized_module}_{sanitized}_dispatch.slang"
             with open(fn, "w",) as f:
                 f.write(code)
 
             # Hash the code to get a unique identifier for the module.
             # We add type conformances to the start of the code to ensure that the hash is unique
-            assert function.slangpy_signature is not None
-            code_minus_header = "[DispatchData]\n" + str(function._type_conformances) + \
+            code_minus_header = "[DispatchData]\n" + str(build_info.type_conformances) + \
                 code[len(codegen.header):]
             hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 
             # Check if we've already built this module.
-            if hash in function.module.kernel_cache:
+            if hash in build_info.module.kernel_cache:
                 # Get kernel from cache if we have
-                self.kernel = function.module.kernel_cache[hash]
-                self.device = function.module.device
+                self.kernel = build_info.module.kernel_cache[hash]
+                self.device = build_info.module.device
             else:
                 # Load the module
                 module = session.load_module_from_source(
@@ -166,7 +166,7 @@ void {reflection.name}_entrypoint({params}) {{
                 # opts.dump_intermediates = True
                 # opts.dump_intermediates_prefix = sanitized
                 program = session.link_program(
-                    [module, function.module.device_module]+function.module.link, [ep], opts)
+                    [module, build_info.module.device_module]+build_info.module.link, [ep], opts)
 
                 self.kernel = device.create_compute_kernel(program)
                 self.device = device

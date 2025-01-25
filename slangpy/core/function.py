@@ -54,7 +54,7 @@ class FunctionBuildInfo:
         self.call_mode: CallMode = CallMode.prim
         self.options: dict[str, Any] = {}
         self.constants: dict[str, Any] = {}
-        self.thread_group_size: uint3 = uint3(1, 1, 32)
+        self.thread_group_size: Optional[uint3] = None
         self.return_type: Optional[Union[type, str]] = None
 
 
@@ -85,7 +85,7 @@ class FunctionNode(NativeFunctionNode):
         """
         Get the module that the function is part of
         """
-        return self.root.module
+        return self.root._module
 
     def torch(self):
         """
@@ -182,7 +182,15 @@ class FunctionNode(NativeFunctionNode):
         Call the function with a given set of arguments. This will generate and compile
         a new kernel if need be, then immediately dispatch it and return any results.
         """
-        pass
+        # Handle result type override (e.g. for numpy) by checking
+        # for override, and if found, deleting the _result arg and
+        # calling the function with the override type.
+        resval = kwargs.get('_result', None)
+        if isinstance(resval, (type, str)):
+            del kwargs['_result']
+            return self.return_type(resval).call(*args, **kwargs)
+        else:
+            self._native_call(self.module.call_data_cache, *args, **kwargs)
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
         """
@@ -190,7 +198,7 @@ class FunctionNode(NativeFunctionNode):
         this will generate and compile a new kernel if need be. However the dispatch
         is just added to the command list and no results are returned.
         """
-        pass
+        self._native_append_to(self.module.call_data_cache, command_buffer, *args, **kwargs)
 
     def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: CommandBuffer | None = None, **kwargs: Any) -> None:
         """
@@ -198,7 +206,41 @@ class FunctionNode(NativeFunctionNode):
         useful if you just want to explicitly call an existing kernel, or treat a slang function
         as a kernel entry point directly.
         """
-        pass
+        if ENABLE_CALLDATA_CACHE:
+            if self.slangpy_signature == '':
+                build_info = self.calc_build_info()
+                lines = []
+                if build_info.type_reflection is not None:
+                    lines.append(f"{build_info.type_reflection.full_name}::{self.name}")
+                else:
+                    lines.append(build_info.name)
+                lines.append(str(build_info.options))
+                lines.append(str(build_info.map_args))
+                lines.append(str(build_info.map_kwargs))
+                lines.append(str(build_info.type_conformances))
+                lines.append(str(build_info.call_mode))
+                lines.append(str(build_info.return_type))
+                lines.append(str(build_info.constants))
+                lines.append(str(build_info.thread_group_size))
+                self.slangpy_signature = "\n".join(lines)
+            sig = hash_signature(
+                _cache_value_to_id, self, **kwargs)
+
+            if sig in self.module.dispatch_data_cache:
+                dispatch_data = self.module.dispatch_data_cache[sig]
+                if dispatch_data.device != self.module.device:
+                    raise NameError("Cached CallData is linked to wrong device")
+            else:
+                from slangpy.core.dispatchdata import DispatchData
+                dispatch_data = DispatchData(self, **kwargs)
+                self.module.dispatch_data_cache[sig] = dispatch_data
+        else:
+            from slangpy.core.dispatchdata import DispatchData
+            dispatch_data = DispatchData(self, **kwargs)
+
+        opts = NativeCallRuntimeOptions()
+        self.gather_runtime_options(opts)
+        dispatch_data.dispatch(opts, thread_count, vars, command_buffer, **kwargs)
 
     def calc_build_info(self):
         info = FunctionBuildInfo()
@@ -214,16 +256,24 @@ class FunctionNode(NativeFunctionNode):
         pass
 
     def _handle_error(self, e: ValueError, calldata: Optional['CallData']):
-        pass
-
-    def debug_build_call_data(self, *args: Any, **kwargs: Any):
-        pass
+        if len(e.args) != 1 or not isinstance(e.args[0], dict):
+            raise e
+        if not 'message' in e.args[0] or not 'source' in e.args[0]:
+            raise e
+        msg = e.args[0]['message']
+        source = e.args[0]['source']
+        raise ValueError(
+            f"Exception dispatching kernel: {msg}\n.")
 
     def __call__(self, *args: Any, **kwargs: Any):
-        pass
+        """
+        Call operator, maps to `call` method.
+        """
+        return self.call(*args, **kwargs)
 
-    def _build_call_data(self, *args: Any, **kwargs: Any):
-        pass
+    def generate_call_data(self, *args: Any, **kwargs: Any):
+        from .calldata import CallData
+        return CallData(self, *args, **kwargs)
 
 
 class FunctionNodeBind(FunctionNode):
