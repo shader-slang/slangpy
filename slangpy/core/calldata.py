@@ -136,7 +136,7 @@ class CallData(NativeCallData):
             codegen = CodeGen()
             generate_code(context, build_info, bindings, codegen)
             for link in build_info.module.link:
-                codegen.add_import(build_info.name)
+                codegen.add_import(link.name)
             code = codegen.finish(call_data=True, input_load_store=True,
                                   header=True, kernel=True, imports=True,
                                   trampoline=True, context=True, snippets=True,

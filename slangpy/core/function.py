@@ -156,6 +156,15 @@ class FunctionNode(NativeFunctionNode):
         """
         Explicitly specify the desired return type from the function.
         """
+        if isinstance(return_type, str):
+            if return_type == 'numpy':
+                import numpy as np
+                return_type = np.ndarray
+            elif return_type == 'tensor':
+                from slangpy.types import Tensor
+                return_type = Tensor
+            else:
+                raise ValueError(f"Unknown return type '{return_type}'")
         return FunctionNodeReturnType(self, return_type)
 
     def thread_group_size(self, thread_group_size: uint3):
