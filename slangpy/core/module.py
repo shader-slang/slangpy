@@ -5,7 +5,9 @@ from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
 from slangpy.backend import ComputeKernel, SlangModule, Device
+from slangpy.core.native import NativeCallDataCache
 from slangpy.reflection import SlangProgramLayout
+from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 import weakref
 
@@ -31,6 +33,15 @@ def _register_hot_reload_hook(device: Device):
     device.register_shader_hot_reload_callback(_check_for_hot_reload)
 
 
+class CallDataCache(NativeCallDataCache):
+    def lookup_value_signature(self, o: object):
+        sig = PYTHON_SIGNATURES.get(type(o))
+        if sig is not None:
+            return sig(o)
+        else:
+            return None
+
+
 class Module:
     """
     A Slang module, created either by loading a slang file or providing a loaded SGL module.
@@ -50,7 +61,7 @@ class Module:
         self.layout = SlangProgramLayout(self.device_module.layout,
                                          self.slangpy_device_module.layout)
 
-        self.call_data_cache: dict[str, 'CallData'] = {}
+        self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
         self.link = [x.module if isinstance(x, Module) else x for x in link]

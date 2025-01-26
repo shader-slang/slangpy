@@ -177,6 +177,12 @@ class FunctionNode(NativeFunctionNode):
         """
         raise ValueError("Cannot convert a function to a struct")
 
+    def debug_build_call_data(self, *args: Any, **kwargs: Any):
+        """
+        Debug helper to build call data without dispatching the kernel.
+        """
+        return self._native_build_call_data(self.module.call_data_cache, *args, **kwargs)
+
     def call(self, *args: Any, **kwargs: Any) -> Any:
         """
         Call the function with a given set of arguments. This will generate and compile
@@ -190,7 +196,7 @@ class FunctionNode(NativeFunctionNode):
             del kwargs['_result']
             return self.return_type(resval).call(*args, **kwargs)
         else:
-            self._native_call(self.module.call_data_cache, *args, **kwargs)
+            return self._native_call(self.module.call_data_cache, *args, **kwargs)
 
     def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
         """

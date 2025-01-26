@@ -191,9 +191,14 @@ def run_for_profiling():
 
     command_buffer = device.create_command_buffer()
     start = time()
+
     for i in range(0, iterations):
-        spy_module.add.map().map().map().map().map().map().map().map().append_to(
-            command_buffer, a=a_small, b=b_small, _result=res_small)
+        spy_module.add \
+            .map(a=(0,), b=(0,), _result=(0,)) \
+            .set({}) \
+            .constants({'x': 10}) \
+            .append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
+
     spy_append = time() - start
     command_buffer.submit()
     device.wait_for_idle()
