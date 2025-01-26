@@ -151,64 +151,92 @@ def run_for_profiling():
 
     input("Press Enter to start")
 
+    direct_dispatch = 0
+    direct_dispatch_2 = 0
+    spy_append = 0
+    spy_complex_append = 0
+
     iterations = 100000
+    interval = 0.1
 
     device.wait_for_idle()
 
-    command_buffer = device.create_command_buffer()
-    start = time()
-    for i in range(0, iterations):
-        add_kernel.dispatch(sgl.uint3(32, 1, 1), vars={
-            'addKernelData': {
-                "a": a_small.storage,
-                "b": b_small.storage,
-                "res": res_small.storage,
-                "count": 32
-            }
-        }, command_buffer=command_buffer)
-    direct_dispatch = time() - start
-    command_buffer.submit()
-    device.wait_for_idle()
+    # Bare bones append
+    if True:
+        command_buffer = device.create_command_buffer()
+        start = time()
+        for i in range(0, iterations):
+            add_kernel.dispatch(sgl.uint3(32, 1, 1), vars={
+                'addKernelData': {
+                    "a": a_small.storage,
+                    "b": b_small.storage,
+                    "res": res_small.storage,
+                    "count": 32
+                }
+            }, command_buffer=command_buffer)
+        direct_dispatch = time() - start
+        command_buffer.submit()
+        device.wait_for_idle()
 
-    sleep(1)
+        sleep(interval)
 
-    command_buffer = device.create_command_buffer()
-    start = time()
-    for i in range(0, iterations):
-        add_with_shapes_kernel.dispatch(sgl.uint3(32, 1, 1), vars={
-            'addKernelWithShapesData': {
-                "a": a_small.uniforms(),
-                "b": b_small.uniforms(),
-                "res": res_small.uniforms(),
-                "count": 32
-            }
-        }, command_buffer=command_buffer)
-    direct_dispatch_2 = time() - start
-    command_buffer.submit()
-    device.wait_for_idle()
+    # SGL ND buffer append
+    if True:
+        command_buffer = device.create_command_buffer()
+        start = time()
+        for i in range(0, iterations):
+            add_with_shapes_kernel.dispatch(sgl.uint3(32, 1, 1), vars={
+                'addKernelWithShapesData': {
+                    "a": a_small.uniforms(),
+                    "b": b_small.uniforms(),
+                    "res": res_small.uniforms(),
+                    "count": 32
+                }
+            }, command_buffer=command_buffer)
+        direct_dispatch_2 = time() - start
+        command_buffer.submit()
+        device.wait_for_idle()
 
-    sleep(1)
+        sleep(interval)
 
-    command_buffer = device.create_command_buffer()
-    start = time()
+    # SlangPy append
+    if True:
+        command_buffer = device.create_command_buffer()
+        start = time()
 
-    for i in range(0, iterations):
-        spy_module.add \
-            .map(a=(0,), b=(0,), _result=(0,)) \
-            .set({}) \
-            .constants({'x': 10}) \
-            .append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
+        for i in range(0, iterations):
+            spy_module.add.append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
 
-    spy_append = time() - start
-    command_buffer.submit()
-    device.wait_for_idle()
+        spy_append = time() - start
+        command_buffer.submit()
+        device.wait_for_idle()
 
-    sleep(1)
+        sleep(interval)
+
+    # SlangPy complex append
+    if True:
+        command_buffer = device.create_command_buffer()
+        start = time()
+
+        for i in range(0, iterations):
+            spy_module.add \
+                .map(a=(0,), b=(0,), _result=(0,)) \
+                .set({}) \
+                .constants({'x': 10}) \
+                .append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
+
+        spy_complex_append = time() - start
+        command_buffer.submit()
+        device.wait_for_idle()
+
+        sleep(interval)
 
     # print(f"Bare:     {direct_dispatch}")
     print(f"types=NDBuffer[float,1] func=add, its={iterations}:")
-    print(f"  SGL:      {direct_dispatch_2}")
-    print(f"  SlangPy:  {spy_append}")
+    print(f"  Bare bones:       {direct_dispatch}")
+    print(f"  SGL:              {direct_dispatch_2}")
+    print(f"  SlangPy:          {spy_append}")
+    print(f"  SlangPy Complex:  {spy_complex_append}")
 
     sleep(0.25)
 
