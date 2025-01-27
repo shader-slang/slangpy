@@ -231,7 +231,6 @@ def run_for_profiling():
 
         sleep(interval)
 
-    # print(f"Bare:     {direct_dispatch}")
     print(f"types=NDBuffer[float,1] func=add, its={iterations}:")
     print(f"  Bare bones:       {direct_dispatch}")
     print(f"  SGL:              {direct_dispatch_2}")
