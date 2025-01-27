@@ -7,7 +7,7 @@ from slangpy.core.native import Shape, NativeNDBuffer, NativeNDBufferDesc
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.struct import Struct
 
-from slangpy.backend import (BufferCursor, DataType, Device, MemoryType,
+from slangpy.backend import (DataType, Device, MemoryType,
                              ResourceUsage, TypeLayoutReflection,
                              TypeReflection)
 from slangpy.bindings.marshall import Marshall
@@ -150,7 +150,7 @@ class NDBuffer(NativeNDBuffer):
         desc.shape = shape
         desc.strides = strides
         desc.dtype = dtype
-        desc.element_stride = dtype.buffer_layout.stride
+        desc.element_layout = dtype.buffer_layout.reflection
 
         super().__init__(device, desc)
 
@@ -172,25 +172,3 @@ class NDBuffer(NativeNDBuffer):
             return self.storage.to_torch(type=SLANG_TO_CUDA_TYPES[self.dtype.slang_scalar_type], shape=self.shape.as_tuple(), strides=self.strides.as_tuple())
         else:
             raise ValueError("Only scalar types can be converted to torch tensors")
-
-    def cursor(self, start: Optional[int] = None, count: Optional[int] = None):
-        """
-        Returns a BufferCursor for the buffer, starting at the given index and with the given count
-        of elements.
-        """
-        el_stride = self.dtype.buffer_layout.stride
-        size = (count or self.element_count) * el_stride
-        offset = (start or 0) * el_stride
-        layout = self.dtype.buffer_layout
-        return BufferCursor(layout.reflection, self.storage, size, offset)
-
-    def uniforms(self):
-        """
-        Returns a dictionary of uniforms for this buffer, suitable for use with a compute kernel. These
-        are useful when manually passing the buffer to a kernel, rather than going via a slangpy function.
-        """
-        return {
-            'buffer': self.storage,
-            'strides': self.strides.as_tuple(),
-            'shape': self.shape.as_tuple(),
-        }

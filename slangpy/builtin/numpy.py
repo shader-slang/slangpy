@@ -26,7 +26,7 @@ class NumpyMarshall(NativeNumpyMarshall):
             f"RWNDBuffer<{slang_el_type.full_name},{dims}>")
         assert slang_buffer_type is not None
 
-        super().__init__(dims, slang_buffer_type, slang_el_type, slang_el_layout.stride, dtype)
+        super().__init__(dims, slang_buffer_type, slang_el_type, slang_el_layout.reflection, dtype)
 
     @property
     def has_derivative(self) -> bool:

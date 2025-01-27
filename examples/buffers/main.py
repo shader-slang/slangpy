@@ -14,8 +14,8 @@ device = spy.create_device(include_paths=[
 module = spy.Module.load_from_file(device, "example.slang")
 
 # Create a couple of 2D 16x16 buffers
-image_1 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
-image_2 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
+image_1 = spy.NDBuffer(device, dtype=module.Pixel, shape=(16, 16))
+image_2 = spy.NDBuffer(device, dtype=module.Pixel, shape=(16, 16))
 
 # Use a cursor to fill the first buffer with readable structured data.
 cursor_1 = image_1.cursor()
