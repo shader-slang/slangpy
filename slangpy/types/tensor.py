@@ -243,8 +243,8 @@ class Tensor:
             dtype = resolve_element_type(program_layout, dtype)
 
         usage = ResourceUsage.shader_resource | ResourceUsage.unordered_access
-        buffer = device.create_buffer(
-            dtype.buffer_layout.size * math.prod(shape), usage=usage)
+        buffer = device.create_buffer(element_count=math.prod(
+            shape), struct_type=dtype.buffer_layout.reflection, usage=usage)
 
         return Tensor(buffer, dtype, shape)
 
