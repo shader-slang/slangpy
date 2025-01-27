@@ -225,6 +225,9 @@ class BoundVariable:
 
         if self.children is not None:
             for child in self.children.values():
+                if child.name not in self.slang_type.fields:
+                    raise ValueError(
+                        f"Slang type '{self.slang_type.full_name}' has no field '{child.name}'")
                 slang_child = self.slang_type.fields[child.name]
                 child.bind(slang_child, self.slang_modifiers)
 
