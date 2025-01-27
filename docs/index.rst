@@ -42,6 +42,7 @@ By bringing these 2 technologies together with a simple and flexible Python libr
    :caption: Auto-Diff
    
    autodiff
+   pytorch
 
 .. toctree::
    :hidden:

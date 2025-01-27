@@ -4,13 +4,13 @@ import slangpy as spy
 import pathlib
 import torch
 
+# Make sure pytorch is in cuda mode
+torch.device('cuda')
+
 # Create an SGL device with the local folder for slangpy includes
 device = spy.create_device(include_paths=[
     pathlib.Path(__file__).parent.absolute(),
 ])
-
-# Make sure pytorch is in cuda mode
-torch.device('cuda')
 
 # Load torch wrapped module.
 module = spy.TorchModule.load_from_file(device, "example.slang")
