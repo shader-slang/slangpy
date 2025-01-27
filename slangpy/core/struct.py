@@ -79,9 +79,8 @@ class Struct:
         slang_function = self.module.layout.find_function_by_name_in_type(
             self.struct, name)
         if slang_function is not None:
-            res = Function()
-            res.attach(module=self.module, func=slang_function,
-                       struct=self, options=self.options)
+            res = Function(module=self.module, func=slang_function,
+                           struct=self, options=self.options)
             return res
 
         # Currently have Slang issue finding the init function, so for none-generic classes,
@@ -90,9 +89,8 @@ class Struct:
             (type, funcs) = try_find_function_overloads_via_ast(
                 self.device_module.module_decl, self.name, name)
             if funcs is not None and len(funcs) > 0:
-                res = Function()
-                res.attach(module=self.module, func=funcs,
-                           struct=self, options=self.options)
+                res = Function(module=self.module, func=funcs,
+                               struct=self, options=self.options)
                 return res
 
         return None

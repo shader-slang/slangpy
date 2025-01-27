@@ -1,6 +1,11 @@
 Changelog
 ---------
 
+**Version 0.14.0**
+
+- Update required version of `nv-sgl` to `0.8.0`
+- Substantial native + python optimizations
+
 **Version 0.13.0**
 
 - Update required version of `nv-sgl` to `0.7.0`
