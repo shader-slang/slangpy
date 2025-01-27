@@ -186,7 +186,7 @@ class Tensor:
         if zero:
             if grad_in is not None:
                 grad_in.clear()
-            if grad_out is not None:
+            if grad_out is not None and grad_out is not grad_in:
                 grad_out.clear()
         return result
 
