@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools","setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "slangpy"
-version = "0.15.1"
+version = "0.15.2"
 authors = [
     {name = "Chris Cummings", email = "chriscummings@nvidia.com"},
     {name = "Benedikt Bitterli", email = "bbitterli@nvidia.com"},

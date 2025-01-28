@@ -1,6 +1,10 @@
 Changelog
 ---------
 
+**Version 0.15.2**
+
+- Correctly package slang files in wheel
+
 **Version 0.15.0**
 
 - Native buffer takes full reflection layout
