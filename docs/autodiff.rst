@@ -1,5 +1,3 @@
-.. _autodiff:
-
 Basic Auto-diff
 ===============
 
