@@ -1,6 +1,12 @@
 Changelog
 ---------
 
+**Version 0.15.0**
+
+- Native buffer takes full reflection layout
+- Add uniforms + cursor api to native buffer
+- Update required version of `nv-sgl` to `0.9.0`
+
 **Version 0.14.0**
 
 - Update required version of `nv-sgl` to `0.8.0`

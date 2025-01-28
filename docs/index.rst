@@ -21,6 +21,7 @@ By bringing these 2 technologies together with a simple and flexible Python libr
    :maxdepth: 0
    
    changelog
+   releasenotes
 
 .. toctree::
    :hidden:
