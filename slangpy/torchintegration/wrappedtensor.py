@@ -106,7 +106,7 @@ class WrappedTensorMarshall(TensorMarshall):
         primal_calldata = {
             'buffer': data.primal,
             'layout': {'offset': offset, 'strides': strides},
-            'shape': shape
+            '_shape': shape
         }
 
         if not self.d_in and not self.d_out:

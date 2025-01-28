@@ -5,11 +5,7 @@ public interface ITensor<T : IDifferentiable, let D : int>
 {
     [Differentiable] public T get(int idx[D]);
 
-    __generic<each Is : IInteger>
-    __subscript(expand each Is indices) -> T
-    {
-        [BackwardDifferentiable] get;
-    }
+    public property shape : uint[D];
 }
 public interface IRWTensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
@@ -69,162 +65,159 @@ namespace impl
     }
 }
 
-// Workaround for slang bug #5900. These should move into extensions once they are safe
-#define ITensorSubscript                                         \
-    public __generic<each Is : IInteger>                         \
-    __subscript(expand each Is indices)->T                       \
-    {                                                            \
-        [BackwardDifferentiable] get { return get(impl::makeIndex<D>(expand each indices)); }                                                        \
-    }                                                            \
-    public __generic<I : IInteger> \
-    __subscript(ISizedArray<I, D> indices) -> T \
-    { \
-        [BackwardDifferentiable] get { return get(impl::makeIndex<D, I>(indices)); } \
+public extension<T : IDifferentiable, let D : int, TensorType : ITensor<T, D>> TensorType
+{
+    __generic<each Is : IInteger>
+    public __subscript(expand each Is indices)->T
+    {
+        [BackwardDifferentiable] get { return get(impl::makeIndex<D>(expand each indices)); }
+    }
+    __generic<I : IInteger>
+    __subscript(ISizedArray<I, D> indices)->T
+    {
+        [BackwardDifferentiable] get { return get(impl::makeIndex<D, I>(indices)); }
     }
 
-#define IRWTensorSubscript                                                 \
-    public __generic<each Is : IInteger>                                   \
-    __subscript(expand each Is indices)->T                                 \
-    {                                                                      \
-        [BackwardDifferentiable] get { return get(impl::makeIndex<D>(expand each indices)); }                                                                  \
-        [nonmutating, BackwardDifferentiable] set { return set(impl::makeIndex<D>(expand each indices), newValue); }                                                                  \
-    }                                                                      \
-    public __generic<I : IInteger> \
-    __subscript(ISizedArray<I, D> indices) -> T \
-    { \
-        [BackwardDifferentiable] get { return get(impl::makeIndex<D, I>(indices)); } \
-        [nonmutating, BackwardDifferentiable] set { return set(impl::makeIndex<D, I>(indices), newValue); } \
+    [Differentiable]
+    public void load(ContextND<D> ctx, out T value)
+    {
+        value = get(ctx.call_id);
     }
 
-#define ITensorLoads                                                                        \
-    public __generic<each Ts : IInteger>                                                    \
-    __subscript(expand each Ts indices)->T                                                  \
-    {                                                                                       \
-        [BackwardDifferentiable] get { return get(impl::makeIndex<D>(expand each indices)); }                                                                                   \
-    }                                                                                       \
-    [Differentiable]                                                                        \
-    public void load(ContextND<D> ctx, out T value)                                         \
-    {                                                                                       \
-        value = get(ctx.call_id);                                                           \
-    }                                                                                       \
-    public void load(Context0D context, out This value)                                     \
-    {                                                                                       \
-        value = this;                                                                       \
-    }                                                                                       \
-    [Differentiable]                                                                        \
-    public void load<let N : int>(ContextND<D - 1> ctx, out T[N] value)                     \
-    {                                                                                       \
-        int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
-        for (int i = 0; i < D - 1; ++i)                                                     \
-            idx[i] = ctx.call_id[i];                                                        \
-                                                                                            \
-        [ForceUnroll]                                                                       \
-        for (int i = 0; i < N; i++) {                                                       \
-            idx[D - 1] = i;                                                                 \
-            value[i] = get(idx);                                                            \
-        }                                                                                   \
-    }                                                                                       \
-    [Differentiable]                                                                        \
-    public void load<let N : int>(ContextND<D - 1> ctx, out vector<T,N> value)              \
-    {                                                                                       \
-        int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
-        for (int i = 0; i < D - 1; ++i)                                                     \
-            idx[i] = ctx.call_id[i];                                                        \
-                                                                                            \
-        [ForceUnroll]                                                                       \
-        for (int i = 0; i < N; i++) {                                                       \
-            idx[D - 1] = i;                                                                 \
-            value[i] = get(idx);                                                            \
-        }                                                                                   \
-    }                                                                                       \
-                                                                                            \
-    [Differentiable]                                                                        \
-    public void load<let M : int, let N : int>(ContextND<D - 2> context, out T value[M][N]) \
-    {                                                                                       \
-        int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
-        for (int i = 0; i < D - 2; ++i)                                                     \
-            idx[i] = context.call_id[i];                                                    \
-        [ForceUnroll]                                                                       \
-        for (int i = 0; i < M; i++) {                                                       \
-            [ForceUnroll]                                                                   \
-            for (int j = 0; j < N; j++) {                                                   \
-                idx[D - 2] = i;                                                             \
-                idx[D - 1] = j;                                                             \
-                                                                                            \
-                value[i][j] = get(idx);                                                     \
-            }                                                                               \
-        }                                                                                   \
+    public void load(Context0D context, out This value)
+    {
+        value = this;
     }
 
+    [Differentiable]
+    public void load<let N : int>(ContextND<D - 1> ctx, out T[N] value)
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 1; ++i)
+            idx[i] = ctx.call_id[i];
 
-#define IRWTensorStores                                                                     \
-    [Differentiable]                                                                        \
-    public void store(ContextND<D> ctx, in T value)                                         \
-    {                                                                                       \
-        set(ctx.call_id, value);                                                            \
-    }                                                                                       \
-                                                                                            \
-    [Differentiable]                                                                        \
-    public void store<let N : int>(ContextND<D - 1> context, in T[N] value)                 \
-    {                                                                                       \
-        int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
-        for (int i = 0; i < D - 1; ++i)                                                     \
-            idx[i] = context.call_id[i];                                                    \
-        [ForceUnroll]                                                                       \
-        for (int i = 0; i < N; i++) {                                                       \
-            idx[D - 1] = i;                                                                 \
-            set(idx, value[i]);                                                             \
-        }                                                                                   \
-    }                                                                                       \
-                                                                                            \
-    [Differentiable]                                                                        \
-    public void store<let N : int>(ContextND<D - 1> context, in vector<T,N> value)          \
-    {                                                                                       \
-        int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
-        for (int i = 0; i < D - 1; ++i)                                                     \
-            idx[i] = context.call_id[i];                                                    \
-        [ForceUnroll]                                                                       \
-        for (int i = 0; i < N; i++) {                                                       \
-            idx[D - 1] = i;                                                                 \
-            set(idx, value[i]);                                                             \
-        }                                                                                   \
-    }                                                                                       \
-                                                                                            \
-    [Differentiable]                                                                        \
-    public void store<let M : int, let N : int>(ContextND<D - 2> context, in T value[M][N]) \
-    {                                                                                       \
-        int idx[D];                                                                         \
-        /*[ForceUnroll]*/                                                                   \
-        [MaxIters(8)] /* Workaround for slang bug #5917 */                                  \
-        for (int i = 0; i < D - 2; ++i)                                                     \
-            idx[i] = context.call_id[i];                                                    \
-        [ForceUnroll]                                                                       \
-        for (int i = 0; i < M; i++) {                                                       \
-            [ForceUnroll]                                                                   \
-            for (int j = 0; j < N; j++) {                                                   \
-                idx[D - 2] = i;                                                             \
-                idx[D - 1] = j;                                                             \
-                                                                                            \
-                set(idx, value[i][j]);                                                      \
-            }                                                                               \
-        }                                                                                   \
+        [ForceUnroll]
+        for (int i = 0; i < N; i++) {
+            idx[D - 1] = i;
+            value[i] = get(idx);
+        }
     }
+
+    [Differentiable]
+    public void load<let N : int>(ContextND<D - 1> ctx, out vector<T, N> value)
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 1; ++i)
+            idx[i] = ctx.call_id[i];
+
+        [ForceUnroll]
+        for (int i = 0; i < N; i++) {
+            idx[D - 1] = i;
+            value[i] = get(idx);
+        }
+    }
+
+    [Differentiable]
+    public void load<let M : int, let N : int>(ContextND<D - 2> context, out T value[M][N])
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 2; ++i)
+            idx[i] = context.call_id[i];
+        [ForceUnroll]
+        for (int i = 0; i < M; i++) {
+            [ForceUnroll]
+            for (int j = 0; j < N; j++) {
+                idx[D - 2] = i;
+                idx[D - 1] = j;
+
+                value[i][j] = get(idx);
+            }
+        }
+    }
+}
+
+public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>> TensorType
+{
+    [Differentiable]
+    public void store(ContextND<D> ctx, in T value)
+    {
+        set(ctx.call_id, value);
+    }
+
+    [Differentiable]
+    public void store<let N : int>(ContextND<D - 1> context, in T[N] value)
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 1; ++i)
+            idx[i] = context.call_id[i];
+        [ForceUnroll]
+        for (int i = 0; i < N; i++) {
+            idx[D - 1] = i;
+            set(idx, value[i]);
+        }
+    }
+
+    [Differentiable]
+    public void store<let N : int>(ContextND<D - 1> context, in vector<T, N> value)
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 1; ++i)
+            idx[i] = context.call_id[i];
+        [ForceUnroll]
+        for (int i = 0; i < N; i++) {
+            idx[D - 1] = i;
+            set(idx, value[i]);
+        }
+    }
+
+    [Differentiable]
+    public void store<let M : int, let N : int>(ContextND<D - 2> context, in T value[M][N])
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 2; ++i)
+            idx[i] = context.call_id[i];
+        [ForceUnroll]
+        for (int i = 0; i < M; i++) {
+            [ForceUnroll]
+            for (int j = 0; j < N; j++) {
+                idx[D - 2] = i;
+                idx[D - 1] = j;
+
+                set(idx, value[i][j]);
+            }
+        }
+    }
+
+    // Operator [] currently causes compiler crash and is disabled 
+#if 0
+    __generic<each Is : IInteger>
+    __subscript(expand each Is indices)->T
+    {
+        [BackwardDifferentiable] get { return get(impl::makeIndex<D>(expand each indices)); }
+        [nonmutating, BackwardDifferentiable] set { return set(impl::makeIndex<D>(expand each indices), newValue); }
+    }
+    __generic<I : IInteger>
+    __subscript(ISizedArray<I, D> indices)->T
+    {
+        [BackwardDifferentiable] get { return get(impl::makeIndex<D, I>(indices)); }
+        [nonmutating, BackwardDifferentiable] set { return set(impl::makeIndex<D, I>(indices), newValue); }
+    }
+#endif
+}
 
 public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
     public StructuredBuffer<T> buffer;
     public StridedLayout<D> layout;
-    public int[D] shape;
+    private uint _shape[D];
+
+    public property shape : uint[D] { get { return _shape; } }
 
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
@@ -233,17 +226,18 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        for (int i = 0; i < SliceD; ++i)
+            value._shape[i] = _shape[D - SliceD + i];
     }
-
-    ITensorSubscript
-    ITensorLoads
 }
 
 public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
 {
     public RWStructuredBuffer<T> buffer;
     public StridedLayout<D> layout;
-    public int[D] shape;
+    private uint _shape[D];
+
+    public property shape : uint[D] { get { return _shape; } }
 
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
@@ -255,18 +249,18 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        for (int i = 0; i < SliceD; ++i)
+            value._shape[i] = _shape[D - SliceD + i];
     }
-
-    IRWTensorSubscript
-    ITensorLoads
-    IRWTensorStores
 }
 
 public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferentiable, IAtomicAddable
 {
     public RWByteAddressBuffer buffer;
     public StridedLayout<D> layout;
-    public int[D] shape;
+    private uint _shape[D];
+
+    public property shape : uint[D] { get { return _shape; } }
 
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer.Load<T>(layout.at(idx) * sizeof(T), sizeof(T)); }
@@ -283,17 +277,17 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        for (int i = 0; i < SliceD; ++i)
+            value._shape[i] = _shape[D - SliceD + i];
     }
-
-    IRWTensorSubscript
-    ITensorLoads
-    IRWTensorStores
 }
 
 public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D> where T.Differential : IAtomicAddable
 {
     public Tensor<T, D> primal;
     public AtomicTensor<T.Differential, D> d_out;
+
+    public property shape : uint[D] { get { return primal.shape; } }
 
     [Differentiable]
     public T get(int[D] idx) { return primal.get(idx); }
@@ -309,15 +303,14 @@ public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D> wh
         primal.load(ctx, value.primal);
         d_out.load(ctx, value.d_out);
     }
-
-    ITensorSubscript
-    ITensorLoads
 }
 
 public struct GradInTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
 {
     public RWTensor<T, D> primal;
     public Tensor<T.Differential, D> d_in;
+
+    public property shape : uint[D] { get { return primal.shape; } }
 
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return primal.get(idx); }
@@ -333,10 +326,6 @@ public struct GradInTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
         primal.load(ctx, value.primal);
         d_in.load(ctx, value.d_in);
     }
-
-    IRWTensorSubscript
-    ITensorLoads
-    IRWTensorStores
 }
 
 public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D> where T.Differential : IAtomicAddable
@@ -344,6 +333,8 @@ public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D
     public RWTensor<T, D> primal;
     public AtomicTensor<T.Differential, D> d_out;
     public Tensor<T.Differential, D> d_in;
+
+    public property shape : uint[D] { get { return primal.shape; } }
 
     [Differentiable]
     public T get(int[D] idx) { return primal.get(idx); }
@@ -366,8 +357,4 @@ public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D
         d_in.load(ctx, value.d_in);
         d_out.load(ctx, value.d_out);
     }
-
-    IRWTensorSubscript
-    ITensorLoads
-    IRWTensorStores
 }

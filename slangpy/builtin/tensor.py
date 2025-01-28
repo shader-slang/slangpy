@@ -209,7 +209,7 @@ class TensorMarshall(Marshall):
         primal_calldata = {
             'buffer': data.storage,
             'layout': {'offset': data.offset, 'strides': strides},
-            'shape': data.shape
+            '_shape': data.shape
         }
 
         if not self.d_in and not self.d_out:
