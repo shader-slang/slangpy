@@ -80,13 +80,13 @@ class Marshall(NativeMarshall):
         """
         return False
 
-    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
+    def gen_calldata(self: NativeMarshall, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         """
         Generate the code for the uniforms that will represent this value in the kernel.
         """
         raise NotImplementedError()
 
-    def reduce_type(self, context: BindContext, dimensions: int) -> 'SlangType':
+    def reduce_type(self: NativeMarshall, context: BindContext, dimensions: int) -> 'SlangType':
         """
         Get the slang type for this variable when a given number of dimensions 
         are removed. i.e. if the variable is a matrix, reduce_type(1) would
@@ -94,7 +94,7 @@ class Marshall(NativeMarshall):
         """
         raise NotImplementedError()
 
-    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
+    def resolve_type(self: NativeMarshall, context: BindContext, bound_type: 'SlangType'):
         """
         Return the slang type for this variable when passed to a parameter
         of the given type. Default behaviour simply attempts to pass its own type,
@@ -103,7 +103,7 @@ class Marshall(NativeMarshall):
         # Default to just casting to itself (i.e. no implicit cast)
         return self.slang_type
 
-    def resolve_dimensionality(self, context: BindContext, binding: 'BoundVariable', vector_target_type: 'SlangType'):
+    def resolve_dimensionality(self: NativeMarshall, context: BindContext, binding: 'BoundVariable', vector_target_type: 'SlangType'):
         """
         Calculate the call dimensionality when this value is passed as a given type. For example,
         a 3D buffer passed to a scalar would return 3, but a 3D buffer passed to a 3D buffer would
