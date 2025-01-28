@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+import math
 from pathlib import Path
 from typing import Any
 import sgl
@@ -125,29 +126,32 @@ def run_for_profiling():
     add_kernel = device.create_compute_kernel(sgl_add_program)
     add_with_shapes_kernel = device.create_compute_kernel(sgl_add_with_shapes_program)
 
-    a = spy.NDBuffer(device, spy_module.float, 10000000)
-    b = spy.NDBuffer(device, spy_module.float, 10000000)
-    res = spy.NDBuffer(device, spy_module.float, 10000000)
+    size = 1024
 
-    a_data = np.random.rand(10000000).astype(np.float32)
-    b_data = np.random.rand(10000000).astype(np.float32)
-    a.from_numpy(a_data)
-    b.from_numpy(b_data)
+    a_data = np.random.rand(size).astype(np.float32)
+    b_data = np.random.rand(size).astype(np.float32)
+    a_small = spy.NDBuffer(device, spy_module.float, size)
+    a_small.from_numpy(a_data)
+    b_small = spy.NDBuffer(device, spy_module.float, size)
+    b_small.from_numpy(b_data)
+    res_small = spy.NDBuffer(device, spy_module.float, size)
 
-    # raw_compute_test(add_kernel, a, b, res, 1000)
-    # res_data = res.to_numpy().view(dtype=np.float32)[0:1000]
-    # expected = (a_data + b_data)[0:1000]
-    # assert np.allclose(res_data, expected)
-
-    a_small = spy.NDBuffer(device, spy_module.float, 1000)
-    b_small = spy.NDBuffer(device, spy_module.float, 1000)
-    res_small = spy.NDBuffer(device, spy_module.float, 1000)
-    a.from_numpy(a_data[0:1000])
-    b.from_numpy(b_data[0:1000])
+    a_texture = device.create_texture(format=sgl.Format.r32_float,
+                                      width=size, usage=sgl.ResourceUsage.shader_resource)
+    a_texture.from_numpy(a_data)
+    b_texture = device.create_texture(format=sgl.Format.r32_float,
+                                      width=size, usage=sgl.ResourceUsage.shader_resource)
+    b_texture.from_numpy(b_data)
+    res_texture = device.create_texture(format=sgl.Format.r32_float, width=size,
+                                        usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access)
 
     # Ensure compilation of spy module
-    spy_module.add(a=a, b=b, _result=res)
     spy_module.add(a=a_small, b=b_small, _result=res_small)
+
+    # Pre-configure version for texture that explicitly passes in float1
+    float_type = spy_module.float1
+    spy_module.add.map(a=float_type, b=float_type, _result=float_type)(
+        a=a_texture, b=b_texture, _result=res_texture)
 
     input("Press Enter to start")
 
@@ -155,17 +159,17 @@ def run_for_profiling():
     direct_dispatch_2 = 0
     spy_append = 0
     spy_complex_append = 0
-
+    spy_tex_append = 0
     iterations = 100000
     interval = 0.1
 
     device.wait_for_idle()
 
     # Bare bones append
-    if True:
+    if False:
         command_buffer = device.create_command_buffer()
-        start = time()
-        for i in range(0, iterations):
+
+        def add_command():
             add_kernel.dispatch(sgl.uint3(32, 1, 1), vars={
                 'addKernelData': {
                     "a": a_small.storage,
@@ -174,17 +178,22 @@ def run_for_profiling():
                     "count": 32
                 }
             }, command_buffer=command_buffer)
+
+        start = time()
+        for i in range(0, iterations):
+            add_command()
         direct_dispatch = time() - start
+
         command_buffer.submit()
         device.wait_for_idle()
 
         sleep(interval)
 
     # SGL ND buffer append
-    if True:
+    if False:
         command_buffer = device.create_command_buffer()
-        start = time()
-        for i in range(0, iterations):
+
+        def add_shapes_command():
             add_with_shapes_kernel.dispatch(sgl.uint3(32, 1, 1), vars={
                 'addKernelWithShapesData': {
                     "a": a_small.uniforms(),
@@ -193,39 +202,68 @@ def run_for_profiling():
                     "count": 32
                 }
             }, command_buffer=command_buffer)
+
+        start = time()
+        for i in range(0, iterations):
+            add_shapes_command()
         direct_dispatch_2 = time() - start
+
         command_buffer.submit()
         device.wait_for_idle()
 
         sleep(interval)
 
     # SlangPy append
-    if True:
+    if False:
         command_buffer = device.create_command_buffer()
-        start = time()
 
-        for i in range(0, iterations):
+        def sp_command():
             spy_module.add.append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
 
+        start = time()
+        for i in range(0, iterations):
+            sp_command()
         spy_append = time() - start
+
         command_buffer.submit()
         device.wait_for_idle()
 
         sleep(interval)
 
     # SlangPy complex append
-    if True:
+    if False:
         command_buffer = device.create_command_buffer()
-        start = time()
 
-        for i in range(0, iterations):
+        def comp_command():
             spy_module.add \
                 .map(a=(0,), b=(0,), _result=(0,)) \
                 .set({}) \
                 .constants({'x': 10}) \
                 .append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
 
+        start = time()
+        for i in range(0, iterations):
+            comp_command()
         spy_complex_append = time() - start
+
+        command_buffer.submit()
+        device.wait_for_idle()
+
+        sleep(interval)
+
+    # SlangPy texture append
+    if True:
+        command_buffer = device.create_command_buffer()
+
+        def tex_command():
+            spy_module.add.map(a=float_type, b=float_type, _result=float_type).append_to(
+                command_buffer, a=a_texture, b=b_texture, _result=res_texture)
+
+        start = time()
+        for i in range(0, iterations):
+            tex_command()
+        spy_tex_append = time() - start
+
         command_buffer.submit()
         device.wait_for_idle()
 
@@ -236,6 +274,7 @@ def run_for_profiling():
     print(f"  SGL:              {direct_dispatch_2}")
     print(f"  SlangPy:          {spy_append}")
     print(f"  SlangPy Complex:  {spy_complex_append}")
+    print(f"  SlangPy Texture:  {spy_tex_append}")
 
     sleep(0.25)
 
