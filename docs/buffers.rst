@@ -5,7 +5,7 @@ SlangPy provides two key wrappers around classic structured buffers (represented
 
 The ``NDBuffer`` type takes a structured buffer with a defined stride and size and adds:
 
-- **Element type**: A ``SlangType``, which can be a primitive type (e.g., float, vector) or a user-defined Slang struct.  
+- **Data type**: A ``SlangType``, which can be a primitive type (e.g., float, vector) or a user-defined Slang struct.  
 - **Shape**: A tuple of integers describing the size of each dimension, similar to the shape of a NumPy array or Torch tensor.
 
 Let's start with a simple Slang program that uses a custom type:
@@ -62,8 +62,8 @@ We'll now create and initialize two buffers of type ``Pixel``. The first will us
 .. code-block:: python
 
     # Create two 2D buffers of size 16x16
-    image_1 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
-    image_2 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
+    image_1 = spy.NDBuffer(device, dtype=module.Pixel, shape=(16, 16))
+    image_2 = spy.NDBuffer(device, dtype=module.Pixel, shape=(16, 16))
 
     # Populate the first buffer using a cursor
     cursor_1 = image_1.cursor()
@@ -98,7 +98,7 @@ Alternatively, we can pre-allocate the result buffer and pass it explicitly:
 .. code-block:: python
 
     # Pre-allocate the result buffer
-    result = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
+    result = spy.NDBuffer(device, dtype=module.Pixel, shape=(16, 16))
     module.add(image_1, image_2, _result=result)
 
 This approach is useful when inputs and outputs are pre-allocated upfront for efficiency.

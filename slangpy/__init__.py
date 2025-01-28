@@ -20,6 +20,11 @@ from . import bindings
 # Trigger import of built in bindings so they get setup
 from . import builtin as internal_marshalls
 
+# Torch integration
+from .torchintegration import TORCH_ENABLED
+if TORCH_ENABLED:
+    from .torchintegration import TorchModule
+
 # Core slangpy interface
 from .core.function import Function
 from .core.struct import Struct

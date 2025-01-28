@@ -147,7 +147,7 @@ class NDBufferMarshall(NativeNDBufferMarshall):
             f"{prefix}NDBuffer<{slang_el_type.full_name},{dims}>")
         assert slang_buffer_type is not None
 
-        super().__init__(dims, writable, slang_buffer_type, slang_el_type, slang_el_layout.stride)
+        super().__init__(dims, writable, slang_buffer_type, slang_el_type, slang_el_layout.reflection)
 
     @property
     def has_derivative(self) -> bool:

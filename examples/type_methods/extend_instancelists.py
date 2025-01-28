@@ -20,8 +20,8 @@ class MyParticles(spy.InstanceList):
     def __init__(self, name: str, count: int):
         super().__init__(module.Particle.as_struct())
         self.name = name
-        self.position = spy.NDBuffer(device, element_type=module.float3, shape=(count,))
-        self.velocity = spy.NDBuffer(device, element_type=module.float3, shape=(count,))
+        self.position = spy.NDBuffer(device, dtype=module.float3, shape=(count,))
+        self.velocity = spy.NDBuffer(device, dtype=module.float3, shape=(count,))
 
     def print_particles(self):
         print(self.name)
