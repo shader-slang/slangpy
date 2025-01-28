@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# SPDX-License-Identifier: Apache-2.0
 
 from pathlib import Path
 
@@ -21,7 +22,7 @@ def process_file(file: Path):
         text = f.read()
 
     # split text into lines
-    lines = [x for x in text.split("\n") if not x.startswith(sp_start)]
+    lines = [x for x in text.split("\n") if not x.startswith(sp)]
 
     lines.insert(0, sp)
 
