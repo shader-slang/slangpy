@@ -247,7 +247,8 @@ class Tensor:
 
         usage = ResourceUsage.shader_resource | ResourceUsage.unordered_access
         buffer = device.create_buffer(element_count=num_elems,
-                                      struct_type=dtype.buffer_layout.reflection, usage=usage)
+                                      struct_size=dtype.buffer_layout.stride,
+                                      usage=usage)
 
         return Tensor(buffer, dtype, shape)
 
