@@ -299,5 +299,5 @@ class Tensor:
         return {
             'buffer': self.storage,
             'strides': self.strides,
-            'shape': self.shape.as_tuple(),
+            '_shape': self.shape.as_tuple(),
         }
