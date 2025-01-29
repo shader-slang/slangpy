@@ -6,7 +6,7 @@ from slangpy.backend import TypeReflection
 
 import slangpy.reflection as kfr
 from slangpy.backend import (FormatType, ResourceType, ResourceUsage, Sampler,
-                             ResourceView, Texture, get_format_info)
+                             Texture, get_format_info)
 from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,
                               BindContext, BoundVariable, BoundVariableRuntime,
                               CodeGenBlock)
@@ -68,7 +68,7 @@ class TextureMarshall(NativeTextureMarshall):
         super().__init__(st, element_type, resource_shape, usage, tex_dims)
 
     def reduce_type(self, context: BindContext, dimensions: int):
-        return Marshall.reduce_type(self, context, dimensions)
+        return super().reduce_type(context, dimensions)
 
     def resolve_type(self, context: BindContext, bound_type: kfr.SlangType):
         # Handle being passed to a texture
@@ -91,15 +91,7 @@ class TextureMarshall(NativeTextureMarshall):
                 return bound_type
 
         # Otherwise, use default behaviour from marshall
-        return Marshall.resolve_type(self, context, bound_type)
-
-    def resolve_dimensionality(self, context: BindContext, binding: 'BoundVariable', vector_target_type: kfr.SlangType):
-        return Marshall.resolve_dimensionality(self, context, binding, vector_target_type)
-
-    # Textures do not have derivatives
-    @property
-    def has_derivative(self) -> bool:
-        return False
+        return super().resolve_type(context, bound_type)
 
     # Texture is writable if it has unordered access view.
     @property
@@ -150,52 +142,6 @@ class TextureMarshall(NativeTextureMarshall):
         else:
             raise ValueError(
                 f"Texture {name} has invalid dimensionality {binding.call_dimensionality}")
-
-    # Call data just returns the primal
-    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
-        access = binding.access
-        if access[0] != AccessType.none:
-            return {
-                'value': data
-            }
-
-    # Textures just return themselves for raw dispatch
-    def create_dispatchdata(self, data: Any) -> Any:
-        return data
-
-    # Container shape internally handles both textures or views onto textures,
-    # which lets it deal with views onto none-zero mip levels of a texture.
-    def get_shape(self, value: Optional[Union[Texture, ResourceView]] = None) -> Shape:
-        mip = 0
-        if isinstance(value, ResourceView):
-            mip = value.subresource_range.mip_level
-            assert isinstance(value.resource, Texture)
-            value = value.resource
-        if value is not None:
-            res = self.get_texture_shape(value, mip)
-            assert len(res) == self.texture_dims
-            return res + self.slang_element_type.shape
-        else:
-            return Shape((-1,)*self.texture_dims) + self.slang_element_type.shape
-
-    def get_texture_shape(self, value: Texture, mip: int) -> Shape:
-        resource_shape = self.resource_shape
-        if resource_shape == TypeReflection.ResourceShape.texture_1d:
-            return Shape(value.width >> mip)
-        elif resource_shape == TypeReflection.ResourceShape.texture_2d or resource_shape == TypeReflection.ResourceShape.texture_2d_multisample:
-            return Shape(value.width >> mip, value.height >> mip)
-        elif resource_shape == TypeReflection.ResourceShape.texture_3d:
-            return Shape(value.width >> mip, value.height >> mip, value.depth >> mip)
-        elif resource_shape == TypeReflection.ResourceShape.texture_cube:
-            return Shape(6, value.width >> mip, value.height >> mip)
-        elif resource_shape == TypeReflection.ResourceShape.texture_1d_array:
-            return Shape(value.array_size, value.width >> mip)
-        elif resource_shape == TypeReflection.ResourceShape.texture_2d_array or resource_shape == TypeReflection.ResourceShape.texture_2d_multisample_array:
-            return Shape(value.array_size, value.width >> mip, value.height >> mip)
-        elif resource_shape == TypeReflection.ResourceShape.texture_cube_array:
-            return Shape(value.array_size, 6, value.width >> mip, value.height >> mip)
-        else:
-            raise ValueError(f"Unsupported resource shape {resource_shape}")
 
 
 def get_or_create_python_texture_type(layout: kfr.SlangProgramLayout, resource: Texture, usage: ResourceUsage):
