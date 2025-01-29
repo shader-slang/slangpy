@@ -4,8 +4,6 @@ from time import time
 import pytest
 
 import slangpy.core.function as kff
-from slangpy.core.function import Function
-from slangpy.core.native import hash_signature
 
 from slangpy import Module
 from slangpy.backend import DeviceType, float3
@@ -25,27 +23,12 @@ def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Mo
     device = helpers.get_device(device_type)
     return Module(device.load_module(name))
 
-
-@pytest.mark.skip(reason="Perf test only")
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_signature_gen(device_type: DeviceType):
-    func: Function = load_module(device_type).get_particle_quad.as_func()
-
-    buffer = NDBuffer(helpers.get_device(device_type), int, 4)
-
-    start = time()
-    count = 10000
-    for i in range(0, count):
-        hash_text = hash_signature(func, buffer, 1, 2, 3, 4)
-    end = time()
-    print(f"Time taken per signature: {1000.0*(end-start)/count}ms")
-    print(hash_text)
-
-
 # @pytest.mark.skip(reason="Perf test only")
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_kernel_reuse(device_type: DeviceType):
-    add_vectors: Function = load_module(device_type).add_vectors.as_func()
+    add_vectors = load_module(device_type).add_vectors.as_func()
 
     buffer = NDBuffer(helpers.get_device(device_type), int, 4)
 

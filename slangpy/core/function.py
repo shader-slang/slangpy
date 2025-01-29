@@ -2,8 +2,8 @@
 from copy import copy
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast
 
-from slangpy.core.native import (CallMode, NativeCallRuntimeOptions, NativeFunctionNode,
-                                 hash_signature, FunctionNodeType)
+from slangpy.core.native import (CallMode, SignatureBuilder,
+                                 NativeCallRuntimeOptions, NativeFunctionNode, FunctionNodeType)
 
 import slangpy.reflection as kfr
 from slangpy.backend import (CommandBuffer, FunctionReflection,
@@ -238,8 +238,9 @@ class FunctionNode(NativeFunctionNode):
                 lines.append(str(build_info.constants))
                 lines.append(str(build_info.thread_group_size))
                 self.slangpy_signature = "\n".join(lines)
-            sig = hash_signature(
-                _cache_value_to_id, self, **kwargs)
+
+            builder = SignatureBuilder()
+            sig = self.module.call_data_cache.get_args_signature(builder, self, **kwargs)
 
             if sig in self.module.dispatch_data_cache:
                 dispatch_data = self.module.dispatch_data_cache[sig]
