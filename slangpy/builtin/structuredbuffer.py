@@ -1,42 +1,35 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional
 
-from slangpy.core.native import AccessType, CallContext, Shape
+from slangpy.core.native import AccessType, NativeBufferMarshall
 
-import slangpy.reflection as kfr
+from slangpy.reflection import SlangProgramLayout, SlangType, StructuredBufferType, ByteAddressBufferType
 from slangpy.backend import Buffer, ResourceUsage
-from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,
-                              BindContext, BoundVariable, BoundVariableRuntime,
+from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES,
+                              BindContext, BoundVariable,
                               CodeGenBlock)
 
 
-class BufferMarshall(Marshall):
+class BufferMarshall(NativeBufferMarshall):
 
-    def __init__(self, layout: kfr.SlangProgramLayout, usage: ResourceUsage):
-        super().__init__(layout)
+    def __init__(self, layout: SlangProgramLayout, usage: ResourceUsage):
         st = layout.find_type_by_name("StructuredBuffer<Unknown>")
         if st is None:
             raise ValueError(
                 f"Could not find StructuredBuffer<Unknown> slang type. This usually indicates the slangpy module has not been imported.")
-        self.slang_type = st
-        self.usage = usage
 
-    def get_shape(self, value: Optional[Buffer] = None) -> Shape:
-        if value is not None:
-            return Shape(int(value.desc.size/value.desc.struct_size))
-        else:
-            return Shape(-1)
+        super().__init__(st, usage)
+        self.slang_type: SlangType
 
-    def resolve_type(self, context: BindContext, bound_type: kfr.SlangType):
-        if isinstance(bound_type, (kfr.StructuredBufferType, kfr.ByteAddressBufferType)):
+    def resolve_type(self, context: BindContext, bound_type: SlangType):
+        if isinstance(bound_type, (StructuredBufferType, ByteAddressBufferType)):
             return bound_type
         else:
             raise ValueError(
                 "Raw buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type")
 
-    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: kfr.SlangType):
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: SlangType):
         # structured buffer can only ever be taken to another structured buffer,
-        if isinstance(vector_target_type, (kfr.StructuredBufferType, kfr.ByteAddressBufferType)):
+        if isinstance(vector_target_type, (StructuredBufferType, ByteAddressBufferType)):
             return 0
         else:
             raise ValueError(
@@ -48,7 +41,7 @@ class BufferMarshall(Marshall):
         name = binding.variable_name
         assert access == AccessType.read
 
-        if isinstance(binding.vector_type, kfr.StructuredBufferType):
+        if isinstance(binding.vector_type, StructuredBufferType):
             assert binding.vector_type.element_type is not None
             if binding.vector_type.writable:
                 cgb.type_alias(
@@ -56,7 +49,7 @@ class BufferMarshall(Marshall):
             else:
                 cgb.type_alias(
                     f"_t_{name}", f"StructuredBufferType<{binding.vector_type.element_type.full_name}>")
-        elif isinstance(binding.vector_type, kfr.ByteAddressBufferType):
+        elif isinstance(binding.vector_type, ByteAddressBufferType):
             if binding.vector_type.writable:
                 cgb.type_alias(
                     f"_t_{name}", f"RWByteAddressBufferType")
@@ -67,25 +60,17 @@ class BufferMarshall(Marshall):
             raise ValueError(
                 "Raw buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type")
 
-    # Call data just returns the primal
-
-    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Any) -> Any:
-        access = binding.access
-        if access[0] != AccessType.none:
-            return {
-                'value': data
-            }
-
-    # Buffers just return themselves for raw dispatch
-    def create_dispatchdata(self, data: Any) -> Any:
-        return data
-
     @property
     def is_writable(self) -> bool:
         return (self.usage & ResourceUsage.unordered_access) != 0
 
+    def reduce_type(self, context: BindContext, dimensions: int) -> 'SlangType':
+        if dimensions == 0:
+            return self.slang_type
+        raise ValueError("Cannot reduce dimensions of Buffer")
 
-def _get_or_create_python_type(layout: kfr.SlangProgramLayout, value: Buffer):
+
+def _get_or_create_python_type(layout: SlangProgramLayout, value: Buffer):
     if isinstance(value, Buffer):
         usage = value.desc.usage
         return BufferMarshall(layout, usage)
