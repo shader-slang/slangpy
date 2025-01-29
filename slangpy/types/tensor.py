@@ -186,7 +186,7 @@ class Tensor:
         if zero:
             if grad_in is not None:
                 grad_in.clear()
-            if grad_out is not None:
+            if grad_out is not None and grad_out is not grad_in:
                 grad_out.clear()
         return result
 
@@ -242,9 +242,13 @@ class Tensor:
             program_layout = resolve_program_layout(device, dtype, program_layout)
             dtype = resolve_element_type(program_layout, dtype)
 
+        shape_tuple = shape if isinstance(shape, tuple) else shape.as_tuple()
+        num_elems = math.prod(shape_tuple)
+
         usage = ResourceUsage.shader_resource | ResourceUsage.unordered_access
-        buffer = device.create_buffer(
-            dtype.buffer_layout.size * math.prod(shape), usage=usage)
+        buffer = device.create_buffer(element_count=num_elems,
+                                      struct_size=dtype.buffer_layout.stride,
+                                      usage=usage)
 
         return Tensor(buffer, dtype, shape)
 

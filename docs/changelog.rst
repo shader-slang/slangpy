@@ -1,6 +1,12 @@
 Changelog
 ---------
 
+**Version 0.16.0**
+
+- Native texture and structured buffer implementations
+- Native function dispatches
+- Lots of bug fixes
+
 **Version 0.15.2**
 
 - Correctly package slang files in wheel

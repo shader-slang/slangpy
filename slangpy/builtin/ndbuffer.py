@@ -150,10 +150,6 @@ class NDBufferMarshall(NativeNDBufferMarshall):
         super().__init__(dims, writable, slang_buffer_type, slang_el_type, slang_el_layout.reflection)
 
     @property
-    def has_derivative(self) -> bool:
-        return False
-
-    @property
     def is_writable(self) -> bool:
         return self.writable
 

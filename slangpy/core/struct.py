@@ -111,7 +111,7 @@ class Struct:
         return self.__getattr__(name)
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
-        raise AttributeError(f"Type '{self.name}' is not callable")
+        return self.__getattr__('__init')(*args, **kwds)
 
     def as_func(self) -> 'Function':
         """

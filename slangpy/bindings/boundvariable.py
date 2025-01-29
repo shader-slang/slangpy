@@ -276,6 +276,8 @@ class BoundVariable:
             self._apply_explicit_vectorization(context, mapping)
 
     def _apply_explicit_vectorization(self, context: 'BindContext', mapping: Any):
+        from slangpy.core.struct import Struct
+
         try:
             if isinstance(mapping, tuple):
                 self.vector_mapping = Shape(*mapping)
@@ -283,6 +285,9 @@ class BoundVariable:
                 self.explicitly_vectorized = True
             elif isinstance(mapping, SlangType):
                 self.vector_type = mapping
+                self.explicitly_vectorized = True
+            elif isinstance(mapping, Struct):
+                self.vector_type = mapping.struct
                 self.explicitly_vectorized = True
             elif isinstance(mapping, str):
                 self.vector_type = context.layout.find_type_by_name(mapping)
