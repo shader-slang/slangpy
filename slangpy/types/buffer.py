@@ -9,7 +9,7 @@ from slangpy.core.struct import Struct
 
 from slangpy.backend import (DataType, Device, MemoryType,
                              ResourceUsage, TypeLayoutReflection,
-                             TypeReflection)
+                             TypeReflection, CommandBuffer, uint4)
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType
@@ -172,3 +172,16 @@ class NDBuffer(NativeNDBuffer):
             return self.storage.to_torch(type=SLANG_TO_CUDA_TYPES[self.dtype.slang_scalar_type], shape=self.shape.as_tuple(), strides=self.strides.as_tuple())
         else:
             raise ValueError("Only scalar types can be converted to torch tensors")
+
+    def clear(self, command_buffer: Optional[CommandBuffer] = None):
+        """
+        Fill the ndbuffer with zeros. If no command buffer is provided, a new one is created and
+        immediately submitted. If a command buffer is provided the clear is simply appended to it
+        but not automatically submitted.
+        """
+        if command_buffer:
+            command_buffer.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
+        else:
+            cmd = self.storage.device.create_command_buffer()
+            cmd.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
+            cmd.submit()
