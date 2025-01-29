@@ -16,8 +16,6 @@ float square(float x) {
 }
 """
 
-pytest.skip("Test not implemented", allow_module_level=True)
-
 
 def get_test_tensors(device: Device, N: int = 4):
     weights = torch.randn((5, 8), dtype=torch.float32,
