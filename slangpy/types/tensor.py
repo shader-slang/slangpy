@@ -87,6 +87,8 @@ class Tensor(NativeTensor):
         self.grad_in: Optional[Tensor]
         self.grad_out: Optional[Tensor]
 
+    # flatten_dtype Not used anywhere - do we need it? If so, need to make native implementation
+    """
     def flatten_dtype(self) -> Tensor:
         new_dtype = innermost_type(self.dtype)
         dtype_shape = self.dtype.shape.as_tuple()
@@ -98,6 +100,7 @@ class Tensor(NativeTensor):
         new_offset = self.offset * stride_multiplier
 
         return Tensor(self.storage, new_dtype, new_shape, new_strides, new_offset)
+    """
 
     def broadcast_to(self, shape: TShapeOrTuple):
         """
@@ -117,23 +120,7 @@ class Tensor(NativeTensor):
         Copies tensor data into a numpy array with the same shape and strides. This may fail if the
         element type does not have an equivalent in numpy.
         """
-
-        numpy_dtype = _slang_to_numpy(self.dtype)
-        if numpy_dtype is None:
-            raise ValueError(
-                f"Tensor element type {self.dtype.full_name} is not compatible with numpy")
-        dtype_size = self.dtype.buffer_layout.size
-        elem_size = innermost_type(self.dtype).buffer_layout.size
-        dtype_shape = self.dtype.shape.as_tuple()
-        dtype_strides = shape_to_contiguous_strides(dtype_shape)
-
-        shape = self.shape.as_tuple() + dtype_shape
-        strides = tuple(s * dtype_size for s in self.strides) + \
-            tuple(s * elem_size for s in dtype_strides)
-
-        data = self.storage.to_numpy().view(numpy_dtype)
-
-        return np.lib.stride_tricks.as_strided(data, shape, strides)
+        return cast(np.ndarray[Any, Any], super().to_numpy())
 
     def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None, zero: bool = False):
         """
@@ -188,7 +175,6 @@ class Tensor(NativeTensor):
         """
         Creates a tensor with the requested shape and element type without attempting to initialize the data.
         """
-
         # If dtype supplied is not a SlangType, resolve it using the same mechanism as NDBuffer
         if not isinstance(dtype, SlangType):
             program_layout = resolve_program_layout(device, dtype, program_layout)
@@ -209,11 +195,8 @@ class Tensor(NativeTensor):
         """
         Creates a zero-initialized tensor with the requested shape and element type.
         """
-
         tensor = Tensor.empty(device, shape, dtype)
-        cmd = device.create_command_buffer()
-        cmd.clear_resource_view(tensor.storage.get_uav(), uint4(0, 0, 0, 0))
-        cmd.submit()
+        tensor.clear()
         return tensor
 
     @staticmethod
@@ -221,7 +204,6 @@ class Tensor(NativeTensor):
         """
         Creates a new tensor with the same shape and element type as the given tensor, without initializing the data.
         """
-
         return Tensor.empty(other.storage.device, other.shape, other.dtype)
 
     @staticmethod
@@ -229,5 +211,4 @@ class Tensor(NativeTensor):
         """
         Creates a zero-initialized tensor with the same shape and element type as the given tensor.
         """
-
         return Tensor.zeros(other.storage.device, other.shape, other.dtype)
