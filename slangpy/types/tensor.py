@@ -8,6 +8,7 @@ from slangpy.reflection import reflectiontypes
 from slangpy.core.native import Shape
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.types.buffer import get_lookup_module, resolve_element_type, resolve_program_layout
+from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
 from typing import Optional, Any
 import numpy as np
@@ -51,7 +52,7 @@ def _numpy_to_slang(np_dtype: np.dtype[Any], device: Device) -> Optional[SlangTy
     return get_lookup_module(device).find_type_by_name(slang_dtype)
 
 
-class Tensor:
+class Tensor(NativeTensor):
     """
     Represents an N-D view of an underlying buffer with given shape and element type,
     and has optional gradient information attached. Element type must be differentiable.
@@ -61,25 +62,30 @@ class Tensor:
     """
 
     def __init__(self, storage: Buffer, dtype: SlangType, shape: TShapeOrTuple,
-                 strides: Optional[tuple[int, ...]] = None, offset: int = 0):
+                 strides: Optional[tuple[int, ...]] = None, offset: int = 0,
+                 grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None):
 
-        super().__init__()
-
-        self.storage = storage
-        self.dtype = dtype
-        self.shape = Shape(shape)
-        self.offset = offset
-
-        self.grad_in: Optional[Tensor] = None
-        self.grad_out: Optional[Tensor] = None
-
+        # Setup shape and stride.
+        shape = Shape(shape)
         if strides is None:
-            strides = shape_to_contiguous_strides(self.shape.as_tuple())
-
-        if len(strides) != len(self.shape):
+            strides = shape_to_contiguous_strides(shape.as_tuple())
+        if len(strides) != len(shape):
             raise ValueError("Number of strides must match number of dimensions")
 
-        self.strides = strides
+        # Fill out native descriptor and initialize.
+        desc = NativeTensorDesc()
+        desc.shape = Shape(shape)
+        desc.strides = Shape(strides)
+        desc.offset = offset
+        desc.dtype = dtype
+        desc.offset = offset
+        desc.element_layout = dtype.buffer_layout.reflection
+        super().__init__(desc, storage, grad_in, grad_out)
+
+        # Fix up some typing info
+        self.dtype: SlangType
+        self.grad_in: Optional[Tensor]
+        self.grad_out: Optional[Tensor]
 
     def flatten_dtype(self) -> Tensor:
         new_dtype = innermost_type(self.dtype)
@@ -121,21 +127,6 @@ class Tensor:
             return f"Tensor({self.shape}, {self.dtype.name})"
         else:
             return str(ndarray)
-
-    @property
-    def grad(self) -> Tensor:
-        """
-        Alias for grad_out
-        """
-        assert self.grad_out is not None
-        return self.grad_out
-
-    @property
-    def element_count(self) -> int:
-        element_count = 1
-        for dim in self.shape:
-            element_count *= dim
-        return element_count
 
     def to_numpy(self) -> np.ndarray[Any, Any]:
         """
@@ -179,9 +170,8 @@ class Tensor:
                 shape=self.shape, dtype=self.dtype.derivative, device=self.storage.device)
             grad_out = grad_in
 
-        result = Tensor(self.storage, self.dtype, self.shape, self.strides, self.offset)
-        result.grad_in = grad_in
-        result.grad_out = grad_out
+        result = Tensor(self.storage, self.dtype, self.shape,
+                        self.strides, self.offset, grad_in, grad_out)
 
         if zero:
             if grad_in is not None:
@@ -202,10 +192,6 @@ class Tensor:
             cmd = self.storage.device.create_command_buffer()
             cmd.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
             cmd.submit()
-
-    @property
-    def slangpy_signature(self) -> str:
-        return f"Tensor[{self.dtype.name},{len(self.shape)}]"
 
     @staticmethod
     def numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
@@ -279,25 +265,3 @@ class Tensor:
         """
 
         return Tensor.zeros(other.storage.device, other.shape, other.dtype)
-
-    def cursor(self, start: Optional[int] = None, count: Optional[int] = None):
-        """
-        Returns a BufferCursor for the buffer, starting at the given index and with the given count
-        of elements.
-        """
-        el_stride = self.dtype.buffer_layout.stride
-        size = (count or self.element_count) * el_stride
-        offset = (start or 0) * el_stride
-        layout = self.dtype.buffer_layout
-        return BufferCursor(layout.reflection, self.storage, size, offset)
-
-    def uniforms(self):
-        """
-        Returns a dictionary of uniforms for this buffer, suitable for use with a compute kernel. These
-        are useful when manually passing the buffer to a kernel, rather than going via a slangpy function.
-        """
-        return {
-            'buffer': self.storage,
-            'strides': self.strides,
-            '_shape': self.shape.as_tuple(),
-        }
