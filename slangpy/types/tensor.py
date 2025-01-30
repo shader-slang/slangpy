@@ -10,7 +10,7 @@ from slangpy.core.shapes import TShapeOrTuple
 from slangpy.types.buffer import get_lookup_module, resolve_element_type, resolve_program_layout
 from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
-from typing import Optional, Any
+from typing import Optional, Any, cast
 import numpy as np
 import math
 
@@ -62,7 +62,7 @@ class Tensor(NativeTensor):
     """
 
     def __init__(self, storage: Buffer, dtype: SlangType, shape: TShapeOrTuple,
-                 strides: Optional[tuple[int, ...]] = None, offset: int = 0,
+                 strides: Optional[TShapeOrTuple] = None, offset: int = 0,
                  grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None):
 
         # Setup shape and stride.
@@ -99,27 +99,11 @@ class Tensor(NativeTensor):
 
         return Tensor(self.storage, new_dtype, new_shape, new_strides, new_offset)
 
-    def broadcast_to(self, shape: TShapeOrTuple) -> Tensor:
+    def broadcast_to(self, shape: TShapeOrTuple):
         """
         Returns a new tensor view of the same buffer with the requested shape, following standard broadcasting rules.
         """
-        D = len(shape) - len(self.shape)
-        if D < 0:
-            raise ValueError(f"Broadcast shape must be larger than tensor shape")
-
-        shape = Shape(shape)
-        st = shape.as_tuple()
-
-        if any(a != b and a != 1 for a, b in zip(st[D:], self.shape)):
-            raise ValueError(
-                f"Tensor with shape {self.shape} can't be broadcast to {shape}")
-
-        new_strides = [0] * len(shape)
-        for i, (stride, dim) in enumerate(zip(self.strides, self.shape)):
-            if dim > 1:
-                new_strides[D + i] = stride
-
-        return Tensor(self.storage, self.dtype, shape, tuple(new_strides), self.offset)
+        return super().broadcast_to(Shape(shape))
 
     def __str__(self):
         ndarray = self.to_numpy()
@@ -151,7 +135,7 @@ class Tensor(NativeTensor):
 
         return np.lib.stride_tricks.as_strided(data, shape, strides)
 
-    def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None, zero: bool = False) -> Tensor:
+    def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None, zero: bool = False):
         """
         Returns a new tensor view with gradients attached. If called with no arguments, the
         tensor defaults to attaching a zeros-like initialized gradient tensor for both input and 
@@ -165,20 +149,7 @@ class Tensor(NativeTensor):
         be read from grad_in (if not None). When differentiating a slang call that read inputs from a
         tensor, input gradients will be written to grad_out (if not None).
         """
-        if grad_in is None and grad_out is None:
-            grad_in = Tensor.empty(
-                shape=self.shape, dtype=self.dtype.derivative, device=self.storage.device)
-            grad_out = grad_in
-
-        result = Tensor(self.storage, self.dtype, self.shape,
-                        self.strides, self.offset, grad_in, grad_out)
-
-        if zero:
-            if grad_in is not None:
-                grad_in.clear()
-            if grad_out is not None and grad_out is not grad_in:
-                grad_out.clear()
-        return result
+        return super().with_grads(grad_in, grad_out, zero)
 
     def clear(self, command_buffer: Optional[CommandBuffer] = None):
         """
@@ -186,12 +157,7 @@ class Tensor(NativeTensor):
         immediately submitted. If a command buffer is provided the clear is simply appended to it
         but not automatically submitted.
         """
-        if command_buffer:
-            command_buffer.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
-        else:
-            cmd = self.storage.device.create_command_buffer()
-            cmd.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
-            cmd.submit()
+        super().clear()
 
     @staticmethod
     def numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
