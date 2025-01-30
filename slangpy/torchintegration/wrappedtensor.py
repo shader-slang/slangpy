@@ -49,6 +49,10 @@ class WrappedTensor:
         self.grad_out: Optional[WrappedTensor] = None
         self.last_access_type: tuple[AccessType, AccessType] = (AccessType.none, AccessType.none)
 
+    @property
+    def shape(self):
+        return Shape(self.primal.shape) if self.primal is not None else Shape()
+
     def collect_streams(self, streams: set[int], include_meta: bool):
         if self.primal is not None and (self.primal.is_cuda or (self.primal.is_meta and include_meta)):
             device = self.primal.device if self.primal.is_cuda else None
