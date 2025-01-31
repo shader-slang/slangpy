@@ -193,6 +193,9 @@ class SlangType(NativeSlangType):
         """
         return self._element_type
 
+    def _py_element_type(self) -> Optional[SlangType]:
+        return self.element_type
+
     @property
     def fields(self) -> dict[str, SlangField]:
         """
@@ -207,6 +210,9 @@ class SlangType(NativeSlangType):
         """
         return self._get_differential() is not None
 
+    def _py_has_derivative(self) -> bool:
+        return self.differentiable
+
     @property
     def derivative(self) -> SlangType:
         """
@@ -218,6 +224,9 @@ class SlangType(NativeSlangType):
             return res
         else:
             raise ValueError(f"Type {self.full_name} is not differentiable")
+
+    def _py_derivative(self):
+        return self.derivative
 
     @property
     def num_dims(self) -> int:
@@ -239,6 +248,12 @@ class SlangType(NativeSlangType):
             self._cached_uniform_layout = SlangLayout(sl)
         return self._cached_uniform_layout
 
+    def _py_uniform_type_layout(self) -> TypeLayoutReflection:
+        """
+        Native accessor for uniform layout reflection.
+        """
+        return self.uniform_layout.reflection
+
     @property
     def buffer_layout(self) -> SlangLayout:
         """
@@ -253,6 +268,12 @@ class SlangType(NativeSlangType):
             buffer_layout = self._program.program_layout.get_type_layout(buffer_type)
             self._cached_buffer_layout = SlangLayout(buffer_layout.element_type_layout)
         return self._cached_buffer_layout
+
+    def _py_buffer_type_layout(self) -> TypeLayoutReflection:
+        """
+        Native accessor for buffer layout reflection.
+        """
+        return self.buffer_layout.reflection
 
     def build_differential_type(self) -> Optional[SlangType]:
         """

@@ -82,7 +82,7 @@ void inc(float amount, inout float val) { val += amount; }
     function(amount, val)
     assert np.allclose(val.to_numpy(), amount.to_numpy())
 
-    with pytest.raises(ValueError, match="inout param"):
+    with pytest.raises(Exception, match="inout param"):
         function.bwds(amount, val)
 
 

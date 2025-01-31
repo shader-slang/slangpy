@@ -145,6 +145,10 @@ def run_for_profiling():
     res_texture = device.create_texture(format=sgl.Format.r32_float, width=size,
                                         usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access)
 
+    a_tensor = spy.Tensor.numpy(device, a_data)
+    b_tensor = spy.Tensor.numpy(device, b_data)
+    res_tensor = spy.Tensor.empty_like(a_tensor)
+
     # Ensure compilation of spy module
     spy_module.add(a=a_small, b=b_small, _result=res_small)
 
@@ -160,6 +164,7 @@ def run_for_profiling():
     spy_append = 0
     spy_complex_append = 0
     spy_tex_append = 0
+    spy_tensor_append = 0
     iterations = 100000
     interval = 0.1
 
@@ -190,7 +195,7 @@ def run_for_profiling():
         sleep(interval)
 
     # SGL ND buffer append
-    if False:
+    if True:
         command_buffer = device.create_command_buffer()
 
         def add_shapes_command():
@@ -214,7 +219,7 @@ def run_for_profiling():
         sleep(interval)
 
     # SlangPy append
-    if False:
+    if True:
         command_buffer = device.create_command_buffer()
 
         def sp_command():
@@ -231,7 +236,7 @@ def run_for_profiling():
         sleep(interval)
 
     # SlangPy complex append
-    if False:
+    if True:
         command_buffer = device.create_command_buffer()
 
         def comp_command():
@@ -269,12 +274,30 @@ def run_for_profiling():
 
         sleep(interval)
 
+    # SlangPy tensor append
+    if True:
+        command_buffer = device.create_command_buffer()
+
+        def sp_command():
+            spy_module.add.append_to(command_buffer, a=a_tensor, b=b_tensor, _result=res_tensor)
+
+        start = time()
+        for i in range(0, iterations):
+            sp_command()
+        spy_tensor_append = time() - start
+
+        command_buffer.submit()
+        device.wait_for_idle()
+
+        sleep(interval)
+
     print(f"types=NDBuffer[float,1] func=add, its={iterations}:")
     print(f"  Bare bones:       {direct_dispatch}")
     print(f"  SGL:              {direct_dispatch_2}")
     print(f"  SlangPy:          {spy_append}")
     print(f"  SlangPy Complex:  {spy_complex_append}")
     print(f"  SlangPy Texture:  {spy_tex_append}")
+    print(f"  SlangPy Tensor:   {spy_tensor_append}")
 
     sleep(0.25)
 
