@@ -323,6 +323,10 @@ public struct RWNDBuffer<T, let N : int>
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
     public void store(ContextND<N> context, in T value) { set(context.call_id, value); }
 
+    public void load(Context0D context, out RWStructuredBuffer<T> value) {
+        value = buffer;
+    }
+
     public void load(Context0D context, out RWNDBuffer<T, N> value) {
         value = this;
     }
