@@ -58,7 +58,12 @@ class Module:
         self.slangpy_device_module = device_module.session.load_module('slangpy')
 
         #: Reflection / layout information for the module.
-        self.layout = SlangProgramLayout(self.device_module.layout,
+        # Link the user- and device module together so we can reflect combined types
+        # This should be solved by the combined object API in the future
+        module_list = [self.slangpy_device_module, self.device_module]
+        combined_program = device_module.session.link_program(module_list, [])
+        # Do we still need the device_module layout here if the modules are linked?
+        self.layout = SlangProgramLayout(combined_program.layout,
                                          self.slangpy_device_module.layout)
 
         self.call_data_cache = CallDataCache()
