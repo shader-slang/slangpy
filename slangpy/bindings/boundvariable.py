@@ -477,13 +477,14 @@ class BoundVariable:
                     f"{var.variable_name}.load(context.map(_m_{var.variable_name}),value.{field})")
             cgb.end_block()
 
-            cgb.empty_line()
-            cgb.append_line(f"{prefix} void store({context_decl}, in {value_decl})")
-            cgb.begin_block()
-            for field, var in self.children.items():
-                cgb.append_statement(
-                    f"{var.variable_name}.store(context.map(_m_{var.variable_name}),value.{field})")
-            cgb.end_block()
+            if self.access[0] in (AccessType.write, AccessType.readwrite):
+                cgb.empty_line()
+                cgb.append_line(f"{prefix} void store({context_decl}, in {value_decl})")
+                cgb.begin_block()
+                for field, var in self.children.items():
+                    cgb.append_statement(
+                        f"{var.variable_name}.store(context.map(_m_{var.variable_name}),value.{field})")
+                cgb.end_block()
 
             cgb.end_struct()
 
