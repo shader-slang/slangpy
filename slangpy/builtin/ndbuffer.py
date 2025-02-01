@@ -9,7 +9,7 @@ from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext)
 from slangpy.reflection import (TYPE_OVERRIDES, SlangProgramLayout, SlangType, VectorType,
-                                is_matching_array_type)
+                                StructuredBufferType, is_matching_array_type)
 from slangpy.types import NDBuffer
 from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
 
@@ -63,7 +63,7 @@ def ndbuffer_reduce_type(self: 'BaseNDBufferMarshall', context: BindContext, dim
 
 def ndbuffer_resolve_type(self: 'BaseNDBufferMarshall', context: BindContext, bound_type: 'SlangType'):
 
-    if isinstance(bound_type, NDBufferType):
+    if isinstance(bound_type, NDBufferType) or isinstance(bound_type, StructuredBufferType):
         # If the bound type is an NDBuffer, verify properties match then just use it
         if bound_type.writable and not self.writable:
             raise ValueError(
@@ -71,6 +71,9 @@ def ndbuffer_resolve_type(self: 'BaseNDBufferMarshall', context: BindContext, bo
         if bound_type.element_type != self.slang_element_type:
             raise ValueError(
                 "Attempted to bind a buffer with a different element type")
+        if isinstance(bound_type, StructuredBufferType) and self.dims != 1:
+            raise ValueError("Attempted to pass an NDBuffer that is not 1D"
+                             " to a StructuredBuffer")
         return bound_type
 
     # if implicit element casts enabled, allow conversion from type to element type
@@ -98,19 +101,24 @@ def ndbuffer_gen_calldata(self: 'BaseNDBufferMarshall', cgb: CodeGenBlock, conte
     name = binding.variable_name
     assert access[0] != AccessType.none
     assert access[1] == AccessType.none
+    writable = access[0] != AccessType.read
     if isinstance(binding.vector_type, NDBufferType):
         # If passing to NDBuffer, just use the NDBuffer type
         assert access[0] == AccessType.read
         assert isinstance(binding.vector_type, NDBufferType)
         cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
     else:
+        # If we pass to a structured buffer, check the writable flag from the type
+        if isinstance(binding.vector_type, StructuredBufferType):
+            writable = binding.vector_type.writable
+
         # If broadcasting to an element, use the type of this buffer for code gen
-        if access[0] == AccessType.read:
-            cgb.type_alias(
-                f"_t_{name}", f"NDBuffer<{self.slang_element_type.full_name},{self.dims}>")
-        else:
+        if writable:
             cgb.type_alias(
                 f"_t_{name}", f"RWNDBuffer<{self.slang_element_type.full_name},{self.dims}>")
+        else:
+            cgb.type_alias(
+                f"_t_{name}", f"NDBuffer<{self.slang_element_type.full_name},{self.dims}>")
 
 
 class BaseNDBufferMarshall(Marshall):
