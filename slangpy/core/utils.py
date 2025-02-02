@@ -17,6 +17,13 @@ def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: 
 
     shaderpath = str(pathlib.Path(__file__).parent.parent.absolute() / "slang")
 
+    if adapter_luid is None:
+        adapters = Device.enumerate_adapters(type)
+        if len(adapters) == 0:
+            raise RuntimeError(f"Could not find any adapters for device type {type}")
+
+        adapter_luid = adapters[0].luid
+
     return Device(
         type=type,
         compiler_options={
