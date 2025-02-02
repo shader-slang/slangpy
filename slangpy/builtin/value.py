@@ -13,6 +13,7 @@ from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES,
 from slangpy.reflection.reflectiontypes import (BOOL_TYPES, FLOAT_TYPES,
                                                 INT_TYPES, SIGNED_INT_TYPES,
                                                 UNSIGNED_INT_TYPES, SlangType)
+from slangpy.core.utils import is_type_castable_on_host
 
 """
 Common functionality for basic value types such as int, float, vector, matrix etc that aren't
@@ -71,7 +72,7 @@ class ValueMarshall(NativeValueMarshall):
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             cgb.type_alias(
-                f"_t_{name}", f"ValueType<{self.slang_type.full_name}>")
+                f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
         else:
             cgb.type_alias(f"_t_{name}", f"NoneType")
 
@@ -96,12 +97,11 @@ class ValueMarshall(NativeValueMarshall):
         return data
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
-        """
-        Return the slang type for this variable when passed to a parameter
-        of the given type. Default behaviour simply attempts to pass its own type,
-        but more complex behaviour can be added to support implicit casts.
-        """
-        # Default to just casting to itself (i.e. no implicit cast)
+        # Check if we should replace our default slang type with the bound type
+        # This is to handle passing e.g. python ints, which are represented by
+        # a single type, to any of slangs integer types (uint16_t, int64_t, etc.)
+        if is_type_castable_on_host(self.slang_type, bound_type):
+            return bound_type
         return self.slang_type
 
     def reduce_type(self, context: 'BindContext', dimensions: int):
