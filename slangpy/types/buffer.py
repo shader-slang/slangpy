@@ -185,3 +185,27 @@ class NDBuffer(NativeNDBuffer):
             cmd = self.storage.device.create_command_buffer()
             cmd.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
             cmd.submit()
+
+    @staticmethod
+    def zeros(device: Device,
+              dtype: Any,
+              element_count: Optional[int] = None,
+              shape: Optional[TShapeOrTuple] = None,
+              usage: ResourceUsage = ResourceUsage.shader_resource
+              | ResourceUsage.unordered_access,
+              memory_type: MemoryType = MemoryType.device_local,
+              program_layout: Optional[SlangProgramLayout] = None
+              ) -> 'NDBuffer':
+        """
+        Creates a zero-initialized nbuffer with the requested shape and element type.
+        """
+        buffer = NDBuffer(device, dtype, element_count, shape, usage, memory_type, program_layout)
+        buffer.clear()
+        return buffer
+
+    @staticmethod
+    def zeros_like(other: 'NDBuffer') -> 'NDBuffer':
+        """
+        Creates a zero-initialized ndbuffer with the same shape and element type as the given ndbuffer.
+        """
+        return NDBuffer.zeros(other.storage.device, shape=other.shape, dtype=other.dtype)

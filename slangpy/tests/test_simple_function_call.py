@@ -417,5 +417,70 @@ Foo create_foo(int x) { return { x }; }
     assert result.shape == (1, )
 
 
+@pytest.mark.parametrize("scalar_type", ["float", "half", "double"])
+def test_pass_float_array(device_type: DeviceType, scalar_type: str):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(
+        device, f"{scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}")
+
+    arg = [3.0, 4.0, 5.0]
+    result = module.first(arg)
+
+    assert np.abs(result - arg[0]) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("scalar_type", ["uint8_t", "uint16_t", "uint", "uint64_t", "int8_t", "int16_t", "int", "int64_t"])
+def test_pass_int_array(device_type: DeviceType, scalar_type: str):
+    if device_type == DeviceType.d3d12 and scalar_type in ("int8_t", "uint8_t"):
+        pytest.skip("8-bit types are unsupported by DXC")
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(
+        device, f"{scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}")
+
+    arg = [3, 4, 5]
+    result = module.first(arg)
+
+    assert result == arg[0]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("scalar_type", ["float", "half", "double"])
+def test_pass_float_field(device_type: DeviceType, scalar_type: str):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(
+        device,
+        f"""
+struct Foo {{ {scalar_type} x; }}
+{scalar_type} unwrap(Foo foo) {{ return foo.x; }}
+""",
+    )
+
+    arg = 3.0
+    result = module.unwrap({"x": arg})
+
+    assert np.abs(result - arg) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("scalar_type", ["uint8_t", "uint16_t", "uint", "uint64_t", "int8_t", "int16_t", "int", "int64_t"])
+def test_pass_int_field(device_type: DeviceType, scalar_type: str):
+    if device_type == DeviceType.d3d12 and scalar_type in ("int8_t", "uint8_t"):
+        pytest.skip("8-bit types are unsupported by DXC")
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(
+        device,
+        f"""
+struct Foo {{ {scalar_type} x; }}
+{scalar_type} unwrap(Foo foo) {{ return foo.x; }}
+""",
+    )
+
+    arg = 3
+    result = module.unwrap({"x": arg})
+
+    assert result == arg
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
