@@ -1,7 +1,7 @@
 PyTorch
 =======
 
-Building on the previous `auto-diff <autodiff.rst>`_ example, the switch to PyTorch and its auto-grad capabilities is trivial.
+Building on the previous `auto-diff <autodiff.html>`_ example, the switch to PyTorch and its auto-grad capabilities is trivial.
 
 Initialization
 --------------

@@ -16,6 +16,22 @@ It is built upon 2 core technologies:
 
 By bringing these 2 technologies together with a simple and flexible Python library, calling GPU code from Python is as simple and easy as calling a function.
 
+Getting Started
+---------------
+
+SlangPy can be installed from pip using:
+
+.. code-block:: bash
+
+    pip install slangpy
+
+Or for more information on building from source, see the `installation <installation.html>`_ section.
+
+A full set of examples can be found in the * `examples directory <https://shader-slang.com/>`_ in the SlangPy repo. Each
+example is also covered by an article in these docs, so we recommend downloading the lot and then working them, starting
+with the intros in the `basics <firstfunctions.html>`_ section. 
+
+
 .. toctree::
    :hidden:
    :maxdepth: 0
