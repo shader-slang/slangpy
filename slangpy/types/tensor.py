@@ -8,8 +8,9 @@ from slangpy.reflection import reflectiontypes
 from slangpy.core.native import Shape
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.types.buffer import get_lookup_module, resolve_element_type, resolve_program_layout
+from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
-from typing import Optional, Any
+from typing import Optional, Any, cast
 import numpy as np
 import math
 
@@ -51,7 +52,7 @@ def _numpy_to_slang(np_dtype: np.dtype[Any], device: Device) -> Optional[SlangTy
     return get_lookup_module(device).find_type_by_name(slang_dtype)
 
 
-class Tensor:
+class Tensor(NativeTensor):
     """
     Represents an N-D view of an underlying buffer with given shape and element type,
     and has optional gradient information attached. Element type must be differentiable.
@@ -61,26 +62,33 @@ class Tensor:
     """
 
     def __init__(self, storage: Buffer, dtype: SlangType, shape: TShapeOrTuple,
-                 strides: Optional[tuple[int, ...]] = None, offset: int = 0):
+                 strides: Optional[TShapeOrTuple] = None, offset: int = 0,
+                 grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None):
 
-        super().__init__()
-
-        self.storage = storage
-        self.dtype = dtype
-        self.shape = Shape(shape)
-        self.offset = offset
-
-        self.grad_in: Optional[Tensor] = None
-        self.grad_out: Optional[Tensor] = None
-
+        # Setup shape and stride.
+        shape = Shape(shape)
         if strides is None:
-            strides = shape_to_contiguous_strides(self.shape.as_tuple())
-
-        if len(strides) != len(self.shape):
+            strides = shape_to_contiguous_strides(shape.as_tuple())
+        if len(strides) != len(shape):
             raise ValueError("Number of strides must match number of dimensions")
 
-        self.strides = strides
+        # Fill out native descriptor and initialize.
+        desc = NativeTensorDesc()
+        desc.shape = Shape(shape)
+        desc.strides = Shape(strides)
+        desc.offset = offset
+        desc.dtype = dtype
+        desc.offset = offset
+        desc.element_layout = dtype.buffer_layout.reflection
+        super().__init__(desc, storage, grad_in, grad_out)
 
+        # Fix up some typing info
+        self.dtype: SlangType
+        self.grad_in: Optional[Tensor]
+        self.grad_out: Optional[Tensor]
+
+    # flatten_dtype Not used anywhere - do we need it? If so, need to make native implementation
+    """
     def flatten_dtype(self) -> Tensor:
         new_dtype = innermost_type(self.dtype)
         dtype_shape = self.dtype.shape.as_tuple()
@@ -92,28 +100,13 @@ class Tensor:
         new_offset = self.offset * stride_multiplier
 
         return Tensor(self.storage, new_dtype, new_shape, new_strides, new_offset)
+    """
 
-    def broadcast_to(self, shape: TShapeOrTuple) -> Tensor:
+    def broadcast_to(self, shape: TShapeOrTuple):
         """
         Returns a new tensor view of the same buffer with the requested shape, following standard broadcasting rules.
         """
-        D = len(shape) - len(self.shape)
-        if D < 0:
-            raise ValueError(f"Broadcast shape must be larger than tensor shape")
-
-        shape = Shape(shape)
-        st = shape.as_tuple()
-
-        if any(a != b and a != 1 for a, b in zip(st[D:], self.shape)):
-            raise ValueError(
-                f"Tensor with shape {self.shape} can't be broadcast to {shape}")
-
-        new_strides = [0] * len(shape)
-        for i, (stride, dim) in enumerate(zip(self.strides, self.shape)):
-            if dim > 1:
-                new_strides[D + i] = stride
-
-        return Tensor(self.storage, self.dtype, shape, tuple(new_strides), self.offset)
+        return super().broadcast_to(Shape(shape))
 
     def __str__(self):
         ndarray = self.to_numpy()
@@ -122,45 +115,14 @@ class Tensor:
         else:
             return str(ndarray)
 
-    @property
-    def grad(self) -> Tensor:
-        """
-        Alias for grad_out
-        """
-        assert self.grad_out is not None
-        return self.grad_out
-
-    @property
-    def element_count(self) -> int:
-        element_count = 1
-        for dim in self.shape:
-            element_count *= dim
-        return element_count
-
     def to_numpy(self) -> np.ndarray[Any, Any]:
         """
         Copies tensor data into a numpy array with the same shape and strides. This may fail if the
         element type does not have an equivalent in numpy.
         """
+        return cast(np.ndarray[Any, Any], super().to_numpy())
 
-        numpy_dtype = _slang_to_numpy(self.dtype)
-        if numpy_dtype is None:
-            raise ValueError(
-                f"Tensor element type {self.dtype.full_name} is not compatible with numpy")
-        dtype_size = self.dtype.buffer_layout.size
-        elem_size = innermost_type(self.dtype).buffer_layout.size
-        dtype_shape = self.dtype.shape.as_tuple()
-        dtype_strides = shape_to_contiguous_strides(dtype_shape)
-
-        shape = self.shape.as_tuple() + dtype_shape
-        strides = tuple(s * dtype_size for s in self.strides) + \
-            tuple(s * elem_size for s in dtype_strides)
-
-        data = self.storage.to_numpy().view(numpy_dtype)
-
-        return np.lib.stride_tricks.as_strided(data, shape, strides)
-
-    def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None, zero: bool = False) -> Tensor:
+    def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None, zero: bool = False):
         """
         Returns a new tensor view with gradients attached. If called with no arguments, the
         tensor defaults to attaching a zeros-like initialized gradient tensor for both input and 
@@ -174,21 +136,7 @@ class Tensor:
         be read from grad_in (if not None). When differentiating a slang call that read inputs from a
         tensor, input gradients will be written to grad_out (if not None).
         """
-        if grad_in is None and grad_out is None:
-            grad_in = Tensor.empty(
-                shape=self.shape, dtype=self.dtype.derivative, device=self.storage.device)
-            grad_out = grad_in
-
-        result = Tensor(self.storage, self.dtype, self.shape, self.strides, self.offset)
-        result.grad_in = grad_in
-        result.grad_out = grad_out
-
-        if zero:
-            if grad_in is not None:
-                grad_in.clear()
-            if grad_out is not None and grad_out is not grad_in:
-                grad_out.clear()
-        return result
+        return super().with_grads(grad_in, grad_out, zero)
 
     def clear(self, command_buffer: Optional[CommandBuffer] = None):
         """
@@ -196,16 +144,7 @@ class Tensor:
         immediately submitted. If a command buffer is provided the clear is simply appended to it
         but not automatically submitted.
         """
-        if command_buffer:
-            command_buffer.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
-        else:
-            cmd = self.storage.device.create_command_buffer()
-            cmd.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
-            cmd.submit()
-
-    @property
-    def slangpy_signature(self) -> str:
-        return f"Tensor[{self.dtype.name},{len(self.shape)}]"
+        super().clear()
 
     @staticmethod
     def numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
@@ -236,7 +175,6 @@ class Tensor:
         """
         Creates a tensor with the requested shape and element type without attempting to initialize the data.
         """
-
         # If dtype supplied is not a SlangType, resolve it using the same mechanism as NDBuffer
         if not isinstance(dtype, SlangType):
             program_layout = resolve_program_layout(device, dtype, program_layout)
@@ -257,11 +195,8 @@ class Tensor:
         """
         Creates a zero-initialized tensor with the requested shape and element type.
         """
-
         tensor = Tensor.empty(device, shape, dtype)
-        cmd = device.create_command_buffer()
-        cmd.clear_resource_view(tensor.storage.get_uav(), uint4(0, 0, 0, 0))
-        cmd.submit()
+        tensor.clear()
         return tensor
 
     @staticmethod
@@ -269,7 +204,6 @@ class Tensor:
         """
         Creates a new tensor with the same shape and element type as the given tensor, without initializing the data.
         """
-
         return Tensor.empty(other.storage.device, other.shape, other.dtype)
 
     @staticmethod
@@ -277,27 +211,4 @@ class Tensor:
         """
         Creates a zero-initialized tensor with the same shape and element type as the given tensor.
         """
-
         return Tensor.zeros(other.storage.device, other.shape, other.dtype)
-
-    def cursor(self, start: Optional[int] = None, count: Optional[int] = None):
-        """
-        Returns a BufferCursor for the buffer, starting at the given index and with the given count
-        of elements.
-        """
-        el_stride = self.dtype.buffer_layout.stride
-        size = (count or self.element_count) * el_stride
-        offset = (start or 0) * el_stride
-        layout = self.dtype.buffer_layout
-        return BufferCursor(layout.reflection, self.storage, size, offset)
-
-    def uniforms(self):
-        """
-        Returns a dictionary of uniforms for this buffer, suitable for use with a compute kernel. These
-        are useful when manually passing the buffer to a kernel, rather than going via a slangpy function.
-        """
-        return {
-            'buffer': self.storage,
-            'strides': self.strides,
-            '_shape': self.shape.as_tuple(),
-        }

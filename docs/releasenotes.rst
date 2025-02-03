@@ -1,6 +1,11 @@
 Release Notes
 =============
 
+**Version 0.17.0**
+
+This release includes a major update to the `nv-sgl` library, which now includes CoopVec support, alongside more significant optimizations 
+for buffers, textures and tensors. Planned imminent API changes to the 'from_numpy' functions on tensors/buffers.
+
 **Version 0.15.0**
 
 Recent changes have added extensive optimizations through native extension to the dispatch process, and fully functional PyTorch autograd support.

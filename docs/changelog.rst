@@ -1,6 +1,12 @@
 Changelog
 ---------
 
+**Version 0.17.0**
+
+- Update to latest `nv-sgl` with CoopVec support
+- Native tensor implementation
+- Linux crash fix
+
 **Version 0.16.0**
 
 - Native texture and structured buffer implementations
