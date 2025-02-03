@@ -5,7 +5,7 @@ from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               CodeGenBlock, Shape)
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 
-from typing import Any
+from typing import Any, Union
 
 
 class CallIdArg:
@@ -13,7 +13,7 @@ class CallIdArg:
     Passes the thread id as an argument to a SlangPy function.
     """
 
-    def __init__(self, dims_or_shape: int | tuple[int, ...] = 3):
+    def __init__(self, dims_or_shape: Union[int, tuple[int, ...]] = 3):
         super().__init__()
         if isinstance(dims_or_shape, tuple):
             self.shape = Shape(dims_or_shape)
@@ -29,7 +29,7 @@ class CallIdArg:
         return f"[{self.dims}]"
 
 
-def call_id(dims_or_shape: int | tuple[int, ...]):
+def call_id(dims_or_shape: Union[int, tuple[int, ...]]):
     """
     Create a ThreadIdArg to pass to a SlangPy function, which passes the thread id.
     """

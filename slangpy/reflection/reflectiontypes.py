@@ -1170,7 +1170,7 @@ def can_convert_to_int(value: Any):
         return False
 
 
-TGenericArgs = Optional[tuple[int | SlangType, ...]]
+TGenericArgs = Optional[tuple[Union[int, SlangType], ...]]
 
 #: Mapping from a type name to a callable that creates a SlangType from a TypeReflection.
 #: This can be used to extend the type system and wrap custom types in their own reflection types.

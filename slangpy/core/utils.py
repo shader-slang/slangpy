@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from os import PathLike
 import pathlib
-from typing import Sequence, Union
+from typing import Optional, Sequence, Union
 
 from slangpy.backend import (DeclReflection, ProgramLayout,
                              TypeLayoutReflection, TypeReflection,
@@ -9,7 +9,9 @@ from slangpy.backend import (DeclReflection, ProgramLayout,
 from slangpy.reflection import SlangType
 
 
-def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False, adapter_luid: Sequence[int] | None = None, include_paths: Sequence[str | PathLike] = []):
+def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False,
+                  adapter_luid: Optional[Sequence[int]] = None,
+                  include_paths: Sequence[Union[str, PathLike]] = []):
     """
     Create an SGL device with basic settings for SlangPy. For full control over device init, 
     use sgl.create_device directly, being sure to add slangpy.SHADER_PATH
