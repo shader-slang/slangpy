@@ -1,6 +1,10 @@
 Changelog
 ---------
 
+**Version 0.18.2**
+- Update SGL -> 0.12.1
+- Rename from_numpy to buffer_from_numpy
+
 **Version 0.18.1**
 - Fix Python 3.9 typing
 
