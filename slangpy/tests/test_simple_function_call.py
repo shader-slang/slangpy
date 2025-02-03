@@ -392,6 +392,32 @@ int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_return_struct_in_buffer(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    # Note: Don't use create_function_from_module here. It adds an
+    # implict import slangpy; that masks the bug this is testing for
+    module = helpers.create_module(
+        device,
+        r"""
+struct Foo { int x; }
+Foo create_foo(int x) { return { x }; }
+""",
+    )
+
+    x = NDBuffer(
+        element_count=1,
+        device=device,
+        dtype=int,
+    )
+    x.storage.from_numpy(rand_array_of_ints(x.element_count))
+
+    result: NDBuffer = module.create_foo(x)
+
+    assert result.shape == (1, )
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("scalar_type", ["float", "half", "double"])
 def test_pass_float_array(device_type: DeviceType, scalar_type: str):
     device = helpers.get_device(device_type)
