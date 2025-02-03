@@ -9,7 +9,7 @@ Its core objectives are to:
 * Grant easy access to Slang's auto-diff features
 * Provide optional PyTorch support out of the box
 
-It is built upon 2 core NVidia technologies:
+It is built upon 2 core technologies:
 
 * `Slang shading language <https://shader-slang.com/>`_: A modern, platform agnostic shading language with full auto-diff support.
 * `Slang graphics library (SGL) <https://github.com/shader-slang/sgl>`_: A powerful Python extension providing a thin wrapper around the graphics layer.
