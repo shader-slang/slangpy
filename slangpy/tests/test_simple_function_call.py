@@ -502,7 +502,7 @@ void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
         device=device,
         dtype=int,
     )
-    a.storage.from_numpy(np.array([42]))
+    a.storage.from_numpy(np.array([42], dtype=np.float32))
 
     b = NDBuffer(
         element_count=1,
