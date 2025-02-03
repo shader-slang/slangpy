@@ -6,6 +6,7 @@ from typing import Sequence, Union
 from slangpy.backend import (DeclReflection, ProgramLayout,
                              TypeLayoutReflection, TypeReflection,
                              DeviceType, Device)
+from slangpy.reflection import SlangType
 
 
 def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False, adapter_luid: Sequence[int] | None = None, include_paths: Sequence[str | PathLike] = []):
@@ -67,6 +68,16 @@ def try_find_function_overloads_via_ast(root: DeclReflection, type_name: str, fu
 
     func_decls = type_decl.find_children_of_kind(DeclReflection.Kind.func, func_name)
     return (type_decl.as_type(), [x.as_function() for x in func_decls])
+
+
+# This function checks if we can replace a python value's type with the destination
+# type in resolve_type. This lets us e.g. pass a python int to a python uint16_t
+# This is done by specializing a class with a specific generic constraint.
+# If specialization succeeds, slang tells us this is A-OK
+def is_type_castable_on_host(from_type: SlangType, to_type: SlangType) -> bool:
+    witness_name = f"impl::AllowedConversionWitness<{from_type.full_name}, {to_type.full_name}>"
+    witness = to_type.program.find_type_by_name(witness_name)
+    return witness is not None
 
 
 def parse_generic_signature(name: str):
