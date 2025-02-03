@@ -301,7 +301,7 @@ if torch is not None:
                 elif t.is_cpu:
                     flattened = np.lib.stride_tricks.as_strided(
                         t.numpy(), (view_length, ), (t.element_size(), ))
-                    buf.from_numpy(flattened)
+                    buf.copy_from_numpy(flattened)
                 else:
                     raise ValueError(
                         f"Don't know how to read input data from torch tensor with device {t.device}")

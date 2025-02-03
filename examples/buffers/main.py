@@ -30,7 +30,7 @@ cursor_1.apply()
 
 # Use the fact that we know the buffers are just 16x16 grids of 3 floats
 # to just populate the 2nd buffer straight from random numpy array
-image_2.from_numpy(0.1*np.random.rand(16*16*3).astype(np.float32))
+image_2.copy_from_numpy(0.1*np.random.rand(16*16*3).astype(np.float32))
 
 # Call the module's add function
 result = module.add(image_1, image_2)

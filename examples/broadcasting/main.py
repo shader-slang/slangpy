@@ -91,7 +91,7 @@ print("")
 sampler = device.create_sampler()
 tex = device.create_texture(width=32, height=32, format=sgl.Format.rgb32_float,
                             usage=sgl.ResourceUsage.shader_resource)
-tex.from_numpy(np.random.rand(32, 32, 3).astype(np.float32))
+tex.copy_from_numpy(np.random.rand(32, 32, 3).astype(np.float32))
 
 # Sample the texture at a single UV coordinate. Results in 1 thread,
 # as the uv coordinate input is a single float 2.

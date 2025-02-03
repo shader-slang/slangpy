@@ -30,9 +30,9 @@ def test_command_buffer(device_type: DeviceType):
     b_data = np.random.rand(10, 3).astype(np.float32)
     res_data = np.zeros((10, 3), dtype=np.float32)
 
-    a.from_numpy(a_data)
-    b.from_numpy(b_data)
-    res.from_numpy(res_data)
+    a.copy_from_numpy(a_data)
+    b.copy_from_numpy(b_data)
+    res.copy_from_numpy(res_data)
     res.grad_from_numpy(np.ones_like(res_data))
 
     polynomial.append_to(command_buffer, a, b, _result=res)

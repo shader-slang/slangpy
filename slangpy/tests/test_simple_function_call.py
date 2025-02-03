@@ -215,7 +215,7 @@ void add_numbers(int a, int b, out int c) {
             device=device,
             dtype=int,
         )
-        in_buffer_0.storage.from_numpy(rand_array_of_ints(in_buffer_0.element_count))
+        in_buffer_0.storage.copy_from_numpy(rand_array_of_ints(in_buffer_0.element_count))
 
     in_buffer_1: Union[int, NDBuffer]
     if in_buffer_1_size == 0:
@@ -226,7 +226,7 @@ void add_numbers(int a, int b, out int c) {
             device=device,
             dtype=int,
         )
-        in_buffer_1.storage.from_numpy(rand_array_of_ints(in_buffer_1.element_count))
+        in_buffer_1.storage.copy_from_numpy(rand_array_of_ints(in_buffer_1.element_count))
 
     # Setup output buffer
     out_buffer = NDBuffer(
@@ -297,21 +297,21 @@ void add_numbers_remap(int a, int b, out int c) {
         device=device,
         dtype=int,
     )
-    a.storage.from_numpy(rand_array_of_ints(a.element_count))
+    a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
     b = NDBuffer(
         element_count=50,
         device=device,
         dtype=int,
     )
-    b.storage.from_numpy(rand_array_of_ints(b.element_count))
+    b.storage.copy_from_numpy(rand_array_of_ints(b.element_count))
 
     c = NDBuffer(
         shape=(50, 100),
         device=device,
         dtype=int,
     )
-    c.storage.from_numpy(rand_array_of_ints(c.element_count))
+    c.storage.copy_from_numpy(rand_array_of_ints(c.element_count))
 
     function.map((1,), (0,))(a, b, c)
 
@@ -335,14 +335,14 @@ int add_numbers(int a, int b) {
         device=device,
         dtype=int,
     )
-    a.storage.from_numpy(rand_array_of_ints(a.element_count))
+    a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
     b = NDBuffer(
         element_count=50,
         device=device,
         dtype=int,
     )
-    b.storage.from_numpy(rand_array_of_ints(b.element_count))
+    b.storage.copy_from_numpy(rand_array_of_ints(b.element_count))
 
     # just verify it can be called with no exceptions
     res: NDBuffer = function(a, b)
@@ -373,14 +373,14 @@ int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
         device=device,
         dtype=int,
     )
-    a.storage.from_numpy(rand_array_of_ints(a.element_count))
+    a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
     b = NDBuffer(
         element_count=1,
         device=device,
         dtype=int,
     )
-    b.storage.from_numpy(rand_array_of_ints(b.element_count))
+    b.storage.copy_from_numpy(rand_array_of_ints(b.element_count))
 
     # just verify it can be called with no exceptions
     res = function(a, b)
@@ -410,7 +410,7 @@ Foo create_foo(int x) { return { x }; }
         device=device,
         dtype=int,
     )
-    x.storage.from_numpy(rand_array_of_ints(x.element_count))
+    x.storage.copy_from_numpy(rand_array_of_ints(x.element_count))
 
     result: NDBuffer = module.create_foo(x)
 
@@ -502,14 +502,14 @@ void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
         device=device,
         dtype=int,
     )
-    a.storage.from_numpy(np.array([42], dtype=np.float32))
+    a.storage.copy_from_numpy(np.array([42], dtype=np.float32))
 
     b = NDBuffer(
         element_count=1,
         device=device,
         dtype=int,
     )
-    b.storage.from_numpy(np.zeros((b.element_count, ), dtype=np.int32))
+    b.storage.copy_from_numpy(np.zeros((b.element_count, ), dtype=np.int32))
 
     function(a, b)
 
