@@ -104,7 +104,7 @@ class NDDifferentiableBuffer(NDBuffer):
         """
         Sets the primal buffer from a numpy array (alias for from_numpy).
         """
-        self.from_numpy(data)
+        self.copy_from_numpy(data)
 
     def primal_to_torch(self):
         """
@@ -124,7 +124,7 @@ class NDDifferentiableBuffer(NDBuffer):
         Sets the gradient buffer from a numpy array.
         """
         assert self.grad is not None
-        self.grad.from_numpy(data)
+        self.grad.copy_from_numpy(data)
 
     def grad_to_torch(self):
         """

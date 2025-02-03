@@ -52,7 +52,7 @@ def test_differentiable_interface_parameters(device_type: DeviceType):
     compare_tensors(y.to_numpy(), np_result)
 
     y.grad_in = Tensor.zeros_like(y)
-    y.grad_in.storage.from_numpy(np.random.rand(
+    y.grad_in.storage.copy_from_numpy(np.random.rand(
         *y.shape, *y.dtype.shape.as_tuple()).astype(np.float32))
 
     func.bwds(weights, biases, x, y)

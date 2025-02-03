@@ -124,8 +124,8 @@ class InstanceBuffer(InstanceList):
         """
         return self.buffer.to_numpy()
 
-    def from_numpy(self, data: npt.ArrayLike):
+    def copy_from_numpy(self, data: npt.ArrayLike):
         """
         Set the buffer from a numpy array.
         """
-        self.buffer.from_numpy(data)
+        self.buffer.copy_from_numpy(data)

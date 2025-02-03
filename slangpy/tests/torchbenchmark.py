@@ -24,9 +24,9 @@ def run_benchmark(mode: int, buffer_size: int, iterations: int):
     buffer_res = device.create_buffer(element_count=1024, struct_size=4, usage=sgl.ResourceUsage.shader_resource |
                                       sgl.ResourceUsage.unordered_access | sgl.ResourceUsage.shared)
 
-    buffer_a.from_numpy(np.random.rand(1024).astype(np.float32))
-    buffer_b.from_numpy(np.random.rand(1024).astype(np.float32))
-    buffer_res.from_numpy(np.zeros(1024).astype(np.float32))
+    buffer_a.copy_from_numpy(np.random.rand(1024).astype(np.float32))
+    buffer_b.copy_from_numpy(np.random.rand(1024).astype(np.float32))
+    buffer_res.copy_from_numpy(np.zeros(1024).astype(np.float32))
 
     tensor_a = torch.zeros(buffer_size, dtype=torch.float32, device='cuda')
     tensor_b = torch.zeros(buffer_size, dtype=torch.float32, device='cuda')

@@ -40,7 +40,7 @@ def test_set(device_type: DeviceType):
 
     val = NDBuffer(m.device, float, 10)
     val_data = np.zeros(10, dtype=np.float32)  # np.random.rand(10).astype(np.float32)
-    val.from_numpy(val_data)
+    val.copy_from_numpy(val_data)
 
     add_k = add_k.set({'params': {
         'k': 10
@@ -61,7 +61,7 @@ def test_set_with_callback(device_type: DeviceType):
 
     val = NDBuffer(m.device, float, 10)
     val_data = np.random.rand(10).astype(np.float32)
-    val.from_numpy(val_data)
+    val.copy_from_numpy(val_data)
 
     add_k = add_k.set(lambda x: {'params': {
         'k': 10
@@ -83,7 +83,7 @@ def test_hook(device_type: DeviceType):
 
     val = NDBuffer(m.device, float, 10)
     val_data = np.random.rand(10).astype(np.float32)
-    val.from_numpy(val_data)
+    val.copy_from_numpy(val_data)
 
     hooks_called = 0
 

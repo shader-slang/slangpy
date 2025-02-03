@@ -71,16 +71,16 @@ void user_func(float a, float b, out float c) {
     in_buffer_0 = NDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
-    in_buffer_0.storage.from_numpy(rand_array_of_floats(in_buffer_0.element_count))
-    in_buffer_0.grad.storage.from_numpy(
+    in_buffer_0.storage.copy_from_numpy(rand_array_of_floats(in_buffer_0.element_count))
+    in_buffer_0.grad.storage.copy_from_numpy(
         np.zeros(in_buffer_0.element_count, dtype=np.float32))
 
     # Same with input buffer 1.
     in_buffer_1 = NDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
-    in_buffer_1.storage.from_numpy(rand_array_of_floats(in_buffer_1.element_count))
-    in_buffer_1.grad.storage.from_numpy(
+    in_buffer_1.storage.copy_from_numpy(rand_array_of_floats(in_buffer_1.element_count))
+    in_buffer_1.grad.storage.copy_from_numpy(
         np.zeros(in_buffer_1.element_count, dtype=np.float32))
 
     # Create empty output buffer with gradients initialized to 1 (as there is 1-1 correspondence between
@@ -88,8 +88,8 @@ void user_func(float a, float b, out float c) {
     out_buffer = NDDifferentiableBuffer(
         element_count=64, device=device, element_type=float, requires_grad=True
     )
-    out_buffer.storage.from_numpy(np.zeros(out_buffer.element_count, dtype=np.float32))
-    out_buffer.grad.storage.from_numpy(
+    out_buffer.storage.copy_from_numpy(np.zeros(out_buffer.element_count, dtype=np.float32))
+    out_buffer.grad.storage.copy_from_numpy(
         np.ones(out_buffer.element_count, dtype=np.float32))
 
     # Dispatch the forward kernel.
@@ -155,7 +155,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         element_type=float1,
         requires_grad=True,
     )
-    a_x.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_x.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_y = NDDifferentiableBuffer(
         element_count=32,
@@ -163,7 +163,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         element_type=float1,
         requires_grad=True,
     )
-    a_y.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_y.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_z = NDDifferentiableBuffer(
         element_count=32,
@@ -171,7 +171,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         element_type=float1,
         requires_grad=True,
     )
-    a_z.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_z.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     b = NDDifferentiableBuffer(
         element_count=32,
@@ -179,7 +179,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         element_type=float3,
         requires_grad=True,
     )
-    b.storage.from_numpy(np.random.rand(32*3).astype(np.float32))
+    b.storage.copy_from_numpy(np.random.rand(32*3).astype(np.float32))
 
     res = NDDifferentiableBuffer(
         element_count=32,
@@ -214,7 +214,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res.grad.storage.from_numpy(np.ones(32*3, dtype=np.float32))
+    res.grad.storage.copy_from_numpy(np.ones(32*3, dtype=np.float32))
 
     call_data = {
         'a__x_primal': {'buffer': a_x.storage, 'strides': list(a_x.strides)},
@@ -263,7 +263,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
         element_type=float1,
         requires_grad=True,
     )
-    a_x.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_x.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_y = NDDifferentiableBuffer(
         element_count=32,
@@ -271,7 +271,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
         element_type=float1,
         requires_grad=True,
     )
-    a_y.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_y.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_z = NDDifferentiableBuffer(
         element_count=32,
@@ -279,7 +279,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
         element_type=float1,
         requires_grad=True,
     )
-    a_z.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_z.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     b = NDDifferentiableBuffer(
         element_count=32,
@@ -287,7 +287,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
         element_type=float3,
         requires_grad=True,
     )
-    b.storage.from_numpy(np.random.rand(32*3).astype(np.float32))
+    b.storage.copy_from_numpy(np.random.rand(32*3).astype(np.float32))
 
     res = NDDifferentiableBuffer(
         element_count=32,
@@ -340,7 +340,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
         element_type=float1,
         requires_grad=True,
     )
-    a_x.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_x.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_y = NDDifferentiableBuffer(
         element_count=32,
@@ -348,7 +348,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
         element_type=float1,
         requires_grad=True,
     )
-    a_y.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_y.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_z = NDDifferentiableBuffer(
         element_count=32,
@@ -356,7 +356,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
         element_type=float1,
         requires_grad=True,
     )
-    a_z.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_z.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     b = NDDifferentiableBuffer(
         element_count=32,
@@ -364,7 +364,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
         element_type=float3,
         requires_grad=True,
     )
-    b.storage.from_numpy(np.random.rand(32*3).astype(np.float32))
+    b.storage.copy_from_numpy(np.random.rand(32*3).astype(np.float32))
 
     res = NDDifferentiableBuffer(
         element_count=32,

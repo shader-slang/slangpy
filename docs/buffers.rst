@@ -77,7 +77,7 @@ We'll now create and initialize two buffers of type ``Pixel``. The first will us
     cursor_1.apply()
 
     # Populate the second buffer directly from a NumPy array
-    image_2.from_numpy(0.1 * np.random.rand(16 * 16 * 3).astype(np.float32))
+    image_2.copy_from_numpy(0.1 * np.random.rand(16 * 16 * 3).astype(np.float32))
 
 While using a cursor is more verbose, it offers powerful tools for reading and writing structured data. It even allows inspection of GPU buffer contents directly in the VSCode watch window.
 

@@ -23,7 +23,7 @@ print(result)
 
 # Attach gradients to the result, and set them to 1 for the backward pass
 result = result.with_grads()
-result.grad.storage.from_numpy(np.array([1, 1, 1, 1], dtype=np.float32))
+result.grad.storage.copy_from_numpy(np.array([1, 1, 1, 1], dtype=np.float32))
 
 # Call the backwards version of module.polynomial
 # This will read the grads from _result, and write the grads to x

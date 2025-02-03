@@ -59,8 +59,8 @@ def run():
 
     a_data = np.random.rand(10000000).astype(np.float32)
     b_data = np.random.rand(10000000).astype(np.float32)
-    a.from_numpy(a_data)
-    b.from_numpy(b_data)
+    a.copy_from_numpy(a_data)
+    b.copy_from_numpy(b_data)
 
     raw_compute_test(compute_kernel, a, b, res, 1000)
     res_data = res.to_numpy().view(dtype=np.float32)[0:1000]
@@ -70,8 +70,8 @@ def run():
     a_small = spy.NDBuffer(device, spy_module.float, 1000)
     b_small = spy.NDBuffer(device, spy_module.float, 1000)
     res_small = spy.NDBuffer(device, spy_module.float, 1000)
-    a.from_numpy(a_data[0:1000])
-    b.from_numpy(b_data[0:1000])
+    a.copy_from_numpy(a_data[0:1000])
+    b.copy_from_numpy(b_data[0:1000])
 
     # Ensure compilation of spy module
     spy_module.add(a=a, b=b, _result=res)
@@ -131,17 +131,17 @@ def run_for_profiling():
     a_data = np.random.rand(size).astype(np.float32)
     b_data = np.random.rand(size).astype(np.float32)
     a_small = spy.NDBuffer(device, spy_module.float, size)
-    a_small.from_numpy(a_data)
+    a_small.copy_from_numpy(a_data)
     b_small = spy.NDBuffer(device, spy_module.float, size)
-    b_small.from_numpy(b_data)
+    b_small.copy_from_numpy(b_data)
     res_small = spy.NDBuffer(device, spy_module.float, size)
 
     a_texture = device.create_texture(format=sgl.Format.r32_float,
                                       width=size, usage=sgl.ResourceUsage.shader_resource)
-    a_texture.from_numpy(a_data)
+    a_texture.copy_from_numpy(a_data)
     b_texture = device.create_texture(format=sgl.Format.r32_float,
                                       width=size, usage=sgl.ResourceUsage.shader_resource)
-    b_texture.from_numpy(b_data)
+    b_texture.copy_from_numpy(b_data)
     res_texture = device.create_texture(format=sgl.Format.r32_float, width=size,
                                         usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access)
 
@@ -383,9 +383,9 @@ def run_for_sig_test():
     b_data = np.random.rand(1000).astype(np.float32)
 
     a_small = spy.NDBuffer(device, spy_module.float, 1000)
-    a_small.from_numpy(a_data)
+    a_small.copy_from_numpy(a_data)
     b_small = spy.NDBuffer(device, spy_module.float, 1000)
-    b_small.from_numpy(b_data)
+    b_small.copy_from_numpy(b_data)
     res_small = spy.NDBuffer(device, spy_module.float, 1000)
 
     iterations = 5

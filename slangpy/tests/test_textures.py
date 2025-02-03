@@ -156,7 +156,7 @@ def test_read_write_texture(
     dims = len(grid_coords_data.shape) - 1
     grid_coords = InstanceBuffer(struct=getattr(
         m, f"int{dims}").as_struct(), shape=grid_coords_data.shape[0:-1])
-    grid_coords.from_numpy(grid_coords_data)
+    grid_coords.copy_from_numpy(grid_coords_data)
 
     # Create texture and build random data
     src_tex = m.device.create_texture(**make_args(type, slices, mips))
@@ -166,7 +166,7 @@ def test_read_write_texture(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
 
     array_nm = ""
     if slices > 1:
@@ -212,7 +212,7 @@ def test_read_write_texture_with_resource_views(
     dims = len(grid_coords_data.shape) - 1
     grid_coords = InstanceBuffer(struct=getattr(
         m, f"int{dims}").as_struct(), shape=grid_coords_data.shape[0:-1])
-    grid_coords.from_numpy(grid_coords_data)
+    grid_coords.copy_from_numpy(grid_coords_data)
 
     # Create texture and build random data
     src_tex = m.device.create_texture(**make_args(type, slices, mips))
@@ -222,7 +222,7 @@ def test_read_write_texture_with_resource_views(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
 
     array_nm = ""
     if slices > 1:
@@ -266,7 +266,7 @@ def test_read_write_texture_with_invalid_resource_views(
     dims = len(grid_coords_data.shape) - 1
     grid_coords = InstanceBuffer(struct=getattr(
         m, f"int{dims}").as_struct(), shape=grid_coords_data.shape[0:-1])
-    grid_coords.from_numpy(grid_coords_data)
+    grid_coords.copy_from_numpy(grid_coords_data)
 
     # Create texture and build random data
     src_tex = m.device.create_texture(**make_args(type, slices, mips))
@@ -317,7 +317,7 @@ def test_copy_value(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
 
     m.copy_value(src_tex, dest_tex)
 
@@ -362,7 +362,7 @@ def test_copy_mip_values_with_resource_views(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
         m.copy_value(src_tex.get_srv(mip_idx), dest_tex.get_uav(mip_idx))
@@ -409,7 +409,7 @@ def test_copy_mip_values_with_all_uav_resource_views(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, array_slice=slice_idx, mip_level=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
         m.copy_value(src_tex.get_uav(mip_idx), dest_tex.get_uav(mip_idx))
