@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
-from types import NoneType
 from typing import Any, Optional, Union
 
 from slangpy.core.enums import IOType
@@ -19,7 +18,7 @@ class BoundVariableException(Exception):
     the exception.
     """
 
-    def __init__(self, message: str, variable: 'BoundVariable') -> NoneType:
+    def __init__(self, message: str, variable: 'BoundVariable'):
         super().__init__(message)
         self.message = message
         self.variable = variable
@@ -32,7 +31,7 @@ class BoundCall:
     later bound to corresponding slang parameters during function resolution.
     """
 
-    def __init__(self, context: 'BindContext', *args: Any, **kwargs: Any) -> NoneType:
+    def __init__(self, context: 'BindContext', *args: Any, **kwargs: Any):
         super().__init__()
         self.args = [BoundVariable(context, x, None, "") for x in args]
         self.kwargs = {n: BoundVariable(context, v, None, n) for n, v in kwargs.items()}

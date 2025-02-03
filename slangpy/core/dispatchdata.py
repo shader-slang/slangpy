@@ -2,7 +2,7 @@
 import hashlib
 import os
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from slangpy.core.callsignature import generate_constants
 from slangpy.core.enums import IOType
@@ -174,7 +174,8 @@ void {reflection.name}_entrypoint({params}) {{
         except Exception as e:
             raise e
 
-    def dispatch(self, opts: 'NativeCallRuntimeOptions', thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: CommandBuffer | None = None, **kwargs: dict[str, Any]) -> None:
+    def dispatch(self, opts: 'NativeCallRuntimeOptions', thread_count: uint3, vars: dict[str, Any] = {},
+                 command_buffer: Optional[CommandBuffer] = None, **kwargs: dict[str, Any]) -> None:
 
         # Merge uniforms
         uniforms: dict[str, Any] = {}

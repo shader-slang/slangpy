@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+from typing import Any, Union
 
 from slangpy.core.native import Shape
 
@@ -19,7 +19,7 @@ class ArrayMarshall(ValueMarshall):
         self.concrete_shape = shape
 
 
-def _distill_array(layout: SlangProgramLayout, value: list[Any] | tuple[Any]):
+def _distill_array(layout: SlangProgramLayout, value: Union[list[Any], tuple[Any]]):
     shape = (len(value), )
     while True:
         if len(value) == 0:
