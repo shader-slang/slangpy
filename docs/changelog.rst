@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+**Version 0.18.1**
+- Fix Python 3.9 typing
+
+**Version 0.18.0**
+
+- Long file temp filenames fix 
+- Temp fix for resolution of types that involve generics in multiple files 
+- Support passing 1D NDBuffer to structured buffer 
+- Fix native buffer not being passed to bindings 
+- Missing slang field check 
+- Avoid synthesizing store methods for none-written nested types
+
 **Version 0.17.0**
 
 - Update to latest `nv-sgl` with CoopVec support
