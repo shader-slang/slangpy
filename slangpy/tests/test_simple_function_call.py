@@ -483,5 +483,41 @@ struct Foo {{ {scalar_type} x; }}
     assert result == arg
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_buffer_to_structured_buffer(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "copy_first",
+        r"""
+void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
+    b[0] = a[0];
+}
+""",
+    )
+
+    a = NDBuffer(
+        element_count=1,
+        device=device,
+        dtype=int,
+    )
+    a.storage.from_numpy(np.array([42], dtype=np.float32))
+
+    b = NDBuffer(
+        element_count=1,
+        device=device,
+        dtype=int,
+    )
+    b.storage.from_numpy(np.zeros((b.element_count, ), dtype=np.int32))
+
+    function(a, b)
+
+    a_data = a.storage.to_numpy().view(np.int32)
+    b_data = b.storage.to_numpy().view(np.int32)
+
+    assert a_data[0] == b_data[0]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
