@@ -175,7 +175,7 @@ class NDBufferMarshall(NativeNDBufferMarshall):
 
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
-    if isinstance(value, NDBuffer):
+    if isinstance(value, (NDBuffer, NativeNDBuffer)):
         return NDBufferMarshall(layout, value.dtype,
                                 len(value.shape),
                                 (value.usage & ResourceUsage.unordered_access) != 0)
@@ -188,6 +188,7 @@ def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
             f"Unexpected type {type(value)} attempting to create NDBuffer marshall")
 
 
+PYTHON_TYPES[NativeNDBuffer] = create_vr_type_for_value
 PYTHON_TYPES[NDBuffer] = create_vr_type_for_value
 
 
