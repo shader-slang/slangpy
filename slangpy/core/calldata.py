@@ -145,8 +145,14 @@ class CallData(NativeCallData):
             # Write the shader to a file for debugging.
             os.makedirs(".temp", exist_ok=True)
             santized_module = re.sub(r"[<>, ./]", "_", build_info.module.name)
-            sanitized = re.sub(r"[<>, ./]", "_", build_info.name)
-            fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}.slang"
+            sanitized = re.sub(r"[:<>, ./]", "_", build_info.name)
+            fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}"
+            # Some platforms have path length limits that are easily exceeded with nested generics
+            # Be a good citizen here and limit the length of what we generate
+            length_limit = 200
+            if len(fn) > length_limit:
+                fn = fn[:length_limit]
+            fn = fn + ".slang"
 
             # with open(fn,"r") as f:
             #    code = f.read()
