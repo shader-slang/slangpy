@@ -416,6 +416,7 @@ Foo create_foo(int x) { return { x }; }
 
     assert result.shape == (1, )
 
+
 @pytest.mark.parametrize("scalar_type", ["float", "half", "double"])
 def test_pass_float_array(device_type: DeviceType, scalar_type: str):
     device = helpers.get_device(device_type)
@@ -479,6 +480,7 @@ struct Foo {{ {scalar_type} x; }}
     result = module.unwrap({"x": arg})
 
     assert result == arg
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
