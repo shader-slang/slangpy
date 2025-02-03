@@ -5,9 +5,7 @@ from slangpy.core.native import Shape
 
 import slangpy.bindings.typeregistry as tr
 from slangpy.builtin.value import ValueMarshall
-from slangpy.reflection import SlangType, ArrayType, ScalarType
-from slangpy.bindings import Marshall, BindContext, CodeGenBlock, BoundVariable
-from slangpy.reflection import SlangProgramLayout
+from slangpy.reflection import SlangType, SlangProgramLayout
 
 
 class ArrayMarshall(ValueMarshall):
@@ -19,19 +17,6 @@ class ArrayMarshall(ValueMarshall):
             st = layout.array_type(st, dim)
         self.slang_type = st
         self.concrete_shape = shape
-
-    def resolve_type(self, context: BindContext, bound_type: SlangType):
-        # If we're dealing with scalars, conform to the target type. Otherwise, passing
-        # scalar types becomes quite hard - e.g. python only knows int, and trying to
-        # pass to uint/int16 etc. would always throw an error
-        if isinstance(bound_type, ArrayType) and isinstance(bound_type.element_type, ScalarType):
-            return bound_type
-
-        return self.slang_type
-
-    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
-        name = binding.variable_name
-        cgb.type_alias(f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
 
 
 def _distill_array(layout: SlangProgramLayout, value: list[Any] | tuple[Any]):

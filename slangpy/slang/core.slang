@@ -352,3 +352,35 @@ public struct RWNDBuffer<T, let N : int>
         }
     }
 }
+
+namespace impl
+{
+
+    // Utility interface to check if a python type is safe to replace by the target
+    // slang type. This works around mismatches between the type systems: Python e.g.
+    // only knows float or int, but slang has a much wider array of scalar types;
+    // integers alone have 8 different types.
+    // This gets even worse when lists are thrown into the mix, and trying to pass
+    // e.g. [1, 2, 3] to uint16_t[3] would fail if the ValueType picks the default
+    // of int[3] to pass to slang. We could attempt to check this in python, but
+    // this would require deep slang type inspection and would inevitably be brittle
+    // 
+    // To solve this, we check if the python type (e.g. float[3]) type can be converted
+    // safely to the slang type using slang generic constraints.
+    // If type B implements IConvertibleFrom<A>, then we can safely convert from A to B
+    interface IConvertibleFrom<From> {}
+
+    // A python int can be passed to any slang integer scalar type
+    extension<T : __BuiltinIntegerType> T : IConvertibleFrom<int> {}
+    // A python float can be passed to any slang float scalar type
+    extension<T : __BuiltinFloatingPointType> T : IConvertibleFrom<float> {}
+    // A python array can be passed to any slang array of the same length, as
+    // long as their element types can be safely passed
+    extension<S, T : IConvertibleFrom<S>, let N : int, ArrT : ISizedArray<T, N>> ArrT : IConvertibleFrom<Array<S, N>> {}
+
+    // This function allows us to check if type A is convertible to type B.
+    // We attempt to specialize allowedConversionWitness with types [A, B]
+    // If it succeeds, the interface requirements are satisfied.
+    struct AllowedConversionWitness<From, To : IConvertibleFrom<From>> {}
+
+}
