@@ -38,4 +38,4 @@ pip install .
 
 Note that if using the `main` branch, you may need to clone and build the latest revision of SGL rather than the package installed with pip.
 
-To enable PyTorch integration, simply pip install pytorch as usual and it will be detected automatically by SlangPy.
+To enable PyTorch integration, simply `pip install pytorch` as usual and it will be detected automatically by SlangPy.

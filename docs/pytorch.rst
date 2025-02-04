@@ -54,7 +54,7 @@ This works because the wrapped PyTorch module automatically wrapped the call to 
 A word on performance
 ---------------------
 
-This example showed a very basic use of PyTorch's auto-grad capabilities. However in practice, the switch from a CUDA PyTorch context to a D3D or Vulkan context has an overhead. Typically, very simple logic will be faster in PyTorch. However as functions become more complex, writing them as simple scalar processes that are vectorised by SlangPy and wrapped in PyTorch quickly becomes apparent.
+This example showed a very basic use of PyTorch's auto-grad capabilities. However in practice, the switch from a CUDA PyTorch context to a D3D or Vulkan context has an overhead. Typically, very simple logic will be faster in PyTorch. However as functions become more complex, writing them as simple scalar processes that are vectorized by SlangPy and wrapped in PyTorch quickly becomes apparent.
 
 Additionally, we intend to add a pure CUDA backend to SlangPy in the future, which will allow for seamless switching between PyTorch and SlangPy contexts.
 

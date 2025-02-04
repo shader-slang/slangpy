@@ -1,7 +1,7 @@
 Basic Auto-diff
 ===============
 
-One of Slang's most powerful features is it's auto-diff capabilities, documented in detail `here <https://shader-slang.com/slang/user-guide/autodiff.html>`_. SlangPy carries this feature over to Python, allowing you to easily calculate the derivative of a function.
+One of Slang's most powerful features is its auto-diff capabilities, documented in detail `here <https://shader-slang.com/slang/user-guide/autodiff.html>`_. SlangPy carries this feature over to Python, allowing you to easily calculate the derivative of a function.
 
 A differentiable function
 -------------------------
@@ -82,4 +82,4 @@ Use of auto-diff in SlangPy requires:
 - Using the ``Tensor`` type to store differentiable data
 - Calling the ``bwds`` function to calculate gradients
 
-SlangPy's tensor type currently only supports basic types for gradient accumulation due to the need for atomic accumulation. However we intend to expand this to all struct types in the future.
+SlangPy's tensor type currently only supports basic types for gradient accumulation due to the need for atomic accumulation. However, we intend to expand this to all struct types in the future.
