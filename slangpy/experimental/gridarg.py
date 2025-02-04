@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable,
                               CodeGenBlock, Shape)
@@ -16,13 +16,13 @@ class GridArg(NativeObject):
     Passes the thread id as an argument to a SlangPy function.
     """
 
-    def __init__(self, shape: TShapeOrTuple, offset: Optional[TShapeOrTuple] = None, stride: Optional[TShapeOrTuple] = None):
+    def __init__(self, shape: Union[int, TShapeOrTuple], offset: Optional[TShapeOrTuple] = None, stride: Optional[TShapeOrTuple] = None):
         super().__init__()
+        if isinstance(shape, int):
+            shape = (-1,) * shape
         self.shape = Shape(shape)
         self.stride = Shape(stride) if stride is not None else Shape(tuple([1] * len(self.shape)))
         self.offset = Shape(offset) if offset is not None else Shape(tuple([0] * len(self.shape)))
-        if not self.shape.concrete:
-            raise ValueError("GridArg shape must be concrete.")
         if not self.stride.concrete:
             raise ValueError("GridArg stride must be concrete.")
         if len(self.shape) != len(self.stride):
@@ -34,7 +34,7 @@ class GridArg(NativeObject):
         return len(self.shape)
 
 
-def grid(shape: TShapeOrTuple, offset: Optional[TShapeOrTuple] = None, stride: Optional[TShapeOrTuple] = None) -> GridArg:
+def grid(shape: Union[int, TShapeOrTuple], offset: Optional[TShapeOrTuple] = None, stride: Optional[TShapeOrTuple] = None) -> GridArg:
     """
     Create a ThreadIdArg to pass to a SlangPy function, which passes the thread id.
     """
@@ -76,7 +76,9 @@ class GridArgMarshall(Marshall):
             }
 
     def get_shape(self, data: GridArg):
-        t = [data.shape[i]//data.stride[i] for i in range(self.dims)]
+        # For each dimension, if a concrete size is known, shape is size/stride, otherwise it is
+        # left as 1 and broadcast to every dimension
+        t = [data.shape[i]//data.stride[i] if data.shape[i] >= 0 else 1 for i in range(self.dims)]
         return Shape(tuple(t))
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
