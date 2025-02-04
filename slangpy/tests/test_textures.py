@@ -452,5 +452,20 @@ def test_invalid_resource_view(
             m.copy_value(src_tex.get_srv(mip_idx), dest_tex.get_srv(mip_idx))
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_shapes(device_type: DeviceType):
+    module = load_test_module(device_type)
+
+    tex_data = np.random.random((2, 2, 4)).astype(np.float32)
+    tex = module.device.create_texture(width=2, height=2, usage=ResourceUsage.shader_resource |
+                                       ResourceUsage.unordered_access, format=Format.rgba32_float, data=tex_data)
+
+    copied = module.return_value(tex, _result='numpy')
+
+    # copied = copied.transpose(1,0,2)
+
+    assert np.allclose(copied, tex_data)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
