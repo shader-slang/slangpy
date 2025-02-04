@@ -1,6 +1,10 @@
 Changelog
 ---------
 
+**Version 0.19.1**
+- Update SGL -> 0.12.2
+- Fix major issue with texture transposes
+
 **Version 0.19.0**
 - Add experimental grid type
 
