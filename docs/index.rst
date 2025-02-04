@@ -19,13 +19,8 @@ By bringing these 2 technologies together with a simple and flexible Python libr
 Community 
 ---------
 
-We actively encourage and maintain a community of users and developers, so if you have any questions, suggestions or want to participate, please join our Discord server:
-
-.. image:: https://upload.wikimedia.org/wikipedia/en/9/98/Discord_logo.svg
-   :width: 300px
-   :alt: Discord
-   :align: center
-   :target: https://discord.gg/your-invite-code
+We actively encourage and maintain a community of users and developers, so if you have any questions, suggestions or want to participate, please 
+`join our Discord server <https://khr.io/slangdiscord>`_.
 
 
 Getting Started
