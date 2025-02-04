@@ -16,6 +16,18 @@ It is built upon 2 core technologies:
 
 By bringing these 2 technologies together with a simple and flexible Python library, calling GPU code from Python is as simple and easy as calling a function.
 
+Community 
+---------
+
+We actively encourage and maintain a community of users and developers, so if you have any questions, suggestions or want to participate, please join our Discord server:
+
+.. image:: https://upload.wikimedia.org/wikipedia/en/9/98/Discord_logo.svg
+   :width: 300px
+   :alt: Discord
+   :align: center
+   :target: https://discord.gg/your-invite-code
+
+
 Getting Started
 ---------------
 
@@ -26,14 +38,6 @@ SlangPy can be installed from pip using:
     pip install slangpy
 
 Or for more information on building from source, see the `installation <installation.html>`_ section.
-
-We actively encourage and maintain a community of users and developers, so if you have any questions, suggestions or want to participate, please join our Discord server:
-
-.. image:: https://upload.wikimedia.org/wikipedia/en/9/98/Discord_logo.svg
-   :width: 16px
-   :alt: Discord
-   :align: center
-   :target: https://discord.gg/your-invite-code
 
 A full set of examples can be found in the * `examples directory <https://github.com/shader-slang/slangpy/tree/main/examples>`_ in the SlangPy repo. Each
 example is also covered by an article in these docs, so we recommend downloading the lot and then working them, starting
