@@ -31,12 +31,16 @@ class ThreadIdArgMarshall(Marshall):
     def __init__(self, layout: SlangProgramLayout, dims: int):
         super().__init__(layout)
         self.dims = dims
+
+        # Find slang type
         st = layout.find_type_by_name(f"ThreadIdArg<{self.dims}>")
         if st is None:
             raise ValueError(
                 f"Could not find ThreadIdArg slang type. This usually indicates the threadidarg module has not been imported.")
         self.slang_type = st
-        self.concrete_shape = Shape(self.dims)
+
+        # Thread id arg is always a vector, but size is defined by the call
+        self.concrete_shape = Shape(-1)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         access = binding.access
@@ -49,6 +53,7 @@ class ThreadIdArgMarshall(Marshall):
         return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+        # Thread id arg is a vector (dimensionality = 1), so subtract target type dimensionality from 1
         return 1 - len(vector_target_type.shape)
 
 
