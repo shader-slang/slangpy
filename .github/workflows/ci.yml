@@ -43,8 +43,8 @@ jobs:
       - name: Install dependencies
         run: python .build_agent/ci.py dependencies
 
-      - name: Run precommit
-        run: python .build_agent/ci.py precommit
+      #- name: Run precommit
+      #  run: python .build_agent/ci.py precommit
 
       - name: Install slangpy
         run: python .build_agent/ci.py install

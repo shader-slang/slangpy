@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import "slangpy";
 
+float4 return_value(float4 value) {
+    return value;
+}
+
 void copy_value(float4 value, out float4 dest) {
     dest = value;
 }

@@ -53,7 +53,7 @@ the source vector:
         dest=tex
     )
 
-Here `x`, `z` and `w` are set to constant values, while `y` is set to a random float between 0 and 1. However they could just as easily be Numpy arrays, NDBuffers or even (in this case) 1D textures!
+Here `x`, `z` and `w` are set to constant values, while `y` is set to a random float between 0 and 1. However they could just as easily be NumPy arrays, NDBuffers or even (in this case) 1D textures!
 
 This nesting approach works with any structured data, including multi-level custom structures. A common use case is storing data in **SOA form** (e.g., separate lists for particle positions and velocities) and combining them GPU-side into a single structure.
 
@@ -156,6 +156,6 @@ This example demonstrated:
 - **Structured Data Passing:** Using dictionaries to represent structured arguments.
 - **Type Resolution:** Handling generic functions with explicit mappings or ``_type`` fields.
 
-The use of dictionraries to represent SOA data can be especially powerful when experimenting
+The use of dictionaries to represent SOA data can be especially powerful when experimenting
 with different ways to store data host side without worrying about how it affects shaders or kernel 
-invokation.
+invocation.

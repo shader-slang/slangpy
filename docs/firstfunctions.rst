@@ -25,6 +25,7 @@ Next, we'll create a Python script to initialize SGL, load the Slang module, and
 
     import slangpy as spy
     import pathlib
+    import numpy as np
 
     # Create an SGL device with the local folder for slangpy includes
     device = spy.create_device(include_paths=[
@@ -53,8 +54,8 @@ While this is a fun demonstration, dispatching a compute kernel just to add two 
     # ... initialization here ...
 
     # Create a couple of buffers with 1,000,000 random floats
-    a = np.random.rand(1000000)
-    b = np.random.rand(1000000)
+    a = np.random.rand(1000000).astype(np.float32)
+    b = np.random.rand(1000000).astype(np.float32)
 
     # Call our function and request a numpy array as the result (default would be a buffer)
     result = module.add(a, b, _result='numpy')

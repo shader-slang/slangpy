@@ -11,9 +11,8 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 project = 'SlangPy'
-copyright = '2025, NVIDIA'
 author = 'Chris Cummings, Benedikt Bitterli, Sai Bangaru, Yong Hei'
-release = '0.1.0'
+release = '0.18.2'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

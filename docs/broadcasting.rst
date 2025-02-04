@@ -95,13 +95,13 @@ Conceptually, broadcasting the same value to all dimensions is similar to adding
     B       (10,3,4)
     Out     (10,3,4)
 
-Where SlangPy differs from Numpy and certain other ML packages is that it will by design **not**
+Where SlangPy differs from NumPy and certain other ML packages is that it will by design **not**
 automatically extend the dimensions of a value **unless** it is a single value. This is to prevent
 accidental broadcasting of values that should be treated as errors. For example, consider the following
 
 .. code-block:: python 
 
-    Numpy would automatically extend A to (1,3,4), SlangPy does not
+    NumPy would automatically extend A to (1,3,4), SlangPy does not
     A      (3,4)
     B      (10,3,4)
     Out    Error
@@ -109,7 +109,7 @@ accidental broadcasting of values that should be treated as errors. For example,
 Broadcasting with other types 
 -----------------------------
 
-Whilst Numpy and PyTorch operate only on simple data types such as float, int and bool, SlangPy 
+Whilst NumPy and PyTorch operate only on simple data types such as float, int and bool, SlangPy
 functions can take any type of data as input - scalars, vectors, matrices, arrays, structs, buffers etc.
 This makes the rules for broadcasting slightly more complex. Consider the following 2 functions:
 
@@ -160,7 +160,7 @@ argument shape of (10,).
 Summary
 -------
 
-This tutorial gave an overview of how vectorizing and broadcasting work in SlangPy. If you're already familiar with Numpy, PyTorch or other ML frameworks it should be very familiar, with the only real extra complication being that of handling non-scalar types.
+This tutorial gave an overview of how vectorizing and broadcasting work in SlangPy. If you're already familiar with NumPy, PyTorch or other ML frameworks it should be very familiar, with the only real extra complication being that of handling non-scalar types.
 
 If you're new to broadcasting, this first read might have made your head spin a little. Don't worry! It's a topic that is **way** easier to learn in practice than in theory. The best way to get a feel for it is to start writing some SlangPy functions and see how the broadcasting rules work (or don't!) in practice. The `examples <https://github.com/shader-slang/slangpy/tree/main/examples/broadcasting/>`_ for this tutorial are a good place to start.
 

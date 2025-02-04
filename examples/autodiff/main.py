@@ -19,7 +19,7 @@ x = spy.Tensor.numpy(device, np.array([1, 2, 3, 4], dtype=np.float32)).with_grad
 # Evaluate the polynomial and ask for a tensor back
 # Expecting result = 2x^2 + 8x - 1
 result: spy.Tensor = module.polynomial(a=2, b=8, c=-1, x=x, _result='tensor')
-print(result)
+print(result.to_numpy())
 
 # Attach gradients to the result, and set them to 1 for the backward pass
 result = result.with_grads()
