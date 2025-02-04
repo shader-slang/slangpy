@@ -453,16 +453,29 @@ def test_invalid_resource_view(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_texture_shapes(device_type: DeviceType):
+@pytest.mark.parametrize("shape", [(2, 2), (8, 2), (16, 32), (4, 128)])
+def test_texture_2d_shapes(device_type: DeviceType, shape: tuple[int, ...]):
     module = load_test_module(device_type)
 
-    tex_data = np.random.random((2, 2, 4)).astype(np.float32)
-    tex = module.device.create_texture(width=2, height=2, usage=ResourceUsage.shader_resource |
+    tex_data = np.random.random(shape+(4,)).astype(np.float32)
+    tex = module.device.create_texture(width=shape[1], height=shape[0], usage=ResourceUsage.shader_resource |
                                        ResourceUsage.unordered_access, format=Format.rgba32_float, data=tex_data)
 
     copied = module.return_value(tex, _result='numpy')
 
-    # copied = copied.transpose(1,0,2)
+    assert np.allclose(copied, tex_data)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("shape", [(2, 2, 2), (8, 2, 4), (16, 32, 8), (4, 128, 2)])
+def test_texture_3d_shapes(device_type: DeviceType, shape: tuple[int, ...]):
+    module = load_test_module(device_type)
+
+    tex_data = np.random.random(shape+(4,)).astype(np.float32)
+    tex = module.device.create_texture(width=shape[2], height=shape[1], depth=shape[0], usage=ResourceUsage.shader_resource |
+                                       ResourceUsage.unordered_access, format=Format.rgba32_float, data=tex_data)
+
+    copied = module.return_value(tex, _result='numpy')
 
     assert np.allclose(copied, tex_data)
 
