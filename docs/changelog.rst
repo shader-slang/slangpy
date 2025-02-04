@@ -1,6 +1,9 @@
 Changelog
 ---------
 
+**Version 0.19.0**
+- Add experimental grid type
+
 **Version 0.18.2**
 - Update SGL -> 0.12.1
 - Rename from_numpy to buffer_from_numpy
