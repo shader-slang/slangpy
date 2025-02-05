@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 /*
 Idx  Name       Input Type                 Output Type          Input Shape  Argument Shape  Type Shape  Transform      
 0    index      RWNDBuffer<int,1>      vector<int,2>        [?]          []              [2]         [1]            

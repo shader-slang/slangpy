@@ -15,7 +15,7 @@ By bringing these 2 technologies together with a simple and flexible Python libr
 
 ## Documentation
 
-For more detailed information and examples, see [the Documentation here](https://slangpy.readthedocs.io/).
+For more detailed information and examples, see [the Documentation here](https://slangpy.shader-slang.org/).
 
 ## Installation
 

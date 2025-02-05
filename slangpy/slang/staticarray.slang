@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // Shared implementation for anything that implements IArray and has a statically known size
 implementing slangpy;
 

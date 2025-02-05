@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import pytest
 from slangpy.backend import DeviceType, Device
 import slangpy.tests.helpers as helpers

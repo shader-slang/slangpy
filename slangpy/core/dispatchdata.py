@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import hashlib
 import os
 import re
@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from slangpy.core.callsignature import generate_constants
 from slangpy.core.enums import IOType
 from slangpy.core.native import CallMode, pack_arg, unpack_arg
+from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS
 
 from slangpy.backend import CommandBuffer, SlangLinkOptions, uint3
 from slangpy.core.native import NativeCallRuntimeOptions
@@ -131,13 +132,15 @@ void {reflection.name}_entrypoint({params}) {{
                                   trampoline=True, context=True, snippets=True,
                                   call_data_structs=True, constants=True)
 
-            # Write the shader to a file for debugging.
-            os.makedirs(".temp", exist_ok=True)
-            santized_module = re.sub(r"[<>, ./]", "_", build_info.module.name)
-            sanitized = re.sub(r"[<>, ]", "_", build_info.name)
-            fn = f".temp/{santized_module}_{sanitized}_dispatch.slang"
-            with open(fn, "w",) as f:
-                f.write(code)
+            sanitized = ""
+            if _DUMP_GENERATED_SHADERS or _DUMP_SLANG_INTERMEDIATES:
+                # Write the shader to a file for debugging.
+                os.makedirs(".temp", exist_ok=True)
+                santized_module = re.sub(r"[<>, ./]", "_", build_info.module.name)
+                sanitized = re.sub(r"[<>, ]", "_", build_info.name)
+                fn = f".temp/{santized_module}_{sanitized}_dispatch.slang"
+                with open(fn, "w",) as f:
+                    f.write(code)
 
             # Hash the code to get a unique identifier for the module.
             # We add type conformances to the start of the code to ensure that the hash is unique
@@ -163,8 +166,8 @@ void {reflection.name}_entrypoint({params}) {{
 
                 # Link the program
                 opts = SlangLinkOptions()
-                # opts.dump_intermediates = True
-                # opts.dump_intermediates_prefix = sanitized
+                opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
+                opts.dump_intermediates_prefix = sanitized
                 program = session.link_program(
                     [module, build_info.module.device_module]+build_info.module.link, [ep], opts)
 

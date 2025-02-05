@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # pyright: reportWildcardImportFromLibrary=false, reportUnusedImport=false
 # isort: skip_file
 

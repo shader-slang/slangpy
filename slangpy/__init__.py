@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # pyright: reportUnusedImport=false
 # isort: skip_file
 from .core.utils import create_device
@@ -24,6 +24,9 @@ from . import builtin as internal_marshalls
 from .torchintegration import TORCH_ENABLED
 if TORCH_ENABLED:
     from .torchintegration import TorchModule
+
+# Debug options for call data gen
+from .core.calldata import set_dump_generated_shaders, set_dump_slang_intermediates
 
 # Core slangpy interface
 from .core.function import Function
