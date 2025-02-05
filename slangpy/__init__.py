@@ -11,6 +11,9 @@ from . import types
 # Bring all shared types into the top level namespace
 from .types import *
 
+# Bring tested experimental types into top level namespace
+from .experimental.gridarg import grid
+
 # Slangpy reflection system
 from . import reflection
 
