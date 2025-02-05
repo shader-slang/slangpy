@@ -360,7 +360,7 @@ class BoundVariable:
             assert self.vector_type is not None
             self.call_dimensionality = self.python.resolve_dimensionality(
                 context, self, self.vector_type)
-            if self.call_dimensionality < 0:
+            if self.call_dimensionality is not None and self.call_dimensionality < 0:
                 raise BoundVariableException(
                     f"Could not resolve dimensionality for {self.path}", self)
 
