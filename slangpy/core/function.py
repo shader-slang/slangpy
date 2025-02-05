@@ -211,9 +211,7 @@ class FunctionNode(NativeFunctionNode):
                 # If runtime returned useful information, reformat it and raise a new exception
                 # Otherwise just throw the original.
                 if len(e.args) != 1 or not isinstance(e.args[0], dict) or not 'message' in e.args[0] or not 'source' in e.args[0] or not 'context' in e.args[0]:
-                    raise ValueError("Unhandled exception during kernel dispatch.\n "
-                                     "Please raise an issue at https://github.com/shader-slang/slangpy/issues.\n "
-                                     "For help and support: https://khr.io/slangdiscord") from e
+                    raise
                 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
                 from slangpy.core.native import NativeCallData
                 from slangpy.core.logging import bound_runtime_call_table
