@@ -50,6 +50,16 @@ class Struct:
         """
         return self.module.device_module
 
+    def torch(self):
+        """
+        Returns a pytorch wrapper around this struct
+        """
+        import slangpy.torchintegration as spytorch
+        if spytorch.TORCH_ENABLED:
+            return spytorch.TorchStruct(self)
+        else:
+            raise RuntimeError("Pytorch integration is not enabled")
+
     def try_get_child(self, name: str) -> Optional[Union['Struct', 'Function']]:
         """
         Attempt to get either a child struct or method of this struct.
@@ -69,9 +79,8 @@ class Struct:
         slang_function = self.module.layout.find_function_by_name_in_type(
             self.struct, name)
         if slang_function is not None:
-            res = Function()
-            res.attach(module=self.module, func=slang_function,
-                       struct=self, options=self.options)
+            res = Function(module=self.module, func=slang_function,
+                           struct=self, options=self.options)
             return res
 
         # Currently have Slang issue finding the init function, so for none-generic classes,
@@ -80,9 +89,8 @@ class Struct:
             (type, funcs) = try_find_function_overloads_via_ast(
                 self.device_module.module_decl, self.name, name)
             if funcs is not None and len(funcs) > 0:
-                res = Function()
-                res.attach(module=self.module, func=funcs,
-                           struct=self, options=self.options)
+                res = Function(module=self.module, func=funcs,
+                               struct=self, options=self.options)
                 return res
 
         return None
@@ -103,7 +111,7 @@ class Struct:
         return self.__getattr__(name)
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
-        raise AttributeError(f"Type '{self.name}' is not callable")
+        return self.__getattr__('__init')(*args, **kwds)
 
     def as_func(self) -> 'Function':
         """

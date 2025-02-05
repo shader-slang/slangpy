@@ -1,27 +1,55 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional
+from typing import Any
 
-from slangpy.backend import Buffer
-from slangpy.backend.slangpynativeemulation import AccessType, CallContext
-from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
-from slangpy.bindings.marshall import ReturnContext
+from slangpy.bindings.boundvariable import BoundVariable
+from slangpy.bindings.codegen import CodeGenBlock
+from slangpy.bindings.marshall import BindContext, ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
-from slangpy.core.native import Shape
-from slangpy.builtin.ndbuffer import NDBufferMarshall
+from slangpy.core.native import NativeNumpyMarshall
+from slangpy.builtin.ndbuffer import ndbuffer_gen_calldata, ndbuffer_reduce_type, ndbuffer_resolve_dimensionality, ndbuffer_resolve_type
 
 import numpy as np
 import numpy.typing as npt
 
-from slangpy.reflection.reflectiontypes import NUMPY_TYPE_TO_SCALAR_TYPE, SCALAR_TYPE_TO_NUMPY_TYPE, SlangProgramLayout, ScalarType, VectorType, MatrixType
-from slangpy.types.buffer import NDBuffer
+from slangpy.reflection.reflectiontypes import NUMPY_TYPE_TO_SCALAR_TYPE, SCALAR_TYPE_TO_NUMPY_TYPE, SlangProgramLayout, ScalarType, SlangType, VectorType, MatrixType
 
 
-class NumpyMarshall(NDBufferMarshall):
+class NumpyMarshall(NativeNumpyMarshall):
+
     def __init__(self, layout: SlangProgramLayout, dtype: np.dtype[Any], dims: int, writable: bool):
-        scalar_type = layout.scalar_type(NUMPY_TYPE_TO_SCALAR_TYPE[dtype])
-        super().__init__(layout, scalar_type, dims, writable)
-        self.dtype = dtype
+        slang_el_type = layout.scalar_type(NUMPY_TYPE_TO_SCALAR_TYPE[dtype])
+        assert slang_el_type is not None
 
+        slang_el_layout = slang_el_type.buffer_layout
+
+        slang_buffer_type = layout.find_type_by_name(
+            f"RWNDBuffer<{slang_el_type.full_name},{dims}>")
+        assert slang_buffer_type is not None
+
+        super().__init__(dims, slang_buffer_type, slang_el_type, slang_el_layout.reflection, dtype)
+
+    @property
+    def has_derivative(self) -> bool:
+        return False
+
+    @property
+    def is_writable(self) -> bool:
+        return True
+
+    def reduce_type(self, context: BindContext, dimensions: int):
+        return ndbuffer_reduce_type(self, context, dimensions)
+
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
+        return ndbuffer_resolve_type(self, context, bound_type)
+
+    def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+        return ndbuffer_resolve_dimensionality(self, context, binding, vector_target_type)
+
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
+        return ndbuffer_gen_calldata(self, cgb, context, binding)
+
+
+"""
     def get_shape(self, value: Optional[npt.NDArray[Any]] = None) -> Shape:
         if value is not None:
             return Shape(value.shape)+self.slang_element_type.shape
@@ -38,7 +66,7 @@ class NumpyMarshall(NDBufferMarshall):
                     f"{binding.variable_name}: Element shape mismatch: val={el_shape}, expected={vec_shape}")
 
         buffer = NDBuffer(context.device, dtype=self.slang_element_type, shape=shape)
-        buffer.from_numpy(data)
+        buffer.copy_from_numpy(data)
         return super().create_calldata(context, binding, buffer)
 
     def read_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: npt.NDArray[Any], result: Any) -> None:
@@ -57,6 +85,7 @@ class NumpyMarshall(NDBufferMarshall):
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: npt.NDArray[Any]) -> Any:
         return data
+"""
 
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):

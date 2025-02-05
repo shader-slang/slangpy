@@ -25,7 +25,7 @@ def _get_signature(value: Any):
     assert isinstance(value, ResourceView)
     if isinstance(value.resource, Texture):
         x = value.resource
-        return f"[texture,{x.desc.type},{value.type},{x.desc.format},{x.array_size>1}]"
+        return f"[texture,{x.desc.type},{value.type},{x.desc.format},{x.array_size > 1}]"
     else:
         raise ValueError(f"Unsupported resource view resource {value.resource}")
 

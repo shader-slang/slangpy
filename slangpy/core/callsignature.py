@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.native import AccessType, CallMode
+from slangpy.core.native import AccessType, CallMode, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
 import slangpy.reflection as slr
@@ -16,7 +16,7 @@ from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
 
 if TYPE_CHECKING:
-    from slangpy.core.function import Function
+    from slangpy.core.function import FunctionBuildInfo
 
 
 class MismatchReason:
@@ -148,7 +148,7 @@ def specialize(
             arg.param_index = i
 
     def to_type_reflection(input: Any) -> TypeReflection:
-        if isinstance(input, Marshall):
+        if isinstance(input, NativeMarshall):
             return input.slang_type.type_reflection
         elif isinstance(input, TypeReflection):
             return input
@@ -323,9 +323,9 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     node.python = python_type
 
 
-def generate_constants(function: 'Function', cg: CodeGen):
-    if function._constants is not None:
-        for k, v in function._constants.items():
+def generate_constants(build_info: 'FunctionBuildInfo', cg: CodeGen):
+    if build_info.constants is not None:
+        for k, v in build_info.constants.items():
             if isinstance(v, bool):
                 cg.constants.append_statement(
                     f"export static const bool {k} = {'true' if v else 'false'}"
@@ -340,7 +340,7 @@ def generate_constants(function: 'Function', cg: CodeGen):
                 )
 
 
-def generate_code(context: BindContext, function: 'Function', signature: BoundCall, cg: CodeGen):
+def generate_code(context: BindContext, build_info: 'FunctionBuildInfo', signature: BoundCall, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
@@ -348,10 +348,10 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
 
     # Generate the header
     cg.add_import("slangpy")
-    cg.add_import(function.module.name)
+    cg.add_import(build_info.module.name)
 
     # Generate constants if specified
-    generate_constants(function, cg)
+    generate_constants(build_info, cg)
 
     # Generate call data inputs if vector call
     call_data_len = context.call_dimensionality
@@ -391,7 +391,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
         cg.trampoline.append_code(f"_result = ")
 
     # Get function name, if it's the init function, use the result type
-    func_name = function.name
+    func_name = build_info.name
     if func_name == "$init":
         results = [x for x in root_params if x.variable_name == '_result']
         assert len(results) == 1

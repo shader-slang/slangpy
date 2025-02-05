@@ -3,7 +3,7 @@ from typing import Any, Callable
 
 import pytest
 
-from slangpy.core.native import TypeReflection
+from slangpy.backend import TypeReflection
 
 import slangpy.reflection as r
 import slangpy.tests.helpers as helpers

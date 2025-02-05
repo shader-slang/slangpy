@@ -369,8 +369,9 @@ def test_broadcast_vector(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "add", SIMPLE_FUNC)
 
-    res = function(float3(1, 2, 3), float3(4, 5, 6), _result='numpy')
-    assert np.allclose(res, [5, 7, 9])
+    res_buffer = NDBuffer(device=device, dtype=float, shape=(3,))
+    function(float3(1, 2, 3), float3(4, 5, 6), _result=res_buffer)
+    assert np.allclose(res_buffer.to_numpy().view(dtype=np.float32), [5, 7, 9])
 
 
 if __name__ == "__main__":

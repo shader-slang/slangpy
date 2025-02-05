@@ -217,6 +217,6 @@ def bound_exception_info(call: 'BoundCall', concrete_reflection: FunctionReflect
     text.append(f"{function_reflection(concrete_reflection)}")
     text.append("")
     text.append(f"Python arguments:")
-    text.append(f"{bound_call_table(call,highlight=variable)}")
+    text.append(f"{bound_call_table(call, highlight=variable)}")
 
     return "\n".join(text)

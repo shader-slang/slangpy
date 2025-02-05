@@ -31,6 +31,20 @@ void add_numbers(int a, int b) {
     # verify call that slang is happy with because bool can cast to int
     function(5, False)
 
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_fail_call_function(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers",
+        r"""
+void add_numbers(int a, int b) {
+}
+""",
+    )
+
     # verify call fails due to invalid cast (float3->int)
     with pytest.raises(ValueError):
         function(5, float3(1.0, 2.0, 3.0))
@@ -201,7 +215,7 @@ void add_numbers(int a, int b, out int c) {
             device=device,
             dtype=int,
         )
-        in_buffer_0.storage.from_numpy(rand_array_of_ints(in_buffer_0.element_count))
+        in_buffer_0.storage.copy_from_numpy(rand_array_of_ints(in_buffer_0.element_count))
 
     in_buffer_1: Union[int, NDBuffer]
     if in_buffer_1_size == 0:
@@ -212,7 +226,7 @@ void add_numbers(int a, int b, out int c) {
             device=device,
             dtype=int,
         )
-        in_buffer_1.storage.from_numpy(rand_array_of_ints(in_buffer_1.element_count))
+        in_buffer_1.storage.copy_from_numpy(rand_array_of_ints(in_buffer_1.element_count))
 
     # Setup output buffer
     out_buffer = NDBuffer(
@@ -283,21 +297,21 @@ void add_numbers_remap(int a, int b, out int c) {
         device=device,
         dtype=int,
     )
-    a.storage.from_numpy(rand_array_of_ints(a.element_count))
+    a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
     b = NDBuffer(
         element_count=50,
         device=device,
         dtype=int,
     )
-    b.storage.from_numpy(rand_array_of_ints(b.element_count))
+    b.storage.copy_from_numpy(rand_array_of_ints(b.element_count))
 
     c = NDBuffer(
         shape=(50, 100),
         device=device,
         dtype=int,
     )
-    c.storage.from_numpy(rand_array_of_ints(c.element_count))
+    c.storage.copy_from_numpy(rand_array_of_ints(c.element_count))
 
     function.map((1,), (0,))(a, b, c)
 
@@ -321,14 +335,14 @@ int add_numbers(int a, int b) {
         device=device,
         dtype=int,
     )
-    a.storage.from_numpy(rand_array_of_ints(a.element_count))
+    a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
     b = NDBuffer(
         element_count=50,
         device=device,
         dtype=int,
     )
-    b.storage.from_numpy(rand_array_of_ints(b.element_count))
+    b.storage.copy_from_numpy(rand_array_of_ints(b.element_count))
 
     # just verify it can be called with no exceptions
     res: NDBuffer = function(a, b)
@@ -359,14 +373,14 @@ int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
         device=device,
         dtype=int,
     )
-    a.storage.from_numpy(rand_array_of_ints(a.element_count))
+    a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
     b = NDBuffer(
         element_count=1,
         device=device,
         dtype=int,
     )
-    b.storage.from_numpy(rand_array_of_ints(b.element_count))
+    b.storage.copy_from_numpy(rand_array_of_ints(b.element_count))
 
     # just verify it can be called with no exceptions
     res = function(a, b)
@@ -375,6 +389,134 @@ int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
     b_data = b.storage.to_numpy().view(np.int32)
 
     assert np.all(res == a_data[0] + b_data[0])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_return_struct_in_buffer(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    # Note: Don't use create_function_from_module here. It adds an
+    # implict import slangpy; that masks the bug this is testing for
+    module = helpers.create_module(
+        device,
+        r"""
+struct Foo { int x; }
+Foo create_foo(int x) { return { x }; }
+""",
+    )
+
+    x = NDBuffer(
+        element_count=1,
+        device=device,
+        dtype=int,
+    )
+    x.storage.copy_from_numpy(rand_array_of_ints(x.element_count))
+
+    result: NDBuffer = module.create_foo(x)
+
+    assert result.shape == (1, )
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("scalar_type", ["float", "half", "double"])
+def test_pass_float_array(device_type: DeviceType, scalar_type: str):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(
+        device, f"{scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}")
+
+    arg = [3.0, 4.0, 5.0]
+    result = module.first(arg)
+
+    assert np.abs(result - arg[0]) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("scalar_type", ["uint8_t", "uint16_t", "uint", "uint64_t", "int8_t", "int16_t", "int", "int64_t"])
+def test_pass_int_array(device_type: DeviceType, scalar_type: str):
+    if device_type == DeviceType.d3d12 and scalar_type in ("int8_t", "uint8_t"):
+        pytest.skip("8-bit types are unsupported by DXC")
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(
+        device, f"{scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}")
+
+    arg = [3, 4, 5]
+    result = module.first(arg)
+
+    assert result == arg[0]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("scalar_type", ["float", "half", "double"])
+def test_pass_float_field(device_type: DeviceType, scalar_type: str):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(
+        device,
+        f"""
+struct Foo {{ {scalar_type} x; }}
+{scalar_type} unwrap(Foo foo) {{ return foo.x; }}
+""",
+    )
+
+    arg = 3.0
+    result = module.unwrap({"x": arg})
+
+    assert np.abs(result - arg) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("scalar_type", ["uint8_t", "uint16_t", "uint", "uint64_t", "int8_t", "int16_t", "int", "int64_t"])
+def test_pass_int_field(device_type: DeviceType, scalar_type: str):
+    if device_type == DeviceType.d3d12 and scalar_type in ("int8_t", "uint8_t"):
+        pytest.skip("8-bit types are unsupported by DXC")
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(
+        device,
+        f"""
+struct Foo {{ {scalar_type} x; }}
+{scalar_type} unwrap(Foo foo) {{ return foo.x; }}
+""",
+    )
+
+    arg = 3
+    result = module.unwrap({"x": arg})
+
+    assert result == arg
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_buffer_to_structured_buffer(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "copy_first",
+        r"""
+void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
+    b[0] = a[0];
+}
+""",
+    )
+
+    a = NDBuffer(
+        element_count=1,
+        device=device,
+        dtype=int,
+    )
+    a.storage.copy_from_numpy(np.array([42], dtype=np.float32))
+
+    b = NDBuffer(
+        element_count=1,
+        device=device,
+        dtype=int,
+    )
+    b.storage.copy_from_numpy(np.zeros((b.element_count, ), dtype=np.int32))
+
+    function(a, b)
+
+    a_data = a.storage.to_numpy().view(np.int32)
+    b_data = b.storage.to_numpy().view(np.int32)
+
+    assert a_data[0] == b_data[0]
 
 
 if __name__ == "__main__":

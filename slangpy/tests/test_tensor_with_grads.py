@@ -39,9 +39,6 @@ def compare_tensors(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_differentiable_interface_parameters(device_type: DeviceType):
-    if device_type == DeviceType.vulkan:
-        pytest.skip("Vulkan crashes")
-
     device = helpers.get_device(device_type)
 
     func_base = get_func(device, "matrix_vector_interfaces")
@@ -55,7 +52,7 @@ def test_differentiable_interface_parameters(device_type: DeviceType):
     compare_tensors(y.to_numpy(), np_result)
 
     y.grad_in = Tensor.zeros_like(y)
-    y.grad_in.storage.from_numpy(np.random.rand(
+    y.grad_in.storage.copy_from_numpy(np.random.rand(
         *y.shape, *y.dtype.shape.as_tuple()).astype(np.float32))
 
     func.bwds(weights, biases, x, y)
@@ -85,7 +82,7 @@ void inc(float amount, inout float val) { val += amount; }
     function(amount, val)
     assert np.allclose(val.to_numpy(), amount.to_numpy())
 
-    with pytest.raises(ValueError, match="inout param"):
+    with pytest.raises(Exception, match="inout param"):
         function.bwds(amount, val)
 
 

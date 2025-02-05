@@ -28,7 +28,7 @@ elif sys.platform == "darwin":
 else:
     raise RuntimeError("Unsupported platform")
 
-DEVICE_CACHE: dict[DeviceType, Device] = {}
+DEVICE_CACHE: dict[tuple[DeviceType, bool], Device] = {}
 
 # Enable this to make tests just run on d3d12 for faster testing
 # DEFAULT_DEVICE_TYPES = [DeviceType.d3d12]
@@ -42,8 +42,9 @@ def test_id(request: Any):
 
 # Helper to get device of a given type
 def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = False) -> Device:
-    if use_cache and type in DEVICE_CACHE:
-        return DEVICE_CACHE[type]
+    cache_key = (type, cuda_interop)
+    if use_cache and cache_key in DEVICE_CACHE:
+        return DEVICE_CACHE[cache_key]
     device = Device(
         type=type,
         enable_debug_layers=sys.platform == "win32",
@@ -57,7 +58,7 @@ def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = Fa
     )
     device.run_garbage_collection()
     if use_cache:
-        DEVICE_CACHE[type] = device
+        DEVICE_CACHE[cache_key] = device
     return device
 
 # Helper that creates a module from source (if not already loaded) and returns

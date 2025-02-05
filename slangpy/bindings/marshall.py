@@ -3,7 +3,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-from slangpy.core.native import CallMode, NativeType
+from slangpy.core.native import CallMode, NativeMarshall
 
 from slangpy.bindings.codegen import CodeGenBlock
 
@@ -52,7 +52,7 @@ class ReturnContext:
         self.bind_context = bind_context
 
 
-class Marshall(NativeType):
+class Marshall(NativeMarshall):
     """
     Base class for a type marshall that describes how to pass a given type to/from a
     SlangPy kernel. When a kernel is generated, a marshall is instantiated for each
@@ -69,39 +69,43 @@ class Marshall(NativeType):
     @property
     def has_derivative(self) -> bool:
         """
-        Does value have a derivative.
+        Does value have a derivative. Default: False
         """
-        return False
+        return super().has_derivative
 
     @property
     def is_writable(self) -> bool:
         """
-        Is value writable.
+        Is value writable. Default: False
         """
-        return False
+        return super().is_writable
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         """
         Generate the code for the uniforms that will represent this value in the kernel.
+        Raises exception if not overriden.
         """
-        raise NotImplementedError()
+        return super().gen_calldata(cgb, context, binding)
 
     def reduce_type(self, context: BindContext, dimensions: int) -> 'SlangType':
         """
         Get the slang type for this variable when a given number of dimensions 
         are removed. i.e. if the variable is a matrix, reduce_type(1) would
-        return a vector, and reduce_type(2) would return a scalar.
+        return a vector, and reduce_type(2) would return a scalar. Raises
+        exception if needed and not overriden.
         """
-        raise NotImplementedError()
+        res = super().reduce_type(context, dimensions)
+        assert isinstance(res, SlangType)
+        return res
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         """
         Return the slang type for this variable when passed to a parameter
         of the given type. Default behaviour simply attempts to pass its own type,
-        but more complex behaviour can be added to support implicit casts.
+        but more complex behaviour can be added to support implicit casts. Default to just 
+        casting to itself (i.e. no implicit cast)
         """
-        # Default to just casting to itself (i.e. no implicit cast)
-        return self.slang_type
+        return super().resolve_type(context, bound_type)
 
     def resolve_dimensionality(self, context: BindContext, binding: 'BoundVariable', vector_target_type: 'SlangType'):
         """
@@ -112,7 +116,4 @@ class Marshall(NativeType):
         Default implementation simply returns the difference between the dimensionality of this
         type and the target type.
         """
-        if self.slang_type is None:
-            raise ValueError(
-                f"Cannot resolve dimensionality of {type(self)} without slang type")
-        return len(self.slang_type.shape) - len(vector_target_type.shape)
+        return super().resolve_dimensionality(context, binding, vector_target_type)

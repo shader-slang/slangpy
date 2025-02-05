@@ -134,8 +134,10 @@ class SlangType(NativeSlangType):
                  local_shape: Shape = Shape(None)):
         super().__init__()
 
+        #: Underlying SGL TypeReflection for this type.
+        self.type_reflection = refl
+
         self._program = program
-        self._reflection = refl
         self._element_type = element_type
 
         self._cached_fields: Optional[dict[str, SlangField]] = None
@@ -143,19 +145,20 @@ class SlangType(NativeSlangType):
         self._cached_uniform_layout: Optional[SlangLayout] = None
         self._cached_buffer_layout: Optional[SlangLayout] = None
 
+        # Native shape storage
         if self._element_type == self:
-            self._cached_shape = local_shape
+            self.shape = local_shape
         elif local_shape.valid and self._element_type is not None:
-            self._cached_shape = local_shape + self._element_type.shape
+            self.shape = local_shape + self._element_type.shape
         else:
-            self._cached_shape = local_shape
+            self.shape = local_shape
 
     def on_hot_reload(self, refl: TypeReflection):
         """
         Called when the type reflection is hot reloaded. Stores updated reflection and clears 
         cached data.
         """
-        self._reflection = refl
+        self.type_reflection = refl
         self._cached_fields = None
         self._cached_differential = None
         self._cached_uniform_layout = None
@@ -169,26 +172,19 @@ class SlangType(NativeSlangType):
         return self._program
 
     @property
-    def type_reflection(self) -> TypeReflection:
-        """
-        Underlying SGL TypeReflection for this type.
-        """
-        return self._reflection
-
-    @property
     def name(self) -> str:
         """
         Short name of this type. For generics, this
         will not include the generic arguments.
         """
-        return self._reflection.name
+        return self.type_reflection.name
 
     @property
     def full_name(self) -> str:
         """
         Fully qualified name of this type.
         """
-        return self._reflection.full_name
+        return self.type_reflection.full_name
 
     @property
     def element_type(self) -> Optional[SlangType]:
@@ -196,6 +192,9 @@ class SlangType(NativeSlangType):
         Element type for arrays, vectors, matrices, etc.
         """
         return self._element_type
+
+    def _py_element_type(self) -> Optional[SlangType]:
+        return self.element_type
 
     @property
     def fields(self) -> dict[str, SlangField]:
@@ -205,18 +204,14 @@ class SlangType(NativeSlangType):
         return self._get_fields()
 
     @property
-    def shape(self) -> Shape:
-        """
-        Shape of this type.
-        """
-        return self._cached_shape
-
-    @property
     def differentiable(self) -> bool:
         """
         Whether this type is differentiable.
         """
         return self._get_differential() is not None
+
+    def _py_has_derivative(self) -> bool:
+        return self.differentiable
 
     @property
     def derivative(self) -> SlangType:
@@ -229,6 +224,9 @@ class SlangType(NativeSlangType):
             return res
         else:
             raise ValueError(f"Type {self.full_name} is not differentiable")
+
+    def _py_derivative(self):
+        return self.derivative
 
     @property
     def num_dims(self) -> int:
@@ -250,6 +248,12 @@ class SlangType(NativeSlangType):
             self._cached_uniform_layout = SlangLayout(sl)
         return self._cached_uniform_layout
 
+    def _py_uniform_type_layout(self) -> TypeLayoutReflection:
+        """
+        Native accessor for uniform layout reflection.
+        """
+        return self.uniform_layout.reflection
+
     @property
     def buffer_layout(self) -> SlangLayout:
         """
@@ -264,6 +268,12 @@ class SlangType(NativeSlangType):
             buffer_layout = self._program.program_layout.get_type_layout(buffer_type)
             self._cached_buffer_layout = SlangLayout(buffer_layout.element_type_layout)
         return self._cached_buffer_layout
+
+    def _py_buffer_type_layout(self) -> TypeLayoutReflection:
+        """
+        Native accessor for buffer layout reflection.
+        """
+        return self.buffer_layout.reflection
 
     def build_differential_type(self) -> Optional[SlangType]:
         """
@@ -320,7 +330,7 @@ class ScalarType(SlangType):
         """
         Slang scalar type id.
         """
-        return self._reflection.scalar_type
+        return self.type_reflection.scalar_type
 
 
 class VectorType(SlangType):
@@ -633,13 +643,6 @@ class SlangFunction:
         Name of this function.
         """
         return self._reflection.name
-
-    @property
-    def full_name(self) -> str:
-        """
-        Fully qualified name of this function, including generic arguments (if any).
-        """
-        return self._full_name
 
     @property
     def full_name(self) -> str:
@@ -1167,7 +1170,7 @@ def can_convert_to_int(value: Any):
         return False
 
 
-TGenericArgs = Optional[tuple[int | SlangType, ...]]
+TGenericArgs = Optional[tuple[Union[int, SlangType], ...]]
 
 #: Mapping from a type name to a callable that creates a SlangType from a TypeReflection.
 #: This can be used to extend the type system and wrap custom types in their own reflection types.

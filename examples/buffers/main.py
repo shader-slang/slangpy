@@ -14,8 +14,8 @@ device = spy.create_device(include_paths=[
 module = spy.Module.load_from_file(device, "example.slang")
 
 # Create a couple of 2D 16x16 buffers
-image_1 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
-image_2 = spy.NDBuffer(device, element_type=module.Pixel, shape=(16, 16))
+image_1 = spy.NDBuffer(device, dtype=module.Pixel, shape=(16, 16))
+image_2 = spy.NDBuffer(device, dtype=module.Pixel, shape=(16, 16))
 
 # Use a cursor to fill the first buffer with readable structured data.
 cursor_1 = image_1.cursor()
@@ -30,7 +30,7 @@ cursor_1.apply()
 
 # Use the fact that we know the buffers are just 16x16 grids of 3 floats
 # to just populate the 2nd buffer straight from random numpy array
-image_2.from_numpy(0.1*np.random.rand(16*16*3).astype(np.float32))
+image_2.copy_from_numpy(0.1*np.random.rand(16*16*3).astype(np.float32))
 
 # Call the module's add function
 result = module.add(image_1, image_2)

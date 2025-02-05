@@ -94,8 +94,8 @@ Instance Lists
     particles = spy.InstanceList(
         struct=module.Particle.as_struct(),
         data={
-            "position": spy.NDBuffer(device, element_type=module.float3, shape=(10,)),
-            "velocity": spy.NDBuffer(device, element_type=module.float3, shape=(10,))
+            "position": spy.NDBuffer(device, dtype=module.float3, shape=(10,)),
+            "velocity": spy.NDBuffer(device, dtype=module.float3, shape=(10,))
         }
     )
 
@@ -106,7 +106,7 @@ The calls to ``construct`` and ``update`` will remain identical, however SlangPy
 Inheriting InstanceList
 -----------------------
 
-``InstanceList`` is able to distingish between Slang fields and Python attributes, and thus supports Python-side inheritance, enabling you to extend its functionality with custom attribues and methods.
+``InstanceList`` is able to distingish between Slang fields and Python attributes, and thus supports Python-side inheritance, enabling you to extend its functionality with custom attributes and methods.
 
 .. code-block:: python
 
@@ -116,8 +116,8 @@ Inheriting InstanceList
         def __init__(self, name: str, count: int):
             super().__init__(module.Particle.as_struct())
             self.name = name
-            self.position = spy.NDBuffer(device, element_type=module.float3, shape=(count,))
-            self.velocity = spy.NDBuffer(device, element_type=module.float3, shape=(count,))
+            self.position = spy.NDBuffer(device, dtype=module.float3, shape=(count,))
+            self.velocity = spy.NDBuffer(device, dtype=module.float3, shape=(count,))
 
         def print_particles(self):
             print(self.name)
@@ -139,5 +139,5 @@ This example demonstrated:
 - Inheriting and extending `InstanceList` in Python.
 
 ``InstanceBuffer`` especially is a very lightweight wrapper, and can be used interchangeably with normal 
-``NDBuffers``. As a result, favouring the use of an ``InstanceBuffer`` unless you have a good reason 
+``NDBuffers``. As a result, favoring the use of an ``InstanceBuffer`` unless you have a good reason
 not to is generally recommended.

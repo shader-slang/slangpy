@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 import numpy.typing as npt
 
-from slangpy.core.function import Function
+from slangpy.core.function import FunctionNode
 from slangpy.core.struct import Struct
 
 from slangpy.types.buffer import NDBuffer
@@ -20,7 +20,7 @@ class InstanceList:
         super().__init__()
         if data is None:
             data = {}
-        self._loaded_functions: dict[str, Function] = {}
+        self._loaded_functions: dict[str, FunctionNode] = {}
         self.set_data(data)
         self._struct = struct
         self._init = self._try_load_func("__init")
@@ -81,7 +81,7 @@ class InstanceList:
 
     def _try_load_func(self, name: str):
         func = self._struct.try_get_child(name)
-        if isinstance(func, Function):
+        if isinstance(func, FunctionNode):
             if name != "__init":
                 func = func.bind(self)
             self._loaded_functions[name] = func
@@ -124,8 +124,8 @@ class InstanceBuffer(InstanceList):
         """
         return self.buffer.to_numpy()
 
-    def from_numpy(self, data: npt.ArrayLike):
+    def copy_from_numpy(self, data: npt.ArrayLike):
         """
         Set the buffer from a numpy array.
         """
-        self.buffer.from_numpy(data)
+        self.buffer.copy_from_numpy(data)
