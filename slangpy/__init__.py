@@ -25,6 +25,9 @@ from .torchintegration import TORCH_ENABLED
 if TORCH_ENABLED:
     from .torchintegration import TorchModule
 
+# Debug options for call data gen
+from .core.calldata import set_dump_generated_shaders, set_dump_slang_intermediates
+
 # Core slangpy interface
 from .core.function import Function
 from .core.struct import Struct

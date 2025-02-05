@@ -33,14 +33,19 @@ DEVICE_CACHE: dict[tuple[DeviceType, bool], Device] = {}
 # Enable this to make tests just run on d3d12 for faster testing
 # DEFAULT_DEVICE_TYPES = [DeviceType.d3d12]
 
+# Always dump stuff when testing
+slangpy.set_dump_generated_shaders(True)
 
 # Returns a unique random 16 character string for every variant of every test.
+
+
 @pytest.fixture
 def test_id(request: Any):
     return hashlib.sha256(request.node.nodeid.encode()).hexdigest()[:16]
 
-
 # Helper to get device of a given type
+
+
 def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = False) -> Device:
     cache_key = (type, cuda_interop)
     if use_cache and cache_key in DEVICE_CACHE:

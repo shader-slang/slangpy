@@ -21,6 +21,25 @@ if TYPE_CHECKING:
 
 SLANG_PATH = Path(__file__).parent.parent / "slang"
 
+_DUMP_GENERATED_SHADERS = False
+_DUMP_SLANG_INTERMEDIATES = False
+
+
+def set_dump_generated_shaders(value: bool):
+    """
+    Specify whether to dump generated shaders to .temp for analysis.
+    """
+    global _DUMP_GENERATED_SHADERS
+    _DUMP_GENERATED_SHADERS = value
+
+
+def set_dump_slang_intermediates(value: bool):
+    """
+    Specify whether to dump slang compiler intermediates for analysis.
+    """
+    global _DUMP_SLANG_INTERMEDIATES
+    _DUMP_SLANG_INTERMEDIATES = value
+
 
 def unpack_arg(arg: Any) -> Any:
     if hasattr(arg, "get_this"):
@@ -142,26 +161,27 @@ class CallData(NativeCallData):
                                   trampoline=True, context=True, snippets=True,
                                   call_data_structs=True, constants=True)
 
-            # Write the shader to a file for debugging.
-            os.makedirs(".temp", exist_ok=True)
-            santized_module = re.sub(r"[<>, ./]", "_", build_info.module.name)
-            sanitized = re.sub(r"[:<>, ./]", "_", build_info.name)
-            fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}"
-            # Some platforms have path length limits that are easily exceeded with nested generics
-            # Be a good citizen here and limit the length of what we generate
-            length_limit = 200
-            if len(fn) > length_limit:
-                fn = fn[:length_limit]
-            fn = fn + ".slang"
+            # Optionally write the shader to a file for debugging.
+            sanitized = ""
+            if _DUMP_GENERATED_SHADERS or _DUMP_SLANG_INTERMEDIATES:
+                os.makedirs(".temp", exist_ok=True)
+                santized_module = re.sub(r"[<>, ./]", "_", build_info.module.name)
+                sanitized = re.sub(r"[:<>, ./]", "_", build_info.name)
+                fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}"
+                # Some platforms have path length limits that are easily exceeded with nested generics
+                # Be a good citizen here and limit the length of what we generate
+                length_limit = 200
+                if len(fn) > length_limit:
+                    fn = fn[:length_limit]
+                fn = fn + ".slang"
 
-            # with open(fn,"r") as f:
-            #    code = f.read()
-
-            with open(fn, "w",) as f:
-                f.write("/*\n")
-                f.write(bound_call_table(bindings))
-                f.write("\n*/\n")
-                f.write(code)
+                # with open(fn,"r") as f:
+                #    code = f.read()
+                with open(fn, "w",) as f:
+                    f.write("/*\n")
+                    f.write(bound_call_table(bindings))
+                    f.write("\n*/\n")
+                    f.write(code)
 
             # Hash the code to get a unique identifier for the module.
             # We add type conformances to the start of the code to ensure that the hash is unique
@@ -182,7 +202,8 @@ class CallData(NativeCallData):
                 module = session.load_module_from_source(hash, code)
                 ep = module.entry_point(f"main", type_conformances)
                 opts = SlangLinkOptions()
-                # opts.dump_intermediates = False
+                opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
+                opts.dump_intermediates_prefix = sanitized
                 program = session.link_program(
                     [module, build_info.module.device_module]+build_info.module.link, [ep], opts)
                 self.kernel = device.create_compute_kernel(program)
