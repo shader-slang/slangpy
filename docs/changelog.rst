@@ -1,6 +1,9 @@
 Changelog
 ---------
 
+**Version 0.19.4**
+- Fix grid issue
+
 **Version 0.19.3**
 - Update SGL -> 0.12.4
 - Significant improvements to generator types 
