@@ -3,6 +3,7 @@
 from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable,
                               CodeGenBlock, Shape)
+from slangpy.experimental.gridarg import grid
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 
 from typing import Any, Union
@@ -31,6 +32,8 @@ def call_id(dims: int = -1):
     """
     Create a ThreadIdArg to pass to a SlangPy function, which passes the thread id.
     """
+    if isinstance(dims, tuple):
+        return grid(shape=dims)
     return CallIdArg(dims)
 
 
