@@ -4,7 +4,11 @@ import pytest
 
 import slangpy.tests.helpers as helpers
 from slangpy import InstanceBuffer, Module
-from slangpy.backend import DeviceType, Format, ResourceType, ResourceUsage
+from slangpy.backend import DeviceType, Format, ResourceType, ResourceUsage, Texture
+from slangpy.types import NDBuffer
+from slangpy.reflection import ScalarType
+from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
+from slangpy.types.tensor import _slang_to_numpy
 
 
 def load_test_module(device_type: DeviceType):
@@ -478,6 +482,61 @@ def test_texture_3d_shapes(device_type: DeviceType, shape: tuple[int, ...]):
     copied = module.return_value(tex, _result='numpy')
 
     assert np.allclose(copied, tex_data)
+
+
+@pytest.mark.parametrize("texel_name", ["uint8_t", "uint16_t", "int8_t", "int16_t", "float", "half", "uint"])
+@pytest.mark.parametrize("dims", [1, 2, 3])
+@pytest.mark.parametrize("channels", [1, 2, 4])
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: int, channels: int):
+    if texel_name in ("uint8_t", "int8_t") and device_type == DeviceType.d3d12:
+        pytest.skip("8-bit types not supported by DXC")
+
+    m = load_test_module(device_type)
+    assert m is not None
+
+    texel_dtype = m[texel_name].struct
+    assert isinstance(texel_dtype, ScalarType)
+
+    shape = (64, 32, 16)[:dims]
+    if texel_name == "uint":
+        data = np.random.randint(255, size=shape + (channels, ))
+    else:
+        data = np.random.random(shape + (channels, ))
+    np_dtype = _slang_to_numpy(texel_dtype)
+    data = data.astype(np_dtype)
+
+    dtype = texel_name if channels == 1 else f"{texel_name}{channels}"
+    buffer = NDBuffer(m.device, dtype, shape=shape)
+    buffer.copy_from_numpy(data)
+
+    result = m.passthru.map(buffer.dtype)(buffer, _result=Texture)
+
+    assert isinstance(result, Texture)
+    if dims == 1:
+        assert result.type == ResourceType.texture_1d
+        assert result.width == buffer.shape[0]
+    elif dims == 2:
+        assert result.type == ResourceType.texture_2d
+        assert result.width == buffer.shape[0]
+        assert result.height == buffer.shape[1]
+    elif dims == 3:
+        assert result.type == ResourceType.texture_3d
+        assert result.width == buffer.shape[0]
+        assert result.height == buffer.shape[1]
+        assert result.depth == buffer.shape[2]
+
+    expected_format = SCALARTYPE_TO_TEXTURE_FORMAT[texel_dtype.slang_scalar_type][channels - 1]
+    assert expected_format is not None
+    assert result.format == expected_format
+
+    result_np = result.to_numpy()
+    order = list(reversed(range(dims)))
+    if channels > 1:
+        order += [dims]
+    result_np = result_np.transpose(order)
+
+    assert np.allclose(result_np, data.squeeze())
 
 
 if __name__ == "__main__":

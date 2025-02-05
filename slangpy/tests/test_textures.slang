@@ -37,3 +37,8 @@ void copy_pixel_texture_3d(int3 position, Texture3D<float4> src, RWTexture3D<flo
 void copy_pixel_texture_cube(int3 position, TextureCube<float4> src, RWTexture3D<float4> dst)
 {
 }
+
+T passthru<T>(T t)
+{
+    return t;
+}
