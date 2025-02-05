@@ -515,16 +515,16 @@ def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: in
     assert isinstance(result, Texture)
     if dims == 1:
         assert result.type == ResourceType.texture_1d
-        assert result.width == buffer.shape[0]
+        assert result.width == buffer.shape[dims-1]
     elif dims == 2:
         assert result.type == ResourceType.texture_2d
-        assert result.width == buffer.shape[0]
-        assert result.height == buffer.shape[1]
+        assert result.width == buffer.shape[dims-1]
+        assert result.height == buffer.shape[dims-2]
     elif dims == 3:
         assert result.type == ResourceType.texture_3d
-        assert result.width == buffer.shape[0]
-        assert result.height == buffer.shape[1]
-        assert result.depth == buffer.shape[2]
+        assert result.width == buffer.shape[dims-1]
+        assert result.height == buffer.shape[dims-2]
+        assert result.depth == buffer.shape[dims-3]
 
     expected_format = SCALARTYPE_TO_TEXTURE_FORMAT[texel_dtype.slang_scalar_type][channels - 1]
     assert expected_format is not None
@@ -534,7 +534,7 @@ def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: in
     order = list(reversed(range(dims)))
     if channels > 1:
         order += [dims]
-    result_np = result_np.transpose(order)
+    # result_np = result_np.transpose(order)
 
     assert np.allclose(result_np, data.squeeze())
 
