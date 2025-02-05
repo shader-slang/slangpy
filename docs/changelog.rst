@@ -1,6 +1,12 @@
 Changelog
 ---------
 
+**Version 0.19.2**
+- Update SGL -> 0.12.3
+- Better error messages during generation
+- Fix corrupt error tables 
+- Restore detailed error information during dispatch
+
 **Version 0.19.1**
 - Update SGL -> 0.12.2
 - Fix major issue with texture transposes

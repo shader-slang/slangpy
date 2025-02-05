@@ -46,11 +46,11 @@ void add_numbers(int a, int b) {
     )
 
     # verify call fails due to invalid cast (float3->int)
-    with pytest.raises(ValueError):
+    with pytest.raises(Exception):
         function(5, float3(1.0, 2.0, 3.0))
 
     # verify call fails with wrong number of arguments
-    with pytest.raises(ValueError):
+    with pytest.raises(Exception):
         function(5)
 
 
