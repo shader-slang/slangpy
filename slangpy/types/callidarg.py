@@ -40,11 +40,16 @@ class CallIdArgMarshall(Marshall):
     def __init__(self, layout: SlangProgramLayout, dims: int):
         super().__init__(layout)
         self.dims = dims
+
+        # Find slang type
         st = layout.find_type_by_name(f"CallIdArg<{self.dims}>")
         if st is None:
             raise ValueError(
                 f"Could not find CallIdArg slang type. This usually indicates the callidarg module has not been imported.")
         self.slang_type = st
+
+        # Call id arg enforces a dimensionality, but size is inferred at call time
+        self.concrete_shape = Shape((-1,)*dims)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         access = binding.access
@@ -53,12 +58,16 @@ class CallIdArgMarshall(Marshall):
             cgb.type_alias(f"_t_{name}", self.slang_type.full_name)
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
+        # CallId arg always returns uint32 vector
         return context.layout.vector_type(TypeReflection.ScalarType.uint32, self.dims)
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+        # CallId arg can only ever have the dimensionality associated with it
         return self.dims
 
     def get_shape(self, value: Any = None) -> Shape:
+        # If explicit shape is known, use that. Otherwise return the
+        # partially resolved shape so SlangPy infers it from call context.
         if isinstance(value, CallIdArg) and value.shape:
             return value.shape
         else:

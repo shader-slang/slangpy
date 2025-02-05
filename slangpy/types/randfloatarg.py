@@ -43,7 +43,9 @@ class RandFloatArgMarshall(Marshall):
             raise ValueError(
                 f"Could not find RandFloatArg slang type. This usually indicates the randfloatarg module has not been imported.")
         self.slang_type = st
-        self.concrete_shape = Shape(self.dims)
+
+        # Rand float arg is always a vector, but size is defined by the call
+        self.concrete_shape = Shape(-1)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         access = binding.access
@@ -65,6 +67,7 @@ class RandFloatArgMarshall(Marshall):
         return context.layout.vector_type(TypeReflection.ScalarType.float32, self.dims)
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+        # Rand float arg is a vector (dimensionality = 1), so subtract target type dimensionality from 1
         return 1 - len(vector_target_type.shape)
 
 
