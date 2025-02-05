@@ -206,6 +206,7 @@ def mismatch_info(call: 'BoundCall', reflections: list[FunctionReflection]):
     text.append("")
     text.append(f"Python arguments:")
     text.append(f"{bound_call_table(call)}")
+    text.append(f"For help and support: https://khr.io/slangdiscord")
 
     return "\n".join(text)
 
@@ -214,9 +215,14 @@ def bound_exception_info(call: 'BoundCall', concrete_reflection: FunctionReflect
     text: list[str] = []
 
     text.append(f"Selected overload:")
-    text.append(f"{function_reflection(concrete_reflection)}")
+    text.append(f"  {function_reflection(concrete_reflection)}")
     text.append("")
+    if variable is not None and variable.name != "":
+        text.append(f"Error caused by argument: {variable.name}")
+        text.append("")
     text.append(f"Python arguments:")
     text.append(f"{bound_call_table(call, highlight=variable)}")
+    text.append("")
+    text.append(f"For help and support: https://khr.io/slangdiscord")
 
     return "\n".join(text)
