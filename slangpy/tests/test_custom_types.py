@@ -18,14 +18,20 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
     inttype = 'int' if signed else 'uint'
 
     if dimensions > 0:
+        # If dimensions > 0, test passing explicit dimensions into corresponding vector type
         type_name = f"{inttype}{dimensions}"
         elements = dimensions
+        dims = dimensions
     elif dimensions == 0:
+        # If dimensions == 0, test passing 1D value into corresponding scalar type
         type_name = inttype
         elements = 1
+        dims = 1
     else:
+        # If dimensions == -1, test passing undefined dimensions to 3d vector type
         type_name = f"{inttype}3"
         elements = 3
+        dims = -1
 
     # Create function that just dumps input to output
     device = helpers.get_device(device_type)
@@ -46,7 +52,7 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
 
     # Call function with 3D thread arg. Pass results in, so it forces
     # a call shape.
-    kernel_output_values(thread_id(dimensions), _result=results)
+    kernel_output_values(thread_id(dims), _result=results)
 
     # Should get out the thread ids
     data = results.storage.to_numpy().view("int32").reshape((-1, elements))
