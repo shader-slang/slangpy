@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # pyright: reportUnusedImport=false
 # isort: skip_file
 from .core.utils import create_device

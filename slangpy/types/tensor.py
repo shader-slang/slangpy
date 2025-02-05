@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
 from slangpy.backend import Device, Buffer, ResourceUsage, TypeReflection, uint4, BufferCursor, CommandBuffer
