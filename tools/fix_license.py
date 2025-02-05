@@ -34,7 +34,7 @@ def process_file(file: Path):
 
 
 def run(root: Path):
-    files = list(root.glob("**/*.py"))
+    files = list(root.glob("**/*.*"))
 
     for file in files:
         process_file(file)
