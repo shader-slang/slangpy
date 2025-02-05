@@ -68,7 +68,7 @@ def _generate_table_recurse(data: list[Any], columns: list[TableColumn], depth: 
         row_str = " | ".join(cols)
 
         if row == highlight:
-            row_str = f"\033[1;32;40m{row_str}\033[0m"
+            row_str += "<-------"
 
         rows.append(row_str)
         children = children_id(row)
@@ -139,7 +139,7 @@ def bound_call_table(data: 'BoundCall', highlight: Optional['BoundVariable'] = N
 def bound_runtime_variables_table(data: list['BoundVariableRuntime'], highlight: Optional['BoundVariableRuntime'] = None, filter: Optional[dict[str, bool]] = None):
     columns = [
         TableColumn("Name", 20, lambda x: _pyarg_name(x._source_for_exceptions.name)),
-        TableColumn("Index", 10, "param_index"),
+        TableColumn("Index", 10, lambda x: x._source_for_exceptions.param_index),
         TableColumn("PyType", 30, lambda x: _type_name(x._source_for_exceptions.python)),
         TableColumn("SlType", 30, lambda x: _type_name(
             x._source_for_exceptions.slang_type)),
@@ -206,6 +206,7 @@ def mismatch_info(call: 'BoundCall', reflections: list[FunctionReflection]):
     text.append("")
     text.append(f"Python arguments:")
     text.append(f"{bound_call_table(call)}")
+    text.append(f"For help and support: https://khr.io/slangdiscord")
 
     return "\n".join(text)
 
@@ -214,9 +215,14 @@ def bound_exception_info(call: 'BoundCall', concrete_reflection: FunctionReflect
     text: list[str] = []
 
     text.append(f"Selected overload:")
-    text.append(f"{function_reflection(concrete_reflection)}")
+    text.append(f"  {function_reflection(concrete_reflection)}")
     text.append("")
+    if variable is not None and variable.name != "":
+        text.append(f"Error caused by argument: {variable.name}")
+        text.append("")
     text.append(f"Python arguments:")
     text.append(f"{bound_call_table(call, highlight=variable)}")
+    text.append("")
+    text.append(f"For help and support: https://khr.io/slangdiscord")
 
     return "\n".join(text)

@@ -25,6 +25,12 @@ class MismatchReason:
         self.reason = reason
 
 
+class ResolveException(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
 class KernelGenException(Exception):
     def __init__(self, message: str):
         super().__init__(message)
@@ -84,7 +90,7 @@ def specialize(
 
     if signature.num_function_kwargs > 0 or signature.has_implicit_args:
         if function.is_overloaded:
-            return MismatchReason("Call an overloaded function with named or implicit arguments is not currently supported.")
+            return MismatchReason("Calling an overloaded function with named or implicit arguments is not currently supported.")
 
         function_parameters = [x for x in function.parameters]
 
@@ -195,14 +201,18 @@ def validate_specialize(
                 f"After implicit casting, cannot convert {input} to TypeReflection.")
 
     types = [to_type_reflection(x.vector_type) for x in root_params]
-    if any(x is None for x in types):
-        raise KernelGenException(
-            "After implicit casting, unable to resolve all Slang types for specialization overload resolution.")
+    for (type, param) in zip(types, root_params):
+        if type is None:
+            raise KernelGenException(
+                f"After implicit casting, unable to find reflection data for {param.variable_name}"
+                "This typically suggests the binding system has attempted to generate an invalid Slang type.")
 
     specialized = function.reflection.specialize_with_arg_types(types)
     if specialized is None:
         raise KernelGenException(
-            "After implicit casting, no Slang overload found that matches the provided Python argument types.")
+            "After implicit casting, no Slang overload found that matches the provided Python argument types. "
+            "This typically suggests SlangPy selected an overload to call, but couldn't find a valid "
+            "way to pass your Python arguments to it.")
 
 
 def bind(

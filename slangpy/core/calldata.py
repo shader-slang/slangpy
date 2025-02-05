@@ -108,13 +108,13 @@ class CallData(NativeCallData):
             slang_function = specialize(
                 context, bindings, build_info.reflections, build_info.type_reflection)
             if isinstance(slang_function, MismatchReason):
-                raise KernelGenException(
+                raise ResolveException(
                     f"Function signature mismatch: {slang_function.reason}\n\n"
                     f"{mismatch_info(bindings, build_info.reflections)}\n")
 
             # Check for differentiability error
             if not slang_function.differentiable and self.call_mode != CallMode.prim:
-                raise KernelGenException(
+                raise ResolveException(
                     f"Could not call function '{function.name}': Function is not differentiable\n\n"
                     f"{mismatch_info(bindings, build_info.reflections)}\n")
 
@@ -220,17 +220,17 @@ class CallData(NativeCallData):
                     slang_function, SlangFunction) else build_info.reflections[0]
                 raise ValueError(
                     f"{e.message}\n\n"
-                    f"{bound_exception_info(bindings, ref, e.variable)}\n")
+                    f"{bound_exception_info(bindings, ref, e.variable)}\n") from e
             else:
-                raise e
+                raise
         except SlangCompileError as e:
             if bindings is not None:
                 ref = slang_function.reflection if isinstance(
                     slang_function, SlangFunction) else build_info.reflections[0]
                 raise ValueError(
-                    f"Slang compilation error: {e}\n. See .temp directory for generated shader.\n"
-                    f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n"
-                    f"{bound_exception_info(bindings, ref, None)}\n")
+                    f"Slang compilation error: {e}\n. Use set_dump_generated_shaders to enable dump generated shader to .temp.\n"
+                    f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n\n"
+                    f"{bound_exception_info(bindings, ref, None)}\n") from e
             else:
                 raise e
         except KernelGenException as e:
@@ -238,16 +238,19 @@ class CallData(NativeCallData):
                 ref = slang_function.reflection if isinstance(
                     slang_function, SlangFunction) else build_info.reflections[0]
                 raise ValueError(
-                    f"Exception in kernel generation: {e.message}\n."
-                    f"{bound_exception_info(bindings, ref, None)}\n")
+                    f"Exception in kernel generation: {e.message}.\n\n"
+                    f"{bound_exception_info(bindings, ref, None)}\n") from e
             else:
                 raise e
+        except ResolveException as e:
+            # Triggered from within calldata, doesn't need augmenting
+            raise e
         except Exception as e:
             if bindings is not None:
                 ref = slang_function.reflection if isinstance(
                     slang_function, SlangFunction) else build_info.reflections[0]
                 raise ValueError(
-                    f"Exception in kernel generation: {e}\n."
-                    f"{bound_exception_info(bindings, ref, None)}\n")
+                    f"Exception in kernel generation: {e}.\n"
+                    f"{bound_exception_info(bindings, ref, None)}\n") from e
             else:
                 raise e
