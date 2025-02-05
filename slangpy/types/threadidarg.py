@@ -7,6 +7,7 @@ from slangpy.core.utils import is_type_castable_on_host
 from slangpy.core.native import NativeObject
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 from slangpy.reflection.reflectiontypes import ScalarType, VectorType
+from slangpy.types.helpers import resolve_vector_generator_type
 
 
 class ThreadIdArg(NativeObject):
@@ -48,31 +49,7 @@ class ThreadIdArgMarshall(Marshall):
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         # Thread id arg is valid to pass to vector or scalar integer types.
-        if isinstance(bound_type, VectorType):
-            if bound_type.num_elements > 3:
-                raise ValueError(
-                    f"Thread id argument must be a vector of size 1, 2 or 3. Got {bound_type.num_elements}.")
-            if self.dims != -1 and self.dims != bound_type.num_elements:
-                raise ValueError(
-                    f"Thread id argument must be a vector of size {self.dims}. Got {bound_type.num_elements}.")
-            resolved_type = context.layout.vector_type(
-                TypeReflection.ScalarType.int32, bound_type.shape[0])
-            if not is_type_castable_on_host(resolved_type, bound_type):
-                raise ValueError(
-                    f"Unable to convert thread id argument of type {resolved_type.full_name} to {bound_type.full_name}.")
-            return bound_type
-        elif isinstance(bound_type, ScalarType):
-            if self.dims != -1 and self.dims != 1:
-                raise ValueError(
-                    f"Thread id argument must be a scalar or vector of size {self.dims}. Got {bound_type.full_name}.")
-            resolved_type = context.layout.scalar_type(TypeReflection.ScalarType.int32)
-            if not is_type_castable_on_host(resolved_type, bound_type):
-                raise ValueError(
-                    f"Unable to convert thread id argument of type {resolved_type.full_name} to {bound_type.full_name}.")
-            return bound_type
-        else:
-            raise ValueError(
-                f"Thread id argument must be a scalar or vector type. Got {bound_type.full_name}.")
+        return resolve_vector_generator_type(context, bound_type, self.dims, TypeReflection.ScalarType.int32)
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
         # Thread id arg is generated for every thread and has no effect on call shape,

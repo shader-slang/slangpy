@@ -354,10 +354,15 @@ class BoundVariable:
                     self.vector_mapping.as_tuple())+1
             else:
                 self.call_dimensionality = 0
+        elif self.python.match_call_shape:
+            self.call_dimensionality = -1
         else:
             assert self.vector_type is not None
             self.call_dimensionality = self.python.resolve_dimensionality(
                 context, self, self.vector_type)
+            if self.call_dimensionality < 0:
+                raise BoundVariableException(
+                    f"Could not resolve dimensionality for {self.path}", self)
 
     def finalize_mappings(self, context: BindContext):
         """
@@ -369,6 +374,9 @@ class BoundVariable:
         self._finalize_mappings(context)
 
     def _finalize_mappings(self, context: BindContext):
+        if self.call_dimensionality == -1:
+            self.call_dimensionality = context.call_dimensionality
+
         if context.options['strict_broadcasting'] and self.children is None and not self.explicitly_vectorized:
             if self.call_dimensionality != 0 and self.call_dimensionality != context.call_dimensionality:
                 raise BoundVariableException(
