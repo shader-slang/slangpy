@@ -38,6 +38,7 @@ Changelog
 - Rename from_numpy to buffer_from_numpy
 
 **Version 0.18.1**
+
 - Fix Python 3.9 typing
 
 **Version 0.18.0**
