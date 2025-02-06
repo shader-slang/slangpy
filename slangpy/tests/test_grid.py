@@ -46,9 +46,8 @@ def grid_test(device_type: DeviceType, dims: int = 2, datatype: str = 'array', s
         if stride == 1:
             module.get(grid(shape, offset=offsets), _result=res)
         else:
-            full_shape = tuple([s*stride for s in shape])
             strides = tuple([stride for s in shape])
-            module.get(grid(full_shape, stride=strides, offset=offsets), _result=res)
+            module.get(grid(shape, stride=strides, offset=offsets), _result=res)
     else:
         if stride == 1:
             module.get(grid(len(shape), offset=offsets), _result=res)

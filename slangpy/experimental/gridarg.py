@@ -78,7 +78,7 @@ class GridArgMarshall(Marshall):
     def get_shape(self, data: GridArg):
         # For each dimension, if a concrete size is known, shape is size/stride, otherwise it is
         # left as 1 and broadcast to every dimension
-        t = [data.shape[i]//data.stride[i] if data.shape[i] >= 0 else 1 for i in range(self.dims)]
+        t = [data.shape[i] if data.shape[i] >= 0 else 1 for i in range(self.dims)]
         return Shape(tuple(t))
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):

@@ -71,6 +71,16 @@ with the intros in the `basics <firstfunctions.html>`_ section.
 .. toctree::
    :hidden:
    :maxdepth: 1
+   :caption: Generators
+
+   Overview <generators>
+   Ids <generator_ids>
+   Random Numbers <generator_random>
+   Grid <generator_grid>
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
    :caption: API
    
    api/slangpy
