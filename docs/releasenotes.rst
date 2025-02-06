@@ -1,6 +1,11 @@
 Release Notes
 =============
 
+**Version 0.19.5**
+
+Past releases since 0.17 have focussed on extensive bug fixes, documentation and optimizations. This release includes 
+documentation for and examples of the generators system in SlangPy. 
+
 **Version 0.17.0**
 
 This release includes a major update to the `nv-sgl` library, which now includes CoopVec support, alongside more significant optimizations 

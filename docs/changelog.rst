@@ -1,6 +1,10 @@
 Changelog
 ---------
 
+**Version 0.19.5**
+- Documentation for generators 
+- Extra fixes for grid
+
 **Version 0.19.4**
 - Fix grid issue
 
