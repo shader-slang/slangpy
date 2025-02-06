@@ -22,7 +22,7 @@ print(res)
 # Populate a 4x4 numpy array of int2s with call ids
 res = module.myfunc(spy.grid(shape=(4, 4), stride=(2, 2)), _result='numpy')
 
-# [ [ [0,0], [0,2] ], [ [2,0], [2,2] ]
+# [ [ [0,0], [0,2], [0, 4], [0, 6] ], [ [2,0], [2,2], [2, 4], [2, 6] ], ...
 print(res)
 
 # Don't fix the grid's shape, but specify an explicit stride and
