@@ -14,7 +14,7 @@ Similar to traditional compute kernels, SlangPy assigns a unique grid coordinate
 
 Consider the following simple Slang function, which takes and returns an ``int2``:
 
-.. code-block:: slang
+.. code-block::
 
     int2 myfunc(int2 value) {
         return value;
@@ -44,7 +44,7 @@ Thread Id
 
 In some cases, it is useful to access the actual dispatch thread ID being executed. This can be achieved by using the ``thread_id`` generator:
 
-.. code-block:: slang
+.. code-block::
 
     int3 myfunc3d(int3 value) {
         return value;
