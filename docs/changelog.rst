@@ -1,32 +1,44 @@
 Changelog
 ---------
 
+**Version 0.19.5**
+
+- Documentation for generators 
+- Extra fixes for grid
+
 **Version 0.19.4**
+
 - Fix grid issue
 
 **Version 0.19.3**
+
 - Update SGL -> 0.12.4
 - Significant improvements to generator types 
 - Support textures as output type
 
 **Version 0.19.2**
+
 - Update SGL -> 0.12.3
 - Better error messages during generation
 - Fix corrupt error tables 
 - Restore detailed error information during dispatch
 
 **Version 0.19.1**
+
 - Update SGL -> 0.12.2
 - Fix major issue with texture transposes
 
 **Version 0.19.0**
+
 - Add experimental grid type
 
 **Version 0.18.2**
+
 - Update SGL -> 0.12.1
 - Rename from_numpy to buffer_from_numpy
 
 **Version 0.18.1**
+
 - Fix Python 3.9 typing
 
 **Version 0.18.0**
