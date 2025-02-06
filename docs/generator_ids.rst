@@ -3,16 +3,16 @@
 Id Generators
 =============
 
-Id generators pass unique ids releated to the current thread to a function. Currently available are `call_id` and `thread_id`.
+Id generators provide unique identifiers related to the current thread, which can be passed to a function. Currently available generators are ``call_id`` and ``thread_id``.
 
-.. _generators_callid: 
+.. _generators_callid:
 
 Call Id
 -------
 
-As with classic compute kernels, SlangPy operates by assigning a unique grid coordinate to each thread. However where a classic compute kernel is always dispatched across a 3D grid, SlangPy supports any dimensionality. The ``call_id`` generator returns the SlangPy grid coordinate of the current thread.
+Similar to traditional compute kernels, SlangPy assigns a unique grid coordinate to each thread. However, while classic compute kernels operate within a fixed 3D grid, SlangPy supports arbitrary dimensionality. The ``call_id`` generator returns the grid coordinate of the current thread within SlangPy's execution model.
 
-If we start with the following simple Slang function that takes and returns an `int2`:
+Consider the following simple Slang function, which takes and returns an ``int2``:
 
 .. code-block:: slang
 
@@ -20,32 +20,29 @@ If we start with the following simple Slang function that takes and returns an `
         return value;
     }
 
-We can then invoke the function and pass it the ``call_id`` generator like so:
+We can invoke this function and pass it the ``call_id`` generator as follows:
 
 .. code-block:: python
 
-    # Populate a 4x4 numpy array of int2s with call ids
+    # Populate a 4x4 numpy array of int2s with call IDs
     res = np.zeros((4,4,2), dtype=np.int32)
     module.myfunc(spy.call_id(), _result=res)
 
     #[ [ [0,0], [0,1], [0,2], [0,3] ], [ [1,0], [1,1], [1,2], [1,3] ], ... ]
     print(res)
 
-The ``call_id`` generator will pass the grid coordinate of the current thread to the function. As a result, each 
-entry in the numpy array is populated with its own grid coordinate.
+The ``call_id`` generator provides the grid coordinate of the current thread. As a result, each entry in the numpy array is populated with its corresponding grid coordinate.
 
-When using ``call_id``, one must make sure the parameter type matches the dimensionality of the dispatch. In this example,
-as the dispatch was a 2D kernel, the parameter was an int2.
+When using ``call_id``, ensure that the parameter type matches the dimensionality of the dispatch. In this example, since the dispatch was a 2D kernel, the parameter was an ``int2``.
 
-Note that in this example we had to create the numpy array `res` ourselves. This is because the `call_id` generator does not define any shape itself. Without supplying a pre-created 4x4 container, SlangPy would have no way of inferring the fact that a 4x4 dispatch was desired.
+Note that we explicitly created the numpy array ``res``. This is necessary because the ``call_id`` generator does not define any inherent shape. Without a predefined 4x4 container, SlangPy would have no way to infer the intended dispatch size.
 
-.. _generators_threadid: 
+.. _generators_threadid:
 
 Thread Id
 ---------
 
-At times, it is still desirable to know the actual dispatch thread id being executed. This can be obtained by 
-passing the ``thread_id`` generator instead, switching now to a 3D function:
+In some cases, it is useful to access the actual dispatch thread ID being executed. This can be achieved by using the ``thread_id`` generator:
 
 .. code-block:: slang
 
@@ -53,17 +50,18 @@ passing the ``thread_id`` generator instead, switching now to a 3D function:
         return value;
     }
 
-Passing ``thread_id`` outputs the 3D dispatch thread id for each call:
+Passing ``thread_id`` returns the 3D dispatch thread ID for each call:
 
 .. code-block:: python
 
-    # Populate a 4x4 numpy array of int3s with hardware thread ids
+    # Populate a 4x4 numpy array of int3s with hardware thread IDs
     res = np.zeros((4,4,3), dtype=np.int32)
     module.myfunc3d(spy.thread_id(), _result=res)
 
-    #[ [ [0,0,0], [1,0,0], [2,0,0], [3,0,0] ], [ [4,0,0], [5,0,0], ... 
+    #[ [ [0,0,0], [1,0,0], [2,0,0], [3,0,0] ], [ [4,0,0], [5,0,0], ...
     print(res)
 
-The ``thread_id`` generator supports being passed to 1D, 2D or 3D vectors.
+The ``thread_id`` generator can be used with 1D, 2D, or 3D vectors.
 
-Currently, SlangPy always maps kernels to a 1D grid on the hardware, so thread ids will always be of the form [X,0,0]. This is subject to change and user control in the future.
+Currently, SlangPy maps kernels to a 1D grid on the hardware, meaning that thread IDs will always have the form ``[X,0,0]``. This behavior may be subject to future modifications and user control.
+
