@@ -5,21 +5,42 @@ import pytest
 from slangpy.backend import DeviceType, float3, int3, uint3
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
+from slangpy.types.callidarg import call_id
 from slangpy.types.randfloatarg import RandFloatArg
-from slangpy.types.threadidarg import ThreadIdArg
+from slangpy.types.threadidarg import ThreadIdArg, thread_id
 from slangpy.types.wanghasharg import WangHashArg
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_thread_id(device_type: DeviceType):
+@pytest.mark.parametrize("dimensions", [-1, 0, 1, 2, 3])
+@pytest.mark.parametrize("signed", [False, True])
+def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
+
+    inttype = 'int' if signed else 'uint'
+
+    if dimensions > 0:
+        # If dimensions > 0, test passing explicit dimensions into corresponding vector type
+        type_name = f"{inttype}{dimensions}"
+        elements = dimensions
+        dims = dimensions
+    elif dimensions == 0:
+        # If dimensions == 0, test passing 1D value into corresponding scalar type
+        type_name = inttype
+        elements = 1
+        dims = 1
+    else:
+        # If dimensions == -1, test passing undefined dimensions to 3d vector type
+        type_name = f"{inttype}3"
+        elements = 3
+        dims = -1
 
     # Create function that just dumps input to output
     device = helpers.get_device(device_type)
     kernel_output_values = helpers.create_function_from_module(
-        device, "thread_ids", """
-int3 thread_ids(int3 input) {
+        device, "thread_ids", f"""
+{type_name} thread_ids({type_name} input) {{
     return input;
-}
+}}
 """
     )
 
@@ -27,16 +48,71 @@ int3 thread_ids(int3 input) {
     results = NDBuffer(
         element_count=128,
         device=device,
-        dtype=int3
+        dtype=kernel_output_values.module.layout.find_type_by_name(type_name)
     )
 
     # Call function with 3D thread arg. Pass results in, so it forces
     # a call shape.
-    kernel_output_values(ThreadIdArg(3), _result=results)
+    kernel_output_values(thread_id(dims), _result=results)
 
     # Should get out the thread ids
-    data = results.storage.to_numpy().view("int32").reshape((-1, 3))
-    expected = [[i, 0, 0] for i in range(128)]
+    data = results.storage.to_numpy().view("int32").reshape((-1, elements))
+    if elements == 1:
+        expected = [[i] for i in range(128)]
+    elif elements == 2:
+        expected = [[i, 0] for i in range(128)]
+    elif elements == 3:
+        expected = [[i, 0, 0] for i in range(128)]
+    assert np.allclose(data, expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("dimensions", [-1, 1, 2, 3])
+@pytest.mark.parametrize("signed", [False, True])
+def test_call_id(device_type: DeviceType, dimensions: int, signed: bool):
+
+    inttype = 'int' if signed else 'uint'
+
+    if dimensions > 0:
+        # If dimensions > 0, test passing explicit dimensions into corresponding vector type
+        type_name = f"{inttype}{dimensions}"
+        elements = dimensions
+        dims = dimensions
+    elif dimensions == 0:
+        # If dimensions == 0, test passing 1D value into corresponding scalar type
+        type_name = inttype
+        elements = 1
+        dims = 1
+    else:
+        # If dimensions == -1, test passing undefined dimensions to 3d vector type
+        type_name = f"{inttype}3"
+        elements = 3
+        dims = -1
+
+    # Create function that just dumps input to output
+    device = helpers.get_device(device_type)
+    kernel_output_values = helpers.create_function_from_module(
+        device, "call_ids", f"""
+{type_name} call_ids({type_name} input) {{
+    return input;
+}}
+"""
+    )
+
+    # Make buffer for results
+    results = NDBuffer(
+        shape=(16,)*elements,
+        device=device,
+        dtype=kernel_output_values.module.layout.find_type_by_name(type_name)
+    )
+
+    # Call function with 3D thread arg. Pass results in, so it forces
+    # a call shape.
+    kernel_output_values(call_id(dims), _result=results)
+
+    # Should get out the thread ids
+    data = results.storage.to_numpy().view("int32").reshape((-1, elements))
+    expected = np.indices((16,)*elements).reshape(elements, -1).T
     assert np.allclose(data, expected)
 
 

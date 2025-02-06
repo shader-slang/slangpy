@@ -1,6 +1,6 @@
 typing_extensions
 numpy
-nv-sgl == 0.12.3
+nv-sgl == 0.12.4
 
 pre-commit
 pytest

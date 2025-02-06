@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+**Version 0.19.4**
+- Fix grid issue
+
+**Version 0.19.3**
+- Update SGL -> 0.12.4
+- Significant improvements to generator types 
+- Support textures as output type
+
 **Version 0.19.2**
 - Update SGL -> 0.12.3
 - Better error messages during generation
