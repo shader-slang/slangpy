@@ -1,5 +1,5 @@
 typing_extensions
-numpy
+numpy >= 1.26.0
 nv-sgl == 0.12.4
 
 pre-commit
