@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 implementing slangpy;
 
 public uint wang_hash(uint seed)
@@ -11,12 +11,11 @@ public uint wang_hash(uint seed)
     return seed;
 }
 
-public struct WangHashArg<let N : int> {
-    public typealias T = vector<uint, N>;
+public struct WangHashArg {
 
     public uint seed;
-
-    public void load(Context0D context, out T value) {
+    
+    public void load<let N : int>(Context0D context, out vector<uint,N> value) {
         var tid = context.thread_id;
         var hash = tid.x ^ seed; 
         for (int i = 0; i < N; i++) {
@@ -24,5 +23,5 @@ public struct WangHashArg<let N : int> {
             value[i] = hash;
         }
     }
-    public void store(Context0D context, in T value) {};
+    public void store<let N : int>(Context0D context, in vector<uint, N> value) {};
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 int _idx<let N : int>(int[N] index, int[N] stride) {
     int idx = 0;
     for (int i = 0; i < N; i++) { idx += index[i] * stride[i]; }

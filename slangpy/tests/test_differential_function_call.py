@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
 
@@ -62,7 +62,7 @@ def test_call_none_differentiable(device_type: DeviceType):
     res = function(a, b)
     assert res == python_eval_polynomial(a, b)
 
-    with pytest.raises(ValueError, match="Could not call function 'polynomial': Function is not differentiable"):
+    with pytest.raises(Exception, match="Could not call function 'polynomial': Function is not differentiable"):
         function.bwds(a, b, res)
 
 

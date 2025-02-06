@@ -1,15 +1,27 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any
 
 from slangpy.core.native import AccessType, CallContext, Shape, NativeTextureMarshall
 from slangpy.backend import TypeReflection
 
 from slangpy.backend import (FormatType, ResourceType, ResourceUsage, Sampler,
-                             Texture, get_format_info)
+                             Texture, Format, get_format_info)
 from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,
                               BindContext, BoundVariable, BoundVariableRuntime,
-                              CodeGenBlock)
-from slangpy.reflection.reflectiontypes import SamplerStateType, SlangProgramLayout, SlangType, TextureType
+                              CodeGenBlock, ReturnContext)
+from slangpy.reflection.reflectiontypes import SamplerStateType, SlangProgramLayout, SlangType, TextureType, VectorType, ArrayType, ScalarType
+from typing import Optional
+
+
+SCALARTYPE_TO_TEXTURE_FORMAT = {
+    TypeReflection.ScalarType.float32: (Format.r32_float, Format.rg32_float, Format.rgb32_float, Format.rgba32_float),
+    TypeReflection.ScalarType.float16: (Format.r16_float, Format.rg16_float, None, Format.rgba16_float),
+    TypeReflection.ScalarType.uint32: (Format.r32_uint, Format.rg32_uint, Format.rgb32_uint, Format.rgba32_uint),
+    TypeReflection.ScalarType.uint16: (Format.r16_unorm, Format.rg16_unorm, None, Format.rgba16_unorm),
+    TypeReflection.ScalarType.uint8: (Format.r8_unorm, Format.rg8_unorm, None, Format.rgba8_unorm),
+    TypeReflection.ScalarType.int16: (Format.r16_snorm, Format.rg16_snorm, None, Format.rgba16_snorm),
+    TypeReflection.ScalarType.int8: (Format.r8_snorm, Format.rg8_snorm, None, Format.rgba8_snorm),
+}
 
 
 def has_uav(usage: ResourceUsage):
@@ -22,7 +34,7 @@ def prefix(usage: ResourceUsage):
 
 class TextureMarshall(NativeTextureMarshall):
 
-    def __init__(self, layout: SlangProgramLayout, resource_shape: TypeReflection.ResourceShape, element_type: SlangType, usage: ResourceUsage):
+    def __init__(self, layout: SlangProgramLayout, resource_shape: TypeReflection.ResourceShape, element_type: SlangType, format: Format, usage: ResourceUsage):
         tex_type = ""
         tex_dims = 0
 
@@ -65,7 +77,7 @@ class TextureMarshall(NativeTextureMarshall):
         self.slang_type: 'SlangType'
         self.slang_element_type: 'SlangType'
 
-        super().__init__(st, element_type, resource_shape, usage, tex_dims)
+        super().__init__(st, element_type, resource_shape, format, usage, tex_dims)
 
     def reduce_type(self, context: BindContext, dimensions: int):
         return super().reduce_type(context, dimensions)
@@ -144,11 +156,11 @@ class TextureMarshall(NativeTextureMarshall):
                 f"Texture {name} has invalid dimensionality {binding.call_dimensionality}")
 
 
-def get_or_create_python_texture_type(layout: SlangProgramLayout, resource: Texture, usage: ResourceUsage):
+def get_or_create_python_texture_type(layout: SlangProgramLayout, format: Format, type: ResourceType, usage: ResourceUsage, array_size: int, sample_count: int):
 
     # Translate format into slang scalar type + channel count, which allows
     # us to build the element type of the texture.
-    fmt_info = get_format_info(resource.desc.format)
+    fmt_info = get_format_info(format)
     if fmt_info.type in [FormatType.float, FormatType.unorm, FormatType.snorm, FormatType.unorm_srgb]:
         scalar_type = TypeReflection.ScalarType.float32
     elif fmt_info.type == FormatType.uint:
@@ -156,45 +168,94 @@ def get_or_create_python_texture_type(layout: SlangProgramLayout, resource: Text
     elif fmt_info.type == FormatType.sint:
         scalar_type = TypeReflection.ScalarType.int32
     else:
-        raise ValueError(f"Unsupported format {resource.desc.format}")
+        raise ValueError(f"Unsupported format {format}")
     element_type = layout.vector_type(scalar_type, fmt_info.channel_count)
 
     # Translate resource type + array size into a slang resource shape.
     resource_shape = TypeReflection.ResourceShape.none
-    if resource.array_size == 1:
-        if resource.desc.type == ResourceType.texture_1d:
+    if array_size == 1:
+        if type == ResourceType.texture_1d:
             resource_shape = TypeReflection.ResourceShape.texture_1d
-        elif resource.desc.type == ResourceType.texture_2d:
-            if resource.desc.sample_count == 1:
+        elif type == ResourceType.texture_2d:
+            if sample_count == 1:
                 resource_shape = TypeReflection.ResourceShape.texture_2d
             else:
                 resource_shape = TypeReflection.ResourceShape.texture_2d_multisample
-        elif resource.desc.type == ResourceType.texture_3d:
+        elif type == ResourceType.texture_3d:
             resource_shape = TypeReflection.ResourceShape.texture_3d
-        elif resource.desc.type == ResourceType.texture_cube:
+        elif type == ResourceType.texture_cube:
             resource_shape = TypeReflection.ResourceShape.texture_cube
         else:
-            raise ValueError(f"Unsupported texture type {resource.desc.type}")
+            raise ValueError(f"Unsupported texture type {type}")
     else:
-        if resource.desc.type == ResourceType.texture_1d:
+        if type == ResourceType.texture_1d:
             resource_shape = TypeReflection.ResourceShape.texture_1d_array
-        elif resource.desc.type == ResourceType.texture_2d:
-            if resource.desc.sample_count == 1:
+        elif type == ResourceType.texture_2d:
+            if sample_count == 1:
                 resource_shape = TypeReflection.ResourceShape.texture_2d_array
             else:
                 resource_shape = TypeReflection.ResourceShape.texture_2d_multisample_array
-        elif resource.desc.type == ResourceType.texture_cube:
+        elif type == ResourceType.texture_cube:
             resource_shape = TypeReflection.ResourceShape.texture_cube_array
         else:
-            raise ValueError(f"Unsupported texture type {resource.desc.type}")
+            raise ValueError(f"Unsupported texture type {type}")
 
-    return TextureMarshall(layout, resource_shape, element_type, usage)
+    return TextureMarshall(layout, resource_shape, element_type, format, usage)
+
+
+def slang_type_to_texture_format(st: SlangType) -> Optional[Format]:
+    if isinstance(st, VectorType) or isinstance(st, ArrayType):
+        assert st.element_type
+
+        num_channels = st.shape[0]
+        channel_type = st.element_type
+    else:
+        num_channels = 1
+        channel_type = st
+
+    if not isinstance(channel_type, ScalarType):
+        return None
+    if num_channels == 0 or num_channels > 4:
+        return None
+
+    scalar = channel_type.slang_scalar_type
+    if scalar not in SCALARTYPE_TO_TEXTURE_FORMAT:
+        return None
+
+    return SCALARTYPE_TO_TEXTURE_FORMAT[scalar][num_channels - 1]
 
 
 def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):
-    assert isinstance(value, Texture)
-    usage = value.desc.usage
-    return get_or_create_python_texture_type(layout, value, usage)
+    if isinstance(value, Texture):
+        desc = value.desc
+        return get_or_create_python_texture_type(layout,
+                                                 desc.format,
+                                                 desc.type,
+                                                 desc.usage,
+                                                 value.array_size,
+                                                 desc.sample_count)
+    elif isinstance(value, ReturnContext):
+        format = slang_type_to_texture_format(value.slang_type)
+        if format is None:
+            raise ValueError(f"Can't create output texture: Slang type "
+                             f"\"{value.slang_type.full_name}\" can't be used as a texel type")
+
+        dim = value.bind_context.call_dimensionality
+        if dim == 1:
+            tex_type = ResourceType.texture_1d
+        elif dim == 2:
+            tex_type = ResourceType.texture_2d
+        elif dim == 3:
+            tex_type = ResourceType.texture_3d
+        else:
+            raise ValueError(
+                "Can't create output texture: Call dimensionality has to be 1D, 2D or 3D")
+
+        usage = ResourceUsage.unordered_access | ResourceUsage.shader_resource
+
+        return get_or_create_python_texture_type(layout, format, tex_type, usage, 1, 1)
+    else:
+        raise ValueError(f"Type {type(value)} is unsupported for TextureMarshall")
 
 
 PYTHON_TYPES[Texture] = _get_or_create_python_type
