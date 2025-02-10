@@ -20,23 +20,32 @@ def grid_test(device_type: DeviceType, dims: int = 2, datatype: str = 'array', s
     random.seed(42)
     shape = tuple([random.randint(5, 15) for _ in range(dims)])
     transpose = tuple([i+1 for i in range(dims)]) + (0,)
+    gen_args = ""
 
     if datatype == 'vector':
-        typename = f"int{dims}"
+        buffertypename = f"int{dims}"
+        slangtypename = buffertypename
+    elif datatype == 'array':
+        buffertypename = f"int[{dims}]"
+        slangtypename = buffertypename
+    elif datatype == 'genvector':
+        buffertypename = f"int{dims}"
+        slangtypename = f"vector<int, N>"
+        gen_args = "<let N: int>"
     else:
-        typename = f"int[{dims}]"
+        raise ValueError(f"Unknown datatype: {datatype}")
 
     # Create function that just dumps input to output for correct sized int
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, f"""
-{typename} get({typename} input) {{
+{slangtypename} get{gen_args}({slangtypename} input) {{
     return input;
 }}
 """
     )
 
     # Buffer for vector results
-    res = NDBuffer(device, shape=shape, dtype=module.layout.find_type_by_name(typename))
+    res = NDBuffer(device, shape=shape, dtype=module.layout.find_type_by_name(buffertypename))
 
     # Offset per dimension
     offsets = tuple([offset for s in shape])
@@ -72,6 +81,12 @@ def test_grid_vectors(device_type: DeviceType, dims: int, stride: int):
     if dims > 4:
         pytest.skip("Vector types only supported up to 4 dimensions")
     grid_test(device_type, dims=dims, datatype='vector', stride=stride)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_grid_generic_vectors(device_type: DeviceType):
+    pytest.skip("Doesn't currently work due to handling of generic arguments in specialize")
+    grid_test(device_type, dims=3, datatype='genvector')
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
