@@ -3,11 +3,48 @@ implementing slangpy;
 
 public struct CallIdArg {
 
-    public void load<let N : int>(ContextND<N> context, out vector<uint,N> value) {
+    // Array load
+    public void load<let N : int, T: __BuiltinIntegerType>(ContextND<N> context, out Array<T, N> value) {
         var t = context.call_id;
+        int end = N - 1;
         for (int i = 0; i < N; i++) {
-            value[i] = t[i];
+            value[i] = (T)t[i];
         }
     }
 
+    // Vector load (transpose of array load)
+    public void load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out vector<T,N> value) {
+        var t = context.call_id;
+        int end = N - 1;
+        for (int i = 0; i < N; i++) {
+            value[end-i] = (T)t[i];
+        }
+    }
+
+    // Scalar load (works for N = 1)
+    public void load<T : __BuiltinIntegerType>(ContextND<1> context, out T value) {
+        value = (T)context.call_id[0];
+    }    
+}
+
+// Rules for how to vectorize a Python call id argument to a given Slang type.
+struct VectorizeCallidArgTo<SlangParameterType, let Dim: int> {
+}
+extension<let N : int, T : __BuiltinIntegerType> VectorizeCallidArgTo<Array<T,N>, N> {
+    typealias VectorType = Array<T,N>;
+}
+extension<let N : int, T : __BuiltinIntegerType> VectorizeCallidArgTo<Array<T, N>, -1>  {
+    typealias VectorType = Array<T, N>;
+}
+extension<let N : int, T : __BuiltinIntegerType> VectorizeCallidArgTo<vector<T,N>, N> {
+    typealias VectorType = vector<T, N>;
+}
+extension<let N : int, T : __BuiltinIntegerType> VectorizeCallidArgTo<vector<T, N>, -1> {
+    typealias VectorType = vector<T, N>;
+}
+extension<T : __BuiltinIntegerType> VectorizeCallidArgTo<T, -1> {
+    typealias VectorType = T;
+}
+extension<T : __BuiltinIntegerType> VectorizeCallidArgTo<T, 1> {
+    typealias VectorType = T;
 }
