@@ -9,17 +9,20 @@ public struct GridArg<let N : int> {
     int[N] offset;
     int[N] stride;
 
-    public void load(ContextND<N> context, out VectorT value) {
+    // Array load
+    public void load(ContextND<N> context, out ArrayT value) {
         var t = context.call_id;
         for (int i = 0; i < N; i++) {
             value[i] = offset[i] + t[i] * stride[i];
         }
     }
 
-    public void load(ContextND<N> context, out ArrayT value) {
+    // Vector load (transpose of array load)
+    public void load(ContextND<N> context, out VectorT value) {
         var t = context.call_id;
+        int end = N - 1;
         for (int i = 0; i < N; i++) {
-            value[i] = offset[i] + t[i] * stride[i];
+            value[end - i] = offset[i] + t[i] * stride[i];
         }
     }
 

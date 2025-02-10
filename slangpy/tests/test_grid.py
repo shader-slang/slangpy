@@ -59,6 +59,9 @@ def grid_test(device_type: DeviceType, dims: int = 2, datatype: str = 'array', s
     resdata = res.to_numpy().view(np.int32).reshape(shape + (dims,))
     expected = np.indices(shape).transpose(*transpose) * stride + offset
 
+    if datatype == 'vector':
+        expected = np.flip(expected, axis=-1)
+
     assert np.all(resdata == expected)
 
 

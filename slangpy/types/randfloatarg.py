@@ -66,7 +66,7 @@ class RandFloatArgMarshall(Marshall):
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         # Wang hash arg is valid to pass to vector or scalar integer types.
-        return resolve_vector_generator_type(context, bound_type, self.dims, TypeReflection.ScalarType.float32)
+        return resolve_vector_generator_type(context, bound_type, self.dims, TypeReflection.ScalarType.float32, max_dims=3)
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
         # Rand float arg is generated for every thread and has no effect on call shape,
