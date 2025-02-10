@@ -4,12 +4,12 @@ import sgl
 import slangpy as spy
 import pathlib
 import numpy as np
-from PIL import Image
-import cv2
 import argparse
 import sys
+import shape_utils
 
-def create_image(width=256, height=256, scale=1):
+
+def create_image(width=256, height=256, antialiased=False):
     """
     Creates a test image containing geometric shapes (circles and a rotated rectangle)
     with optional antialiasing based on the scale parameter.
@@ -23,84 +23,82 @@ def create_image(width=256, height=256, scale=1):
     Args:
         width (int): Width of the output image
         height (int): Height of the output image
-        scale (int): Resolution multiplier for antialiasing. If > 1, the image is created
-                    at a higher resolution and then downsampled for antialiasing.
+        antialiased (bool): Draw with analytical coverage
 
     Returns:
         numpy.ndarray: A floating-point RGBA image array with values normalized to [0,1]
     """
-    antialiased = scale > 1
-    image = np.zeros((height * scale, width * scale, 4), dtype=np.uint8)
-    image[:,:,3] = 255
+    # Create a bitmap with RGBA format
+    bitmap = sgl.Bitmap(pixel_format=sgl.Bitmap.PixelFormat.rgba,
+                        component_type=sgl.Struct.Type.uint8,
+                        width=width,
+                        height=height)
 
-    cv2.circle(image, 
-               center=(int(0.31 * width * scale), int(0.39 * height * scale)), 
-               radius=int(0.16 * min(width, height) * scale), 
-               color=(255, 255, 255, 255), 
-               thickness=-1, 
-               lineType=cv2.LINE_AA if antialiased else cv2.LINE_8)
+    # Get numpy array view of bitmap data
+    image = np.array(bitmap, copy=False)
+    image.fill(0)
+    image[:, :, 3] = 255  # Set alpha to fully opaque
 
-    cv2.circle(image, 
-               center=(int(0.63 * width * scale), int(0.55 * height * scale)), 
-               radius=int(0.23 * min(width, height) * scale), 
-               color=(255, 255, 255, 255), 
-               thickness=-1, 
-               lineType=cv2.LINE_AA if antialiased else cv2.LINE_8)
+    white = [255, 255, 255, 255]
+    thickness = 0.039 * min(width, height)
 
-    rect_center = (int(0.59 * width * scale), int(0.43 * height * scale))
-    rect_size = (int(0.39 * width * scale), int(0.55 * height * scale))
-    angle = 15 # degrees
-    rect = cv2.boxPoints((rect_center, rect_size, angle))
-    rect = np.int32(rect)
+    # Draw shapes
+    shape_utils.draw_circle(image,
+                            center_x=0.31 * width,
+                            center_y=0.39 * height,
+                            radius=0.16 * min(width, height),
+                            color=white,
+                            antialiased=antialiased)
 
-    cv2.polylines(image, 
-                  [rect], 
-                  isClosed=True, 
-                  color=(255, 255, 255, 255), 
-                  thickness=int(0.039 * min(width, height) * scale), 
-                  lineType=cv2.LINE_AA if antialiased else cv2.LINE_8)
+    shape_utils.draw_circle(image,
+                            center_x=0.63 * width,
+                            center_y=0.55 * height,
+                            radius=0.23 * min(width, height),
+                            color=white,
+                            antialiased=antialiased)
 
-    if scale > 1:
-        image = cv2.resize(image, (width, height), 
-                          interpolation=cv2.INTER_AREA)
+    shape_utils.draw_rotated_rect(image,
+                                  center_x=0.59 * width,
+                                  center_y=0.43 * height,
+                                  width=0.39 * width,
+                                  height=0.55 * height,
+                                  angle=15,
+                                  thickness=thickness,
+                                  color=white,
+                                  antialiased=antialiased)
 
     return image.astype(np.float32) / 255.0
 
-def load_and_process_image(image_path):
+
+def load_image(image_path):
     """
-    Loads an image from path, converts it to binary and returns it in the required format.
+    Loads an image from path, converts it to grayscale
     Preserves the original image dimensions.
 
     Args:
         image_path (str): Path to the input image
 
     Returns:
-        tuple: (image array, width, height) where image array is a floating-point RGBA 
-               image array with values normalized to [0,1]
+        tuple: (image array, width, height) where image array is a
+        floating-point RGBA image array
     """
-    # Read image
-    img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-    if img is None:
-        raise ValueError(f"Failed to load image: {image_path}")
+    bitmap = sgl.Bitmap(image_path)
 
-    # Get original dimensions
-    height, width = img.shape[:2]
+    # Convert to grayscale
+    if bitmap.pixel_format != sgl.Bitmap.PixelFormat.rgba:
+        bitmap = bitmap.convert(pixel_format=sgl.Bitmap.PixelFormat.rgba)
+    image = np.array(bitmap, copy=False)
+    gray = np.mean(image[:, :, :3], axis=2)
 
-    # Convert to grayscale if needed
-    if len(img.shape) == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # Create final RGBA result
+    result = np.zeros((bitmap.height, bitmap.width, 4), dtype=np.float32)
+    result[:, :, 0] = gray
+    result[:, :, 1] = gray
+    result[:, :, 2] = gray
+    result[:, :, 3] = 1.0
 
-    # Threshold to binary
-    _, img = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+    return result, bitmap.width, bitmap.height
 
-    # Convert to RGBA float32
-    result = np.zeros((height, width, 4), dtype=np.float32)
-    result[:,:,0] = img.astype(np.float32) / 255.0
-    result[:,:,1] = result[:,:,0]
-    result[:,:,2] = result[:,:,0]
-    result[:,:,3] = 1.0
-
-    return result, width, height
 
 def process_image(device, module, image, width, height, name_suffix):
     """
@@ -121,19 +119,18 @@ def process_image(device, module, image, width, height, name_suffix):
     Returns:
         numpy.ndarray: The computed distance field
     """
-    input_tex = device.create_texture(
-        width=width, height=height,
-        format=sgl.Format.rgba32_float,
-        usage=sgl.ResourceUsage.shader_resource,
-        data=image
-    )
+    input_tex = device.create_texture(width=width,
+                                      height=height,
+                                      format=sgl.Format.rgba32_float,
+                                      usage=sgl.ResourceUsage.shader_resource,
+                                      data=image)
     sgl.tev.show(input_tex, name=f'input_{name_suffix}')
 
-    dist_tex = device.create_texture(
-        width=width, height=height,
-        format=sgl.Format.rg32_float,
-        usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access
-    )
+    dist_tex = device.create_texture(width=width,
+                                     height=height,
+                                     format=sgl.Format.rg32_float,
+                                     usage=sgl.ResourceUsage.shader_resource
+                                     | sgl.ResourceUsage.unordered_access)
 
     # Initialize
     module.init_eikonal(spy.grid((width, height)), input_tex, dist_tex)
@@ -145,17 +142,17 @@ def process_image(device, module, image, width, height, name_suffix):
     distances = dist_tex.to_numpy()
     sgl.tev.show(dist_tex, name=f'final_distances_{name_suffix}')
 
-    result = module.generate_isolines.map((0, 1))(distances, _result='numpy')
+    result = module.generate_isolines(distances, _result='numpy')
 
-    output_tex = device.create_texture(
-        width=width, height=height,
-        format=sgl.Format.rgba32_float,
-        usage=sgl.ResourceUsage.shader_resource,
-        data=result
-    )
+    output_tex = device.create_texture(width=width,
+                                       height=height,
+                                       format=sgl.Format.rgba32_float,
+                                       usage=sgl.ResourceUsage.shader_resource,
+                                       data=result)
     sgl.tev.show(output_tex, name=f'isolines_{name_suffix}')
 
     return distances
+
 
 def main():
     """
@@ -164,8 +161,12 @@ def main():
     2. Either processes a provided input image or generates and processes test images
     3. Generates and visualizes distance fields and isolines
     """
-    parser = argparse.ArgumentParser(description='Generate distance fields from binary images')
-    parser.add_argument('--input', '-i', type=str, help='Path to input image (optional)')
+    parser = argparse.ArgumentParser(
+        description='Generate distance fields from binary images')
+    parser.add_argument('--input',
+                        '-i',
+                        type=str,
+                        help='Path to input image (optional)')
     args = parser.parse_args()
 
     device = spy.create_device(include_paths=[
@@ -176,20 +177,24 @@ def main():
 
     if args.input:
         try:
-            input_image, width, height = load_and_process_image(args.input)
-            distances = process_image(device, module, input_image, width, height, "input")
+            input_image, width, height = load_image(args.input)
+            distances = process_image(device, module, input_image, width,
+                                      height, "input")
         except Exception as e:
             print(f"Error processing input image: {e}", file=sys.stderr)
             sys.exit(1)
     else:
         width, height = 256, 256  # Default size for test images
 
-        aliased_image = create_image(width, height, scale=1)
-        aliased_distances = process_image(device, module, aliased_image, width, height, "aliased")
+        aliased_image = create_image(width, height, antialiased=False)
+        aliased_distances = process_image(device, module, aliased_image, width,
+                                          height, "aliased")
 
-        antialiased_image = create_image(width, height, scale=4)
-        antialiased_distances = process_image(device, module, antialiased_image, width, height, "antialiased")
+        antialiased_image = create_image(width, height, antialiased=True)
+        antialiased_distances = process_image(device, module,
+                                              antialiased_image, width, height,
+                                              "antialiased")
+
 
 if __name__ == "__main__":
     main()
-
