@@ -1,8 +1,8 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Any, Optional, Union
 
-from slangpy.backend import Texture, ResourceUsage
+from slangpy.backend import Texture, ResourceUsage, ShaderCursor
 from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable,
                               CodeGenBlock, Shape)
@@ -12,7 +12,7 @@ from slangpy.builtin.texture import TextureMarshall
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.native import NativeObject, CallContext
-from slangpy.reflection.reflectiontypes import TYPE_OVERRIDES, ArrayType, VectorType
+from slangpy.reflection.reflectiontypes import TYPE_OVERRIDES, ArrayType, VectorType, get_type_descriptor
 
 
 def _build_tile_arg_info(input: Any):
@@ -74,70 +74,69 @@ tile_arg_info = {
 
 class TileArgType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-        info = tile_arg_info.get(refl.name)
-        if info is None:
-            raise ValueError(f"TileArgType does not support type {refl.name}")
-
-        dims = info['dims']
-
+        args = program.get_resolved_generic_args(refl)
+        assert args is not None
+        assert len(args) == 2
+        assert isinstance(args[0], SlangType)
+        assert isinstance(args[1], int)
         super().__init__(program, refl,
-                         local_shape=Shape((-1,)*dims))
+                         element_type=args[0], local_shape=Shape((-1,)*args[1]))
+        self.element_type: SlangType
+        self._writable = "RW" in refl.name
+        self._dims = args[1]
 
 
 class TileArgMarshall(Marshall):
     def __init__(self, layout: SlangProgramLayout, input_marshall: Marshall):
         super().__init__(layout)
-        st = None
+        self.input_marshall = input_marshall
+        self.slang_type = layout.find_type_by_name("Tile")
         if isinstance(input_marshall, TextureMarshall):
             self.dims = input_marshall.texture_dims
-            self.writable = input_marshall.is_writable
-
-            st = layout.find_type_by_name(
-                input_marshall.slang_type.full_name.replace("<", "Tile<", 1))
         else:
-            raise ValueError("TileArgMarshall input must be a TextureMarshall.")
-
-        if st is None:
-            raise ValueError(
-                f"Could not find Tile slang type. This usually indicates the tile module has not been imported.")
-        self.slang_type = st
-
-        at = layout.find_type_by_name(self.slang_type.full_name.replace("Tile<", "TileType<", 1))
-        if at is None:
-            raise ValueError(
-                f"Could not find TileType slang type. This usually indicates the tile module has not been imported.")
-
-        self.accessor_type = at
+            raise ValueError(f"TileArg input must be a Texture, not {type(input_marshall)}")
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         access = binding.access
         name = binding.variable_name
 
-        if binding.call_dimensionality != self.dims:
-            raise ValueError(
-                f"TileArg call dimensionality {binding.call_dimensionality} does not match expected {self.dims}")
-
         if access[0] == AccessType.read:
-            cgb.type_alias(f"_t_{name}", self.accessor_type.full_name)
+            if isinstance(self.input_marshall, TextureMarshall):
+                cgb.type_alias(f"_t_{name}", f"{binding.vector_type.full_name}.SPMarshall")
+            else:
+                raise NameError("Marshall is wrong")
 
-    def create_calldata(self, context: CallContext, binding: BoundVariableRuntime, data: TileArg) -> Any:
-        access = binding.access
-        if access[0] == AccessType.read:
-            return {
-                'texture': data.input,
-                'stride': data.stride
-            }
+    def write_shader_cursor_pre_dispatch(self, context: CallContext, binding: BoundVariableRuntime, cursor: ShaderCursor, value: TileArg, read_back: list):
+        field = cursor[binding.variable_name]
+
+        # hack!
+        n = binding.variable_name
+        binding.variable_name = "data"
+        self.input_marshall.write_shader_cursor_pre_dispatch(
+            context, binding, field, value.input, read_back)
+        binding.variable_name = n
 
     def get_shape(self, data: TileArg):
-        return data.shape
+        return self.input_marshall.get_shape(data.input)
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
-        return bound_type
+        if isinstance(bound_type, TileArgType):
+            if isinstance(self.input_marshall, TextureMarshall):
+                nm = self.input_marshall.build_accessor_name(
+                    ResourceUsage.unordered_access if bound_type._writable else ResourceUsage.shader_resource)
+                return bound_type.program.find_type_by_name(f"Tile<{nm}>")
+            else:
+                raise NameError("Marshall is wrong")
+        else:
+            raise ValueError(f"Tile rg must be passed to a Tile {bound_type}")
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
-        return 2
+        dims = get_type_descriptor(vector_target_type, "SPDims")
+        assert isinstance(dims, int)
+        return dims
 
 
+TYPE_OVERRIDES["ITile"] = TileArgType
 TYPE_OVERRIDES["Texture2DTile"] = TileArgType
 TYPE_OVERRIDES["RWTexture2DTile"] = TileArgType
 PYTHON_TYPES[TileArg] = lambda l, x: TileArgMarshall(l, x.dims, x.type)

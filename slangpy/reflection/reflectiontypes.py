@@ -1157,6 +1157,20 @@ class SlangProgramLayout:
         return tuple(result)
 
 
+def get_type_descriptor(type: SlangType, descriptor: str) -> Optional[Union[SlangType, int]]:
+    descriptor_type = type.program.find_type_by_name(f"{type.full_name}.{descriptor}")
+    if descriptor_type is None:
+        return None
+    if descriptor_type.name == "Size":
+        args = type.program.get_resolved_generic_args(descriptor_type.type_reflection)
+        assert args is not None
+        assert len(args) == 1
+        assert isinstance(args[0], int)
+        return args[0]
+    else:
+        return descriptor_type
+
+
 def can_convert_to_int(value: Any):
 
     # Check if it's an integer or a float that can be cast to an int

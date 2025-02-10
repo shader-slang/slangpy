@@ -115,7 +115,7 @@ class TextureMarshall(NativeTextureMarshall):
         return f"{prefix(usage)}{self._base_texture_type_name}<{el_type.full_name}>"
 
     # Generate the slangpy accessor type name (eg Texture2DType<float4>).
-    def build_accessor_name(self, usage: ResourceUsage, el_type: SlangType):
+    def build_accessor_name(self, usage: ResourceUsage):
         return f"{prefix(usage)}{self._base_texture_type_name}Type<{self.slang_element_type.full_name}>"
 
     # Call data can only be read access to primal, and simply declares it as a variable.
@@ -143,14 +143,14 @@ class TextureMarshall(NativeTextureMarshall):
                 # Read access can be either shader resource or UAV, so just bind the correct type
                 # for this resource view
                 cgb.type_alias(
-                    f"_t_{name}", self.build_accessor_name(self.usage, self.slang_element_type))
+                    f"_t_{name}", self.build_accessor_name(self.usage))
             else:
                 # Write access requires a UAV so check it and bind RW type
                 if not has_uav(self.usage):
                     raise ValueError(
                         f"Cannot write to read-only texture {name}")
                 cgb.type_alias(
-                    f"_t_{name}", self.build_accessor_name(ResourceUsage.unordered_access, self.slang_element_type))
+                    f"_t_{name}", self.build_accessor_name(ResourceUsage.unordered_access))
         else:
             raise ValueError(
                 f"Texture {name} has invalid dimensionality {binding.call_dimensionality}")

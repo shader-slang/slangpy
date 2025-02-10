@@ -62,6 +62,14 @@ int _idx_vec<let N : int>(vector<int,N> index, int[N] stride) {
     return idx;
 }
 
+public interface IIndexableType {
+    associatedtype IndexType;
+    static const int Dims;
+
+    public void load(ContextND<Dims> context, out IndexType value);
+    public void store(ContextND<Dims> context, in IndexType value);
+}
+
 public struct ImplicitCast<N>
 {
 
@@ -130,7 +138,10 @@ public struct RWByteAddressBufferType {
     public void store(Context0D context, in RWByteAddressBuffer value) {};
 }
 
-public struct Texture1DType<T : ITexelElement> {
+public struct Texture1DType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 1;
+
     Texture1D<T> value;
     public void load(Context1D context, out T value) { value = this.value[context.call_id_vec]; }
     public void store(Context1D context, in T value) {};
@@ -139,7 +150,18 @@ public struct Texture1DType<T : ITexelElement> {
     public void store(Context0D context, in Texture1D<T> value) {};
 }
 
-public struct RWTexture1DType<T : ITexelElement> {
+public struct Size<let N : int>{}
+
+__generic<T : ITexelElement>
+public extension Texture1D<T> {
+    typealias SPMarshall = Texture1DType<T>;
+    typealias SPDims = Size<1>;
+}
+
+public struct RWTexture1DType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 1;
+
     RWTexture1D<T> value;
     public void load(Context1D context, out T value) { value = this.value[context.call_id_vec]; }
     public void store(Context1D context, in T value) { this.value[context.call_id_vec] = value;};
@@ -148,7 +170,10 @@ public struct RWTexture1DType<T : ITexelElement> {
     public void store(Context0D context, in RWTexture1D<T> value) {};
 }
 
-public struct Texture2DType<T : ITexelElement> {
+public struct Texture2DType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 2;
+
     Texture2D<T> value;
     public void load(Context2D context, out T value) { value = this.value[context.call_id_vec.yx]; }
     public void store(Context2D context, in T value) {};
@@ -156,7 +181,10 @@ public struct Texture2DType<T : ITexelElement> {
     public void load(Context0D context, out Texture2D<T> value) { value = this.value; }
     public void store(Context0D context, in Texture2D<T> value) {};
 }
-public struct RWTexture2DType<T : ITexelElement> {
+public struct RWTexture2DType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 2;
+
     RWTexture2D<T> value;
     public void load(Context2D context, out T value) { value = this.value[context.call_id_vec.yx]; }
     public void store(Context2D context, in T value) { this.value[context.call_id_vec.yx] = value;};
@@ -165,7 +193,9 @@ public struct RWTexture2DType<T : ITexelElement> {
     public void store(Context0D context, in RWTexture2D<T> value) {};
 }
 
-public struct Texture1DArrayType<T : ITexelElement> {
+public struct Texture1DArrayType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 2;
 
     // Map with the first index as the x coordinate and the second index as the array slice
     int2 toidx(Context2D context) { return context.call_id_vec.yx; }
@@ -177,7 +207,10 @@ public struct Texture1DArrayType<T : ITexelElement> {
     public void load(Context0D context, out Texture1DArray<T> value) { value = this.value; }
     public void store(Context0D context, in Texture1DArray<T> value) {};
 }
-public struct RWTexture1DArrayType<T : ITexelElement> {
+public struct RWTexture1DArrayType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 2;
+
     // Map with the first index as the x coordinate and the second index as the array slice
     int2 toidx(Context2D context) { return context.call_id_vec.yx; }
 
@@ -189,7 +222,10 @@ public struct RWTexture1DArrayType<T : ITexelElement> {
     public void store(Context0D context, in RWTexture1DArray<T> value) {};
 }
 
-public struct Texture3DType<T : ITexelElement> {
+public struct Texture3DType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 3;
+
     Texture3D<T> value;
     public void load(Context3D context, out T value) { value = this.value[context.call_id_vec.zyx]; }
     public void store(Context3D context, in T value) {};
@@ -197,7 +233,10 @@ public struct Texture3DType<T : ITexelElement> {
     public void load(Context0D context, out Texture3D<T> value) { value = this.value; }
     public void store(Context0D context, in Texture3D<T> value) {};
 }
-public struct RWTexture3DType<T : ITexelElement> {
+public struct RWTexture3DType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 3;
+
     RWTexture3D<T> value;
     public void load(Context3D context, out T value) { value = this.value[context.call_id_vec.zyx]; }
     public void store(Context3D context, in T value) { this.value[context.call_id_vec.zyx] = value;};
@@ -206,7 +245,10 @@ public struct RWTexture3DType<T : ITexelElement> {
     public void store(Context0D context, in RWTexture3D<T> value) {};
 }
 
-public struct Texture2DArrayType<T : ITexelElement> {
+public struct Texture2DArrayType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 3;
+
     // slice is 0, y is 1, x is 2
     int3 toidx(Context3D context) { return context.call_id_vec.zyx; }
 
@@ -217,7 +259,10 @@ public struct Texture2DArrayType<T : ITexelElement> {
     public void load(Context0D context, out Texture2DArray<T> value) { value = this.value; }
     public void store(Context0D context, in Texture2DArray<T> value) {};
 }
-public struct RWTexture2DArrayType<T : ITexelElement> {
+public struct RWTexture2DArrayType<T : ITexelElement> : IIndexableType {
+    public typealias IndexType = T;
+    public static const int Dims = 3;
+
     // slice is 0, xy are 1,2
     int3 toidx(Context3D context) { return context.call_id_vec.zyx; }
 
@@ -257,8 +302,11 @@ public struct RWValueRef<T>
     public void store(Context0D context, in T value) { this.value[0] = value; }
 }
 
-public struct NDBuffer<T, let N : int>
+public struct NDBuffer<T, let N : int> : IIndexableType
 {
+    public typealias IndexType = T;
+    public static const int Dims = N;
+
     public StructuredBuffer<T> buffer;
     public int[N] strides;
     public int[N] shape;
@@ -296,8 +344,11 @@ public struct NDBuffer<T, let N : int>
     public void store<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {}
 }
 
-public struct RWNDBuffer<T, let N : int>
+public struct RWNDBuffer<T, let N : int> : IIndexableType
 {
+    public typealias IndexType = T;
+    public static const int Dims = N;
+
     public RWStructuredBuffer<T> buffer;
     public int[N] strides;
     public int[N] shape;

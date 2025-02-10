@@ -1,10 +1,11 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
 
 from slangpy.backend import DeviceType, float3, int3, uint3, ResourceUsage, Format
 from slangpy.core.module import Module
 from slangpy.experimental.tilearg import tile
+from slangpy.reflection.reflectiontypes import ArrayType
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.randfloatarg import RandFloatArg
