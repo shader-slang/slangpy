@@ -27,24 +27,24 @@ public struct CallIdArg {
     }    
 }
 
-// Set of generic rules to describe type conversion from call id arg to a slang type.
-struct CallIdArgConversion<SlangType, let Dim: int> {
+// Rules for how to vectorize a Python call id argument to a given Slang type.
+struct VectorizeCallidArgTo<SlangParameterType, let Dim: int> {
 }
-extension<let N : int, T : __BuiltinIntegerType> CallIdArgConversion<Array<T,N>, N> {
-    typealias ArgType = Array<T,N>;
+extension<let N : int, T : __BuiltinIntegerType> VectorizeCallidArgTo<Array<T,N>, N> {
+    typealias VectorType = Array<T,N>;
 }
-extension<let N : int, T : __BuiltinIntegerType> CallIdArgConversion<Array<T, N>, -1>  {
-    typealias ArgType = Array<T, N>;
+extension<let N : int, T : __BuiltinIntegerType> VectorizeCallidArgTo<Array<T, N>, -1>  {
+    typealias VectorType = Array<T, N>;
 }
-extension<let N : int, T : __BuiltinIntegerType> CallIdArgConversion<vector<T,N>, N> {
-    typealias ArgType = vector<T, N>;
+extension<let N : int, T : __BuiltinIntegerType> VectorizeCallidArgTo<vector<T,N>, N> {
+    typealias VectorType = vector<T, N>;
 }
-extension<let N : int, T : __BuiltinIntegerType> CallIdArgConversion<vector<T, N>, -1> {
-    typealias ArgType = vector<T, N>;
+extension<let N : int, T : __BuiltinIntegerType> VectorizeCallidArgTo<vector<T, N>, -1> {
+    typealias VectorType = vector<T, N>;
 }
-extension<T : __BuiltinIntegerType> CallIdArgConversion<T, -1> {
-    typealias ArgType = T;
+extension<T : __BuiltinIntegerType> VectorizeCallidArgTo<T, -1> {
+    typealias VectorType = T;
 }
-extension<T : __BuiltinIntegerType> CallIdArgConversion<T, 1> {
-    typealias ArgType = T;
+extension<T : __BuiltinIntegerType> VectorizeCallidArgTo<T, 1> {
+    typealias VectorType = T;
 }

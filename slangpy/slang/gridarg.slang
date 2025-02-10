@@ -30,25 +30,24 @@ public struct GridArg<let N : int> {
     }
 }
 
-// Experimental way of expressing rules for what types can be
-// passed as arguments to the load method of GridArg
-struct GridArgConversion<SlangType, let Dim : int> {
+// Rules for how to vectorize a Python grid argument to a given Slang type.
+struct VectorizeGridArgTo<SlangParameterType, let Dim : int> {
 }
-extension<let N : int, T : __BuiltinIntegerType> GridArgConversion<Array<T, N>, N> {
-    typealias ArgType = Array<T, N>;
+extension<let N : int, T : __BuiltinIntegerType> VectorizeGridArgTo<Array<T, N>, N> {
+    typealias VectorType = Array<T, N>;
 }
-extension<let N : int, T : __BuiltinIntegerType> GridArgConversion<Array<T, N>, -1> {
-    typealias ArgType = Array<T, N>;
+extension<let N : int, T : __BuiltinIntegerType> VectorizeGridArgTo<Array<T, N>, -1> {
+    typealias VectorType = Array<T, N>;
 }
-extension<let N : int, T : __BuiltinIntegerType> GridArgConversion<vector<T, N>, N> {
-    typealias ArgType = vector<T, N>;
+extension<let N : int, T : __BuiltinIntegerType> VectorizeGridArgTo<vector<T, N>, N> {
+    typealias VectorType = vector<T, N>;
 }
-extension<let N : int, T : __BuiltinIntegerType> GridArgConversion<vector<T, N>, -1> {
-    typealias ArgType = vector<T, N>;
+extension<let N : int, T : __BuiltinIntegerType> VectorizeGridArgTo<vector<T, N>, -1> {
+    typealias VectorType = vector<T, N>;
 }
-extension<T : __BuiltinIntegerType> GridArgConversion<T, -1> {
-    typealias ArgType = T;
+extension<T : __BuiltinIntegerType> VectorizeGridArgTo<T, -1> {
+    typealias VectorType = T;
 }
-extension<T : __BuiltinIntegerType> GridArgConversion<T, 1> {
-    typealias ArgType = T;
+extension<T : __BuiltinIntegerType> VectorizeGridArgTo<T, 1> {
+    typealias VectorType = T;
 }

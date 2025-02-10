@@ -82,8 +82,9 @@ class GridArgMarshall(Marshall):
         return Shape(tuple(t))
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
+        # Resolve type using reflection.
         conv_type = bound_type.program.find_type_by_name(
-            f"GridArgConversion<{bound_type.full_name}, {self.dims}>.ArgType")
+            f"VectorizeGridArgTo<{bound_type.full_name}, {self.dims}>.VectorType")
         if conv_type is None:
             raise ValueError(
                 f"Could not find suitable conversion from GridArg<{self.dims}> to {bound_type.full_name}")
