@@ -102,7 +102,7 @@ int3 get(int3 input) {{
 }}
 """
                                    )
-    with pytest.raises(ValueError, match="After implicit casting"):
+    with pytest.raises(ValueError, match="Could not find suitable"):
         module.get(grid(shape=(2, 2)), _result='numpy')
 
 
@@ -116,7 +116,7 @@ int3 get(int[3] input) {{
 }}
 """
                                    )
-    with pytest.raises(ValueError, match="After implicit casting"):
+    with pytest.raises(ValueError, match="Could not find suitable"):
         module.get(grid(shape=(2, 2)), _result='numpy')
 
 

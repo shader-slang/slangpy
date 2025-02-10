@@ -82,14 +82,12 @@ class GridArgMarshall(Marshall):
         return Shape(tuple(t))
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
-        if isinstance(bound_type, ArrayType):
-            return context.layout.array_type(context.layout.scalar_type(TypeReflection.ScalarType.int32), self.dims)
-        elif isinstance(bound_type, VectorType):
-            return context.layout.vector_type(TypeReflection.ScalarType.int32, self.dims)
-        else:
-            return bound_type
-            # raise ValueError(
-            #    f"Grid arguments must be passed to a function with an array or vector type, not {bound_type}")
+        conv_type = bound_type.program.find_type_by_name(
+            f"GridArgConversion<{bound_type.full_name}, {self.dims}>.ArgType")
+        if conv_type is None:
+            raise ValueError(
+                f"Could not find suitable conversion from GridArg<{self.dims}> to {bound_type.full_name}")
+        return conv_type
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
         return self.dims

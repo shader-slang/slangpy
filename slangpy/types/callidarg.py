@@ -55,8 +55,11 @@ class CallIdArgMarshall(Marshall):
             cgb.type_alias(f"_t_{name}", self.slang_type.full_name)
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
-        # Thread id arg is valid to pass to vector or scalar integer types.
-        return resolve_vector_generator_type(context, bound_type, self.dims, TypeReflection.ScalarType.int32, support_array=True)
+        # Experimental way to resolve the bound type using reflection.
+        conv_type = bound_type.program.find_type_by_name(
+            f"CallIdArgConversion<{bound_type.full_name}, {self.dims}>.ArgType")
+        # return resolve_vector_generator_type(context, bound_type, self.dims, TypeReflection.ScalarType.int32, support_array=True)
+        return conv_type
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
         # Thread id arg is generated for every thread and has no effect on call shape,
