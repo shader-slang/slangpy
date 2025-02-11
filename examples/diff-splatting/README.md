@@ -19,7 +19,7 @@ When SlangPy is updated with the functionality to specify group sizes, this work
 
 ### Requirements
 This sample has only two dependencies: 
-- **SlangPy** python package: `pip install slangpy`. See SlangPy's (docs)[https://slangpy.shader-slang.org/en/latest/installation.html] for a full list of requirements.
+- **SlangPy** python package: `pip install slangpy`. See SlangPy's [docs](https://slangpy.shader-slang.org/en/latest/installation.html) for a full list of requirements.
 - **Tev** viewer: Download from [releases](https://github.com/Tom94/tev/releases/tag/v1.29). See [tev's github](https://github.com/Tom94/tev) for more information.  
 
 ### Optional: Setup via Conda
