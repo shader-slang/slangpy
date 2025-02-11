@@ -9,7 +9,6 @@ public struct GridArg<let N : int> {
     // Array load
     public void load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out Array<T, N> value) {
         var t = context.call_id;
-        int end = N - 1;
         for (int i = 0; i < N; i++) {
             value[i] = (T)(offset[i] + t[i] * stride[i]);
         }
@@ -31,6 +30,7 @@ public struct GridArg<let N : int> {
 }
 
 // Rules for how to vectorize a Python grid argument to a given Slang type.
+// Dim is user specified Python side, -1 means use the same dimensionality as the Slang type.
 struct VectorizeGridArgTo<SlangParameterType, let Dim : int> {
 }
 extension<let N : int, T : __BuiltinIntegerType> VectorizeGridArgTo<Array<T, N>, N> {
