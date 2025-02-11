@@ -156,7 +156,6 @@ public struct Texture2DType<T : ITexelElement> {
     public void load(Context0D context, out Texture2D<T> value) { value = this.value; }
     public void store(Context0D context, in Texture2D<T> value) {};
 }
-
 public struct RWTexture2DType<T : ITexelElement> {
     RWTexture2D<T> value;
     public void load(Context2D context, out T value) { value = this.value[context.call_id_vec.yx]; }
@@ -178,9 +177,7 @@ public struct Texture1DArrayType<T : ITexelElement> {
     public void load(Context0D context, out Texture1DArray<T> value) { value = this.value; }
     public void store(Context0D context, in Texture1DArray<T> value) {};
 }
-
 public struct RWTexture1DArrayType<T : ITexelElement> {
-
     // Map with the first index as the x coordinate and the second index as the array slice
     int2 toidx(Context2D context) { return context.call_id_vec.yx; }
 
@@ -200,7 +197,6 @@ public struct Texture3DType<T : ITexelElement> {
     public void load(Context0D context, out Texture3D<T> value) { value = this.value; }
     public void store(Context0D context, in Texture3D<T> value) {};
 }
-
 public struct RWTexture3DType<T : ITexelElement> {
     RWTexture3D<T> value;
     public void load(Context3D context, out T value) { value = this.value[context.call_id_vec.zyx]; }
@@ -221,7 +217,6 @@ public struct Texture2DArrayType<T : ITexelElement> {
     public void load(Context0D context, out Texture2DArray<T> value) { value = this.value; }
     public void store(Context0D context, in Texture2DArray<T> value) {};
 }
-
 public struct RWTexture2DArrayType<T : ITexelElement> {
     // slice is 0, xy are 1,2
     int3 toidx(Context3D context) { return context.call_id_vec.zyx; }
