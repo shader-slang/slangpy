@@ -1,6 +1,10 @@
 Changelog
 ---------
 
+**Version 0.20.1**
+
+- Fix scalar wang-hash arg types
+
 **Version 0.20.0**
 
 - Add SDF example
