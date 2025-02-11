@@ -6,6 +6,8 @@ junit*.xml
 .temp/
 htmlcov/
 .coverage
+.venv
+.gdb_history
 
 docs/_build/
 
