@@ -1,6 +1,11 @@
 Changelog
 ---------
 
+**Version 0.20**
+
+- Add SDF example
+- Transpose vector coordinates
+
 **Version 0.19.5**
 
 - Documentation for generators 

@@ -28,10 +28,32 @@ We can invoke this function and pass it the ``call_id`` generator as follows:
     res = np.zeros((4,4,2), dtype=np.int32)
     module.myfunc(spy.call_id(), _result=res)
 
-    #[ [ [0,0], [0,1], [0,2], [0,3] ], [ [1,0], [1,1], [1,2], [1,3] ], ... ]
+    # [ [ [0,0], [1,0], [2,0], [3,0] ], [ [0,1], [1,1], [2,1], [3,1] ], ...
     print(res)
 
 The ``call_id`` generator provides the grid coordinate of the current thread. As a result, each entry in the numpy array is populated with its corresponding grid coordinate.
+
+In this case, where the call id was passed to a vector type (``int2``), the x component represents the right-most dimension, the y component the next dimension to the left, and so on. As a result, the pixel on row 0, column 1 has been passed the vector value ``int2(1,0)``. This behaviour is consistent throughout SlangPy, and is designed to make 
+vector based indices map intuitively to how we think about coordinates within an image.
+
+Alternatively, we could invoke the following function with the same arguments:
+
+.. code-block::
+
+    int2 myfuncarray(int[2] value) {
+        return int2(value[0],value[1]);
+    }
+
+Now that the coordinates are represented as an array, they fall back to the standard ordering in which the last dimension (in this case, D1) is the right most dimension. This means that the pixel on row 0, column 1 would be passed the array value ``[0,1]``. Consequentially, the output is transposed:
+
+.. code-block:: python
+
+    # Do the same but with a function that takes an int[2] array as input
+    res = np.zeros((4, 4, 2), dtype=np.int32)
+    module.myfuncarray(spy.call_id(), _result=res)
+
+    # [ [ [0,0], [0,1], [0,2], [0,3] ], [ [1,0], [1,1], [1,2], [1,3] ], ...
+    print(res)
 
 When using ``call_id``, ensure that the parameter type matches the dimensionality of the dispatch. In this example, since the dispatch was a 2D kernel, the parameter was an ``int2``.
 
