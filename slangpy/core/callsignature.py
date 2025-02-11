@@ -422,7 +422,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
 
     # Generate the main function
     cg.kernel.append_line('[shader("compute")]')
-    cg.kernel.append_line("[numthreads(256, 1, 1)]")
+    cg.kernel.append_line("[numthreads(32, 1, 1)]")
     cg.kernel.append_line("void main(uint3 dispatchThreadID: SV_DispatchThreadID)")
     cg.kernel.begin_block()
     cg.kernel.append_statement(

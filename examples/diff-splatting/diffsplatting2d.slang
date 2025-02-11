@@ -27,8 +27,8 @@ import slangpy;
 // ----- Constants and definitions --------
 
 static const int GAUSSIANS_PER_BLOCK = 512;
-static const int WG_X = 16;
-static const int WG_Y = 16;
+static const int WG_X = 8;
+static const int WG_Y = 4;
 
 static const float ADAM_ETA = 0.002;
 static const float ADAM_BETA_1 = 0.9;
@@ -635,7 +635,6 @@ float2 calcUV(uint2 dispatchThreadID, int2 renderSize, int2 imageSize)
 float4 splatBlobs(GradInOutTensor<float, 1> blobsBuffer, uint2 dispatchThreadID, int2 dispatchSize, int2 texSize)
 {
     Blobs blobs = {blobsBuffer};
-    uint globalID = dispatchThreadID.x + dispatchThreadID.y * dispatchSize.x;
 
     // Calculate effective uv coordinate for the current pixel. This is used for
     // evaluating the 2D Daussians.
@@ -735,7 +734,9 @@ void perPixelLoss(
 {
     uint2 imageSize;
     targetTexture.GetDimensions(imageSize.x, imageSize.y);
-    output[dispatchThreadID] = loss(dispatchThreadID, imageSize, {blobsBuffer}, targetTexture);
+    output.set(
+        {dispatchThreadID.x, dispatchThreadID.y},
+        loss(dispatchThreadID, imageSize, {blobsBuffer}, targetTexture));
 }
 
 /*
