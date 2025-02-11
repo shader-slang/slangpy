@@ -27,7 +27,7 @@ class TileArg(NativeObject):
     Passes the thread id as an argument to a SlangPy function.
     """
 
-    def __init__(self, input: Any, tile_size: Union[TShapeOrTuple, int] = 1, stride: Union[TShapeOrTuple, int] = 1):
+    def __init__(self, input: Any, kernel_size: Union[TShapeOrTuple, int] = 1, stride: Union[TShapeOrTuple, int] = 1):
         super().__init__()
         if isinstance(input, Texture):
             shape = (input.height, input.width)
@@ -37,8 +37,8 @@ class TileArg(NativeObject):
         self.input = input
         self.shape = Shape(shape)
 
-        if isinstance(tile_size, int):
-            tile_size = (tile_size,)*len(self.shape)
+        if isinstance(kernel_size, int):
+            kernel_size = (kernel_size,)*len(self.shape)
         if isinstance(stride, int):
             stride = (stride,)*len(self.shape)
 
@@ -91,33 +91,36 @@ class TileArgMarshall(Marshall):
         super().__init__(layout)
         self.input_marshall = input_marshall
         self.slang_type = layout.find_type_by_name("Tile")
-        if isinstance(input_marshall, TextureMarshall):
-            self.dims = input_marshall.texture_dims
-        else:
-            raise ValueError(f"TileArg input must be a Texture, not {type(input_marshall)}")
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         access = binding.access
         name = binding.variable_name
 
         if access[0] == AccessType.read:
-            if isinstance(self.input_marshall, TextureMarshall):
-                cgb.type_alias(f"_t_{name}", f"{binding.vector_type.full_name}.SPMarshall")
-            else:
-                raise NameError("Marshall is wrong")
+            cgb.type_alias(f"_t_{name}", f"{binding.vector_type.full_name}.SPMarshall")
 
     def write_shader_cursor_pre_dispatch(self, context: CallContext, binding: BoundVariableRuntime, cursor: ShaderCursor, value: TileArg, read_back: list):
         field = cursor[binding.variable_name]
 
-        # hack!
+        # Hack! we want the marshall to write to the TileType's data field, but it attempts to write to
+        # a field based on its variable name. For now, temporarilly set it to 'data' and then restore it.
         n = binding.variable_name
         binding.variable_name = "data"
-        self.input_marshall.write_shader_cursor_pre_dispatch(
-            context, binding, field, value.input, read_back)
-        binding.variable_name = n
+        try:
+            self.input_marshall.write_shader_cursor_pre_dispatch(
+                context, binding, field, value.input, read_back)
+        finally:
+            binding.variable_name = n
+        field["stride"] = value.stride.as_tuple()
+        field["shape"] = self.input_marshall.get_shape(value.input).as_tuple()
 
     def get_shape(self, data: TileArg):
-        return self.input_marshall.get_shape(data.input)
+        if isinstance(self.input_marshall, TextureMarshall):
+            data_shape = self.input_marshall.get_texture_shape(data.input, 0)
+        else:
+            raise ValueError(f"Unsupported data type: {data.input}")
+
+        return Shape(tuple([data_shape[i] // data.stride[i] for i in range(len(data_shape))]))
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
         if isinstance(bound_type, TileArgType):
@@ -126,11 +129,13 @@ class TileArgMarshall(Marshall):
                     ResourceUsage.unordered_access if bound_type._writable else ResourceUsage.shader_resource)
                 return bound_type.program.find_type_by_name(f"Tile<{nm}>")
             else:
-                raise NameError("Marshall is wrong")
+                raise ValueError(f"Unsupported data type: {data.input}")
         else:
-            raise ValueError(f"Tile rg must be passed to a Tile {bound_type}")
+            raise ValueError(
+                f"Tile arg must be passed to a Tile parameter, but is being passed to {bound_type}")
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+        # Resolve dimensionality by reading the 'SPDims' value from the type, which has been confirmed as a 'Tile' during resolution
         dims = get_type_descriptor(vector_target_type, "SPDims")
         assert isinstance(dims, int)
         return dims
@@ -151,7 +156,7 @@ def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):
 def _get_or_create_python_signature(value: Any):
     assert isinstance(value, TileArg)
     # TODO: Need to expose getting signature of input to do this properly
-    return f"[{type(value.input).__name__}]"
+    return f"[Tile-{PYTHON_SIGNATURES[type(value.input)]}]"
 
 
 PYTHON_TYPES[TileArg] = _get_or_create_python_type
