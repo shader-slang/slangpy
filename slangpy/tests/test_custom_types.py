@@ -69,23 +69,27 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("dimensions", [-1, 1, 2, 3])
 @pytest.mark.parametrize("signed", [False, True])
-def test_call_id(device_type: DeviceType, dimensions: int, signed: bool):
+@pytest.mark.parametrize("array", [False, True])
+def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: bool):
 
     inttype = 'int' if signed else 'uint'
 
     if dimensions > 0:
-        # If dimensions > 0, test passing explicit dimensions into corresponding vector type
-        type_name = f"{inttype}{dimensions}"
+        # If dimensions > 0, test passing explicit dimensions into corresponding vector/array type
+        type_name = f"int[{dimensions}]" if array else f"{inttype}{dimensions}"
         elements = dimensions
         dims = dimensions
     elif dimensions == 0:
+        if array:
+            pytest.skip("Array not supported for 0D call_id")
+
         # If dimensions == 0, test passing 1D value into corresponding scalar type
         type_name = inttype
         elements = 1
         dims = 1
     else:
-        # If dimensions == -1, test passing undefined dimensions to 3d vector type
-        type_name = f"{inttype}3"
+        # If dimensions == -1, test passing undefined dimensions to implicit array or 3d vector type
+        type_name = f"int[3]" if array else f"{inttype}3"
         elements = 3
         dims = -1
 
@@ -113,6 +117,12 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool):
     # Should get out the thread ids
     data = results.storage.to_numpy().view("int32").reshape((-1, elements))
     expected = np.indices((16,)*elements).reshape(elements, -1).T
+
+    # Reverse order of components in last dimension of expected
+    # if testing a vector type
+    if not array and elements > 1:
+        expected = np.flip(expected, axis=1)
+
     assert np.allclose(data, expected)
 
 
