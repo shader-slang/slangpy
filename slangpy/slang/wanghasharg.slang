@@ -24,4 +24,10 @@ public struct WangHashArg {
         }
     }
     public void store<let N : int>(Context0D context, in vector<uint, N> value) {};
+
+    public void load(Context0D context, out uint value) {
+        var tid = context.thread_id;
+        value = wang_hash(tid.x ^ seed);
+    }
+    public void store(Context0D context, in uint value) {};
 }
