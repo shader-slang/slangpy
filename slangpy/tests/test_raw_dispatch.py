@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any
 
 import numpy as np
@@ -170,6 +170,7 @@ def test_set_with_callback(device_type: DeviceType):
     assert np.all(data == expected)
 
 
+@pytest.mark.skip("Removed hooks")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_hook(device_type: DeviceType):
     mod = load_test_module(device_type)

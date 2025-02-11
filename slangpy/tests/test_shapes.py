@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, Optional
 
 import deepdiff
@@ -9,7 +9,7 @@ from slangpy.core.callsignature import BoundVariable
 from slangpy.core.shapes import TShapeOrTuple
 
 from slangpy.backend import DeviceType, float3
-from slangpy.backend.slangpynativeemulation import NativeCallRuntimeOptions
+from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.tests import helpers
 from slangpy.types import floatRef
 from slangpy.types.buffer import NDBuffer
@@ -55,7 +55,7 @@ def dot_product(device_type: DeviceType, a: Any, b: Any, result: Any,
     if transforms is not None:
         function = function.map(**transforms)
 
-    call_data = function._build_call_data(a=a, b=b, _result=result)
+    call_data = function.debug_build_call_data(a=a, b=b, _result=result)
     call_data.call(NativeCallRuntimeOptions(), a=a, b=b, _result=result)
 
     nodes: list[BoundVariable] = []
@@ -86,7 +86,7 @@ def read_slice(device_type: DeviceType, index: Any, texture: Any, result: Any,
     if transforms is not None:
         function = function.map(**transforms)
 
-    call_data = function._build_call_data(
+    call_data = function.debug_build_call_data(
         index=index, texture=texture, _result=result)
     call_data.call(NativeCallRuntimeOptions(), index=index,
                    texture=texture, _result=result)
@@ -119,7 +119,7 @@ def copy_at_index(device_type: DeviceType, index: Any, frombuffer: Any, tobuffer
     if transforms is not None:
         function = function.map(**transforms)
 
-    call_data = function._build_call_data(
+    call_data = function.debug_build_call_data(
         index=index, fr=frombuffer, to=tobuffer)
     call_data.call(NativeCallRuntimeOptions(), index=index, fr=frombuffer, to=tobuffer)
 

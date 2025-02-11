@@ -1,12 +1,13 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
 from typing import Any, Optional
 
-from slangpy.core.native import AccessType, CallContext, CallMode, Shape, TypeReflection
+from slangpy.core.native import AccessType, CallContext, CallMode, Shape
 
 from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorType
 from slangpy.types.tensor import Tensor, innermost_type
+from slangpy.core.native import NativeTensorMarshall, NativeTensor
 
 from slangpy.backend import TypeReflection
 from slangpy.reflection import TYPE_OVERRIDES, SlangProgramLayout, SlangType, TypeReflection, ArrayType, ScalarType
@@ -90,49 +91,52 @@ def build_tensor_type(layout: SlangProgramLayout, element_type: SlangType, dims:
     return slang_type
 
 
-class TensorMarshall(Marshall):
+class TensorMarshall(NativeTensorMarshall):
     def __init__(self, layout: SlangProgramLayout, element_type: SlangType, dims: int, writable: bool,
                  d_in: Optional[TensorMarshall], d_out: Optional[TensorMarshall]):
-        super().__init__(layout)
-        self.layout = layout
-        self.element_type = element_type
-        self.dims = dims
-        self.writable = writable
-        self.d_in = d_in
-        self.d_out = d_out
 
-        self.has_grads = self.d_in is not None or self.d_out is not None
+        # Fix up some typings
+        self.d_in: Optional[TensorMarshall]
+        self.d_out: Optional[TensorMarshall]
+        self.slang_element_type: SlangType
+
+        self.layout = layout
 
         if not element_type.differentiable:
             raise ValueError(
                 f"Tensor element types must be differentiable (received {element_type.full_name})")
 
-        if self.has_grads:
+        if d_in is not None or d_out is not None:
             grad_type = element_type.derivative
 
-            if d_in is not None and not types_equal(grad_type, d_in.element_type):
+            if d_in is not None and not types_equal(grad_type, d_in.slang_element_type):
                 raise ValueError(
                     f"Invalid element type of input gradient for tensor of type {element_type.full_name}: Expected "
-                    f"{grad_type.full_name}, received {d_in.element_type.full_name}")
-            if d_out is not None and not types_equal(grad_type, d_out.element_type):
+                    f"{grad_type.full_name}, received {d_in.slang_element_type.full_name}")
+            if d_out is not None and not types_equal(grad_type, d_out.slang_element_type):
                 raise ValueError(
                     f"Invalid element type of output gradient for tensor of type {element_type.full_name}: Expected "
-                    f"{grad_type.full_name}, received {d_out.element_type.full_name}")
+                    f"{grad_type.full_name}, received {d_out.slang_element_type.full_name}")
 
             if d_in is not None and not writable:
                 raise ValueError(
                     "Supplying input gradients is only allowed if the primal tensor is writable")
 
-        self.slang_type = build_tensor_type(
+        slang_type = build_tensor_type(
             layout, element_type, dims, writable, d_in is not None, d_out is not None)
 
-    @property
-    def is_writable(self) -> bool:
-        return self.writable
+        super().__init__(
+            dims=dims, writable=writable, slang_type=slang_type, slang_element_type=element_type, element_layout=element_type.buffer_layout.reflection,
+            d_in=d_in,
+            d_out=d_out)
 
     @property
-    def has_derivative(self) -> bool:
-        return self.has_grads
+    def has_derivative(self):
+        return self.d_in is not None or self.d_out is not None
+
+    @property
+    def is_writable(self):
+        return self.writable
 
     def resolve_type(self, context: BindContext, bound_type: SlangType):
         if isinstance(bound_type, ITensorType):
@@ -140,25 +144,25 @@ class TensorMarshall(Marshall):
             if bound_type.writable and not self.writable:
                 raise ValueError(
                     "Can't pass a read-only tensor to a writable tensor")
-            if not types_equal(bound_type.dtype, self.element_type):
+            if not types_equal(bound_type.dtype, self.slang_element_type):
                 raise ValueError(
-                    f"Can't convert tensor with element type {self.element_type.full_name} "
+                    f"Can't convert tensor with element type {self.slang_element_type.full_name} "
                     f"to tensor with element type {bound_type.dtype.full_name}")
 
             return build_tensor_type(self.layout, bound_type.dtype, bound_type.dims, bound_type.writable, self.d_in is not None, self.d_out is not None)
 
         # if implicit element casts enabled, allow conversion from type to element type
         if context.options['implicit_element_casts']:
-            if types_equal(self.element_type, bound_type):
+            if types_equal(self.slang_element_type, bound_type):
                 return bound_type
-            if is_matching_array_type(bound_type, self.element_type):
-                return self.element_type
+            if is_matching_array_type(bound_type, self.slang_element_type):
+                return self.slang_element_type
 
         # if implicit tensor casts enabled, allow conversion from vector to element type
         # or array type
         if context.options['implicit_tensor_casts']:
             # Be lenient and allow e.g. passing float to float[N] or float[M][N]
-            if types_equal(self.element_type, innermost_type(bound_type)):
+            if types_equal(self.slang_element_type, innermost_type(bound_type)):
                 if is_nested_array(bound_type) and len(bound_type.shape) <= 2:
                     return bound_type
                 if isinstance(bound_type, VectorType):
@@ -171,7 +175,7 @@ class TensorMarshall(Marshall):
         if dimensions == 0:
             return self.slang_type
         elif dimensions == self.dims:
-            return self.element_type
+            return self.slang_element_type
         else:
             raise ValueError("Cannot reduce dimensions of Tensor")
 
@@ -183,7 +187,7 @@ class TensorMarshall(Marshall):
         if isinstance(vector_target_type, ITensorType):
             return self.dims - vector_target_type.dims
         else:
-            return self.dims + len(self.element_type.shape) - len(vector_target_type.shape)
+            return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
 
     def get_shape(self, value: Optional[Tensor] = None) -> Shape:
         if value is not None:
@@ -198,7 +202,7 @@ class TensorMarshall(Marshall):
             writable = binding.access[0] in (AccessType.write, AccessType.readwrite)
 
         type_name = build_tensor_name(
-            self.element_type, self.dims, writable, self.d_in is not None, self.d_out is not None)
+            self.slang_element_type, self.dims, writable, self.d_in is not None, self.d_out is not None)
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
         # cgb.add_import("tensor")
@@ -209,7 +213,7 @@ class TensorMarshall(Marshall):
         primal_calldata = {
             'buffer': data.storage,
             'layout': {'offset': data.offset, 'strides': strides},
-            'shape': data.shape
+            '_shape': data.shape
         }
 
         if not self.d_in and not self.d_out:
@@ -232,15 +236,9 @@ class TensorMarshall(Marshall):
 
         return result
 
-    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return Tensor.empty(context.device, context.call_shape.as_tuple(), self.element_type)
-
-    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any) -> Any:
-        return data
-
 
 def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
-    if isinstance(value, Tensor):
+    if isinstance(value, NativeTensor):
         d_in = create_tensor_marshall(
             layout, value.grad_in) if value.grad_in is not None else None
         d_out = create_tensor_marshall(
@@ -253,4 +251,5 @@ def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
         raise ValueError(f"Type {type(value)} is unsupported for TensorMarshall")
 
 
+PYTHON_TYPES[NativeTensor] = create_tensor_marshall
 PYTHON_TYPES[Tensor] = create_tensor_marshall

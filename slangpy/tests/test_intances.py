@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any
 
 import numpy as np
@@ -307,7 +307,7 @@ class CustomInstanceList:
     def get_this(self) -> Any:
         buffer = NDBuffer(self.device, float2, len(self.data))
         np_data = np.array([[v.x, v.y] for v in self.data], dtype=np.float32)
-        buffer.from_numpy(np_data)
+        buffer.copy_from_numpy(np_data)
         return buffer
 
     def update_this(self, value: Buffer) -> None:
@@ -403,11 +403,11 @@ def test_backwards_diff(device_type: DeviceType):
     next_positions = next_positions.with_grads()
 
     # Init the gradients of next positions to 1 for the backwards pass
-    next_positions.grad.storage.from_numpy(np.ones((1000, 2), dtype=np.float32))
+    next_positions.grad.storage.copy_from_numpy(np.ones((1000, 2), dtype=np.float32))
 
     # Make a buffer of 1000 identical dts, so we can get back the unique grads for each one
     dts = Tensor.empty(m.device, shape=(1000,), dtype=float).with_grads()
-    dts.storage.from_numpy(np.full((1000,), 1.0/60.0, dtype=np.float32))
+    dts.storage.copy_from_numpy(np.full((1000,), 1.0/60.0, dtype=np.float32))
 
     # Backwards pass
     particles.calc_next_position.bwds(dt=dts, _result=next_positions)

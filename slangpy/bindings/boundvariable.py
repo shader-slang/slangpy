@@ -1,5 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
-from types import NoneType
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, Optional, Union
 
 from slangpy.core.enums import IOType
@@ -19,7 +18,7 @@ class BoundVariableException(Exception):
     the exception.
     """
 
-    def __init__(self, message: str, variable: 'BoundVariable') -> NoneType:
+    def __init__(self, message: str, variable: 'BoundVariable'):
         super().__init__(message)
         self.message = message
         self.variable = variable
@@ -32,7 +31,7 @@ class BoundCall:
     later bound to corresponding slang parameters during function resolution.
     """
 
-    def __init__(self, context: 'BindContext', *args: Any, **kwargs: Any) -> NoneType:
+    def __init__(self, context: 'BindContext', *args: Any, **kwargs: Any):
         super().__init__()
         self.args = [BoundVariable(context, x, None, "") for x in args]
         self.kwargs = {n: BoundVariable(context, v, None, n) for n, v in kwargs.items()}
@@ -225,6 +224,9 @@ class BoundVariable:
 
         if self.children is not None:
             for child in self.children.values():
+                if child.name not in self.slang_type.fields:
+                    raise ValueError(
+                        f"Slang type '{self.slang_type.full_name}' has no field '{child.name}'")
                 slang_child = self.slang_type.fields[child.name]
                 child.bind(slang_child, self.slang_modifiers)
 
@@ -276,6 +278,8 @@ class BoundVariable:
             self._apply_explicit_vectorization(context, mapping)
 
     def _apply_explicit_vectorization(self, context: 'BindContext', mapping: Any):
+        from slangpy.core.struct import Struct
+
         try:
             if isinstance(mapping, tuple):
                 self.vector_mapping = Shape(*mapping)
@@ -283,6 +287,9 @@ class BoundVariable:
                 self.explicitly_vectorized = True
             elif isinstance(mapping, SlangType):
                 self.vector_type = mapping
+                self.explicitly_vectorized = True
+            elif isinstance(mapping, Struct):
+                self.vector_type = mapping.struct
                 self.explicitly_vectorized = True
             elif isinstance(mapping, str):
                 self.vector_type = context.layout.find_type_by_name(mapping)
@@ -347,10 +354,15 @@ class BoundVariable:
                     self.vector_mapping.as_tuple())+1
             else:
                 self.call_dimensionality = 0
+        elif self.python.match_call_shape:
+            self.call_dimensionality = -1
         else:
             assert self.vector_type is not None
             self.call_dimensionality = self.python.resolve_dimensionality(
                 context, self, self.vector_type)
+            if self.call_dimensionality is not None and self.call_dimensionality < 0:
+                raise BoundVariableException(
+                    f"Could not resolve dimensionality for {self.path}", self)
 
     def finalize_mappings(self, context: BindContext):
         """
@@ -362,6 +374,9 @@ class BoundVariable:
         self._finalize_mappings(context)
 
     def _finalize_mappings(self, context: BindContext):
+        if self.call_dimensionality == -1:
+            self.call_dimensionality = context.call_dimensionality
+
         if context.options['strict_broadcasting'] and self.children is None and not self.explicitly_vectorized:
             if self.call_dimensionality != 0 and self.call_dimensionality != context.call_dimensionality:
                 raise BoundVariableException(
@@ -472,13 +487,14 @@ class BoundVariable:
                     f"{var.variable_name}.load(context.map(_m_{var.variable_name}),value.{field})")
             cgb.end_block()
 
-            cgb.empty_line()
-            cgb.append_line(f"{prefix} void store({context_decl}, in {value_decl})")
-            cgb.begin_block()
-            for field, var in self.children.items():
-                cgb.append_statement(
-                    f"{var.variable_name}.store(context.map(_m_{var.variable_name}),value.{field})")
-            cgb.end_block()
+            if self.access[0] in (AccessType.write, AccessType.readwrite):
+                cgb.empty_line()
+                cgb.append_line(f"{prefix} void store({context_decl}, in {value_decl})")
+                cgb.begin_block()
+                for field, var in self.children.items():
+                    cgb.append_statement(
+                        f"{var.variable_name}.store(context.map(_m_{var.variable_name}),value.{field})")
+                cgb.end_block()
 
             cgb.end_struct()
 

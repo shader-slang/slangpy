@@ -7,7 +7,7 @@ It's core objectives are to:
 - Grant easy access to Slang's auto-diff features
 - Provide optional PyTorch support out of the box
 
-It is built upon 2 core NVidia technologies:
+It is built upon 2 core technologies:
 - [Slang shading language](https://shader-slang.com/): A modern, platform agnostic shading language with full auto-diff support.
 - [Slang graphics library (SGL)](https://github.com/shader-slang/sgl): A powerful Python extension providing a thin wrapper around the graphics layer.
 
@@ -15,7 +15,7 @@ By bringing these 2 technologies together with a simple and flexible Python libr
 
 ## Documentation
 
-For more detailed information and examples, see [the Documentation here](https://slangpy.readthedocs.io/).
+For more detailed information and examples, see [the Documentation here](https://slangpy.shader-slang.org/).
 
 ## Installation
 
@@ -38,4 +38,4 @@ pip install .
 
 Note that if using the `main` branch, you may need to clone and build the latest revision of SGL rather than the package installed with pip.
 
-To enable PyTorch integration, simply pip install pytorch as usual and it will be detected automatically by SlangPy.
+To enable PyTorch integration, simply `pip install pytorch` as usual and it will be detected automatically by SlangPy.

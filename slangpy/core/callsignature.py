@@ -1,7 +1,7 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.native import AccessType, CallMode
+from slangpy.core.native import AccessType, CallMode, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
 import slangpy.reflection as slr
@@ -16,13 +16,19 @@ from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
 
 if TYPE_CHECKING:
-    from slangpy.core.function import Function
+    from slangpy.core.function import FunctionBuildInfo
 
 
 class MismatchReason:
     def __init__(self, reason: str):
         super().__init__()
         self.reason = reason
+
+
+class ResolveException(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
 
 
 class KernelGenException(Exception):
@@ -84,7 +90,7 @@ def specialize(
 
     if signature.num_function_kwargs > 0 or signature.has_implicit_args:
         if function.is_overloaded:
-            return MismatchReason("Call an overloaded function with named or implicit arguments is not currently supported.")
+            return MismatchReason("Calling an overloaded function with named or implicit arguments is not currently supported.")
 
         function_parameters = [x for x in function.parameters]
 
@@ -148,7 +154,7 @@ def specialize(
             arg.param_index = i
 
     def to_type_reflection(input: Any) -> TypeReflection:
-        if isinstance(input, Marshall):
+        if isinstance(input, NativeMarshall):
             return input.slang_type.type_reflection
         elif isinstance(input, TypeReflection):
             return input
@@ -195,14 +201,18 @@ def validate_specialize(
                 f"After implicit casting, cannot convert {input} to TypeReflection.")
 
     types = [to_type_reflection(x.vector_type) for x in root_params]
-    if any(x is None for x in types):
-        raise KernelGenException(
-            "After implicit casting, unable to resolve all Slang types for specialization overload resolution.")
+    for (type, param) in zip(types, root_params):
+        if type is None:
+            raise KernelGenException(
+                f"After implicit casting, unable to find reflection data for {param.variable_name}"
+                "This typically suggests the binding system has attempted to generate an invalid Slang type.")
 
     specialized = function.reflection.specialize_with_arg_types(types)
     if specialized is None:
         raise KernelGenException(
-            "After implicit casting, no Slang overload found that matches the provided Python argument types.")
+            "After implicit casting, no Slang overload found that matches the provided Python argument types. "
+            "This typically suggests SlangPy selected an overload to call, but couldn't find a valid "
+            "way to pass your Python arguments to it.")
 
 
 def bind(
@@ -323,9 +333,9 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     node.python = python_type
 
 
-def generate_constants(function: 'Function', cg: CodeGen):
-    if function._constants is not None:
-        for k, v in function._constants.items():
+def generate_constants(build_info: 'FunctionBuildInfo', cg: CodeGen):
+    if build_info.constants is not None:
+        for k, v in build_info.constants.items():
             if isinstance(v, bool):
                 cg.constants.append_statement(
                     f"export static const bool {k} = {'true' if v else 'false'}"
@@ -340,7 +350,7 @@ def generate_constants(function: 'Function', cg: CodeGen):
                 )
 
 
-def generate_code(context: BindContext, function: 'Function', signature: BoundCall, cg: CodeGen):
+def generate_code(context: BindContext, build_info: 'FunctionBuildInfo', signature: BoundCall, cg: CodeGen):
     """
     Generate a list of call data nodes that will be used to generate the call
     """
@@ -348,10 +358,10 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
 
     # Generate the header
     cg.add_import("slangpy")
-    cg.add_import(function.module.name)
+    cg.add_import(build_info.module.name)
 
     # Generate constants if specified
-    generate_constants(function, cg)
+    generate_constants(build_info, cg)
 
     # Generate call data inputs if vector call
     call_data_len = context.call_dimensionality
@@ -391,7 +401,7 @@ def generate_code(context: BindContext, function: 'Function', signature: BoundCa
         cg.trampoline.append_code(f"_result = ")
 
     # Get function name, if it's the init function, use the result type
-    func_name = function.name
+    func_name = build_info.name
     if func_name == "$init":
         results = [x for x in root_params if x.variable_name == '_result']
         assert len(results) == 1

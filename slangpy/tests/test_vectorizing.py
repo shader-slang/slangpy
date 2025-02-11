@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import pytest
 
 from slangpy.backend import DeviceType, int3, float3
@@ -115,7 +115,7 @@ def test_generic_constrained_fail_no_vectorization(device_type: DeviceType):
     function = helpers.create_function_from_module(
         device, "genericconstrainedfoo", SIMPLE_FUNC)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(Exception):
         call_data = function.debug_build_call_data(int3(1, 1, 1))
 
 
@@ -282,7 +282,7 @@ def test_genericconstrained_1d_fail_implicit_vectorization(device_type: DeviceTy
 
     buffer = NDBuffer(device=device, dtype=float, shape=(10,))
 
-    with pytest.raises(ValueError):
+    with pytest.raises(Exception):
         call_data = function.debug_build_call_data(buffer)
 
 
@@ -369,8 +369,9 @@ def test_broadcast_vector(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "add", SIMPLE_FUNC)
 
-    res = function(float3(1, 2, 3), float3(4, 5, 6), _result='numpy')
-    assert np.allclose(res, [5, 7, 9])
+    res_buffer = NDBuffer(device=device, dtype=float, shape=(3,))
+    function(float3(1, 2, 3), float3(4, 5, 6), _result=res_buffer)
+    assert np.allclose(res_buffer.to_numpy().view(dtype=np.float32), [5, 7, 9])
 
 
 if __name__ == "__main__":

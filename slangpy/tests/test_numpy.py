@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
 
@@ -104,7 +104,7 @@ def test_fail_numpy_float3s(device_type: DeviceType):
     a = np.random.rand(2, 2, 2).astype(np.float32)
     b = np.random.rand(2, 2, 2).astype(np.float32)
 
-    with pytest.raises(ValueError, match="Element shape mismatch"):
+    with pytest.raises(RuntimeError, match="does not match the expected shape"):
         module.add_float3s.return_type(np.ndarray)(a, b)
 
 # Ensure numpy array kernels are cached correctly

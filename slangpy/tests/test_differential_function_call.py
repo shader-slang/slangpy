@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
 
@@ -62,7 +62,7 @@ def test_call_none_differentiable(device_type: DeviceType):
     res = function(a, b)
     assert res == python_eval_polynomial(a, b)
 
-    with pytest.raises(ValueError, match="Could not call function 'polynomial': Function is not differentiable"):
+    with pytest.raises(Exception, match="Could not call function 'polynomial': Function is not differentiable"):
         function.bwds(a, b, res)
 
 
@@ -153,14 +153,14 @@ def test_call_with_buffers(device_type: DeviceType):
         device=device,
         dtype=float
     ).with_grads()
-    a.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     b = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float
     ).with_grads()
-    b.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    b.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     res: Tensor = kernel_eval_polynomial(a, b)
 
@@ -172,7 +172,7 @@ def test_call_with_buffers(device_type: DeviceType):
     assert np.allclose(res_data, expected)
 
     res = res.with_grads()
-    res.grad.storage.from_numpy(np.ones(res.shape.as_tuple(), dtype=np.float32))
+    res.grad.storage.copy_from_numpy(np.ones(res.shape.as_tuple(), dtype=np.float32))
 
     kernel_eval_polynomial.bwds(a, b, res)
     a_grad_data = a.grad.to_numpy().view(np.float32)
@@ -198,14 +198,14 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
         device=device,
         dtype=float3,
     ).with_grads()
-    a.storage.from_numpy(np.random.rand(32*3).astype(np.float32))
+    a.storage.copy_from_numpy(np.random.rand(32*3).astype(np.float32))
 
     b = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float3,
     ).with_grads()
-    b.storage.from_numpy(np.random.rand(32*3).astype(np.float32))
+    b.storage.copy_from_numpy(np.random.rand(32*3).astype(np.float32))
 
     res: Tensor = kernel_eval_polynomial(a, b)
 
@@ -217,7 +217,7 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
     assert np.allclose(res_data, expected)
 
     res = res.with_grads()
-    res.grad.storage.from_numpy(np.ones(32*3, dtype=np.float32))
+    res.grad.storage.copy_from_numpy(np.ones(32*3, dtype=np.float32))
 
     kernel_eval_polynomial.bwds(a, b, res)
     a_grad_data = a.grad.storage.to_numpy().view(np.float32).reshape(-1, 3)
@@ -243,28 +243,28 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         device=device,
         dtype=float,
     ).with_grads()
-    a_x.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_x.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_y = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float,
     ).with_grads()
-    a_y.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_y.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_z = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float,
     ).with_grads()
-    a_z.storage.from_numpy(np.random.rand(32).astype(np.float32))
+    a_z.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     b = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float3,
     ).with_grads()
-    b.storage.from_numpy(np.random.rand(32*3).astype(np.float32))
+    b.storage.copy_from_numpy(np.random.rand(32*3).astype(np.float32))
 
     res: Tensor = kernel_eval_polynomial({
         'x': a_x,
@@ -283,7 +283,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     assert np.allclose(res_data, expected)
 
     res = res.with_grads()
-    res.grad.storage.from_numpy(np.ones(32*3, dtype=np.float32))
+    res.grad.storage.copy_from_numpy(np.ones(32*3, dtype=np.float32))
 
     kernel_eval_polynomial.bwds({
         'x': a_x,

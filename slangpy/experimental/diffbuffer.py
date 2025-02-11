@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, Optional
 
 import numpy.typing as npt
@@ -8,7 +8,7 @@ from slangpy.core.shapes import TShapeOrTuple
 from slangpy.backend import (Device, MemoryType,
                              ResourceUsage)
 from slangpy.reflection import SlangProgramLayout
-from slangpy.types.buffer import NDBuffer, resolve_element_type
+from slangpy.types.buffer import NDBuffer, resolve_element_type, resolve_program_layout
 
 
 class NDDifferentiableBuffer(NDBuffer):
@@ -45,8 +45,10 @@ class NDDifferentiableBuffer(NDBuffer):
         if grad_type is None:
             grad_type = self.dtype.derivative
 
+        program_layout = resolve_program_layout(device, grad_type, program_layout)
+
         #: Slang element type for the gradient.
-        self.grad_type = resolve_element_type(self.program_layout, element_type)
+        self.grad_type = resolve_element_type(program_layout, element_type)
 
         #: Whether gradient buffer is required.
         self.requires_grad = requires_grad
@@ -69,7 +71,7 @@ class NDDifferentiableBuffer(NDBuffer):
                 grad_type=None,
                 grad_usage=None,
                 grad_memory_type=None,
-                program_layout=self.program_layout)
+                program_layout=program_layout)
             self.slangpy_signature += self.grad.slangpy_signature
         else:
             self.grad = None
@@ -102,7 +104,7 @@ class NDDifferentiableBuffer(NDBuffer):
         """
         Sets the primal buffer from a numpy array (alias for from_numpy).
         """
-        self.from_numpy(data)
+        self.copy_from_numpy(data)
 
     def primal_to_torch(self):
         """
@@ -122,7 +124,7 @@ class NDDifferentiableBuffer(NDBuffer):
         Sets the gradient buffer from a numpy array.
         """
         assert self.grad is not None
-        self.grad.from_numpy(data)
+        self.grad.copy_from_numpy(data)
 
     def grad_to_torch(self):
         """

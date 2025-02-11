@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, Optional, cast
 
 from slangpy.core.native import Shape
@@ -36,6 +36,8 @@ class StructMarshall(ValueMarshall):
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: SlangType):
         assert binding.children is not None
+        if not self._fields:
+            return 0
         return max(cast(int, binding.children[name].call_dimensionality)
                    for name in self._fields.keys())
 

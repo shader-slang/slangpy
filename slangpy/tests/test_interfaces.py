@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any
 
 import pytest
@@ -9,7 +9,7 @@ import slangpy.bindings.typeregistry as tr
 import slangpy.tests.helpers as helpers
 from slangpy import Module
 from slangpy.backend import DeviceType, TypeReflection
-from slangpy.bindings.marshall import BindContext
+from slangpy.bindings.marshall import BindContext, Marshall
 from slangpy.bindings.boundvariable import BoundVariable
 from slangpy.bindings.codegen import CodeGenBlock
 from slangpy.builtin.value import ValueMarshall
@@ -48,7 +48,7 @@ class Foo:
         self.slangpy_signature = f"{T.full_name}{N}"
 
 
-class FooImpl(ValueMarshall):
+class FooImpl(Marshall):
     def __init__(self, layout: SlangProgramLayout, T: SlangType, N: int):
         super().__init__(layout)
         self.T = T

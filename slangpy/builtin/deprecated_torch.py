@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # type: ignore
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ except ImportError:
 import numpy as np
 
 from slangpy.backend import TypeReflection, SlangModule, Buffer, ResourceUsage, DataType
-from slangpy.backend.slangpynativeemulation import NativeBoundVariableRuntime
+from slangpy.core.native import NativeBoundVariableRuntime
 from slangpy.bindings import ReturnContext, BoundVariableRuntime, CallContext, Shape, AccessType
 from slangpy.bindings import PYTHON_TYPES, PYTHON_SIGNATURES
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
@@ -301,7 +301,7 @@ if torch is not None:
                 elif t.is_cpu:
                     flattened = np.lib.stride_tricks.as_strided(
                         t.numpy(), (view_length, ), (t.element_size(), ))
-                    buf.from_numpy(flattened)
+                    buf.copy_from_numpy(flattened)
                 else:
                     raise ValueError(
                         f"Don't know how to read input data from torch tensor with device {t.device}")

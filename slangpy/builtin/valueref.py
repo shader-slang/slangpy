@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any
 
 import numpy as np
@@ -123,7 +123,7 @@ class ValueRefMarshall(Marshall):
             if isinstance(self.value_type, kfr.SlangType):
                 data.value = numpy_to_slang_value(self.value_type, npdata)
             else:
-                data.value = self.value_type.from_numpy(npdata)
+                data.value = self.value_type.copy_from_numpy(npdata)
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         pt = slang_type_to_return_type(self.value_type)

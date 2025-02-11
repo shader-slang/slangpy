@@ -1,11 +1,13 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Any, Union
 
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
 from slangpy.backend import ComputeKernel, SlangModule, Device
+from slangpy.core.native import NativeCallDataCache
 from slangpy.reflection import SlangProgramLayout
+from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 import weakref
 
@@ -31,6 +33,15 @@ def _register_hot_reload_hook(device: Device):
     device.register_shader_hot_reload_callback(_check_for_hot_reload)
 
 
+class CallDataCache(NativeCallDataCache):
+    def lookup_value_signature(self, o: object):
+        sig = PYTHON_SIGNATURES.get(type(o))
+        if sig is not None:
+            return sig(o)
+        else:
+            return None
+
+
 class Module:
     """
     A Slang module, created either by loading a slang file or providing a loaded SGL module.
@@ -47,13 +58,21 @@ class Module:
         self.slangpy_device_module = device_module.session.load_module('slangpy')
 
         #: Reflection / layout information for the module.
-        self.layout = SlangProgramLayout(self.device_module.layout,
+        # Link the user- and device module together so we can reflect combined types
+        # This should be solved by the combined object API in the future
+        module_list = [self.slangpy_device_module, self.device_module]
+        combined_program = device_module.session.link_program(module_list, [])
+        # Do we still need the device_module layout here if the modules are linked?
+        self.layout = SlangProgramLayout(combined_program.layout,
                                          self.slangpy_device_module.layout)
 
-        self.call_data_cache: dict[str, 'CallData'] = {}
+        self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
         self.link = [x.module if isinstance(x, Module) else x for x in link]
+
+        self._attr_cache: dict[str, Union[Function, Struct]] = {}
+
         LOADED_MODULES[self.device_module.name] = self
 
     @staticmethod
@@ -142,9 +161,8 @@ class Module:
         """
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
-            res = Function()
-            res.attach(module=self, func=slang_function,
-                       struct=None, options=self.options)
+            res = Function(module=self, func=slang_function,
+                           struct=None, options=self.options)
             return res
 
     def require_function(self, name: str):
@@ -181,17 +199,23 @@ class Module:
         Attribute accessor attempts to find either a struct or function 
         with the specified attribute name.
         """
+
+        # Check the cache first
+        if name in self._attr_cache:
+            return self._attr_cache[name]
+
         # Search for name as a fully qualified child struct
         slang_struct = self.find_struct(name)
         if slang_struct is not None:
+            self._attr_cache[name] = slang_struct
             return slang_struct
 
         # Search for name as a child of this struct
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
-            res = Function()
-            res.attach(module=self, func=slang_function,
-                       struct=None, options=self.options)
+            res = Function(module=self, func=slang_function,
+                           struct=None, options=self.options)
+            self._attr_cache[name] = res
             return res
 
         raise AttributeError(

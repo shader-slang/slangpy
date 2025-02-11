@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
 
@@ -42,7 +42,7 @@ void add_numbers(float2 a, float2 b, out float2 res) {
 
     b_data = np.random.rand(100, 2).astype(np.float32)
     b = NDBuffer(device=device, element_count=100, dtype=float2)
-    b.storage.from_numpy(b_data)
+    b.storage.copy_from_numpy(b_data)
 
     res = NDBuffer(
         device=device, element_count=100, dtype=float2)
@@ -71,11 +71,11 @@ void add_numbers(float2 a, float2 b, out float2 res) {
 
     a_data = np.random.rand(100, 2).astype(np.float32)
     a = NDBuffer(device=device, shape=(100, 2), dtype=float)
-    a.storage.from_numpy(a_data)
+    a.storage.copy_from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
     b = NDBuffer(device=device, element_count=100, dtype=float2)
-    b.storage.from_numpy(b_data)
+    b.storage.copy_from_numpy(b_data)
 
     res = NDBuffer(
         device=device, element_count=100, dtype=float2)
@@ -104,11 +104,11 @@ void add_numbers_vecreadwrite(float2 a, float2 b, out float2 res) {
 
     a_data = np.random.rand(100, 2).astype(np.float32)
     a = NDBuffer(device=device, shape=(100, 2), dtype=float)
-    a.storage.from_numpy(a_data)
+    a.storage.copy_from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
     b = NDBuffer(device=device, element_count=100, dtype=float2)
-    b.storage.from_numpy(b_data)
+    b.storage.copy_from_numpy(b_data)
 
     res = NDBuffer(device=device, shape=(100, 2), dtype=float)
 
@@ -136,11 +136,11 @@ void add_numbers_diffpair(float2 a, float2 b, out float2 res) {
 
     a_data = np.random.rand(100, 2).astype(np.float32)
     a = Tensor.empty(device=device, shape=(100, 2), dtype=float)
-    a.storage.from_numpy(a_data)
+    a.storage.copy_from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
     b = NDBuffer(device=device, element_count=100, dtype=float2)
-    b.storage.from_numpy(b_data)
+    b.storage.copy_from_numpy(b_data)
 
     res = NDBuffer(device=device, shape=(100, 2), dtype=float)
 

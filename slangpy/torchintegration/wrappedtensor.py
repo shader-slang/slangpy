@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
 from typing import Any, Optional
@@ -6,7 +6,7 @@ from numpy import ScalarType
 from sgl import TypeReflection
 import torch
 
-from slangpy.backend.slangpynativeemulation import AccessType, CallContext, CallMode, Shape
+from slangpy.core.native import AccessType, CallContext, CallMode, Shape
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.bindings.marshall import Marshall, ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
@@ -48,6 +48,10 @@ class WrappedTensor:
         self.grad_in: Optional[WrappedTensor] = None
         self.grad_out: Optional[WrappedTensor] = None
         self.last_access_type: tuple[AccessType, AccessType] = (AccessType.none, AccessType.none)
+
+    @property
+    def shape(self):
+        return Shape(self.primal.shape) if self.primal is not None else Shape()
 
     def collect_streams(self, streams: set[int], include_meta: bool):
         if self.primal is not None and (self.primal.is_cuda or (self.primal.is_meta and include_meta)):
@@ -106,7 +110,7 @@ class WrappedTensorMarshall(TensorMarshall):
         primal_calldata = {
             'buffer': data.primal,
             'layout': {'offset': offset, 'strides': strides},
-            'shape': shape
+            '_shape': shape
         }
 
         if not self.d_in and not self.d_out:

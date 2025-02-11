@@ -1,17 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, cast
 
-from slangpy.core.native import AccessType, CallContext, TypeReflection
+from slangpy.core.native import AccessType, CallContext, NativeValueMarshall
 
 import slangpy.backend as kfbackend
+from slangpy.backend import TypeReflection
 import slangpy.reflection as kfr
 from slangpy.backend import math
-from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,
+from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES,
                               BindContext, BoundVariable, BoundVariableRuntime,
                               CodeGenBlock)
 from slangpy.reflection.reflectiontypes import (BOOL_TYPES, FLOAT_TYPES,
                                                 INT_TYPES, SIGNED_INT_TYPES,
-                                                UNSIGNED_INT_TYPES)
+                                                UNSIGNED_INT_TYPES, SlangType)
+from slangpy.core.utils import is_type_castable_on_host
 
 """
 Common functionality for basic value types such as int, float, vector, matrix etc that aren't
@@ -49,9 +51,10 @@ def slang_type_to_return_type(slang_type: kfr.SlangType) -> Any:
         raise ValueError(f"Slang type {slang_type} has no associated python value type")
 
 
-class ValueMarshall(Marshall):
+class ValueMarshall(NativeValueMarshall):
     def __init__(self, layout: kfr.SlangProgramLayout):
-        super().__init__(layout)
+        super().__init__()
+        self.slang_type: 'SlangType'
 
     # Values don't store a derivative - they're just a value
     @property
@@ -69,7 +72,7 @@ class ValueMarshall(Marshall):
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             cgb.type_alias(
-                f"_t_{name}", f"ValueType<{self.slang_type.full_name}>")
+                f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
         else:
             cgb.type_alias(f"_t_{name}", f"NoneType")
 
@@ -92,6 +95,31 @@ class ValueMarshall(Marshall):
     # Return the input as output, as it was by definition not changed
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any) -> Any:
         return data
+
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
+        # Check if we should replace our default slang type with the bound type
+        # This is to handle passing e.g. python ints, which are represented by
+        # a single type, to any of slangs integer types (uint16_t, int64_t, etc.)
+        if is_type_castable_on_host(self.slang_type, bound_type):
+            return bound_type
+        return self.slang_type
+
+    def reduce_type(self, context: 'BindContext', dimensions: int):
+        raise NotImplementedError()
+
+    def resolve_dimensionality(self, context: BindContext, binding: 'BoundVariable', vector_target_type: 'SlangType'):
+        """
+        Calculate the call dimensionality when this value is passed as a given type. For example,
+        a 3D buffer passed to a scalar would return 3, but a 3D buffer passed to a 3D buffer would
+        return 0.
+
+        Default implementation simply returns the difference between the dimensionality of this
+        type and the target type.
+        """
+        if self.slang_type is None:
+            raise ValueError(
+                f"Cannot resolve dimensionality of {type(self)} without slang type")
+        return len(self.slang_type.shape) - len(vector_target_type.shape)
 
 
 """

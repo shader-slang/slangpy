@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
 
@@ -29,8 +29,8 @@ void add_numbers_nd(float a, float b, out float c) {
     a_data = np.random.rand(*a.shape).astype(np.float32)
     b_data = np.random.rand(*b.shape).astype(np.float32)
 
-    a.storage.from_numpy(a_data)
-    b.storage.from_numpy(b_data)
+    a.storage.copy_from_numpy(a_data)
+    b.storage.copy_from_numpy(b_data)
 
     function(a, b, c)
 

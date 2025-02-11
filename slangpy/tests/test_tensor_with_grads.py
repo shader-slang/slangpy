@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import pytest
 from slangpy.backend import DeviceType, Device
 from slangpy.types import Tensor
@@ -52,7 +52,7 @@ def test_differentiable_interface_parameters(device_type: DeviceType):
     compare_tensors(y.to_numpy(), np_result)
 
     y.grad_in = Tensor.zeros_like(y)
-    y.grad_in.storage.from_numpy(np.random.rand(
+    y.grad_in.storage.copy_from_numpy(np.random.rand(
         *y.shape, *y.dtype.shape.as_tuple()).astype(np.float32))
 
     func.bwds(weights, biases, x, y)
@@ -82,7 +82,7 @@ void inc(float amount, inout float val) { val += amount; }
     function(amount, val)
     assert np.allclose(val.to_numpy(), amount.to_numpy())
 
-    with pytest.raises(ValueError, match="inout param"):
+    with pytest.raises(Exception, match="inout param"):
         function.bwds(amount, val)
 
 
