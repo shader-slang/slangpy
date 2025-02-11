@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-**Version 0.20**
+**Version 0.20.0**
 
 - Add SDF example
 - Transpose vector coordinates
