@@ -28,6 +28,7 @@ public struct CallIdArg {
 }
 
 // Rules for how to vectorize a Python call id argument to a given Slang type.
+// Dim is user specified Python side, -1 means use the same dimensionality as the Slang type.
 struct VectorizeCallidArgTo<SlangParameterType, let Dim: int> {
 }
 extension<let N : int, T : __BuiltinIntegerType> VectorizeCallidArgTo<Array<T,N>, N> {

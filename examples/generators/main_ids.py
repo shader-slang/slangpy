@@ -17,6 +17,13 @@ module = spy.Module.load_from_file(device, "ids.slang")
 res = np.zeros((4, 4, 2), dtype=np.int32)
 module.myfunc(spy.call_id(), _result=res)
 
+# [ [ [0,0], [1,0], [2,0], [3,0] ], [ [0,1], [1,1], [2,1], [3,1] ], ...
+print(res)
+
+# Do the same but with a function that takes an int[2] array as input
+res = np.zeros((4, 4, 2), dtype=np.int32)
+module.myfuncarray(spy.call_id(), _result=res)
+
 # [ [ [0,0], [0,1], [0,2], [0,3] ], [ [1,0], [1,1], [1,2], [1,3] ], ...
 print(res)
 

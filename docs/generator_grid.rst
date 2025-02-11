@@ -21,10 +21,10 @@ We can invoke this function and pass it the ``grid`` generator as follows:
     res = module.myfunc(spy.grid(shape=(4,4)), _result='numpy')
 
     # Example output:
-    # [ [ [0,0], [0,1], [0,2], [0,3] ], [ [1,0], [1,1], [1,2], [1,3] ], ... ]
+    # [ [ [0,0], [1,0], [2,0], [3,0] ], [ [0,1], [1,1], [2,1], [3,1] ], ...
     print(res)
 
-The ``grid`` generator provides the grid coordinate of the current thread, and the resulting numpy array is populated accordingly. Since we specified a shape of ``(4,4)``, the resulting kernel and output conform to this 4x4 structure.
+The ``grid`` generator provides the grid coordinate of the current thread, and the resulting numpy array is populated accordingly. Since we specified a shape of ``(4,4)``, the resulting kernel and output conform to this 4x4 structure. As with the ``call_id`` generator, when passed to a vector parameter, the x component represents the right-most dimension, the y component the next dimension to the left, and so on.
 
 Strides
 -------
@@ -37,7 +37,7 @@ Additionally, ``grid`` supports a stride argument:
     res = module.myfunc(spy.grid(shape=(4,4), stride=(2,2)), _result='numpy')
 
     # Example output:
-    # [ [ [0,0], [0,2], [0, 4], [0, 6] ], [ [2,0], [2,2], [2, 4], [2, 6] ], ...
+    # [ [ [0,0], [2,0], [4,0], [6,0] ], [ [0,2], [2,2], [4,2], [6,2] ], ...
     print(res)
 
 When both shape and stride are specified, the number of elements in the grid is determined by the shape, while the stride controls the spacing between elements. In this case, the grid is populated with a stride of ``(2,2)``.
@@ -67,7 +67,7 @@ The grid generator allows for any dimension of the shape to be set to ``-1`` (un
     module.myfunc(spy.grid(shape=(-1,-1), stride=(4,4)), _result=res)
 
     # Example output:
-    # [ [ [0,0], [0,4], [0,8], [0,12] ], [ [4,0], [4,4], [4,8], [4,12] ], ... ]
+    # [ [ [0,0], [4,0], [8,0], [12,0] ], [ [0,4], [4,4], [8,4], [12,4] ], ...
     print(res)
 
 In this case, the grid size is inferred dynamically, but the stride remains fixed at ``(4,4)``. Since the result buffer is pre-allocated to ``(4,4)``, the grid is populated accordingly.

@@ -31,6 +31,7 @@ public struct GridArg<let N : int> {
 }
 
 // Rules for how to vectorize a Python grid argument to a given Slang type.
+// Dim is user specified Python side, -1 means use the same dimensionality as the Slang type.
 struct VectorizeGridArgTo<SlangParameterType, let Dim : int> {
 }
 extension<let N : int, T : __BuiltinIntegerType> VectorizeGridArgTo<Array<T, N>, N> {
