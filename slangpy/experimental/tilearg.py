@@ -11,7 +11,7 @@ from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, get_or_create_type
 from slangpy.builtin.texture import TextureMarshall
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 from slangpy.core.shapes import TShapeOrTuple
-from slangpy.core.native import NativeObject, CallContext
+from slangpy.core.native import NativeObject, CallContext, get_value_signature, get_texture_shape
 from slangpy.reflection.reflectiontypes import TYPE_OVERRIDES, ArrayType, VectorType, get_type_descriptor
 
 
@@ -30,7 +30,7 @@ class TileArg(NativeObject):
     def __init__(self, input: Any, kernel_size: Union[TShapeOrTuple, int] = 1, stride: Union[TShapeOrTuple, int] = 1):
         super().__init__()
         if isinstance(input, Texture):
-            shape = (input.height, input.width)
+            shape = get_texture_shape(input, 0)
         else:
             raise ValueError("TileArg input must be a Texture.")
 
@@ -66,13 +66,11 @@ def tile(input: Any, tile_size: Union[TShapeOrTuple, int] = 1, stride: Union[TSh
     return TileArg(input, tile_size, stride)
 
 
-tile_arg_info = {
-    "Texture2DTile": {'dims': 2},
-    "RWTexture2DTile": {'dims': 2}
-}
-
-
 class TileArgType(SlangType):
+    """
+    Slang type representation for a TileArg, typically used as ITile or IRWTile.
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         args = program.get_resolved_generic_args(refl)
         assert args is not None
@@ -87,17 +85,21 @@ class TileArgType(SlangType):
 
 
 class TileArgMarshall(Marshall):
+    """
+    Marshall for tile arguments.
+    """
+
     def __init__(self, layout: SlangProgramLayout, input_marshall: Marshall):
         super().__init__(layout)
         self.input_marshall = input_marshall
-        self.slang_type = layout.find_type_by_name("Tile")
+        self.slang_type = layout.require_type_by_name("Tile")
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         access = binding.access
         name = binding.variable_name
 
         if access[0] == AccessType.read:
-            cgb.type_alias(f"_t_{name}", f"{binding.vector_type.full_name}.SPMarshall")
+            cgb.type_alias(f"_t_{name}", f"{binding.vector_type.full_name}.SPType")
 
     def write_shader_cursor_pre_dispatch(self, context: CallContext, binding: BoundVariableRuntime, cursor: ShaderCursor, value: TileArg, read_back: list):
         field = cursor[binding.variable_name]
@@ -112,27 +114,21 @@ class TileArgMarshall(Marshall):
         finally:
             binding.variable_name = n
         field["stride"] = value.stride.as_tuple()
-        field["shape"] = self.input_marshall.get_shape(value.input).as_tuple()
+        field["shape"] = value.shape.as_tuple()
 
     def get_shape(self, data: TileArg):
-        if isinstance(self.input_marshall, TextureMarshall):
-            data_shape = self.input_marshall.get_texture_shape(data.input, 0)
-        else:
-            raise ValueError(f"Unsupported data type: {data.input}")
-
-        return Shape(tuple([data_shape[i] // data.stride[i] for i in range(len(data_shape))]))
+        return Shape(tuple([data.shape[i] // data.stride[i] for i in range(len(data.shape))]))
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
-        if isinstance(bound_type, TileArgType):
-            if isinstance(self.input_marshall, TextureMarshall):
-                nm = self.input_marshall.build_accessor_name(
-                    ResourceUsage.unordered_access if bound_type._writable else ResourceUsage.shader_resource)
-                return bound_type.program.find_type_by_name(f"Tile<{nm}>")
-            else:
-                raise ValueError(f"Unsupported data type: {data.input}")
-        else:
+        if not isinstance(bound_type, TileArgType):
             raise ValueError(
                 f"Tile arg must be passed to a Tile parameter, but is being passed to {bound_type}")
+
+        if isinstance(self.input_marshall, TextureMarshall):
+            nm = self.input_marshall.build_accessor_name(bound_type._writable)
+            return bound_type.program.find_type_by_name(f"Tile<{nm}>")
+        else:
+            raise ValueError(f"Unsupported data type: {bound_type}")
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
         # Resolve dimensionality by reading the 'SPDims' value from the type, which has been confirmed as a 'Tile' during resolution
@@ -142,9 +138,7 @@ class TileArgMarshall(Marshall):
 
 
 TYPE_OVERRIDES["ITile"] = TileArgType
-TYPE_OVERRIDES["Texture2DTile"] = TileArgType
-TYPE_OVERRIDES["RWTexture2DTile"] = TileArgType
-PYTHON_TYPES[TileArg] = lambda l, x: TileArgMarshall(l, x.dims, x.type)
+TYPE_OVERRIDES["IRWTile"] = TileArgType
 
 
 def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):
@@ -153,10 +147,10 @@ def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):
     return TileArgMarshall(layout, input_marshall)
 
 
+# Wraps the signature of its input, retrieved by calling native get_value_signature
 def _get_or_create_python_signature(value: Any):
     assert isinstance(value, TileArg)
-    # TODO: Need to expose getting signature of input to do this properly
-    return f"[Tile-{PYTHON_SIGNATURES[type(value.input)]}]"
+    return f"[Tile-{get_value_signature(value.input)}]"
 
 
 PYTHON_TYPES[TileArg] = _get_or_create_python_type

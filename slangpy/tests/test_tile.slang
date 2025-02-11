@@ -3,7 +3,10 @@ import slangpy;
 
 float4 get_centre_pixel(ITile<float4,2> tile) {
     float4 centre_pixel;
-    tile.load(int2(0, 0), centre_pixel);
-    return centre_pixel;
+    if (tile.load(int2(0, 0), centre_pixel)) {
+        return centre_pixel;
+    } else {
+        return -1;
+    }
 }
 

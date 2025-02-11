@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any
+from typing import Any, Union
 
 from slangpy.core.native import AccessType, CallContext, Shape, NativeTextureMarshall
 from slangpy.backend import TypeReflection
@@ -28,8 +28,11 @@ def has_uav(usage: ResourceUsage):
     return (usage & ResourceUsage.unordered_access.value) != 0
 
 
-def prefix(usage: ResourceUsage):
-    return "RW" if has_uav(usage) else ""
+def prefix(usage_or_writable: Union[ResourceUsage, bool]):
+    if isinstance(usage_or_writable, bool):
+        return "RW" if usage_or_writable else ""
+    else:
+        return "RW" if has_uav(usage_or_writable) else ""
 
 
 class TextureMarshall(NativeTextureMarshall):
@@ -111,12 +114,12 @@ class TextureMarshall(NativeTextureMarshall):
         return has_uav(self.usage)
 
     # Generate the slang type name (eg Texture2D<float4>).
-    def build_type_name(self, usage: ResourceUsage, el_type: SlangType):
-        return f"{prefix(usage)}{self._base_texture_type_name}<{el_type.full_name}>"
+    def build_type_name(self, usage_or_writable: Union[ResourceUsage, bool], el_type: SlangType):
+        return f"{prefix(usage_or_writable)}{self._base_texture_type_name}<{el_type.full_name}>"
 
     # Generate the slangpy accessor type name (eg Texture2DType<float4>).
-    def build_accessor_name(self, usage: ResourceUsage):
-        return f"{prefix(usage)}{self._base_texture_type_name}Type<{self.slang_element_type.full_name}>"
+    def build_accessor_name(self, usage_or_writable: Union[ResourceUsage, bool]):
+        return f"{prefix(usage_or_writable)}{self._base_texture_type_name}Type<{self.slang_element_type.full_name}>"
 
     # Call data can only be read access to primal, and simply declares it as a variable.
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):

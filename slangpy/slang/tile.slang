@@ -2,12 +2,12 @@
 implementing slangpy;
 
 public interface ITile<T, let N : int> {
-    public void load(vector<int, N> call_id_offset, out T value);
+    public bool load(vector<int, N> call_id_offset, out T value);
 }
 
 public interface IRWTile<T, let N : int> {
-    public void load(vector<int, N> call_id_offset, out T value);
-    public void store(vector<int, N> call_id_offset, in T value);
+    public bool load(vector<int, N> call_id_offset, out T value);
+    public bool store(vector<int, N> call_id_offset, in T value);
 }
 
 public struct Tile<ContainerT : IIndexableType> : ITile<ContainerT.IndexType, ContainerT.Dims>, IRWTile<ContainerT.IndexType, ContainerT.Dims> {
@@ -38,21 +38,28 @@ public struct Tile<ContainerT : IIndexableType> : ITile<ContainerT.IndexType, Co
         return !oob;
     }
 
-    public void load(vector<int, ContainerT.Dims> call_id_offset, out ContainerT.IndexType value) {
+    public bool load(vector<int, ContainerT.Dims> call_id_offset, out ContainerT.IndexType value) {
         ContextND<ContainerT.Dims> sub_context;
         if (create_sub_context(call_id_offset, sub_context)) {
             data.load(sub_context, value);
+            return true;
+        } else {
+            return false;
         }
     }
 
-    public void store(vector<int, ContainerT.Dims> call_id_offset, in ContainerT.IndexType value) {
+    public bool store(vector<int, ContainerT.Dims> call_id_offset, in ContainerT.IndexType value) {
         ContextND<ContainerT.Dims> sub_context;
         if (create_sub_context(call_id_offset, sub_context)) {
             data.store(sub_context, value);
+            return true;
+        } else {
+            return false;
         }
+
     }
 
-    public typealias SPMarshall = TileType<ContainerT>;
+    public typealias SPType = TileType<ContainerT>;
     public typealias SPDims = Size<ContainerT.Dims>;
 }
 
@@ -61,8 +68,8 @@ public struct TileType<ContainerT : IIndexableType>  {
     public int[ContainerT.Dims] stride;
     public int[ContainerT.Dims] shape;
 
-
-    public void load(ContextND<ContainerT.Dims> context, out Tile<ContainerT> value) { 
+    public void load(ContextND<ContainerT.Dims> context, out Tile<ContainerT> value) {
+        value.data = data;
         value.context.thread_id = context.thread_id;
         for (int i = 0; i < ContainerT.Dims; i++) {
             value.context.call_id[i] = context.call_id[i] * stride[i];
@@ -71,7 +78,6 @@ public struct TileType<ContainerT : IIndexableType>  {
     }
     public void store(ContextND<ContainerT.Dims> context, in Tile<ContainerT> value) {};
 
-    public typealias SPMarshall = NoneType;
     public typealias SPDims = Size<ContainerT.Dims>;
 }
 
