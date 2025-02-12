@@ -7,6 +7,7 @@ from slangpy.backend import (DeclReflection, ProgramLayout,
                              TypeLayoutReflection, TypeReflection,
                              DeviceType, Device)
 from slangpy.reflection import SlangType
+import builtins
 
 
 def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False,
@@ -20,7 +21,7 @@ def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: 
 
     shaderpath = str(pathlib.Path(__file__).parent.parent.absolute() / "slang")
 
-    return Device(
+    device = Device(
         type=type,
         compiler_options={
             "include_paths": [
@@ -30,6 +31,13 @@ def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: 
         enable_cuda_interop=True,
         enable_debug_layers=enable_debug_layers,
         adapter_luid=adapter_luid)
+
+    if is_running_in_jupyter():
+        # Don't import until we know we're running in jupyter and we are certain the IPython module is available
+        from slangpy.core.jupyter import setup_in_jupyter
+        setup_in_jupyter(device)
+
+    return device
 
 
 def find_type_layout_for_buffer(program_layout: ProgramLayout, slang_type: Union[str, TypeReflection, TypeLayoutReflection]):
@@ -160,3 +168,13 @@ def shape_to_contiguous_strides(shape: tuple[int, ...]) -> tuple[int, ...]:
         strides = (dim * strides[0], ) + strides
 
     return strides
+
+
+def is_running_in_jupyter():
+    # Jupyter will inject the get_ipython() function into the globals. First
+    # check it is available there before calling it
+    if hasattr(builtins, 'get_ipython'):
+        shell = get_ipython().__class__.__name__
+        return shell == 'ZMQInteractiveShell'
+    else:
+        return False
