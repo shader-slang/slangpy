@@ -62,9 +62,7 @@ class Module:
         # This should be solved by the combined object API in the future
         module_list = [self.slangpy_device_module, self.device_module]
         combined_program = device_module.session.link_program(module_list, [])
-        # Do we still need the device_module layout here if the modules are linked?
-        self.layout = SlangProgramLayout(combined_program.layout,
-                                         self.slangpy_device_module.layout)
+        self.layout = SlangProgramLayout(combined_program.layout)
 
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
