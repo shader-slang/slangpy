@@ -204,19 +204,19 @@ class Module:
         if name in self._attr_cache:
             return self._attr_cache[name]
 
-        # Search for name as a fully qualified child struct
-        slang_struct = self.find_struct(name)
-        if slang_struct is not None:
-            self._attr_cache[name] = slang_struct
-            return slang_struct
-
-        # Search for name as a child of this struct
+        # Check if it is a function first (workaround for slang #6317)
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function(module=self, func=slang_function,
                            struct=None, options=self.options)
             self._attr_cache[name] = res
             return res
+
+        # Search for name as a fully qualified child struct
+        slang_struct = self.find_struct(name)
+        if slang_struct is not None:
+            self._attr_cache[name] = slang_struct
+            return slang_struct
 
         raise AttributeError(
             f"Type '{self.device_module.name}' has no attribute '{name}'")
