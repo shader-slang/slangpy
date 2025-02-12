@@ -106,17 +106,17 @@ class CallData(NativeCallData):
 
             # Perform specialization to get a concrete function reflection
             slang_function = specialize(
-                context, bindings, build_info.reflections, build_info.type_reflection)
+                context, bindings, build_info.functions, build_info.this_type)
             if isinstance(slang_function, MismatchReason):
                 raise ResolveException(
                     f"Function signature mismatch: {slang_function.reason}\n\n"
-                    f"{mismatch_info(bindings, build_info.reflections)}\n")
+                    f"{mismatch_info(bindings, build_info.functions)}\n")
 
             # Check for differentiability error
             if not slang_function.differentiable and self.call_mode != CallMode.prim:
                 raise ResolveException(
                     f"Could not call function '{function.name}': Function is not differentiable\n\n"
-                    f"{mismatch_info(bindings, build_info.reflections)}\n")
+                    f"{mismatch_info(bindings, build_info.functions)}\n")
 
             # Inject a dummy node into the Python signature if we need a result back
             if self.call_mode == CallMode.prim and not "_result" in kwargs and slang_function.return_type is not None and slang_function.return_type.full_name != 'void':
@@ -216,8 +216,8 @@ class CallData(NativeCallData):
 
         except BoundVariableException as e:
             if bindings is not None:
-                ref = slang_function.reflection if isinstance(
-                    slang_function, SlangFunction) else build_info.reflections[0]
+                ref = slang_function if isinstance(
+                    slang_function, SlangFunction) else build_info.functions[0]
                 raise ValueError(
                     f"{e.message}\n\n"
                     f"{bound_exception_info(bindings, ref, e.variable)}\n") from e
@@ -225,8 +225,8 @@ class CallData(NativeCallData):
                 raise
         except SlangCompileError as e:
             if bindings is not None:
-                ref = slang_function.reflection if isinstance(
-                    slang_function, SlangFunction) else build_info.reflections[0]
+                ref = slang_function if isinstance(
+                    slang_function, SlangFunction) else build_info.functions[0]
                 raise ValueError(
                     f"Slang compilation error: {e}\n. Use set_dump_generated_shaders to enable dump generated shader to .temp.\n"
                     f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n\n"
@@ -235,8 +235,8 @@ class CallData(NativeCallData):
                 raise e
         except KernelGenException as e:
             if bindings is not None:
-                ref = slang_function.reflection if isinstance(
-                    slang_function, SlangFunction) else build_info.reflections[0]
+                ref = slang_function if isinstance(
+                    slang_function, SlangFunction) else build_info.functions[0]
                 raise ValueError(
                     f"Exception in kernel generation: {e.message}.\n\n"
                     f"{bound_exception_info(bindings, ref, None)}\n") from e
@@ -247,8 +247,8 @@ class CallData(NativeCallData):
             raise e
         except Exception as e:
             if bindings is not None:
-                ref = slang_function.reflection if isinstance(
-                    slang_function, SlangFunction) else build_info.reflections[0]
+                ref = slang_function if isinstance(
+                    slang_function, SlangFunction) else build_info.functions[0]
                 raise ValueError(
                     f"Exception in kernel generation: {e}.\n"
                     f"{bound_exception_info(bindings, ref, None)}\n") from e

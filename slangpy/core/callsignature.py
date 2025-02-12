@@ -5,7 +5,7 @@ from slangpy.core.native import AccessType, CallMode, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
 import slangpy.reflection as slr
-from slangpy.backend import FunctionReflection, ModifierID, TypeReflection
+from slangpy.backend import ModifierID, TypeReflection
 from slangpy.bindings.marshall import Marshall, BindContext, ReturnContext
 from slangpy.bindings.boundvariable import (BoundCall, BoundVariable,
                                             BoundVariableException)
@@ -55,8 +55,8 @@ def is_generic_vector(type: TypeReflection) -> bool:
 def specialize(
     context: BindContext,
     signature: BoundCall,
-    functions: list[FunctionReflection],
-    type: Optional[TypeReflection] = None
+    functions: list[SlangFunction],
+    type: Optional[SlangType] = None
 ):
     # Handle current slang issue where init has to be found via ast, resulting in potential multiple functions
     if len(functions) > 1:
@@ -73,8 +73,7 @@ def specialize(
         function = functions[0]
 
     # Expecting 'this' argument as first parameter of none-static member functions (except for $init)
-    first_arg_is_this = type is not None and not function.has_modifier(
-        ModifierID.static) and function.name != "$init"
+    first_arg_is_this = type is not None and not function.static and function.name != "$init"
 
     # Require '_result' argument for derivative calls, either as '_result' named parameter or last positional argument
     last_arg_is_retval = function.return_type is not None and function.return_type.name != 'void' and not "_result" in signature.kwargs and context.call_mode != CallMode.prim
@@ -89,7 +88,7 @@ def specialize(
         signature_args = signature_args[:-1]
 
     if signature.num_function_kwargs > 0 or signature.has_implicit_args:
-        if function.is_overloaded:
+        if function.reflection.is_overloaded:
             return MismatchReason("Calling an overloaded function with named or implicit arguments is not currently supported.")
 
         function_parameters = [x for x in function.parameters]
@@ -130,7 +129,7 @@ def specialize(
             if python_arg.vector_type is not None:
                 # Always take explicit vector types if provided
                 inputs.append(python_arg.vector_type)
-            elif is_generic_vector(slang_param.type):
+            elif is_generic_vector(slang_param.type.type_reflection):
                 # HACK! Let types with a 'slang_element_type' try to resolve generic vector types
                 # Failing that, fall back to python marshall
                 sl_et = getattr(python_arg.python, 'slang_element_type', None)
@@ -138,7 +137,7 @@ def specialize(
                     inputs.append(sl_et)
                 else:
                     inputs.append(python_arg.python)
-            elif slang_param.type.kind != TypeReflection.Kind.none:
+            elif slang_param.type.type_reflection.kind != TypeReflection.Kind.none:
                 # If the type is fully resolved, use it
                 inputs.append(slang_param.type)
             elif isinstance(python_arg.python, ValueMarshall) and python_arg.python.slang_type.name != 'Unknown':
@@ -171,11 +170,13 @@ def specialize(
         raise KernelGenException(
             "Unable to resolve all Slang types for specialization overload resolution.")
 
-    specialized = function.specialize_with_arg_types(input_types)
+    specialized = function.reflection.specialize_with_arg_types(input_types)
     if specialized is None:
         return MismatchReason("No Slang overload found that matches the provided Python argument types.")
 
-    return context.layout.find_function(specialized, type)
+    type_reflection = None if type is None else type.type_reflection
+
+    return context.layout.find_function(specialized, type_reflection)
 
 
 def validate_specialize(

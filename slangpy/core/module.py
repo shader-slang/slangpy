@@ -12,7 +12,6 @@ from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 import weakref
 
 if TYPE_CHECKING:
-    from slangpy.core.calldata import CallData
     from slangpy.core.dispatchdata import DispatchData
 
 LOADED_MODULES = weakref.WeakValueDictionary()
@@ -62,9 +61,7 @@ class Module:
         # This should be solved by the combined object API in the future
         module_list = [self.slangpy_device_module, self.device_module]
         combined_program = device_module.session.link_program(module_list, [])
-        # Do we still need the device_module layout here if the modules are linked?
-        self.layout = SlangProgramLayout(combined_program.layout,
-                                         self.slangpy_device_module.layout)
+        self.layout = SlangProgramLayout(combined_program.layout)
 
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
@@ -192,7 +189,16 @@ class Module:
         """
         Called by device when the module is hot reloaded.
         """
-        self.layout.on_hot_reload(self.device_module.layout)
+        # Relink combined program
+        module_list = [self.slangpy_device_module, self.device_module]
+        combined_program = self.device_module.session.link_program(module_list, [])
+        self.layout.on_hot_reload(combined_program.layout)
+
+        # Clear all caches
+        self.call_data_cache = CallDataCache()
+        self.dispatch_data_cache = {}
+        self.kernel_cache = {}
+        self._attr_cache = {}
 
     def __getattr__(self, name: str):
         """
