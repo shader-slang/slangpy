@@ -27,7 +27,7 @@ class TileArg(NativeObject):
     Passes the thread id as an argument to a SlangPy function.
     """
 
-    def __init__(self, input: Any, kernel_size: Union[TShapeOrTuple, int] = 1, stride: Union[TShapeOrTuple, int] = 1):
+    def __init__(self, input: Any, stride: Union[TShapeOrTuple, int] = 1):
         super().__init__()
         if isinstance(input, Texture):
             shape = get_texture_shape(input, 0)
@@ -37,8 +37,6 @@ class TileArg(NativeObject):
         self.input = input
         self.shape = Shape(shape)
 
-        if isinstance(kernel_size, int):
-            kernel_size = (kernel_size,)*len(self.shape)
         if isinstance(stride, int):
             stride = (stride,)*len(self.shape)
 
@@ -48,7 +46,8 @@ class TileArg(NativeObject):
         if len(self.shape) != len(self.stride):
             raise ValueError("GridArg shape and stride must have the same length.")
 
-        self.slangpy_signature = f"[{len(self.shape)},{type(self.input).__name__}]"
+        # Signature is based on the input signature
+        self.slangpy_signature = f"[Tile-{get_value_signature(input)}]"
 
     @property
     def dims(self) -> int:
@@ -59,11 +58,11 @@ class TileArg(NativeObject):
         return type(self.input)
 
 
-def tile(input: Any, tile_size: Union[TShapeOrTuple, int] = 1, stride: Union[TShapeOrTuple, int] = 1) -> TileArg:
+def tile(input: Any, stride: Union[TShapeOrTuple, int] = 1) -> TileArg:
     """
     Create a ThreadIdArg to pass to a SlangPy function, which passes the thread id.
     """
-    return TileArg(input, tile_size, stride)
+    return TileArg(input, stride)
 
 
 class TileArgType(SlangType):
@@ -98,6 +97,8 @@ class TileArgMarshall(Marshall):
         access = binding.access
         name = binding.variable_name
 
+        # Call data uses the fact that Tile<ContainerT> exposes an 'SPType' alias,
+        # which maps to the corresponding accessor TileType<ContainerT>.
         if access[0] == AccessType.read:
             cgb.type_alias(f"_t_{name}", f"{binding.vector_type.full_name}.SPType")
 
@@ -113,17 +114,23 @@ class TileArgMarshall(Marshall):
                 context, binding, field, value.input, read_back)
         finally:
             binding.variable_name = n
+
+        # Also store stride+shape uniforms
         field["stride"] = value.stride.as_tuple()
         field["shape"] = value.shape.as_tuple()
 
     def get_shape(self, data: TileArg):
+        # Shape is data shape divided by stride.
         return Shape(tuple([data.shape[i] // data.stride[i] for i in range(len(data.shape))]))
 
     def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
+
+        # Currently tile args only support being passed directly to an ITile or IRWTile parameter
         if not isinstance(bound_type, TileArgType):
             raise ValueError(
                 f"Tile arg must be passed to a Tile parameter, but is being passed to {bound_type}")
 
+        # Resolve to Tile<AccessorName>. Ideally would have a more general way to resolve this.
         if isinstance(self.input_marshall, TextureMarshall):
             nm = self.input_marshall.build_accessor_name(bound_type._writable)
             return bound_type.program.find_type_by_name(f"Tile<{nm}>")
@@ -147,11 +154,4 @@ def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):
     return TileArgMarshall(layout, input_marshall)
 
 
-# Wraps the signature of its input, retrieved by calling native get_value_signature
-def _get_or_create_python_signature(value: Any):
-    assert isinstance(value, TileArg)
-    return f"[Tile-{get_value_signature(value.input)}]"
-
-
 PYTHON_TYPES[TileArg] = _get_or_create_python_type
-PYTHON_SIGNATURES[TileArg] = _get_or_create_python_signature
