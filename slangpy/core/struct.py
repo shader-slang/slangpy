@@ -89,7 +89,10 @@ class Struct:
             (type, funcs) = try_find_function_overloads_via_ast(
                 self.device_module.module_decl, self.name, name)
             if funcs is not None and len(funcs) > 0:
-                res = Function(module=self.module, func=funcs,
+                slang_funcs = []
+                for func in funcs:
+                    slang_funcs.append(self.module.layout.find_function(func, type))
+                res = Function(module=self.module, func=slang_funcs,
                                struct=self, options=self.options)
                 return res
 

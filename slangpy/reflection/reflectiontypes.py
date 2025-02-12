@@ -702,6 +702,13 @@ class SlangFunction:
         """
         return self.reflection.has_modifier(ModifierID.mutating)
 
+    @property
+    def static(self) -> bool:
+        """
+        Whether this function is static. Only relevant for type methods.
+        """
+        return self.reflection.has_modifier(ModifierID.static)
+
 
 class BaseSlangVariable:
     """
