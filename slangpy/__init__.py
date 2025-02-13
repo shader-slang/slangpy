@@ -6,7 +6,7 @@ import runpy
 import pathlib
 
 # Version number
-__version__ = "0.20.1"
+__version__ = "0.21.0"
 
 # Useful slangpy types
 from . import types
