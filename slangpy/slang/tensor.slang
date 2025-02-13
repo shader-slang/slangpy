@@ -211,8 +211,11 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>>
 #endif
 }
 
-public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
+public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>, IIndexableType
 {
+    public typealias IndexType = T;
+    public static const int Dims = D;
+
     public StructuredBuffer<T> buffer;
     public StridedLayout<D> layout;
     private uint _shape[D];
@@ -221,6 +224,10 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
+
+    // Empty store for IIndexableType
+    [TreatAsDifferentiable]
+    public void store(ContextND<Dims> context, in IndexType value) {};
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out Tensor<T, SliceD> value)
     {
@@ -231,8 +238,11 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     }
 }
 
-public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
+public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>, IIndexableType
 {
+    public typealias IndexType = T;
+    public static const int Dims = D;
+
     public RWStructuredBuffer<T> buffer;
     public StridedLayout<D> layout;
     private uint _shape[D];
@@ -282,8 +292,11 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     }
 }
 
-public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D> where T.Differential : IAtomicAddable
+public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D>, IIndexableType where T.Differential : IAtomicAddable
 {
+    public typealias IndexType = T;
+    public static const int Dims = D;
+
     public Tensor<T, D> primal;
     public AtomicTensor<T.Differential, D> d_out;
 
@@ -303,10 +316,17 @@ public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D> wh
         primal.load(ctx, value.primal);
         d_out.load(ctx, value.d_out);
     }
+
+    // Empty store for IIndexableType
+    [TreatAsDifferentiable]
+    public void store(ContextND<Dims> context, in IndexType value) {};
 }
 
-public struct GradInTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
+public struct GradInTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>, IIndexableType
 {
+    public typealias IndexType = T;
+    public static const int Dims = D;
+
     public RWTensor<T, D> primal;
     public Tensor<T.Differential, D> d_in;
 
@@ -328,8 +348,11 @@ public struct GradInTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     }
 }
 
-public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D> where T.Differential : IAtomicAddable
+public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>, IIndexableType where T.Differential : IAtomicAddable
 {
+    public typealias IndexType = T;
+    public static const int Dims = D;
+
     public RWTensor<T, D> primal;
     public AtomicTensor<T.Differential, D> d_out;
     public Tensor<T.Differential, D> d_in;

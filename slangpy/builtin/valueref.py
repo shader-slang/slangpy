@@ -3,12 +3,11 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-from sgl import BufferCursor
 
 from slangpy.core.native import AccessType, CallContext
 
 import slangpy.reflection as kfr
-from slangpy.backend import Buffer, ResourceUsage
+from slangpy.backend import Buffer, ResourceUsage, BufferCursor
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext, get_or_create_type)

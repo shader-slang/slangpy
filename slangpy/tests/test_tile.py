@@ -1,19 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
-from sgl import int2
 
-from slangpy.backend import DeviceType, float3, int3, uint3, ResourceUsage, Format
+from slangpy.backend import DeviceType, ResourceUsage, Format, int2
 from slangpy.core.module import Module
 from slangpy.experimental.gridarg import grid
 from slangpy.experimental.tilearg import tile
-from slangpy.reflection.reflectiontypes import ArrayType
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.callidarg import call_id
-from slangpy.types.randfloatarg import RandFloatArg
-from slangpy.types.threadidarg import ThreadIdArg
-from slangpy.types.wanghasharg import WangHashArg
+from slangpy.types.tensor import Tensor
 
 
 def load_test_module(device_type: DeviceType):
@@ -21,21 +17,40 @@ def load_test_module(device_type: DeviceType):
     return Module(device.load_module("test_tile.slang"))
 
 
+def create_random_float4_storage(module: Module, width: int, height: int, type: str):
+    data = np.random.random((height, width, 4)).astype(np.float32)
+    if type == 'texture':
+        storage = module.device.create_texture(width=width, height=height, usage=ResourceUsage.shader_resource |
+                                               ResourceUsage.unordered_access, format=Format.rgba32_float, data=data.flatten())
+    elif type == 'ndbuffer':
+        storage = NDBuffer(module.device, dtype=module.float4, shape=(height, width))
+        storage.copy_from_numpy(data.flatten())
+    elif type == 'tensor':
+        storage = Tensor.empty(module.device, dtype=module.float4, shape=(height, width))
+        storage.storage.copy_from_numpy(data.flatten())
+    elif type == 'difftensor':
+        storage = Tensor.empty(module.device, dtype=module.float4,
+                               shape=(height, width)).with_grads(zero=True)
+        storage.storage.copy_from_numpy(data.flatten())
+    else:
+        raise ValueError(f"Unknown storage type {type}")
+    return (data, storage)
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_tile_centre_vector_pixel(device_type: DeviceType):
+@pytest.mark.parametrize("storage_type", ['texture', 'ndbuffer', 'tensor', 'difftensor'])
+def test_tile_centre_vector_pixel(device_type: DeviceType, storage_type: str):
 
     module = load_test_module(device_type)
 
     width = 8
     height = 4
 
-    tex_data = np.random.random((height, width, 4)).astype(np.float32)
-    tex = module.device.create_texture(width=width, height=height, usage=ResourceUsage.shader_resource |
-                                       ResourceUsage.unordered_access, format=Format.rgba32_float, data=tex_data)
+    (data, storage) = create_random_float4_storage(module, width, height, storage_type)
 
-    pixels = module.get_centre_pixel(tile(tex), _result='numpy')
+    pixels = module.get_centre_pixel(tile(storage), _result='numpy')
 
-    assert np.allclose(pixels, tex_data)
+    assert np.allclose(pixels, data)
 
 
 def create_uint_storage(module: Module, width: int, height: int, type: str):
@@ -46,6 +61,8 @@ def create_uint_storage(module: Module, width: int, height: int, type: str):
     elif type == 'ndbuffer':
         storage = NDBuffer(module.device, dtype=module.uint2, shape=(height, width))
         storage.copy_from_numpy(data.flatten())
+    elif type == 'tensor':
+        raise NotImplementedError("Tensor storage not implemented")
     else:
         raise ValueError(f"Unknown storage type {type}")
     return (data, storage)
@@ -142,7 +159,8 @@ def test_tile_offset_write_uint_pixel(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_blur(device_type: DeviceType):
+@pytest.mark.parametrize("storage_type", ['ndbuffer', 'tensor'])
+def test_blur(device_type: DeviceType, storage_type: str):
 
     module = load_test_module(device_type)
     width = 8
@@ -150,8 +168,8 @@ def test_blur(device_type: DeviceType):
 
     # 2 striped black/white patterns, where the first alternates
     # in x and the 2nd alternates in y
-    x_alternating = module.generate_x_checkboard(grid((height, width)))
-    y_alternating = module.generate_y_checkboard(grid((height, width)))
+    x_alternating = module.generate_x_checkboard(grid((height, width)), _result=storage_type)
+    y_alternating = module.generate_y_checkboard(grid((height, width)), _result=storage_type)
 
     # run horizontal blur on both
     xx_blurred = module.blur_x(tile(x_alternating), _result='numpy')

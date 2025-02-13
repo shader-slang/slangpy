@@ -162,6 +162,12 @@ class FunctionNode(NativeFunctionNode):
             elif return_type == 'tensor':
                 from slangpy.types import Tensor
                 return_type = Tensor
+            elif return_type == 'ndbuffer':
+                from slangpy.types import NDBuffer
+                return_type = NDBuffer
+            elif return_type == 'texture':
+                from slangpy.backend import Texture
+                return_type = Texture
             else:
                 raise ValueError(f"Unknown return type '{return_type}'")
         return FunctionNodeReturnType(self, return_type)

@@ -195,14 +195,17 @@ class TensorMarshall(NativeTensorMarshall):
         else:
             return Shape((-1,) * self.dims)
 
+    def build_accessor_name(self, writable: bool):
+        return build_tensor_name(
+            self.slang_element_type, self.dims, writable, self.d_in is not None, self.d_out is not None)
+
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         if isinstance(binding.vector_type, ITensorType):
             writable = binding.vector_type.writable
         else:
             writable = binding.access[0] in (AccessType.write, AccessType.readwrite)
 
-        type_name = build_tensor_name(
-            self.slang_element_type, self.dims, writable, self.d_in is not None, self.d_out is not None)
+        type_name = self.build_accessor_name(writable)
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
         # cgb.add_import("tensor")

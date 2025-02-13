@@ -3,10 +3,10 @@
 
 from typing import Any, Optional
 from numpy import ScalarType
-from sgl import TypeReflection
 import torch
 
 from slangpy.core.native import AccessType, CallContext, CallMode, Shape
+from slangpy.backend import TypeReflection
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.bindings.marshall import Marshall, ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
