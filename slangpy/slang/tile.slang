@@ -80,3 +80,4 @@ public struct TileType<ContainerT : IIndexableType>  {
 
     public typealias SPDims = Size<ContainerT.Dims>;
 }
+

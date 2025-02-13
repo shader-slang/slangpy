@@ -8,11 +8,13 @@ from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               CodeGenBlock, Shape)
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, get_or_create_type
+from slangpy.builtin.ndbuffer import NDBufferMarshall
 from slangpy.builtin.texture import TextureMarshall
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 from slangpy.core.shapes import TShapeOrTuple
-from slangpy.core.native import NativeObject, CallContext, get_value_signature, get_texture_shape
+from slangpy.core.native import NativeObject, CallContext, get_value_signature, get_texture_shape, NativeNDBuffer
 from slangpy.reflection.reflectiontypes import TYPE_OVERRIDES, ArrayType, VectorType, get_type_descriptor
+from slangpy.types.buffer import NDBuffer
 
 
 def _build_tile_arg_info(input: Any):
@@ -31,6 +33,8 @@ class TileArg(NativeObject):
         super().__init__()
         if isinstance(input, Texture):
             shape = get_texture_shape(input, 0)
+        elif isinstance(input, (NDBuffer, NativeNDBuffer)):
+            shape = input.shape
         else:
             raise ValueError("TileArg input must be a Texture.")
 
@@ -133,9 +137,11 @@ class TileArgMarshall(Marshall):
         # Resolve to Tile<AccessorName>. Ideally would have a more general way to resolve this.
         if isinstance(self.input_marshall, TextureMarshall):
             nm = self.input_marshall.build_accessor_name(bound_type._writable)
-            return bound_type.program.find_type_by_name(f"Tile<{nm}>")
+        elif isinstance(self.input_marshall, NDBufferMarshall):
+            nm = self.input_marshall.build_accessor_name(bound_type._writable)
         else:
             raise ValueError(f"Unsupported data type: {bound_type}")
+        return bound_type.program.find_type_by_name(f"Tile<{nm}>")
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
         # Resolve dimensionality by reading the 'SPDims' value from the type, which has been confirmed as a 'Tile' during resolution

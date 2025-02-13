@@ -173,6 +173,10 @@ class NDBufferMarshall(NativeNDBufferMarshall):
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         return ndbuffer_gen_calldata(self, cgb, context, binding)
 
+    def build_accessor_name(self, writable: bool) -> str:
+        prefix = "RW" if writable else ""
+        return f"{prefix}NDBuffer<{self.slang_element_type.full_name},{self.dims}>"
+
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
     if isinstance(value, (NDBuffer, NativeNDBuffer)):
