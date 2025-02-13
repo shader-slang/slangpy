@@ -7,17 +7,18 @@ import argparse
 import numpy as np
 import slangpy as spy
 
-from PIL import Image
-from pathlib import Path
-from slangpy.types import call_id
 from slangpy.experimental.gridarg import grid
 
+# Get local directory
+local_dir = pathlib.Path(__file__).parent.absolute()
+
 # Create a slangpy device with the local folder for slang includes
-device = spy.create_device(include_paths=[pathlib.Path(__file__).parent.absolute(), ])
+device = spy.create_device(include_paths=[local_dir, ])
 
 # Build and parse command line
 parser = argparse.ArgumentParser(description="Slang-based BC7 - mode 6 compressor")
-parser.add_argument("input_path", help="Path to the input texture.")
+parser.add_argument("-i", "--input_path", help="Path to the input texture.",
+                    default=local_dir/"sample.jpg")
 parser.add_argument("-o", "--output_path", help="Optional path to save the decoded BC7 texture.")
 parser.add_argument("-s", "--opt_steps", type=int, default=100,
                     help="Number of optimization (gradient descene) steps.")
