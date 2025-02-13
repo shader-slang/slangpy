@@ -40,9 +40,7 @@ initialCandidateCount = 1
 frameCount = 400
 
 # Create the device.
-device = spy.create_device(include_paths=[
-    pathlib.Path(__file__).parent.absolute()
-])
+device = app.device
 
 # Load the Slang code.
 module = spy.Module.load_from_file(device, "toy-restir.slang")
