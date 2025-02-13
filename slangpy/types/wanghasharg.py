@@ -53,7 +53,7 @@ def wang_hash(dim: int = -1, seed: int = 2640457667, warmup: int = 0, hash_seed:
     Warmup will result in multiple per-thread warmup iterations gpu side, to increase
     quality of random hash at expense of performance.
 
-    Hash seed is a CPU side option to hash the seed value, reducing correleation through
+    Hash seed is a CPU side option to hash the seed value, reducing correlation through
     using sequential seeds (eg the frame number.)
     """
     return WangHashArg(dim, seed, warmup, hash_seed)

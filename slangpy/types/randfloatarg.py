@@ -39,7 +39,7 @@ def rand_float(min: float = 0, max: float = 1, dim: int = -1, seed: int = 264045
     Warmup will result in multiple per-thread warmup iterations gpu side, to increase
     quality of random generator at expense of performance.
 
-    Hash seed is a CPU side option to hash the seed value, reducing correleation through
+    Hash seed is a CPU side option to hash the seed value, reducing correlation through
     using sequential seeds (eg the frame number.)
     """
     return RandFloatArg(min, max, dim, seed)

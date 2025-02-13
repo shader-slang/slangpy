@@ -4,10 +4,11 @@ import numpy as np
 import pytest
 
 from slangpy.backend import DeviceType, float3, uint3
+from slangpy.experimental.gridarg import grid
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.callidarg import call_id
-from slangpy.types.randfloatarg import RandFloatArg
+from slangpy.types.randfloatarg import RandFloatArg, rand_float
 from slangpy.types.threadidarg import thread_id
 from slangpy.types.wanghasharg import WangHashArg, calc_wang_hash_numpy, wang_hash
 
@@ -301,9 +302,11 @@ float3 rand_float(float3 input) {
 """
     )
 
+    count = 1000
+
     # Make buffer for results
     results = NDBuffer(
-        element_count=16,
+        element_count=count,
         device=device,
         dtype=float3
     )
@@ -313,8 +316,8 @@ float3 rand_float(float3 input) {
                          hash_seed=hash_seed, seed=seed), _result=results)
 
     # Calculate expected results
-    thread_ids = np.indices((16,), dtype=np.uint32)*3
-    np_seeds = np.full((16,), seed, dtype=np.uint32)
+    thread_ids = np.indices((count,), dtype=np.uint32)*3
+    np_seeds = np.full((count,), seed, dtype=np.uint32)
     if hash_seed:
         np_seeds = calc_wang_hash_numpy(np_seeds)
     thread_hash = thread_ids
@@ -324,11 +327,52 @@ float3 rand_float(float3 input) {
     hash_d1 = calc_wang_hash_numpy(hash_d0)
     hash_d2 = calc_wang_hash_numpy(hash_d1)
     hash = np.stack((hash_d0, hash_d1, hash_d2), axis=-1)
-    values = 1.0 + 2.0 * (hash % 1000000) / 999999.0
+    k = (hash & 0x7FFFFF)
+    u = k / float(0x800000)
+    values = 1.0 + 2.0 * u
 
     # Should get random numbers
     data = results.storage.to_numpy().view("float32").reshape((-1, 3))
     assert np.allclose(data, values)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_rand_float_uniformity(device_type: DeviceType):
+
+    bucket_size = 17
+
+    # Create function that atomically increments counts
+    device = helpers.get_device(device_type)
+    bucket_values = helpers.create_function_from_module(
+        device, "add_to_bucket", f"""
+void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
+    int idx = int(value * ( {bucket_size - 1}));
+    bucket.InterlockedAdd(idx * 4, 1);
+}}
+"""
+    )
+
+    # Make buffer for bucket of counts
+    buckets = NDBuffer(
+        element_count=bucket_size,
+        device=device,
+        dtype=int
+    )
+
+    # Run bucketer with 1B random floats
+    count = 1 * 1000 * 1000 * 1000
+    bucket_values(grid((count,)), buckets.storage, rand_float())
+
+    # Verify the distribution of values in range [0,1) is roughly even
+    res = buckets.to_numpy().view("int32")
+    expected_count_per_bucket = count / (bucket_size-1)
+    for i in range(bucket_size-1):
+        bucket = float(res[i])
+        rel_diff = abs(bucket - expected_count_per_bucket) / expected_count_per_bucket
+        assert rel_diff < 0.0001
+
+    # Verify 1 never turns up
+    assert res[bucket_size-1] == 0
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
