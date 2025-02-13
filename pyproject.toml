@@ -20,6 +20,9 @@ dependencies = [
   "nv-sgl==0.13.0"
 ]
 
+[tool.setuptools]
+packages = ["slangpy"]
+
 [tool.pyright]
 include = ["./slangpy"]
 extraPaths = ["./tests"]
