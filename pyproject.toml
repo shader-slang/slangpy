@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slangpy"
-version = "0.20.1"
+version = "0.21.0"
 authors = [
     {name = "Chris Cummings", email = "chriscummings@nvidia.com"},
     {name = "Benedikt Bitterli", email = "bbitterli@nvidia.com"},
@@ -16,9 +16,12 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
   "typing_extensions",
-  "numpy>=1.26.0",
-  "nv-sgl==0.12.4"
+  "numpy",
+  "nv-sgl==0.13.0"
 ]
+
+[tool.setuptools]
+packages = ["slangpy"]
 
 [tool.pyright]
 include = ["./slangpy"]

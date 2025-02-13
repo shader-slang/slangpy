@@ -5,9 +5,8 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast
 from slangpy.core.native import (CallMode, SignatureBuilder,
                                  NativeCallRuntimeOptions, NativeFunctionNode, FunctionNodeType)
 
-import slangpy.reflection as kfr
-from slangpy.backend import (CommandBuffer, FunctionReflection,
-                             TypeConformance, TypeReflection, uint3)
+from slangpy.reflection import SlangFunction, SlangType
+from slangpy.backend import (CommandBuffer, TypeConformance, uint3)
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
@@ -44,8 +43,8 @@ class FunctionBuildInfo:
         # Will always be populated by the root
         self.name: str
         self.module: 'Module'
-        self.reflections: list[FunctionReflection]
-        self.type_reflection: Optional[TypeReflection]
+        self.functions: list[SlangFunction]
+        self.this_type: Optional[SlangType]
 
         # Optional value that will be set depending on the chain.
         self.map_args: tuple[Any, ...] = ()
@@ -242,8 +241,8 @@ class FunctionNode(NativeFunctionNode):
             if self.slangpy_signature == '':
                 build_info = self.calc_build_info()
                 lines = []
-                if build_info.type_reflection is not None:
-                    lines.append(f"{build_info.type_reflection.full_name}::{self.name}")
+                if build_info.this_type is not None:
+                    lines.append(f"{build_info.this_type.full_name}::{self.name}")
                 else:
                     lines.append(build_info.name)
                 lines.append(str(build_info.options))
@@ -411,7 +410,7 @@ class FunctionNodeThreadGroupSize(FunctionNode):
 
 
 class Function(FunctionNode):
-    def __init__(self, module: 'Module', func: Union[str, kfr.SlangFunction, list[FunctionReflection]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
+    def __init__(self, module: 'Module', func: Union[str, SlangFunction, list[SlangFunction]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
         super().__init__(None, FunctionNodeType.kernelgen, None)
 
         self._module = module
@@ -425,22 +424,22 @@ class Function(FunctionNode):
                 raise ValueError(f"Function '{func}' not found")
             func = sf
 
-        if isinstance(func, kfr.SlangFunction):
-            func_reflections = [func.reflection]
+        if isinstance(func, SlangFunction):
+            slang_funcs = [func]
             # Track fully specialized name where available
             self._name = func.full_name
         else:
-            func_reflections = func
+            slang_funcs = func
             self._name = func[0].name
 
         # Store function reflections (should normally be 1 unless forced to do AST based search)
-        self._reflections = func_reflections
+        self._slang_funcs = slang_funcs
 
         # Store type parent name if found
         if struct is not None:
-            self._type_reflection = struct.struct.type_reflection
+            self._this_type = struct.struct
         else:
-            self._type_reflection = None
+            self._this_type = None
 
         # Calc hash of input options for signature
         self._options = options.copy()
@@ -453,8 +452,8 @@ class Function(FunctionNode):
 
         # Generate signature for hashing
         lines = []
-        if self._type_reflection is not None:
-            lines.append(f"{self._type_reflection.full_name}::{self.name}")
+        if self._this_type is not None:
+            lines.append(f"{self._this_type.full_name}::{self.name}")
         else:
             lines.append(self.name)
         lines.append(str(self._options))
@@ -464,5 +463,5 @@ class Function(FunctionNode):
         info.name = self.name
         info.module = self.module
         info.options.update(self._options)
-        info.reflections = self._reflections
-        info.type_reflection = self._type_reflection
+        info.functions = self._slang_funcs
+        info.this_type = self._this_type

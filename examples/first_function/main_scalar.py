@@ -1,7 +1,9 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import slangpy as spy
 import pathlib
+
+print("SlangPy first-function example (https://slangpy.shader-slang.org/en/latest/firstfunctions.html)")
 
 # Create an SGL device with the local folder for slangpy includes
 device = spy.create_device(include_paths=[

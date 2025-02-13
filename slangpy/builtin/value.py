@@ -47,6 +47,8 @@ def slang_type_to_return_type(slang_type: kfr.SlangType) -> Any:
             return getattr(kfbackend, f'uint{slang_type.rows}x{slang_type.cols}')
         elif slang_type.slang_scalar_type in BOOL_TYPES:
             return getattr(kfbackend, f'bool{slang_type.rows}x{slang_type.cols}')
+    elif isinstance(slang_type, kfr.StructType):
+        return dict
     else:
         raise ValueError(f"Slang type {slang_type} has no associated python value type")
 

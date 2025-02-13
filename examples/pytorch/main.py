@@ -1,8 +1,10 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import slangpy as spy
 import pathlib
 import torch
+
+print("SlangPy pytorch example (https://slangpy.shader-slang.org/en/latest/pytorch.html)")
 
 # Make sure pytorch is in cuda mode
 torch.device('cuda')

@@ -702,6 +702,13 @@ class SlangFunction:
         """
         return self.reflection.has_modifier(ModifierID.mutating)
 
+    @property
+    def static(self) -> bool:
+        """
+        Whether this function is static. Only relevant for type methods.
+        """
+        return self.reflection.has_modifier(ModifierID.static)
+
 
 class BaseSlangVariable:
     """
@@ -855,11 +862,10 @@ class SlangProgramLayout:
     from an sgl ProgramLayout.
     """
 
-    def __init__(self, program_layout: ProgramLayout, slangpy_program_layout: Optional[ProgramLayout] = None):
+    def __init__(self, program_layout: ProgramLayout):
         super().__init__()
         assert isinstance(program_layout, ProgramLayout)
         self.program_layout = program_layout
-        self.slangpy_program_layout = slangpy_program_layout
         self._types_by_name: dict[str, SlangType] = {}
         self._types_by_reflection: dict[TypeReflection, SlangType] = {}
         self._functions_by_name: dict[str, SlangFunction] = {}
@@ -876,10 +882,10 @@ class SlangProgramLayout:
         # Re-lookup all types.
         for name, type in self._types_by_name.items():
             trefl = program_layout.find_type_by_name(name)
-            assert trefl is not None
-            type.on_hot_reload(trefl)
-            new_types_by_name[name] = type
-            new_types_by_reflection[trefl] = type
+            if trefl is not None:
+                type.on_hot_reload(trefl)
+                new_types_by_name[name] = type
+                new_types_by_reflection[trefl] = type
 
         self._types_by_name = new_types_by_name
         self._types_by_reflection = new_types_by_reflection
@@ -894,17 +900,17 @@ class SlangProgramLayout:
                 type_name = name[:idx]
                 func_name = name[idx+2:]
                 type = self.find_type_by_name(type_name)
-                assert type is not None
-                frefl = program_layout.find_function_by_name_in_type(
-                    type.type_reflection, func_name)
-                assert frefl is not None
-                func.on_hot_reload(frefl)
+                if type is not None:
+                    frefl = program_layout.find_function_by_name_in_type(
+                        type.type_reflection, func_name)
+                else:
+                    frefl = None
             else:
                 frefl = program_layout.find_function_by_name(name)
-                assert frefl is not None
+            if frefl is not None:
                 func.on_hot_reload(frefl)
-            new_functions_by_name[name] = func
-            new_functions_by_reflection[frefl] = func
+                new_functions_by_name[name] = func
+                new_functions_by_reflection[frefl] = func
 
         self._functions_by_name = new_functions_by_name
         self._functions_by_reflection = new_functions_by_reflection
@@ -932,8 +938,6 @@ class SlangProgramLayout:
         if existing is not None:
             return existing
         type_refl = self.program_layout.find_type_by_name(name)
-        if type_refl is None and self.slangpy_program_layout is not None:
-            type_refl = self.slangpy_program_layout.find_type_by_name(name)
         if type_refl is None:
             return None
         res = self._get_or_create_type(type_refl)

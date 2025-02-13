@@ -2,6 +2,7 @@
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
 from slangpy.backend import FunctionReflection, ModifierID, VariableReflection
+from slangpy.reflection import SlangFunction
 
 if TYPE_CHECKING:
     from slangpy.bindings.marshall import Marshall
@@ -195,14 +196,16 @@ def function_reflection(slang_function: Optional[FunctionReflection]):
     return "".join(text)
 
 
-def mismatch_info(call: 'BoundCall', reflections: list[FunctionReflection]):
+def mismatch_info(call: 'BoundCall', functions: list[SlangFunction]):
     text: list[str] = []
 
     text.append(f"Possible overloads:")
-    if len(reflections) == 1 and reflections[0].is_overloaded:
-        reflections = [x for x in reflections[0].overloads]
-    for r in reflections:
-        text.append(f"  {function_reflection(r)}")
+    if len(functions) == 1 and functions[0].reflection.is_overloaded:
+        for r in functions[0].reflection.overloads:
+            text.append(f"  {function_reflection(r)}")
+    else:
+        for f in functions:
+            text.append(f"  {function_reflection(f.reflection)}")
     text.append("")
     text.append(f"Python arguments:")
     text.append(f"{bound_call_table(call)}")
@@ -211,11 +214,11 @@ def mismatch_info(call: 'BoundCall', reflections: list[FunctionReflection]):
     return "\n".join(text)
 
 
-def bound_exception_info(call: 'BoundCall', concrete_reflection: FunctionReflection, variable: Optional['BoundVariable']):
+def bound_exception_info(call: 'BoundCall', concrete_function: SlangFunction, variable: Optional['BoundVariable']):
     text: list[str] = []
 
     text.append(f"Selected overload:")
-    text.append(f"  {function_reflection(concrete_reflection)}")
+    text.append(f"  {function_reflection(concrete_function.reflection)}")
     text.append("")
     if variable is not None and variable.name != "":
         text.append(f"Error caused by argument: {variable.name}")
