@@ -441,5 +441,10 @@ void evaluate(in Reservoir reservoir, inout float4 color)
     color = float4(radiance, 1.0);
 }
 
+void copyToOutput(int2 pixel, int2 offset, Texture2D<float4> input, RWTexture2D<float4> output)
+{
+    output[pixel + offset] = input[pixel];
+}
+
 // ---------------------------------------------------------------------------
 

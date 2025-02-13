@@ -23,18 +23,21 @@ import slangpy as spy
 import sgl
 import numpy as np
 import pathlib
-
+from app import App
 
 # Size of the image.
-imageWidth = 200
-imageHeight = 200
+imageWidth = 1024
+imageHeight = 1024
 imageSize = sgl.int2(imageWidth, imageHeight)
+
+# Create windows app with space for 2 images.
+app = App("Toy ReSTIR", imageWidth * 2, imageHeight)
 
 # Number of initial candidates per pixel for ReSTIR.
 initialCandidateCount = 1
 
 # Number of frames to render.
-frameCount = 60
+frameCount = 400
 
 # Create the device.
 device = spy.create_device(include_paths=[
@@ -67,6 +70,9 @@ tex = device.create_texture(
 
 # First render without ReSTIR.
 for frameIndex in range(frameCount):
+    if not app.process_events():
+        exit(0)
+
     # Populate the reservoirs with initial candidates.
     module.resetReservoirs(initialOutput)
     for i in range(initialCandidateCount):
@@ -77,11 +83,17 @@ for frameIndex in range(frameCount):
 
     # Render.
     module.evaluate(initialOutput, tex)
-    sgl.tev.show(tex, name=f"1spp {frameIndex:04d}")
+
+    # Copy to app output window texture.
+    module.copyToOutput(spy.grid((imageHeight, imageWidth)), sgl.int2(0, 0), tex, app.output)
+    app.present()
 
 
 # Then render with ReSTIR.
 for frameIndex in range(frameCount):
+    if not app.process_events():
+        exit(0)
+
     # Populate the reservoirs with initial candidates.
     module.resetReservoirs(initialOutput)
     for i in range(initialCandidateCount):
@@ -99,4 +111,12 @@ for frameIndex in range(frameCount):
 
     # Render.
     module.evaluate(spatialOutput, tex)
-    sgl.tev.show(tex, name=f"ReSTIR {frameIndex:04d}")
+
+    # Copy to app output window texture.
+    module.copyToOutput(spy.grid((imageHeight, imageWidth)),
+                        sgl.int2(imageWidth, 0), tex, app.output)
+    app.present()
+
+# Keep window processing events until user closes it.
+while app.process_events():
+    app.present()
