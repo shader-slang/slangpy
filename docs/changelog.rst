@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+**Version 0.21.0**
+
+- Full Jupyter notebook support 
+- Lots of fixes for edge-case hot reload crashes
+- Significantly more robust wang hash and rand float generators
+- Direct return of structs from scalar calls
+- Add diff splatting sample
+- Fix for rare issue involving lookup order of generic functions vs generic types
+- Require SGL v0.13.0
+
 **Version 0.20.1**
 
 - Fix scalar wang-hash arg types

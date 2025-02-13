@@ -5,6 +5,9 @@ from .core.utils import create_device
 import runpy
 import pathlib
 
+# Version number
+__version__ = "0.21.0"
+
 # Useful slangpy types
 from . import types
 
