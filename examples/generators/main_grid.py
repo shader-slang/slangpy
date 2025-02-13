@@ -5,6 +5,8 @@ import slangpy as spy
 import pathlib
 import numpy as np
 
+print("SlangPy grid generator example (https://slangpy.shader-slang.org/en/latest/generator_grid.html)")
+
 # Create an SGL device with the local folder for slangpy includes
 device = spy.create_device(include_paths=[
     pathlib.Path(__file__).parent.absolute(),

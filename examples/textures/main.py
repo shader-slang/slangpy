@@ -1,9 +1,12 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import sgl
 import slangpy as spy
 import pathlib
 import numpy as np
+
+print("SlangPy textures example (https://slangpy.shader-slang.org/en/latest/textures.html)")
+print("This example requires tev (https://github.com/Tom94/tev) to display results.")
 
 # Create an SGL device with the local folder for slangpy includes
 device = spy.create_device(include_paths=[
