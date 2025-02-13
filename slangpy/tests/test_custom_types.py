@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+from typing import Callable
 import numpy as np
 import pytest
 
-from slangpy.backend import DeviceType, float3, int3, uint3
+from slangpy.backend import DeviceType, float3, uint3
+from slangpy.experimental.gridarg import grid
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.callidarg import call_id
-from slangpy.types.randfloatarg import RandFloatArg
-from slangpy.types.threadidarg import ThreadIdArg, thread_id
-from slangpy.types.wanghasharg import WangHashArg, wang_hash
+from slangpy.types.randfloatarg import RandFloatArg, rand_float
+from slangpy.types.threadidarg import thread_id
+from slangpy.types.wanghasharg import WangHashArg, calc_wang_hash_numpy, wang_hash
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -126,8 +128,20 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: 
     assert np.allclose(data, expected)
 
 
+def calc_wang_hash(seed: int):
+    seed = (seed ^ 61) ^ (seed >> 16)
+    seed *= 9
+    seed = seed ^ (seed >> 4)
+    seed *= 0x27d4eb2d
+    seed = seed ^ (seed >> 15)
+    return seed
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_wang_hash(device_type: DeviceType):
+@pytest.mark.parametrize("warmup", [0, 1, 2])
+@pytest.mark.parametrize("hash_seed", [False, True])
+@pytest.mark.parametrize("seed", [0, 2640457667])
+def test_wang_hash(device_type: DeviceType, warmup: int, hash_seed: bool, seed: int):
 
     # Create function that just dumps input to output
     device = helpers.get_device(device_type)
@@ -147,31 +161,34 @@ uint3 wang_hashes(uint3 input) {
     )
 
     # Call function with 3D wang hash arg
-    kernel_output_values(WangHashArg(3), _result=results)
+    kernel_output_values(WangHashArg(3, seed=seed, warmup=warmup,
+                         hash_seed=hash_seed), _result=results)
+
+    # Calculate expected results
+    thread_ids = np.indices((16,), dtype=np.uint32)*3
+    np_seeds = np.full((16,), seed, dtype=np.uint32)
+    if hash_seed:
+        np_seeds = calc_wang_hash_numpy(np_seeds)
+    thread_hash = thread_ids
+    for i in range(warmup):
+        thread_hash = calc_wang_hash_numpy(thread_hash)
+    expected_d0 = calc_wang_hash_numpy(thread_hash ^ np_seeds)
+    expected_d1 = calc_wang_hash_numpy(expected_d0)
+    expected_d2 = calc_wang_hash_numpy(expected_d1)
+
+    # combine the 3 expected arrays into a single array
+    expected = np.stack((expected_d0, expected_d1, expected_d2), axis=-1)
 
     # Should get out the following precalculated wang hashes
     data = results.storage.to_numpy().view("uint32").reshape((-1, 3))
-    expected = [[3232319850, 3075307816,  755367838],
-                [663891101, 1738326990,  801461103],
-                [3329832309,  685338552, 3175962347],
-                [2278584254,   41021378, 1955303707],
-                [3427349084,  820536086, 3381787118],
-                [3322605197, 2681520273, 3073157428],
-                [1902946834, 2388446925,  244231649],
-                [851741419,   62190945, 3501556970],
-                [3030050807, 4159240091,  137079654],
-                [454550906, 2504917575,  811039371],
-                [1415330532, 3026032642,  714972250],
-                [1798297286, 1541577139, 2313671325],
-                [161999925,  949220758,  846072919],
-                [1881449543, 2723368086, 2785454616],
-                [1220296370, 3358723660, 1136221045],
-                [1603248408, 1883436325, 2091632478]]
     assert np.allclose(data, expected)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_wang_hash_scalar(device_type: DeviceType):
+@pytest.mark.parametrize("warmup", [0, 1, 2])
+@pytest.mark.parametrize("hash_seed", [False, True])
+@pytest.mark.parametrize("seed", [0, 2640457667])
+def test_wang_hash_scalar(device_type: DeviceType, warmup: int, hash_seed: bool, seed: int):
 
     # Create function that just dumps input to output
     device = helpers.get_device(device_type)
@@ -191,20 +208,89 @@ uint wang_hashes(uint input) {
     )
 
     # Call function with 3D wang hash arg
-    kernel_output_values(wang_hash(), _result=results)
+    kernel_output_values(wang_hash(warmup=warmup, hash_seed=hash_seed, seed=seed), _result=results)
 
-    # Should get out the following precalculated wang hashes
+    # Calculate expected results
+    thread_ids = np.indices((16,), dtype=np.uint32)
+    np_seeds = np.full((16,), seed, dtype=np.uint32)
+    if hash_seed:
+        np_seeds = calc_wang_hash_numpy(np_seeds)
+    thread_hash = thread_ids
+    for i in range(warmup):
+        thread_hash = calc_wang_hash_numpy(thread_hash)
+    expected = calc_wang_hash_numpy(thread_hash ^ np_seeds)
+
+    # Should get out matching hashes
     data = results.storage.to_numpy().view("uint32")
-    print(data)
-    expected = [3232319850,  663891101, 3329832309, 2278584254, 3427349084,
-                3322605197, 1902946834,  851741419, 3030050807,  454550906,
-                1415330532, 1798297286,  161999925, 1881449543, 1220296370,
-                1603248408]
     assert np.allclose(data, expected)
+
+# Dumb test just to make sure hashes aren't completely broken!
+
+
+def measure_sequential_hash_quality(hash_func: Callable[[int], np.ndarray]):
+    hashes = hash_func(0)
+    hashes2 = hash_func(1)
+    combined_array = np.concatenate((hashes, hashes2))
+    unique, counts = np.unique(combined_array, return_counts=True)
+    duplicates = np.sum(counts > 1)
+    return 1 - duplicates / len(hashes)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_rand_float(device_type: DeviceType):
+def test_wang_seq_seeds(device_type: DeviceType):
+    # Create function that just dumps input to output
+    device = helpers.get_device(device_type)
+    kernel_output_values = helpers.create_function_from_module(
+        device, "wang_hashes", """
+uint wang_hashes(uint input) {
+    return input;
+}
+"""
+    )
+
+    def read_values(seed: int):
+        results = NDBuffer(
+            element_count=16,  # 3840 * 2160,
+            device=device,
+            dtype=kernel_output_values.module.uint
+        )
+        kernel_output_values(wang_hash(warmup=0, hash_seed=False, seed=seed), _result=results)
+        return results.storage.to_numpy().view("uint32")
+    normal_quality = measure_sequential_hash_quality(read_values)
+
+    def read_values_hash_seed(seed: int):
+        results = NDBuffer(
+            element_count=16,  # 3840 * 2160,
+            device=device,
+            dtype=kernel_output_values.module.uint
+        )
+        kernel_output_values(wang_hash(warmup=0, hash_seed=True, seed=seed), _result=results)
+        return results.storage.to_numpy().view("uint32")
+    hash_seed_quality = measure_sequential_hash_quality(read_values_hash_seed)
+
+    def read_values_warmup(seed: int):
+        results = NDBuffer(
+            element_count=3840 * 2160,
+            device=device,
+            dtype=kernel_output_values.module.uint
+        )
+        kernel_output_values(wang_hash(warmup=1, hash_seed=False, seed=seed), _result=results)
+        return results.storage.to_numpy().view("uint32")
+    warmup_quality = measure_sequential_hash_quality(read_values_warmup)
+
+    # We know with no seed hash and no warmup, completely sequential seeds are temporarilly coherent
+    assert normal_quality < 0.01
+
+    # Both hashing the seed and/or warmup makes sequential seeds fine
+    assert hash_seed_quality > 0.99999
+    assert warmup_quality > 0.99999
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("warmup", [0, 1, 2])
+@pytest.mark.parametrize("hash_seed", [False, True])
+@pytest.mark.parametrize("seed", [0, 2640457667])
+def test_rand_float(device_type: DeviceType, warmup: int, hash_seed: bool, seed: int):
 
     # Create function that just dumps input to output
     device = helpers.get_device(device_type)
@@ -216,19 +302,77 @@ float3 rand_float(float3 input) {
 """
     )
 
+    count = 1000
+
     # Make buffer for results
     results = NDBuffer(
-        element_count=16,
+        element_count=count,
         device=device,
         dtype=float3
     )
 
     # Call function with 3D random arg
-    kernel_output_values(RandFloatArg(1.0, 2.0, 3), _result=results)
+    kernel_output_values(RandFloatArg(1.0, 3.0, 3, warmup=warmup,
+                         hash_seed=hash_seed, seed=seed), _result=results)
+
+    # Calculate expected results
+    thread_ids = np.indices((count,), dtype=np.uint32)*3
+    np_seeds = np.full((count,), seed, dtype=np.uint32)
+    if hash_seed:
+        np_seeds = calc_wang_hash_numpy(np_seeds)
+    thread_hash = thread_ids
+    for i in range(warmup):
+        thread_hash = calc_wang_hash_numpy(thread_hash)
+    hash_d0 = calc_wang_hash_numpy(thread_hash ^ np_seeds)
+    hash_d1 = calc_wang_hash_numpy(hash_d0)
+    hash_d2 = calc_wang_hash_numpy(hash_d1)
+    hash = np.stack((hash_d0, hash_d1, hash_d2), axis=-1)
+    k = (hash & 0x7FFFFF)
+    u = k / float(0x800000)
+    values = 1.0 + 2.0 * u
 
     # Should get random numbers
     data = results.storage.to_numpy().view("float32").reshape((-1, 3))
-    assert np.all(data >= 1.0) and np.all(data <= 2.0)
+    assert np.allclose(data, values)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_rand_float_uniformity(device_type: DeviceType):
+
+    bucket_size = 17
+
+    # Create function that atomically increments counts
+    device = helpers.get_device(device_type)
+    bucket_values = helpers.create_function_from_module(
+        device, "add_to_bucket", f"""
+void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
+    int idx = int(value * ( {bucket_size - 1}));
+    bucket.InterlockedAdd(idx * 4, 1);
+}}
+"""
+    )
+
+    # Make buffer for bucket of counts
+    buckets = NDBuffer(
+        element_count=bucket_size,
+        device=device,
+        dtype=int
+    )
+
+    # Run bucketer with 1B random floats
+    count = 1 * 1000 * 1000 * 1000
+    bucket_values(grid((count,)), buckets.storage, rand_float())
+
+    # Verify the distribution of values in range [0,1) is roughly even
+    res = buckets.to_numpy().view("int32")
+    expected_count_per_bucket = count / (bucket_size-1)
+    for i in range(bucket_size-1):
+        bucket = float(res[i])
+        rel_diff = abs(bucket - expected_count_per_bucket) / expected_count_per_bucket
+        assert rel_diff < 0.0001
+
+    # Verify 1 never turns up
+    assert res[bucket_size-1] == 0
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

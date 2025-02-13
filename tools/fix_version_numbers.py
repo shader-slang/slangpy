@@ -47,6 +47,16 @@ def fix_pyproject(file: str, version: Version) -> str:
     return file
 
 
+def fix_import_version(file: str, version: Version) -> str:
+    # __version__ = "0.19.1"
+    file = re.sub(
+        r"__version__\s*=\s*\"\d+\.\d+\.\d+\"",
+        f'__version__ = "{version.major}.{version.minor}.{version.patch}"',
+        file,
+    )
+    return file
+
+
 def fix_sgl_requirements(file: str, version: Version) -> str:
     # nv-sgl == 0.19.1
     file = re.sub(
@@ -75,6 +85,7 @@ def fix_slangpy_version(save: bool = False):
     # run files patch
     files = [
         File(root / "pyproject.toml", fix_pyproject),
+        File(root / "slangpy/__init__.py", fix_import_version),
     ]
     for file in files:
         file.apply_version(version)

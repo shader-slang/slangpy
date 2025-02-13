@@ -3,6 +3,7 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
+from sgl import BufferCursor
 
 from slangpy.core.native import AccessType, CallContext
 
@@ -76,7 +77,10 @@ class ValueRefMarshall(Marshall):
         return True
 
     def resolve_type(self, context: BindContext, bound_type: 'kfr.SlangType'):
-        return self.value_type
+        if self.value_type.name != "Unknown":
+            return self.value_type
+        else:
+            return bound_type
 
     def resolve_dimensionality(self, context: BindContext, binding: BoundVariable, vector_target_type: 'kfr.SlangType'):
         return len(self.value_type.shape) - len(vector_target_type.shape)
@@ -88,10 +92,10 @@ class ValueRefMarshall(Marshall):
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         if access[0] == AccessType.read:
-            cgb.type_alias(f"_t_{name}", f"ValueRef<{self.value_type.full_name}>")
+            cgb.type_alias(f"_t_{name}", f"ValueRef<{binding.vector_type.full_name}>")
         else:
             cgb.type_alias(
-                f"_t_{name}", f"RWValueRef<{self.value_type.full_name}>")
+                f"_t_{name}", f"RWValueRef<{binding.vector_type.full_name}>")
 
     # Call data just returns the primal
     def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: ValueRef) -> Any:
@@ -101,29 +105,43 @@ class ValueRefMarshall(Marshall):
         if access[0] == AccessType.read:
             return {'value': data.value}
         else:
-            if isinstance(self.value_type, kfr.SlangType):
-                npdata = slang_value_to_numpy(self.value_type, data.value)
+            if isinstance(binding.vector_type, kfr.StructType):
+                buffer = context.device.create_buffer(
+                    element_count=1, struct_size=binding.vector_type.buffer_layout.stride, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+                cursor = BufferCursor(binding.vector_type.buffer_layout.reflection, buffer, False)
+                cursor[0].write(data.value)
+                cursor.apply()
+                return {
+                    'value': buffer
+                }
             else:
-                npdata = self.value_type.to_numpy(data.value)
-            npdata = npdata.view(dtype=np.uint8)
-            return {
-                'value': context.device.create_buffer(element_count=1, struct_size=npdata.size, data=npdata, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
-            }
+                if isinstance(self.value_type, kfr.SlangType):
+                    npdata = slang_value_to_numpy(self.value_type, data.value)
+                else:
+                    npdata = self.value_type.to_numpy(data.value)
+                npdata = npdata.view(dtype=np.uint8)
+                return {
+                    'value': context.device.create_buffer(element_count=1, struct_size=npdata.size, data=npdata, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+                }
 
     # Value ref just passes its value for raw dispatch
     def create_dispatchdata(self, data: Any) -> Any:
         return data
 
-    # Read back from call data does nothing
+    # Read back from call data
     def read_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: ValueRef, result: Any) -> None:
         access = binding.access
         if access[0] in [AccessType.write, AccessType.readwrite]:
             assert isinstance(result['value'], Buffer)
-            npdata = result['value'].to_numpy()
-            if isinstance(self.value_type, kfr.SlangType):
-                data.value = numpy_to_slang_value(self.value_type, npdata)
+            if isinstance(binding.vector_type, kfr.StructType):
+                cursor = BufferCursor(binding.vector_type.buffer_layout.reflection, result['value'])
+                data.value = cursor[0].read()
             else:
-                data.value = self.value_type.copy_from_numpy(npdata)
+                npdata = result['value'].to_numpy()
+                if isinstance(self.value_type, kfr.SlangType):
+                    data.value = numpy_to_slang_value(self.value_type, npdata)
+                else:
+                    data.value = self.value_type.copy_from_numpy(npdata)
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         pt = slang_type_to_return_type(self.value_type)
@@ -138,7 +156,7 @@ class ValueRefMarshall(Marshall):
 
 def create_vr_type_for_value(layout: kfr.SlangProgramLayout, value: Any):
     if isinstance(value, ValueRef):
-        return ValueRefMarshall(layout, get_or_create_type(layout, type(value.value)).slang_type)
+        return ValueRefMarshall(layout, get_or_create_type(layout, type(value.value), value.value).slang_type)
     elif isinstance(value, ReturnContext):
         return ValueRefMarshall(layout, value.slang_type)
     else:

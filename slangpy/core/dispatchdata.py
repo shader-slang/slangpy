@@ -53,12 +53,12 @@ class DispatchData:
             self.runtime = BoundCallRuntime(bindings)
 
             # Verify and get reflection data.
-            if len(build_info.reflections) > 1 or build_info.reflections[0].is_overloaded:
+            if len(build_info.functions) > 1 or build_info.functions[0].reflection.is_overloaded:
                 raise ValueError("Cannot use raw dispatch on overloaded functions.")
-            if build_info.type_reflection is not None:
+            if build_info.this_type is not None:
                 raise ValueError("Cannot use raw dispatch on type methods.")
 
-            reflection = build_info.reflections[0]
+            reflection = build_info.functions[0].reflection
             slang_function = build_info.module.layout.find_function(reflection, None)
 
             # Ensure the function has no out or inout parameters, and no return value.
