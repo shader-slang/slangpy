@@ -17,10 +17,16 @@ When SlangPy is updated with the functionality to specify group sizes, this work
 
 ## How to Use
 
-### Requirements
-This sample has only two dependencies: 
+### Installation
+
+First, install slangpy and the tev viewer: 
+
 - **SlangPy** python package: `pip install slangpy`. See SlangPy's [docs](https://slangpy.shader-slang.org/en/latest/installation.html) for a full list of requirements.
 - **Tev** viewer: Download from [releases](https://github.com/Tom94/tev/releases/tag/v1.29). See [tev's github](https://github.com/Tom94/tev) for more information.  
+
+Then install the example's requirements, from within the sample folder:
+
+`pip install -r requirements.txt`
 
 ### Optional: Setup via Conda
 For simpler setup, use an anaconda/miniconda installation (See [Conda's user guide](https://docs.conda.io/projects/conda/en/latest/user-guide/index.html) for more).

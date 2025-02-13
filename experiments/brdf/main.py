@@ -11,7 +11,8 @@ from slangpy.types import call_id
 # window size is retrieved from the app window to avoid redundant state.
 class Camera:
     # Origin is at 0,0 with 1,1 scale.
-    def __init__(self, app):
+    def __init__(self, app: App):
+        super().__init__()
         self.o = sgl.float2(0.0, 0.0)
         self.scale = sgl.float2(1.0, 1.0)
         self.app = app
@@ -32,7 +33,8 @@ class Camera:
 
 
 class Properties:
-    def __init__(self, b, r, m, s):
+    def __init__(self, b: sgl.float3, r: float, m: float, s: float):
+        super().__init__()
         self.b = b
         self.r = r
         self.m = m
