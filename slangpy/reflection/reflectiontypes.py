@@ -620,6 +620,7 @@ class SlangFunction:
         self._program = program
         self._cached_parameters: Optional[tuple[SlangParameter, ...]] = None
         self._cached_return_type: Optional[SlangType] = None
+        self._cached_overloads: Optional[tuple[SlangFunction]] = None
 
         if full_name is None:
             full_name = refl.name
@@ -629,6 +630,7 @@ class SlangFunction:
         self._reflection = refl
         self._cached_parameters = None
         self._cached_return_type = None
+        self._cached_overloads = None
 
     @property
     def reflection(self) -> FunctionReflection:
@@ -708,6 +710,25 @@ class SlangFunction:
         Whether this function is static. Only relevant for type methods.
         """
         return self.reflection.has_modifier(ModifierID.static)
+
+    @property
+    def is_overloaded(self) -> bool:
+        """
+        Whether this function is overloaded. Individual overloads can be retrieved with the overloads property
+        """
+        return self.reflection.is_overloaded
+
+    @property
+    def overloads(self) -> tuple[SlangFunction]:
+        """
+        Returns a tuple of the overloads of this function
+        """
+        if self._cached_overloads is None:
+            overloads = []
+            for refl in self.reflection.overloads:
+                overloads.append(SlangFunction(self._program, refl, self._this, self._full_name))
+            self._cached_overloads = tuple(overloads)
+        return self._cached_overloads
 
     @property
     def is_constructor(self) -> bool:
