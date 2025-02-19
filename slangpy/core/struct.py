@@ -83,19 +83,6 @@ class Struct:
                            struct=self, options=self.options)
             return res
 
-        # Currently have Slang issue finding the init function, so for none-generic classes,
-        # try to find it via the AST.
-        if not '<' in self.name and name == "$init":
-            (type, funcs) = try_find_function_overloads_via_ast(
-                self.device_module.module_decl, self.name, name)
-            if funcs is not None and len(funcs) > 0:
-                slang_funcs = []
-                for func in funcs:
-                    slang_funcs.append(self.module.layout.find_function(func, type))
-                res = Function(module=self.module, func=slang_funcs,
-                               struct=self, options=self.options)
-                return res
-
         return None
 
     def __getattr__(self, name: str) -> Union['Struct', 'Function']:
