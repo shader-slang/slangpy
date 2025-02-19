@@ -78,7 +78,7 @@ class Struct:
             name = "$init"
         slang_function = self.module.layout.find_function_by_name_in_type(
             self.struct, name)
-        if slang_function is not None and name != "$init":  # FIXME: Workaround to preserve current lookup behavior
+        if slang_function is not None:
             res = Function(module=self.module, func=slang_function,
                            struct=self, options=self.options)
             return res
