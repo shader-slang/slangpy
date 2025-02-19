@@ -709,6 +709,15 @@ class SlangFunction:
         """
         return self.reflection.has_modifier(ModifierID.static)
 
+    @property
+    def is_constructor(self) -> bool:
+        """
+        Returns True if this function is a class constructor
+        """
+        # .name currently returns None for constructors (slang issue 6406).
+        # Check the full name instead
+        return self._full_name.startswith("$init")
+
 
 class BaseSlangVariable:
     """
