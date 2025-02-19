@@ -55,22 +55,9 @@ def is_generic_vector(type: TypeReflection) -> bool:
 def specialize(
     context: BindContext,
     signature: BoundCall,
-    functions: list[SlangFunction],
+    function: SlangFunction,
     type: Optional[SlangType] = None
 ):
-    # Handle current slang issue where init has to be found via ast, resulting in potential multiple functions
-    if len(functions) > 1:
-        if functions[0].name == "$init":
-            matches = [x for x in functions if len(
-                x.parameters) == signature.num_function_args]
-            if len(matches) != 1:
-                return MismatchReason("Overloaded $init functions are currently only supported if they have different argument counts.")
-            function = matches[0]
-        else:
-            raise ValueError(
-                "Internal error - Multiple function reflections provided, which should only happen with $init.")
-    else:
-        function = functions[0]
 
     # Expecting 'this' argument as first parameter of none-static member functions (except for $init)
     first_arg_is_this = type is not None and not function.static and function.name != "$init"

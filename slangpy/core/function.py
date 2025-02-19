@@ -43,7 +43,7 @@ class FunctionBuildInfo:
         # Will always be populated by the root
         self.name: str
         self.module: 'Module'
-        self.functions: list[SlangFunction]
+        self.function: SlangFunction
         self.this_type: Optional[SlangType]
 
         # Optional value that will be set depending on the chain.
@@ -410,7 +410,7 @@ class FunctionNodeThreadGroupSize(FunctionNode):
 
 
 class Function(FunctionNode):
-    def __init__(self, module: 'Module', func: Union[str, SlangFunction, list[SlangFunction]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
+    def __init__(self, module: 'Module', func: Union[str, SlangFunction], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
         super().__init__(None, FunctionNodeType.kernelgen, None)
 
         self._module = module
@@ -424,16 +424,10 @@ class Function(FunctionNode):
                 raise ValueError(f"Function '{func}' not found")
             func = sf
 
-        if isinstance(func, SlangFunction):
-            slang_funcs = [func]
-            # Track fully specialized name where available
-            self._name = func.full_name
-        else:
-            slang_funcs = func
-            self._name = func[0].name
-
-        # Store function reflections (should normally be 1 unless forced to do AST based search)
-        self._slang_funcs = slang_funcs
+        # Track fully specialized name
+        self._name = func.full_name
+        # Store function reflection
+        self._slang_func = func
 
         # Store type parent name if found
         if struct is not None:
@@ -463,5 +457,5 @@ class Function(FunctionNode):
         info.name = self.name
         info.module = self.module
         info.options.update(self._options)
-        info.functions = self._slang_funcs
+        info.function = self._slang_func
         info.this_type = self._this_type
