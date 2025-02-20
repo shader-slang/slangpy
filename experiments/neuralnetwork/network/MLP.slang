@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import NeuralModules;
+import ArrayModule;
 
-struct LinearLayer<T : IScalar, int NumInputs, int NumOutputs> : IModule<T, NumInputs, NumOutputs> where T.Differential : IArithmeticAtomicable
+struct LinearLayer<T : IReal, int NumInputs, int NumOutputs> : IArrayModule<T, NumInputs, NumOutputs> where T.Differential : IArithmeticAtomicable
 {
     StructuredBuffer<T> weights, biases;
     RWStructuredBuffer<Atomic<T.Differential>> weightGrads, biasGrads;

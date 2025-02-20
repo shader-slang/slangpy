@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // clang-format off
 
-import NeuralModules;
+import ArrayModule;
 
 namespace Activation
 {
 
-interface IActivation<T : IScalar, int Width>
+interface IActivation<T : IReal, int Width>
 {
     [BackwardDifferentiable, PreferRecompute] T activate(T x);
 }
-extension<T : IScalar, int Width, Act : IActivation<T, Width>> Act : IModule<T, Width, Width>
+extension<T : IReal, int Width, Act : IActivation<T, Width>> Act : IArrayModule<T, Width, Width>
 {
     [BackwardDifferentiable]
     T[Width] forward(T x[Width])
@@ -23,7 +23,7 @@ extension<T : IScalar, int Width, Act : IActivation<T, Width>> Act : IModule<T, 
     }
 }
 
-struct None<T : IScalar, int K> : IActivation<T, K>
+struct None<T : IReal, int K> : IActivation<T, K>
 {
     [BackwardDifferentiable, PreferRecompute]
     T activate(T x)
@@ -32,7 +32,7 @@ struct None<T : IScalar, int K> : IActivation<T, K>
     }
 };
 
-struct ReLU<T : IScalar, int K> : IActivation<T, K>
+struct ReLU<T : IReal, int K> : IActivation<T, K>
 {
     [BackwardDifferentiable, PreferRecompute]
     T activate(T x)
@@ -41,7 +41,7 @@ struct ReLU<T : IScalar, int K> : IActivation<T, K>
     }
 };
 
-struct LeakyReLU<T : IScalar, int K> : IActivation<T, K>
+struct LeakyReLU<T : IReal, int K> : IActivation<T, K>
 {
     T negativeSlope;
 
@@ -52,7 +52,7 @@ struct LeakyReLU<T : IScalar, int K> : IActivation<T, K>
     }
 };
 
-struct ELU<T : IScalar, int K> : IActivation<T, K>
+struct ELU<T : IReal, int K> : IActivation<T, K>
 {
     T a;
 
@@ -63,7 +63,7 @@ struct ELU<T : IScalar, int K> : IActivation<T, K>
     }
 };
 
-struct Swish<T : IScalar, int K> : IActivation<T, K>
+struct Swish<T : IReal, int K> : IActivation<T, K>
 {
     [BackwardDifferentiable, PreferRecompute]
     T activate(T x)
@@ -72,7 +72,7 @@ struct Swish<T : IScalar, int K> : IActivation<T, K>
     }
 };
 
-struct Tanh<T : IScalar, int K> : IActivation<T, K>
+struct Tanh<T : IReal, int K> : IActivation<T, K>
 {
     [BackwardDifferentiable, PreferRecompute]
     T activate(T x)
@@ -81,7 +81,7 @@ struct Tanh<T : IScalar, int K> : IActivation<T, K>
     }
 };
 
-struct Sigmoid<T : IScalar, int K> : IActivation<T, K>
+struct Sigmoid<T : IReal, int K> : IActivation<T, K>
 {
     [BackwardDerivative(activate_bwd), PreferRecompute]
     T activate(T x)
@@ -97,7 +97,7 @@ struct Sigmoid<T : IScalar, int K> : IActivation<T, K>
     }
 };
 
-struct Exp<T : IScalar, int K> : IActivation<T, K>
+struct Exp<T : IReal, int K> : IActivation<T, K>
 {
     [BackwardDifferentiable, PreferRecompute]
     T activate(T x)

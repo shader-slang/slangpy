@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // clang-format off
 
-import NeuralModules;
+import ArrayModule;
 
-struct FrequencyEncoding<T : IScalar, int NumInputs, int NumScales> : IModule<T, NumInputs, NumScales * NumInputs * 2>
+struct FrequencyEncoding<T : IReal, int NumInputs, int NumScales> : IArrayModule<T, NumInputs, NumScales * NumInputs * 2>
 {
     [BackwardDifferentiable]
     T[NumScales * NumInputs * 2] forward(T x[NumInputs])
