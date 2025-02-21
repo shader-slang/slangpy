@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // clang-format off
-
 import ArrayModule;
 
 namespace Activation

@@ -16,9 +16,8 @@ struct DiffCoopVec<T : IReal, int N> : IDifferentiable, IArray<T>, IArithmetic
 
     [BackwardDifferentiable] __init() { this = fill(T(0.0f)); }
     [BackwardDifferentiable] __init(T x) { this = fill(x); }
-    [BackwardDifferentiable] __init<S : IReal>(S x) { this = fill(T(x.toFloat())); }
-    [BackwardDifferentiable] __init(This x) { cv = x.cv; } // TODO: Derivative?
-    [BackwardDifferentiable] __init<S : IReal>(DiffCoopVec<S, N> other) { cv.copyFrom(other.cv); } // TODO: Derivative?
+    [BackwardDifferentiable] __init<S : IReal>(S x) { this = fill(x); }
+    [BackwardDifferentiable] __init(This x) { this = x; }
     __init<S : IReal>(no_diff CoopVec<S, N> other) { cv.copyFrom(other); }
 
     int getCount()
@@ -50,7 +49,7 @@ struct DiffCoopVec<T : IReal, int N> : IDifferentiable, IArray<T>, IArithmetic
     static Differential dadd(Differential a, Differential b) { return a + b; }
 
     [BackwardDerivative(fill_bwd)]
-    static This fill(T x) { return This(CoopVec<T, N>(x)); }
+    static This fill<S : IReal>(S x) { return This(CoopVec<T, N>(T(x.toFloat()))); }
     [BackwardDerivative(indexRead_bwd)]
     static T indexRead(This x, int i) { return x.cv[i]; }
     [BackwardDerivative(indexWrite_bwd)]
@@ -93,14 +92,14 @@ struct DiffCoopVec<T : IReal, int N> : IDifferentiable, IArray<T>, IArithmetic
     [BackwardDerivative(div_bwd)] static This div(This a, This b) { return This(a.cv.div(b.cv)); }
     [BackwardDerivative(neg_bwd)] static This neg(This x) { return This(x.cv.neg()); }
 
-    static void fill_bwd(inout DifferentialPair<T> x, Differential grad)
+    static void fill_bwd<S : IReal>(inout DifferentialPair<S> x, Differential grad)
     {
         T dx = T(0.0f);
         [ForceUnroll]
         for (int i = 0; i < N; ++i)
             dx += grad[i];
 
-        x = diffPair(x.p, __slang_noop_cast<DifferentialPair<T>.DifferentialElementType>(dx));
+        x = diffPair(x.p, __slang_noop_cast<DifferentialPair<S>.DifferentialElementType>(S(dx.toFloat())));
     }
     static void indexRead_bwd(inout DifferentialPair<This> x, int i, T.Differential grad)
     {
@@ -167,66 +166,70 @@ struct DiffCoopVec<T : IReal, int N> : IDifferentiable, IArray<T>, IArithmetic
     }
 }
 
-DiffCoopVec<S, N> operator *<T : IReal, S : IReal, int N>(DiffCoopVec<S, N> lhs, const T rhs) { return DiffCoopVec<S, N>(lhs.cv * S(rhs.toFloat())); }
-DiffCoopVec<S, N> operator +<T : IReal, S : IReal, int N>(DiffCoopVec<S, N> lhs, const T rhs) { return lhs + DiffCoopVec<S, N>(rhs); }
-DiffCoopVec<S, N> operator -<T : IReal, S : IReal, int N>(DiffCoopVec<S, N> lhs, const T rhs) { return lhs - DiffCoopVec<S, N>(rhs); }
-DiffCoopVec<S, N> operator /<T : IReal, S : IReal, int N>(DiffCoopVec<S, N> lhs, const T rhs) { return lhs / DiffCoopVec<S, N>(rhs); }
-DiffCoopVec<S, N> operator *<T : IReal, S : IReal, int N>(const T lhs, DiffCoopVec<S, N> rhs) { return DiffCoopVec<S, N>(S(lhs.toFloat()) * rhs.cv); }
-DiffCoopVec<S, N> operator +<T : IReal, S : IReal, int N>(const T lhs, DiffCoopVec<S, N> rhs) { return DiffCoopVec<S, N>(lhs) + rhs; }
-DiffCoopVec<S, N> operator -<T : IReal, S : IReal, int N>(const T lhs, DiffCoopVec<S, N> rhs) { return DiffCoopVec<S, N>(lhs) - rhs; }
-DiffCoopVec<S, N> operator /<T : IReal, S : IReal, int N>(const T lhs, DiffCoopVec<S, N> rhs) { return DiffCoopVec<S, N>(lhs) / rhs; }
+[BackwardDifferentiable] DiffCoopVec<S, N> operator +<T : IReal, S : IReal, int N>(DiffCoopVec<S, N> lhs, const T rhs) { return lhs + DiffCoopVec<S, N>(rhs); }
+[BackwardDifferentiable] DiffCoopVec<S, N> operator -<T : IReal, S : IReal, int N>(DiffCoopVec<S, N> lhs, const T rhs) { return lhs - DiffCoopVec<S, N>(rhs); }
+[BackwardDifferentiable] DiffCoopVec<S, N> operator /<T : IReal, S : IReal, int N>(DiffCoopVec<S, N> lhs, const T rhs) { return lhs / DiffCoopVec<S, N>(rhs); }
+[BackwardDifferentiable] DiffCoopVec<S, N> operator +<T : IReal, S : IReal, int N>(const T lhs, DiffCoopVec<S, N> rhs) { return DiffCoopVec<S, N>(lhs) + rhs; }
+[BackwardDifferentiable] DiffCoopVec<S, N> operator -<T : IReal, S : IReal, int N>(const T lhs, DiffCoopVec<S, N> rhs) { return DiffCoopVec<S, N>(lhs) - rhs; }
+[BackwardDifferentiable] DiffCoopVec<S, N> operator /<T : IReal, S : IReal, int N>(const T lhs, DiffCoopVec<S, N> rhs) { return DiffCoopVec<S, N>(lhs) / rhs; }
+[BackwardDerivative(scalarMultiplyR_bwd)] DiffCoopVec<S, N> operator *<T : IReal, S : IReal, int N>(DiffCoopVec<S, N> lhs, const T rhs) { return DiffCoopVec<S, N>(lhs.cv * S(rhs.toFloat())); }
+[BackwardDerivative(scalarMultiplyL_bwd)] DiffCoopVec<S, N> operator *<T : IReal, S : IReal, int N>(const T lhs, DiffCoopVec<S, N> rhs) { return DiffCoopVec<S, N>(S(lhs.toFloat()) * rhs.cv); }
+void scalarMultiplyR_bwd<T : IReal, S : IReal, int N>(inout DifferentialPair<DiffCoopVec<S, N>> lhs, inout DifferentialPair<T> rhs, DiffCoopVec<S, N> grad)
+{
+    lhs = diffPair(lhs.p, grad * rhs.p);
+    DiffCoopVec<S, N>::fill_bwd(rhs, grad * lhs.p);
+}
+void scalarMultiplyL_bwd<T : IReal, S : IReal, int N>(inout DifferentialPair<T> lhs, inout DifferentialPair<DiffCoopVec<S, N>> rhs, DiffCoopVec<S, N> grad)
+{
+    scalarMultiplyR_bwd(rhs, lhs, grad);
+}
 
-[BackwardDifferentiable]
+[BackwardDerivative(exp_bwd)]
 DiffCoopVec<T, N> exp<T : IReal, int N>(DiffCoopVec<T, N> x)
 {
     return DiffCoopVec<T, N>(exp(x.cv));
 }
-[BackwardDerivativeOf(exp)]
 void exp_bwd<T : IReal, int N>(inout DifferentialPair<DiffCoopVec<T, N>> x, DiffCoopVec<T, N> grad)
 {
     x = diffPair(x.p, grad * exp(x.p));
 }
 
-[BackwardDifferentiable]
+[BackwardDerivative(log_bwd)]
 DiffCoopVec<T, N> log<T : IReal, int N>(DiffCoopVec<T, N> x)
 {
     return DiffCoopVec<T, N>(log(x.cv));
 }
-[BackwardDerivativeOf(log)]
 void log_bwd<T : IReal, int N>(inout DifferentialPair<DiffCoopVec<T, N>> x, DiffCoopVec<T, N> grad)
 {
     x = diffPair(x.p, grad / x.p);
 }
 
-[BackwardDifferentiable]
+[BackwardDerivative(tanh_bwd)]
 DiffCoopVec<T, N> tanh<T : IReal, int N>(DiffCoopVec<T, N> x)
 {
     return DiffCoopVec<T, N>(tanh(x.cv));
 }
-[BackwardDerivativeOf(tanh)]
 void tanh_bwd<T : IReal, int N>(inout DifferentialPair<DiffCoopVec<T, N>> x, DiffCoopVec<T, N> grad)
 {
     let y = tanh(x.p);
     x = diffPair(x.p, (1.0f - y * y) * grad);
 }
 
-[BackwardDifferentiable]
+[BackwardDerivative(atan_bwd)]
 DiffCoopVec<T, N> atan<T : IReal, int N>(DiffCoopVec<T, N> x)
 {
     return DiffCoopVec<T, N>(atan(x.cv));
 }
-[BackwardDerivativeOf(atan)]
 void atan_bwd<T : IReal, int N>(inout DifferentialPair<DiffCoopVec<T, N>> x, DiffCoopVec<T, N> grad)
 {
     x = diffPair(x.p, grad / (x.p * x.p + 1.0f));
 }
 
-[BackwardDifferentiable]
+[BackwardDerivative(max_bwd)]
 DiffCoopVec<T, N> max<T : IReal, int N>(DiffCoopVec<T, N> x, DiffCoopVec<T, N> y)
 {
     return DiffCoopVec<T, N>(max(x.cv, y.cv));
 }
-[BackwardDerivativeOf(max)]
 void max_bwd<T : IReal, int N>(inout DifferentialPair<DiffCoopVec<T, N>> x, inout DifferentialPair<DiffCoopVec<T, N>> y, DiffCoopVec<T, N> grad)
 {
     DiffCoopVec<T, N> gradX, gradY;
@@ -242,12 +245,11 @@ void max_bwd<T : IReal, int N>(inout DifferentialPair<DiffCoopVec<T, N>> x, inou
     y = diffPair(y.p, gradY);
 }
 
-[BackwardDifferentiable]
+[BackwardDerivative(min_bwd)]
 DiffCoopVec<T, N> min<T : IReal, int N>(DiffCoopVec<T, N> x, DiffCoopVec<T, N> y)
 {
     return DiffCoopVec<T, N>(min(x.cv, y.cv));
 }
-[BackwardDerivativeOf(min)]
 void min_bwd<T : IReal, int N>(inout DifferentialPair<DiffCoopVec<T, N>> x, inout DifferentialPair<DiffCoopVec<T, N>> y, DiffCoopVec<T, N> grad)
 {
     DiffCoopVec<T, N> gradX, gradY;

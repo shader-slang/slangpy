@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // clang-format off
 
+typealias IReal = __BuiltinFloatingPointType;
+
 interface IModule<InputT : IDifferentiable, OutputT : IDifferentiable>
 {
     [BackwardDifferentiable]
@@ -18,7 +20,7 @@ extension<InputT : IDifferentiable, OutputT : IDifferentiable, Module : IModule<
 struct ChainedModulePair<
     InputT : IDifferentiable, MiddleT : IDifferentiable, OutputT : IDifferentiable,
     First : IModule<InputT, MiddleT>,
-    Second : IModule<MiddleT, OutputT>
+    Second : IModule<MiddleT, OutputT>,
 > : IModule<InputT, OutputT>
 {
     First first;

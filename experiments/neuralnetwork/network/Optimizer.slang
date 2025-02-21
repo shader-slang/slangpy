@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import NeuralModules;
+
 struct AdamOptimizer
 {
+    float parameter;
     float2 moments;
 
-    __init(float param)
+    __init(half rawParam)
     {
+        parameter = float(rawParam);
         moments = float2(0.0f, -1.0f);
     }
 
     [mutating]
-    void step(inout float param, inout float rawGrad, float learningRate, float gradientScale)
+    void step(inout half rawParam, inout half rawGrad, float learningRate, float gradientScale)
     {
         const float beta1 = 0.9f;
         const float beta2 = 0.999f;
@@ -19,13 +23,14 @@ struct AdamOptimizer
         float blendX = isFirstIteration ? 0.0f : beta1;
         float blendY = isFirstIteration ? 0.0f : beta2;
 
-        float grad = rawGrad / gradientScale;
+        float grad = half(rawGrad) / gradientScale;
         float gradSq = grad * grad;
 
         moments.x = lerp(grad, moments.x, blendX);
         moments.y = lerp(gradSq, moments.y, blendY);
 
-        param -= learningRate * moments.x / (sqrt(moments.y) + epsilon);
-        rawGrad = 0.0f;
+        parameter -= learningRate * moments.x / (sqrt(moments.y) + epsilon);
+        rawParam = half(parameter);
+        rawGrad = half(0.0f);
     }
 }

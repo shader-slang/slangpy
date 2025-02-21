@@ -23,3 +23,20 @@ extension<T : IReal, int NumInputs, int NumOutputs, Module : ICoopVecModule<T, N
         return forward(DiffCoopVec<T, NumInputs>::fromArray(x)).toArray();
     }
 }
+
+struct CoopVecToArray<T : IReal, int N> : IModule<DiffCoopVec<T, N>, T[N]>
+{
+    [BackwardDifferentiable]
+    OutputType forward(InputType x)
+    {
+        return x.toArray();
+    }
+}
+struct ArrayToCoopVec<T : IReal, int N> : IModule<T[N], DiffCoopVec<T, N>>
+{
+    [BackwardDifferentiable]
+    OutputType forward(InputType x)
+    {
+        return OutputType::fromArray(x);
+    }
+}

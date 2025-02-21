@@ -7,7 +7,8 @@ import numpy as np
 import math
 import time
 
-from network import ModuleChain, LinearLayer, FrequencyEncoding
+from network import CoopVecModules as cvm
+from network import ModuleChain, LinearLayer, FrequencyEncoding, Real, ConvertPrecision, Auto
 from network import Activation, NoneAct, ReLUAct, LeakyReLUAct, ELUAct, SwishAct, TanhAct, SigmoidAct, ExpAct
 
 from app import App
@@ -18,17 +19,37 @@ def training_main():
     app = App("Neural Texture", device_type=DeviceType.vulkan, width=resolution, height=resolution)
     device = app.device
 
-    model = ModuleChain(
-        FrequencyEncoding(2, 5),
-        LinearLayer(20, 64),
-        LeakyReLUAct(64),
-        LinearLayer(64, 64),
-        LeakyReLUAct(64),
-        LinearLayer(64, 64),
-        LeakyReLUAct(64),
-        LinearLayer(64, 3),
-        SigmoidAct(3)
-    )
+    if "cooperative-vector" in device.features:
+        print("Cooperative vector enabled!")
+        model = ModuleChain(
+            ConvertPrecision(Real.half, 2, Real.float),
+            FrequencyEncoding(Auto, 10),
+            cvm.ArrayToCoopVec(),
+            cvm.LinearLayer(Auto, 64),
+            cvm.TanhAct(64),
+            cvm.LinearLayer(64, 64),
+            cvm.TanhAct(64),
+            cvm.LinearLayer(64, 64),
+            cvm.TanhAct(64),
+            cvm.LinearLayer(64, 3),
+            cvm.ExpAct(3),
+            cvm.CoopVecToArray(),
+            ConvertPrecision(Real.float)
+        )
+    else:
+        print("Device does not support cooperative vector. Sample will be slow")
+        model = ModuleChain(
+            FrequencyEncoding(2, 5),
+            LinearLayer(20, 64),
+            LeakyReLUAct(64),
+            LinearLayer(64, 64),
+            LeakyReLUAct(64),
+            LinearLayer(64, 64),
+            LeakyReLUAct(64),
+            LinearLayer(64, 3),
+            SigmoidAct(3)
+        )
+    model.set_inputs(None)
     model.initialize(device)
 
     module = Module.load_from_file(device, "NeuralTexture.slang")
@@ -36,7 +57,7 @@ def training_main():
     optimizers = [module.AdamOptimizer(p) for p in model.parameters()]
 
     batch_shape = (256, 256)
-    learning_rate = 0.001
+    learning_rate = 0.0005
     grad_scale = 128.0
     loss_scale = grad_scale / math.prod(batch_shape)
     num_batches_per_epoch = 10
@@ -52,6 +73,7 @@ def training_main():
     timer = Timer()
     cmd = device.create_command_buffer()
 
+    in_flight_cmds = []
     while app.process_events():
         timer.start()
 

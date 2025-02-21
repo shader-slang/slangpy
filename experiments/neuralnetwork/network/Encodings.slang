@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // clang-format off
-
 import ArrayModule;
 
 struct FrequencyEncoding<T : IReal, int NumInputs, int NumScales> : IArrayModule<T, NumInputs, NumScales * NumInputs * 2>

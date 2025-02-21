@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import NeuralModules;
-
-typealias IReal = __BuiltinFloatingPointType;
+__exported import NeuralModules;
 
 interface IArrayModule<T : IReal, int NumInputs, int NumOutputs> : IModule<T[NumInputs], T[NumOutputs]>
 {
@@ -9,14 +7,31 @@ interface IArrayModule<T : IReal, int NumInputs, int NumOutputs> : IModule<T[Num
     T[NumOutputs] forward(T x[NumInputs]);
 }
 
-// Extensions:
-// Anything that takes two arrays is also an array module (e.g. chaining two array modules)
-/*extension<T : IReal, int NumInputs, int NumOutputs, Module : IModule<T[NumInputs], T[NumOutputs]>> Module : IArrayModule<T, NumInputs, NumOutputs>
+struct ConvertPrecision<InT : IReal, OutT : IReal, int Width> {}
+
+extension<InT : IReal, OutT : IReal, int Width> ConvertPrecision<InT, OutT, Width> : IModule<InT[Width], OutT[Width]>
 {
     [BackwardDifferentiable]
-    T[NumOutputs] forward(T x[NumInputs]);
-}*/
-// An array module can also be used as a vector module
+    OutputType forward(InputType x)
+    {
+        OutputType y;
+        [ForceUnroll]
+        for (int i = 0; i < Width; ++i)
+            y[i] = OutT(x[i].toFloat());
+        return y;
+    }
+}
+extension<T : IReal, int Width> ConvertPrecision<T, T, Width> : IModule<T[Width], T[Width]>
+{
+    [BackwardDifferentiable]
+    OutputType forward(InputType x)
+    {
+        return x;
+    }
+}
+
+// Extensions:
+// Anything that takes arrays can also take vectors
 extension<T : IReal, int NumInputs, int NumOutputs, Module : IModule<T[NumInputs], T[NumOutputs]>> Module : IModule<vector<T, NumInputs>, vector<T, NumOutputs>>
 {
     [BackwardDifferentiable]
