@@ -7,10 +7,12 @@ __exported import network.Activations;
 __exported import network.MLP;
 __exported import network.Encodings;
 __exported import network.Losses;
-__exported import network.Optimizer;
 __exported import network.CoopVecModule;
 __exported import network.CoopVecActivations;
 __exported import network.CoopVecMLP;
+
+// Have to include instead of import currently (waiting on MR #97)
+#include "network/Optimizer.slang"
 
 struct RNG
 {

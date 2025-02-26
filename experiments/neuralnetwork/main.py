@@ -23,14 +23,14 @@ def training_main():
         print("Cooperative vector enabled!")
         model = ModuleChain(
             ConvertPrecision(Real.half, 2, Real.float),
-            FrequencyEncoding(Auto, 10),
+            FrequencyEncoding(Auto, 8),
             cvm.ArrayToCoopVec(),
             cvm.LinearLayer(Auto, 64),
-            cvm.TanhAct(64),
+            cvm.LeakyReLUAct(64),
             cvm.LinearLayer(64, 64),
-            cvm.TanhAct(64),
+            cvm.LeakyReLUAct(64),
             cvm.LinearLayer(64, 64),
-            cvm.TanhAct(64),
+            cvm.LeakyReLUAct(64),
             cvm.LinearLayer(64, 3),
             cvm.ExpAct(3),
             cvm.CoopVecToArray(),
@@ -39,7 +39,7 @@ def training_main():
     else:
         print("Device does not support cooperative vector. Sample will be slow")
         model = ModuleChain(
-            FrequencyEncoding(2, 5),
+            FrequencyEncoding(2, 5, Real.float),
             LinearLayer(20, 64),
             LeakyReLUAct(64),
             LinearLayer(64, 64),
