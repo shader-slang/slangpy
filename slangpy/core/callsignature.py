@@ -55,25 +55,19 @@ def is_generic_vector(type: TypeReflection) -> bool:
 def specialize(
     context: BindContext,
     signature: BoundCall,
-    functions: list[SlangFunction],
+    function: SlangFunction,
     type: Optional[SlangType] = None
 ):
-    # Handle current slang issue where init has to be found via ast, resulting in potential multiple functions
-    if len(functions) > 1:
-        if functions[0].name == "$init":
-            matches = [x for x in functions if len(
-                x.parameters) == signature.num_function_args]
-            if len(matches) != 1:
-                return MismatchReason("Overloaded $init functions are currently only supported if they have different argument counts.")
-            function = matches[0]
-        else:
-            raise ValueError(
-                "Internal error - Multiple function reflections provided, which should only happen with $init.")
-    else:
-        function = functions[0]
+    # Special case for constructors
+    if function.is_overloaded and function.is_constructor:
+        matches = [x for x in function.overloads if len(
+            x.parameters) == signature.num_function_args]
+        if len(matches) != 1:
+            return MismatchReason("Overloaded functions are currently only supported if they have different argument counts.")
+        function = matches[0]
 
-    # Expecting 'this' argument as first parameter of none-static member functions (except for $init)
-    first_arg_is_this = type is not None and not function.static and function.name != "$init"
+    # Expecting 'this' argument as first parameter of none-static member functions (except for constructors)
+    first_arg_is_this = type is not None and not function.static and not function.is_constructor
 
     # Require '_result' argument for derivative calls, either as '_result' named parameter or last positional argument
     last_arg_is_retval = function.return_type is not None and function.return_type.name != 'void' and not "_result" in signature.kwargs and context.call_mode != CallMode.prim
@@ -88,8 +82,8 @@ def specialize(
         signature_args = signature_args[:-1]
 
     if signature.num_function_kwargs > 0 or signature.has_implicit_args:
-        if function.reflection.is_overloaded:
-            return MismatchReason("Calling an overloaded function with named or implicit arguments is not currently supported.")
+        if function.is_overloaded:
+            return MismatchReason(f"Calling an overloaded function with named or implicit arguments is not currently supported.")
 
         function_parameters = [x for x in function.parameters]
 
