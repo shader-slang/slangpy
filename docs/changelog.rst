@@ -1,6 +1,13 @@
 Changelog
 ---------
 
+**Version 0.21.1**
+
+- Fix to numpy version requirement
+- Fixes to examples
+- Add neural network example
+- Require SGL v0.13.1
+
 **Version 0.21.0**
 
 - Full Jupyter notebook support 

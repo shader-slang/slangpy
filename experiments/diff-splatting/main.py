@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import slangpy as spy
 from slangpy.backend import uint3 as spy_uint3
@@ -17,12 +17,15 @@ device = sgl.Device(compiler_options={
 })
 
 # 2D -> 1D dispatch-ID mapping utility to help us work around slangpy's 1D dispatch restriction
-def calcCompressedDispatchIDs(x_max : int, y_max : int, wg_x : int, wg_y : int):
+
+
+def calcCompressedDispatchIDs(x_max: int, y_max: int, wg_x: int, wg_y: int):
     local_x = np.arange(0, wg_x, dtype=np.uint32)
     local_y = np.arange(0, wg_y, dtype=np.uint32)
     local_xv, local_yv = np.meshgrid(local_x, local_y, indexing="ij")
     local_xyv = np.stack([local_xv, local_yv], axis=-1)
-    local_xyv = np.tile(local_xyv.reshape(wg_x * wg_y, 2).astype(np.uint32), ((x_max // wg_x) * (y_max // wg_y), 1))
+    local_xyv = np.tile(local_xyv.reshape(wg_x * wg_y, 2).astype(np.uint32),
+                        ((x_max // wg_x) * (y_max // wg_y), 1))
     local_xyv = local_xyv.reshape((x_max * y_max, 2))
 
     group_x = np.arange(0, (x_max // wg_x), dtype=np.uint32)
@@ -34,13 +37,15 @@ def calcCompressedDispatchIDs(x_max : int, y_max : int, wg_x : int, wg_y : int):
 
     return ((group_xyv * np.array([wg_x, wg_y])[None, :] + local_xyv).astype(np.uint32))
 
+
 # Load module
 module = spy.Module.load_from_file(device, "diffsplatting2d.slang")
 
 # Randomize the blobs buffer
 NUM_BLOBS = 20480 * 2
 FLOATS_PER_BLOB = 9
-blobs = spy.Tensor.numpy(device, np.random.rand(NUM_BLOBS * FLOATS_PER_BLOB).astype(np.float32)).with_grads()
+blobs = spy.Tensor.numpy(device, np.random.rand(
+    NUM_BLOBS * FLOATS_PER_BLOB).astype(np.float32)).with_grads()
 
 WORKGROUP_X, WORKGROUP_Y = 8, 4
 
@@ -83,10 +88,10 @@ iterations = 10000
 for iter in tqdm(range(iterations)):
     # Backprop the unit per-pixel loss with auto-diff.
     module.perPixelLoss.bwds(per_pixel_loss, dispatch_ids, blobs, input_image)
-    
+
     # Update
     module.adamUpdate(blobs, blobs.grad_out, adam_first_moment, adam_second_moment)
-    
+
     if iter % 50 == 0:
         module.renderBlobsToTexture(current_render, blobs, dispatch_ids)
         sgl.tev.show_async(current_render, name=f"optimization_{(iter // 50):03d}")

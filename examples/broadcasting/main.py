@@ -1,9 +1,11 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import sgl
 import slangpy as spy
 import pathlib
 import numpy as np
+
+print("SlangPy broadcasting example (https://slangpy.shader-slang.org/en/latest/broadcasting.html)")
 
 # Create an SGL device with the local folder for slangpy includes
 device = spy.create_device(include_paths=[
