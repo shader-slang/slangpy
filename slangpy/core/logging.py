@@ -196,16 +196,16 @@ def function_reflection(slang_function: Optional[FunctionReflection]):
     return "".join(text)
 
 
-def mismatch_info(call: 'BoundCall', functions: list[SlangFunction]):
+def mismatch_info(call: 'BoundCall', function: SlangFunction):
     text: list[str] = []
 
-    text.append(f"Possible overloads:")
-    if len(functions) == 1 and functions[0].reflection.is_overloaded:
-        for r in functions[0].reflection.overloads:
-            text.append(f"  {function_reflection(r)}")
-    else:
-        for f in functions:
+    if function.is_overloaded:
+        text.append(f"Possible overloads:")
+        for f in function.overloads:
             text.append(f"  {function_reflection(f.reflection)}")
+    else:
+        text.append(f"Slang function:")
+        text.append(f"  {function_reflection(function.reflection)}")
     text.append("")
     text.append(f"Python arguments:")
     text.append(f"{bound_call_table(call)}")
