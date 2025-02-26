@@ -2,6 +2,7 @@
 import pytest
 from sgl import float3, float4
 
+from slangpy.bindings.boundvariable import BoundVariableException
 import slangpy.tests.helpers as helpers
 from slangpy.backend import DeviceType
 from slangpy.types.buffer import NDBuffer
@@ -98,7 +99,7 @@ def test_pass_string(device_type: DeviceType):
     function = helpers.create_function_from_module(device, "foo", MODULE)
 
     # Currently hits error as 'None' does not implement reduce
-    with pytest.raises(ValueError, match=r'Unsupported type'):
+    with pytest.raises(BoundVariableException, match=r'Unsupported type'):
         function.call("hello")
 
 

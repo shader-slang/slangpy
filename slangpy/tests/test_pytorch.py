@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import pytest
 from slangpy.backend import DeviceType, Device
+from slangpy.bindings.boundvariable import BoundVariableException
 import slangpy.tests.helpers as helpers
 import hashlib
 import os
@@ -62,7 +63,7 @@ def test_missing_torch_context(device_type: DeviceType):
     module = helpers.create_module(device, TEST_CODE)
 
     a = torch.randn((8, 5), dtype=torch.float32, device=torch.device('cuda'), requires_grad=True)
-    with pytest.raises(ValueError, match=r"Tensor types can not be directly passed to SlangPy"):
+    with pytest.raises(BoundVariableException, match=r"Tensor types can not be directly passed to SlangPy"):
         b = module.square(a)
 
 
