@@ -33,7 +33,7 @@ class BoundCall:
 
     def __init__(self, context: 'BindContext', *args: Any, **kwargs: Any):
         super().__init__()
-        self.args = [BoundVariable(context, x, None, "") for x in args]
+        self.args = [BoundVariable(context, x, None, "", i) for (i, x) in enumerate(args)]
         self.kwargs = {n: BoundVariable(context, v, None, n) for n, v in kwargs.items()}
 
     def bind(self, slang: SlangFunction):
@@ -149,7 +149,8 @@ class BoundVariable:
                  context: 'BindContext',
                  value: Any,
                  parent: Optional['BoundVariable'],
-                 name: str):
+                 name: str,
+                 python_pos_arg_index: int = -1):
 
         super().__init__()
 
@@ -157,11 +158,11 @@ class BoundVariable:
         #: The name of the variable
         self.name = name
 
+        #: Index in python positional arguments (used for debug information)
+        self.python_pos_arg_index = python_pos_arg_index
+
         #: The name of the variable in the generated code
         self.variable_name = name
-
-        #: The python marshall for this variable
-        self.python = get_or_create_type(context.layout, type(value), value)
 
         #: Access type for primal and derivative
         self.access = (AccessType.none, AccessType.none)
@@ -194,6 +195,13 @@ class BoundVariable:
         else:
             self.path = f"{parent.path}.{self.name}"
 
+        #: The python marshall for this variable
+        try:
+            self.python = get_or_create_type(context.layout, type(value), value)
+        except Exception as e:
+            raise BoundVariableException(
+                f"Failed to create type marshall for argument {self.debug_name}: {value} with error {e}", self) from e
+
         # Create children
         # TODO: Should this be based off type fields
         if isinstance(value, dict):
@@ -202,6 +210,15 @@ class BoundVariable:
                              for n, v in value.items()}
         else:
             self.children = None
+
+    @property
+    def debug_name(self) -> str:
+        if self.path != '':
+            return self.path
+        elif self.name != '':
+            return self.name
+        else:
+            return f"arg{self.python_pos_arg_index}"
 
     def bind(self, slang: Union[SlangField, SlangParameter, SlangType], modifiers: set[ModifierID] = set(), override_name: Optional[str] = None):
         """
