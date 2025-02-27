@@ -232,7 +232,7 @@ class CallData(NativeCallData):
                     f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n\n"
                     f"{bound_exception_info(bindings, ref, None)}\n") from e
             else:
-                raise e
+                raise
         except KernelGenException as e:
             if bindings is not None:
                 ref = slang_function if isinstance(
@@ -241,10 +241,10 @@ class CallData(NativeCallData):
                     f"Exception in kernel generation: {e.message}.\n\n"
                     f"{bound_exception_info(bindings, ref, None)}\n") from e
             else:
-                raise e
+                raise
         except ResolveException as e:
             # Triggered from within calldata, doesn't need augmenting
-            raise e
+            raise
         except Exception as e:
             if bindings is not None:
                 ref = slang_function if isinstance(
@@ -253,4 +253,4 @@ class CallData(NativeCallData):
                     f"Exception in kernel generation: {e}.\n"
                     f"{bound_exception_info(bindings, ref, None)}\n") from e
             else:
-                raise e
+                raise
