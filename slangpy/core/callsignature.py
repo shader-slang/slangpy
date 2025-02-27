@@ -56,7 +56,7 @@ def specialize(
     context: BindContext,
     signature: BoundCall,
     function: SlangFunction,
-    type: Optional[SlangType] = None
+    this_type: Optional[SlangType] = None
 ):
     # Special case for constructors
     if function.is_overloaded and function.is_constructor:
@@ -67,7 +67,7 @@ def specialize(
         function = matches[0]
 
     # Expecting 'this' argument as first parameter of none-static member functions (except for constructors)
-    first_arg_is_this = type is not None and not function.static and not function.is_constructor
+    first_arg_is_this = this_type is not None and not function.static and not function.is_constructor
 
     # Require '_result' argument for derivative calls, either as '_result' named parameter or last positional argument
     last_arg_is_retval = function.return_type is not None and function.return_type.name != 'void' and not "_result" in signature.kwargs and context.call_mode != CallMode.prim
@@ -123,11 +123,11 @@ def specialize(
             if python_arg.vector_type is not None:
                 # Always take explicit vector types if provided
                 inputs.append(python_arg.vector_type)
-            elif is_generic_vector(slang_param.type.type_reflection):
-                # HACK! Let types with a 'slang_element_type' try to resolve generic vector types
+            elif isinstance(slang_param.type, (slr.VectorType, slr.MatrixType, slr.ArrayType)) and slang_param.type.is_generic:
+                # HACK! Let types with a 'slang_element_type' try to resolve known generic types
                 # Failing that, fall back to python marshall
                 sl_et = getattr(python_arg.python, 'slang_element_type', None)
-                if isinstance(sl_et, slr.VectorType):
+                if isinstance(sl_et, type(slang_param.type)):
                     inputs.append(sl_et)
                 else:
                     inputs.append(python_arg.python)
@@ -168,7 +168,7 @@ def specialize(
     if specialized is None:
         return MismatchReason("No Slang overload found that matches the provided Python argument types.")
 
-    type_reflection = None if type is None else type.type_reflection
+    type_reflection = None if this_type is None else this_type.type_reflection
 
     return context.layout.find_function(specialized, type_reflection)
 

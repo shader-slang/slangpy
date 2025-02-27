@@ -340,11 +340,21 @@ class VectorType(SlangType):
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         element_type = program.scalar_type(refl.scalar_type)
-        dims = refl.col_count
+        try:
+            dims = refl.col_count  # @IgnoreException
+        except:
+            dims = 0
 
         super().__init__(program, refl,
                          element_type=element_type,
                          local_shape=Shape((dims,)))
+
+    @property
+    def is_generic(self) -> bool:
+        """
+        Whether this vector type is generic.
+        """
+        return self.num_elements == 0
 
     @property
     def num_elements(self) -> int:
@@ -382,10 +392,31 @@ class MatrixType(SlangType):
     """
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-        super().__init__(program, refl,
-                         element_type=program.vector_type(
-                             refl.scalar_type, refl.col_count),
-                         local_shape=Shape((refl.row_count,)))
+        try:
+            cols = refl.col_count  # @IgnoreException
+        except:
+            cols = 0
+        try:
+            rows = refl.row_count  # @IgnoreException
+        except:
+            rows = 0
+        if cols > 0 and rows > 0:
+            vector_type = program.vector_type(refl.scalar_type, cols)
+            super().__init__(program, refl,
+                             element_type=vector_type,
+                             local_shape=Shape((rows,)))
+        else:
+            scalar_type = program.scalar_type(refl.scalar_type)
+            super().__init__(program, refl,
+                             element_type=scalar_type,
+                             local_shape=Shape((rows, cols)))
+
+    @property
+    def is_generic(self) -> bool:
+        """
+        Whether this vector type is generic.
+        """
+        return self.rows == 0 or self.cols == 0
 
     @property
     def rows(self) -> int:
@@ -423,8 +454,19 @@ class ArrayType(SlangType):
     """
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-        super().__init__(program, refl, program.find_type(
-            refl.element_type), local_shape=Shape((refl.element_count,)))
+        element_type = program.find_type(refl.element_type)
+        try:
+            element_count = refl.element_count  # @IgnoreException
+        except:
+            element_count = 0
+        super().__init__(program, refl, element_type, local_shape=Shape((element_count,)))
+
+    @property
+    def is_generic(self) -> bool:
+        """
+        Whether this vector type is generic.
+        """
+        return self.num_elements == 0
 
     @property
     def num_elements(self) -> int:
