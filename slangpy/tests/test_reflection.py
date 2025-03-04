@@ -221,5 +221,51 @@ float foo({arg_type[0]} a) {{ return 0; }}
     arg_type[1](res.parameters[0].type)
 
 
+def compare_struct_values(refl_val: Any, spy_val: Any):
+    if isinstance(refl_val, r.SlangType):
+        assert refl_val == spy_val.struct
+    elif isinstance(refl_val, list):
+        assert len(refl_val) == len(spy_val)
+        for i in range(len(refl_val)):
+            compare_struct_values(refl_val[i], spy_val[i])
+    elif isinstance(refl_val, dict):
+        assert len(refl_val) == len(spy_val)
+        for key in refl_val:
+            compare_struct_values(refl_val[key], spy_val[key])
+    else:
+        assert refl_val == spy_val
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_refl_duck_typing(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, """
+struct MyStruct: IDifferentiable {
+    int a;
+}         
+""")
+    layout = module.layout
+
+    refl_struct = layout.find_type_by_name('MyStruct')
+    assert refl_struct is not None
+    assert isinstance(refl_struct, r.StructType)
+    assert refl_struct.name == "MyStruct"
+
+    spy_struct = module.MyStruct.as_struct()
+    assert spy_struct is not None
+
+    fields = [x for x in dir(refl_struct) if not x.startswith('_')]
+    for field in fields:
+        refl_val = getattr(refl_struct, field)
+
+        # ignore if attribute is a function
+        if callable(refl_val):
+            continue
+
+        spy_val = getattr(spy_struct, field)
+        compare_struct_values(refl_val, spy_val)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

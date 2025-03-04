@@ -144,5 +144,27 @@ def test_invalid_broadcast_during_dispatch(device_type: DeviceType):
         function(buffer, buffer2)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_missing_function(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, """void hello() {}""")
+
+    with pytest.raises(AttributeError, match=r'has no function or type named'):
+        func = module.foo
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_missing_child_function(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, """
+                                   struct Foo {}
+                                   void hello() {}""")
+
+    with pytest.raises(AttributeError, match=r'has no method or sub-type named'):
+        func = module.Foo.foo
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

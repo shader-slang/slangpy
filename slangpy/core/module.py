@@ -225,7 +225,7 @@ class Module:
             return slang_struct
 
         raise AttributeError(
-            f"Type '{self.device_module.name}' has no attribute '{name}'")
+            f"Module '{self.device_module.name}' has no function or type named '{name}'")
 
     def __getitem__(self, name: str):
         """

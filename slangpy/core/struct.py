@@ -23,11 +23,87 @@ class Struct:
         self.slangpy_signature = self.struct.full_name
 
     @property
+    def program(self):
+        """
+        Program layout struct is part of.
+        """
+        return self.struct.program
+
+    @property
     def name(self) -> str:
         """
         The name of the struct.
         """
+        return self.struct.name
+
+    @property
+    def full_name(self) -> str:
+        """
+        The name of the struct.
+        """
         return self.struct.full_name
+
+    @property
+    def element_type(self):
+        """
+        The element type of the struct.
+        """
+        e = self.struct.element_type
+        if e is None:
+            return None
+        return Struct(self.module, e, options=self.options)
+
+    @property
+    def fields(self):
+        """
+        The fields of the struct.
+        """
+        return self.struct.fields
+
+    @property
+    def differentiable(self):
+        """
+        The differentiable of the struct.
+        """
+        return self.struct.differentiable
+
+    @property
+    def derivative(self):
+        """
+        The derivative of the struct.
+        """
+        d = self.struct.derivative
+        if d is None:
+            return None
+        return Struct(self.module, d, options=self.options)
+
+    @property
+    def num_dims(self):
+        """
+        The number of dimensions of the struct.
+        """
+        return self.struct.num_dims
+
+    @property
+    def shape(self):
+        """
+        The shape of the struct.
+        """
+        return self.struct.shape
+
+    @property
+    def uniform_layout(self):
+        """
+        The uniform layout of the struct.
+        """
+        return self.struct.uniform_layout
+
+    @property
+    def buffer_layout(self):
+        """
+        The buffer layout of the struct.
+        """
+        return self.struct.buffer_layout
 
     @property
     def session(self):
@@ -35,6 +111,13 @@ class Struct:
         The Slang session the struct's module belongs to.
         """
         return self.module.device_module.session
+
+    @property
+    def type_reflection(self):
+        """
+        The type reflection of the struct.
+        """
+        return self.struct.type_reflection
 
     @property
     def device(self):
@@ -92,7 +175,9 @@ class Struct:
         child = self.try_get_child(name)
         if child is not None:
             return child
-        raise AttributeError(f"Type '{self.name}' has no attribute '{name}'")
+
+        raise AttributeError(
+            f"Struct '{self.name}' has no method or sub-type named '{name}'")
 
     def __getitem__(self, name: str):
         """
