@@ -421,14 +421,14 @@ def generate_code(context: BindContext, build_info: 'FunctionBuildInfo', signatu
                     f"Cannot read back value for non-writable type", x)
             cg.trampoline.append_statement(
                 f"data.{x.variable_name}.store(context.map(_m_{x.variable_name}), {x.variable_name})")
-
+                
     cg.trampoline.end_block()
     cg.trampoline.append_line("")
 
     # Generate the main function
     cg.kernel.append_line('[shader("compute")]')
     cg.kernel.append_line("[numthreads(32, 1, 1)]")
-    cg.kernel.append_line("void main(uint3 dispatchThreadID: SV_DispatchThreadID)")
+    cg.kernel.append_line("void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID)")
     cg.kernel.begin_block()
     cg.kernel.append_statement(
         "if (any(dispatchThreadID >= call_data._thread_count)) return")

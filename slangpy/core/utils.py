@@ -28,7 +28,7 @@ def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: 
                 shaderpath,
             ]+list(include_paths),
         },
-        enable_cuda_interop=True,
+        enable_cuda_interop=False,
         enable_debug_layers=enable_debug_layers,
         adapter_luid=adapter_luid)
 

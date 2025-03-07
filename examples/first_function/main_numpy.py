@@ -15,11 +15,14 @@ device = spy.create_device(include_paths=[
 module = spy.Module.load_from_file(device, "example.slang")
 
 # Create a couple of buffers with 1,000,000 random floats in
-a = np.random.rand(1000000).astype(np.float32)
-b = np.random.rand(1000000).astype(np.float32)
+a = np.random.rand(2).astype(np.float32)
+b = np.random.rand(2).astype(np.float32)
+
+print(a)
+print(b)
 
 # Call our function and ask for a numpy array back (the default would be a buffer)
 result = module.add(a, b, _result='numpy')
 
 # Print the first 10
-print(result[:10])
+print(result[:2])
