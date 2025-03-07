@@ -65,7 +65,7 @@ def grid_test(device_type: DeviceType, dims: int = 2, datatype: str = 'array', s
             module.get(grid(len(shape), stride=strides, offset=offsets), _result=res)
 
     # Should get random numbers
-    resdata = res.to_numpy().view(np.int32).reshape(shape + (dims,))
+    resdata = helpers.read_ndbuffer_from_numpy(res).reshape(shape + (dims,))
     expected = np.indices(shape).transpose(*transpose) * stride + offset
 
     if datatype == 'vector':

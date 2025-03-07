@@ -5,7 +5,13 @@ from slangpy.types import Tensor
 import slangpy.tests.helpers as helpers
 import numpy as np
 from typing import Any
-import os
+import sys
+
+
+@pytest.fixture(autouse=True)
+def skip_for_macos():
+    if sys.platform == "darwin":
+        pytest.skip("Skipping on macOS: Waiting for slang-gfx fix for resource clear API")
 
 
 def get_test_tensors(device: Device, N: int = 4):

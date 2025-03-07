@@ -27,10 +27,17 @@ particles.construct(
 )
 
 # Print all the particles by breaking them down into groups of 6 floats
-print(particles.to_numpy().view(dtype=np.float32).reshape(-1, 6))
+result_cursor = particles.buffer.cursor()
+
+for i in range(particles.shape[0]):
+    instance = result_cursor[i].read()
+    print('{} {}'.format(instance['position'], instance['velocity']))
 
 # Update the particles
 particles.update(0.1)
 
+result_cursor = particles.buffer.cursor()
 # Print all the particles by breaking them down into groups of 6 floats
-print(particles.to_numpy().view(dtype=np.float32).reshape(-1, 6))
+for i in range(particles.shape[0]):
+    instance = result_cursor[i].read()
+    print('{} {}'.format(instance['position'], instance['velocity']))
