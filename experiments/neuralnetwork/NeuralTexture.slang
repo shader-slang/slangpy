@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // clang-format off
 
-__exported import network.NeuralModules;
-__exported import network.Activations;
-__exported import network.MLP;
-__exported import network.Encodings;
-__exported import network.Losses;
-
-// Has to be an include rather than an import right now
-// Otherwise, __init is not exposed to reflection
-#include "network/Optimizer.slang"
+__exported import NeuralNetworks;
 
 struct RNG
 {
@@ -40,23 +32,22 @@ struct RNG
     }
 }
 
-float4 evalModel<Model : IModule<float, 2, 3>>(Model model, float2 inputUV)
+float4 evalModel<Model : IModel<float2, float3>>(Model model, float2 inputUV)
 {
-    let prediction = model.forward(inputUV);
-    return float4(prediction, 1.0f);
+    return float4(model.forward(inputUV), 1.0f);
 }
 
 [BackwardDifferentiable]
-float evalModelAndLoss<Model : IModule<float, 2, 3>>(Model model, no_diff float2 input, no_diff float3 target)
+float evalModelAndLoss<Model : IModel<float2, float3>>(Model model, no_diff float2 input, no_diff float3 target)
 {
-    let lossFunc = L2Loss();
+    let lossFunc = Losses::L2();
     
     float3 prediction = float3(model.forward(input));
 
     return lossFunc.eval(prediction, target);
 }
 
-void trainTexture<Model : IModule<float, 2, 3>>(Model model, inout RNG rng, Texture2D<float4> targetTex, SamplerState sampler, float lossScale)
+void trainTexture<Model : IModel<float2, float3>>(Model model, inout RNG rng, Texture2D<float4> targetTex, SamplerState sampler, float lossScale)
 {
     float2 inputUV = rng.next2D();
 

@@ -1,43 +1,66 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from slangpy.backend import DataType, Device, DeviceType, TextureLoader
+from slangpy.backend import Device, DeviceType, TextureLoader
 from slangpy import Module
 from slangpy.types import NDBuffer
 import numpy as np
 import math
 import time
 
-from network import ModuleChain, LinearLayer, FrequencyEncoding
-from network import Activation, NoneAct, ReLUAct, LeakyReLUAct, ELUAct, SwishAct, TanhAct, SigmoidAct, ExpAct
+import neuralnetworks as nn
+from neuralnetworks import ModelChain, Real, Convert, ArrayKind, Auto
+from neuralnetworks import LinearLayer, FrequencyEncoding, LeakyReLU, Exp
+from neuralnetworks import AdamOptimizer, FullPrecisionOptimizer
 
 from app import App
 
+import slangpy as spy
+
 
 def training_main():
+    device = spy.create_device(DeviceType.vulkan, False, include_paths=nn.slang_include_paths())
+
     resolution = 512
-    app = App("Neural Texture", device_type=DeviceType.vulkan, width=resolution, height=resolution)
+    app = App(device, "Neural Texture", width=resolution, height=resolution)
     device = app.device
 
-    model = ModuleChain(
-        FrequencyEncoding(2, 5),
-        LinearLayer(20, 64),
-        LeakyReLUAct(64),
-        LinearLayer(64, 64),
-        LeakyReLUAct(64),
-        LinearLayer(64, 64),
-        LeakyReLUAct(64),
-        LinearLayer(64, 3),
-        SigmoidAct(3)
+    if "cooperative-vector" in device.features:
+        print("Cooperative vector enabled!")
+        mlp_input = ArrayKind.coopvec
+        mlp_precision = Real.half
+    else:
+        print("Device does not support cooperative vector. Sample will run, but it will be slow")
+        mlp_input = ArrayKind.array
+        mlp_precision = Real.float
+
+    model = ModelChain(
+        Convert.to_array(),
+        FrequencyEncoding(Auto, 8),
+        Convert.to_precision(mlp_precision),
+        Convert.to_array_kind(mlp_input),
+        LinearLayer(Auto, 64),
+        LeakyReLU(),
+        LinearLayer(Auto, 64),
+        LeakyReLU(),
+        LinearLayer(Auto, 64),
+        LeakyReLU(),
+        LinearLayer(Auto, 3),
+        Exp(),
+        Convert.to_vector(),
+        Convert.to_precision(Real.float),
     )
-    model.initialize(device)
+
+    optim = AdamOptimizer(learning_rate=0.0005)
+    grad_scale = 1.0
+    if mlp_precision == Real.half:
+        optim = FullPrecisionOptimizer(optim, gradient_scale=128.0)
+        grad_scale = 128.0
 
     module = Module.load_from_file(device, "NeuralTexture.slang")
-
-    optimizers = [module.AdamOptimizer(p) for p in model.parameters()]
+    model.initialize(module, module.float2.struct)
+    optim.initialize(module, model.parameters())
 
     batch_shape = (256, 256)
-    learning_rate = 0.001
-    grad_scale = 128.0
     loss_scale = grad_scale / math.prod(batch_shape)
     num_batches_per_epoch = 10
 
@@ -55,15 +78,10 @@ def training_main():
     while app.process_events():
         timer.start()
 
-        # Prefetch functions so we don't do module lookups in a tight loop
-        train = module.trainTexture
-        step = module.AdamOptimizer.step
-
         cmd.open()
         for i in range(num_batches_per_epoch):
-            train.append_to(cmd, model, rng, target_tex, sampler, loss_scale)
-            for params, optim in zip(model.parameters(), optimizers):
-                step.append_to(cmd, optim, params, params.grad_out, learning_rate, grad_scale)
+            module.trainTexture.append_to(cmd, model, rng, target_tex, sampler, loss_scale)
+            optim.step(cmd)
         cmd.close()
 
         id = device.submit_command_buffer(cmd)
