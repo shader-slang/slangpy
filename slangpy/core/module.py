@@ -180,7 +180,7 @@ class Module:
             if s is None:
                 return None
             struct = s
-        child = s.try_get_child(name)
+        child = struct.try_get_child(name)
         if child is None:
             return None
         return child.as_func()
