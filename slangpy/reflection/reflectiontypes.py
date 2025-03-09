@@ -1164,15 +1164,25 @@ class SlangProgramLayout:
         pieces: list[str] = []
         while idx > 0:
             idx -= 1
-            if level > 0:
+            if head[idx] == ">":
+                # Since we parse from the right, increase generic nesting
+                # level when we encounter a closing >
+                level += 1
+            elif level > 0:
+                # If the nesting level is non-zero, we're inside a generic arg
+                # that is itself generic. Ignore the normal properties of
+                # delimiters (i.e. < and ,) and only look for < to decrease
+                # nesting level
                 if head[idx] == "<":
                     level -= 1
             else:
-                if head[idx] == ">":
-                    level += 1
-                elif head[idx] == "," or head[idx] == "<":
+                # We're inside the root-level args, and , (argument separator)
+                # or < (end of generic arg list) mark the end of an argument
+                if head[idx] == "," or head[idx] == "<":
                     pieces.append(head[idx+1:-1].strip())
                     head = head[:idx+1]
+                # If we hit < at the root level, we've reached the end of the
+                # generig args and exit out
                 if head[idx] == "<":
                     break
         if head[idx] != "<":

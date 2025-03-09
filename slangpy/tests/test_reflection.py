@@ -19,6 +19,8 @@ float foo_ol(float a) { return a; }
 float foo_ol(float a, float b) { return a+b; }
 float foo_generic<T>(T a) { return 0; }
 
+struct GenericType<A, int N> {}
+
 """
 
 
@@ -81,6 +83,24 @@ def test_generic_specialization(device_type: DeviceType):
     assert res.full_name == "foo_generic<float>"
     assert res.parameters[0].name == "a"
     assert res.parameters[0].type == layout.scalar_type(TypeReflection.ScalarType.float32)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_generic_parsing(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    m = helpers.create_module(device, MODULE)
+    layout = m.layout
+
+    generic = layout.find_type_by_name("GenericType<GenericType<GenericType<float, 1>, 2>, 3>")
+    assert generic is not None
+
+    args = layout.get_resolved_generic_args(generic.type_reflection)
+    assert args is not None
+    assert len(args) == 2
+    assert isinstance(args[0], r.SlangType)
+    assert args[0].full_name == "GenericType<GenericType<float, 1>, 2>"
+    assert isinstance(args[1], int)
+    assert args[1] == 3
 
 
 def check_texture(type: r.SlangType, resource_shape: TypeReflection.ResourceShape, resource_access: TypeReflection.ResourceAccess, num_dims: int, element_type: str):
