@@ -18,9 +18,13 @@ class IModel:
     def __init__(self):
         super().__init__()
 
-        self.input_type: Optional[SlangType] = None
-        self.output_type: Optional[SlangType] = None
+        self._initialized = False
         self.parent: Optional[IModel] = None
+
+    def check_initialized(self):
+        if not self._initialized:
+            raise self.model_error("Model is uninitialized. Make sure to "
+                                   "call .initialize() before using the model")
 
     def model_error(self, msg: str):
         segments: list[str] = []
