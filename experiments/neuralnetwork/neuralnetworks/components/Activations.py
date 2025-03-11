@@ -1,34 +1,37 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Optional
-
 from slangpy import Module
 
-from ..basetypes import IModel, Real, RealArray, ArrayKind, TypeLike, AutoSettable, Auto
+from ..basetypes import IModel, Real, RealArray, ArrayKind, SlangType, AutoSettable, Auto, resolve_auto
 
 # Root class for all activations (i.e. that implement IActivation)
 
 
 class Activation(IModel):
-    def __init__(self, act_name: str, width: AutoSettable[int], dtype: AutoSettable[Real], kind: AutoSettable[ArrayKind] = Auto):
+    def __init__(self, act_name: str, width: AutoSettable[int], dtype: AutoSettable[Real]):
         super().__init__()
 
         self.act_name = act_name
-        self.inout_array = RealArray(kind, dtype, width)
+        self._width = width
+        self._dtype = dtype
 
-    def initialize(self, module: Module, input_type: Optional[TypeLike]):
+    def model_init(self, module: Module, input_type: SlangType):
         input_array = RealArray.from_slangtype(input_type)
-        self.inout_array.resolve(input_array, must_match=True)
+        self.width = resolve_auto(self._width, input_array.length)
+        self.dtype = resolve_auto(self._dtype, input_array.dtype)
 
-        self.input_type = self.lookup_mandatory_type(module, self.inout_array.name())
-        self.output_type = self.input_type
-        self.validate(module)
+    def resolve_input_type(self, module: Module):
+        if self._width is Auto:
+            return None
+
+        return RealArray(
+            ArrayKind.array,
+            resolve_auto(self._dtype, Real.float),
+            self._width
+        )
 
     @property
     def type_name(self) -> str:
-        return f"Activation::{self.act_name}<{self.inout_array.dtype}, {self.inout_array.length}>"
-
-    def get_this(self):
-        return {"_type": self.type_name}
+        return f"Activation::{self.act_name}<{self.dtype}, {self.width}>"
 
 
 class Identity(Activation):

@@ -23,3 +23,8 @@ public extension<T : IDifferentiable, Model : IModel<T, T>> Model
 {
     public typealias IOType = T;
 }
+
+namespace impl
+{
+    public void returnTypeWitness<InputT : IDifferentiable, OutputT : IDifferentiable, Model : IModel<InputT, OutputT>>() {}
+}

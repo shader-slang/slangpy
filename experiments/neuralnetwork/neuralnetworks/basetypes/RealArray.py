@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
-from .TypeLike import TypeLike
-from .Auto import Auto, AutoSettable
 from .Real import Real
 from .CoopVecType import CoopVecType
 
@@ -17,86 +15,33 @@ class ArrayKind(Enum):
     vector = 1
     coopvec = 2
 
+    def __str__(self):
+        return self._name_
+
 
 class RealArray:
-    def __init__(self, kind: AutoSettable[ArrayKind], dtype: AutoSettable[Real], length: AutoSettable[int]):
+    def __init__(self, kind: ArrayKind, dtype: Real, length: int):
         super().__init__()
-        self._kind = kind
-        self._dtype = dtype
-        self._length = length
-
-    def resolve(self, other: RealArray, must_match: bool = False):
-        if self._kind is Auto:
-            self._kind = other._kind
-        if self._dtype is Auto:
-            self._dtype = other._dtype
-        if self._length is Auto:
-            self._length = other._length
-
-        if not self.is_resolved:
-            raise ValueError("Could not fully resolve Auto values for type "
-                             f"'{self.name()}' from input type '{other.name()}'")
-
-        if must_match:
-            mismatched = \
-                (self._kind != other._kind and other._kind != Auto) or \
-                (self._dtype != other._dtype and other._dtype != Auto) or \
-                (self._length != other._length and other._length != Auto)
-
-            if mismatched:
-                raise ValueError(f"Input array type '{other}' does not "
-                                 f"match required array type '{self._kind}'")
-
-    @property
-    def is_resolved(self) -> bool:
-        return self._kind is not Auto and self._dtype is not Auto and self._length is not Auto
+        self.kind = kind
+        self.dtype = dtype
+        self.length = length
 
     def name(self):
-        if self._kind is Auto:
-            return f"AutoArrayKind<{self._dtype}, {self._length}>"
-        elif self._kind == ArrayKind.array:
-            return f"{self._dtype}[{self._length}]"
-        elif self._kind == ArrayKind.vector:
-            if isinstance(self._length, int) and self._length <= 4:
-                return f"{self._dtype}{self._length}"
+        if self.kind == ArrayKind.array:
+            return f"{self.dtype}[{self.length}]"
+        elif self.kind == ArrayKind.vector:
+            if self.length <= 4:
+                return f"{self.dtype}{self.length}"
             else:
-                return f"vector<{self._dtype}, {self._length}>"
+                return f"vector<{self.dtype}, {self.length}>"
         else:
-            return f"DiffCoopVec<{self._dtype}, {self._length}>"
+            return f"DiffCoopVec<{self.dtype}, {self.length}>"
 
     def __str__(self):
         return self.name()
 
-    @property
-    def kind(self) -> ArrayKind:
-        if self._kind is Auto:
-            raise ValueError("Trying to access unresolved (i.e. still set "
-                             "to Auto) property RealArray.kind")
-        assert isinstance(self._kind, ArrayKind)
-        return self._kind
-
-    @property
-    def dtype(self) -> Real:
-        if self._dtype is Auto:
-            raise ValueError("Trying to access unresolved (i.e. still set "
-                             "to Auto) property RealArray.dtype")
-        assert isinstance(self._dtype, Real)
-        return self._dtype
-
-    @property
-    def length(self) -> int:
-        if self._length is Auto:
-            raise ValueError("Trying to access unresolved (i.e. still set "
-                             "to Auto) property RealArray.length")
-        assert isinstance(self._length, int)
-        return self._length
-
     @staticmethod
-    def from_slangtype(st: Optional[TypeLike]) -> RealArray:
-        assert isinstance(st, SlangType)  # TODO
-        if st is None:
-            return RealArray(Auto, Auto, Auto)
-
+    def from_slangtype(st: SlangType) -> RealArray:
         kind: Optional[ArrayKind] = None
         if isinstance(st, ArrayType):
             kind = ArrayKind.array

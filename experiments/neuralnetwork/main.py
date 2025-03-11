@@ -35,7 +35,7 @@ def training_main():
 
     model = ModelChain(
         Convert.to_array(),
-        FrequencyEncoding(Auto, 8),
+        FrequencyEncoding(8),
         Convert.to_precision(mlp_precision),
         Convert.to_array_kind(mlp_input),
         LinearLayer(Auto, 64),
@@ -57,7 +57,8 @@ def training_main():
         grad_scale = 128.0
 
     module = Module.load_from_file(device, "NeuralTexture.slang")
-    model.initialize(module, module.float2.struct)
+    model.initialize(module, module.float2)
+
     optim.initialize(module, model.parameters())
 
     batch_shape = (256, 256)

@@ -1,60 +1,55 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Optional
-
 from slangpy import Module
 
-from ..basetypes import IModel, Real, ArrayKind, RealArray, TypeLike, Auto, AutoSettable
+from ..basetypes import IModel, Real, ArrayKind, RealArray, SlangType, Auto, AutoSettable, resolve_auto
 
 
-class Convert(IModel):
-    def __init__(self, input_kind: AutoSettable[ArrayKind], input_dtype: AutoSettable[Real], output_kind: AutoSettable[ArrayKind], output_dtype: AutoSettable[Real], width: AutoSettable[int]):
+class ConvertArrayKind(IModel):
+    def __init__(self, to_kind: ArrayKind, width: AutoSettable[int] = Auto, dtype: AutoSettable[Real] = Auto):
         super().__init__()
-        self.input_array = RealArray(input_kind, input_dtype, width)
-        self.output_array = RealArray(output_kind, output_dtype, width)
+        self.to_kind = to_kind
+        self._width = width
+        self._dtype = dtype
 
-    def initialize(self, module: Module, input_type: Optional[TypeLike]):
+    def model_init(self, module: Module, input_type: SlangType):
         input_array = RealArray.from_slangtype(input_type)
-        self.input_array.resolve(input_array, must_match=True)
-        self.output_array.resolve(self.input_array)
-
-        if self.input_array.length != self.output_array.length:
-            self.model_error("Number of input and output elements for ConvertArray do not match "
-                             f"(received '{self.input_array}' and '{self.output_array}')")
-        if self.input_array.dtype != self.output_array.dtype and self.input_array.kind != self.output_array.kind:
-            self.model_error(f"Can't simultaneously convert array kind and element type "
-                             f"(received '{self.input_array}' and '{self.output_array}')")
-
-        self.input_type = self.lookup_mandatory_type(module, input_array.name())
-        self.output_type = self.lookup_mandatory_type(module, self.output_array.name())
-        self.validate(module)
+        self.width = resolve_auto(self._width, input_array.length)
+        self.dtype = resolve_auto(self._dtype, input_array.dtype)
 
     @property
     def type_name(self) -> str:
-        assert self.input_array.length == self.output_array.length
-
-        if self.input_array.kind != self.output_array.kind:
-            assert self.input_array.dtype == self.output_array.dtype
-
-            if self.output_array.kind == ArrayKind.array:
-                base_name = "ConvertToArray"
-            elif self.output_array.kind == ArrayKind.vector:
-                base_name = "ConvertToVector"
-            elif self.output_array.kind == ArrayKind.coopvec:
-                base_name = "ConvertToCoopVec"
-            type_name = f"{base_name}<{self.input_array.dtype}, {self.input_array.length}>"
-        elif self.input_array.dtype != self.output_array.dtype:
-            type_name = f"ConvertArrayPrecision<{self.input_array.dtype}, {self.output_array.dtype}, {self.input_array.length}>"
+        if self.to_kind == ArrayKind.array:
+            suffix = "Array"
+        elif self.to_kind == ArrayKind.vector:
+            suffix = "Vector"
+        elif self.to_kind == ArrayKind.coopvec:
+            suffix = "CoopVec"
         else:
-            type_name = f"Identity<{self.input_array}>"
+            assert False, "Invalid ArrayKind"
+        return f"ConvertTo{suffix}<{self.dtype}, {self.width}>"
 
-        return type_name
 
-    def get_this(self):
-        return {"_type": self.type_name}
+class ConvertArrayPrecision(IModel):
+    def __init__(self, to_dtype: Real, width: AutoSettable[int] = Auto, from_dtype: AutoSettable[Real] = Auto):
+        super().__init__()
+        self.to_dtype = to_dtype
+        self._width = width
+        self._from_dtype = from_dtype
 
+    def model_init(self, module: Module, input_type: SlangType):
+        input_array = RealArray.from_slangtype(input_type)
+        self.width = resolve_auto(self._width, input_array.length)
+        self.from_dtype = resolve_auto(self._from_dtype, input_array.dtype)
+
+    @property
+    def type_name(self) -> str:
+        return f"ConvertArrayPrecision<{self.from_dtype}, {self.to_dtype}, {self.width}>"
+
+
+class Convert(IModel):
     @staticmethod
     def to_array_kind(kind: ArrayKind):
-        return Convert(Auto, Auto, kind, Auto, Auto)
+        return ConvertArrayKind(kind)
 
     @staticmethod
     def to_coopvec():
@@ -70,4 +65,16 @@ class Convert(IModel):
 
     @staticmethod
     def to_precision(dtype: Real):
-        return Convert(Auto, Auto, Auto, dtype, Auto)
+        return ConvertArrayPrecision(dtype)
+
+    @staticmethod
+    def to_half():
+        return Convert.to_precision(Real.half)
+
+    @staticmethod
+    def to_float():
+        return Convert.to_precision(Real.float)
+
+    @staticmethod
+    def to_double():
+        return Convert.to_precision(Real.double)

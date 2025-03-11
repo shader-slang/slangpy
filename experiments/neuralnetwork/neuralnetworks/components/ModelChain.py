@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from ..basetypes import IModel, TypeLike
+from ..basetypes import IModel, SlangType
 
-from slangpy import Module, Tensor
+from slangpy import Module
 
 from typing import Optional
 
@@ -12,7 +12,7 @@ class ModelChain(IModel):
         super().__init__()
 
         if len(models) == 0:
-            raise ValueError("Model chain needs at least one model")
+            self.model_error("Model chain needs at least one model")
 
         self.models = list(models)
         for m in self.models:
@@ -27,6 +27,12 @@ class ModelChain(IModel):
 
         self.root = root
 
+    def model_init(self, module: Module, input_type: SlangType):
+        self.root.initialize(module, input_type)
+
+    def resolve_input_type(self, module: Module):
+        return self.root.resolve_input_type(module)
+
     def child_name(self, child: IModel) -> Optional[str]:
         for i, m in enumerate(self.models):
             if m is child:
@@ -36,16 +42,6 @@ class ModelChain(IModel):
                 return f"chain[{i}]"
         return None
 
-    def initialize(self, module: Module, input_type: Optional[TypeLike]):
-        self.root.initialize(module, input_type)
-
-        self.input_type = self.root.input_type
-        self.output_type = self.root.output_type
-        self.validate(module)
-
-    def parameters(self) -> list[Tensor]:
-        return self.root.parameters()
-
     @property
     def type_name(self) -> str:
         return self.root.type_name
@@ -53,8 +49,8 @@ class ModelChain(IModel):
     def get_this(self):
         return self.root.get_this()
 
-    def modules(self) -> list[IModel]:
-        return self.root.modules()
+    def children(self) -> list[IModel]:
+        return [self.root]
 
 
 class ChainedModelPair(IModel):
@@ -64,16 +60,12 @@ class ChainedModelPair(IModel):
         self.first = first
         self.second = second
 
-    def initialize(self, module: Module, input_type: Optional[TypeLike]):
+    def model_init(self, module: Module, input_type: SlangType):
         self.first.initialize(module, input_type)
         self.second.initialize(module, self.first.output_type)
 
-        self.input_type = self.first.input_type
-        self.output_type = self.second.output_type
-        self.validate(module)
-
-    def parameters(self) -> list[Tensor]:
-        return self.first.parameters() + self.second.parameters()
+    def resolve_input_type(self, module: Module):
+        return self.first.resolve_input_type(module)
 
     @property
     def type_name(self) -> str:
@@ -90,5 +82,5 @@ class ChainedModelPair(IModel):
             "second": self.second.get_this()
         }
 
-    def modules(self) -> list[IModel]:
-        return [self] + self.first.modules() + self.second.modules()
+    def children(self):
+        return [self.first, self.second]

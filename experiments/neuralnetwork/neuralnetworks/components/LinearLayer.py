@@ -1,72 +1,94 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from ..basetypes import IModel, Real, ArrayKind, RealArray, TypeLike, Auto, AutoSettable
+from ..basetypes import IModel, Real, ArrayKind, RealArray, SlangType, Auto, AutoSettable, resolve_auto
 
 from sgl import CoopVecMatrixLayout
 from slangpy import Module, Tensor
 
-from typing import Optional, cast
+from typing import cast, Any
 import numpy as np
 import math
 
 
 class LinearLayer(IModel):
-    def __init__(self, num_inputs: AutoSettable[int], num_outputs: int, dtype: AutoSettable[Real] = Auto, kind: AutoSettable[ArrayKind] = Auto):
+    def __init__(self, num_inputs: AutoSettable[int], num_outputs: int, dtype: AutoSettable[Real] = Auto, use_coopvec: AutoSettable[bool] = Auto):
         super().__init__()
 
-        self.input_array = RealArray(kind, dtype, num_inputs)
-        self.output_array = RealArray(kind, dtype, num_outputs)
+        self.num_outputs = num_outputs
+        self._num_inputs = num_inputs
+        self._dtype = dtype
+        self._use_coopvec = use_coopvec
 
-        self.weights: Optional[Tensor] = None
-        self.biases: Optional[Tensor] = None
+    def get_weights(self) -> np.ndarray[Any, Any]:
+        self.check_initialized()
+        weights_np = self.weights.to_numpy()
 
-    def initialize(self, module: Module, input_type: Optional[TypeLike]):
-        input_array = RealArray.from_slangtype(input_type)
-        self.input_array.resolve(input_array, must_match=True)
-        self.output_array.resolve(self.input_array)
+        if self.use_coopvec:
+            rowmaj_weights = np.empty((self.num_outputs, self.num_inputs), dtype=self.dtype.numpy())
 
-        if self.input_array.kind not in (ArrayKind.array, ArrayKind.coopvec):
-            self.model_error("LinearLayer only supports arrays or CoopVec"
-                             f" as input; received {self.input_array}")
-        if self.input_array.dtype != self.output_array.dtype or self.input_array.kind != self.output_array.kind:
-            self.model_error("Input and output type of LinearLayer must match; "
-                             f"have '{self.input_array}' and '{self.output_array}'")
+            layout = CoopVecMatrixLayout.training_optimal
+            self.weights.device.coopvec_convert_matrix_host(
+                weights_np, rowmaj_weights, src_layout=layout)
 
-        if self.input_array.kind == ArrayKind.coopvec:
-            if "cooperative-vector" not in module.device.features:
-                self.model_error("Device does not support CoopVec")
-            self.use_coopvec = True
+            return rowmaj_weights
         else:
-            self.use_coopvec = False
+            return weights_np
 
-        self.input_type = self.lookup_mandatory_type(module, self.input_array.name())
-        self.output_type = self.lookup_mandatory_type(module, self.output_array.name())
+    def get_biases(self) -> np.ndarray[Any, Any]:
+        self.check_initialized()
+        return self.biases.to_numpy()
 
-        fan_in = self.input_array.length
-        fan_out = self.output_array.length
-        dtype = self.input_array.dtype
+    @property
+    def type_name(self) -> str:
+        base_type = "CoopVecLinearLayer" if self.use_coopvec else "LinearLayer"
+        return f"{base_type}<{self.dtype}, {self.num_inputs}, {self.num_outputs}>"
+
+    def model_init(self, module: Module, input_type: SlangType):
+        input_array = RealArray.from_slangtype(input_type)
+        self.num_inputs = resolve_auto(self._num_inputs, input_array.length)
+        self.dtype = resolve_auto(self._dtype, input_array.dtype)
+        self.use_coopvec = resolve_auto(self._use_coopvec, input_array.kind == ArrayKind.coopvec)
+
+        if input_array.kind not in (ArrayKind.array, ArrayKind.coopvec):
+            self.model_error("LinearLayer only supports arrays or CoopVec as input type. "
+                             f"Received {input_array}")
+
+        if self.use_coopvec:
+            if self.dtype != Real.half:
+                self.model_error("LinearLayer currently only supports half precision as input "
+                                 f"when using CoopVec. Received {input_array}")
+
+            if "cooperative-vector" not in module.device.features:
+                self.model_error("LinearLayer was requested to use the CoopVec API, "
+                                 "but the device does not support it.")
+        else:
+            if self.dtype not in (Real.float, Real.double):
+                self.model_error("LinearLayer currently only supports float or double precision "
+                                 f"as input when not using CoopVec. Received {input_array}")
 
         # Xavier uniform initialization
+        fan_in = self.num_inputs
+        fan_out = self.num_outputs
         std = math.sqrt(2.0 / (fan_in + fan_out))
         a = math.sqrt(3.0) * std
-        weights_np = np.random.uniform(-a, a, (fan_out, fan_in)).astype(dtype.numpy())
-        biases_np = np.zeros((fan_out, ), dtype=dtype.numpy())
+        weights_np = np.random.uniform(-a, a, (fan_out, fan_in)).astype(self.dtype.numpy())
+        biases_np = np.zeros((fan_out, ), dtype=self.dtype.numpy())
 
         device = module.device
-        biases = Tensor.empty(device, biases_np.shape, str(dtype))
+        biases = Tensor.empty(device, biases_np.shape, str(self.dtype))
         biases.storage.copy_from_numpy(biases_np)
 
         if self.use_coopvec:
             layout = CoopVecMatrixLayout.training_optimal
-            desc = device.coopvec_create_matrix_desc(fan_out, fan_in, layout, dtype.sgl(), 0)
-            weight_count = desc.size // dtype.size()
+            desc = device.coopvec_create_matrix_desc(fan_out, fan_in, layout, self.dtype.sgl(), 0)
+            weight_count = desc.size // self.dtype.size()
 
-            params_np = np.zeros((weight_count, ), dtype=dtype.numpy())
+            params_np = np.zeros((weight_count, ), dtype=self.dtype.numpy())
             device.coopvec_convert_matrix_host(weights_np, params_np, dst_layout=layout)
 
-            weights = Tensor.empty(device, (weight_count, ), str(dtype))
+            weights = Tensor.empty(device, (weight_count, ), str(self.dtype))
             weights.storage.copy_from_numpy(params_np)
         else:
-            weights = Tensor.empty(device, weights_np.shape, str(dtype))
+            weights = Tensor.empty(device, weights_np.shape, str(self.dtype))
             weights.storage.copy_from_numpy(weights_np)
 
         weights = weights.with_grads(zero=True)
@@ -75,22 +97,21 @@ class LinearLayer(IModel):
         self.weights = cast(Tensor, weights)
         self.biases = cast(Tensor, biases)
 
-        self.validate(module)
-
-    def parameters(self):
-        if self.weights is None or self.biases is None:
-            raise RuntimeError("LinearLayer is not initialized!")
-
+    def model_params(self):
         return [self.weights, self.biases]
 
-    @property
-    def type_name(self) -> str:
-        base_type = "CoopVecLinearLayer" if self.use_coopvec else "LinearLayer"
-        return f"{base_type}<{self.input_array.dtype}, {self.input_array.length}, {self.output_array.length}>"
+    def resolve_input_type(self, module: Module):
+        if self._num_inputs is Auto:
+            return None
+
+        return RealArray(
+            ArrayKind.array,
+            resolve_auto(self._dtype, Real.float),
+            self._num_inputs
+        )
 
     def get_this(self):
-        if self.weights is None or self.biases is None:
-            raise RuntimeError("LinearLayer is not initialized!")
+        self.check_initialized()
 
         weight_grads = None
         if self.weights.grad_out:
