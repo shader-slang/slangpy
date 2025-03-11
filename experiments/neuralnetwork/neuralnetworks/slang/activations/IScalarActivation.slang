@@ -2,7 +2,7 @@
 // clang-format off
 implementing NeuralNetworks;
 
-__include IModel;
+__include basetypes.IModel;
 
 // Base interface for activations that operate on a per-element basis
 interface IScalarActivation<T : IReal, int Width>
