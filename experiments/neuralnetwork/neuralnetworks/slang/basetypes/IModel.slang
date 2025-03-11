@@ -15,11 +15,11 @@ public interface IModel<InputT : IDifferentiable, OutputT : IDifferentiable>
 // Extension that adds helper typedefs InputType and OutputType to all model implementations
 public extension<InputT : IDifferentiable, OutputT : IDifferentiable, Model : IModel<InputT, OutputT>> Model
 {
-    typealias InputType = InputT;
-    typealias OutputType = OutputT;
+    public typealias InputType = InputT;
+    public typealias OutputType = OutputT;
 }
 // If input and output type happen to be identical, we also typedef an IOType to avoid confusion
 public extension<T : IDifferentiable, Model : IModel<T, T>> Model
 {
-    typealias IOType = T;
+    public typealias IOType = T;
 }
