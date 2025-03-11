@@ -10,3 +10,10 @@ class AutoType:
 Auto = AutoType()
 T = TypeVar('T')
 AutoSettable = Union[T, AutoType]
+
+
+def resolve_auto(auto_settable: AutoSettable[T], default: T) -> T:
+    if auto_settable is Auto:
+        return default
+    assert not isinstance(auto_settable, AutoType)
+    return auto_settable
