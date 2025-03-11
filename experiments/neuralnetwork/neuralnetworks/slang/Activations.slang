@@ -10,5 +10,6 @@ implementing NeuralNetworks;
 #include "activations/LeakyReLU.slang"
 #include "activations/ReLU.slang"
 #include "activations/Sigmoid.slang"
+#include "activations/SmeLU.slang"
 #include "activations/Swish.slang"
 #include "activations/Tanh.slang"

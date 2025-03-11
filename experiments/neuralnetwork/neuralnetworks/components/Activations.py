@@ -59,6 +59,11 @@ class ELU(Activation):
         return super().get_this() | {"a": self.a}
 
 
+class SmeLU(Activation):
+    def __init__(self, width: AutoSettable[int] = Auto, dtype: AutoSettable[Real] = Auto):
+        super().__init__("SmeLU", width, dtype)
+
+
 class Swish(Activation):
     def __init__(self, width: AutoSettable[int] = Auto, dtype: AutoSettable[Real] = Auto):
         super().__init__("Swish", width, dtype)
