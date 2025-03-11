@@ -4,7 +4,7 @@ implementing NeuralNetworks;
 
 __include IReal;
 
-public struct DiffCoopVec<T : IReal, int N> : IDifferentiable, IArray<T>, IArithmetic, IRealArray<T, N>
+public struct DiffCoopVec<T : IReal, int N> : IDifferentiable, IArray<T>, IArithmetic
 {
     public typealias Differential = DiffCoopVec<T, N>;
 
