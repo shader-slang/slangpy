@@ -42,9 +42,16 @@ public struct ConvertArrayPrecision<InElem : IReal, OutElem : IReal, int Width>
 }
 
 public struct ConvertToArray<T : IReal, int Width>
-    : IModel<vector<T, Width>, T[Width]>
+    : IModel<T[Width], T[Width]>
+    , IModel<vector<T, Width>, T[Width]>
     , IModel<DiffCoopVec<T, Width>, T[Width]>
 {
+    [BackwardDifferentiable]
+    public T[Width] forward(T x[Width])
+    {
+        return x;
+    }
+
     [BackwardDifferentiable]
     public T[Width] forward(vector<T, Width> x)
     {
@@ -63,9 +70,16 @@ public struct ConvertToArray<T : IReal, int Width>
 }
 
 public struct ConvertToVector<T : IReal, int Width>
-    : IModel<T[Width], vector<T, Width>>
+    : IModel<vector<T, Width>, vector<T, Width>>
+    , IModel<T[Width], vector<T, Width>>
     , IModel<DiffCoopVec<T, Width>, vector<T, Width>>
 {
+    [BackwardDifferentiable]
+    public vector<T, Width> forward(vector<T, Width> x)
+    {
+        return x;
+    }
+
     [BackwardDifferentiable]
     public vector<T, Width> forward(DiffCoopVec<T, Width> x)
     {
@@ -83,8 +97,17 @@ public struct ConvertToVector<T : IReal, int Width>
     }
 }
 
-public struct ConvertToCoopVec<T : IReal, int Width> : IModel<T[Width], DiffCoopVec<T, Width>>, IModel<vector<T, Width>, DiffCoopVec<T, Width>>
+public struct ConvertToCoopVec<T : IReal, int Width>
+    : IModel<DiffCoopVec<T, Width>, DiffCoopVec<T, Width>>
+    , IModel<T[Width], DiffCoopVec<T, Width>>
+    , IModel<vector<T, Width>, DiffCoopVec<T, Width>>
 {
+    [BackwardDifferentiable]
+    public DiffCoopVec<T, Width> forward(DiffCoopVec<T, Width> x)
+    {
+        return x;
+    }
+
     [BackwardDifferentiable]
     public DiffCoopVec<T, Width> forward(T x[Width])
     {
