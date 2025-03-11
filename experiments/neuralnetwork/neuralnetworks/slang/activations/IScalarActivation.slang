@@ -11,12 +11,28 @@ interface IScalarActivation<T : IReal, int Width>
 }
 
 // These can be turned into an arbitary width activation by applying it to each element of the input
-public extension<T : IReal, int Width, Act : IScalarActivation<T, Width>> Act : IModel<T[Width], T[Width]>
+public extension<
+    T : IReal,
+    int Width,
+    Act : IScalarActivation<T, Width>
+> Act
+: IModel<T[Width], T[Width]>
+, IModel<vector<T, Width>, vector<T, Width>>
 {
     [BackwardDifferentiable]
     public T[Width] forward(T x[Width])
     {
         T y[Width];
+        [ForceUnroll]
+        for (int i = 0; i < Width; ++i)
+            y[i] = activate(x[i]);
+        return y;
+    }
+
+    [BackwardDifferentiable]
+    public vector<T, Width> forward(vector<T, Width> x)
+    {
+        vector<T, Width> y;
         [ForceUnroll]
         for (int i = 0; i < Width; ++i)
             y[i] = activate(x[i]);
