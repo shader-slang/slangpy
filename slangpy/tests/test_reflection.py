@@ -9,6 +9,7 @@ import slangpy.reflection as r
 import slangpy.tests.helpers as helpers
 from slangpy.backend import DeviceType
 from slangpy.reflection.reflectiontypes import is_float
+from slangpy.core.function import Function
 
 MODULE = """
 import "slangpy";
@@ -18,6 +19,10 @@ float foo_v3(float3 a) { return a.x; }
 float foo_ol(float a) { return a; }
 float foo_ol(float a, float b) { return a+b; }
 float foo_generic<T>(T a) { return 0; }
+struct Foo
+{
+    int bar(float a) {}
+}
 
 struct GenericType<A, int N> {}
 
@@ -67,6 +72,27 @@ def test_basic_function_decl(device_type: DeviceType):
     assert res.parameters[0].type == layout.scalar_type(TypeReflection.ScalarType.float32)
     assert res.parameters[1].name == "b"
     assert res.parameters[1].type == layout.scalar_type(TypeReflection.ScalarType.float32)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_method(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    m = helpers.create_module(device, MODULE)
+    layout = m.layout
+
+    struct = m.find_struct("Foo")
+    assert struct is not None
+
+    func = m.find_function_in_struct(struct, "bar")
+    assert func is not None
+    assert isinstance(func, Function)
+    res = func._slang_func
+    assert res.name == "bar"
+    assert res.parameters[0].name == "a"
+    assert res.parameters[0].type == layout.scalar_type(TypeReflection.ScalarType.float32)
+    assert res.have_return_value
+    assert res.return_type == layout.scalar_type(TypeReflection.ScalarType.int32)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
