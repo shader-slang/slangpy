@@ -123,6 +123,43 @@ def training_main():
         timer.stop()
 
 
+class ToGrayscale(nn.IModel):
+    """Example of extending the library with a custom component. See README.md for more information."""
+
+    def __init__(self, weights: nn.AutoSettable[list[float]] = Auto, dtype: nn.AutoSettable[nn.Real] = Auto, width: nn.AutoSettable[int] = Auto):
+        super().__init__()
+        self._weights = weights
+        self._dtype = dtype
+        self._width = width
+
+    def model_init(self, module: Module, input_type: SlangType):
+        input_array = nn.RealArray.from_slangtype(input_type)
+        self.width = nn.resolve_auto(self._width, input_array.length)
+        self.dtype = nn.resolve_auto(self._dtype, input_array.dtype)
+
+        if self._weights is Auto:
+            # No weights supplied? -> Generate weights for a simple average
+            self.weights = []
+            for i in range(self.width):
+                self.weights.append(1.0 / self.width)
+        else:
+            # Weights supplied? Double check they agree with the resolved width
+            if len(self._weights) != self.width:
+                self.model_error(
+                    f"Expected {self.width} weights; received {len(self._weights)} instead")
+            self.weights = self._weights
+
+    @property
+    def type_name(self) -> str:
+        return f"ToGrayscale<{self.dtype}, {self.width}>"
+
+    def get_this(self):
+        return {
+            "channelWeights": self.weights,
+            "_type": self.type_name
+        }
+
+
 def create_uv_grid(device: Device, resolution: int):
     span = np.linspace(0, 1, resolution, dtype=np.float32)
     uvs_np = np.stack(np.broadcast_arrays(span[None, :], span[:, None]), axis=2)

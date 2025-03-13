@@ -32,19 +32,21 @@ struct RNG
     }
 }
 
-float4 evalModel<Model : IModel<float2, float3>>(Model model, float2 inputUV)
+float4 evalModel<Model : IModel<float2, float3>>(Model model, float2 uv)
 {
-    return float4(model.forward(inputUV), 1.0f);
+    float3 rgb = model.forward(uv);
+
+    return float4(rgb, 1.0f);
 }
 
 [BackwardDifferentiable]
-float evalModelAndLoss<Model : IModel<float2, float3>>(Model model, no_diff float2 input, no_diff float3 target)
+float evalModelLoss<Model : IModel<float2, float3>>(Model model, no_diff float2 inputUV, no_diff float3 targetRGB)
 {
     let lossFunc = Losses::L2();
     
-    float3 prediction = float3(model.forward(input));
+    float3 prediction = model.forward(inputUV);
 
-    return lossFunc.eval(prediction, target);
+    return lossFunc.eval(prediction, targetRGB);
 }
 
 void trainTexture<Model : IModel<float2, float3>>(Model model, inout RNG rng, Texture2D<float4> targetTex, SamplerState sampler, float lossScale)
@@ -53,5 +55,17 @@ void trainTexture<Model : IModel<float2, float3>>(Model model, inout RNG rng, Te
 
     float4 target = targetTex.SampleLevel(sampler, inputUV, 0.0f);
 
-    bwd_diff(evalModelAndLoss)(model, inputUV, target.rgb, lossScale);
+    bwd_diff(evalModelLoss)(model, inputUV, target.rgb, lossScale);
+}
+
+struct ToGrayscale<T : IReal, int N> : IModel<vector<T, N>, vector<T, N>>
+{
+    vector<T, N> channelWeights;
+
+    [BackwardDifferentiable]
+    OutputType forward(InputType x)
+    {
+        T gray = dot(channelWeights, x);
+        return OutputType(gray);
+    }
 }
