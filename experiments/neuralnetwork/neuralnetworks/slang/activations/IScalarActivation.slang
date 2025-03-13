@@ -10,7 +10,9 @@ interface IScalarActivation<T : IReal, int Width>
     [BackwardDifferentiable, PreferRecompute] T activate(T x);
 }
 
-// These can be turned into an arbitary width activation by applying it to each element of the input
+// Extension:
+// Any type that implements IScalarActivation can be turned into an IModel that accepts
+// an array of Reals or a vector of Reals, by calling activate() on each element of the input
 public extension<
     T : IReal,
     int Width,

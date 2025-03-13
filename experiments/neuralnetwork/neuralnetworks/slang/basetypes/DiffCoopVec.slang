@@ -4,6 +4,8 @@ implementing NeuralNetworks;
 
 __include IReal;
 
+// This class wraps around a CoopVec to make it differentiable. This is a temporary
+// workaround until the Slang core library supplies a differentiable CoopVec.
 public struct DiffCoopVec<T : IReal, int N> : IDifferentiable, IArray<T>, IArithmetic
 {
     public typealias Differential = DiffCoopVec<T, N>;

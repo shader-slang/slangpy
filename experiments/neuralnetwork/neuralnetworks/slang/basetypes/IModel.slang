@@ -24,6 +24,7 @@ public extension<T : IDifferentiable, Model : IModel<T, T>> Model
     public typealias IOType = T;
 }
 
+// This is used by IModel.py to do type checking of slang code. Not intended to be used by user code.
 namespace impl
 {
     public void returnTypeWitness<InputT : IDifferentiable, OutputT : IDifferentiable, Model : IModel<InputT, OutputT>>() {}

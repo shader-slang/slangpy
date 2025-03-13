@@ -5,6 +5,17 @@ from slangpy import Module
 
 
 class FrequencyEncoding(IModel):
+    """
+    Performs a frequency encoding of the input.
+
+    Each element x of the input is mapped to a series of sines and cosines of increasing
+    frequency, i.e. sin(x), cos(x), sin(2*x), cos(2*x), sin(4*x), cos(4*x), ...
+
+    Each input element is turned into 2 * num_octaves outputs.
+
+    Expects a plain array as input, and returns a plain array.
+    """
+
     # Frequency encoding that maps each input parameter into a series
     # of sines and cosines with increasing frequency
     def __init__(self, num_octaves: int, input_width: AutoSettable[int] = Auto, dtype: AutoSettable[Real] = Auto):

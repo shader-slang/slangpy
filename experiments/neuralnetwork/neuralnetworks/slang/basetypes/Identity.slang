@@ -5,6 +5,7 @@ implementing NeuralNetworks;
 
 __include IModel;
 
+// Trivial model that just returns its input unmodified.
 public struct Identity<T : IDifferentiable> : IModel<T, T>
 {
     [BackwardDifferentiable]

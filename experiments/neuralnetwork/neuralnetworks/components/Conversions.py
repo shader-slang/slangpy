@@ -3,8 +3,19 @@ from slangpy import Module
 
 from ..basetypes import IModel, Real, ArrayKind, RealArray, SlangType, Auto, AutoSettable, resolve_auto
 
+from typing import Optional
+
 
 class ConvertArrayKind(IModel):
+    """
+    Converts one array-like type to another, e.g. a float[3] to a vector<float, 3>.
+
+    Usually this type will not be used directly, as it is more convenient to use
+    one of the shorthand functions in Convert.
+
+    Element count and element type of input and output will be identical.
+    """
+
     def __init__(self, to_kind: ArrayKind, width: AutoSettable[int] = Auto, dtype: AutoSettable[Real] = Auto):
         super().__init__()
         self.to_kind = to_kind
@@ -35,7 +46,16 @@ class ConvertArrayKind(IModel):
 
 
 class ConvertArrayPrecision(IModel):
-    def __init__(self, to_dtype: Real, width: AutoSettable[int] = Auto, from_dtype: AutoSettable[Real] = Auto):
+    """
+    Converts the element type of an array-like type, e.g. float3 to half3.
+
+    Usually this type will not be used directly, as it is more convenient to use
+    one of the shorthand functions in Convert.
+
+    Element count and array kind of input and output will be identical.
+    """
+
+    def __init__(self, to_dtype: Real, width: AutoSettable[int] = Auto, from_dtype: AutoSettable[Real] = Auto, kind: AutoSettable[ArrayKind] = Auto):
         super().__init__()
         self.to_dtype = to_dtype
         self._width = width
@@ -59,6 +79,16 @@ class ConvertArrayPrecision(IModel):
 
 
 class Convert(IModel):
+    """
+    Utility class for converting between different array-like types.
+
+    to_array_kind or to_coopvec/to_array/to_vector may be used to convert
+    the kind of the array-like type.
+
+    to_precision or to_half/to_float/to_double may be used to convert the
+    element types of the array-like type.
+    """
+
     @staticmethod
     def to_array_kind(kind: ArrayKind):
         return ConvertArrayKind(kind)

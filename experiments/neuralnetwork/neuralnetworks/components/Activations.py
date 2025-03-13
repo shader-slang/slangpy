@@ -3,10 +3,16 @@ from slangpy import Module
 
 from ..basetypes import IModel, Real, RealArray, ArrayKind, SlangType, AutoSettable, Auto, resolve_auto
 
-# Root class for all activations (i.e. that implement IActivation)
-
 
 class Activation(IModel):
+    """
+    The root class representing network activations in Slang.
+
+    Slang activations should live in the Activation namespace, and
+    implement the IScalarActivation interface. They may optionally provide
+    a CoopVec implementation.
+    """
+
     def __init__(self, act_name: str, width: AutoSettable[int], dtype: AutoSettable[Real]):
         super().__init__()
 
@@ -20,9 +26,11 @@ class Activation(IModel):
         self.dtype = resolve_auto(self._dtype, input_array.dtype)
 
     def resolve_input_type(self, module: Module):
+        # Width has to be known and can't have a default
         if self._width is Auto:
             return None
 
+        # Unless specified, default to a float array for input/output.
         return RealArray(
             ArrayKind.array,
             resolve_auto(self._dtype, Real.float),

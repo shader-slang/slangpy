@@ -9,7 +9,39 @@ from typing import Optional
 
 
 class Optimizer:
+    """
+    This is the base class of all optimizers.
+
+    Creating an optimizer is done in two phases: First, by calling the constructor
+    of the optimizer (e.g. AdamOptimizer) and setting its parameters. This is light-weight
+    and does not do much work yet.
+    Second, by calling .initialize(module, parameters), passing in the slang module containing
+    the required slang types and a list of network parameters to optimize. This may perform
+    allocation and reflection work.
+
+    .step() performs one optimization step and resets the network gradients.
+
+    For implementers of new optimizers, the following methods should be overridden:
+    - get_type_name(dtype) returning the name of a slang type implementing IOptimizer<dtype>
+    - get_this(), returning a python type that may be passed to slang (e.g. a dict)
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._initialized = False
+
     def initialize(self, module: Module, parameters: list[Tensor]):
+        """
+        Initializes the optimizer from a list of trainable parameters.
+
+        The optimizer must be initialized before it can be used.
+
+        module is a loaded slang module containing the required slang types.
+
+        Parameter tensors don't all have to have the same precision, and it is allowed to use networks
+        with e.g. mixed float and half precision parameters.
+        """
+        self._initialized = True
         self.parameters = parameters
         self.states = []
         self.step_funcs: list[FunctionNode] = []
@@ -42,6 +74,13 @@ class Optimizer:
             self.step_funcs.append(step_func)
 
     def step(self, cmd: Optional[sgl.CommandBuffer] = None):
+        """
+        Performs one step of the optimizer and resets network gradients.
+
+        If cmd is provided, the slang calls are appended to the given command buffer.
+        """
+        self.check_initialized()
+
         this = self.get_this()
         for param, state, step_func in zip(self.parameters, self.states, self.step_funcs):
             if cmd is None:
@@ -50,7 +89,19 @@ class Optimizer:
                 step_func.append_to(cmd, this, state, param, param.grad)
 
     def get_type_name(self, dtype: Real) -> str:
+        """Returns the name of a slang type implementing IOptimizer<dtype>"""
         raise NotImplementedError()
 
     def get_this(self):
-        raise NotImplementedError
+        """
+        Returning a python type that may be passed to slang (e.g. a dict)
+
+        Currently, this type has to be compatible with any optimizer precision.
+        This may change in the future.
+        """
+        raise NotImplementedError()
+
+    def check_initialized(self):
+        if not self._initialized:
+            raise RuntimeError("Optimizer is uninitialized. Make sure to "
+                               "call .initialize() before using the optimizer")

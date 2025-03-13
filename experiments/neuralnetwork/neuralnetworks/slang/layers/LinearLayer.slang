@@ -4,6 +4,14 @@ implementing NeuralNetworks;
 __include basetypes.IModel;
 __include basetypes.DiffCoopVec;
 
+/*
+    Represents a linear neural network layer, i.e. a matrix-vector multiply/add A * x + b
+
+    Takes an input with NumInputs elements, and returns NumOutputs elements.
+
+    LinearLayer implements the multiply in software for plain arrays,
+    and CoopVecLinearLayer uses hardware acceleration using cooperative vectors.
+*/
 public struct LinearLayer<
     T : IReal,
     int NumInputs,

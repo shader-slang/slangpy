@@ -7,6 +7,13 @@ from slangpy.backend import TypeReflection
 
 
 class CoopVecType(SlangType):
+    """
+    This type represents a reflected CoopVec type.
+
+    This type should not be created directly; it will be instantiated by slangpy
+    instead of a generic SlangType when reflecting CoopVec or DiffCoopVec
+    """
+
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         args = program.get_resolved_generic_args(refl)
         assert args is not None

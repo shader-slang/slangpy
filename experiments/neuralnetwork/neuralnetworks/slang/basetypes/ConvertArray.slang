@@ -5,6 +5,15 @@ implementing NeuralNetworks;
 __include IReal;
 __include IModel;
 
+// This file contains utility conversion for casting array element types or
+// container types, i.e. convert between vector/array/coopvec without
+// changing the contents
+
+// Small workaround: The __BuiltinFloatingPointType interface only
+// guarantees conversions from/to float, not between any floating point scalar.
+// We can convert between two IReals A and B by doing B(a.toFloat()), but
+// if A == B this incurs an unnecessary detour to floats. We do a type comparison
+// first and rely on optimization to get rid of the dead code.
 [BackwardDifferentiable, ForceInline]
 To convertReal<To : IReal, From : IReal>(From x)
 {

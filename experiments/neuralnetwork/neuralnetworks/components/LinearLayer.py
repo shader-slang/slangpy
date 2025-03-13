@@ -10,6 +10,22 @@ import math
 
 
 class LinearLayer(IModel):
+    """
+    Represents a linear neural network layer, i.e. a matrix-vector multiply/add A * x + b
+
+    Takes an input with num_inputs elements, and returns num_outputs elements.
+    Currently implemented for plain arrays and CoopVec, the latter using hardware-assisted
+    matrix multiplies.
+
+    Due to limitations with atomics, dtype must be float if array inputs are used.
+    Due to limitations with current CoopVec implementations, dtype must be half if
+    CoopVec inputs are used.
+
+    Don't use model_params directly, as the parameter tensors may be in a hardware-specific
+    layout if CoopVec is used. Instad, use get_weights or get_biases to get the weights
+    and biases as a row-major numpy array.
+    """
+
     def __init__(self, num_inputs: AutoSettable[int], num_outputs: int, dtype: AutoSettable[Real] = Auto, use_coopvec: AutoSettable[bool] = Auto):
         super().__init__()
 

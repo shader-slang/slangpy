@@ -5,6 +5,13 @@ from .Optimizer import Optimizer
 
 
 class FullPrecisionOptimizer(Optimizer):
+    """
+    Optimizes a float precision copy of all half precision parameters in the model.
+
+    The parameters are optimized using the nested optimizer (e.g. Adam) at full precision.
+    Only half parameters incur extra state; float parameters are optimied directly.
+    """
+
     def __init__(self, nested_optimizer: Optimizer, gradient_scale: float = 1.0):
         super().__init__()
 

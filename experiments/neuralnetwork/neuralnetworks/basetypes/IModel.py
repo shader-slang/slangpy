@@ -18,6 +18,23 @@ class ModelError(Exception):
 
 # Root interface representing a slang type that implements the IModel interface
 class IModel:
+    """
+    This is the root class of trainable models. Instances of this class map to a slang type implementing the IModel interface.
+
+    Creating a model is done in two phases:
+    1) By calling the constructor of the model (e.g. LinearLayer, ModelChain, etc.)
+       and setting its parameters (e.g. num_inputs/num_outputs for LinearLayer).
+       This is generally light-weight and does not do much work yet.
+    2) By calling .initialize(module), passing in the slang module containing
+       the required slang types. This will perform allocation and type checking work.
+
+    Most methods on IModel can only be called after the model is initialized, and will throw otherwise.
+
+    To make networks more flexible and the user experience less verbose, many arguments of
+    network components can be inferred automatically from the input type passed
+    to the component. Such arguments are signalled to the user by the AutoSettable type hint.
+    """
+
     def __init__(self):
         super().__init__()
 
@@ -28,26 +45,48 @@ class IModel:
 
     @property
     def input_type(self) -> SlangType:
+        """Returns the SlangType expected by the forward method of this model's Slang implementation"""
         self.check_initialized()
         return self._input_type
 
     @property
     def output_type(self) -> SlangType:
+        """Returns the SlangType returned by the forward method of this model's Slang implementation"""
         self.check_initialized()
         return self._output_type
 
     def components(self) -> list[IModel]:
+        """
+        Returns a list of all components in this model.
+
+        This is equivalent to following .children() recursively.
+        """
         self.check_initialized()
         return list(self._component_iter())
 
     def parameters(self) -> list[Tensor]:
+        """Returns a list of all trainable parameters in this model."""
         self.check_initialized()
         result = []
         for c in self._component_iter():
             result += c.model_params()
         return result
 
-    def initialize(self, module: Module, input_type: Optional[TypeLike]):
+    def initialize(self, module: Module, input_type: Optional[TypeLike] = None):
+        """
+        Initializes the model, performs parameter allocation and does type checking.
+
+        Module should be a loaded Slang module that contains all types used by this model.
+        Usually, this requires at least an `import NeuralModules;` in the slang file.
+
+        input_type is the type of the input that will be passed to the model and is used
+        to perform type checking and resolving Auto parameters. This can be either a string
+        (which will be looked up in the module with reflection), a SlangType or slangpy.Struct,
+        or an instance of RealArray.
+
+        If the model can resolve its input_type by itself (e.g. if no parameters are set to Auto),
+        input_type may be omitted.
+        """
         if input_type is None:
             input_type = self.resolve_input_type(module)
         if isinstance(input_type, RealArray):
@@ -83,7 +122,7 @@ class IModel:
 
         forward = module.layout.find_function_by_name_in_type(model_type, "forward")
         if forward is None:
-            self.model_error(f"Looking up method {short_type_name}::forward() failed. Make sure the type "
+            self.model_error(f"Looking up method forward() in type {short_type_name} failed. Make sure the type "
                              f"implements the IModel interface{full_type_msg}")
 
         # The correct solution to looking up the return type of forward given the input type
@@ -102,11 +141,11 @@ class IModel:
                 if witness is not None:
                     candidates.append(candidate)
             if len(candidates) > 1:
-                self.model_error(f"Found multiple matching overloads for {short_type_name}::forward({input_type.full_name}), "
+                self.model_error(f"Found multiple matching overloads for method forward({input_type.full_name}) in type {short_type_name}, "
                                  f"and the return type is ambiguous (found {candidates}). Make sure there is only one forward() "
                                  f"implementation for each input type.{full_type_msg}")
             elif len(candidates) == 0:
-                self.model_error(f"Could not find a matching overload for {short_type_name}::forward({input_type.full_name}). "
+                self.model_error(f"Could not find a matching overload for method forward({input_type.full_name}) in type {short_type_name}. "
                                  "The most common cause is that the output of the previous model is not compatible "
                                  f"with the input expected by the next model, e.g. due to mismatched dimensions "
                                  f"or element precision{full_type_msg}")
@@ -115,48 +154,67 @@ class IModel:
         else:
             specialized = forward.specialize_with_arg_types([input_type])
             if specialized is None:
-                self.model_error(f"Could not find a matching overload for {short_type_name}::forward({input_type.full_name}). "
+                self.model_error(f"Could not find a matching overload for method forward({input_type.full_name}) in type {short_type_name}. "
                                  "The most common cause is that the output of the previous model is not compatible "
                                  f"with the input expected by the next model, e.g. due to mismatched dimensions "
                                  f"or element precision{full_type_msg}")
             if specialized.return_type is None:
-                self.model_error(f"The method {short_type_name}::forward({input_type.full_name}) does not return a value. "
+                self.model_error(f"The method forward({input_type.full_name}) in type {short_type_name} does not return a value. "
                                  f"Make sure the model conforms to the IModel interface{full_type_msg}")
 
             self._output_type = specialized.return_type
 
     @property
     def type_name(self) -> str:
-        raise NotImplementedError()
+        """Returns the name of the Slang type implementing this model."""
+        self.model_error("type_name is not implemented")
 
-    def model_init(self, module: Module, input_type: Optional[Union[str, SlangType, Struct]]):
+    def model_init(self, module: Module, input_type: SlangType):
+        """Internally called by IModel during .initialize()."""
         pass
 
     def model_params(self) -> list[Tensor]:
+        """Returns a list of parameters used by this model (not any of its children)"""
         return []
 
     def children(self) -> list[IModel]:
+        """Returns a list of immediate child models, if any"""
         return []
 
     def child_name(self, child: IModel) -> Optional[str]:
+        """
+        Returns a human-readable name of an immediate child of this model.
+
+        This is called inside .model_error() to produce a useful string pointing
+        to where in the model the error occurred.
+        """
         return None
 
-    # Returns a dictionary containing the data for the slang struct
     def get_this(self) -> dict[str, Any]:
+        """Returns a SlangPy-compatible object to be passed to Slang during a function call"""
         return {'_type': self.type_name}
 
-    def resolve_input_type(self, module: Module) -> Optional[SlangType]:
+    def resolve_input_type(self, module: Module) -> Optional[TypeLike]:
+        """
+        Called by initialize() if no input_type is provided.
+
+        This may be optionally implemented by a model if it can resolve its input_type
+        by itself, e.g. if it is not generic or if none of its parameters set to Auto.
+        """
         return None
 
     def set_parent(self, parent: IModel):
+        """Establish the parent of this model. Used during .model_error() to provide useful debugging info."""
         self.parent = parent
 
     def check_initialized(self):
+        """May be called at the beginning of a method that is only valid if the model is initialized. Throws if not."""
         if not self._initialized:
             raise self.model_error("Model is uninitialized. Make sure to "
                                    "call .initialize() before using the model")
 
     def model_error(self, msg: str):
+        """Throws a ModelError exception with the given message, and some extra info to help debug the issue."""
         segments: list[str] = []
         child = self
         while child:
