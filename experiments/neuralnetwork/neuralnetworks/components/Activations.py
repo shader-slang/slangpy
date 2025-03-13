@@ -45,7 +45,7 @@ class ReLU(Activation):
 
 
 class LeakyReLU(Activation):
-    def __init__(self, width: AutoSettable[int] = Auto, negative_slope: float = 0.01, dtype: AutoSettable[Real] = Auto):
+    def __init__(self, negative_slope: float = 0.01, width: AutoSettable[int] = Auto, dtype: AutoSettable[Real] = Auto):
         super().__init__("LeakyReLU", width, dtype)
         self.negative_slope = negative_slope
 
@@ -54,7 +54,7 @@ class LeakyReLU(Activation):
 
 
 class ELU(Activation):
-    def __init__(self, width: AutoSettable[int] = Auto, a: float = 1.0, dtype: AutoSettable[Real] = Auto):
+    def __init__(self, a: float = 1.0, width: AutoSettable[int] = Auto, dtype: AutoSettable[Real] = Auto):
         super().__init__("ELU", width, dtype)
         self.a = a
 
