@@ -16,6 +16,11 @@ class ConvertArrayKind(IModel):
         self.width = resolve_auto(self._width, input_array.length)
         self.dtype = resolve_auto(self._dtype, input_array.dtype)
 
+    def resolve_input_type(self, module: Module) -> Optional[SlangType]:
+        if self._width is Auto or self._dtype is Auto:
+            return None
+        return RealArray(self.to_kind, self._dtype, self._width)
+
     @property
     def type_name(self) -> str:
         if self.to_kind == ArrayKind.array:
@@ -35,11 +40,18 @@ class ConvertArrayPrecision(IModel):
         self.to_dtype = to_dtype
         self._width = width
         self._from_dtype = from_dtype
+        self._kind = kind
 
     def model_init(self, module: Module, input_type: SlangType):
         input_array = RealArray.from_slangtype(input_type)
         self.width = resolve_auto(self._width, input_array.length)
         self.from_dtype = resolve_auto(self._from_dtype, input_array.dtype)
+        self.kind = resolve_auto(self._kind, input_array.kind)
+
+    def resolve_input_type(self, module: Module) -> Optional[SlangType]:
+        if self._kind is Auto or self._width is Auto or self._from_dtype is Auto:
+            return None
+        return RealArray(self._kind, self._from_dtype, self._width)
 
     @property
     def type_name(self) -> str:
