@@ -9,7 +9,6 @@ import time
 
 # Import neural network library
 import neuralnetworks as nn
-from neuralnetworks import Real, ArrayKind, Auto
 
 from app import App
 
@@ -28,12 +27,12 @@ def training_main():
     # If the device supports cooperative vector, run MLP at half precision and in coopvec mode
     if "cooperative-vector" in device.features:
         print("Cooperative vector enabled!")
-        mlp_input = ArrayKind.coopvec
-        mlp_precision = Real.half
+        mlp_input = nn.ArrayKind.coopvec
+        mlp_precision = nn.Real.half
     else:
         print("Device does not support cooperative vector. Sample will run, but it will be slow")
-        mlp_input = ArrayKind.array
-        mlp_precision = Real.float
+        mlp_input = nn.ArrayKind.array
+        mlp_precision = nn.Real.float
 
     # Set up model architecture
     model = nn.ModelChain(
@@ -41,15 +40,15 @@ def training_main():
         nn.FrequencyEncoding(6),
         nn.Convert.to_precision(mlp_precision),
         nn.Convert.to_array_kind(mlp_input),
-        nn.LinearLayer(Auto, 64),
+        nn.LinearLayer(nn.Auto, 64),
         nn.LeakyReLU(),
-        nn.LinearLayer(Auto, 64),
+        nn.LinearLayer(nn.Auto, 64),
         nn.LeakyReLU(),
-        nn.LinearLayer(Auto, 64),
+        nn.LinearLayer(nn.Auto, 64),
         nn.LeakyReLU(),
-        nn.LinearLayer(Auto, 3),
+        nn.LinearLayer(nn.Auto, 3),
         nn.Convert.to_vector(),
-        nn.Convert.to_precision(Real.float),
+        nn.Convert.to_precision(nn.Real.float),
         nn.Exp(),
     )
 
@@ -60,7 +59,7 @@ def training_main():
     # optimize a of the parameters in floating point and avoid repeated rounding
     # errors of 16bit float during training.
     grad_scale = 1.0
-    if mlp_precision == Real.half:
+    if mlp_precision == nn.Real.half:
         optim = nn.FullPrecisionOptimizer(optim, gradient_scale=128.0)
         # Scale up gradients in half precision mode to avoid round-off errors
         grad_scale = 128.0
@@ -126,7 +125,7 @@ def training_main():
 class ToGrayscale(nn.IModel):
     """Example of extending the library with a custom component. See README.md for more information."""
 
-    def __init__(self, weights: nn.AutoSettable[list[float]] = Auto, dtype: nn.AutoSettable[nn.Real] = Auto, width: nn.AutoSettable[int] = Auto):
+    def __init__(self, weights: nn.AutoSettable[list[float]] = nn.Auto, dtype: nn.AutoSettable[nn.Real] = nn.Auto, width: nn.AutoSettable[int] = nn.Auto):
         super().__init__()
         self._weights = weights
         self._dtype = dtype
@@ -137,7 +136,7 @@ class ToGrayscale(nn.IModel):
         self.width = nn.resolve_auto(self._width, input_array.length)
         self.dtype = nn.resolve_auto(self._dtype, input_array.dtype)
 
-        if self._weights is Auto:
+        if self._weights is nn.Auto:
             # No weights supplied? -> Generate weights for a simple average
             self.weights = []
             for i in range(self.width):

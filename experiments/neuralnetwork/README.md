@@ -104,7 +104,7 @@ model = nn.ModelChain(
     # [ ... ]
     nn.FrequencyEncoding(5),
     # [ ... ]
-    nn.LinearLayer(Auto, 64),
+    nn.LinearLayer(nn.Auto, 64),
     nn.LeakyReLU(),
     # [ ... ]
     nn.Exp(),
@@ -189,12 +189,12 @@ We can convert between array types using `nn.Convert.to_array()`, `.to_vector()`
 ```
 if "cooperative-vector" in device.features:
     print("Cooperative vector enabled!")
-    mlp_input = ArrayKind.coopvec
-    mlp_precision = Real.half
+    mlp_input = nn.ArrayKind.coopvec
+    mlp_precision = nn.Real.half
 else:
     print("Device does not support cooperative vector. Sample will run, but it will be slow")
-    mlp_input = ArrayKind.array
-    mlp_precision = Real.float
+    mlp_input = nn.ArrayKind.array
+    mlp_precision = nn.Real.float
 
 # Set up model architecture:
 model = nn.ModelChain(
@@ -202,15 +202,15 @@ model = nn.ModelChain(
     nn.FrequencyEncoding(5),
     nn.Convert.to_precision(mlp_precision),
     nn.Convert.to_array_kind(mlp_input),
-    nn.LinearLayer(Auto, 64),
+    nn.LinearLayer(nn.Auto, 64),
     nn.LeakyReLU(),
-    nn.LinearLayer(Auto, 64),
+    nn.LinearLayer(nn.Auto, 64),
     nn.LeakyReLU(),
-    nn.LinearLayer(Auto, 64),
+    nn.LinearLayer(nn.Auto, 64),
     nn.LeakyReLU(),
-    nn.LinearLayer(Auto, 3),
+    nn.LinearLayer(nn.Auto, 3),
     nn.Convert.to_vector(),
-    nn.Convert.to_precision(Real.float),
+    nn.Convert.to_float(),
     nn.Exp(),
 )
 ```
@@ -228,9 +228,9 @@ This means that in Python, the call `nn.LeakyReLU()` is underspecified: There's 
 ```
 def __init__([...], width: AutoSettable[int] = Auto, dtype: AutoSettable[Real] = Auto):
 ```
-Here, `width` and `dtype` are marked as `AutoSettable`. This means we can either provide a concrete value---like `int` for `width`---or pass the value `nn.Auto`, which means they will be automatically inferred when we call `model.initialize`. `AutoSettable` is just a Python type hint. It doesn't change any of the functionality, but helps communicate to the end user what is allowed and helps with IDE code analysis.
+Here, `width` and `dtype` are marked as `AutoSettable`. This means we can either provide a concrete value---like `int` for `width`---or pass the value `nn.Auto`, which means they will be automatically inferred when we call `model.initialize`. `AutoSettable` is just a Python type hint. It doesn't change any of the functionality, but helps communicate to the end user this parameter accepts `Auto`, and helps with IDE code analysis.
 
-Generally, parameters are marked as `AutoSettable` when they can be uniquely inferred from the input type. For example, if the `forward` method of `nn.LinearLayer` returns a `float[64]`, there is only one allowable setting for `width` and `dtype` of the `LeakyReLU` component that follows to make it compatible. In that case, they can be omitted or set to `Auto`.
+Generally, parameters are marked as `AutoSettable` when they can be uniquely inferred from the input type. For example, if the `forward` method of `nn.LinearLayer` returns a `float[64]`, there is only one allowable setting of the following `LeakyReLU` component that makes it compatible (i.e. `width=64` and `dtype=Real.float` ). In that case, they can be omitted or set to `Auto`.
 
 This makes it much more convenient to set up model architectures. If we didn't have `Auto`, the full model definition would look like this:
 ```
@@ -251,20 +251,20 @@ model = nn.ModelChain(
     nn.Exp(width=3, dtype=Real.half),
 )
 ```
-Needless to say, this is a lot more unwieldy. Beyond being harder to read, it also violates the principle of "don't repeat yourself": For example, the network precision or the width of the output (3) is repeated in many different places, and if we wanted to change these values, we would need to modify lots of code at the same time. This runs a much higher risk of components getting out of sync and goes against our goal of allowing rapid experimentation with different architectures. This is especially true when parameters aren't immediately obvious: For example, the number of outputs from the `FrequencyEncoding` depends on the input width and number of octaves via `num_outputs = 2 * input_width * num_octaves`. If we had to manually specify the width of the layers that follow, we would have to compute this value ahead of time somehow, and the resulting code would become increasingly complex. It's much easier to have the library infer these values for us.
+Needless to say, this is a lot more unwieldy. Beyond being harder to read, it also violates the principle of "don't repeat yourself": For example, the network precision or the width of the output is repeated in many different places, and if we wanted to change these values, we would need to modify lots of code at the same time. This runs a much higher risk of components getting out of sync and goes against our goal of allowing rapid experimentation with different architectures. This is especially true when parameters aren't immediately obvious: For example, the number of outputs from the `FrequencyEncoding` depends on the input width and number of octaves via `num_outputs = 2 * input_width * num_octaves`. If we had to manually specify the width of the layers that follow, we would have to compute this value ahead of time somehow, and the resulting code would become increasingly complex. It's much easier to have the library infer these values for us.
 
 This explains why `model.initialize(module, "float2")` needed to know the input type (`"float2"`) to the model: This allows it to infer every `Auto` parameter we omitted.
 
-For convenience. `initialize` allows a wide range of values for the `input_type` parameter:
+For convenience, `initialize` allows a wide range of values for the `input_type` parameter:
 - A `str` specifying a slang type name, e.g. `model.initialize(module, "float2")`
-- A `RealArray` instance specifying an array type, e.g. `model.initialize(module, nn.RealArray(ArrayKind.vector, Real.float, 2))`
-- A slang type reflection (`slangpy.SlangType` or `slangpy.Struct`), e.g. `model.initialize(module, model.float2)`
+- A `RealArray` instance specifying an array type, e.g. `model.initialize(module, nn.RealArray(nn.ArrayKind.vector, nn.Real.float, 2))`
+- A slang type reflection (`slangpy.SlangType` or `slangpy.Struct`), e.g. `model.initialize(module, module.float2)`
 
 *Fully specified components:* In some cases, the `input_type` parameter is optional. Most components in the library do know their input type if they are fully specified. For example,
 ```
 nn.LinearLayer(num_inputs=20, num_outputs=64, dtype=Real.float, use_coopvec=False)
 ```
-knows it expects a `float[10]` as input, without additional help from `.initialize(module, "float[10]")`. If the first component of the model is fully specified, then `model.initialize(module)` is sufficient.
+knows it expects a `float[20]` as input, without additional help from `.initialize(module, "float[20]")`. If the first component of the model is fully specified, then `model.initialize(module)` is sufficient.
 
 ### Adding New Components
 
@@ -363,11 +363,11 @@ class ToGrayscale(nn.IModel):
             "_type": self.type_name
         }
 ```
-In SlangPy, `get_this` is a special method that is called by SlangPy when we try to pass a custom Python object to a Slang function. Because `class ToGrayscale` is a Python class we invented, SlangPy has no way of knowing what is supposed to happen when we pass it to Slang function. In that case, it will check if there is a `get_this` method on the object that can turn it into an object SlangPy can understand.
+In SlangPy, `get_this` is a special method that is called by SlangPy when we try to pass a custom Python object to a Slang function. Because `class ToGrayscale` is a Python class we invented, SlangPy has no way of knowing what is supposed to happen when we pass it to a Slang function. In that case, it will check if there is a `get_this` method on the object that can turn it into an object SlangPy can understand.
 
 In this case, we return a Python `dict`, which SlangPy is happy to pass to Slang. `"channelWeights"` matches up with the field of the same name of our Slang `struct`, and `"_type"` is a special member that tells SlangPy what specific Slang type it should attempt to map this `dict` to; that allows SlangPy to resolve e.g. generics or function overloads.
 
-`IModel` provides a default implementation of `get_this`, which simply announces the type it should map to:
+`nn.IModel` provides a default implementation of `get_this`, which simply announces the type it should map to:
 ```
 class IModel:
     # [ ... ]
@@ -416,7 +416,7 @@ Finally, we need to pass the appropriate arguments when setting up the model:
 ```
 model = nn.ModelChain(
     # [ ... ]
-    ToGrayscale([0.2126, 0.7152, 0.0722], Real.float, 3), # sRGB luminance, accepts float3
+    ToGrayscale([0.2126, 0.7152, 0.0722], nn.Real.float, 3), # sRGB luminance, accepts float3
 )
 ```
 
@@ -427,7 +427,7 @@ After the previous step, `ToGrayscale` is generic, but it has unfortunately beco
 First, let's change the constructor of the Python type to accept `Auto`:
 ```
 class ToGrayscale(nn.IModel):
-    def __init__(self, weights: list[float], dtype: nn.AutoSettable[nn.Real], width: nn.AutoSettable[int]):
+    def __init__(self, weights: list[float], dtype: nn.AutoSettable[nn.Real] = nn.Auto, width: nn.AutoSettable[int] = nn.Auto):
         super().__init__()
         self.weights = weights
         self._dtype = dtype
@@ -435,7 +435,7 @@ class ToGrayscale(nn.IModel):
 ```
 Here, `AutoSettable[T]` is a type hint for Python telling it that the parameter accepts either `T` or `Auto`. This doesn't affect any of the functionality, but is useful for end users to tell them a parameter can be set to `Auto`, and also adds useful info for Python IDEs that do code analysis (like VS Code).
 
-Because `dtype` and `width` are not resolved yet and could contain `Auto` instead of a concrete value, a useful pattern is to assign them to an interim field `self._dtype` instead of `self.dtype` directly. We'll set that field later when we resolve the types.
+Because `dtype` and `width` are not resolved yet and could contain `Auto` instead of a concrete value, a useful pattern is to assign them to an interim field `self._dtype` instead of `self.dtype` directly. We'll set the `self.dtype` field later when we resolve the types.
 
 Finally, let's add a method to figure out concrete values for `dtype` and `width`. The `IModel` base class defines a `model_init` method, which is called once during `model.initialize` and supplies the type that will be passed to this model's `forward` method in Slang. This gives us enough information to resolve `Auto`s:
 ```
@@ -459,7 +459,7 @@ model = nn.ModelChain(
 ```
 which automatically resolves the generic parameters for us.
 
-You're free to make any parameter `AutoSettable` if it makes sense in your application. For example, you could declare the weights parameter as `weights: AutoSettable[list[float]] = Auto`, and resolve it to a default value in `model_init`:
+You're free to make any parameter `AutoSettable` if it makes sense in your application. For example, you could declare the weights parameter as `weights: nn.AutoSettable[list[float]] = nn.Auto`, and resolve it to a default value in `model_init`:
 ```
 class ToGrayscale(nn.IModel):
     # [ ... ]
@@ -468,7 +468,7 @@ class ToGrayscale(nn.IModel):
         self.width = nn.resolve_auto(self._width, input_array.length)
         self.dtype = nn.resolve_auto(self._dtype, input_array.dtype)
 
-        if self._weights is Auto:
+        if self._weights is nn.Auto:
             # No weights supplied? -> Generate weights for a simple average
             self.weights = []
             for i in range(self.width):
