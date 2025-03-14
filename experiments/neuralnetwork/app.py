@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 class App:
-    def __init__(self, title="Example", width=1920, height=1080, device_type=sgl.DeviceType.d3d12):
+    def __init__(self, device: sgl.Device, title="Example", width=1920, height=1080):
         super().__init__()
 
         # Create SGL window
@@ -16,8 +16,7 @@ class App:
         )
 
         # Create SlangPy device with local include path for shaders
-        self._device = slangpy.create_device(device_type,
-                                             include_paths=[Path(__file__).parent.parent])
+        self._device = device
 
         # Setup swapchain
         self.swapchain = self._device.create_swapchain(

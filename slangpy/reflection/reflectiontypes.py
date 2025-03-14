@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Optional, Union, Sequence, cast
 
 import numpy as np
 
@@ -673,6 +673,12 @@ class SlangFunction:
         self._cached_parameters = None
         self._cached_return_type = None
         self._cached_overloads = None
+
+    def specialize_with_arg_types(self, types: Sequence[SlangType]) -> Optional[SlangFunction]:
+        refl = self._reflection.specialize_with_arg_types([t.type_reflection for t in types])
+        if refl is None:
+            return None
+        return self._program._get_or_create_function(refl, self._this, self._full_name)
 
     @property
     def reflection(self) -> FunctionReflection:
