@@ -420,6 +420,9 @@ Foo create_foo(int x) { return { x }; }
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("scalar_type", ["float", "half", "double"])
 def test_pass_float_array(device_type: DeviceType, scalar_type: str):
+    if device_type == DeviceType.metal and scalar_type == "double":
+        pytest.skip("Double precision is unsupported on Metal")
+
     device = helpers.get_device(device_type)
     module = helpers.create_module(
         device, f"{scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}")
@@ -448,6 +451,9 @@ def test_pass_int_array(device_type: DeviceType, scalar_type: str):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("scalar_type", ["float", "half", "double"])
 def test_pass_float_field(device_type: DeviceType, scalar_type: str):
+    if device_type == DeviceType.metal and scalar_type == "double":
+        pytest.skip("Double precision is unsupported on Metal")
+
     device = helpers.get_device(device_type)
     module = helpers.create_module(
         device,
