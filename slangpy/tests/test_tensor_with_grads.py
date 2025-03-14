@@ -5,6 +5,7 @@ from slangpy.types import Tensor
 import slangpy.tests.helpers as helpers
 import numpy as np
 from typing import Any
+import os
 import sys
 
 
