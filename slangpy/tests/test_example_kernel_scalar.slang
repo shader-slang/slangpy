@@ -37,7 +37,7 @@ void get_c_index(uint3 dispatchThreadID, out int[] index) {
 
 [shader("compute")]
 [numthreads(32, 1, 1)]
-void main(uint3 dispatchThreadID: SV_DispatchThreadID) {
+void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID) {
     if (any(dispatchThreadID >= TOTAL_THREADS))
         return;
 
@@ -54,7 +54,7 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID) {
 
 [shader("compute")]
 [numthreads(32, 1, 1)]
-void main_backwards(uint3 dispatchThreadID: SV_DispatchThreadID) {
+void computeMain_backwards(uint3 dispatchThreadID: SV_DispatchThreadID) {
     if (any(dispatchThreadID >= TOTAL_THREADS))
         return;
 

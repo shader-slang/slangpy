@@ -47,5 +47,5 @@ for x in range(16):
 
 # Or if installed, we can use tev to show the result (https://github.com/Tom94/tev)
 tex = device.create_texture(data=result.to_numpy(), width=16,
-                            height=16, format=sgl.Format.rgb32_float)
+                            height=16, format=sgl.Format.rgba32_float)
 sgl.tev.show(tex)

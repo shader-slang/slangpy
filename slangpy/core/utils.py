@@ -8,7 +8,7 @@ from slangpy.backend import (DeclReflection, ProgramLayout,
                              DeviceType, Device)
 from slangpy.reflection import SlangType
 import builtins
-
+import sys
 
 def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False,
                   adapter_luid: Optional[Sequence[int]] = None,
@@ -28,7 +28,8 @@ def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: 
                 shaderpath,
             ]+list(include_paths),
         },
-        enable_cuda_interop=True,
+
+        enable_cuda_interop=sys.platform != "darwin",  # Disable CUDA interop on macOS
         enable_debug_layers=enable_debug_layers,
         adapter_luid=adapter_luid)
 

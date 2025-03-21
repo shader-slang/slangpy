@@ -4,10 +4,10 @@ from typing import Callable, Optional
 import sgl
 import slangpy
 from pathlib import Path
-
+from slangpy.backend import DeviceType
 
 class App:
-    def __init__(self, title="BRDF Example", width=1024, height=1024, device_type=sgl.DeviceType.d3d12):
+    def __init__(self, title="BRDF Example", width=1024, height=1024, device_type=DeviceType.automatic):
         super().__init__()
 
         # Create SGL window

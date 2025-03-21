@@ -61,24 +61,24 @@ def test_init_particle(device_type: DeviceType):
     # Call constructor, which returns particles
     Particle.__init(float2(1.0, 2.0), float2(3.0, 4.0), _result=buffer)
 
-    data = buffer.storage.to_numpy().view(dtype=np.float32)
-    assert len(data) == 11
+    data = helpers.read_ndbuffer_from_numpy(buffer)
+    print(data)
+
     # position
-    assert data[0] == 1.0
-    assert data[1] == 2.0
-    # direction
-    assert data[2] == 3.0
-    assert data[3] == 4.0
+    positions = np.array([item['position'] for item in data])
+    assert np.allclose(positions, [1.0, 2.0])
+    # velocity
+    velocity = np.array([item['velocity'] for item in data])
+    assert np.allclose(velocity, [3.0, 4.0])
     # size
-    assert data[4] == 0.5
+    sizes = np.array([item['size'] for item in data])
+    assert np.allclose(sizes, [0.5])
     # mat.color
-    assert data[5] == 1
-    assert data[6] == 1
-    assert data[7] == 1
+    colors = np.array([item['material']['color'] for item in data])
+    assert np.allclose(colors, [1.0, 1.0, 1.0])
     # mat.emission
-    assert data[8] == 0
-    assert data[9] == 0
-    assert data[10] == 0
+    emissions = np.array([item['material']['emission'] for item in data])
+    assert np.allclose(emissions, [0.0, 0.0, 0.0])
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
