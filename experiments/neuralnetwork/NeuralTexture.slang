@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // clang-format off
 
-__exported import network.NeuralModules;
-__exported import network.Activations;
-__exported import network.MLP;
-__exported import network.Encodings;
-__exported import network.Losses;
-
-// Has to be an include rather than an import right now
-// Otherwise, __init is not exposed to reflection
-#include "network/Optimizer.slang"
+__exported import NeuralNetworks;
 
 struct RNG
 {
@@ -40,27 +32,40 @@ struct RNG
     }
 }
 
-float4 evalModel<Model : IModule<float, 2, 3>>(Model model, float2 inputUV)
+float4 evalModel<Model : IModel<float2, float3>>(Model model, float2 uv)
 {
-    let prediction = model.forward(inputUV);
-    return float4(prediction, 1.0f);
+    float3 rgb = model.forward(uv);
+
+    return float4(rgb, 1.0f);
 }
 
 [BackwardDifferentiable]
-float evalModelAndLoss<Model : IModule<float, 2, 3>>(Model model, no_diff float2 input, no_diff float3 target)
+float evalModelLoss<Model : IModel<float2, float3>>(Model model, no_diff float2 inputUV, no_diff float3 targetRGB)
 {
-    let lossFunc = L2Loss();
+    let lossFunc = Losses::L2();
     
-    float3 prediction = float3(model.forward(input));
+    float3 prediction = model.forward(inputUV);
 
-    return lossFunc.eval(prediction, target);
+    return lossFunc.eval(prediction, targetRGB);
 }
 
-void trainTexture<Model : IModule<float, 2, 3>>(Model model, inout RNG rng, Texture2D<float4> targetTex, SamplerState sampler, float lossScale)
+void trainTexture<Model : IModel<float2, float3>>(Model model, inout RNG rng, Texture2D<float4> targetTex, SamplerState sampler, float lossScale)
 {
     float2 inputUV = rng.next2D();
 
     float4 target = targetTex.SampleLevel(sampler, inputUV, 0.0f);
 
-    bwd_diff(evalModelAndLoss)(model, inputUV, target.rgb, lossScale);
+    bwd_diff(evalModelLoss)(model, inputUV, target.rgb, lossScale);
+}
+
+struct ToGrayscale<T : IReal, int N> : IModel<vector<T, N>, vector<T, N>>
+{
+    vector<T, N> channelWeights;
+
+    [BackwardDifferentiable]
+    OutputType forward(InputType x)
+    {
+        T gray = dot(channelWeights, x);
+        return OutputType(gray);
+    }
 }
