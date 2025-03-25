@@ -5,9 +5,10 @@ import sgl
 import pathlib
 import imageio
 import numpy as np
-import tqdm
 
-# Create an SGL device with the slangpy and local include paths
+# Create an SGL device, which will handle setup and invocation of the Slang
+# compiler for us. We give it both the slangpy PATH and the local include
+# PATH so that it can find Slang shader files
 device = sgl.Device(compiler_options={
     "include_paths": [
         spy.SHADER_PATH,
@@ -15,29 +16,34 @@ device = sgl.Device(compiler_options={
     ],
 })
 
-# Load the slang module
-
+# Load our Slang module -- we'll take a look at this in just a moment
 module = spy.Module.load_from_file(device, "simplediffsplatting2d.slang")
 
 
-# Create a buffer for blobs. We're going to make a very small one!
+
+# Create a buffer to store Gaussian blobs. We're going to make a very small one,
+# because right now this code is not very efficient, and will take a while to run.
+# For now, we are going to create 100 blobs, and each blob will be comprised of 9
+# floats:
+#   position x, y, and z (3 floats)
+#   sigma (2 floats?)
+#   color (4 floats)
 NUM_BLOBS = 100
 FLOATS_PER_BLOB = 9
+# SlangPy lets us create a Tensor and initialize it easily using numpy to generate
+# random values
 blobs = spy.Tensor.numpy(device, np.random.rand(
     NUM_BLOBS * FLOATS_PER_BLOB).astype(np.float32)).with_grads()
 
-WORKGROUP_X, WORKGROUP_Y = 8, 4 #why are these numbers chosen? 
-
-# load the input image
+# Load our target image from a file, using the imageio package,
+# and store its width and height in W, H
 image = imageio.imread("./jeep.jpg")
 W = image.shape[0]
 H = image.shape[1]
 
-assert (W % WORKGROUP_X == 0) and (H % WORKGROUP_Y == 0)
-
-# Convert the image from RGB_u8 to RGBA_f32 -- we're going 
+# Convert the image from RGB_u8 to RGBA_f32 -- we're going
 # to be using texture values during derivative propagation,
-# so we need to be dealing with floats here. 
+# so we need to be dealing with floats here.
 image = (image / 256.0).astype(np.float32)
 image = np.concatenate([image, np.ones((W, H, 1), dtype=np.float32)], axis=-1)
 input_image = device.create_texture(
@@ -82,5 +88,3 @@ for iter in range(iterations):
     if iter % 50 == 0:
         module.renderBlobsToTexture(current_render, spy.call_id(), blobs)
         sgl.tev.show_async(current_render, name=f"optimization_{(iter // 50):03d}")
-
-
