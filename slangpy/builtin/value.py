@@ -226,8 +226,9 @@ class VectorMarshall(ValueMarshall):
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             st = cast(kfr.VectorType, self.slang_type)
+            et = cast(SlangType, st.element_type)
             cgb.type_alias(
-                f"_t_{name}", f"VectorValueType<{st.element_type.full_name},{st.num_elements}>")
+                f"_t_{name}", f"VectorValueType<{et.full_name},{st.num_elements}>")
         else:
             cgb.type_alias(f"_t_{name}", f"NoneType")
 

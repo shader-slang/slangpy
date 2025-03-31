@@ -210,13 +210,13 @@ class FunctionNode(NativeFunctionNode):
                 # Otherwise just throw the original.
                 if len(e.args) != 1 or not isinstance(e.args[0], dict) or not 'message' in e.args[0] or not 'source' in e.args[0] or not 'context' in e.args[0]:
                     raise
-                from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
+                from slangpy.bindings.boundvariableruntime import BoundCallRuntime, BoundVariableRuntime
                 from slangpy.core.native import NativeCallData
                 from slangpy.core.logging import bound_runtime_call_table
                 msg: str = e.args[0]['message']
                 source: BoundVariableRuntime = e.args[0]['source']
                 context: NativeCallData = e.args[0]['context']
-                runtime = context.runtime
+                runtime = cast(BoundCallRuntime, context.runtime)
                 msg += "\n\n" + \
                     bound_runtime_call_table(runtime, source) + \
                     "\n\nFor help and support: https://khr.io/slangdiscord"
@@ -255,7 +255,8 @@ class FunctionNode(NativeFunctionNode):
                 self.slangpy_signature = "\n".join(lines)
 
             builder = SignatureBuilder()
-            sig = self.module.call_data_cache.get_args_signature(builder, self, **kwargs)
+            self.module.call_data_cache.get_args_signature(builder, self, **kwargs)
+            sig = builder.str
 
             if sig in self.module.dispatch_data_cache:
                 dispatch_data = self.module.dispatch_data_cache[sig]

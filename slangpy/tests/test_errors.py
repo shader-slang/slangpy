@@ -163,7 +163,7 @@ def test_missing_child_function(device_type: DeviceType):
                                    void hello() {}""")
 
     with pytest.raises(AttributeError, match=r'has no method or sub-type named'):
-        func = module.Foo.foo
+        func = module.Foo.foo  # type: ignore
 
 
 if __name__ == "__main__":

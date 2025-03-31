@@ -7,9 +7,9 @@ from slangpy.types.buffer import NDBuffer, NativeNDBuffer
 from slangpy.types.tensor import Tensor, NativeTensor
 import slangpy.backend
 
-from IPython.core.getipython import get_ipython
-from IPython.core.formatters import DisplayFormatter
-from IPython.lib import pretty
+from IPython.core.getipython import get_ipython  # type: ignore
+from IPython.core.formatters import DisplayFormatter  # type: ignore
+from IPython.lib import pretty  # type: ignore
 from pathlib import Path
 from typing import Optional, Iterable, Any
 import numpy as np

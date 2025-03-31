@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 from slangpy.core.enums import IOType
 from slangpy.core.native import AccessType, CallMode, Shape
@@ -300,7 +300,7 @@ class BoundVariable:
         try:
             if isinstance(mapping, tuple):
                 self.vector_mapping = Shape(*mapping)
-                self.vector_type = self.python.reduce_type(context, len(mapping))
+                self.vector_type = cast(SlangType, self.python.reduce_type(context, len(mapping)))
                 self.explicitly_vectorized = True
             elif isinstance(mapping, SlangType):
                 self.vector_type = mapping
@@ -316,7 +316,7 @@ class BoundVariable:
                 if not marshall:
                     raise BoundVariableException(
                         f"Invalid explicit type: {mapping}", self)
-                self.vector_type = marshall.slang_type
+                self.vector_type = cast(SlangType, marshall.slang_type)
                 self.explicitly_vectorized = True
             else:
                 raise BoundVariableException(
@@ -339,7 +339,8 @@ class BoundVariable:
     def _apply_implicit_vectorization(self, context: BindContext):
         if self.vector_mapping.valid:
             # if we have a valid vector mapping, just need to reduce it
-            self.vector_type = self.python.reduce_type(context, len(self.vector_mapping))
+            self.vector_type = cast(SlangType, self.python.reduce_type(
+                context, len(self.vector_mapping)))
 
         if self.vector_type is not None:
             # do nothing in first phase if already have a type. vector
@@ -351,8 +352,8 @@ class BoundVariable:
         else:
             # neither specified, attempt to resolve type
             assert self.slang_type is not None
-            self.vector_type = self.python.resolve_type(
-                context, self.slang_type)
+            self.vector_type = cast(SlangType, self.python.resolve_type(
+                context, self.slang_type))
 
         # If we ended up with no valid type, use slang type. Currently this should
         # only happen for auto-allocated result buffers

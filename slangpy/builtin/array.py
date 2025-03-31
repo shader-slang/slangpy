@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Union
+from typing import Any, Union, cast
 
 from slangpy.core.native import Shape
 
@@ -38,7 +38,7 @@ def _distill_array(layout: SlangProgramLayout, value: Union[list[Any], tuple[Any
 
 def python_lookup_array_type(layout: SlangProgramLayout, value: list[Any]):
     shape, et = _distill_array(layout, value)
-    return ArrayMarshall(layout, et, Shape(shape))
+    return ArrayMarshall(layout, cast(SlangType, et), Shape(shape))
 
 
 tr.PYTHON_TYPES[list] = python_lookup_array_type

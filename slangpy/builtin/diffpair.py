@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 
 from slangpy.core.enums import PrimType
-from slangpy.core.native import AccessType, CallContext
+from slangpy.core.native import AccessType, CallContext, NativeMarshall
 
 import slangpy.reflection as kfr
 from slangpy.backend import Buffer, BufferUsage
@@ -51,10 +51,10 @@ struct _t_{name}
 
 class DiffPairMarshall(Marshall):
 
-    def __init__(self, layout: SlangProgramLayout, primal_type: Marshall, derivative_type: Optional[Marshall], needs_grad: bool):
+    def __init__(self, layout: SlangProgramLayout, primal_type: NativeMarshall, derivative_type: Optional[NativeMarshall], needs_grad: bool):
         super().__init__(layout)
         slt = layout.find_type_by_name(
-            f"DifferentialPair<{primal_type.slang_type.full_name}>")
+            f"DifferentialPair<{cast(SlangType, primal_type.slang_type).full_name}>")
         assert isinstance(slt, kfr.DifferentialPairType)
         self.slang_type: kfr.DifferentialPairType = slt
         self.needs_grad = needs_grad

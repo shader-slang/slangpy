@@ -171,10 +171,11 @@ def test_call_with_buffers(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res = res.with_grads()
-    res.grad.storage.copy_from_numpy(np.ones(res.shape.as_tuple(), dtype=np.float32))
+    res_w_grads = res.with_grads()
+    res_w_grads.grad.storage.copy_from_numpy(
+        np.ones(res_w_grads.shape.as_tuple(), dtype=np.float32))
 
-    kernel_eval_polynomial.bwds(a, b, res)
+    kernel_eval_polynomial.bwds(a, b, res_w_grads)
     a_grad_data = a.grad.to_numpy().view(np.float32)
     b_grad_data = b.grad.to_numpy().view(np.float32)
 
@@ -216,10 +217,10 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res = res.with_grads()
-    res.grad.storage.copy_from_numpy(np.ones(32*3, dtype=np.float32))
+    res_w_grads = res.with_grads()
+    res_w_grads.grad.storage.copy_from_numpy(np.ones(32*3, dtype=np.float32))
 
-    kernel_eval_polynomial.bwds(a, b, res)
+    kernel_eval_polynomial.bwds(a, b, res_w_grads)
     a_grad_data = a.grad.storage.to_numpy().view(np.float32).reshape(-1, 3)
     b_grad_data = b.grad.storage.to_numpy().view(np.float32).reshape(-1, 3)
 
@@ -282,14 +283,14 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res = res.with_grads()
-    res.grad.storage.copy_from_numpy(np.ones(32*3, dtype=np.float32))
+    res_w_grads = res.with_grads()
+    res_w_grads.grad.storage.copy_from_numpy(np.ones(32*3, dtype=np.float32))
 
     kernel_eval_polynomial.bwds({
         'x': a_x,
         'y': a_y,
         'z': a_z
-    }, b, res)
+    }, b, res_w_grads)
     a_x_grad_data = a_x.grad.storage.to_numpy().view(np.float32).reshape(-1, 1)
     a_y_grad_data = a_y.grad.storage.to_numpy().view(np.float32).reshape(-1, 1)
     a_z_grad_data = a_z.grad.storage.to_numpy().view(np.float32).reshape(-1, 1)

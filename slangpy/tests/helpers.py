@@ -4,7 +4,7 @@ import hashlib
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -14,6 +14,7 @@ import slangpy
 from slangpy import Module
 from slangpy.backend import (Device, DeviceType, SlangCompilerOptions,
                              SlangDebugInfoLevel)
+from slangpy.core.function import Function
 
 SHADER_DIR = Path(__file__).parent
 
@@ -104,4 +105,4 @@ def create_function_from_module(
         function = module.find_function_in_struct(type_name, names[-1])
     if function is None:
         raise ValueError(f"Could not find function {func_name}")
-    return function
+    return cast(Function, function)

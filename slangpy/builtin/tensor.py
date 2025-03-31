@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from slangpy.core.native import AccessType, CallContext, CallMode, Shape
 
@@ -244,7 +244,7 @@ def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
         d_out = create_tensor_marshall(
             layout, value.grad_out) if value.grad_out is not None else None
 
-        return TensorMarshall(layout, value.dtype, len(value.shape), True, d_in, d_out)
+        return TensorMarshall(layout, cast(SlangType, value.dtype), len(value.shape), True, d_in, d_out)
     elif isinstance(value, ReturnContext):
         return TensorMarshall(layout, value.slang_type, value.bind_context.call_dimensionality, True, None, None)
     else:

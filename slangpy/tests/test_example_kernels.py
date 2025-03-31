@@ -5,7 +5,6 @@ import numpy as np
 import pytest
 from helpers import test_id  # type: ignore (pytest fixture)
 
-import slangpy as kf
 from slangpy.backend import DeviceType, float1, float3, uint3
 from slangpy.tests import helpers
 from slangpy.tests.test_differential_function_call import (

@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, Optional, cast
 
-from slangpy.core.native import Shape
+from slangpy.core.native import Shape, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
-from slangpy.bindings import PYTHON_TYPES, Marshall, BindContext, BoundVariable
+from slangpy.bindings import PYTHON_TYPES,  BindContext, BoundVariable
 from slangpy.reflection import SlangProgramLayout, SlangType
 
 from .value import ValueMarshall
@@ -12,7 +12,7 @@ from .value import ValueMarshall
 
 class StructMarshall(ValueMarshall):
 
-    def __init__(self, layout: SlangProgramLayout, fields: dict[str, Marshall], slang_type: Optional[SlangType] = None):
+    def __init__(self, layout: SlangProgramLayout, fields: dict[str, NativeMarshall], slang_type: Optional[SlangType] = None):
         super().__init__(layout)
         if slang_type is None:
             slang_type = layout.find_type_by_name("Unknown")
