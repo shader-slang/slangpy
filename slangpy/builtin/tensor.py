@@ -11,7 +11,7 @@ from slangpy.core.native import NativeTensorMarshall, NativeTensor
 
 from slangpy.backend import TypeReflection
 from slangpy.reflection import TYPE_OVERRIDES, SlangProgramLayout, SlangType, TypeReflection, ArrayType, ScalarType
-from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
+from slangpy.bindings import (PYTHON_TYPES, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext)
 

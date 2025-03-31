@@ -174,7 +174,7 @@ def is_running_in_jupyter():
     # Jupyter will inject the get_ipython() function into the globals. First
     # check it is available there before calling it
     if hasattr(builtins, 'get_ipython'):
-        shell = get_ipython().__class__.__name__
+        shell = get_ipython().__class__.__name__  # type: ignore
         return shell == 'ZMQInteractiveShell'
     else:
         return False

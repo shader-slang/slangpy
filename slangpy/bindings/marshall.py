@@ -95,17 +95,17 @@ class Marshall(NativeMarshall):
         exception if needed and not overriden.
         """
         res = super().reduce_type(context, dimensions)
-        assert isinstance(res, SlangType)
-        return res
+        return res  # type: ignore
 
-    def resolve_type(self, context: BindContext, bound_type: 'SlangType'):
+    def resolve_type(self, context: BindContext, bound_type: 'SlangType') -> 'SlangType':
         """
         Return the slang type for this variable when passed to a parameter
         of the given type. Default behaviour simply attempts to pass its own type,
         but more complex behaviour can be added to support implicit casts. Default to just 
         casting to itself (i.e. no implicit cast)
         """
-        return super().resolve_type(context, bound_type)
+        res = super().resolve_type(context, bound_type)
+        return res  # type: ignore
 
     def resolve_dimensionality(self, context: BindContext, binding: 'BoundVariable', vector_target_type: 'SlangType'):
         """

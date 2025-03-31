@@ -5,13 +5,10 @@ import torch
 
 from slangpy.core.native import AccessType
 from slangpy.torchintegration.wrappedtensor import WrappedTensor
-from slangpy.core.function import Function, IThis
-import slangpy.reflection as kfr
-from slangpy.backend import (FunctionReflection, TypeConformance, Device)
+from slangpy.core.function import Function, FunctionNode, IThis
+from slangpy.backend import (TypeConformance, Device)
 
 if TYPE_CHECKING:
-    from slangpy.core.module import Module
-    from slangpy.core.struct import Struct
     from slangpy.torchintegration.torchstruct import TorchStruct
 
 
@@ -75,8 +72,10 @@ def gather_and_clear_primal_tensors(arg: Any,
             v, primal_in_tensors, primal_out_tensors) for v in arg]
     if isinstance(arg, WrappedTensor) and arg.id >= 0:
         if arg.last_access_type[0] in (AccessType.read, AccessType.readwrite):
+            assert arg.primal is not None
             primal_in_tensors.append(arg.primal)
         if arg.last_access_type[0] in (AccessType.write, AccessType.readwrite):
+            assert arg.primal is not None
             primal_out_tensors.append(arg.primal)
     return arg
 
@@ -92,7 +91,7 @@ def assign_primal_and_grad_tensors(arg: Any, all_tensors: list[torch.Tensor], gr
         arg.primal = all_tensors[arg.id]
         if arg.last_access_type[0] in (AccessType.read, AccessType.readwrite):
             arg.grad_out = WrappedTensor(primal=torch.zeros_like(arg.primal))
-            grad_out_tensors.append(arg.grad_out.primal)
+            grad_out_tensors.append(arg.grad_out.primal)  # type: ignore
         if arg.last_access_type[0] in (AccessType.write, AccessType.readwrite):
             arg.grad_in = WrappedTensor(primal=grad_in_tensors.pop(0).contiguous())
     return arg
@@ -198,10 +197,10 @@ class TorchAutoGradFunction(torch.autograd.Function):
 
 class TorchFunction(torch.nn.Module):
 
-    def __init__(self, function: Function):
+    def __init__(self, function: FunctionNode):
         super().__init__()
         check_cuda_enabled(function.module.device)
-        self.function = function.return_type(WrappedTensor)
+        self.function: FunctionNode = function.return_type(WrappedTensor)
 
     def forward(self, *args: Any, **kwargs: Any):
         # Build 'unpacked' args (that handle IThis)
@@ -256,12 +255,6 @@ class TorchFunction(torch.nn.Module):
 
         # Return the single result
         return result
-
-    def attach(self, module: 'Module', func: Union[str, kfr.SlangFunction, list[FunctionReflection]], struct: Optional['Struct'] = None, options: dict[str, Any] = {}) -> None:
-        """
-        Links a function to its parent module or struct. Typically only called internally by SlangPy.
-        """
-        self.function.attach(module, func, struct, options)
 
     def bind(self, this: IThis):
         """

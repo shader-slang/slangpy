@@ -8,10 +8,9 @@ import torch
 
 from slangpy.core.native import AccessType, CallContext, CallMode, Shape
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
-from slangpy.bindings.marshall import Marshall, ReturnContext
+from slangpy.bindings.marshall import ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 from slangpy.builtin.tensor import TensorMarshall, is_nested_array
-from slangpy.core.enums import IOType
 from slangpy.backend import Buffer
 from slangpy.reflection.reflectiontypes import SlangProgramLayout, SlangType, ScalarType, VectorType
 from slangpy.types.tensor import innermost_type
@@ -114,7 +113,7 @@ class WrappedTensorMarshall(TensorMarshall):
 
     def get_shape(self, value: Optional[WrappedTensor] = None) -> Shape:
         if value is not None:
-            return Shape(value.primal.shape)
+            return Shape(value.primal.shape)  # type: ignore
         else:
             return Shape((-1,) * self.dims)
 
@@ -128,7 +127,7 @@ class WrappedTensorMarshall(TensorMarshall):
         strides = data.primal.stride()
 
         bound_shape = shape[-len(binding.vector_type.shape):]
-        if any([b != -1 and a != b for a, b in zip(bound_shape, binding.vector_type.shape)]):
+        if any([b != -1 and a != b for a, b in zip(bound_shape, binding.vector_type.shape)]):  # type: ignore
             raise ValueError(
                 f"Tensor shape {shape} does not match expected shape {binding.vector_type.shape}")
 

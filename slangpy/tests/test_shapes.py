@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, Optional
 
-import deepdiff
+from deepdiff.diff import DeepDiff
+
 import pytest
 from sgl import float4
 
@@ -139,7 +140,7 @@ def test_dotproduct_scalar(device_type: DeviceType):
     # really simple test case emulating slang function that takes
     # 2 x float3 and returns a float. Expecting a scalar call
     shapes = dot_product(device_type, float3(), float3(), None)
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [],
@@ -155,7 +156,7 @@ def test_dotproduct_scalar_floatref(device_type: DeviceType):
 
     # exactly the same but explicitly specifying a float ref for output
     shapes = dot_product(device_type, float3(), float3(), floatRef())
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [],
@@ -172,7 +173,7 @@ def test_dotproduct_broadcast_a(device_type: DeviceType):
     # emulates the same case but being passed a buffer for b
     shapes = dot_product(device_type, float3(),
                          make_float_buffer(device_type, (100, 3)), None)
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [100],
@@ -189,7 +190,7 @@ def test_dotproduct_broadcast_b(device_type: DeviceType):
     # emulates the same case but being passed a buffer for a
     shapes = dot_product(device_type, make_float_buffer(
         device_type, (100, 3)), float3(), None)
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [100],
@@ -206,7 +207,7 @@ def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
     # similar, but broadcasting b out of a 1D buffer instead
     shapes = dot_product(device_type, make_float_buffer(
         device_type, (100, 3)), make_float_buffer(device_type, (1, 3)), None)
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [100],
@@ -242,7 +243,7 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
     # pass an output, which is also broadcast so would in practice be a race condition
     shapes = dot_product(device_type, make_float_buffer(device_type,
                                                         (100, 3)), make_float_buffer(device_type, (3,)), ValueRef(float()))
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [100],
@@ -268,7 +269,7 @@ def test_dotproduct_big_tensors(device_type: DeviceType):
     # Test some high dimensional tensors with some broadcasting
     shapes = dot_product(device_type, make_float_buffer(device_type, (8, 1, 2, 3)),
                          make_float_buffer(device_type, (8, 4, 2, 3)), make_float_buffer(device_type, (8, 4, 2)))
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [8, 4, 2],
@@ -288,7 +289,7 @@ def test_dotproduct_input_transform(device_type: DeviceType):
                          make_float_buffer(device_type, (4, 8, 2, 3)),
                          None,
                          transforms={"b": (1, 0, 2)})
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [8, 4, 2],
@@ -310,7 +311,7 @@ def test_dotproduct_output_transform(device_type: DeviceType):
                          transforms={
                              "a": (0,),
                              "b": (1,)})
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [10, 5],
@@ -331,7 +332,7 @@ def test_readslice_scalar(device_type: DeviceType):
                         make_int_buffer(device_type, (2, )),
                         make_float_buffer(device_type, (256, 128, 4)),
                         None)
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [10, 5],
@@ -351,7 +352,7 @@ def test_readslice_broadcast_slice(device_type: DeviceType):
                         make_float_buffer(device_type, (50, 2)),
                         make_float_buffer(device_type, (256, 128, 4)),
                         None)
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "type_shapes": [[2], [256, 128, 4], [4]],
@@ -371,7 +372,7 @@ def test_readslice_broadcast_index(device_type: DeviceType):
                         make_float_buffer(device_type, (2, )),
                         make_float_buffer(device_type, (50, 256, 128, 4)),
                         None)
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "type_shapes": [[2], [256, 128, 4], [4]],
@@ -391,7 +392,7 @@ def test_readslice_vectorcall(device_type: DeviceType):
                         make_float_buffer(device_type, (50, 2)),
                         make_float_buffer(device_type, (50, 256, 128, 4)),
                         None)
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "type_shapes": [[2], [256, 128, 4], [4]],
@@ -434,7 +435,7 @@ def test_readslice_argument_map(device_type: DeviceType):
                         make_float_buffer(device_type, (50, 2)),
                         make_float_buffer(device_type, (50, 4, 256, 128)),
                         None, transforms={"texture": (0, 2, 3, 1)})
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "type_shapes": [[2], [256, 128, 4], [4]],
@@ -455,7 +456,7 @@ def test_readslice_function_map(device_type: DeviceType):
                         make_float_buffer(device_type, (1000, 2)),
                         make_float_buffer(device_type, (50, 256, 128, 4)),
                         None, transforms={"index": (1,), "texture": (0,)})
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "type_shapes": [[2], [256, 128, 4], [4]],
@@ -474,7 +475,7 @@ def test_copyatindex_both_buffers_defined(device_type: DeviceType):
                            make_int_buffer(device_type, (50,)),
                            make_vec4_raw_buffer(device_type, 100),
                            make_vec4_raw_buffer(device_type, 100))
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [50],
@@ -495,7 +496,7 @@ def test_copyatindex_undersized_output(device_type: DeviceType):
                            make_int_buffer(device_type, (50,)),
                            make_vec4_raw_buffer(device_type, 100),
                            make_vec4_raw_buffer(device_type, 10))
-    diff = deepdiff.DeepDiff(
+    diff = DeepDiff(
         shapes,
         {
             "call_shape": [50],

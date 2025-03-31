@@ -12,7 +12,6 @@ from slangpy.backend import DeviceType, TypeReflection
 from slangpy.bindings.marshall import BindContext, Marshall
 from slangpy.bindings.boundvariable import BoundVariable
 from slangpy.bindings.codegen import CodeGenBlock
-from slangpy.builtin.value import ValueMarshall
 from slangpy.reflection import SlangProgramLayout, SlangType
 
 TEST_MODULE = """

@@ -91,6 +91,7 @@ class ValueRefMarshall(Marshall):
         name = binding.variable_name
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
+        assert binding.vector_type is not None
         if access[0] == AccessType.read:
             cgb.type_alias(f"_t_{name}", f"ValueRef<{binding.vector_type.full_name}>")
         else:

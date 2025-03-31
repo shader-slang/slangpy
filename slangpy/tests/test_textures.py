@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
-from sgl import SubresourceRange, TextureDesc, TextureUsage, TextureViewDesc
+from sgl import TextureDesc, TextureUsage
 
 import slangpy.tests.helpers as helpers
 from slangpy import InstanceBuffer, Module
-from slangpy.backend import DeviceType, Format, TextureType, BufferUsage, Texture
+from slangpy.backend import DeviceType, Format, TextureType, Texture
 from slangpy.types import NDBuffer
 from slangpy.reflection import ScalarType
 from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
@@ -433,7 +433,7 @@ def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: in
     m = load_test_module(device_type)
     assert m is not None
 
-    texel_dtype = m[texel_name].struct
+    texel_dtype = m[texel_name].as_struct().struct
     assert isinstance(texel_dtype, ScalarType)
 
     shape = (64, 32, 16)[:dims]

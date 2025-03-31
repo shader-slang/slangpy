@@ -2,13 +2,11 @@
 from typing import Any
 
 import numpy as np
-import numpy.typing as npt
 
 from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime, CallContext,
                               CodeGenBlock, Shape)
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
-from slangpy.reflection.reflectiontypes import VectorType
 from slangpy.types.helpers import resolve_vector_generator_type
 
 

@@ -7,7 +7,7 @@ from slangpy.core.utils import is_type_castable_on_host
 from slangpy.reflection.reflectiontypes import ArrayType, ScalarType, SlangType, VectorType
 
 
-def resolve_vector_generator_type(context: BindContext, bound_type: SlangType, fixed_dims: int, scalar_type: TypeReflection.ScalarType, max_dims=-1, support_scalar: bool = True, support_vector: bool = True, support_array: bool = False):
+def resolve_vector_generator_type(context: BindContext, bound_type: SlangType, fixed_dims: int, scalar_type: TypeReflection.ScalarType, max_dims: int = -1, support_scalar: bool = True, support_vector: bool = True, support_array: bool = False):
     """
     General purpose helper for simple generators that can output to vector or scalar types.
     """

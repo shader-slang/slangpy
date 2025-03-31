@@ -73,6 +73,7 @@ class ValueMarshall(NativeValueMarshall):
         access = binding.access
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
+            assert binding.vector_type is not None
             cgb.type_alias(
                 f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
         else:

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import pytest
-from sgl import float3, float4
+from sgl import float4
 
 from slangpy.bindings.boundvariable import BoundVariableException
 import slangpy.tests.helpers as helpers

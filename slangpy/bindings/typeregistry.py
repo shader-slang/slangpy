@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 from slangpy.bindings.marshall import Marshall
+from slangpy.core.native import NativeMarshall
 
 if TYPE_CHECKING:
     from slangpy.reflection import SlangProgramLayout
 
-TTypeLookup = Callable[['SlangProgramLayout', Any], Marshall]
+TTypeLookup = Callable[['SlangProgramLayout', Any], Union[Marshall, NativeMarshall]]
 
 #: Dictionary of python types to function that allocates a corresponding type
 #: marshall.
@@ -17,7 +18,7 @@ PYTHON_TYPES: dict[type, TTypeLookup] = {}
 PYTHON_SIGNATURES: dict[type, Optional[Callable[[Any], str]]] = {}
 
 
-def get_or_create_type(layout: 'SlangProgramLayout', python_type: Any, value: Any = None) -> Marshall:
+def get_or_create_type(layout: 'SlangProgramLayout', python_type: Any, value: Any = None) -> NativeMarshall:
     """
     Use the type registry to get or create a type marshall for a given python type.
     """

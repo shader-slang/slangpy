@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Union
+from typing import Any, Union, cast
 
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
@@ -104,7 +104,7 @@ class TorchModule:
             struct = struct.struct
         spy_function = self.module.find_function_in_struct(struct, name)
         if spy_function is not None:
-            return TorchFunction(spy_function)
+            return TorchFunction(cast(Function, spy_function))
         return None
 
     def __getattr__(self, name: str):

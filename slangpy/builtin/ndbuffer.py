@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Optional, cast
+from typing import Any, Optional, Union, cast
 
 from slangpy.core.enums import PrimType
 from slangpy.core.native import AccessType, CallContext, Shape, CallMode, NativeNDBuffer, NativeNDBufferMarshall
@@ -48,7 +48,7 @@ TYPE_OVERRIDES["NDBuffer"] = NDBufferType
 TYPE_OVERRIDES["RWNDBuffer"] = NDBufferType
 
 
-def ndbuffer_reduce_type(self: 'BaseNDBufferMarshall', context: BindContext, dimensions: int):
+def ndbuffer_reduce_type(self: Union[NativeNDBufferMarshall, 'BaseNDBufferMarshall'], context: BindContext, dimensions: int):
     if dimensions == 0:
         return self.slang_type
     elif dimensions == self.dims:
@@ -61,7 +61,7 @@ def ndbuffer_reduce_type(self: 'BaseNDBufferMarshall', context: BindContext, dim
         raise ValueError("Cannot reduce dimensions of NDBuffer")
 
 
-def ndbuffer_resolve_type(self: 'BaseNDBufferMarshall', context: BindContext, bound_type: 'SlangType'):
+def ndbuffer_resolve_type(self: Union[NativeNDBufferMarshall, 'BaseNDBufferMarshall'], context: BindContext, bound_type: 'SlangType'):
 
     if isinstance(bound_type, NDBufferType) or isinstance(bound_type, StructuredBufferType):
         # If the bound type is an NDBuffer, verify properties match then just use it
@@ -80,7 +80,7 @@ def ndbuffer_resolve_type(self: 'BaseNDBufferMarshall', context: BindContext, bo
     if context.options['implicit_element_casts']:
         if self.slang_element_type == bound_type:
             return bound_type
-        if is_matching_array_type(bound_type, self.slang_element_type):
+        if is_matching_array_type(bound_type, cast(SlangType, self.slang_element_type)):
             return self.slang_element_type
 
     # if implicit tensor casts enabled, allow conversion from vector to element type
@@ -92,11 +92,11 @@ def ndbuffer_resolve_type(self: 'BaseNDBufferMarshall', context: BindContext, bo
     return self.slang_type
 
 
-def ndbuffer_resolve_dimensionality(self: 'BaseNDBufferMarshall', context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
+def ndbuffer_resolve_dimensionality(self: Union[NativeNDBufferMarshall, 'BaseNDBufferMarshall'], context: BindContext, binding: BoundVariable, vector_target_type: 'SlangType'):
     return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
 
 
-def ndbuffer_gen_calldata(self: 'BaseNDBufferMarshall', cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
+def ndbuffer_gen_calldata(self: Union[NativeNDBufferMarshall, 'BaseNDBufferMarshall'], cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
     access = binding.access
     name = binding.variable_name
     assert access[0] != AccessType.none
@@ -112,13 +112,14 @@ def ndbuffer_gen_calldata(self: 'BaseNDBufferMarshall', cgb: CodeGenBlock, conte
         if isinstance(binding.vector_type, StructuredBufferType):
             writable = binding.vector_type.writable
 
-        # If broadcasting to an element, use the type of this buffer for code gen
+        # If broadcasting to an element, use the type of this buffer for code gen\
+        et = cast(SlangType, self.slang_element_type)
         if writable:
             cgb.type_alias(
-                f"_t_{name}", f"RWNDBuffer<{self.slang_element_type.full_name},{self.dims}>")
+                f"_t_{name}", f"RWNDBuffer<{et.full_name},{self.dims}>")
         else:
             cgb.type_alias(
-                f"_t_{name}", f"NDBuffer<{self.slang_element_type.full_name},{self.dims}>")
+                f"_t_{name}", f"NDBuffer<{et.full_name},{self.dims}>")
 
 
 class BaseNDBufferMarshall(Marshall):
@@ -176,7 +177,7 @@ class NDBufferMarshall(NativeNDBufferMarshall):
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
     if isinstance(value, (NDBuffer, NativeNDBuffer)):
-        return NDBufferMarshall(layout, value.dtype,
+        return NDBufferMarshall(layout, cast(SlangType, value.dtype),
                                 len(value.shape),
                                 (value.usage & BufferUsage.unordered_access) != 0)
     elif isinstance(value, ReturnContext):

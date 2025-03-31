@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+from sgl import TextureType
 from slangpy import Module, Function, Struct
-from slangpy.backend import Device, Texture, Bitmap, ModifierID, FunctionReflection, ResourceType, TypeReflection
+from slangpy.backend import Device, Texture, Bitmap, ModifierID, FunctionReflection, TypeReflection
 from slangpy.reflection import SlangFunction, SlangType
 from slangpy.types.buffer import NDBuffer, NativeNDBuffer
 from slangpy.types.tensor import Tensor, NativeTensor
@@ -201,10 +202,10 @@ def format_tensor(t: NativeTensor, p: pretty.RepresentationPrinter, cycle: bool)
 
 def format_texture(tex: Texture, p: pretty.RepresentationPrinter, cycle: bool):
     mapping = {
-        ResourceType.texture_1d: ("Texture1D", 1),
-        ResourceType.texture_2d: ("Texture2D", 2),
-        ResourceType.texture_3d: ("Texture3D", 3),
-        ResourceType.texture_cube: ("TextureCube", 3),
+        TextureType.texture_1d: ("Texture1D", 1),
+        TextureType.texture_2d: ("Texture2D", 2),
+        TextureType.texture_3d: ("Texture3D", 3),
+        TextureType.texture_cube: ("TextureCube", 3),
     }
     name, dims = mapping[tex.desc.type]
 
@@ -216,8 +217,8 @@ def format_texture(tex: Texture, p: pretty.RepresentationPrinter, cycle: bool):
         fragments.append(f"height={tex.height}")
     if dims > 2:
         fragments.append(f"depth={tex.depth}")
-    if tex.array_size > 1:
-        fragments.append(f"array_size={tex.array_size}")
+    if tex.array_length > 1:
+        fragments.append(f"array_size={tex.array_length}")
     if tex.desc.sample_count > 1:
         fragments.append(f"sample_count={tex.desc.sample_count}")
 

@@ -3,8 +3,7 @@ import random
 import numpy as np
 import pytest
 
-from slangpy.backend import DeviceType, float3, int3, uint3
-from slangpy.core.module import Module
+from slangpy.backend import DeviceType
 from slangpy.experimental.gridarg import grid
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer

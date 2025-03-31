@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
-from slangpy.backend import Device, Buffer, BufferUsage, TypeReflection, uint4, BufferCursor, CommandBuffer
+from slangpy.backend import Device, Buffer, BufferUsage, TypeReflection, CommandBuffer
 from slangpy.core.utils import shape_to_contiguous_strides
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
 from slangpy.reflection import reflectiontypes

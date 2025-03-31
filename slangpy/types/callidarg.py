@@ -2,13 +2,9 @@
 
 from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable,
-                              CodeGenBlock, Shape)
+                              CodeGenBlock)
 from slangpy.experimental.gridarg import grid
-from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
-
-from typing import Any, Union
-
-from slangpy.types.helpers import resolve_vector_generator_type
+from slangpy.reflection import SlangProgramLayout, SlangType
 
 
 class CallIdArg:

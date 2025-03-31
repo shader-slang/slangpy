@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, Optional
 
-import numpy.typing as npt
-
 from slangpy.core.native import Shape, NativeNDBuffer, NativeNDBufferDesc
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.struct import Struct

@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from copy import copy
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast
 
 from slangpy.core.native import (CallMode, SignatureBuilder,
@@ -189,7 +188,7 @@ class FunctionNode(NativeFunctionNode):
         """
         Debug helper to build call data without dispatching the kernel.
         """
-        return self._native_build_call_data(self.module.call_data_cache, *args, **kwargs)
+        return cast('CallData', self._native_build_call_data(self.module.call_data_cache, *args, **kwargs))
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
         """
