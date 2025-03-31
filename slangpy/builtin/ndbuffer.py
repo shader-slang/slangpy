@@ -4,7 +4,7 @@ from typing import Any, Optional, cast
 from slangpy.core.enums import PrimType
 from slangpy.core.native import AccessType, CallContext, Shape, CallMode, NativeNDBuffer, NativeNDBufferMarshall
 
-from slangpy.backend import ResourceUsage, TypeReflection
+from slangpy.backend import BufferUsage, TypeReflection
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext)
@@ -178,7 +178,7 @@ def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
     if isinstance(value, (NDBuffer, NativeNDBuffer)):
         return NDBufferMarshall(layout, value.dtype,
                                 len(value.shape),
-                                (value.usage & ResourceUsage.unordered_access) != 0)
+                                (value.usage & BufferUsage.unordered_access) != 0)
     elif isinstance(value, ReturnContext):
         return NDBufferMarshall(layout, value.slang_type,
                                 value.bind_context.call_dimensionality,
@@ -315,7 +315,7 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
         return NDDifferentiableBuffer(context.device, self.slang_element_type,
                                       shape=context.call_shape,
                                       requires_grad=True,
-                                      usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+                                      usage=BufferUsage.shader_resource | BufferUsage.unordered_access)
 
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: NDDifferentiableBuffer) -> Any:
         return data
@@ -338,7 +338,7 @@ def create_gradvr_type_for_value(layout: SlangProgramLayout, value: Any):
     if isinstance(value, NDDifferentiableBuffer):
         return NDDifferentiableBufferMarshall(layout, value.dtype,
                                               len(value.shape),
-                                              (value.usage & ResourceUsage.unordered_access) != 0)
+                                              (value.usage & BufferUsage.unordered_access) != 0)
     elif isinstance(value, ReturnContext):
         return NDDifferentiableBufferMarshall(layout, value.slang_type,
                                               value.bind_context.call_dimensionality,

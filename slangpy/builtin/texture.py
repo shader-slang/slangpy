@@ -4,14 +4,14 @@ from typing import Any
 from slangpy.core.native import AccessType, CallContext, Shape, NativeTextureMarshall
 from slangpy.backend import TypeReflection
 
-from slangpy.backend import (FormatType, ResourceType, ResourceUsage, Sampler,
+from slangpy.backend import (FormatType, TextureType, TextureUsage, Sampler,
                              Texture, Format, get_format_info)
 from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES, Marshall,
                               BindContext, BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext)
-from slangpy.reflection.reflectiontypes import SamplerStateType, SlangProgramLayout, SlangType, TextureType, VectorType, ArrayType, ScalarType
 from typing import Optional
 
+import slangpy.reflection as refl
 
 SCALARTYPE_TO_TEXTURE_FORMAT = {
     TypeReflection.ScalarType.float32: (Format.r32_float, Format.rg32_float, Format.rgb32_float, Format.rgba32_float),
@@ -24,17 +24,17 @@ SCALARTYPE_TO_TEXTURE_FORMAT = {
 }
 
 
-def has_uav(usage: ResourceUsage):
-    return (usage & ResourceUsage.unordered_access.value) != 0
+def has_uav(usage: TextureUsage):
+    return (usage & TextureUsage.unordered_access.value) != 0
 
 
-def prefix(usage: ResourceUsage):
+def prefix(usage: TextureUsage):
     return "RW" if has_uav(usage) else ""
 
 
 class TextureMarshall(NativeTextureMarshall):
 
-    def __init__(self, layout: SlangProgramLayout, resource_shape: TypeReflection.ResourceShape, element_type: SlangType, format: Format, usage: ResourceUsage):
+    def __init__(self, layout: refl.SlangProgramLayout, resource_shape: TypeReflection.ResourceShape, element_type: refl.SlangType, format: Format, usage: TextureUsage):
         tex_type = ""
         tex_dims = 0
 
@@ -74,15 +74,15 @@ class TextureMarshall(NativeTextureMarshall):
         assert st is not None
 
         # tell type system slang types are Python types, not just native
-        self.slang_type: 'SlangType'
-        self.slang_element_type: 'SlangType'
+        self.slang_type: 'refl.SlangType'
+        self.slang_element_type: 'refl.SlangType'
 
         super().__init__(st, element_type, resource_shape, format, usage, tex_dims)
 
     def reduce_type(self, context: BindContext, dimensions: int):
         return super().reduce_type(context, dimensions)
 
-    def resolve_type(self, context: BindContext, bound_type: SlangType):
+    def resolve_type(self, context: BindContext, bound_type: refl.SlangType):
         # Handle being passed to a texture
         if isinstance(bound_type, TextureType):
             if self.usage & bound_type.usage == 0:
@@ -111,11 +111,11 @@ class TextureMarshall(NativeTextureMarshall):
         return has_uav(self.usage)
 
     # Generate the slang type name (eg Texture2D<float4>).
-    def build_type_name(self, usage: ResourceUsage, el_type: SlangType):
+    def build_type_name(self, usage: TextureUsage, el_type: refl.SlangType):
         return f"{prefix(usage)}{self._base_texture_type_name}<{el_type.full_name}>"
 
     # Generate the slangpy accessor type name (eg Texture2DType<float4>).
-    def build_accessor_name(self, usage: ResourceUsage, el_type: SlangType):
+    def build_accessor_name(self, usage: TextureUsage, el_type: refl.SlangType):
         return f"{prefix(usage)}{self._base_texture_type_name}Type<{self.slang_element_type.full_name}>"
 
     # Call data can only be read access to primal, and simply declares it as a variable.
@@ -150,13 +150,13 @@ class TextureMarshall(NativeTextureMarshall):
                     raise ValueError(
                         f"Cannot write to read-only texture {name}")
                 cgb.type_alias(
-                    f"_t_{name}", self.build_accessor_name(ResourceUsage.unordered_access, self.slang_element_type))
+                    f"_t_{name}", self.build_accessor_name(TextureUsage.unordered_access, self.slang_element_type))
         else:
             raise ValueError(
                 f"Texture {name} has invalid dimensionality {binding.call_dimensionality}")
 
 
-def get_or_create_python_texture_type(layout: SlangProgramLayout, format: Format, type: ResourceType, usage: ResourceUsage, array_size: int, sample_count: int):
+def get_or_create_python_texture_type(layout: refl.SlangProgramLayout, format: Format, type: TextureType, usage: TextureUsage, array_size: int, sample_count: int):
 
     # Translate format into slang scalar type + channel count, which allows
     # us to build the element type of the texture.
@@ -174,28 +174,28 @@ def get_or_create_python_texture_type(layout: SlangProgramLayout, format: Format
     # Translate resource type + array size into a slang resource shape.
     resource_shape = TypeReflection.ResourceShape.none
     if array_size == 1:
-        if type == ResourceType.texture_1d:
+        if type == TextureType.texture_1d:
             resource_shape = TypeReflection.ResourceShape.texture_1d
-        elif type == ResourceType.texture_2d:
+        elif type == TextureType.texture_2d:
             if sample_count == 1:
                 resource_shape = TypeReflection.ResourceShape.texture_2d
             else:
                 resource_shape = TypeReflection.ResourceShape.texture_2d_multisample
-        elif type == ResourceType.texture_3d:
+        elif type == TextureType.texture_3d:
             resource_shape = TypeReflection.ResourceShape.texture_3d
-        elif type == ResourceType.texture_cube:
+        elif type == TextureType.texture_cube:
             resource_shape = TypeReflection.ResourceShape.texture_cube
         else:
             raise ValueError(f"Unsupported texture type {type}")
     else:
-        if type == ResourceType.texture_1d:
+        if type == TextureType.texture_1d:
             resource_shape = TypeReflection.ResourceShape.texture_1d_array
-        elif type == ResourceType.texture_2d:
+        elif type == TextureType.texture_2d:
             if sample_count == 1:
                 resource_shape = TypeReflection.ResourceShape.texture_2d_array
             else:
                 resource_shape = TypeReflection.ResourceShape.texture_2d_multisample_array
-        elif type == ResourceType.texture_cube:
+        elif type == TextureType.texture_cube:
             resource_shape = TypeReflection.ResourceShape.texture_cube_array
         else:
             raise ValueError(f"Unsupported texture type {type}")
@@ -203,8 +203,8 @@ def get_or_create_python_texture_type(layout: SlangProgramLayout, format: Format
     return TextureMarshall(layout, resource_shape, element_type, format, usage)
 
 
-def slang_type_to_texture_format(st: SlangType) -> Optional[Format]:
-    if isinstance(st, VectorType) or isinstance(st, ArrayType):
+def slang_type_to_texture_format(st: refl.SlangType) -> Optional[Format]:
+    if isinstance(st, refl.VectorType) or isinstance(st, refl.ArrayType):
         assert st.element_type
 
         num_channels = st.shape[0]
@@ -213,7 +213,7 @@ def slang_type_to_texture_format(st: SlangType) -> Optional[Format]:
         num_channels = 1
         channel_type = st
 
-    if not isinstance(channel_type, ScalarType):
+    if not isinstance(channel_type, refl.ScalarType):
         return None
     if num_channels == 0 or num_channels > 4:
         return None
@@ -225,14 +225,14 @@ def slang_type_to_texture_format(st: SlangType) -> Optional[Format]:
     return SCALARTYPE_TO_TEXTURE_FORMAT[scalar][num_channels - 1]
 
 
-def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):
+def _get_or_create_python_type(layout: refl.SlangProgramLayout, value: Any):
     if isinstance(value, Texture):
         desc = value.desc
         return get_or_create_python_texture_type(layout,
                                                  desc.format,
                                                  desc.type,
                                                  desc.usage,
-                                                 value.array_size,
+                                                 value.array_length,
                                                  desc.sample_count)
     elif isinstance(value, ReturnContext):
         format = slang_type_to_texture_format(value.slang_type)
@@ -242,16 +242,16 @@ def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):
 
         dim = value.bind_context.call_dimensionality
         if dim == 1:
-            tex_type = ResourceType.texture_1d
+            tex_type = TextureType.texture_1d
         elif dim == 2:
-            tex_type = ResourceType.texture_2d
+            tex_type = TextureType.texture_2d
         elif dim == 3:
-            tex_type = ResourceType.texture_3d
+            tex_type = TextureType.texture_3d
         else:
             raise ValueError(
                 "Can't create output texture: Call dimensionality has to be 1D, 2D or 3D")
 
-        usage = ResourceUsage.unordered_access | ResourceUsage.shader_resource
+        usage = TextureUsage.unordered_access | TextureUsage.shader_resource
 
         return get_or_create_python_texture_type(layout, format, tex_type, usage, 1, 1)
     else:
@@ -259,12 +259,12 @@ def _get_or_create_python_type(layout: SlangProgramLayout, value: Any):
 
 
 PYTHON_TYPES[Texture] = _get_or_create_python_type
-PYTHON_SIGNATURES[Texture] = lambda x: f"[{x.desc.type},{x.desc.usage},{x.desc.format},{x.array_size > 1}]"
+PYTHON_SIGNATURES[Texture] = lambda x: f"[texture,{x.desc.type},{x.desc.usage},{x.desc.format}]"
 
 
 class SamplerMarshall(Marshall):
 
-    def __init__(self, layout: SlangProgramLayout):
+    def __init__(self, layout: refl.SlangProgramLayout):
         super().__init__(layout)
         st = layout.find_type_by_name("SamplerState")
         if st is None:
@@ -276,7 +276,7 @@ class SamplerMarshall(Marshall):
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: 'BoundVariable'):
         name = binding.variable_name
-        assert isinstance(binding.vector_type, SamplerStateType)
+        assert isinstance(binding.vector_type, refl.SamplerStateType)
         cgb.type_alias(f"_t_{name}", f"SamplerStateType")
 
     # Call data just returns the primal
@@ -292,7 +292,7 @@ class SamplerMarshall(Marshall):
         return data
 
 
-def _get_or_create_sampler_python_type(layout: SlangProgramLayout, value: Sampler):
+def _get_or_create_sampler_python_type(layout: refl.SlangProgramLayout, value: Sampler):
     assert isinstance(value, Sampler)
     return SamplerMarshall(layout)
 

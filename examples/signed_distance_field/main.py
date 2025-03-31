@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import sgl
 import slangpy as spy
@@ -122,15 +122,15 @@ def process_image(device, module, image, width, height, name_suffix):
     input_tex = device.create_texture(width=width,
                                       height=height,
                                       format=sgl.Format.rgba32_float,
-                                      usage=sgl.ResourceUsage.shader_resource,
+                                      usage=sgl.TextureUsage.shader_resource,
                                       data=image)
     sgl.tev.show(input_tex, name=f'input_{name_suffix}')
 
     dist_tex = device.create_texture(width=width,
                                      height=height,
                                      format=sgl.Format.rg32_float,
-                                     usage=sgl.ResourceUsage.shader_resource
-                                     | sgl.ResourceUsage.unordered_access)
+                                     usage=sgl.TextureUsage.shader_resource
+                                     | sgl.TextureUsage.unordered_access)
 
     # Initialize
     module.init_eikonal(spy.grid((width, height)), input_tex, dist_tex)
@@ -147,7 +147,7 @@ def process_image(device, module, image, width, height, name_suffix):
     output_tex = device.create_texture(width=width,
                                        height=height,
                                        format=sgl.Format.rgba32_float,
-                                       usage=sgl.ResourceUsage.shader_resource,
+                                       usage=sgl.TextureUsage.shader_resource,
                                        data=result)
     sgl.tev.show(output_tex, name=f'isolines_{name_suffix}')
 

@@ -62,7 +62,7 @@ tex = device.create_texture(
     width=imageWidth,
     height=imageHeight,
     format=sgl.Format.rgba32_float,
-    usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access
+    usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access
 )
 
 

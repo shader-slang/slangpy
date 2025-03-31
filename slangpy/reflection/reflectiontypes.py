@@ -9,7 +9,7 @@ from slangpy.core.enums import IOType
 from slangpy.core.native import NativeSlangType, Shape
 
 from slangpy.backend import (FunctionReflection, ModifierID, ProgramLayout,
-                             ResourceUsage, TypeLayoutReflection)
+                             BufferUsage, TypeLayoutReflection)
 from slangpy.backend import TypeReflection
 from slangpy.backend import TypeReflection as TR
 from slangpy.backend import VariableReflection
@@ -550,14 +550,14 @@ class ResourceType(SlangType):
             raise ValueError("Resource is neither read_write or read")
 
     @property
-    def usage(self) -> ResourceUsage:
+    def usage(self) -> BufferUsage:
         """
         Supported shader resource usage.
         """
         if self.writable:
-            return ResourceUsage.unordered_access
+            return BufferUsage.unordered_access
         else:
-            return ResourceUsage.shader_resource
+            return BufferUsage.shader_resource
 
 
 class TextureType(ResourceType):

@@ -128,7 +128,7 @@ class App:
             width=self.swapchain.desc.width,
             height=self.swapchain.desc.height,
             mip_count=1,
-            usage=sgl.ResourceUsage.shader_resource
-            | sgl.ResourceUsage.unordered_access,
+            usage=sgl.TextureUsage.shader_resource
+            | sgl.TextureUsage.unordered_access,
             debug_name="output_texture",
         )

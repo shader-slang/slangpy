@@ -17,7 +17,7 @@ module = spy.Module.load_from_file(device, "example.slang")
 
 # Create a texture to store the results
 tex = device.create_texture(width=128, height=128, format=sgl.Format.rgba32_float,
-                            usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access)
+                            usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access)
 
 # Tell slangpy that the src and dest types map to a float4
 module.copy_vector(

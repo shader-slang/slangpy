@@ -8,7 +8,7 @@ from sgl import BufferCursor
 from slangpy.core.native import AccessType, CallContext
 
 import slangpy.reflection as kfr
-from slangpy.backend import Buffer, ResourceUsage
+from slangpy.backend import Buffer, BufferUsage
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext, get_or_create_type)
@@ -107,7 +107,7 @@ class ValueRefMarshall(Marshall):
         else:
             if isinstance(binding.vector_type, kfr.StructType):
                 buffer = context.device.create_buffer(
-                    element_count=1, struct_size=binding.vector_type.buffer_layout.stride, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+                    element_count=1, struct_size=binding.vector_type.buffer_layout.stride, usage=BufferUsage.shader_resource | BufferUsage.unordered_access)
                 cursor = BufferCursor(binding.vector_type.buffer_layout.reflection, buffer, False)
                 cursor[0].write(data.value)
                 cursor.apply()
@@ -121,7 +121,7 @@ class ValueRefMarshall(Marshall):
                     npdata = self.value_type.to_numpy(data.value)
                 npdata = npdata.view(dtype=np.uint8)
                 return {
-                    'value': context.device.create_buffer(element_count=1, struct_size=npdata.size, data=npdata, usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+                    'value': context.device.create_buffer(element_count=1, struct_size=npdata.size, data=npdata, usage=BufferUsage.shader_resource | BufferUsage.unordered_access)
                 }
 
     # Value ref just passes its value for raw dispatch

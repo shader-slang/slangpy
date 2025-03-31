@@ -8,7 +8,7 @@ from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.struct import Struct
 
 from slangpy.backend import (DataType, Device, MemoryType,
-                             ResourceUsage, TypeLayoutReflection,
+                             BufferUsage, TypeLayoutReflection,
                              TypeReflection, CommandBuffer, uint4)
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
@@ -107,8 +107,8 @@ class NDBuffer(NativeNDBuffer):
         dtype: Any,
         element_count: Optional[int] = None,
         shape: Optional[TShapeOrTuple] = None,
-        usage: ResourceUsage = ResourceUsage.shader_resource
-        | ResourceUsage.unordered_access,
+        usage: BufferUsage = BufferUsage.shader_resource
+        | BufferUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None
     ):
@@ -162,7 +162,7 @@ class NDBuffer(NativeNDBuffer):
         """
         Returns True if this buffer is writable from the GPU, i.e. if it has unordered access resource usage.
         """
-        return (self.usage & ResourceUsage.unordered_access) != 0
+        return (self.usage & BufferUsage.unordered_access) != 0
 
     def to_torch(self, override_type: Optional[DataType] = None):
         """
@@ -191,8 +191,8 @@ class NDBuffer(NativeNDBuffer):
               dtype: Any,
               element_count: Optional[int] = None,
               shape: Optional[TShapeOrTuple] = None,
-              usage: ResourceUsage = ResourceUsage.shader_resource
-              | ResourceUsage.unordered_access,
+              usage: BufferUsage = BufferUsage.shader_resource
+              | BufferUsage.unordered_access,
               memory_type: MemoryType = MemoryType.device_local,
               program_layout: Optional[SlangProgramLayout] = None
               ) -> 'NDBuffer':

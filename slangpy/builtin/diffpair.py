@@ -7,7 +7,7 @@ from slangpy.core.enums import PrimType
 from slangpy.core.native import AccessType, CallContext
 
 import slangpy.reflection as kfr
-from slangpy.backend import Buffer, ResourceUsage
+from slangpy.backend import Buffer, BufferUsage
 from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, get_or_create_type)
@@ -143,7 +143,7 @@ class DiffPairMarshall(Marshall):
                         element_count=1,
                         struct_size=npdata.size,
                         data=npdata,
-                        usage=ResourceUsage.shader_resource | ResourceUsage.unordered_access)}
+                        usage=BufferUsage.shader_resource | BufferUsage.unordered_access)}
             elif prim_access == AccessType.read:
                 res[prim_name] = {'value': prim_data}
 

@@ -3,7 +3,7 @@
 from slangpy.core.native import AccessType, NativeBufferMarshall
 
 from slangpy.reflection import SlangProgramLayout, SlangType, StructuredBufferType, ByteAddressBufferType
-from slangpy.backend import Buffer, ResourceUsage
+from slangpy.backend import Buffer, BufferUsage
 from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES,
                               BindContext, BoundVariable,
                               CodeGenBlock)
@@ -11,7 +11,7 @@ from slangpy.bindings import (PYTHON_SIGNATURES, PYTHON_TYPES,
 
 class BufferMarshall(NativeBufferMarshall):
 
-    def __init__(self, layout: SlangProgramLayout, usage: ResourceUsage):
+    def __init__(self, layout: SlangProgramLayout, usage: BufferUsage):
         st = layout.find_type_by_name("StructuredBuffer<Unknown>")
         if st is None:
             raise ValueError(
@@ -62,7 +62,7 @@ class BufferMarshall(NativeBufferMarshall):
 
     @property
     def is_writable(self) -> bool:
-        return (self.usage & ResourceUsage.unordered_access) != 0
+        return (self.usage & BufferUsage.unordered_access) != 0
 
     def reduce_type(self, context: BindContext, dimensions: int) -> 'SlangType':
         if dimensions == 0:
@@ -76,7 +76,7 @@ def _get_or_create_python_type(layout: SlangProgramLayout, value: Buffer):
         return BufferMarshall(layout, usage)
     else:
         # Handle user trying to pass types like torch tensors in to a structured buffer arg
-        return BufferMarshall(layout, ResourceUsage.shader_resource | ResourceUsage.unordered_access)
+        return BufferMarshall(layout, BufferUsage.shader_resource | BufferUsage.unordered_access)
 
 
 PYTHON_TYPES[Buffer] = _get_or_create_python_type

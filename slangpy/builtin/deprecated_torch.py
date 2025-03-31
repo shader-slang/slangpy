@@ -10,7 +10,7 @@ except ImportError:
 
 import numpy as np
 
-from slangpy.backend import TypeReflection, SlangModule, Buffer, ResourceUsage, DataType
+from slangpy.backend import TypeReflection, SlangModule, Buffer, BufferUsage, DataType
 from slangpy.core.native import NativeBoundVariableRuntime
 from slangpy.bindings import ReturnContext, BoundVariableRuntime, CallContext, Shape, AccessType
 from slangpy.bindings import PYTHON_TYPES, PYTHON_SIGNATURES
@@ -288,9 +288,9 @@ if torch is not None:
             view_size = view_length * t.element_size()
             offset = t.storage_offset() * t.element_size()
 
-            usage = ResourceUsage.shared | ResourceUsage.shader_resource
+            usage = BufferUsage.shared | BufferUsage.shader_resource
             if writable:
-                usage |= ResourceUsage.unordered_access
+                usage |= BufferUsage.unordered_access
             buf = self.device.create_buffer(view_size, usage=usage)
 
             if readable:

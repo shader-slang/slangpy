@@ -137,13 +137,13 @@ def run_for_profiling():
     res_small = spy.NDBuffer(device, spy_module.float, size)
 
     a_texture = device.create_texture(format=sgl.Format.r32_float,
-                                      width=size, usage=sgl.ResourceUsage.shader_resource)
+                                      width=size, usage=sgl.BufferUsage.shader_resource)
     a_texture.copy_from_numpy(a_data)
     b_texture = device.create_texture(format=sgl.Format.r32_float,
-                                      width=size, usage=sgl.ResourceUsage.shader_resource)
+                                      width=size, usage=sgl.BufferUsage.shader_resource)
     b_texture.copy_from_numpy(b_data)
     res_texture = device.create_texture(format=sgl.Format.r32_float, width=size,
-                                        usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access)
+                                        usage=sgl.BufferUsage.shader_resource | sgl.BufferUsage.unordered_access)
 
     a_tensor = spy.Tensor.numpy(device, a_data)
     b_tensor = spy.Tensor.numpy(device, b_data)

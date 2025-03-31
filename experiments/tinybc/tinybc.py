@@ -42,7 +42,7 @@ except Exception as e:
 decoded_tex = device.create_texture(
     width=w, height=h, mip_count=1,
     format=sgl.Format.rgba32_float,
-    usage=sgl.ResourceUsage.unordered_access)
+    usage=sgl.TextureUsage.unordered_access)
 
 # Load module and setup encoder kernel
 encoder_fn = spy.Module.load_from_file(device, "tinybc.slang").encoder
