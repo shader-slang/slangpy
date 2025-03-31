@@ -78,8 +78,8 @@ iterations = 10000
 for iter in range(iterations):
     # Back-propagage the unit per-pixel loss with auto-diff.
     module.perPixelLoss.bwds(per_pixel_loss,
- spy.grid(shape=(input_image.width,input_image.height)),
- blobs, input_image)
+                             spy.grid(shape=(input_image.width,input_image.height)),
+                             blobs, input_image)
 
     # Update the parameters using the Adam algorithm
     module.adamUpdate(blobs, blobs.grad_out, adam_first_moment, adam_second_moment)
@@ -88,6 +88,6 @@ for iter in range(iterations):
     # so that you can visualize the iteration towards ideal
     if iter % 50 == 0:
         module.renderBlobsToTexture(current_render,
- spy.grid(shape=(input_image.width,input_image.height)),
- blobs)
+                                    spy.grid(shape=(input_image.width,input_image.height)),
+                                    blobs)
         sgl.tev.show_async(current_render, name=f"optimization_{(iter // 50):03d}")
