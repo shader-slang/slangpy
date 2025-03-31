@@ -6,7 +6,7 @@ from slangpy.core.native import (CallMode, SignatureBuilder,
                                  NativeCallRuntimeOptions, NativeFunctionNode, FunctionNodeType)
 
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy.backend import (CommandBuffer, TypeConformance, uint3)
+from slangpy.backend import (CommandEncoder, TypeConformance, uint3)
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
@@ -223,7 +223,7 @@ class FunctionNode(NativeFunctionNode):
                     "\n\nFor help and support: https://khr.io/slangdiscord"
                 raise ValueError(msg) from e
 
-    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+    def append_to(self, command_buffer: CommandEncoder, *args: Any, **kwargs: Any):
         """
         Append the function to a command buffer without dispatching it. As with calling,
         this will generate and compile a new kernel if need be. However the dispatch
@@ -231,7 +231,7 @@ class FunctionNode(NativeFunctionNode):
         """
         self._native_append_to(self.module.call_data_cache, command_buffer, *args, **kwargs)
 
-    def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: Optional[CommandBuffer] = None, **kwargs: Any) -> None:
+    def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: Optional[CommandEncoder] = None, **kwargs: Any) -> None:
         """
         Perform a raw dispatch, bypassing the majority of SlangPy's typing/code gen logic. This is
         useful if you just want to explicitly call an existing kernel, or treat a slang function

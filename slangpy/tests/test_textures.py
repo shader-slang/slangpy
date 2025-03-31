@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
+from sgl import TextureDesc, TextureUsage
 
 import slangpy.tests.helpers as helpers
 from slangpy import InstanceBuffer, Module
@@ -44,23 +45,37 @@ def make_rand_data(type: TextureType, array_length: int, mip_count: int):
 
 # Generate dictionary of arguments for creating a texture.
 def make_args(type: TextureType, array_length: int, mips: int):
-    args = {
-        "format": Format.rgba32_float,
-        "usage": BufferUsage.shader_resource | BufferUsage.unordered_access,
-        "mip_count": mips,
-        "array_length": array_length,
-    }
-    if type == TextureType.texture_1d:
-        args.update({"type": type, "width": 32})
-    elif type == TextureType.texture_2d:
-        args.update({"type": type, "width": 32, "height": 32})
-    elif type == TextureType.texture_3d:
-        args.update({"type": type, "width": 32, "height": 32, "depth": 32})
-    elif type == TextureType.texture_cube:
-        args.update({"type": type, "width": 32, "height": 32})
+
+    desc = TextureDesc()
+    desc.format = Format.rgba32_float
+    desc.usage = TextureUsage.shader_resource | TextureUsage.unordered_access
+    desc.mip_count = mips
+    desc.array_length = array_length
+    desc.width = 32
+
+    if array_length > 1:
+        if type == TextureType.texture_1d:
+            type = TextureType.texture_1d_array
+        elif type == TextureType.texture_2d:
+            type = TextureType.texture_2d_array
+        elif type == TextureType.texture_cube:
+            type = TextureType.texture_cube_array
+
+    desc.type = type
+
+    if type in (TextureType.texture_1d, TextureType.texture_1d_array):
+        desc.width = 32
+    elif type in (TextureType.texture_2d, TextureType.texture_2d_array, TextureType.texture_2d_ms, TextureType.texture_2d_ms_array, TextureType.texture_cube, TextureType.texture_cube_array):
+        desc.width = 32
+        desc.height = 32
+    elif type in (TextureType.texture_3d, ):
+        desc.width = 32
+        desc.height = 32
+        desc.depth = 32
     else:
         raise ValueError(f"Unsupported resource type: {type}")
-    return args
+
+    return desc
 
 
 @pytest.mark.parametrize(
@@ -163,8 +178,8 @@ def test_read_write_texture(
     grid_coords.copy_from_numpy(grid_coords_data)
 
     # Create texture and build random data
-    src_tex = m.device.create_texture(**make_args(type, slices, mips))
-    dest_tex = m.device.create_texture(**make_args(type, slices, mips))
+    src_tex = m.device.create_texture(make_args(type, slices, mips))
+    dest_tex = m.device.create_texture(make_args(type, slices, mips))
     rand_data = make_rand_data(src_tex.type, src_tex.array_length, src_tex.mip_count)
 
     # Write random data to texture
@@ -219,8 +234,8 @@ def test_read_write_texture_with_resource_views(
     grid_coords.copy_from_numpy(grid_coords_data)
 
     # Create texture and build random data
-    src_tex = m.device.create_texture(**make_args(type, slices, mips))
-    dest_tex = m.device.create_texture(**make_args(type, slices, mips))
+    src_tex = m.device.create_texture(make_args(type, slices, mips))
+    dest_tex = m.device.create_texture(make_args(type, slices, mips))
     rand_data = make_rand_data(src_tex.type, src_tex.array_length, src_tex.mip_count)
 
     # Write random data to texture
@@ -273,8 +288,8 @@ def test_read_write_texture_with_invalid_resource_views(
     grid_coords.copy_from_numpy(grid_coords_data)
 
     # Create texture and build random data
-    src_tex = m.device.create_texture(**make_args(type, slices, mips))
-    dest_tex = m.device.create_texture(**make_args(type, slices, mips))
+    src_tex = m.device.create_texture(make_args(type, slices, mips))
+    dest_tex = m.device.create_texture(make_args(type, slices, mips))
 
     array_nm = ""
     if slices > 1:
@@ -314,8 +329,8 @@ def test_copy_value(
         pytest.skip("Pending slang fix")
 
     # Create texture and build random data
-    src_tex = m.device.create_texture(**make_args(type, slices, mips))
-    dest_tex = m.device.create_texture(**make_args(type, slices, mips))
+    src_tex = m.device.create_texture(make_args(type, slices, mips))
+    dest_tex = m.device.create_texture(make_args(type, slices, mips))
     rand_data = make_rand_data(src_tex.type, src_tex.array_length, src_tex.mip_count)
 
     # Write random data to texture
@@ -359,8 +374,8 @@ def test_copy_mip_values_with_resource_views(
         pytest.skip("Pending slang fix")
 
     # Create texture and build random data
-    src_tex = m.device.create_texture(**make_args(type, slices, mips))
-    dest_tex = m.device.create_texture(**make_args(type, slices, mips))
+    src_tex = m.device.create_texture(make_args(type, slices, mips))
+    dest_tex = m.device.create_texture(make_args(type, slices, mips))
     rand_data = make_rand_data(src_tex.type, src_tex.array_length, src_tex.mip_count)
 
     # Write random data to texture
@@ -406,8 +421,8 @@ def test_copy_mip_values_with_all_uav_resource_views(
         pytest.skip("Pending slang fix")
 
     # Create texture and build random data
-    src_tex = m.device.create_texture(**make_args(type, slices, mips))
-    dest_tex = m.device.create_texture(**make_args(type, slices, mips))
+    src_tex = m.device.create_texture(make_args(type, slices, mips))
+    dest_tex = m.device.create_texture(make_args(type, slices, mips))
     rand_data = make_rand_data(src_tex.type, src_tex.array_length, src_tex.mip_count)
 
     # Write random data to texture
@@ -448,8 +463,8 @@ def test_invalid_resource_view(
         pytest.skip("Pending slang fix")
 
     # Create texture and build random data
-    src_tex = m.device.create_texture(**make_args(type, slices, mips))
-    dest_tex = m.device.create_texture(**make_args(type, slices, mips))
+    src_tex = m.device.create_texture(make_args(type, slices, mips))
+    dest_tex = m.device.create_texture(make_args(type, slices, mips))
 
     with pytest.raises(ValueError):
         for mip_idx in range(mips):
@@ -462,8 +477,8 @@ def test_texture_2d_shapes(device_type: DeviceType, shape: tuple[int, ...]):
     module = load_test_module(device_type)
 
     tex_data = np.random.random(shape+(4,)).astype(np.float32)
-    tex = module.device.create_texture(width=shape[1], height=shape[0], usage=BufferUsage.shader_resource |
-                                       BufferUsage.unordered_access, format=Format.rgba32_float, data=tex_data)
+    tex = module.device.create_texture(type=TextureType.texture_2d, width=shape[1], height=shape[0], usage=TextureUsage.shader_resource |
+                                       TextureUsage.unordered_access, format=Format.rgba32_float, data=tex_data)
 
     copied = module.return_value(tex, _result='numpy')
 
@@ -476,8 +491,8 @@ def test_texture_3d_shapes(device_type: DeviceType, shape: tuple[int, ...]):
     module = load_test_module(device_type)
 
     tex_data = np.random.random(shape+(4,)).astype(np.float32)
-    tex = module.device.create_texture(width=shape[2], height=shape[1], depth=shape[0], usage=BufferUsage.shader_resource |
-                                       BufferUsage.unordered_access, format=Format.rgba32_float, data=tex_data)
+    tex = module.device.create_texture(type=TextureType.texture_3d, width=shape[2], height=shape[1], depth=shape[0], usage=TextureUsage.shader_resource |
+                                       TextureUsage.unordered_access, format=Format.rgba32_float, data=tex_data)
 
     copied = module.return_value(tex, _result='numpy')
 

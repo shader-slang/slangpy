@@ -55,7 +55,7 @@ def test_conformance_fail(device_type: DeviceType):
         device,
         "getval", CONFORMING_MODULE)
 
-    with pytest.raises(ValueError, match="Failed to create shader program"):
+    with pytest.raises(RuntimeError):
         res = function()
 
 
