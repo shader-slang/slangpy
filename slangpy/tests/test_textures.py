@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
-from sgl import TextureDesc, TextureUsage
+from sgl import SubresourceRange, TextureDesc, TextureUsage, TextureViewDesc
 
 import slangpy.tests.helpers as helpers
 from slangpy import InstanceBuffer, Module
@@ -32,7 +32,7 @@ def make_rand_data(type: TextureType, array_length: int, mip_count: int):
         for i in range(0, mip_count):
             if type == TextureType.texture_1d:
                 mips.append(np.random.rand(sz, 4).astype(np.float32))
-            elif type == TextureType.texture_2d:
+            elif type in (TextureType.texture_2d, TextureType.texture_2d_array):
                 mips.append(np.random.rand(sz, sz, 4).astype(np.float32))
             elif type == TextureType.texture_3d:
                 mips.append(np.random.rand(sz, sz, sz, 4).astype(np.float32))
@@ -249,59 +249,13 @@ def test_read_write_texture_with_resource_views(
 
     for mip_idx in range(src_tex.mip_count):
         func = getattr(m, f"copy_pixel_{type.name}{array_nm}")
-        func(grid_coords, src_tex.get_srv(mip_idx), dest_tex.get_uav(mip_idx))
+        func(grid_coords, src_tex.create_view(mip_idx), dest_tex.create_view(mip_idx))
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
             data = dest_tex.to_numpy(layer=slice_idx, mip_level=mip_idx)
             assert np.allclose(data, mip_data)
-
-
-@pytest.mark.parametrize(
-    "type",
-    [
-        TextureType.texture_2d
-    ],
-)
-@pytest.mark.parametrize("slices", [1])
-@pytest.mark.parametrize("mips", [0])
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_read_write_texture_with_invalid_resource_views(
-    device_type: DeviceType, slices: int, mips: int, type: TextureType
-):
-    m = load_test_module(device_type)
-    assert m is not None
-
-    # No 3d texture arrays.
-    if type == TextureType.texture_3d and slices > 1:
-        return
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
-
-    # populate a buffer of grid coordinates
-    grid_coords_data = make_grid_data(type, slices)
-    dims = len(grid_coords_data.shape) - 1
-    grid_coords = InstanceBuffer(struct=getattr(
-        m, f"int{dims}").as_struct(), shape=grid_coords_data.shape[0:-1])
-    grid_coords.copy_from_numpy(grid_coords_data)
-
-    # Create texture and build random data
-    src_tex = m.device.create_texture(make_args(type, slices, mips))
-    dest_tex = m.device.create_texture(make_args(type, slices, mips))
-
-    array_nm = ""
-    if slices > 1:
-        array_nm = f"_array"
-
-    with pytest.raises(ValueError):
-        func = getattr(m, f"copy_pixel_{type.name}{array_nm}")
-        func(grid_coords, src_tex.get_srv(0), dest_tex.get_srv(0))
-
-    with pytest.raises(ValueError):
-        func = getattr(m, f"copy_pixel_{type.name}{array_nm}")
-        func(grid_coords, src_tex.get_uav(0), dest_tex.get_uav(0))
 
 
 @pytest.mark.parametrize(
@@ -384,7 +338,7 @@ def test_copy_mip_values_with_resource_views(
             src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip_level=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
-        m.copy_value(src_tex.get_srv(mip_idx), dest_tex.get_uav(mip_idx))
+        m.copy_value(src_tex.create_view(mip_idx), dest_tex.create_view(mip_idx))
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
@@ -431,44 +385,13 @@ def test_copy_mip_values_with_all_uav_resource_views(
             src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip_level=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
-        m.copy_value(src_tex.get_uav(mip_idx), dest_tex.get_uav(mip_idx))
+        m.copy_value(src_tex.create_view(mip_idx), dest_tex.create_view(mip_idx))
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
             data = dest_tex.to_numpy(layer=slice_idx, mip_level=mip_idx)
             assert np.allclose(data, rand_data[slice_idx][mip_idx])
-
-
-@pytest.mark.parametrize(
-    "type",
-    [
-        TextureType.texture_2d,
-    ],
-)
-@pytest.mark.parametrize("slices", [1])
-@pytest.mark.parametrize("mips", [1])
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_invalid_resource_view(
-    device_type: DeviceType, slices: int, mips: int, type: TextureType
-):
-    m = load_test_module(device_type)
-    assert m is not None
-
-    # No 3d texture arrays.
-    if type == TextureType.texture_3d and slices > 1:
-        return
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
-
-    # Create texture and build random data
-    src_tex = m.device.create_texture(make_args(type, slices, mips))
-    dest_tex = m.device.create_texture(make_args(type, slices, mips))
-
-    with pytest.raises(ValueError):
-        for mip_idx in range(mips):
-            m.copy_value(src_tex.get_srv(mip_idx), dest_tex.get_srv(mip_idx))
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

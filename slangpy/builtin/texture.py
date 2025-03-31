@@ -84,7 +84,7 @@ class TextureMarshall(NativeTextureMarshall):
 
     def resolve_type(self, context: BindContext, bound_type: refl.SlangType):
         # Handle being passed to a texture
-        if isinstance(bound_type, TextureType):
+        if isinstance(bound_type, refl.TextureType):
             if self.usage & bound_type.usage == 0:
                 raise ValueError(
                     f"Cannot bind texture view {self.slang_type.name} with usage {bound_type.usage}")
@@ -130,7 +130,7 @@ class TextureMarshall(NativeTextureMarshall):
         if binding.call_dimensionality == 0:
             # If broadcast directly, function is just taking the texture argument directly, so use the slang type
             assert access == AccessType.read
-            assert isinstance(binding.vector_type, TextureType)
+            assert isinstance(binding.vector_type, refl.TextureType)
             if self.usage & binding.vector_type.usage == 0:
                 raise ValueError(
                     f"Cannot bind texture view {name} with usage {binding.vector_type.usage}")
@@ -156,6 +156,18 @@ class TextureMarshall(NativeTextureMarshall):
                 f"Texture {name} has invalid dimensionality {binding.call_dimensionality}")
 
 
+TYPE_TO_RESOURCE = {
+    TextureType.texture_1d: TypeReflection.ResourceShape.texture_1d,
+    TextureType.texture_2d: TypeReflection.ResourceShape.texture_2d,
+    TextureType.texture_2d_ms: TypeReflection.ResourceShape.texture_2d_multisample,
+    TextureType.texture_3d: TypeReflection.ResourceShape.texture_3d,
+    TextureType.texture_cube: TypeReflection.ResourceShape.texture_cube,
+    TextureType.texture_1d_array: TypeReflection.ResourceShape.texture_1d_array,
+    TextureType.texture_2d_array: TypeReflection.ResourceShape.texture_2d_array,
+    TextureType.texture_2d_ms_array: TypeReflection.ResourceShape.texture_2d_multisample_array,
+}
+
+
 def get_or_create_python_texture_type(layout: refl.SlangProgramLayout, format: Format, type: TextureType, usage: TextureUsage, array_size: int, sample_count: int):
 
     # Translate format into slang scalar type + channel count, which allows
@@ -172,33 +184,7 @@ def get_or_create_python_texture_type(layout: refl.SlangProgramLayout, format: F
     element_type = layout.vector_type(scalar_type, fmt_info.channel_count)
 
     # Translate resource type + array size into a slang resource shape.
-    resource_shape = TypeReflection.ResourceShape.none
-    if array_size == 1:
-        if type == TextureType.texture_1d:
-            resource_shape = TypeReflection.ResourceShape.texture_1d
-        elif type == TextureType.texture_2d:
-            if sample_count == 1:
-                resource_shape = TypeReflection.ResourceShape.texture_2d
-            else:
-                resource_shape = TypeReflection.ResourceShape.texture_2d_multisample
-        elif type == TextureType.texture_3d:
-            resource_shape = TypeReflection.ResourceShape.texture_3d
-        elif type == TextureType.texture_cube:
-            resource_shape = TypeReflection.ResourceShape.texture_cube
-        else:
-            raise ValueError(f"Unsupported texture type {type}")
-    else:
-        if type == TextureType.texture_1d:
-            resource_shape = TypeReflection.ResourceShape.texture_1d_array
-        elif type == TextureType.texture_2d:
-            if sample_count == 1:
-                resource_shape = TypeReflection.ResourceShape.texture_2d_array
-            else:
-                resource_shape = TypeReflection.ResourceShape.texture_2d_multisample_array
-        elif type == TextureType.texture_cube:
-            resource_shape = TypeReflection.ResourceShape.texture_cube_array
-        else:
-            raise ValueError(f"Unsupported texture type {type}")
+    resource_shape = TYPE_TO_RESOURCE[type]
 
     return TextureMarshall(layout, resource_shape, element_type, format, usage)
 
