@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, cast
 
-from slangpy.core.native import AccessType, CallContext, CallMode, Shape
+from slangpy.core.native import AccessType, Shape
 
 from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorType
 from slangpy.types.tensor import Tensor, innermost_type
@@ -12,7 +12,7 @@ from slangpy.core.native import NativeTensorMarshall, NativeTensor
 from slangpy.backend import TypeReflection
 from slangpy.reflection import TYPE_OVERRIDES, SlangProgramLayout, SlangType, TypeReflection, ArrayType, ScalarType
 from slangpy.bindings import (PYTHON_TYPES, BindContext,
-                              BoundVariable, BoundVariableRuntime,
+                              BoundVariable,
                               CodeGenBlock, ReturnContext)
 
 
@@ -204,37 +204,6 @@ class TensorMarshall(NativeTensorMarshall):
         type_name = build_tensor_name(
             self.slang_element_type, self.dims, writable, self.d_in is not None, self.d_out is not None)
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
-
-        # cgb.add_import("tensor")
-
-    def create_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: Tensor) -> Any:
-        strides = tuple(0 if dim == 1 else stride for dim, stride in zip(data.shape, data.strides))
-
-        primal_calldata = {
-            'buffer': data.storage,
-            'layout': {'offset': data.offset, 'strides': strides},
-            '_shape': data.shape
-        }
-
-        if not self.d_in and not self.d_out:
-            return primal_calldata
-
-        result = {'primal': primal_calldata}
-        if self.d_in is not None:
-            if data.grad_in is None:
-                raise ValueError("Missing required input gradients")
-            result['d_in'] = self.d_in.create_calldata(context, binding, data.grad_in)
-        if self.d_out is not None:
-            if data.grad_out is None:
-                raise ValueError("Missing tensor to hold output gradients")
-            result['d_out'] = self.d_out.create_calldata(context, binding, data.grad_out)
-
-        if context.call_mode != CallMode.prim and data.grad_in is not None and data.grad_in is data.grad_out:
-            if binding.access[1] == AccessType.readwrite:
-                raise ValueError(
-                    "inout parameter gradients need separate buffers for inputs and outputs (see Tensor.with_grads)")
-
-        return result
 
 
 def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
