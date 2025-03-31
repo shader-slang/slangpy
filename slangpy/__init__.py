@@ -43,6 +43,9 @@ from .core.instance import (
     InstanceBuffer
 )
 
+# Py torch integration
+from .torchintegration import *
+
 # Get shader include path for slangpy
 SHADER_PATH = str(pathlib.Path(__file__).parent.absolute() / "slang")
 
