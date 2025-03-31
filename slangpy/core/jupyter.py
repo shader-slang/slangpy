@@ -172,12 +172,13 @@ def format_type(st: SlangType, p: pretty.RepresentationPrinter, cycle: bool):
 def format_function(func: Function, p: pretty.RepresentationPrinter, cycle: bool):
     head = 'slangpy.Function("'
     tail = f'", module="{func.module.device_module.name}")'
-    funcs = func._slang_funcs
-    if len(funcs) == 1:
-        pprint_all(p, (head, funcs[0].reflection, tail))
+    sl_func = func._slang_func
+    if not sl_func.is_overloaded:
+        pprint_all(p, (head, sl_func.reflection, tail))
     else:
-        with p.group(4, f"{head}{len(funcs)} overloads:", tail):
-            for f in funcs:
+        sl_overloads = sl_func.overloads
+        with p.group(4, f"{head}{len(sl_overloads)} overloads:", tail):
+            for f in sl_overloads:
                 p.pretty(f.reflection)
 
 

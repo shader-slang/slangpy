@@ -170,37 +170,5 @@ def test_set_with_callback(device_type: DeviceType):
     assert np.all(data == expected)
 
 
-@pytest.mark.skip("Removed hooks")
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_hook(device_type: DeviceType):
-    mod = load_test_module(device_type)
-    assert mod is not None
-
-    func = mod.ndbuffer_multiply_uniform.as_func()
-    buffer = NDBuffer(mod.device, mod.uint3, 32)
-
-    hooks_called = 0
-
-    def before_call(args: dict[str, Any]):
-        nonlocal hooks_called
-        args['params'] = {
-            'k': 10
-        }
-        hooks_called += 1
-
-    def after_call(args: dict[str, Any]):
-        nonlocal hooks_called
-        assert args['params']['k'] == 10
-        hooks_called += 1
-
-    func = func._internal_hook(before_dispatch=before_call, after_dispatch=after_call)
-
-    func.dispatch(uint3(32, 1, 1), buffer=buffer)
-
-    data = buffer.to_numpy().view(np.uint32).reshape(-1, 3)
-    expected = np.array([[i*10, 0, 0] for i in range(32)])
-    assert np.all(data == expected)
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

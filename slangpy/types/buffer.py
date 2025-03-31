@@ -7,7 +7,7 @@ from slangpy.core.struct import Struct
 
 from slangpy.backend import (DataType, Device, MemoryType,
                              BufferUsage, TypeLayoutReflection,
-                             TypeReflection, CommandBuffer, uint4)
+                             TypeReflection, CommandEncoder)
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType
@@ -171,18 +171,18 @@ class NDBuffer(NativeNDBuffer):
         else:
             raise ValueError("Only scalar types can be converted to torch tensors")
 
-    def clear(self, command_buffer: Optional[CommandBuffer] = None):
+    def clear(self, command_buffer: Optional[CommandEncoder] = None):
         """
         Fill the ndbuffer with zeros. If no command buffer is provided, a new one is created and
         immediately submitted. If a command buffer is provided the clear is simply appended to it
         but not automatically submitted.
         """
         if command_buffer:
-            command_buffer.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
+            command_buffer.clear_buffer(self.storage)
         else:
-            cmd = self.storage.device.create_command_buffer()
-            cmd.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
-            cmd.submit()
+            cmd = self.storage.device.create_command_encoder()
+            cmd.clear_buffer(self.storage)
+            self.device.submit_command_buffer(cmd.finish())
 
     @staticmethod
     def zeros(device: Device,

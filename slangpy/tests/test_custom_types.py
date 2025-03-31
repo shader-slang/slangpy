@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Callable
+from typing import Any, Callable
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from slangpy.backend import DeviceType, float3, uint3
@@ -227,7 +228,7 @@ uint wang_hashes(uint input) {
 # Dumb test just to make sure hashes aren't completely broken!
 
 
-def measure_sequential_hash_quality(hash_func: Callable[[int], np.ndarray]):
+def measure_sequential_hash_quality(hash_func: Callable[[int], npt.NDArray[Any]]):
     hashes = hash_func(0)
     hashes2 = hash_func(1)
     combined_array = np.concatenate((hashes, hashes2))

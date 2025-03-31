@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -13,6 +13,7 @@ from slangpy.bindings import (PYTHON_TYPES, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime,
                               CodeGenBlock, ReturnContext, get_or_create_type)
 from slangpy.builtin.value import slang_type_to_return_type
+from slangpy.reflection.reflectiontypes import SlangType
 from slangpy.types import ValueRef
 
 
@@ -157,7 +158,7 @@ class ValueRefMarshall(Marshall):
 
 def create_vr_type_for_value(layout: kfr.SlangProgramLayout, value: Any):
     if isinstance(value, ValueRef):
-        return ValueRefMarshall(layout, get_or_create_type(layout, type(value.value), value.value).slang_type)
+        return ValueRefMarshall(layout, cast(SlangType, get_or_create_type(layout, type(value.value), value.value).slang_type))
     elif isinstance(value, ReturnContext):
         return ValueRefMarshall(layout, value.slang_type)
     else:
