@@ -21,7 +21,7 @@ module = spy.Module.load_from_file(device, "simplediffsplatting2d.slang")
 
 # Create a buffer to store Gaussian blobs. We're going to make a very small one,
 # because right now this code is not very efficient, and will take a while to run.
-# For now, we are going to create 1000 blobs, and each blob will be comprised of 9 
+# For now, we are going to create 200 blobs, and each blob will be comprised of 9 
 # floats:
 #   blob center x and y (2 floats)
 #   sigma (a 2x2 covariance matrix - 4 floats)
