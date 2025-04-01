@@ -117,7 +117,7 @@ struct Gaussian2D : IDifferentiable
         gaussian.sigma[1][0] = sqrt(gaussian.sigma[0][0] * gaussian.sigma[1][1]) * aniso;
 
         // Scale the sigma so the blobs aren't too large
-        gaussian.sigma *= 0.0001;
+        gaussian.sigma *= 0.005;
 
         gaussian.color = smoothstep(0, 1, float3(
             blobs[total * 5 + idx],
