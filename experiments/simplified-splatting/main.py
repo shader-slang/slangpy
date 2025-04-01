@@ -21,12 +21,12 @@ module = spy.Module.load_from_file(device, "simplediffsplatting2d.slang")
 
 # Create a buffer to store Gaussian blobs. We're going to make a very small one,
 # because right now this code is not very efficient, and will take a while to run.
-# For now, we are going to create 100 blobs, and each blob will be comprised of 9 
+# For now, we are going to create 1000 blobs, and each blob will be comprised of 9 
 # floats:
 #   blob center x and y (2 floats)
-#   sigma (a 2x2 matrix - 4 floats)
+#   sigma (a 2x2 covariance matrix - 4 floats)
 #   color (3 floats)
-NUM_BLOBS = 100
+NUM_BLOBS = 200
 FLOATS_PER_BLOB = 9
 # SlangPy lets us create a Tensor and initialize it easily using numpy to generate
 # random values. This Tensor includes storage for gradients, because we call .with_grads()
@@ -88,6 +88,7 @@ for iter in range(iterations):
     # so that you can visualize the iteration towards ideal
     if iter % 50 == 0:
         module.renderBlobsToTexture(current_render,
-                                    spy.grid(shape=(input_image.width,input_image.height)),
-                                    blobs)
+                                    blobs,
+                                    spy.grid(shape=(input_image.width,input_image.height)))
         sgl.tev.show_async(current_render, name=f"optimization_{(iter // 50):03d}")
+    

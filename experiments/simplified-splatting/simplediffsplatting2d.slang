@@ -26,17 +26,12 @@
 import slangpy;
 
 // ----- Constants and definitions --------
-
-static const int GAUSSIANS_PER_BLOCK = 512;
-static const int WG_X = 8;
-static const int WG_Y = 4;
-
 static const float ADAM_ETA = 0.002;
 static const float ADAM_BETA_1 = 0.9;
 static const float ADAM_BETA_2 = 0.999;
 static const float ADAM_EPSILON = 1e-8;
 
-static const uint SIMPLE_BLOBCOUNT = 100;
+static const uint SIMPLE_BLOBCOUNT = 200;
 
 // Some types to hold state info on the 'blobs' buffer.
 // This makes it easy to make sure we're not accidentally using the buffer
@@ -142,9 +137,11 @@ struct Gaussian2D : IDifferentiable
     /*
      * eval() calculates the color and weight of the Gaussian at a given UV coordinate.
      *
-     * This method calculates an alpha by applying the standard multi-variate Gaussian formula
-     * to calculate the power which is then scaled by an opacity value. The color components
-     * are represented by additional fields.
+     * The weight of the Gaussian blob at location uv is determined from
+     * the exponent of the 2-dimensional Gaussian distribution function, multiplied by the
+     * blob's inherent alpha value. The RGB color is stored and returned separately.
+     * For more information about calculating Gaussian distributions, see 
+     * https://mathworld.wolfram.com/GaussianFunction.html
      */
     [Differentiable]
     float4 eval(float2 uv)
@@ -161,15 +158,6 @@ struct Gaussian2D : IDifferentiable
     }
 };
 
-
-
-[Differentiable]
-float4 eval(Blobs blobs, uint blob_id, no_diff float2 uv)
-{
-    Gaussian2D gaussian = Gaussian2D.load(blobs, blob_id);
-    return gaussian.eval(uv);
-}
-
 /* simpleSplatBlobs() is a naive implementation of the computation of color for a pixel.
  * It will iterate over all of the Gaussians for each pixel, to determine their contributions
  * to the pixel color, so this will become prohibitively slow with a very small number of 
@@ -180,20 +168,22 @@ float4 eval(Blobs blobs, uint blob_id, no_diff float2 uv)
  {
     Blobs blobs = {blobsBuffer};
 
-    float4 pixel = (0.0, 0.0, 0.0, 1.0);
-    float4 blobColor = (0.0, 0.0, 0.0, 0.0);
+    float4 result = {0.0, 0.0, 0.0, 1.0};
+    float4 blobColor = {0.0, 0.0, 0.0, 0.0};
+
     for (uint i = 0; i < SIMPLE_BLOBCOUNT; i++)
     {
-        blobColor = eval(blobs, i, pixelCoord);
-        pixel = alphaBlend(pixel, blobColor);
-
-        if (pixel.a < 1.f / 255.f)
+        Gaussian2D gaussian = Gaussian2D.load(blobs, i);
+        blobColor = gaussian.eval(pixelCoord * (1.0/texSize));
+        
+        result = alphaBlend(result, blobColor);
+        if (result.a < 1.f / 255.f)
             continue;
     }
 
     // Blend with background
-    return float4(pixel.rgb * (1.0 - pixel.a) + pixel.a, 1.0);
- }
+    return float4(result.rgb * (1.0 - result.a) + result.a, 0.0);
+}
 
 void renderBlobsToTexture(
     RWTexture2D<float4> output,
