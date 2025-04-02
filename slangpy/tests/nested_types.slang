@@ -105,7 +105,7 @@ void _trampoline(in float3 a, in float3 b, no_diff out float3 _result)
 
 [shader("compute")]
 [numthreads(32, 1, 1)]
-void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID)
+void compute_main(uint3 dispatchThreadID: SV_DispatchThreadID)
 {
     if (any(dispatchThreadID >= call_data._thread_count)) return;
     Context context;

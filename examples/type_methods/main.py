@@ -31,7 +31,7 @@ result_cursor = particles.buffer.cursor()
 
 for i in range(particles.shape[0]):
     instance = result_cursor[i].read()
-    print('{} {}'.format(instance['position'], instance['velocity']))
+    print(f"{instance['position']} {instance['velocity']}")
 
 # Update the particles
 particles.update(0.1)
@@ -40,4 +40,4 @@ result_cursor = particles.buffer.cursor()
 # Print all the particles by breaking them down into groups of 6 floats
 for i in range(particles.shape[0]):
     instance = result_cursor[i].read()
-    print('{} {}'.format(instance['position'], instance['velocity']))
+    print(f"{instance['position']} {instance['velocity']}")

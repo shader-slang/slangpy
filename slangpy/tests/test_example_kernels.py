@@ -27,7 +27,7 @@ def test_read_slice_error(test_id: str, device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     prim_program = device.load_program(
-        str(Path(__file__).parent / "generated_tests/read_slice_generic_error.slang"), ["computeMain"])
+        str(Path(__file__).parent / "generated_tests/read_slice_generic_error.slang"), ["compute_main"])
 
     assert prim_program is not None
 
@@ -58,10 +58,10 @@ void user_func(float a, float b, out float c) {
     )
 
     # Create the forward and backward kernels.
-    ep = generated_module.entry_point("computeMain")
+    ep = generated_module.entry_point("compute_main")
     program = device.link_program([generated_module, user_func_module], [ep])
     kernel = device.create_compute_kernel(program)
-    backwards_ep = generated_module.entry_point("computeMain_backwards")
+    backwards_ep = generated_module.entry_point("compute_main_backwards")
     backwards_program = device.link_program(
         [generated_module, user_func_module], [backwards_ep]
     )
@@ -142,11 +142,11 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     prim_program = device.load_program(
-        str(Path(__file__).parent / "generated_tests/polynomial_soa.slang"), ["computeMain"])
+        str(Path(__file__).parent / "generated_tests/polynomial_soa.slang"), ["compute_main"])
     kernel_eval_polynomial = device.create_compute_kernel(prim_program)
 
     bwds_program = device.load_program(
-        str(Path(__file__).parent / "generated_tests/polynomial_soa_backwards.slang"), ["computeMain"])
+        str(Path(__file__).parent / "generated_tests/polynomial_soa_backwards.slang"), ["compute_main"])
     kernel_eval_polynomial_backwards = device.create_compute_kernel(bwds_program)
 
     a_x = NDDifferentiableBuffer(
@@ -254,7 +254,7 @@ def test_vec3_nested_calldata_soa(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     prim_program = device.load_program(
-        str(Path(__file__).parent / "nested_types.slang"), ["computeMain"])
+        str(Path(__file__).parent / "nested_types.slang"), ["compute_main"])
     kernel_eval_polynomial = device.create_compute_kernel(prim_program)
 
     a_x = NDDifferentiableBuffer(
@@ -331,7 +331,7 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     prim_program = device.load_program(
-        str(Path(__file__).parent / "nested_types_generics.slang"), ["computeMain"])
+        str(Path(__file__).parent / "nested_types_generics.slang"), ["compute_main"])
     kernel_eval_polynomial = device.create_compute_kernel(prim_program)
 
     a_x = NDDifferentiableBuffer(

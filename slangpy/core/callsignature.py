@@ -428,7 +428,7 @@ def generate_code(context: BindContext, build_info: 'FunctionBuildInfo', signatu
     # Generate the main function
     cg.kernel.append_line('[shader("compute")]')
     cg.kernel.append_line("[numthreads(32, 1, 1)]")
-    cg.kernel.append_line("void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID)")
+    cg.kernel.append_line("void compute_main(uint3 dispatchThreadID: SV_DispatchThreadID)")
     cg.kernel.begin_block()
     cg.kernel.append_statement(
         "if (any(dispatchThreadID >= call_data._thread_count)) return")

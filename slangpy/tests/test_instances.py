@@ -37,7 +37,7 @@ class ThisType:
     def update_this(self, value: Any) -> None:
         self.update_called += 1
 
-def faltten_ndarray(data: np.ndarray) -> np.ndarray:
+def flatten_ndarray(data: np.ndarray) -> np.ndarray:
     # Flatten the structure using list comprehensions
     flattened = np.array([
         list(item['position']) +                  # Convert set to list
@@ -74,16 +74,16 @@ def test_this_interface(device_type: DeviceType):
 
     # position
     positions = np.array([item['position'] for item in data])
-    assert np.allclose(positions, [1.0, 2.0])
+    assert np.all(positions == [1.0, 2.0])
     # velocity
     velocity = np.array([item['velocity'] for item in data])
-    assert np.allclose(velocity, [3.0, 4.0])
+    assert np.all(velocity == [3.0, 4.0])
     # size
     sizes = np.array([item['size'] for item in data])
-    assert np.allclose(sizes, [0.5])
+    assert np.all(sizes == [0.5])
     # mat.color
     colors = np.array([item['material']['color'] for item in data])
-    assert np.allclose(colors, [1.0, 1.0, 1.0])
+    assert np.all(colors == [1.0, 1.0, 1.0])
 
     # Check the this interface has been called
     # Get should have been called 3 times - once for hash, once during setup, and once during call
@@ -144,9 +144,9 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     # Check the buffer has been correctly populated
     data = helpers.read_ndbuffer_from_numpy(buffer)
     positions = np.array([item['position'] for item in data])
-    assert np.allclose(positions, [1.0, 2.0])
+    assert np.all(positions == [1.0, 2.0])
     velocity = np.array([item['velocity'] for item in data])
-    assert np.allclose(velocity, [3.0, 4.0])
+    assert np.all(velocity == [3.0, 4.0])
 
 
     # Reset particle to be moving up
@@ -158,9 +158,9 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     # Check the buffer has been correctly updated
     data = helpers.read_ndbuffer_from_numpy(buffer)
     positions = np.array([item['position'] for item in data])
-    assert np.allclose(positions, [0.0, 1.0])
+    assert np.all(positions == [0.0, 1.0])
     velocity = np.array([item['velocity'] for item in data])
-    assert np.allclose(velocity, [0.0, 1.0])
+    assert np.all(velocity == [0.0, 1.0])
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -253,7 +253,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
                         velocity=RandFloatArg(min=-1, max=1, dim=2))
     
     expected_particles = helpers.read_ndbuffer_from_numpy(particles._data)
-    expected_particles = faltten_ndarray(expected_particles)
+    expected_particles = flatten_ndarray(expected_particles)
 
     # Call the slang function 'Particle::update_position' to update them
     # and do the same for the python version
@@ -262,7 +262,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
 
     # Check the numpy buffer and the slang buffer are the same
     particle_data = helpers.read_ndbuffer_from_numpy(particles._data)
-    particle_data = faltten_ndarray(particle_data)
+    particle_data = flatten_ndarray(particle_data)
     assert np.allclose(particle_data, expected_particles)
 
     # Define a 'Quad' type which is just an array of float2s, and make a buffer for them
@@ -439,10 +439,10 @@ def test_backwards_diff(device_type: DeviceType):
 
     # Read back all primals and gradients we ended up with into numpy arrays
     particle_primals = helpers.read_ndbuffer_from_numpy(particles.buffer)
-    particle_primals = faltten_ndarray(particle_primals).reshape(-1, 11)
+    particle_primals = flatten_ndarray(particle_primals).reshape(-1, 11)
 
     particle_grads = helpers.read_ndbuffer_from_numpy(particles.buffer.grad)
-    particle_grads = faltten_ndarray(particle_grads).reshape(-1, 11)
+    particle_grads = flatten_ndarray(particle_grads).reshape(-1, 11)
 
     dt_grads = helpers.read_ndbuffer_from_numpy(dts.grad)
     next_positions = helpers.read_ndbuffer_from_numpy(next_positions).reshape(-1, 2)
@@ -459,7 +459,7 @@ def test_backwards_diff(device_type: DeviceType):
 
         # dq/dp = 10
         pos_grad = particle_grads[particle_idx][0:2]
-        assert np.allclose(pos_grad, [1, 1])
+        assert np.all(pos_grad == [1, 1])
 
         # dq/dv = dt
         vel_grad = particle_grads[particle_idx][2:4]
