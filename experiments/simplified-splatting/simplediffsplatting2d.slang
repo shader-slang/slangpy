@@ -182,7 +182,7 @@ struct Gaussian2D : IDifferentiable
     }
 
     // Blend with background
-    return float4(result.rgb * (1.0 - result.a) + result.a, 0.0);
+    return float4(result.rgb * (1.0 - result.a) + result.a, 1.0);
 }
 
 void renderBlobsToTexture(
