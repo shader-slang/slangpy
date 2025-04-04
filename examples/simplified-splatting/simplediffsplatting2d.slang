@@ -171,13 +171,18 @@ struct Gaussian2D : IDifferentiable
     float4 result = {0.0, 0.0, 0.0, 1.0};
     float4 blobColor = {0.0, 0.0, 0.0, 0.0};
 
+    // iterate over the full list of Gaussion blobs
     for (uint i = 0; i < SIMPLE_BLOBCOUNT; i++)
     {
+	// first, calculate the color of the current blob
         Gaussian2D gaussian = Gaussian2D.load(blobs, i);
         blobColor = gaussian.eval(pixelCoord * (1.0/texSize));
         
+	// then, blend with the blobs we've accumulated so far
         result = alphaBlend(result, blobColor);
-        if (result.a < 1.f / 255.f)
+
+	// This continue statement shouldn't be needed: see https://github.com/shader-slang/slang/issues/6744
+        if (result.a)
             continue;
     }
 
