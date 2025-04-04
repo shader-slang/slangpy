@@ -8,11 +8,12 @@ from slangpy.backend import (DeclReflection, ProgramLayout,
                              DeviceType, Device)
 from slangpy.reflection import SlangType
 import builtins
-
+import sys
 
 def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False,
                   adapter_luid: Optional[Sequence[int]] = None,
-                  include_paths: Sequence[Union[str, PathLike]] = []):
+                  include_paths: Sequence[Union[str, PathLike]] = [],
+                  enable_cuda_interop: bool = False):
     """
     Create an SGL device with basic settings for SlangPy. For full control over device init, 
     use sgl.create_device directly, being sure to add slangpy.SHADER_PATH
@@ -28,7 +29,7 @@ def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: 
                 shaderpath,
             ]+list(include_paths),
         },
-        enable_cuda_interop=True,
+
         enable_debug_layers=enable_debug_layers,
         adapter_luid=adapter_luid)
 

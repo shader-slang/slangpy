@@ -5,11 +5,15 @@ from slangpy.bindings.boundvariable import BoundVariableException
 import slangpy.tests.helpers as helpers
 import hashlib
 import os
+import sys
 
 try:
     import torch
 except ImportError:
     pytest.skip("Pytorch not installed", allow_module_level=True)
+
+if sys.platform == "darwin":
+    pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 
 TEST_CODE = """
 [Differentiable]
