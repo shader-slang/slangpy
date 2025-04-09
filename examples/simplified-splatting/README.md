@@ -1,31 +1,14 @@
-# Simplified 3D Gaussian Splatting
+# Simplified Gaussian Splatting
 
-This example demonstrates a simplified implementation of 3D Gaussian Splatting for educational purposes. It provides a more accessible way to understand the core concepts behind the Gaussian Splatting technique for neural rendering.
+This example demonstrates a simplified implementation of 2D Gaussian Splatting for educational purposes. It provides a more accessible way to understand the core concepts behind the Gaussian Splatting technique for neural rendering.
 
 ## Overview
 
-3D Gaussian Splatting is a novel approach to neural rendering that represents scenes using a collection of 3D Gaussians. This simplified implementation focuses on the fundamental aspects of the technique while maintaining readability and ease of understanding.
+3D Gaussian Splatting is a novel approach to neural rendering that represents scenes using a collection of 3D Gaussians. This simplified 2D implementation focuses on the fundamental aspects of the technique for readability and ease of understanding.
 
-## Features
+This example outputs frames to 'tev', similar to other examples.
 
-- Basic 3D Gaussian representation
-- Simplified rendering pipeline
-- Educational implementation focusing on core concepts
-- Clear code structure for learning purposes
-
-## Getting Started
-
-1. Clone the repository
-2. Navigate to the simplified-splatting directory
-3. Follow the setup instructions in the code comments
-
-## Structure
-
-The example is organized to help you understand the key components of Gaussian Splatting:
-
-- Gaussian representation
-- Rendering pipeline
-- Basic optimization
+For an in-depth explanation of the code in this example, refer to the [Neural Graphics in an Afternoon blog post](https://shader-slang.org/blog/2025/04/04/neural-gfx-in-an-afternoon/)
 
 ## References
 
