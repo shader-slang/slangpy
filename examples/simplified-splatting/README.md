@@ -12,4 +12,5 @@ For an in-depth explanation of the code in this example, refer to the [Neural Gr
 
 ## References
 
-- Original 3D Gaussian Splatting paper: ["3D Gaussian Splatting for Real-Time Radiance Field Rendering"](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) 
+- ["3D Gaussian Splatting for Real-Time Radiance Field Rendering"](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) 
+- ["Adam: A Method for Stochastic Optimization"](https://arxiv.org/abs/1412.6980)
