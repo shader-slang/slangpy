@@ -10,6 +10,9 @@ This example outputs frames to 'tev', similar to other examples.
 
 For an in-depth explanation of the code in this example, refer to the [Neural Graphics in an Afternoon blog post](https://shader-slang.org/blog/2025/04/04/neural-gfx-in-an-afternoon/)
 
+## Output Example
+![Output visualization](simple-splat-ex.png)
+
 ## References
 
 - ["3D Gaussian Splatting for Real-Time Radiance Field Rendering"](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) 
