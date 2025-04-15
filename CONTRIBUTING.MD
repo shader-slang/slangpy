@@ -70,38 +70,6 @@ $ git checkout -b feature/your-feature-name
 ### Build SlangPy from Source
 Please follow the instructions on how to [Develop with SlangPy](DEVELOP.md).
 
-For a quick reference, follow the instructions below.
-
-Create conda environment if needed:
-```
-conda create -n "slangpy" python=3.9
-```
-
-Install SGL unless building SGL locally:
-```
-pip install --upgrade nv-sgl
-```
-
-Install as local, editable package:
-```
-pip install --editable .
-```
-
-Install developer extras:
-```
-pip install -r requirements-dev.txt
-```
-
-Install precommit hooks:
-```
-pre-commit install
-```
-
-Test precommit:
-```
-pre-commit run --all-files
-```
-
 ### Making and Testing Changes
 After making your changes, test your changes thoroughly to ensure they do not introduce new issues. This is done by running unit tests via `pytest` from the repository root directory. For more details about running `pytest`, please refer to the "Tests" section of [Developing with SlangPy](DEVELOP.md#tests).
 
