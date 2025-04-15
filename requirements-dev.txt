@@ -1,6 +1,6 @@
 typing_extensions
 numpy >= 1.26.0
-nv-sgl == 0.13.1
+nv-sgl == 0.14.0
 pre-commit
 pytest
 pytest-xdist
