@@ -88,21 +88,6 @@ class Tensor(NativeTensor):
         self.grad_in: Optional[Tensor]
         self.grad_out: Optional[Tensor]
 
-    # flatten_dtype Not used anywhere - do we need it? If so, need to make native implementation
-    """
-    def flatten_dtype(self) -> Tensor:
-        new_dtype = innermost_type(self.dtype)
-        dtype_shape = self.dtype.shape.as_tuple()
-        dtype_strides = shape_to_contiguous_strides(dtype_shape)
-        stride_multiplier = math.prod(dtype_shape)
-
-        new_shape = self.shape.as_tuple() + dtype_shape
-        new_strides = tuple(s * stride_multiplier for s in self.strides) + dtype_strides
-        new_offset = self.offset * stride_multiplier
-
-        return Tensor(self.storage, new_dtype, new_shape, new_strides, new_offset)
-    """
-
     def broadcast_to(self, shape: TShapeOrTuple):
         """
         Returns a new tensor view of the same buffer with the requested shape, following standard broadcasting rules.
