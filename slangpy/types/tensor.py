@@ -12,8 +12,12 @@ from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
 from warnings import warn
 
+from typing import Optional, Any, cast, TYPE_CHECKING
 import numpy as np
 import math
+
+if TYPE_CHECKING:
+    import torch
 
 ST = TypeReflection.ScalarType
 _numpy_to_sgl = {
@@ -95,18 +99,29 @@ class Tensor(NativeTensor):
         return super().broadcast_to(Shape(shape))
 
     def __str__(self):
-        ndarray = self.to_numpy()
-        if ndarray is None:
-            return f"Tensor({self.shape}, {self.dtype.name})"
-        else:
-            return str(ndarray)
+        return str(self.to_numpy())
 
     def to_numpy(self) -> np.ndarray[Any, Any]:
         """
-        Copies tensor data into a numpy array with the same shape and strides. This may fail if the
-        element type does not have an equivalent in numpy.
+        Copies tensor data into a numpy array with the same shape and strides. If the element type
+        of the tensor is representable in numpy (e.g. floats, ints, arrays/vectors thereof), the
+        ndarray will have a matching dtype. If the element type can't be represented in numpy (e.g. structs),
+        the ndarray will be an array over the bytes of the buffer elements
+
+        Examples:
+        Tensor of dtype float3 with shape (4, 5)
+            -> ndarray of dtype np.float32 with shape (4, 5, 3)
+        Tensor of dtype struct Foo {...} with shape (5, )
+            -> ndarray of dtype np.uint8 with shape (5, sizeof(Foo))
         """
         return cast(np.ndarray[Any, Any], super().to_numpy())
+
+    def to_torch(self) -> 'torch.Tensor':
+        """
+        Returns a view of the buffer data as a torch tensor with the same shape and strides.
+        See to_numpy for notes on dtype conversion
+        """
+        return cast('torch.Tensor', super().to_torch())
 
     def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None, zero: bool = False):
         """

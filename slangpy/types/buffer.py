@@ -2,6 +2,9 @@
 from typing import Any, Optional
 
 import numpy.typing as npt
+import numpy as np
+
+from typing import cast, TYPE_CHECKING
 
 from slangpy.core.native import Shape, NativeNDBuffer, NativeNDBufferDesc
 from slangpy.core.shapes import TShapeOrTuple
@@ -13,6 +16,9 @@ from slangpy.backend import (DataType, Device, MemoryType,
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType
+
+if TYPE_CHECKING:
+    import torch
 
 global_lookup_modules: dict[Device, SlangProgramLayout] = {}
 
@@ -157,14 +163,27 @@ class NDBuffer(NativeNDBuffer):
         """
         return (self.usage & ResourceUsage.unordered_access) != 0
 
-    def to_torch(self, override_type: Optional[DataType] = None):
+    def to_numpy(self) -> np.ndarray[Any, Any]:
         """
-        Returns the buffer as a torch tensor.
+        Copies buffer data into a numpy array with the same shape and strides. If the element type
+        of the buffer is representable in numpy (e.g. floats, ints, arrays/vectors thereof), the
+        ndarray will have a matching dtype. If the element type can't be represented in numpy (e.g. structs),
+        the ndarray will be an array over the bytes of the buffer elements
+
+        Examples:
+        NDBuffer of dtype float3 with shape (4, 5)
+            -> ndarray of dtype np.float32 with shape (4, 5, 3)
+        NDBuffer of dtype struct Foo {...} with shape (5, )
+            -> ndarray of dtype np.uint8 with shape (5, sizeof(Foo))
         """
-        if isinstance(self.dtype, ScalarType):
-            return self.storage.to_torch(type=SLANG_TO_CUDA_TYPES[self.dtype.slang_scalar_type], shape=self.shape.as_tuple(), strides=self.strides.as_tuple())
-        else:
-            raise ValueError("Only scalar types can be converted to torch tensors")
+        return cast(np.ndarray[Any, Any], super().to_numpy())
+
+    def to_torch(self) -> 'torch.Tensor':
+        """
+        Returns a view of the buffer data as a torch tensor with the same shape and strides.
+        See to_numpy for notes on dtype conversion
+        """
+        return cast('torch.Tensor', super().to_torch())
 
     def clear(self, command_buffer: Optional[CommandBuffer] = None):
         """
