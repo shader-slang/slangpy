@@ -13,7 +13,7 @@ from slangpy.core.calldata import SLANG_PATH
 import slangpy
 from slangpy import Module
 from slangpy.backend import (Device, DeviceType, SlangCompilerOptions,
-                             SlangDebugInfoLevel)
+                             SlangDebugInfoLevel, Logger, LogLevel)
 from slangpy.core.function import Function
 
 SHADER_DIR = Path(__file__).parent
@@ -77,7 +77,9 @@ def create_module(
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
-    return slangpy.Module(module, link=link, options=options)
+    spy_module = slangpy.Module(module, link=link, options=options)
+    spy_module.logger = Logger(level=LogLevel.debug)
+    return spy_module
 
 # Helper that creates a module from source (if not already loaded) and find / returns
 # a kernel function for it. This helper supports nested functions and structs, e.g.
@@ -95,6 +97,7 @@ def create_function_from_module(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
     module = Module(slang_module, link=link, options=options)
+    module.logger = Logger(level=LogLevel.debug)
 
     names = func_name.split(".")
 

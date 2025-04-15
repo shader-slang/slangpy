@@ -4,13 +4,15 @@ import pytest
 
 import slangpy.tests.helpers as helpers
 from slangpy import Module
-from slangpy.backend import DeviceType, float3
+from slangpy.backend import DeviceType, float3, Logger, LogLevel
 from slangpy.types import NDBuffer, Tensor
 
 
 def load_test_module(device_type: DeviceType):
     device = helpers.get_device(device_type)
-    return Module(device.load_module("test_transforms.slang"))
+    m = Module(device.load_module("test_transforms.slang"))
+    m.logger = Logger(LogLevel.debug)
+    return m
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

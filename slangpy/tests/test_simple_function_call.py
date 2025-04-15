@@ -6,7 +6,7 @@ import pytest
 from sgl import float3
 
 import slangpy.tests.helpers as helpers
-from slangpy.backend import Device, DeviceType
+from slangpy.backend import Device, DeviceType, Logger, LogLevel
 from slangpy.types import NDBuffer
 from slangpy.types.diffpair import diffPair, floatDiffPair
 from slangpy.types.valueref import intRef
@@ -520,4 +520,4 @@ void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])
