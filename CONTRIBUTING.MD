@@ -1,8 +1,8 @@
-# Shader-Slang Open Source Project
+# SlangPy Open Source Project
 
 ## Contribution Guide
 
-Thank you for considering contributing to the Shader-Slang project! We welcome your help to improve and enhance our project. Please take a moment to read through this guide to understand how you can contribute.
+Thank you for considering contributing to the SlangPy project! We welcome your help to improve and enhance our project. Please take a moment to read through this guide to understand how you can contribute.
 
 This document is designed to guide you in contributing to the project. It is intended to be easy to follow without sending readers to other pages and links. You can simply copy and paste the command lines described in this document.
 
@@ -106,7 +106,6 @@ pre-commit run --all-files
 After making your changes, test your changes thoroughly to ensure they do not introduce new issues. This is done by running unit tests via `pytest` from the repository root directory. For more details about running `pytest`, please refer to the "Tests" section of [Developing with SlangPy](DEVELOP.md#tests).
 
 If you are familiar with Workflows/Actions in GitHub, you can check [Our Workflows](.github/workflows). The "Run tests" sections in [ci.yml](.github/workflows/ci.yml) is where `pytest` is run by [ci.py](.build_agent/ci.py).
-
 
 ### Commit to the Branch
 Commit your changes to the branch with a descriptive commit message:
