@@ -5,7 +5,7 @@ from sgl import TextureDesc, TextureUsage
 
 import slangpy.tests.helpers as helpers
 from slangpy import InstanceBuffer, Module
-from slangpy.backend import DeviceType, Format, TextureType, Texture
+from slangpy.backend import DeviceType, Format, TextureType, Texture, ALL_MIPS
 from slangpy.types import NDBuffer
 from slangpy.reflection import ScalarType
 from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
@@ -155,7 +155,7 @@ def make_grid_data(type: TextureType, array_length: int = 1):
     ],
 )
 @pytest.mark.parametrize("slices", [1, 4])
-@pytest.mark.parametrize("mips", [0, 1, 4])
+@pytest.mark.parametrize("mips", [ALL_MIPS, 1, 4])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_read_write_texture(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
@@ -185,7 +185,7 @@ def test_read_write_texture(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
     array_nm = ""
     if slices > 1:
@@ -196,7 +196,7 @@ def test_read_write_texture(
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
-        data = dest_tex.to_numpy(layer=slice_idx, mip_level=0)
+        data = dest_tex.to_numpy(layer=slice_idx, mip=0)
         assert np.allclose(data, rand_data[slice_idx][0])
 
 
@@ -209,7 +209,7 @@ def test_read_write_texture(
     ],
 )
 @pytest.mark.parametrize("slices", [1, 4])
-@pytest.mark.parametrize("mips", [0, 1, 4])
+@pytest.mark.parametrize("mips", [ALL_MIPS, 1, 4])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_read_write_texture_with_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
@@ -241,7 +241,7 @@ def test_read_write_texture_with_resource_views(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
     array_nm = ""
     if slices > 1:
@@ -249,12 +249,12 @@ def test_read_write_texture_with_resource_views(
 
     for mip_idx in range(src_tex.mip_count):
         func = getattr(m, f"copy_pixel_{type.name}{array_nm}")
-        func(grid_coords, src_tex.create_view(mip_idx), dest_tex.create_view(mip_idx))
+        func(grid_coords, src_tex.create_view(mip=mip_idx), dest_tex.create_view(mip=mip_idx))
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            data = dest_tex.to_numpy(layer=slice_idx, mip_level=mip_idx)
+            data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
             assert np.allclose(data, mip_data)
 
 
@@ -290,13 +290,13 @@ def test_copy_value(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
     m.copy_value(src_tex, dest_tex)
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
-        data = dest_tex.to_numpy(layer=slice_idx, mip_level=0)
+        data = dest_tex.to_numpy(layer=slice_idx, mip=0)
         assert np.allclose(data, rand_data[slice_idx][0])
 
 
@@ -309,7 +309,7 @@ def test_copy_value(
     ],
 )
 @pytest.mark.parametrize("slices", [1, 4])
-@pytest.mark.parametrize("mips", [0, 1])
+@pytest.mark.parametrize("mips", [ALL_MIPS, 1])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_copy_mip_values_with_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
@@ -335,15 +335,15 @@ def test_copy_mip_values_with_resource_views(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
-        m.copy_value(src_tex.create_view(mip_idx), dest_tex.create_view(mip_idx))
+        m.copy_value(src_tex.create_view(mip=mip_idx), dest_tex.create_view(mip=mip_idx))
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            data = dest_tex.to_numpy(layer=slice_idx, mip_level=mip_idx)
+            data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
             assert np.allclose(data, rand_data[slice_idx][mip_idx])
 
 
@@ -356,7 +356,7 @@ def test_copy_mip_values_with_resource_views(
     ],
 )
 @pytest.mark.parametrize("slices", [1, 4])
-@pytest.mark.parametrize("mips", [0, 1])
+@pytest.mark.parametrize("mips", [ALL_MIPS, 1])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_copy_mip_values_with_all_uav_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
@@ -382,15 +382,15 @@ def test_copy_mip_values_with_all_uav_resource_views(
     # Write random data to texture
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip_level=mip_idx)
+            src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
-        m.copy_value(src_tex.create_view(mip_idx), dest_tex.create_view(mip_idx))
+        m.copy_value(src_tex.create_view(mip=mip_idx), dest_tex.create_view(mip=mip_idx))
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
-            data = dest_tex.to_numpy(layer=slice_idx, mip_level=mip_idx)
+            data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
             assert np.allclose(data, rand_data[slice_idx][mip_idx])
 
 
