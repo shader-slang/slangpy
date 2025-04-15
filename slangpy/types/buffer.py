@@ -137,18 +137,11 @@ class NDBuffer(NativeNDBuffer):
         else:
             raise ValueError("element_count or shape must be provided")
 
-        strides = []
-        total = 1
-        for dim in reversed(shape):
-            strides.append(total)
-            total *= dim
-        strides = Shape(tuple(reversed(strides)))
-
         desc = NativeNDBufferDesc()
         desc.usage = usage
         desc.memory_type = memory_type
         desc.shape = shape
-        desc.strides = strides
+        desc.strides = shape.calc_contiguous_strides()
         desc.dtype = dtype
         desc.element_layout = dtype.buffer_layout.reflection
 

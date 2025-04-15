@@ -68,7 +68,7 @@ class Tensor(NativeTensor):
         # Setup shape and stride.
         shape = Shape(shape)
         if strides is None:
-            strides = shape_to_contiguous_strides(shape.as_tuple())
+            strides = shape.calc_contiguous_strides()
         if len(strides) != len(shape):
             raise ValueError("Number of strides must match number of dimensions")
 
