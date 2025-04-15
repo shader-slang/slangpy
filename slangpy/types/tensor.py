@@ -94,9 +94,16 @@ class Tensor(NativeTensor):
 
     def broadcast_to(self, shape: TShapeOrTuple):
         """
-        Returns a new tensor view of the same buffer with the requested shape, following standard broadcasting rules.
+        Returns a new view of the tensor with the requested shape, following standard broadcasting rules.
         """
         return super().broadcast_to(Shape(shape))
+
+    def view(self, shape: TShapeOrTuple, strides: TShapeOrTuple = Shape(), offset: int = 0):
+        """
+        Returns a new view of the tensor with the requested shape, strides and offset
+        The offset is in elements (not bytes) and is specified relative to the current offset
+        """
+        return super().view(Shape(shape), Shape(strides), offset)
 
     def __str__(self):
         return str(self.to_numpy())

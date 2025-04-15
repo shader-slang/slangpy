@@ -163,6 +163,19 @@ class NDBuffer(NativeNDBuffer):
         """
         return (self.usage & ResourceUsage.unordered_access) != 0
 
+    def broadcast_to(self, shape: TShapeOrTuple):
+        """
+        Returns a new view of the buffer with the requested shape, following standard broadcasting rules.
+        """
+        return super().broadcast_to(Shape(shape))
+
+    def view(self, shape: TShapeOrTuple, strides: TShapeOrTuple = Shape(), offset: int = 0):
+        """
+        Returns a new view of the tensor with the requested shape, strides and offset
+        The offset is in elements (not bytes) and is specified relative to the current offset
+        """
+        return super().view(Shape(shape), Shape(strides), offset)
+
     def to_numpy(self) -> np.ndarray[Any, Any]:
         """
         Copies buffer data into a numpy array with the same shape and strides. If the element type
