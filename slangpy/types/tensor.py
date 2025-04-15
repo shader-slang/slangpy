@@ -10,7 +10,8 @@ from slangpy.core.shapes import TShapeOrTuple
 from slangpy.types.buffer import get_lookup_module, resolve_element_type, resolve_program_layout
 from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
-from typing import Optional, Any, cast
+from warnings import warn
+
 import numpy as np
 import math
 
@@ -148,6 +149,12 @@ class Tensor(NativeTensor):
 
     @staticmethod
     def numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
+        warn('Tensor.numpy is deprecated. Use Tensor.from_numpy instead.',
+             DeprecationWarning, stacklevel=2)
+        return Tensor.from_numpy(device, ndarray)
+
+    @staticmethod
+    def from_numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
         """
         Creates a new tensor with the same contents, shape and strides as the given numpy array.
         """
