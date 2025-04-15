@@ -8,7 +8,7 @@ This document is designed to guide you in contributing to the project. It is int
 
 * Contributions require you to agree to a Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant the rights to use your contribution.
 * When you submit a pull request, a CLA bot will determine whether you need to sign a CLA. Simply follow the instructions provided.
-* Please read and follow the contributor [Code of Conduct](CODE_OF_CONDUCT.md).
+* Please read and follow the contributor [Code of Conduct](https://github.com/shader-slang/slang/blob/master/CODE_OF_CONDUCT.md).
 * Bug reports and feature requests should be submitted via the GitHub issue tracker.
 * Changes should ideally come in as small pull requests on top of master, coming from your own personal fork of the project.
 * Large features that will involve multiple contributors or a long development time should be discussed in issues and broken down into smaller pieces that can be implemented and checked in stages.
