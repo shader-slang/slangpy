@@ -297,7 +297,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         'x': a_x,
         'y': a_y,
         'z': a_z
-    }, b, res_w_grads)
+    }, b, res)
     a_x_grad_data = a_x.grad.storage.to_numpy().view(np.float32).reshape(-1, 1)
     a_y_grad_data = a_y.grad.storage.to_numpy().view(np.float32).reshape(-1, 1)
     a_z_grad_data = a_z.grad.storage.to_numpy().view(np.float32).reshape(-1, 1)
