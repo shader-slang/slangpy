@@ -20,7 +20,7 @@ jobs:
         os: [windows, linux]
         python: ["3.10"]
         include:
-          - { os: windows, runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: windows, runs-on: { group: gcp, labels: [Windows, X64] } }
           - { os: linux, runs-on: { group: nvrgfx, labels: [Linux, X64] } }
   
     env:
