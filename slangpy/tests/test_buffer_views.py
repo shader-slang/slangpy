@@ -3,7 +3,7 @@ import pytest
 
 from slangpy import Struct
 from slangpy.core.native import Shape
-from slangpy.backend import DeviceType, ResourceUsage
+from slangpy.backend import DeviceType, BufferUsage
 from slangpy.tests import helpers
 from slangpy.types import NDBuffer, Tensor
 
@@ -129,7 +129,7 @@ def test_to_torch(device_type: DeviceType,
         iinfo = torch.iinfo(torch_dtype)
         torch_ref = torch.randint(iinfo.min, iinfo.max, unravelled_shape, dtype=torch_dtype).cuda()
 
-    usage = ResourceUsage.shader_resource | ResourceUsage.unordered_access | ResourceUsage.shared
+    usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     if buffer_type == Tensor:
         storage = device.create_buffer(
             element_count=math.prod(shape),

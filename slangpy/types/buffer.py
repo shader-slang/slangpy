@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from slangpy.core.native import Shape, NativeNDBuffer, NativeNDBufferDesc
 from slangpy.core.shapes import TShapeOrTuple
@@ -11,6 +11,8 @@ from slangpy.backend import (DataType, Device, MemoryType,
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType
+
+import numpy as np
 
 if TYPE_CHECKING:
     import torch
@@ -164,7 +166,6 @@ class NDBuffer(NativeNDBuffer):
         """
         return super().broadcast_to(Shape(shape))
 
-    def clear(self, command_buffer: Optional[CommandEncoder] = None):
     def view(self, shape: TShapeOrTuple, strides: TShapeOrTuple = Shape(), offset: int = 0):
         """
         Returns a new view of the tensor with the requested shape, strides and offset
@@ -194,7 +195,7 @@ class NDBuffer(NativeNDBuffer):
         """
         return cast('torch.Tensor', super().to_torch())
 
-    def clear(self, command_buffer: Optional[CommandBuffer] = None):
+    def clear(self, command_buffer: Optional[CommandEncoder] = None):
         """
         Fill the ndbuffer with zeros. If no command buffer is provided, a new one is created and
         immediately submitted. If a command buffer is provided the clear is simply appended to it
