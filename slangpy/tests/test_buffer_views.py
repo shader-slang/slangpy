@@ -10,8 +10,17 @@ from slangpy.types import NDBuffer, Tensor
 from typing import Any, Optional, Union, Type, cast
 
 import numpy as np
-import torch
 import math
+import sys
+
+try:
+    import torch
+except ImportError:
+    pytest.skip("Pytorch not installed", allow_module_level=True)
+
+# Skip all tests in this file if running on MacOS
+if sys.platform == "darwin":
+    pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 
 MODULE = r"""
 struct RGB {
