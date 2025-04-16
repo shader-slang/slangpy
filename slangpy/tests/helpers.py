@@ -62,7 +62,6 @@ def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = Fa
         ),
         enable_cuda_interop=cuda_interop
     )
-    device.run_garbage_collection()
     if use_cache:
         DEVICE_CACHE[cache_key] = device
     return device

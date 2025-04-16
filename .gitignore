@@ -12,3 +12,5 @@ htmlcov/
 docs/_build/
 
 dist/
+
+build/
