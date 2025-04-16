@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from slangpy.core.native import Shape, NativeNDBuffer, NativeNDBufferDesc
 from slangpy.core.shapes import TShapeOrTuple
@@ -11,6 +11,11 @@ from slangpy.backend import (DataType, Device, MemoryType,
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType
+
+import numpy as np
+
+if TYPE_CHECKING:
+    import torch
 
 global_lookup_modules: dict[Device, SlangProgramLayout] = {}
 
@@ -135,18 +140,11 @@ class NDBuffer(NativeNDBuffer):
         else:
             raise ValueError("element_count or shape must be provided")
 
-        strides = []
-        total = 1
-        for dim in reversed(shape):
-            strides.append(total)
-            total *= dim
-        strides = Shape(tuple(reversed(strides)))
-
         desc = NativeNDBufferDesc()
         desc.usage = usage
         desc.memory_type = memory_type
         desc.shape = shape
-        desc.strides = strides
+        desc.strides = shape.calc_contiguous_strides()
         desc.dtype = dtype
         desc.element_layout = dtype.buffer_layout.reflection
 
@@ -162,14 +160,40 @@ class NDBuffer(NativeNDBuffer):
         """
         return (self.usage & BufferUsage.unordered_access) != 0
 
-    def to_torch(self, override_type: Optional[DataType] = None):
+    def broadcast_to(self, shape: TShapeOrTuple):
         """
-        Returns the buffer as a torch tensor.
+        Returns a new view of the buffer with the requested shape, following standard broadcasting rules.
         """
-        if isinstance(self.dtype, ScalarType):
-            return self.storage.to_torch(type=SLANG_TO_CUDA_TYPES[self.dtype.slang_scalar_type], shape=self.shape.as_tuple(), strides=self.strides.as_tuple())
-        else:
-            raise ValueError("Only scalar types can be converted to torch tensors")
+        return super().broadcast_to(Shape(shape))
+
+    def view(self, shape: TShapeOrTuple, strides: TShapeOrTuple = Shape(), offset: int = 0):
+        """
+        Returns a new view of the tensor with the requested shape, strides and offset
+        The offset is in elements (not bytes) and is specified relative to the current offset
+        """
+        return super().view(Shape(shape), Shape(strides), offset)
+
+    def to_numpy(self) -> np.ndarray[Any, Any]:
+        """
+        Copies buffer data into a numpy array with the same shape and strides. If the element type
+        of the buffer is representable in numpy (e.g. floats, ints, arrays/vectors thereof), the
+        ndarray will have a matching dtype. If the element type can't be represented in numpy (e.g. structs),
+        the ndarray will be an array over the bytes of the buffer elements
+
+        Examples:
+        NDBuffer of dtype float3 with shape (4, 5)
+            -> ndarray of dtype np.float32 with shape (4, 5, 3)
+        NDBuffer of dtype struct Foo {...} with shape (5, )
+            -> ndarray of dtype np.uint8 with shape (5, sizeof(Foo))
+        """
+        return cast(np.ndarray[Any, Any], super().to_numpy())
+
+    def to_torch(self) -> 'torch.Tensor':
+        """
+        Returns a view of the buffer data as a torch tensor with the same shape and strides.
+        See to_numpy for notes on dtype conversion
+        """
+        return cast('torch.Tensor', super().to_torch())
 
     def clear(self, command_buffer: Optional[CommandEncoder] = None):
         """
@@ -177,12 +201,7 @@ class NDBuffer(NativeNDBuffer):
         immediately submitted. If a command buffer is provided the clear is simply appended to it
         but not automatically submitted.
         """
-        if command_buffer:
-            command_buffer.clear_buffer(self.storage)
-        else:
-            cmd = self.storage.device.create_command_encoder()
-            cmd.clear_buffer(self.storage)
-            self.device.submit_command_buffer(cmd.finish())
+        super().clear()
 
     @staticmethod
     def zeros(device: Device,

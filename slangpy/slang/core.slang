@@ -260,14 +260,15 @@ public struct RWValueRef<T>
 public struct NDBuffer<T, let N : int>
 {
     public StructuredBuffer<T> buffer;
+    public int offset;
     public int[N] strides;
     public int[N] shape;
 
-    public T get(int[N] index) { return buffer[_idx(index, strides)]; }
-    //public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
+    public T get(int[N] index) { return buffer[offset + _idx(index, strides)]; }
+    //public T get(vector<int,N> index) { return buffer[offset + _idx(index, strides)]; }
 
     //public __subscript(int[N] index)->T { get { return get(index); } }
-    public __subscript(vector<int,N> index)->T { get { return buffer[_idx_vec(index, strides)]; } }
+    public __subscript(vector<int,N> index)->T { get { return buffer[offset + _idx_vec(index, strides)]; } }
 
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
     public void store(ContextND<N> context, in T value) {};
@@ -289,7 +290,7 @@ public struct NDBuffer<T, let N : int>
 
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
-            value[vi] = buffer[_idx(call_id, strides)];
+            value[vi] = buffer[offset + _idx(call_id, strides)];
         }
     }
 
@@ -299,14 +300,15 @@ public struct NDBuffer<T, let N : int>
 public struct RWNDBuffer<T, let N : int>
 {
     public RWStructuredBuffer<T> buffer;
+    public int offset;
     public int[N] strides;
     public int[N] shape;
 
-    public T get(int[N] index) { return buffer[_idx(index, strides)]; }
-    //public T get(vector<int,N> index) { return buffer[_idx(index, strides)]; }
+    public T get(int[N] index) { return buffer[offset + _idx(index, strides)]; }
+    //public T get(vector<int,N> index) { return buffer[offset + _idx(index, strides)]; }
 
-    public void set(int[N] index, T value) { buffer[_idx(index, strides)] = value; }
-    //public void set(vector<int,N> index, T value) { buffer[_idx(index, strides)] = value; }
+    public void set(int[N] index, T value) { buffer[offset + _idx(index, strides)] = value; }
+    //public void set(vector<int,N> index, T value) { buffer[offset + _idx(index, strides)] = value; }
 
     //public __subscript(int[N] index)->T {
     //    get { return get(index); }
@@ -315,9 +317,9 @@ public struct RWNDBuffer<T, let N : int>
     //}
 
     public __subscript(vector<int,N> index)->T {
-        get { return buffer[_idx_vec(index, strides)]; }
+        get { return buffer[offset + _idx_vec(index, strides)]; }
         [nonmutating]
-        set { buffer[_idx_vec(index, strides)] = newValue; }
+        set { buffer[offset + _idx_vec(index, strides)] = newValue; }
     }
 
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
@@ -364,7 +366,7 @@ namespace impl
     // e.g. [1, 2, 3] to uint16_t[3] would fail if the ValueType picks the default
     // of int[3] to pass to slang. We could attempt to check this in python, but
     // this would require deep slang type inspection and would inevitably be brittle
-    // 
+    //
     // To solve this, we check if the python type (e.g. float[3]) type can be converted
     // safely to the slang type using slang generic constraints.
     // If type B implements IConvertibleFrom<A>, then we can safely convert from A to B

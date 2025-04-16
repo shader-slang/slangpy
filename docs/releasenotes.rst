@@ -1,6 +1,11 @@
 Release Notes
 =============
 
+**Version 0.23.0**
+
+Primarily a refactor of NDBuffer and Tensor so they share the same underlying base types, and support indexing. The 2 now function almost 
+equivalently, with the exception that Tensor supports gradients, where NDBuffer does not.
+
 **Version 0.22.0**
 
 This is an extremely major release, which includes a complete rework of the SGL library to use the new Slang-RHI backend. This means that all 

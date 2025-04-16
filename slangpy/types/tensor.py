@@ -10,9 +10,14 @@ from slangpy.core.shapes import TShapeOrTuple
 from slangpy.types.buffer import get_lookup_module, resolve_element_type, resolve_program_layout
 from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
-from typing import Optional, Any, cast
+from warnings import warn
+
+from typing import Optional, Any, cast, TYPE_CHECKING
 import numpy as np
 import math
+
+if TYPE_CHECKING:
+    import torch
 
 ST = TypeReflection.ScalarType
 _numpy_to_sgl = {
@@ -68,7 +73,7 @@ class Tensor(NativeTensor):
         # Setup shape and stride.
         shape = Shape(shape)
         if strides is None:
-            strides = shape_to_contiguous_strides(shape.as_tuple())
+            strides = shape.calc_contiguous_strides()
         if len(strides) != len(shape):
             raise ValueError("Number of strides must match number of dimensions")
 
@@ -87,40 +92,43 @@ class Tensor(NativeTensor):
         self.grad_in: Optional[Tensor]
         self.grad_out: Optional[Tensor]
 
-    # flatten_dtype Not used anywhere - do we need it? If so, need to make native implementation
-    """
-    def flatten_dtype(self) -> Tensor:
-        new_dtype = innermost_type(self.dtype)
-        dtype_shape = self.dtype.shape.as_tuple()
-        dtype_strides = shape_to_contiguous_strides(dtype_shape)
-        stride_multiplier = math.prod(dtype_shape)
-
-        new_shape = self.shape.as_tuple() + dtype_shape
-        new_strides = tuple(s * stride_multiplier for s in self.strides) + dtype_strides
-        new_offset = self.offset * stride_multiplier
-
-        return Tensor(self.storage, new_dtype, new_shape, new_strides, new_offset)
-    """
-
     def broadcast_to(self, shape: TShapeOrTuple):
         """
-        Returns a new tensor view of the same buffer with the requested shape, following standard broadcasting rules.
+        Returns a new view of the tensor with the requested shape, following standard broadcasting rules.
         """
         return super().broadcast_to(Shape(shape))
 
+    def view(self, shape: TShapeOrTuple, strides: TShapeOrTuple = Shape(), offset: int = 0):
+        """
+        Returns a new view of the tensor with the requested shape, strides and offset
+        The offset is in elements (not bytes) and is specified relative to the current offset
+        """
+        return super().view(Shape(shape), Shape(strides), offset)
+
     def __str__(self):
-        ndarray = self.to_numpy()
-        if ndarray is None:
-            return f"Tensor({self.shape}, {self.dtype.name})"
-        else:
-            return str(ndarray)
+        return str(self.to_numpy())
 
     def to_numpy(self) -> np.ndarray[Any, Any]:
         """
-        Copies tensor data into a numpy array with the same shape and strides. This may fail if the
-        element type does not have an equivalent in numpy.
+        Copies tensor data into a numpy array with the same shape and strides. If the element type
+        of the tensor is representable in numpy (e.g. floats, ints, arrays/vectors thereof), the
+        ndarray will have a matching dtype. If the element type can't be represented in numpy (e.g. structs),
+        the ndarray will be an array over the bytes of the buffer elements
+
+        Examples:
+        Tensor of dtype float3 with shape (4, 5)
+            -> ndarray of dtype np.float32 with shape (4, 5, 3)
+        Tensor of dtype struct Foo {...} with shape (5, )
+            -> ndarray of dtype np.uint8 with shape (5, sizeof(Foo))
         """
         return cast(np.ndarray[Any, Any], super().to_numpy())
+
+    def to_torch(self) -> 'torch.Tensor':
+        """
+        Returns a view of the buffer data as a torch tensor with the same shape and strides.
+        See to_numpy for notes on dtype conversion
+        """
+        return cast('torch.Tensor', super().to_torch())
 
     def with_grads(self, grad_in: Optional[Tensor] = None, grad_out: Optional[Tensor] = None, zero: bool = False):
         """
@@ -148,6 +156,12 @@ class Tensor(NativeTensor):
 
     @staticmethod
     def numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
+        warn('Tensor.numpy is deprecated. Use Tensor.from_numpy instead.',
+             DeprecationWarning, stacklevel=2)
+        return Tensor.from_numpy(device, ndarray)
+
+    @staticmethod
+    def from_numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
         """
         Creates a new tensor with the same contents, shape and strides as the given numpy array.
         """
