@@ -10,6 +10,10 @@ from slangpy.types import NDBuffer
 from slangpy.reflection import ScalarType
 from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
 from slangpy.types.tensor import _slang_to_numpy
+import sys
+
+if sys.platform == "darwin":
+    pytest.skip("Skipping on macOS: Waiting for slang-gfx fix for resource clear API https://github.com/shader-slang/slang/issues/6640", allow_module_level=True)
 
 
 def load_test_module(device_type: DeviceType):

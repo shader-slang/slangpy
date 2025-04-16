@@ -7,13 +7,15 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+import numpy as np
 
 from slangpy.core.calldata import SLANG_PATH
 
 import slangpy
 from slangpy import Module
 from slangpy.backend import (Device, DeviceType, SlangCompilerOptions,
-                             SlangDebugInfoLevel)
+                             SlangDebugInfoLevel, TypeReflection)
+from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
 
 SHADER_DIR = Path(__file__).parent
@@ -25,7 +27,7 @@ elif sys.platform == "win32":
 elif sys.platform == "linux" or sys.platform == "linux2":
     DEFAULT_DEVICE_TYPES = [DeviceType.vulkan]
 elif sys.platform == "darwin":
-    DEFAULT_DEVICE_TYPES = [DeviceType.vulkan]
+    DEFAULT_DEVICE_TYPES = [DeviceType.metal]
 else:
     raise RuntimeError("Unsupported platform")
 
@@ -105,3 +107,30 @@ def create_function_from_module(
     if function is None:
         raise ValueError(f"Could not find function {func_name}")
     return cast(Function, function)
+
+def read_ndbuffer_from_numpy(buffer: NDBuffer) -> np.ndarray:
+    cursor = buffer.cursor()
+    data = np.array([])
+    shape = np.prod(np.array(buffer.shape))
+    for i in range(shape):
+        data = np.append(data, cursor[i].read())
+
+    return data
+
+def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count: int = 0):
+    cursor = buffer.cursor()
+    shape = np.prod(np.array(buffer.shape))
+
+    if element_count == 0:
+        if (cursor.element_type_layout.kind == TypeReflection.Kind.scalar):
+            element_count = 1
+        elif (cursor.element_type_layout.kind == TypeReflection.Kind.vector):
+            element_count = cursor.element_type.col_count
+        else:
+            raise ValueError(f"element_count not set and type is not scalar or vector: {cursor.element_type_layout.kind}")
+
+    for i in range(shape):
+        buffer_data = np.array(data[i*element_count : (i+1)*element_count])
+        cursor[i].write(buffer_data)
+
+    cursor.apply()

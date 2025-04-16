@@ -2,7 +2,7 @@
 import pytest
 
 import slangpy.tests.helpers as helpers
-from slangpy.backend import DeviceType
+from slangpy.backend import (DeviceType, TypeReflection)
 from slangpy.types.buffer import NDBuffer
 
 import numpy as np
@@ -25,7 +25,11 @@ def do_generic_test(device_type: DeviceType, container_type: str, slang_type_nam
 
     if container_type == 'buffer':
         buffer = NDBuffer(device, dtype=buffertype, shape=shape)
-        buffer.copy_from_numpy(np.random.random(int(buffer.storage.size / 4)).astype(np.float32))
+        if (buffer.cursor().element_type_layout.kind == TypeReflection.Kind.vector):
+            helpers.write_ndbuffer_from_numpy(buffer, np.random.random(int(buffer.storage.size / 4)).astype(np.float32))
+        else:
+            buffer.copy_from_numpy(np.random.random(int(buffer.storage.size / 4)).astype(np.float32))
+
         results = module.get(buffer)
         assert results.dtype == buffer.dtype
         assert np.all(buffer.to_numpy() == results.to_numpy())

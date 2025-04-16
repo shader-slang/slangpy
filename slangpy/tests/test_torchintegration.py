@@ -2,11 +2,16 @@
 import pytest
 from slangpy.backend import DeviceType, Device
 import slangpy.tests.helpers as helpers
+import sys
 
 try:
     import torch
 except ImportError:
     pytest.skip("Pytorch not installed", allow_module_level=True)
+
+# Skip all tests in this file if running on MacOS
+if sys.platform == "darwin":
+    pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 
 TEST_CODE = """
 import tensor;
@@ -22,7 +27,6 @@ float square(float x) {
 if DeviceType.d3d12 in helpers.DEFAULT_DEVICE_TYPES:
     pytest.skip("Skipping pytorch tests as not in D3D", allow_module_level=True)
 DEVICE_TYPES = [DeviceType.d3d12]
-
 
 def get_test_tensors(device: Device, N: int = 4):
     weights = torch.randn((5, 8), dtype=torch.float32,

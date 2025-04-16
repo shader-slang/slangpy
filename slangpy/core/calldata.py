@@ -200,7 +200,7 @@ class CallData(NativeCallData):
                 session = build_info.module.session
                 device = session.device
                 module = session.load_module_from_source(hash, code)
-                ep = module.entry_point(f"main", type_conformances)
+                ep = module.entry_point(f"compute_main", type_conformances)
                 opts = SlangLinkOptions()
                 opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
                 opts.dump_intermediates_prefix = sanitized
