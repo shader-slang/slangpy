@@ -26,9 +26,11 @@ def do_generic_test(device_type: DeviceType, container_type: str, slang_type_nam
     if container_type == 'buffer':
         buffer = NDBuffer(device, dtype=buffertype, shape=shape)
         if (buffer.cursor().element_type_layout.kind == TypeReflection.Kind.vector):
-            helpers.write_ndbuffer_from_numpy(buffer, np.random.random(int(buffer.storage.size / 4)).astype(np.float32))
+            helpers.write_ndbuffer_from_numpy(buffer, np.random.random(
+                int(buffer.storage.size / 4)).astype(np.float32))
         else:
-            buffer.copy_from_numpy(np.random.random(int(buffer.storage.size / 4)).astype(np.float32))
+            buffer.copy_from_numpy(np.random.random(
+                int(buffer.storage.size / 4)).astype(np.float32))
 
         results = module.get(buffer)
         assert results.dtype == buffer.dtype

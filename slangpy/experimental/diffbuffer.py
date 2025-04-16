@@ -6,7 +6,7 @@ import numpy.typing as npt
 from slangpy.core.shapes import TShapeOrTuple
 
 from slangpy.backend import (Device, MemoryType,
-                             ResourceUsage)
+                             BufferUsage)
 from slangpy.reflection import SlangProgramLayout
 from slangpy.types.buffer import NDBuffer, resolve_element_type, resolve_program_layout
 
@@ -31,12 +31,12 @@ class NDDifferentiableBuffer(NDBuffer):
         element_type: Any,
         element_count: Optional[int] = None,
         shape: Optional[TShapeOrTuple] = None,
-        usage: ResourceUsage = ResourceUsage.shader_resource
-        | ResourceUsage.unordered_access,
+        usage: BufferUsage = BufferUsage.shader_resource
+        | BufferUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
         requires_grad: bool = False,
         grad_type: Any = None,
-        grad_usage: Optional[ResourceUsage] = None,
+        grad_usage: Optional[BufferUsage] = None,
         grad_memory_type: Optional[MemoryType] = None,
         program_layout: Optional[SlangProgramLayout] = None
     ):
@@ -92,7 +92,7 @@ class NDDifferentiableBuffer(NDBuffer):
         """
         Returns True if this buffer is writable from the GPU, i.e. if it has unordered access resource usage.
         """
-        return (self.usage & ResourceUsage.unordered_access) != 0
+        return (self.usage & BufferUsage.unordered_access) != 0
 
     def primal_to_numpy(self):
         """

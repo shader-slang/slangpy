@@ -2,7 +2,6 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from slangpy.core.function import Function
-from slangpy.core.utils import try_find_function_overloads_via_ast
 
 if TYPE_CHECKING:
     from slangpy import Module

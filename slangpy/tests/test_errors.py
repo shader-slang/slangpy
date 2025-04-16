@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import pytest
-from sgl import float3, float4
+from sgl import float4
 
 from slangpy.bindings.boundvariable import BoundVariableException
 import slangpy.tests.helpers as helpers
@@ -163,7 +163,7 @@ def test_missing_child_function(device_type: DeviceType):
                                    void hello() {}""")
 
     with pytest.raises(AttributeError, match=r'has no method or sub-type named'):
-        func = module.Foo.foo
+        func = module.Foo.foo  # type: ignore
 
 
 if __name__ == "__main__":

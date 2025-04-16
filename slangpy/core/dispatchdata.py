@@ -9,7 +9,7 @@ from slangpy.core.enums import IOType
 from slangpy.core.native import CallMode, pack_arg, unpack_arg
 from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS
 
-from slangpy.backend import CommandBuffer, SlangLinkOptions, uint3
+from slangpy.backend import CommandEncoder, SlangLinkOptions, uint3
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.boundvariable import BoundCall
@@ -178,7 +178,7 @@ void {reflection.name}_entrypoint({params}) {{
             raise e
 
     def dispatch(self, opts: 'NativeCallRuntimeOptions', thread_count: uint3, vars: dict[str, Any] = {},
-                 command_buffer: Optional[CommandBuffer] = None, **kwargs: dict[str, Any]) -> None:
+                 command_buffer: Optional[CommandEncoder] = None, **kwargs: dict[str, Any]) -> None:
 
         # Merge uniforms
         uniforms: dict[str, Any] = {}

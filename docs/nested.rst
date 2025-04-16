@@ -25,7 +25,7 @@ relatively pointless since we can manually set the texture's data using SGL's ``
         width=128,
         height=128,
         format=sgl.Format.rgba32_float,
-        usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access
+        usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access
     )
 
     # Copy source values into the texture

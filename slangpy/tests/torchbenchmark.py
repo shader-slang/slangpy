@@ -18,11 +18,11 @@ def run_benchmark(mode: int, buffer_size: int, iterations: int):
     kernel = device.create_compute_kernel(program)
 
     buffer_a = device.create_buffer(element_count=1024, struct_size=4,
-                                    usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.shared)
+                                    usage=sgl.BufferUsage.shader_resource | sgl.BufferUsage.shared)
     buffer_b = device.create_buffer(element_count=1024, struct_size=4,
-                                    usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.shared)
-    buffer_res = device.create_buffer(element_count=1024, struct_size=4, usage=sgl.ResourceUsage.shader_resource |
-                                      sgl.ResourceUsage.unordered_access | sgl.ResourceUsage.shared)
+                                    usage=sgl.BufferUsage.shader_resource | sgl.BufferUsage.shared)
+    buffer_res = device.create_buffer(element_count=1024, struct_size=4, usage=sgl.BufferUsage.shader_resource |
+                                      sgl.BufferUsage.unordered_access | sgl.BufferUsage.shared)
 
     buffer_a.copy_from_numpy(np.random.rand(1024).astype(np.float32))
     buffer_b.copy_from_numpy(np.random.rand(1024).astype(np.float32))

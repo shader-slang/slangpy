@@ -3,8 +3,7 @@ import random
 import numpy as np
 import pytest
 
-from slangpy.backend import DeviceType, float3, int3, uint3
-from slangpy.core.module import Module
+from slangpy.backend import DeviceType
 from slangpy.experimental.gridarg import grid
 from slangpy.tests import helpers
 from slangpy.types.buffer import NDBuffer
@@ -65,7 +64,7 @@ def grid_test(device_type: DeviceType, dims: int = 2, datatype: str = 'array', s
             module.get(grid(len(shape), stride=strides, offset=offsets), _result=res)
 
     # Should get random numbers
-    resdata = helpers.read_ndbuffer_from_numpy(res).reshape(shape + (dims,))
+    resdata = res.to_numpy().view(np.int32).reshape(shape + (dims,))
     expected = np.indices(shape).transpose(*transpose) * stride + offset
 
     if datatype == 'vector':

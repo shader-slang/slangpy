@@ -30,7 +30,7 @@ def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Mo
 def test_kernel_reuse(device_type: DeviceType):
     add_vectors = load_module(device_type).add_vectors.as_func()
 
-    buffer = NDBuffer(helpers.get_device(device_type), int, 4)
+    encoder = NDBuffer(helpers.get_device(device_type), int, 4)
 
     count = 1000
 
@@ -50,20 +50,20 @@ def test_kernel_reuse(device_type: DeviceType):
 
     add_vectors(a, b, _result=res)
 
-    buffer = helpers.get_device(device_type).create_command_buffer()
+    encoder = helpers.get_device(device_type).create_command_encoder()
 
     start = time()
     for i in range(0, int(count/10)):
-        add_vectors.append_to(buffer, a, b, _result=res)
-        add_vectors.append_to(buffer, a, b, _result=res)
-        add_vectors.append_to(buffer, a, b, _result=res)
-        add_vectors.append_to(buffer, a, b, _result=res)
-        add_vectors.append_to(buffer, a, b, _result=res)
-        add_vectors.append_to(buffer, a, b, _result=res)
-        add_vectors.append_to(buffer, a, b, _result=res)
-        add_vectors.append_to(buffer, a, b, _result=res)
-        add_vectors.append_to(buffer, a, b, _result=res)
-        add_vectors.append_to(buffer, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
+        add_vectors.append_to(encoder, a, b, _result=res)
     end = time()
     print(f"Time taken cached: {1000.0*(end-start)/count}ms")
 

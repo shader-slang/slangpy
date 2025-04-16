@@ -4,12 +4,13 @@ from __future__ import annotations
 from typing import Any, Callable, Optional, Union, Sequence, cast
 
 import numpy as np
+from sgl import TextureUsage
 
 from slangpy.core.enums import IOType
 from slangpy.core.native import NativeSlangType, Shape
 
 from slangpy.backend import (FunctionReflection, ModifierID, ProgramLayout,
-                             ResourceUsage, TypeLayoutReflection)
+                             BufferUsage, TypeLayoutReflection)
 from slangpy.backend import TypeReflection
 from slangpy.backend import TypeReflection as TR
 from slangpy.backend import VariableReflection
@@ -549,16 +550,6 @@ class ResourceType(SlangType):
         else:
             raise ValueError("Resource is neither read_write or read")
 
-    @property
-    def usage(self) -> ResourceUsage:
-        """
-        Supported shader resource usage.
-        """
-        if self.writable:
-            return ResourceUsage.unordered_access
-        else:
-            return ResourceUsage.shader_resource
-
 
 class TextureType(ResourceType):
     """
@@ -573,6 +564,16 @@ class TextureType(ResourceType):
                          element_type=program.find_type(refl.resource_result_type),
                          local_shape=Shape((-1,)*self.texture_dims,))
 
+    @property
+    def usage(self) -> TextureUsage:
+        """
+        Supported shader resource usage.
+        """
+        if self.writable:
+            return TextureUsage.unordered_access
+        else:
+            return TextureUsage.shader_resource
+
 
 class StructuredBufferType(ResourceType):
     """
@@ -585,6 +586,16 @@ class StructuredBufferType(ResourceType):
                          element_type=program.find_type(refl.resource_result_type),
                          local_shape=Shape((-1,)))
 
+    @property
+    def usage(self) -> BufferUsage:
+        """
+        Supported shader resource usage.
+        """
+        if self.writable:
+            return BufferUsage.unordered_access
+        else:
+            return BufferUsage.shader_resource
+
 
 class ByteAddressBufferType(ResourceType):
     """
@@ -595,6 +606,16 @@ class ByteAddressBufferType(ResourceType):
         super().__init__(program, refl,
                          element_type=program.scalar_type(TR.ScalarType.uint8),
                          local_shape=Shape((-1,)))
+
+    @property
+    def usage(self) -> BufferUsage:
+        """
+        Supported shader resource usage.
+        """
+        if self.writable:
+            return BufferUsage.unordered_access
+        else:
+            return BufferUsage.shader_resource
 
 
 class DifferentialPairType(SlangType):

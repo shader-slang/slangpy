@@ -33,7 +33,7 @@ We'll skip the device initialization and module loading steps and go straight to
         width=128,
         height=128,
         format=sgl.Format.rgba32_float,
-        usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access,
+        usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access,
         data=rand_image
     )
 

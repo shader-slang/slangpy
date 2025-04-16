@@ -171,10 +171,11 @@ def test_call_with_buffers(device_type: DeviceType):
 
     assert np.allclose(res_data, expected)
 
-    res = res.with_grads()
-    res.grad.storage.copy_from_numpy(np.ones(res.shape.as_tuple(), dtype=np.float32))
+    res_w_grads = res.with_grads()
+    res_w_grads.grad.storage.copy_from_numpy(
+        np.ones(res_w_grads.shape.as_tuple(), dtype=np.float32))
 
-    kernel_eval_polynomial.bwds(a, b, res)
+    kernel_eval_polynomial.bwds(a, b, res_w_grads)
     a_grad_data = a.grad.to_numpy().view(np.float32)
     b_grad_data = b.grad.to_numpy().view(np.float32)
 

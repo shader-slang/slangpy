@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
-from slangpy.backend import Device, Buffer, ResourceUsage, TypeReflection, uint4, BufferCursor, CommandBuffer
+from slangpy.backend import Device, Buffer, BufferUsage, TypeReflection, CommandBuffer
 from slangpy.core.utils import shape_to_contiguous_strides
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
 from slangpy.reflection import reflectiontypes
@@ -165,7 +165,7 @@ class Tensor(NativeTensor):
         flattened = np.lib.stride_tricks.as_strided(ndarray, (N, ), (ndarray.itemsize, ))
         strides = tuple(stride // ndarray.itemsize for stride in ndarray.strides)
 
-        usage = ResourceUsage.shader_resource | ResourceUsage.unordered_access
+        usage = BufferUsage.shader_resource | BufferUsage.unordered_access
         buffer = device.create_buffer(ndarray.nbytes, usage=usage, data=flattened)
 
         return Tensor(buffer, dtype, tuple(ndarray.shape), strides)
@@ -183,7 +183,7 @@ class Tensor(NativeTensor):
         shape_tuple = shape if isinstance(shape, tuple) else shape.as_tuple()
         num_elems = math.prod(shape_tuple)
 
-        usage = ResourceUsage.shader_resource | ResourceUsage.unordered_access
+        usage = BufferUsage.shader_resource | BufferUsage.unordered_access
         buffer = device.create_buffer(element_count=num_elems,
                                       struct_size=dtype.buffer_layout.stride,
                                       usage=usage)

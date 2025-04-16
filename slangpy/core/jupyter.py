@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+from sgl import TextureType
 from slangpy import Module, Function, Struct
-from slangpy.backend import Device, Texture, Bitmap, ModifierID, FunctionReflection, ResourceType, TypeReflection
+from slangpy.backend import Device, Texture, Bitmap, ModifierID, FunctionReflection, TypeReflection
 from slangpy.reflection import SlangFunction, SlangType
 from slangpy.types.buffer import NDBuffer, NativeNDBuffer
 from slangpy.types.tensor import Tensor, NativeTensor
 import slangpy.backend
 
-from IPython.core.getipython import get_ipython
-from IPython.core.formatters import DisplayFormatter
-from IPython.lib import pretty
+from IPython.core.getipython import get_ipython  # type: ignore
+from IPython.core.formatters import DisplayFormatter  # type: ignore
+from IPython.lib import pretty  # type: ignore
 from pathlib import Path
 from typing import Optional, Iterable, Any
 import numpy as np
@@ -171,12 +172,13 @@ def format_type(st: SlangType, p: pretty.RepresentationPrinter, cycle: bool):
 def format_function(func: Function, p: pretty.RepresentationPrinter, cycle: bool):
     head = 'slangpy.Function("'
     tail = f'", module="{func.module.device_module.name}")'
-    funcs = func._slang_funcs
-    if len(funcs) == 1:
-        pprint_all(p, (head, funcs[0].reflection, tail))
+    sl_func = func._slang_func
+    if not sl_func.is_overloaded:
+        pprint_all(p, (head, sl_func.reflection, tail))
     else:
-        with p.group(4, f"{head}{len(funcs)} overloads:", tail):
-            for f in funcs:
+        sl_overloads = sl_func.overloads
+        with p.group(4, f"{head}{len(sl_overloads)} overloads:", tail):
+            for f in sl_overloads:
                 p.pretty(f.reflection)
 
 
@@ -201,10 +203,10 @@ def format_tensor(t: NativeTensor, p: pretty.RepresentationPrinter, cycle: bool)
 
 def format_texture(tex: Texture, p: pretty.RepresentationPrinter, cycle: bool):
     mapping = {
-        ResourceType.texture_1d: ("Texture1D", 1),
-        ResourceType.texture_2d: ("Texture2D", 2),
-        ResourceType.texture_3d: ("Texture3D", 3),
-        ResourceType.texture_cube: ("TextureCube", 3),
+        TextureType.texture_1d: ("Texture1D", 1),
+        TextureType.texture_2d: ("Texture2D", 2),
+        TextureType.texture_3d: ("Texture3D", 3),
+        TextureType.texture_cube: ("TextureCube", 3),
     }
     name, dims = mapping[tex.desc.type]
 
@@ -216,8 +218,8 @@ def format_texture(tex: Texture, p: pretty.RepresentationPrinter, cycle: bool):
         fragments.append(f"height={tex.height}")
     if dims > 2:
         fragments.append(f"depth={tex.depth}")
-    if tex.array_size > 1:
-        fragments.append(f"array_size={tex.array_size}")
+    if tex.array_length > 1:
+        fragments.append(f"array_size={tex.array_length}")
     if tex.desc.sample_count > 1:
         fragments.append(f"sample_count={tex.desc.sample_count}")
 

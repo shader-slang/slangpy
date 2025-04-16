@@ -8,11 +8,10 @@ from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable, BoundVariableRuntime, CallContext,
                               CodeGenBlock, Shape)
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
-from slangpy.reflection.reflectiontypes import VectorType
 from slangpy.types.helpers import resolve_vector_generator_type
 
 
-def calc_wang_hash_numpy(seed: np.ndarray) -> np.ndarray:
+def calc_wang_hash_numpy(seed: npt.NDArray[Any]) -> npt.NDArray[Any]:
     seed = (seed ^ 61) ^ (seed >> 16)
     seed *= 9
     seed = seed ^ (seed >> 4)

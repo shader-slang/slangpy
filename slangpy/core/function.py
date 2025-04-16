@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from copy import copy
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast
 
 from slangpy.core.native import (CallMode, SignatureBuilder,
                                  NativeCallRuntimeOptions, NativeFunctionNode, FunctionNodeType)
 
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy.backend import (CommandBuffer, TypeConformance, uint3)
+from slangpy.backend import (CommandEncoder, TypeConformance, uint3)
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
@@ -189,7 +188,7 @@ class FunctionNode(NativeFunctionNode):
         """
         Debug helper to build call data without dispatching the kernel.
         """
-        return self._native_build_call_data(self.module.call_data_cache, *args, **kwargs)
+        return cast('CallData', self._native_build_call_data(self.module.call_data_cache, *args, **kwargs))
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
         """
@@ -211,19 +210,19 @@ class FunctionNode(NativeFunctionNode):
                 # Otherwise just throw the original.
                 if len(e.args) != 1 or not isinstance(e.args[0], dict) or not 'message' in e.args[0] or not 'source' in e.args[0] or not 'context' in e.args[0]:
                     raise
-                from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
+                from slangpy.bindings.boundvariableruntime import BoundCallRuntime, BoundVariableRuntime
                 from slangpy.core.native import NativeCallData
                 from slangpy.core.logging import bound_runtime_call_table
                 msg: str = e.args[0]['message']
                 source: BoundVariableRuntime = e.args[0]['source']
                 context: NativeCallData = e.args[0]['context']
-                runtime = context.runtime
+                runtime = cast(BoundCallRuntime, context.runtime)
                 msg += "\n\n" + \
                     bound_runtime_call_table(runtime, source) + \
                     "\n\nFor help and support: https://khr.io/slangdiscord"
                 raise ValueError(msg) from e
 
-    def append_to(self, command_buffer: CommandBuffer, *args: Any, **kwargs: Any):
+    def append_to(self, command_buffer: CommandEncoder, *args: Any, **kwargs: Any):
         """
         Append the function to a command buffer without dispatching it. As with calling,
         this will generate and compile a new kernel if need be. However the dispatch
@@ -231,7 +230,7 @@ class FunctionNode(NativeFunctionNode):
         """
         self._native_append_to(self.module.call_data_cache, command_buffer, *args, **kwargs)
 
-    def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: Optional[CommandBuffer] = None, **kwargs: Any) -> None:
+    def dispatch(self, thread_count: uint3, vars: dict[str, Any] = {}, command_buffer: Optional[CommandEncoder] = None, **kwargs: Any) -> None:
         """
         Perform a raw dispatch, bypassing the majority of SlangPy's typing/code gen logic. This is
         useful if you just want to explicitly call an existing kernel, or treat a slang function
@@ -256,7 +255,8 @@ class FunctionNode(NativeFunctionNode):
                 self.slangpy_signature = "\n".join(lines)
 
             builder = SignatureBuilder()
-            sig = self.module.call_data_cache.get_args_signature(builder, self, **kwargs)
+            self.module.call_data_cache.get_args_signature(builder, self, **kwargs)
+            sig = builder.str
 
             if sig in self.module.dispatch_data_cache:
                 dispatch_data = self.module.dispatch_data_cache[sig]

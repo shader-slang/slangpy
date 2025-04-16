@@ -12,6 +12,7 @@ def load_test_module(device_type: DeviceType):
     device = helpers.get_device(device_type)
     return Module(device.load_module("test_transforms.slang"))
 
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_copy_values_basic_input_transform(device_type: DeviceType):
     # Really simple test that just copies values from one buffer to another
@@ -88,7 +89,7 @@ def test_add_vectors_vecindex_inputcontainer_input_transform(device_type: Device
     a_data = np.random.rand(2, 3, 3).astype(np.float32)
     b_data = np.random.rand(3, 2, 3).astype(np.float32)
 
-    helpers.write_ndbuffer_from_numpy(a, a_data.flatten(), 1) 
+    helpers.write_ndbuffer_from_numpy(a, a_data.flatten(), 1)
     helpers.write_ndbuffer_from_numpy(b, b_data.flatten(), 3)
 
     func = m.add_vectors.map((1, 0))

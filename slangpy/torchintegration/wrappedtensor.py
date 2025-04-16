@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from typing import Any, Optional
+from typing import Any, Optional, cast
 from numpy import ScalarType
-from sgl import TypeReflection
+from sgl import DataType, Device, BufferUsage, TypeReflection
 import torch
 
 from slangpy.core.native import AccessType, CallContext, CallMode, Shape
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
-from slangpy.bindings.marshall import Marshall, ReturnContext
+from slangpy.bindings.marshall import ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 from slangpy.builtin.tensor import TensorMarshall, is_nested_array
-from slangpy.core.enums import IOType
+from slangpy.backend import Buffer
 from slangpy.reflection.reflectiontypes import SlangProgramLayout, SlangType, ScalarType, VectorType
 from slangpy.types.tensor import innermost_type
 
@@ -23,6 +23,11 @@ _torch_to_scalar_type = {
 }
 _scalar_type_to_torch = {
     y: x for x, y in _torch_to_scalar_type.items()
+}
+_torch_to_data_type = {
+    torch.int8: DataType.int8, torch.int32: DataType.int16, torch.int32: DataType.int32, torch.int64: DataType.int64,
+    torch.uint8: DataType.uint8,
+    torch.float16: DataType.float16, torch.float32: DataType.float32, torch.float64: DataType.float64
 }
 
 
@@ -39,6 +44,23 @@ def _torch_dtype_to_slang(torch_dtype: 'torch.dtype', layout: SlangProgramLayout
     return layout.scalar_type(scalar_type)
 
 
+GLOBAL_STORAGE: dict[tuple[Device, int, int], list[Buffer]] = {}
+
+
+def get_or_create_storage(context: CallContext, element_count: int, struct_size: int) -> Buffer:
+    value = (context.device, element_count, struct_size)
+    if value not in GLOBAL_STORAGE:
+        GLOBAL_STORAGE[value] = []
+    if len(GLOBAL_STORAGE[value]) == 0:
+        return context.device.create_buffer(size=element_count*struct_size, struct_size=struct_size, usage=BufferUsage.shared | BufferUsage.unordered_access | BufferUsage.shader_resource)
+    return GLOBAL_STORAGE[value].pop()
+
+
+def return_storage(context: CallContext, buffer: Buffer):
+    value = (context.device, buffer.desc.size//buffer.desc.struct_size, buffer.struct_size)
+    GLOBAL_STORAGE[value].append(buffer)
+
+
 class WrappedTensor:
     def __init__(self, primal: Optional[torch.Tensor] = None, id: int = -1):
         super().__init__()
@@ -48,6 +70,8 @@ class WrappedTensor:
         self.grad_in: Optional[WrappedTensor] = None
         self.grad_out: Optional[WrappedTensor] = None
         self.last_access_type: tuple[AccessType, AccessType] = (AccessType.none, AccessType.none)
+        self.temp_storage_tensor: Optional[torch.Tensor] = None
+        self.temp_storage_buffer: Optional[Buffer] = None
 
     @property
     def shape(self):
@@ -89,7 +113,7 @@ class WrappedTensorMarshall(TensorMarshall):
 
     def get_shape(self, value: Optional[WrappedTensor] = None) -> Shape:
         if value is not None:
-            return Shape(value.primal.shape)
+            return Shape(value.primal.shape)  # type: ignore
         else:
             return Shape((-1,) * self.dims)
 
@@ -103,12 +127,26 @@ class WrappedTensorMarshall(TensorMarshall):
         strides = data.primal.stride()
 
         bound_shape = shape[-len(binding.vector_type.shape):]
-        if any([b != -1 and a != b for a, b in zip(bound_shape, binding.vector_type.shape)]):
+        if any([b != -1 and a != b for a, b in zip(bound_shape, binding.vector_type.shape)]):  # type: ignore
             raise ValueError(
                 f"Tensor shape {shape} does not match expected shape {binding.vector_type.shape}")
 
+        assert data.primal.is_cuda
+
+        data_type = _torch_to_data_type[self.torch_dtype]
+        temp_storage = get_or_create_storage(
+            context, data.primal.numel(), data.primal.element_size())
+        temp_storage_tensor = cast(torch.Tensor, temp_storage.to_torch(
+            type=data_type, shape=shape, strides=strides))
+        temp_storage_tensor.copy_(data.primal)
+
+        data.temp_storage_buffer = temp_storage
+        data.temp_storage_tensor = temp_storage_tensor
+
+        temp_storage_tensor.untyped_storage().copy_(data.primal.untyped_storage(), non_blocking=False)
+
         primal_calldata = {
-            'buffer': data.primal,
+            'buffer': temp_storage,
             'layout': {'offset': offset, 'strides': strides},
             '_shape': shape
         }
@@ -132,6 +170,21 @@ class WrappedTensorMarshall(TensorMarshall):
                     "inout parameter gradients need separate buffers for inputs and outputs (see Tensor.with_grads)")
 
         return result
+
+    def read_calldata(self, context: CallContext, binding: 'BoundVariableRuntime', data: WrappedTensor, result: Any):
+        assert data.primal is not None
+        assert data.temp_storage_tensor is not None
+        assert data.temp_storage_buffer is not None
+        data.primal.untyped_storage().copy_(data.temp_storage_tensor.untyped_storage())
+        return_storage(context, data.temp_storage_buffer)
+        data.temp_storage_buffer = None
+        data.temp_storage_tensor = None
+        if self.d_in is not None:
+            assert data.grad_in is not None
+            self.d_in.read_calldata(context, binding, data.grad_in, result['d_in'])
+        if self.d_out is not None:
+            assert data.grad_out is not None
+            self.d_out.read_calldata(context, binding, data.grad_out, result['d_out'])
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         # Overall shape of tensor must contain the call, plus the shape of the slang datatype

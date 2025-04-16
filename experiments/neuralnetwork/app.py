@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 class App:
-    def __init__(self, device: sgl.Device, title="Example", width=1920, height=1080):
+    def __init__(self, device: sgl.Device, title: str = "Neural Networks Example", width: int = 1024, height: int = 1024):
         super().__init__()
 
         # Create SGL window
@@ -19,20 +19,19 @@ class App:
         self._device = device
 
         # Setup swapchain
-        self.swapchain = self._device.create_swapchain(
-            image_count=3,
-            width=self._window.width,
-            height=self._window.height,
-            window=self._window,
-            enable_vsync=False,
+        self.surface = self._device.create_surface(self._window)
+        self.surface.configure(width=self._window.width, height=self._window.height)
+
+        # Will contain output texture
+        self._output_texture: 'sgl.Texture' = self.device.create_texture(
+            format=sgl.Format.rgba16_float,
+            width=width,
+            height=height,
+            mip_count=1,
+            usage=sgl.TextureUsage.shader_resource
+            | sgl.TextureUsage.unordered_access,
+            label="output_texture",
         )
-
-        # Will contain output texture (created in _create_framebuffers)
-        self._output_texture: 'sgl.Texture'
-
-        # Create swapchain frame buffers
-        self._framebuffers = []
-        self._create_framebuffers()
 
         # Store mouse pos
         self._mouse_pos = sgl.float2()
@@ -69,19 +68,32 @@ class App:
         return True
 
     def present(self):
-        image_index = self.swapchain.acquire_next_image()
-        if image_index < 0:
+        image = self.surface.acquire_next_image()
+        if image is None:
             return
 
-        image = self.swapchain.get_image(image_index)
+        if (
+            self._output_texture == None
+            or self._output_texture.width != image.width
+            or self._output_texture.height != image.height
+        ):
+            self._output_texture = self.device.create_texture(
+                format=sgl.Format.rgba16_float,
+                width=image.width,
+                height=image.height,
+                mip_count=1,
+                usage=sgl.TextureUsage.shader_resource
+                | sgl.TextureUsage.unordered_access,
+                label="output_texture",
+            )
 
-        command_buffer = self._device.create_command_buffer()
-        command_buffer.blit(image, self._output_texture)
-        command_buffer.set_texture_state(image, sgl.ResourceState.present)
-        command_buffer.submit()
+        command_encoder = self._device.create_command_encoder()
+        command_encoder.blit(image, self._output_texture)
+        command_encoder.set_texture_state(image, sgl.ResourceState.present)
+        self._device.submit_command_buffer(command_encoder.finish())
 
         del image
-        self.swapchain.present()
+        self.surface.present()
         self._device.run_garbage_collection()
 
     def _on_window_keyboard_event(self, event: sgl.KeyboardEvent):
@@ -112,22 +124,5 @@ class App:
             self.on_mouse_event(event)
 
     def _on_window_resize(self, width: int, height: int):
-        self._framebuffers.clear()
         self._device.wait()
-        self.swapchain.resize(width, height)
-        self._create_framebuffers()
-
-    def _create_framebuffers(self):
-        self._framebuffers = [
-            self._device.create_framebuffer(render_targets=[image.get_rtv()])
-            for image in self.swapchain.images
-        ]
-        self._output_texture = self._device.create_texture(
-            format=sgl.Format.rgba32_float,
-            width=self.swapchain.desc.width,
-            height=self.swapchain.desc.height,
-            mip_count=1,
-            usage=sgl.ResourceUsage.shader_resource
-            | sgl.ResourceUsage.unordered_access,
-            debug_name="output_texture",
-        )
+        self.surface.configure(width=width, height=height)

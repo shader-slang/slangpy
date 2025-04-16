@@ -8,7 +8,7 @@ from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.native import NativeObject, CallContext
-from slangpy.reflection.reflectiontypes import TYPE_OVERRIDES, ArrayType, VectorType
+from slangpy.reflection.reflectiontypes import TYPE_OVERRIDES
 
 
 class GridArg(NativeObject):

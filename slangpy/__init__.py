@@ -6,7 +6,7 @@ import runpy
 import pathlib
 
 # Version number
-__version__ = "0.21.1"
+__version__ = "0.22.0"
 
 # Useful slangpy types
 from . import types
@@ -42,6 +42,9 @@ from .core.instance import (
     InstanceList,
     InstanceBuffer
 )
+
+# Py torch integration
+from .torchintegration import *
 
 # Get shader include path for slangpy
 SHADER_PATH = str(pathlib.Path(__file__).parent.absolute() / "slang")

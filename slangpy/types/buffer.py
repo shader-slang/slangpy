@@ -1,15 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, Optional
 
-import numpy.typing as npt
-
 from slangpy.core.native import Shape, NativeNDBuffer, NativeNDBufferDesc
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.struct import Struct
 
 from slangpy.backend import (DataType, Device, MemoryType,
-                             ResourceUsage, TypeLayoutReflection,
-                             TypeReflection, CommandBuffer, uint4)
+                             BufferUsage, TypeLayoutReflection,
+                             TypeReflection, CommandEncoder)
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType
@@ -107,8 +105,8 @@ class NDBuffer(NativeNDBuffer):
         dtype: Any,
         element_count: Optional[int] = None,
         shape: Optional[TShapeOrTuple] = None,
-        usage: ResourceUsage = ResourceUsage.shader_resource
-        | ResourceUsage.unordered_access,
+        usage: BufferUsage = BufferUsage.shader_resource
+        | BufferUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None
     ):
@@ -162,7 +160,7 @@ class NDBuffer(NativeNDBuffer):
         """
         Returns True if this buffer is writable from the GPU, i.e. if it has unordered access resource usage.
         """
-        return (self.usage & ResourceUsage.unordered_access) != 0
+        return (self.usage & BufferUsage.unordered_access) != 0
 
     def to_torch(self, override_type: Optional[DataType] = None):
         """
@@ -173,26 +171,26 @@ class NDBuffer(NativeNDBuffer):
         else:
             raise ValueError("Only scalar types can be converted to torch tensors")
 
-    def clear(self, command_buffer: Optional[CommandBuffer] = None):
+    def clear(self, command_buffer: Optional[CommandEncoder] = None):
         """
         Fill the ndbuffer with zeros. If no command buffer is provided, a new one is created and
         immediately submitted. If a command buffer is provided the clear is simply appended to it
         but not automatically submitted.
         """
         if command_buffer:
-            command_buffer.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
+            command_buffer.clear_buffer(self.storage)
         else:
-            cmd = self.storage.device.create_command_buffer()
-            cmd.clear_resource_view(self.storage.get_uav(), uint4(0, 0, 0, 0))
-            cmd.submit()
+            cmd = self.storage.device.create_command_encoder()
+            cmd.clear_buffer(self.storage)
+            self.device.submit_command_buffer(cmd.finish())
 
     @staticmethod
     def zeros(device: Device,
               dtype: Any,
               element_count: Optional[int] = None,
               shape: Optional[TShapeOrTuple] = None,
-              usage: ResourceUsage = ResourceUsage.shader_resource
-              | ResourceUsage.unordered_access,
+              usage: BufferUsage = BufferUsage.shader_resource
+              | BufferUsage.unordered_access,
               memory_type: MemoryType = MemoryType.device_local,
               program_layout: Optional[SlangProgramLayout] = None
               ) -> 'NDBuffer':

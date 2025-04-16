@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import argparse
 import json
 import shutil

@@ -3,10 +3,8 @@
 from slangpy.bindings import (PYTHON_TYPES, AccessType, Marshall, BindContext,
                               BoundVariable,
                               CodeGenBlock, Shape)
-from slangpy.core.utils import is_type_castable_on_host
 from slangpy.core.native import NativeObject
 from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
-from slangpy.reflection.reflectiontypes import ScalarType, VectorType
 from slangpy.types.helpers import resolve_vector_generator_type
 
 

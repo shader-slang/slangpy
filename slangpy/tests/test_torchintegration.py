@@ -28,6 +28,7 @@ if DeviceType.d3d12 in helpers.DEFAULT_DEVICE_TYPES:
     pytest.skip("Skipping pytorch tests as not in D3D", allow_module_level=True)
 DEVICE_TYPES = [DeviceType.d3d12]
 
+
 def get_test_tensors(device: Device, N: int = 4):
     weights = torch.randn((5, 8), dtype=torch.float32,
                           device=torch.device('cuda'), requires_grad=True)
