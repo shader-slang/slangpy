@@ -1,20 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from app import App
 import slangpy as spy
-from slangpy.backend import uint3 as spy_uint3
 import sgl
 import pathlib
 import numpy as np
-from tqdm import tqdm
 import imageio
+from tqdm import tqdm
 
-# Create an SGL device with the slangpy+local include paths
-device = sgl.Device(compiler_options={
-    "include_paths": [
-        spy.SHADER_PATH,
-        pathlib.Path(__file__).parent.absolute(),
-    ],
-})
+# Load up an input image.
+image = imageio.imread("./jeep.jpg")
+W = image.shape[0]
+H = image.shape[1]
+
+# Create SGL windowed app and get the device
+app = App("Diffusion Splatting 2D", W, H)
+device = app.device
 
 # 2D -> 1D dispatch-ID mapping utility to help us work around slangpy's 1D dispatch restriction
 
@@ -49,10 +50,6 @@ blobs = spy.Tensor.numpy(device, np.random.rand(
 
 WORKGROUP_X, WORKGROUP_Y = 8, 4
 
-# Load up an input image.
-image = imageio.imread("./jeep.jpg")
-W = image.shape[0]
-H = image.shape[1]
 
 assert (W % WORKGROUP_X == 0) and (H % WORKGROUP_Y == 0)
 
@@ -86,12 +83,19 @@ current_render = device.create_texture(
 
 iterations = 10000
 for iter in tqdm(range(iterations)):
+    if not app.process_events():
+        exit(0)
+
     # Backprop the unit per-pixel loss with auto-diff.
     module.perPixelLoss.bwds(per_pixel_loss, dispatch_ids, blobs, input_image)
 
     # Update
     module.adamUpdate(blobs, blobs.grad_out, adam_first_moment, adam_second_moment)
 
-    if iter % 50 == 0:
-        module.renderBlobsToTexture(current_render, blobs, dispatch_ids)
-        sgl.tev.show_async(current_render, name=f"optimization_{(iter // 50):03d}")
+    if iter % 10 == 0:
+        module.renderBlobsToTexture(app.output, blobs, dispatch_ids)
+        app.present()
+
+# Keep window processing events until user closes it.
+while app.process_events():
+    app.present()
