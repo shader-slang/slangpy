@@ -10,6 +10,7 @@ from slangpy.reflection import SlangType
 import builtins
 import sys
 
+
 def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False,
                   adapter_luid: Optional[Sequence[int]] = None,
                   include_paths: Sequence[Union[str, PathLike[str]]] = [],

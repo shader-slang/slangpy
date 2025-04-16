@@ -37,6 +37,7 @@ class ThisType:
     def update_this(self, value: Any) -> None:
         self.update_called += 1
 
+
 def flatten_ndarray(data: np.ndarray) -> np.ndarray:
     # Flatten the structure using list comprehensions
     flattened = np.array([
@@ -48,6 +49,7 @@ def flatten_ndarray(data: np.ndarray) -> np.ndarray:
         for item in data
     ])
     return flattened
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_this_interface(device_type: DeviceType):
@@ -147,7 +149,6 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     assert np.all(positions == [1.0, 2.0])
     velocity = np.array([item['velocity'] for item in data])
     assert np.all(velocity == [3.0, 4.0])
-
 
     # Reset particle to be moving up
     instance.reset(float2(0, 0), float2(0, 1))
@@ -251,7 +252,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     # assigning each a constant starting position and a random velocity
     particles.construct(position=float2(10, 10),
                         velocity=RandFloatArg(min=-1, max=1, dim=2))
-    
+
     expected_particles = helpers.read_ndbuffer_from_numpy(particles._data)
     expected_particles = flatten_ndarray(expected_particles)
 
@@ -312,7 +313,7 @@ def test_pass_nested_instance_to_function(device_type: DeviceType):
         for item in material_data
     ])
     material_data = material_data.reshape(-1, 6)
-    
+
     for i in range(0, len(material_data)):
         material_data[i][0] = 1
         material_data[i][1] = 1
@@ -428,7 +429,8 @@ def test_backwards_diff(device_type: DeviceType):
     next_positions = next_positions.with_grads()
 
     # Init the gradients of next positions to 1 for the backwards pass
-    helpers.write_ndbuffer_from_numpy(next_positions.grad, np.ones((particle_count * 2), dtype=np.float32), 2)
+    helpers.write_ndbuffer_from_numpy(next_positions.grad, np.ones(
+        (particle_count * 2), dtype=np.float32), 2)
 
     # Make a buffer of 1000 identical dts, so we can get back the unique grads for each one
     dts = Tensor.empty(m.device, shape=(particle_count,), dtype=float).with_grads()

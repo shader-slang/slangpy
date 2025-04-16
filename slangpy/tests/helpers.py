@@ -108,6 +108,7 @@ def create_function_from_module(
         raise ValueError(f"Could not find function {func_name}")
     return cast(Function, function)
 
+
 def read_ndbuffer_from_numpy(buffer: NDBuffer) -> np.ndarray:
     cursor = buffer.cursor()
     data = np.array([])
@@ -116,6 +117,7 @@ def read_ndbuffer_from_numpy(buffer: NDBuffer) -> np.ndarray:
         data = np.append(data, cursor[i].read())
 
     return data
+
 
 def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count: int = 0):
     cursor = buffer.cursor()
@@ -127,10 +129,11 @@ def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count:
         elif (cursor.element_type_layout.kind == TypeReflection.Kind.vector):
             element_count = cursor.element_type.col_count
         else:
-            raise ValueError(f"element_count not set and type is not scalar or vector: {cursor.element_type_layout.kind}")
+            raise ValueError(
+                f"element_count not set and type is not scalar or vector: {cursor.element_type_layout.kind}")
 
     for i in range(shape):
-        buffer_data = np.array(data[i*element_count : (i+1)*element_count])
+        buffer_data = np.array(data[i*element_count: (i+1)*element_count])
         cursor[i].write(buffer_data)
 
     cursor.apply()

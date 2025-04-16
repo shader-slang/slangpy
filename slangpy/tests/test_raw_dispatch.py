@@ -61,6 +61,7 @@ def load_test_module(device_type: DeviceType, link: list[Any] = [], options: dic
     device = helpers.get_device(device_type)
     return helpers.create_module(device, MODULE, link=link, options=options)
 
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_dispatch_entrypoint(device_type: DeviceType):
     mod = load_test_module(device_type)

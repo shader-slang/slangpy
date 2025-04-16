@@ -6,6 +6,7 @@ import slangpy
 from pathlib import Path
 from slangpy.backend import DeviceType
 
+
 class App:
     def __init__(self, title: str = "BRDF Example", width: int = 1024, height: int = 1024, device_type: sgl.DeviceType = sgl.DeviceType.automatic):
         super().__init__()

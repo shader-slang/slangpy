@@ -21,7 +21,7 @@ module = spy.Module.load_from_file(device, "simplediffsplatting2d.slang")
 
 # Create a buffer to store Gaussian blobs. We're going to make a very small one,
 # because right now this code is not very efficient, and will take a while to run.
-# For now, we are going to create 200 blobs, and each blob will be comprised of 9 
+# For now, we are going to create 200 blobs, and each blob will be comprised of 9
 # floats:
 #   blob center x and y (2 floats)
 #   sigma (a 2x2 covariance matrix - 4 floats)
@@ -40,9 +40,9 @@ image = imageio.imread("./jeep.jpg")
 W = image.shape[0]
 H = image.shape[1]
 
-# Convert the image from RGB_u8 to RGBA_f32 -- we're going 
+# Convert the image from RGB_u8 to RGBA_f32 -- we're going
 # to be using texture values during derivative propagation,
-# so we need to be dealing with floats here. 
+# so we need to be dealing with floats here.
 image = (image / 256.0).astype(np.float32)
 image = np.concatenate([image, np.ones((W, H, 1), dtype=np.float32)], axis=-1)
 input_image = device.create_texture(
@@ -78,7 +78,7 @@ iterations = 10000
 for iter in range(iterations):
     # Back-propagage the unit per-pixel loss with auto-diff.
     module.perPixelLoss.bwds(per_pixel_loss,
-                             spy.grid(shape=(input_image.width,input_image.height)),
+                             spy.grid(shape=(input_image.width, input_image.height)),
                              blobs, input_image)
 
     # Update the parameters using the Adam algorithm
@@ -89,6 +89,5 @@ for iter in range(iterations):
     if iter % 50 == 0:
         module.renderBlobsToTexture(current_render,
                                     blobs,
-                                    spy.grid(shape=(input_image.width,input_image.height)))
+                                    spy.grid(shape=(input_image.width, input_image.height)))
         sgl.tev.show_async(current_render, name=f"optimization_{(iter // 50):03d}")
-    
