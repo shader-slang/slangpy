@@ -50,7 +50,7 @@ input_image = device.create_texture(
     width=W,
     height=H,
     format=sgl.Format.rgba32_float,
-    usage=sgl.ResourceUsage.shader_resource)
+    usage=sgl.TextureUsage.shader_resource)
 
 # Create a per_pixel_loss Tensor to hold the calculated loss, and create gradient storage
 per_pixel_loss = spy.Tensor.empty(device, dtype=module.float4, shape=(W, H))
@@ -72,7 +72,7 @@ current_render = device.create_texture(
     width=W,
     height=H,
     format=sgl.Format.rgba32_float,
-    usage=sgl.ResourceUsage.shader_resource | sgl.ResourceUsage.unordered_access)
+    usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access)
 
 iterations = 10000
 for iter in range(iterations):
