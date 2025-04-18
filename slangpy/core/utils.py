@@ -30,9 +30,10 @@ def create_device(type: DeviceType = DeviceType.automatic, enable_debug_layers: 
                 shaderpath,
             ]+list(include_paths),
         },
-
+    
         enable_debug_layers=enable_debug_layers,
-        adapter_luid=adapter_luid)
+        adapter_luid=adapter_luid,
+        enable_cuda_interop=enable_cuda_interop)
 
     if is_running_in_jupyter():
         # Don't import until we know we're running in jupyter and we are certain the IPython module is available
