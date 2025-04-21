@@ -26,7 +26,7 @@ class App:
         self._output_texture: 'sgl.Texture' = self.device.create_texture(
             width=self._window.width,
             height=self._window.height,
-            format=sgl.Format.rgba16_float,
+            format=sgl.Format.rgba32_float,
             usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access,
             label = "output_texture",
         )
@@ -77,7 +77,7 @@ class App:
             self._output_texture = self.device.create_texture(
                 width = image.width,
                 height = image.height,
-                format = sgl.Format.rgba16_float,
+                format = sgl.Format.rgba32_float,
                 usage = sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access,
                 label = "output_texture",
             )
