@@ -1,20 +1,51 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import sys
+import time
+import logging
+
+sys.path.insert(0, r"C:\users\tongg\appdata\local\packages\pythonsoftwarefoundation.python.3.13_qbz5n2kfra8p0\localcache\local-packages\python313\site-packages")
+sys.path.insert(0, r"C:\Users\tongg\sgl\build\windows-vs2022\Release\python")
+
 import slangpy as spy
 import sgl
 import pathlib
 import imageio
 import numpy as np
+import signal
+import sys
+import types
+from typing import Optional
+
+print(f"sgl module location: {sgl.__file__}")
+print(f"spy module location: {spy.__file__}")
+
+# Set up signal handler for graceful exit
+def signal_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+    print("\nCtrl+C detected. Exiting gracefully...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Create an SGL device, which will handle setup and invocation of the Slang
 # compiler for us. We give it both the slangpy PATH and the local include
 # PATH so that it can find Slang shader files
-device = sgl.Device(compiler_options={
-    "include_paths": [
-        spy.SHADER_PATH,
-        pathlib.Path(__file__).parent.absolute(),
-    ],
-})
+device = sgl.Device(
+    type=sgl.DeviceType.d3d12,
+#    type=sgl.DeviceType.vulkan,
+    enable_debug_layers=False, # This is not working for RHI yet
+    compiler_options={
+        "include_paths": [
+            spy.SHADER_PATH,
+            pathlib.Path(__file__).parent.absolute(),
+        ],
+    },
+)
+
 
 # Load our Slang module -- we'll take a look at this in just a moment
 module = spy.Module.load_from_file(device, "simplediffsplatting2d.slang")
@@ -74,20 +105,52 @@ current_render = device.create_texture(
     format=sgl.Format.rgba32_float,
     usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access)
 
-iterations = 10000
-for iter in range(iterations):
-    # Back-propagage the unit per-pixel loss with auto-diff.
-    module.perPixelLoss.bwds(per_pixel_loss,
-                             spy.grid(shape=(input_image.width, input_image.height)),
-                             blobs, input_image)
+iterations = 2
+total_time = 0
+try:
+    for iter in range(iterations):
+        iter_start = time.time()
+        
+        # Time backward pass
+        bwd_start = time.time()
+        module.perPixelLoss.bwds(per_pixel_loss,
+                                spy.grid(shape=(input_image.width, input_image.height)),
+                                blobs, input_image)
+        bwd_time = time.time() - bwd_start
 
-    # Update the parameters using the Adam algorithm
-    module.adamUpdate(blobs, blobs.grad_out, adam_first_moment, adam_second_moment)
+        # Time Adam update
+        adam_start = time.time()
+        module.adamUpdate(blobs, blobs.grad_out, adam_first_moment, adam_second_moment)
+        adam_time = time.time() - adam_start
 
-    # Every 50 iterations, render the blobs out to a texture, and hand it off to tev
-    # so that you can visualize the iteration towards ideal
-    if iter % 50 == 0:
-        module.renderBlobsToTexture(current_render,
+        # Time rendering
+        if iter % 1 == 0:
+            # Time renderBlobsToTexture separately
+            render_start = time.time()
+            module.renderBlobsToTexture(current_render,
                                     blobs,
                                     spy.grid(shape=(input_image.width, input_image.height)))
-        sgl.tev.show_async(current_render, name=f"optimization_{(iter // 50):03d}")
+            render_only_time = time.time() - render_start
+            
+            # Time tev.show_async separately
+            tev_start = time.time()
+            sgl.tev.show_async(current_render, name=f"optimization_{(iter // 1):03d}")
+            tev_time = time.time() - tev_start
+            
+            # Total render time (both operations)
+            render_time = render_only_time + tev_time
+        
+        # Calculate and log detailed timing
+        iter_time = time.time() - iter_start
+        total_time += iter_time
+        avg_time = total_time / (iter + 1)
+        logger.info(f"Iteration {iter}: {iter_time:.3f}s (avg: {avg_time:.3f}s)")
+        logger.info(f"  - Backward: {bwd_time:.3f}s")
+        logger.info(f"  - Adam: {adam_time:.3f}s")
+        logger.info(f"  - Render: {render_time:.3f}s")
+        logger.info(f"    * renderBlobsToTexture: {render_only_time:.3f}s")
+        logger.info(f"    * tev.show_async: {tev_time:.3f}s")
+
+except KeyboardInterrupt:
+    print("\nCtrl+C detected. Exiting gracefully...")
+    sys.exit(0)
