@@ -8,8 +8,10 @@ It's core objectives are to:
 - Provide optional PyTorch support out of the box
 
 It is built upon 2 core technologies:
-- [Slang shading language](https://shader-slang.com/): A modern, platform agnostic shading language with full auto-diff support.
-- [Slang graphics library (SGL)](https://github.com/shader-slang/sgl): A powerful Python extension providing a thin wrapper around the graphics layer.
+- **Slang shading language**: A modern, platform agnostic shading language with full auto-diff support.
+  - [Docs](https://shader-slang.com/), [Repo](https://github.com/shader-slang/slang)
+- **Slang graphics library (SGL)**: A powerful Python extension providing a thin wrapper around the graphics layer.
+  - [Docs](https://nv-sgl.readthedocs.io), [Repo](https://github.com/shader-slang/sgl)
 
 By bringing these 2 technologies together with a simple and flexible Python library, calling GPU code from Python is as simple and easy as calling a function.
 
@@ -38,4 +40,4 @@ pip install .
 
 Note that if using the `main` branch, you may need to clone and build the latest revision of SGL rather than the package installed with pip.
 
-To enable PyTorch integration, simply `pip install pytorch` as usual and it will be detected automatically by SlangPy.
+To enable PyTorch integration, simply `pip install torch` as usual and it will be detected automatically by SlangPy.

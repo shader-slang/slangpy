@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+**Version 0.23.0**
+
+Primarily a refactor of NDBuffer and Tensor so they share the same underlying base types, and support indexing. The 2 now function almost 
+equivalently, with the exception that Tensor supports gradients, where NDBuffer does not.
+
+**Version 0.22.0**
+
+This is an extremely major release, which includes a complete rework of the SGL library to use the new Slang-RHI backend. This means that all 
+previous SGL versions are no longer compatible with this version of SlangPy, and various APIs for accessing textures, command buffers and 
+other aspects of the SGL have changed.
+
 **Version 0.21.0**
 
 This version added full support for Jupyter notebooks, including better printing of Python values and visualization of textures in Jupyter. Additionally, structs can now be directly returned from scalar calls, and hash/rand generators are much more robust.

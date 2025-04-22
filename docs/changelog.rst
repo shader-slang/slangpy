@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+**Version 0.23.0**
+- Require SGL v0.15.0
+- Refactor of NDBuffer and Tensor to share some underlying type
+- NDBuffer and Tensor support indexing
+
+**Version 0.22.0**
+- Requre new SGL v0.14.0 with switch to Slang-RHI
+
 **Version 0.21.1**
 
 - Fix to numpy version requirement

@@ -56,7 +56,7 @@ void _trampoline(no_diff in vector<int,2> index, no_diff in NDBuffer<float,2> te
 
 [shader("compute")]
 [numthreads(32, 1, 1)]
-void main(uint3 dispatchThreadID: SV_DispatchThreadID)
+void compute_main(uint3 dispatchThreadID: SV_DispatchThreadID)
 {
     if (any(dispatchThreadID >= call_data._thread_count)) return;
     int[1] call_id = {

@@ -2,11 +2,16 @@
 import pytest
 from slangpy.backend import DeviceType, Device
 import slangpy.tests.helpers as helpers
+import sys
 
 try:
     import torch
 except ImportError:
     pytest.skip("Pytorch not installed", allow_module_level=True)
+
+# Skip all tests in this file if running on MacOS
+if sys.platform == "darwin":
+    pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 
 TEST_CODE = """
 import tensor;

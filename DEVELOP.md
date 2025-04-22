@@ -10,7 +10,7 @@ conda create -n "slangpy" python=3.9
 pip install --upgrade nv-sgl
 
 #Clone
-git clone https://gitlab-master.nvidia.com/ccummings/slangpy.git
+git clone https://github.com/shader-slang/slangpy.git
 cd slangpy
 
 #Install as local, editable package

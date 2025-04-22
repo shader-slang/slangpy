@@ -4,11 +4,10 @@ from typing import Callable, Optional
 import sgl
 import slangpy
 from pathlib import Path
-from slangpy.backend import DeviceType
 
 
 class App:
-    def __init__(self, title: str = "BRDF Example", width: int = 1024, height: int = 1024, device_type: sgl.DeviceType = sgl.DeviceType.automatic):
+    def __init__(self, title="Diffsplat Example", width=1024, height=1024, device_type=sgl.DeviceType.d3d12):
         super().__init__()
 
         # Create SGL window
@@ -24,15 +23,12 @@ class App:
         self.surface = self._device.create_surface(self._window)
         self.surface.configure(width=self._window.width, height=self._window.height)
 
-        # Will contain output texture
         self._output_texture: 'sgl.Texture' = self.device.create_texture(
-            format=sgl.Format.rgba16_float,
-            width=width,
-            height=height,
-            mip_count=1,
-            usage=sgl.TextureUsage.shader_resource
-            | sgl.TextureUsage.unordered_access,
-            label="output_texture",
+            width=self._window.width,
+            height=self._window.height,
+            format=sgl.Format.rgba32_float,
+            usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access,
+            label = "output_texture",
         )
 
         # Store mouse pos
@@ -74,29 +70,25 @@ class App:
         if image is None:
             return
 
-        if (
-            self._output_texture == None
+        if (self._output_texture == None
             or self._output_texture.width != image.width
             or self._output_texture.height != image.height
-        ):
+            ):
             self._output_texture = self.device.create_texture(
-                format=sgl.Format.rgba16_float,
-                width=image.width,
-                height=image.height,
-                mip_count=1,
-                usage=sgl.TextureUsage.shader_resource
-                | sgl.TextureUsage.unordered_access,
-                label="output_texture",
+                width = image.width,
+                height = image.height,
+                format = sgl.Format.rgba32_float,
+                usage = sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access,
+                label = "output_texture",
             )
 
-        command_encoder = self._device.create_command_encoder()
-        command_encoder.blit(image, self._output_texture)
-        command_encoder.set_texture_state(image, sgl.ResourceState.present)
-        self._device.submit_command_buffer(command_encoder.finish())
+        command_buffer = self._device.create_command_encoder()
+        command_buffer.blit(image, self._output_texture)
+        command_buffer.set_texture_state(image, sgl.ResourceState.present)
+        self._device.submit_command_buffer(command_buffer.finish())
 
         del image
         self.surface.present()
-        self._device.run_garbage_collection()
 
     def _on_window_keyboard_event(self, event: sgl.KeyboardEvent):
         if event.type == sgl.KeyboardEventType.key_press:
@@ -127,4 +119,5 @@ class App:
 
     def _on_window_resize(self, width: int, height: int):
         self._device.wait()
-        self.surface.configure(width=width, height=height)
+        self.surface.configure(width=width,height=height)
+

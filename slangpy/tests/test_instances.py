@@ -38,6 +38,19 @@ class ThisType:
         self.update_called += 1
 
 
+def flatten_ndarray(data: np.ndarray) -> np.ndarray:
+    # Flatten the structure using list comprehensions
+    flattened = np.array([
+        list(item['position']) +                  # Convert set to list
+        list(item['velocity']) +                  # Convert set to list
+        [item['size']] +                          # Wrap float in a list
+        list(item['material']['color']) +         # Convert set to list
+        list(item['material']['emission'])        # Convert set to list
+        for item in data
+    ])
+    return flattened
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_this_interface(device_type: DeviceType):
     m = load_module(device_type)
@@ -59,14 +72,20 @@ def test_this_interface(device_type: DeviceType):
     Particle_reset(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = buffer.storage.to_numpy().view(dtype=np.float32)
-    assert len(data) == 11
+    data = helpers.read_ndbuffer_from_numpy(buffer)
+
     # position
-    assert data[0] == 1.0
-    assert data[1] == 2.0
-    # direction
-    assert data[2] == 3.0
-    assert data[3] == 4.0
+    positions = np.array([item['position'] for item in data])
+    assert np.all(positions == [1.0, 2.0])
+    # velocity
+    velocity = np.array([item['velocity'] for item in data])
+    assert np.all(velocity == [3.0, 4.0])
+    # size
+    sizes = np.array([item['size'] for item in data])
+    assert np.all(sizes == [0.5])
+    # mat.color
+    colors = np.array([item['material']['color'] for item in data])
+    assert np.all(colors == [1.0, 1.0, 1.0])
 
     # Check the this interface has been called
     # Get should have been called 3 times - once for hash, once during setup, and once during call
@@ -125,12 +144,11 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     instance.construct(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = buffer.storage.to_numpy().view(dtype=np.float32)
-    assert len(data) == 11
-    assert data[0] == 1.0
-    assert data[1] == 2.0
-    assert data[2] == 3.0
-    assert data[3] == 4.0
+    data = helpers.read_ndbuffer_from_numpy(buffer)
+    positions = np.array([item['position'] for item in data])
+    assert np.all(positions == [1.0, 2.0])
+    velocity = np.array([item['velocity'] for item in data])
+    assert np.all(velocity == [3.0, 4.0])
 
     # Reset particle to be moving up
     instance.reset(float2(0, 0), float2(0, 1))
@@ -139,12 +157,11 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     instance.update_position(1.0)
 
     # Check the buffer has been correctly updated
-    data = buffer.storage.to_numpy().view(dtype=np.float32)
-    assert len(data) == 11
-    assert data[0] == 0.0
-    assert data[1] == 1.0
-    assert data[2] == 0.0
-    assert data[3] == 1.0
+    data = helpers.read_ndbuffer_from_numpy(buffer)
+    positions = np.array([item['position'] for item in data])
+    assert np.all(positions == [0.0, 1.0])
+    velocity = np.array([item['velocity'] for item in data])
+    assert np.all(velocity == [0.0, 1.0])
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -188,7 +205,7 @@ def test_loose_instance_soa(device_type: DeviceType):
     assert data[1] == 1.0
 
 
-def particle_update_positions(data: npt.NDArray[np.float32], dt: float):
+def particle_update_positions(data: npt.NDArray, dt: float):
     for i in range(0, len(data)):
         data[i][0] += data[i][2] * dt
         data[i][1] += data[i][3] * dt
@@ -235,7 +252,9 @@ def test_pass_instance_to_function(device_type: DeviceType):
     # assigning each a constant starting position and a random velocity
     particles.construct(position=float2(10, 10),
                         velocity=RandFloatArg(min=-1, max=1, dim=2))
-    expected_particles = particles._data.storage.to_numpy().view(dtype=np.float32).reshape(-1, 11)
+
+    expected_particles = helpers.read_ndbuffer_from_numpy(particles._data)
+    expected_particles = flatten_ndarray(expected_particles)
 
     # Call the slang function 'Particle::update_position' to update them
     # and do the same for the python version
@@ -243,7 +262,8 @@ def test_pass_instance_to_function(device_type: DeviceType):
     particle_update_positions(expected_particles, 1.0/60.0)
 
     # Check the numpy buffer and the slang buffer are the same
-    particle_data = particles._data.storage.to_numpy().view(dtype=np.float32).reshape(-1, 11)
+    particle_data = helpers.read_ndbuffer_from_numpy(particles._data)
+    particle_data = flatten_ndarray(particle_data)
     assert np.allclose(particle_data, expected_particles)
 
     # Define a 'Quad' type which is just an array of float2s, and make a buffer for them
@@ -287,8 +307,13 @@ def test_pass_nested_instance_to_function(device_type: DeviceType):
     particles.construct(position=float2(10, 10), velocity=float2(0, 0))
 
     # Check colors are white and emission is black!
-    material_data = particles._data['material']._data.storage.to_numpy().view(
-        dtype=np.float32).reshape(-1, 6)
+    material_data = helpers.read_ndbuffer_from_numpy(particles._data['material']._data)
+    material_data = np.array([
+        list(item['color']) + list(item['emission'])
+        for item in material_data
+    ])
+    material_data = material_data.reshape(-1, 6)
+
     for i in range(0, len(material_data)):
         material_data[i][0] = 1
         material_data[i][1] = 1
@@ -389,9 +414,10 @@ def test_backwards_diff(device_type: DeviceType):
     # Get particle struct
     Particle = m.Particle
     assert isinstance(Particle, Struct)
+    particle_count = 1000
 
     # Create storage for particles in a simple buffer
-    particles = InstanceDifferentiableBuffer(Particle, shape=(1000,))
+    particles = InstanceDifferentiableBuffer(Particle, shape=(particle_count,))
 
     # Call the slang constructor on all particles in the buffer,
     # assigning each a constant starting position and a random velocity
@@ -403,20 +429,25 @@ def test_backwards_diff(device_type: DeviceType):
     next_positions = next_positions.with_grads()
 
     # Init the gradients of next positions to 1 for the backwards pass
-    next_positions.grad.storage.copy_from_numpy(np.ones((1000, 2), dtype=np.float32))
+    helpers.write_ndbuffer_from_numpy(next_positions.grad, np.ones(
+        (particle_count * 2), dtype=np.float32), 2)
 
     # Make a buffer of 1000 identical dts, so we can get back the unique grads for each one
-    dts = Tensor.empty(m.device, shape=(1000,), dtype=float).with_grads()
-    dts.storage.copy_from_numpy(np.full((1000,), 1.0/60.0, dtype=np.float32))
+    dts = Tensor.empty(m.device, shape=(particle_count,), dtype=float).with_grads()
+    dts.storage.copy_from_numpy(np.full((particle_count,), 1.0/60.0, dtype=np.float32))
 
     # Backwards pass
     particles.calc_next_position.bwds(dt=dts, _result=next_positions)
 
     # Read back all primals and gradients we ended up with into numpy arrays
-    particle_primals = particles.primal_to_numpy().view(dtype=np.float32).reshape(-1, 11)
-    particle_grads = particles.grad_to_numpy().view(dtype=np.float32).reshape(-1, 11)
-    dt_grads = dts.grad.storage.to_numpy().view(dtype=np.float32)
-    next_positions = next_positions.storage.to_numpy().view(dtype=np.float32).reshape(-1, 2)
+    particle_primals = helpers.read_ndbuffer_from_numpy(particles.buffer)
+    particle_primals = flatten_ndarray(particle_primals).reshape(-1, 11)
+
+    particle_grads = helpers.read_ndbuffer_from_numpy(particles.buffer.grad)
+    particle_grads = flatten_ndarray(particle_grads).reshape(-1, 11)
+
+    dt_grads = helpers.read_ndbuffer_from_numpy(dts.grad)
+    next_positions = helpers.read_ndbuffer_from_numpy(next_positions).reshape(-1, 2)
 
     for particle_idx in range(0, len(particle_primals)):
         pos = particle_primals[particle_idx][0:2]
@@ -430,7 +461,7 @@ def test_backwards_diff(device_type: DeviceType):
 
         # dq/dp = 10
         pos_grad = particle_grads[particle_idx][0:2]
-        assert np.allclose(pos_grad, [1, 1])
+        assert np.all(pos_grad == [1, 1])
 
         # dq/dv = dt
         vel_grad = particle_grads[particle_idx][2:4]
