@@ -28,7 +28,7 @@ class App:
             height=self._window.height,
             format=sgl.Format.rgba32_float,
             usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access,
-            label = "output_texture",
+            label="output_texture",
         )
 
         # Store mouse pos
@@ -71,15 +71,15 @@ class App:
             return
 
         if (self._output_texture == None
-            or self._output_texture.width != image.width
-            or self._output_texture.height != image.height
+                or self._output_texture.width != image.width
+                or self._output_texture.height != image.height
             ):
             self._output_texture = self.device.create_texture(
-                width = image.width,
-                height = image.height,
-                format = sgl.Format.rgba32_float,
-                usage = sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access,
-                label = "output_texture",
+                width=image.width,
+                height=image.height,
+                format=sgl.Format.rgba32_float,
+                usage=sgl.TextureUsage.shader_resource | sgl.TextureUsage.unordered_access,
+                label="output_texture",
             )
 
         command_buffer = self._device.create_command_encoder()
@@ -119,5 +119,4 @@ class App:
 
     def _on_window_resize(self, width: int, height: int):
         self._device.wait()
-        self.surface.configure(width=width,height=height)
-
+        self.surface.configure(width=width, height=height)

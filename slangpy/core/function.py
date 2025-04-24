@@ -5,7 +5,7 @@ from slangpy.core.native import (CallMode, SignatureBuilder,
                                  NativeCallRuntimeOptions, NativeFunctionNode, FunctionNodeType)
 
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy.backend import (CommandEncoder, TypeConformance, uint3)
+from slangpy.backend import (CommandEncoder, TypeConformance, uint3, Logger)
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:

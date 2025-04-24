@@ -14,7 +14,7 @@ from slangpy.core.calldata import SLANG_PATH
 import slangpy
 from slangpy import Module
 from slangpy.backend import (Device, DeviceType, SlangCompilerOptions,
-                             SlangDebugInfoLevel, TypeReflection)
+                             SlangDebugInfoLevel, TypeReflection, Logger, LogLevel)
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
 
