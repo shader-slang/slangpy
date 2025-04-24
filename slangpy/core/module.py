@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
-from slangpy.backend import ComputeKernel, SlangModule, Device
+from slangpy.backend import ComputeKernel, SlangModule, Device, Logger
 from slangpy.core.native import NativeCallDataCache
 from slangpy.reflection import SlangProgramLayout
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
@@ -67,6 +67,7 @@ class Module:
         self.dispatch_data_cache: dict[str, 'DispatchData'] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
         self.link = [x.module if isinstance(x, Module) else x for x in link]
+        self.logger: Optional[Logger] = None
 
         self._attr_cache: dict[str, Union[Function, Struct]] = {}
 

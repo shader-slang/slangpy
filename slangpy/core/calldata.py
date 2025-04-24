@@ -73,6 +73,7 @@ class CallData(NativeCallData):
         super().__init__()
 
         try:
+
             # These will be populated later
             bindings = None
             slang_function = None
@@ -84,6 +85,16 @@ class CallData(NativeCallData):
             positional_mapping = build_info.map_args
             keyword_mapping = build_info.map_kwargs
             type_conformances = build_info.type_conformances
+
+            # Store logger from either function or module
+            if build_info.logger is not None:
+                self.logger = build_info.logger
+            else:
+                self.logger = build_info.module.logger
+            self.debug_name = f"{build_info.module.name}::{function.name}"
+
+            self.log_debug(f"Generating kernel for {func.name}")
+            self.log_debug(f"  Module: {build_info.module.name}")
 
             # Store layout and callmode from function
             self.layout = build_info.module.layout
@@ -135,6 +146,8 @@ class CallData(NativeCallData):
             # Calculate overall call dimensionality now that all typing is known.
             self.call_dimensionality = calculate_call_dimensionality(bindings)
             context.call_dimensionality = self.call_dimensionality
+            self.log_debug(
+                f"  Call dimensionality: {self.call_dimensionality}")
 
             # If necessary, create return value node once call dimensionality is known.
             create_return_value_binding(context, bindings, return_type)
@@ -195,8 +208,13 @@ class CallData(NativeCallData):
                 # Get kernel from cache if we have
                 self.kernel = build_info.module.kernel_cache[hash]
                 self.device = build_info.module.device
+                self.log_debug(
+                    f"  Found cached kernel with hash {hash}")
+
             else:
                 # Build new module and link it with the one that contains the function being called.
+                self.log_debug(
+                    f"  Building new kernel with hash {hash}")
                 session = build_info.module.session
                 device = session.device
                 module = session.load_module_from_source(hash, code)
@@ -209,6 +227,8 @@ class CallData(NativeCallData):
                 self.kernel = device.create_compute_kernel(program)
                 build_info.module.kernel_cache[hash] = self.kernel
                 self.device = device
+                self.log_debug(
+                    f"  Build succesful")
 
             # Store the bindings and runtime for later use.
             self.debug_only_bindings = bindings
