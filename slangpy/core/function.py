@@ -5,7 +5,7 @@ from slangpy.core.native import (CallMode, SignatureBuilder,
                                  NativeCallRuntimeOptions, NativeFunctionNode, FunctionNodeType)
 
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy.backend import (CommandEncoder, TypeConformance, uint3)
+from slangpy.backend import (CommandEncoder, TypeConformance, uint3, Logger)
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
@@ -54,6 +54,7 @@ class FunctionBuildInfo:
         self.constants: dict[str, Any] = {}
         self.thread_group_size: Optional[uint3] = None
         self.return_type: Optional[Union[type, str]] = None
+        self.logger: Optional[Logger] = None
 
 
 class FunctionNode(NativeFunctionNode):
@@ -407,6 +408,19 @@ class FunctionNodeThreadGroupSize(FunctionNode):
 
     def _populate_build_info(self, info: FunctionBuildInfo):
         info.thread_group_size = self.thread_group_size
+
+
+class FunctionNodeLogger(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, logger: Logger) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, logger)
+        self.slangpy_signature = "logger_"+str(id(logger))
+
+    @property
+    def logger(self):
+        return cast(Logger, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.logger = self.logger
 
 
 class Function(FunctionNode):

@@ -153,4 +153,4 @@ void add_numbers_diffpair(float2 a, float2 b, out float2 res) {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

@@ -526,4 +526,4 @@ void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])
