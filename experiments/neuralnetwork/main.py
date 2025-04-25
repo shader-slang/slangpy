@@ -87,7 +87,7 @@ def training_main():
     uv_grid = create_uv_grid(device, resolution)
 
     timer = Timer()
-    cmd = device.create_command_buffer()
+    command_encoder = device.create_command_encoder()
 
     while app.process_events():
         timer.start()
@@ -95,19 +95,16 @@ def training_main():
         # For a bit of extra performance, don't call module.trainTexture(....) directly,
         # but collect multiple calls into a command buffer and dispatch them as a big
         # block. This avoids some launch overhead
-        cmd.open()
         for i in range(num_batches_per_epoch):
             # Backpropagate network loss
-            module.trainTexture.append_to(cmd, model, rng, target_tex, sampler, loss_scale)
-            optim.step(cmd)
-        cmd.close()
+            module.trainTexture.append_to(command_encoder, model, rng, target_tex, sampler, loss_scale)
+            optim.step(command_encoder)
 
-        id = device.submit_command_buffer(cmd)
-        # Stall and wait, then garbage collect for a good interactive experience.
+        id = device.submit_command_buffer(command_encoder.finish())
+        # Stall and wait.
         # Will slow things down a lot though - headless training will run faster.
         # The interactive perf is not representative of the actual training cost
-        device.wait_command_buffer(id)
-        device.run_garbage_collection()
+        device.wait_for_submit(id)
 
         # Display some useful info as we go
         msamples = (num_batches_per_epoch * math.prod(batch_shape)) * 1e-6

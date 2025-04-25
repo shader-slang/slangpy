@@ -73,7 +73,7 @@ class Optimizer:
             self.states.append(state_type(param))
             self.step_funcs.append(step_func)
 
-    def step(self, cmd: Optional[sgl.CommandBuffer] = None):
+    def step(self, cmd: Optional[sgl.CommandEncoder] = None):
         """
         Performs one step of the optimizer and resets network gradients.
 

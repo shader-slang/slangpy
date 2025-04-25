@@ -96,7 +96,6 @@ class App:
 
         del image
         self.surface.present()
-        self._device.run_garbage_collection()
 
     def _on_window_keyboard_event(self, event: sgl.KeyboardEvent):
         if event.type == sgl.KeyboardEventType.key_press:

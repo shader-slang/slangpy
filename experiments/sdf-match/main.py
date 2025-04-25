@@ -68,7 +68,6 @@ def findMachingSDF(iter):
         print("Iteration: {}, Loss: {}".format(iter, loss))
         print("parameter {}".format(params.to_numpy()))
 
-    app.device.run_garbage_collection()
     return forwardResult
 
 
