@@ -6,8 +6,9 @@ import numpy as np
 import sgl
 import sys
 import time
+import math
 from slangpy.types import call_id
-
+from pathlib import Path
 
 # The purpose of this example is to render pixels using input material and
 # normal map textures, and calculate per-pixel lighting.
@@ -35,10 +36,10 @@ mode = 1
 
 
 # Simple function to read a texture from a file and exit if an error occurs.
-def createTextureFromFile(device, filepath):
+def createTextureFromFile(device: sgl.Device, filepath: str):
     try:
         loader = sgl.TextureLoader(device)
-        texture = loader.load_texture(filepath)
+        texture = loader.load_texture(Path(__file__).parent / filepath)
         return texture
 
     except Exception as e:
@@ -64,15 +65,15 @@ def createTextureFromList(values, width, height):
 
 
 # Create the app and load the sample shader.
-app = App()
+app = App(width=2048, height=2048, title="Mipmap Example")
 module = spy.Module.load_from_file(app.device, "mipmapping.slang")
 
 # Get the app's window size.
 windowSize = sgl.float2(app._window.width, app._window.height)
 
 # Material and normal map textures used for this example.
-materialTexture = createTextureFromFile(app.device, "diffuse.jpg")
-normalTexture = createTextureFromFile(app.device, "normal.jpg")
+albedo_map: spy.Tensor = module.toAlbedoMap(createTextureFromFile(app.device, "stonewall_2k_albedo.jpg"), _result='tensor')
+normal_map: spy.Tensor = module.toNormalMap(createTextureFromFile(app.device, "stonewall_2k_normal.jpg"), _result='tensor')
 
 # We need a sampler for the above textures. We want to do the filtering and
 # mipmapping work ourselves, so this uses a simple point sampler to read data
@@ -134,14 +135,14 @@ def findMachingLoss(iter):
     # on multiple threads. The sample and loss tensors previously created allow
     # passing data from arrays to the associated threads, as the function
     # definition only takes a single sample and loss value.
-    module.forward(pointSampler, materialTexture, normalTexture, windowSize,
+    module.forward(pointSampler, albedo_map, normal_map, windowSize,
         samplePointsTensor, lossValTensor, _result = forwardResult)
 
     # Copy out the gradients.
     forwardResult.grad.storage.copy_from_numpy(allOnes)
 
     # Perform the backwards propagation of the gradients.
-    module.forward.bwds(pointSampler, materialTexture, normalTexture,
+    module.forward.bwds(pointSampler, albedo_map, normal_map,
         windowSize, samplePoints, lossValTensor, _result = forwardResult)
 
     # Get the resulting data and gradients, and adjust the values based on
@@ -167,25 +168,61 @@ def findMachingLoss(iter):
     #app.device.run_garbage_collection()
     return forwardResult
 
+show_downsampled = False
+def on_keyboard_event(key: sgl.KeyboardEvent):
+    if key.type == sgl.KeyboardEventType.key_press and key.key == sgl.KeyCode.tab:
+        global show_downsampled
+        show_downsampled = not show_downsampled
+
+app.on_keyboard_event = on_keyboard_event
 
 # Run the app, using the previously defined mode. Only mode 5 will perform
 # actual training.
 iter = 0
 while app.process_events():
+
+
+    t = math.sin(time.time()*2)*1
+    light_dir = sgl.math.normalize(sgl.float3(t,t, 1.0))
+    #light_dir = sgl.math.normalize(sgl.float3(-0.5,-0.5,1.0))
+    
+    rendered: spy.Tensor = module.renderFullRes(albedo_map, normal_map, light_dir, _result='tensor')
+
+    downsampled_albedo_map: spy.Tensor = module.downSample(albedo_map, spy.grid((1024,1024)), _result='tensor')
+    downsampled_albedo_map: spy.Tensor = module.downSample(downsampled_albedo_map, spy.grid((512,512)), _result='tensor')
+    downsampled_normal_map: spy.Tensor = module.downSample(normal_map, spy.grid((1024,1024)), _result='tensor')
+    downsampled_normal_map: spy.Tensor = module.downSample(downsampled_normal_map, spy.grid((512,512)), _result='tensor')
+
+    downsampled: spy.Tensor = module.downSample(rendered, spy.grid((1024,1024)), _result='tensor')
+    downsampled: spy.Tensor = module.downSample(downsampled, spy.grid((512,512)), _result='tensor')
+
+    halfres: spy.Tensor = module.renderFullRes(downsampled_albedo_map, downsampled_normal_map, light_dir, _result='tensor')
+
+    #halfres: spy.Tensor = module.renderDownsampledOutputs(albedo_map, normal_map, light_dir, spy.grid((1024,1024)), _result='tensor')
+
+    #halfres2: spy.Tensor = module.renderDownsampledInputs(albedo_map, normal_map, light_dir, spy.grid((1024,1024)), _result='tensor')
+
+    if show_downsampled:
+        module.showTensorFloat3(downsampled, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
+    else:
+        module.showTensorFloat3(halfres, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
+    #module.showTensorFloat3(halfres2, app.output, spy.grid(halfres.shape), sgl.int2(1024,0))
+    #module.showTensorFloat3(normal_map, app.output, spy.grid(normal_map.shape), sgl.int2(0,0))
+
     # Only perform training and show the learned result in mode 5, otherwise
     # pick a mipmapping mode.
-    if mode == 5:
-        if iter < iteration:
-            forwardResultTensor = findMachingLoss(iter)
-            iter += 1
-
-        # Populate a texture with the current loss values, so we can visually
-        # show the results.
-        lossValList = lossValTensor.to_numpy().tolist()
-        lossTexture = createTextureFromList(lossValList, int(windowSize.x), int(windowSize.y))
-        module.renderLearnedLoss(pointSampler, materialTexture, normalTexture, lossTexture,
-            windowSize, call_id(), _result = app.output)
-    else:
-        module.renderMipmapMode(pointSampler, materialTexture, normalTexture, windowSize,
-            mode, call_id(), _result = app.output)
+    #if mode == 5:
+    #    if iter < iteration:
+    #        forwardResultTensor = findMachingLoss(iter)
+    #        iter += 1
+#
+    #    # Populate a texture with the current loss values, so we can visually
+    #    # show the results.
+    #    lossValList = lossValTensor.to_numpy().tolist()
+    #    lossTexture = createTextureFromList(lossValList, int(windowSize.x), int(windowSize.y))
+    #    module.renderLearnedLoss(pointSampler, materialTexture, normalTexture, lossTexture,
+    #        windowSize, call_id(), _result = app.output)
+    #else:
+    #    module.renderMipmapMode(pointSampler, materialTexture, normalTexture, windowSize,
+    #        mode, call_id(), _result = app.output)
     app.present()

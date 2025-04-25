@@ -1,10 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
+import slangpy;
+
+// Called from main.py to copy loaded 4 channel texture into 3 channel albedo tensor
+float3 toAlbedoMap(float4 color)
+{
+    return color.xyz;
+}
+
+// Called from main.py to copy loaded 4 channel texture into 3 channel normal tensor
+float3 toNormalMap(float4 color)
+{
+    // Convert normal from [0,1] to [-1,1] range.
+    return pow(color.xyz,1/2.2)*2-1;
+}
 
 // Return a color value from the texture. Ideally the sample should be a
 // point sampler as we are performing the filtering and mipmapping ourselves.
-no_diff float4 getTexColor(SamplerState sampler, Texture2D texture, float2 uv)
+[Differentiable]
+float4 getTexColor(SamplerState sampler, Texture2D texture, float2 uv)
 {
-    float4 color = texture.Sample(sampler, uv, uint2(0), 0);
+    float4 color = no_diff texture.Sample(sampler, uv, uint2(0), 0);
     return color;
 }
 
@@ -58,7 +73,7 @@ float4 calculatePhongLighting(float4 materialColor, float4 normalColor)
     // Material properties.
     float3 ambient = float3(0.0, 0.0, 0.0);       // No ambient color needed.
     float3 diffuse = materialColor.xyz;           // Diffuse color.
-    float3 specular = float3(1.0, 1.0, 1.0);      // Specular color (white).
+    float3 specular = 0;      // Specular color (white).
     float shininess = 2.0;                        // Specular shininess.
 
     // Light properties.
@@ -80,6 +95,88 @@ float4 calculatePhongLighting(float4 materialColor, float4 normalColor)
     return float4(color, materialColor.w);
 }
 
+// Calculate Phong lighting given material properties and normal.
+[Differentiable]
+float3 calculatePhongLighting(float3 albedo, float3 normal, float3 lightDir)
+{
+    // Fixed light and view directions for this example.
+    float3 N = normal;
+    float3 L = lightDir;                         // Light direction.
+    float3 V = normalize(float3(0.0, 0.0, 1.0)); // View direction.
+    float3 R = reflect(-L, N);                   // Reflected light direction.
+
+    // Material properties.
+    float3 ambient = float3(0.0, 0.0, 0.0);  // No ambient color needed.
+    float3 diffuse = albedo;                 // Diffuse color.
+    float3 specular = 0; // Specular color (white).
+    float shininess = 2;                   // Specular shininess.
+
+    // Light properties.
+    float3 lightColor = float3(1.0, 1.0, 1.0); // White light.
+    float lightIntensity = 3.0;
+
+    // Calculate lighting components.
+    float NdotL = max(dot(N, L), 0.0); // Diffuse factor.
+    float RdotV = max(dot(R, V), 0.0); // Specular factor.
+
+    // Combine components.
+    float3 ambientTerm = ambient;
+    float3 diffuseTerm = diffuse * NdotL;
+    float3 specularTerm = specular * pow(RdotV, shininess);
+
+    // Final color.
+    return (ambientTerm + diffuseTerm + specularTerm) * lightColor * lightIntensity;
+}
+
+float3 renderFullRes(float3 albedo, float3 normal, float3 lightDir)
+{
+    return calculatePhongLighting(albedo, normal, lightDir);
+}
+
+float3 sampleTensor(Tensor<float3,2> tensor, int2 pixelPos)
+{
+    // Get the color value from the tensor at the given pixel position.
+    return tensor.get( { pixelPos.y, pixelPos.x });
+}
+
+float3 downSample(Tensor<float3, 2> input, int2 pixelPos)
+{
+    float3 res = 0;
+    res += sampleTensor(input, pixelPos * 2 + int2(0, 0));
+    res += sampleTensor(input, pixelPos * 2 + int2(1, 0));
+    res += sampleTensor(input, pixelPos * 2 + int2(0, 1));
+    res += sampleTensor(input, pixelPos * 2 + int2(1, 1));
+    return res * 0.25;
+}
+
+float3 renderDownsampledOutputs(Tensor<float3,2> albedoMap, Tensor<float3,2> normalMap, float3 lightDir, int2 pixelPos)
+{
+    float3 result = 0;
+    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * 2 + int2(0, 0)), sampleTensor(normalMap, pixelPos * 2 + int2(0, 0)), lightDir);
+    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * 2 + int2(1, 0)), sampleTensor(normalMap, pixelPos * 2 + int2(1, 0)), lightDir);
+    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * 2 + int2(0, 1)), sampleTensor(normalMap, pixelPos * 2 + int2(0, 1)), lightDir);
+    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * 2 + int2(1, 1)), sampleTensor(normalMap, pixelPos * 2 + int2(1, 1)), lightDir);
+    return result * 0.25;
+}
+
+float3 renderDownsampledInputs(Tensor<float3, 2> albedoMap, Tensor<float3, 2> normalMap, float3 lightDir, int2 pixelPos)
+{
+    float3 albedo = 0;
+    albedo += sampleTensor(albedoMap, pixelPos * 2 + int2(0, 0));
+    albedo += sampleTensor(albedoMap, pixelPos * 2 + int2(1, 0));
+    albedo += sampleTensor(albedoMap, pixelPos * 2 + int2(0, 1));
+    albedo += sampleTensor(albedoMap, pixelPos * 2 + int2(1, 1));
+    albedo *= 0.25;
+
+    float3 normal = 0;
+    normal += sampleTensor(normalMap, pixelPos * 2 + int2(0, 0));
+    normal += sampleTensor(normalMap, pixelPos * 2 + int2(1, 0));
+    normal += sampleTensor(normalMap, pixelPos * 2 + int2(0, 1));
+    normal += sampleTensor(normalMap, pixelPos * 2 + int2(1, 1));
+    normal *= 0.25;
+
+    return calculatePhongLighting(albedo, normal, lightDir);
+}
 
 // Below are functions for the 5 modes described by main.py
 
@@ -237,4 +334,17 @@ float4 renderLearnedLoss(SamplerState sampler, Texture2D materialTex, Texture2D 
     float4 outColor = float4(learnedLoss.x, learnedLoss.x, learnedLoss.x, 1.0);
 
     return outColor;
+}
+
+void showTensorFloat3(Tensor<float3, 2> tensor, RWTexture2D<float4> output, int2 pixelCoord, int2 offset)
+{
+    // Convert the tensor value to a float4 color.
+    uint width;
+    uint height;
+    output.GetDimensions(width,height);
+
+    int srcY = (tensor.shape[0] * pixelCoord.y) / height;
+    int srcX = (tensor.shape[1] * pixelCoord.x) / width;
+    float3 color = tensor.get( { srcY, srcX });
+    output[pixelCoord] = float4(abs(color), 1.0);
 }
