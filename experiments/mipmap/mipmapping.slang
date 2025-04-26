@@ -1,73 +1,219 @@
 // SPDX-License-Identifier: Apache-2.0
+import slangpy;
 
-// Return a color value from the texture. Ideally the sample should be a
-// point sampler as we are performing the filtering and mipmapping ourselves.
-no_diff float4 getTexColor(SamplerState sampler, Texture2D texture, float2 uv)
+
+// TODO: Trying out some different BRDF functions.
+// TODO: Looks like they only seem to show differences in the specular components.
+
+#define PI 3.14159265358979323846f
+
+float clamp(float x, float x_min, float x_max)
 {
-    float4 color = texture.Sample(sampler, uv, uint2(0), 0);
-    return color;
+    return max(min(x, x_max), x_min);
 }
 
-// Box filter downsampling function that takes a center UV coordinate and samples a 2x2 region.
-[Differentiable]
-float4 boxFilterDownsample(SamplerState sampler, Texture2D texture, float2 uv, float2 texelSize)
+float sqr(float x)
 {
-    // Calculate the four sample positions (2x2 grid).
-    float2 topLeft = uv + float2(-0.5, 0.5) * texelSize;
-    float2 topRight = uv + float2(0.5, 0.5) * texelSize;
-    float2 bottomLeft = uv + float2(-0.5, -0.5) * texelSize;
-    float2 bottomRight = uv + float2(0.5, -0.5) * texelSize;
-
-    // Sample the texture at each position.
-    float4 c00 = getTexColor(sampler, texture, topLeft);
-    float4 c10 = getTexColor(sampler, texture, topRight);
-    float4 c01 = getTexColor(sampler, texture, bottomLeft);
-    float4 c11 = getTexColor(sampler, texture, bottomRight);
-
-    // Average the four samples (box filter).
-    return (c00 + c10 + c01 + c11) * 0.25;
+    return x * x;
 }
 
-// Calculate the L2 loss between two float4 values.
-// Returns a scalar value representing the mean squared error.
-[Differentiable]
-float calculateL2Loss(float4 a, float4 b)
+// Schlick Fresnel approximation for specular reflections.
+float SchlickFresnel(float u)
 {
-    float4 diff = a - b;
-    // Square each component and sum them
-    float sumSquaredDiff = diff.x * diff.x + 
-                          diff.y * diff.y + 
-                          diff.z * diff.z + 
-                          diff.w * diff.w;
-    // Take the mean (divide by 4 since float4 has 4 components)
-    return sumSquaredDiff / 4.0;
+    float m = clamp(1 - u, 0, 1);
+    float m2 = m * m;
+    return m2 * m2 * m; // pow(m,5)
 }
 
-// Calculate Phong lighting given material properties and normal.
-[Differentiable]
-float4 calculatePhongLighting(float4 materialColor, float4 normalColor)
+float GTR1(float NdotH, float a)
 {
-    // Convert normal from [0,1] to [-1,1] range and normalize.
-    float3 N = normalize(normalColor.xyz * 2.0 - 1.0);
+    if (a >= 1)
+        return 1 / PI;
+    float a2 = a * a;
+    float t = 1 + (a2 - 1) * NdotH * NdotH;
+    return (a2 - 1) / (PI * log(a2) * t);
+}
 
+float GTR2(float NdotH, float a)
+{
+    float a2 = a * a;
+    float t = 1 + (a2 - 1) * NdotH * NdotH;
+    return a2 / (PI * t * t);
+}
+
+float smithG_GGX(float NdotV, float alphaG)
+{
+    float a = alphaG * alphaG;
+    float b = NdotV * NdotV;
+    return 1 / (NdotV + sqrt(a + b - a * b));
+}
+
+// Compute BRDF lighting for a given light drection (L), view direction (V) and
+// normal vector (N), using given BRDF lighting properties.
+float3 BRDF(float3 albedo, float3 normal, float3 lightDir, float roughness = 0.4, float metallic = 0.4, float specular = 1.0)
+{
+    float3 viewDir = float3(0.0, 0.0, 1.0);
+
+    float3 L = normalize(lightDir);
+    float3 V = normalize(viewDir);
+    float3 N = normalize(normal);
+
+    const float subsurface = 0;
+    const float specularTint = 0;
+    const float anisotropic = 0;
+    const float sheen = 0;
+    const float sheenTint = .5;
+    const float clearcoat = 0;
+    const float clearcoatGloss = 1;
+
+    float NdotL = dot(N, L);
+    float NdotV = dot(N, V);
+    if (NdotL < 0 || NdotV < 0)
+        return float3(0);
+
+    float3 H = normalize(L + V);
+    float NdotH = dot(N, H);
+    float LdotH = dot(L, H);
+
+    float albedoIntensity = 3;
+
+    float3 Cdlin = albedo * albedoIntensity;
+    float Cdlum = .3f * Cdlin[0] + .6f * Cdlin[1] + .1f * Cdlin[2]; // luminance approx.
+
+    float3 Ctint = Cdlum > 0 ? Cdlin / Cdlum : float3(1); // normalize lum. to isolate hue+sat
+    float3 Cspec0 = lerp(specular * float3(.08f) *
+        lerp(float3(1.f), Ctint, specularTint), Cdlin, metallic);
+    float3 Csheen = lerp(float3(1), Ctint, sheenTint);
+
+    // Diffuse fresnel - go from 1 at normal incidence to .5 at grazing
+    // and lerp in diffuse retro-reflection based on roughness
+    float FL = SchlickFresnel(NdotL), FV = SchlickFresnel(NdotV);
+    float Fd90 = 0.5f + 2 * LdotH * LdotH * roughness;
+    float Fd = lerp(1.f, Fd90, FL) * lerp(1.f, Fd90, FV);
+
+    // Based on Hanrahan-Krueger brdf approximation of isotropic bssrdf
+    // 1.25 scale is used to (roughly) preserve albedo
+    // Fss90 used to "flatten" retroreflection based on roughness
+    float Fss90 = LdotH * LdotH * roughness;
+    float Fss = lerp(1.f, Fss90, FL) * lerp(1.f, Fss90, FV);
+    float ss = 1.25f * (Fss * (1 / (NdotL + NdotV) - .5f) + .5f);
+
+    // specular
+    float a = sqr(roughness);
+    float Ds = GTR2(NdotH, a);
+    float FH = SchlickFresnel(LdotH);
+    float3 Fs = lerp(Cspec0, float3(1), FH);
+    float Gs;
+    Gs = smithG_GGX(NdotL, a);
+    Gs *= smithG_GGX(NdotV, a);
+
+    // sheen
+    float3 Fsheen = FH * sheen * Csheen;
+
+    // clearcoat (ior = 1.5 -> F0 = 0.04)
+    float Dr = GTR1(NdotH, lerp(.1, .001, clearcoatGloss));
+    float Fr = lerp(.04f, 1.f, FH);
+    float Gr = smithG_GGX(NdotL, .25f) * smithG_GGX(NdotV, .25f);
+
+    return ((1 / PI) * lerp(Fd, ss, subsurface) * Cdlin + Fsheen) *
+        (1 - metallic) + Gs * Fs * Ds + .25f * clearcoat * Gr * Fr * Dr;
+}
+
+
+
+
+
+// see http://en.wikipedia.org/wiki/Schlick%27s_approximation
+float fresnelSchlick(float r0, float vDotH)
+{
+    return r0 + (1.0 - r0) * pow(1.0 - vDotH, 5.0);
+}
+
+// see http://graphicrants.blogspot.de/2013/08/specular-brdf-reference.html
+// see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+float geometricShadowingSchlickBeckmann(float nDotV, float k)
+{
+    return nDotV / (nDotV * (1.0 - k) + k);
+}
+
+// see http://graphicrants.blogspot.de/2013/08/specular-brdf-reference.html
+// see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+float geometricShadowingSmith(float nDotL, float nDotV, float k)
+{
+    return geometricShadowingSchlickBeckmann(nDotL, k) * geometricShadowingSchlickBeckmann(nDotV, k);
+}
+
+// Cook-Torrence BRDF.
+float3 cookTorrence(float3 albedo, float3 normal, float3 lightDir, float roughness = 0.1)
+{
+    float3 viewDir = float3(0, 0, 1);
+
+
+    // See https://github.com/McNopper/OpenGL/blob/master/Example32/shader/brdf.frag.glsl
+    // basis, N, V, K
+    // basis: tangent, bitangent, normal matrix, normal: normal vector, eye: eyeDir vector, k: roughness float
+    float3 N = normalize(normal);
+    float3 V = normalize(viewDir);
+    float3 L = normalize(lightDir);
+    float3 H = normalize(reflect(-L, N));
+
+    float nDotL = dot(N, L);
+    float nDotV = dot(N, V);
+    float nDotH = dot(N, H);
+
+    // Lighted and visible?
+    if (nDotL > 0 && nDotV > 0) {
+        float vDotH = max(0, dot(V, H));
+
+        // Fresnel.
+        float refCoefficient = 1.0;
+        float F = fresnelSchlick(refCoefficient, vDotH);
+
+        // Geometric Shadowing.
+        float G = geometricShadowingSmith(nDotL, nDotV, roughness);
+
+        // Lo = BRDF * L * NdotL / PDF
+        //
+        // BRDF is D * F * G / (4 * NdotL * NdotV).
+        // PDF is D * NdotH / (4 * VdotH).
+        // D and 4 * NdotL are canceled out, which results in this formula: Lo = color * L * F * G * VdotH / (NdotV * NdotH)		
+        float colorFactor = F * G * vDotH / (nDotV * nDotH);
+
+        // Note: Needed for robustness. With specific parameters, a NaN can be the result.
+        if (isnan(colorFactor)) {
+            return float3(0);
+        }
+
+        return albedo * max(0, colorFactor);
+    }
+
+    return float3(0);
+}
+
+
+
+// Phong BRDF.
+float3 phong(float3 albedo, float3 normal, float3 lightDir)
+{
     // Fixed light and view directions for this example.
-    float3 L = normalize(float3(0.0, 0.0, 1.0));  // Light direction.
-    float3 V = normalize(float3(0.0, 0.0, 1.0));  // View direction.
-    float3 R = reflect(-L, N);                    // Reflected light direction.
+    float3 N = normalize(normal);
+    float3 L = normalize(lightDir);              // Light direction.
+    float3 V = normalize(float3(0.0, 0.0, 1.0)); // View direction.
+    float3 R = normalize(reflect(-L, N));        // Reflected light direction.
 
     // Material properties.
-    float3 ambient = float3(0.0, 0.0, 0.0);       // No ambient color needed.
-    float3 diffuse = materialColor.xyz;           // Diffuse color.
-    float3 specular = float3(1.0, 1.0, 1.0);      // Specular color (white).
-    float shininess = 2.0;                        // Specular shininess.
+    float3 ambient = float3(0.0);                // No ambient color needed.
+    float3 diffuse = albedo;                     // Diffuse color.
+    float3 specular = float3(1.0);               // Specular color.
+    float shininess = 128;                       // Specular shininess.
 
     // Light properties.
-    float3 lightColor = float3(1.0, 1.0, 1.0);    // White light.
-    float lightIntensity = 1.0;
+    float3 lightColor = float3(1.0, 1.0, 1.0);   // White light.
+    float lightIntensity = 3;
 
     // Calculate lighting components.
-    float NdotL = max(dot(N, L), 0.0);            // Diffuse factor.
-    float RdotV = max(dot(R, V), 0.0);            // Specular factor.
+    float NdotL = max(dot(N, L), 0.0); // Diffuse factor.
+    float RdotV = max(dot(R, V), 0.0); // Specular factor.
 
     // Combine components.
     float3 ambientTerm = ambient;
@@ -75,166 +221,123 @@ float4 calculatePhongLighting(float4 materialColor, float4 normalColor)
     float3 specularTerm = specular * pow(RdotV, shininess);
 
     // Final color.
-    float3 color = (ambientTerm + diffuseTerm + specularTerm) * lightColor * lightIntensity;
-
-    return float4(color, materialColor.w);
-}
-
-
-// Below are functions for the 5 modes described by main.py
-
-// Mode 1: Evaluate pixel color using full res textures with a simple BRDF.
-[Differentiable]
-float4 genFullResPixelColor(SamplerState sampler, Texture2D materialTex, Texture2D normalTex, float2 fragCoord, float2 windowSize)
-{
-    // Convert fragCoord to uv texture coord.
-    float2 uv = float2(fragCoord.x / windowSize.x, fragCoord.y / windowSize.y);
-
-    // Get material (diffuse) texture color, and normal.
-    float4 materialColor = getTexColor(sampler, materialTex, uv);
-    float4 normalColor = getTexColor(sampler, normalTex, uv);
-
-    // Calculate final color using a simple BRDF, in this case phong.
-    float4 phong = calculatePhongLighting(materialColor, normalColor);
-
-    return phong;
-}
-
-// Mode 2: Evaluate 4 adjacent pixel colors using the same approach as mode 1,
-// and give the average result. This is simlar to evaluating the BRDF using
-// lower res mipmap inputs, but should give a result closer to mode 1.
-[Differentiable]
-float4 genLowResPixelColorFromAvg(SamplerState sampler, Texture2D materialTex, Texture2D normalTex, float2 fragCoord, float2 windowSize)
-{
-    float4 outColor = float4(0.0, 0.0, 0.0, 0.0);
-
-    // Calculate the four sample positions (2x2 grid).
-    float2 samplePos[4] = {
-        fragCoord + float2(-1, 1), // Top left.
-        fragCoord + float2(1, 1), // Top right.
-        fragCoord + float2(-1, -1), // Bottom left.
-        fragCoord + float2(1, -1), // Bottom right.
-    };
-
-    // Use method 1 with the 4 sample positions, and take the average.
-    for (int i = 0; i < 4; i++) {
-        outColor += genFullResPixelColor(sampler, materialTex, normalTex, samplePos[i], windowSize);
-    }
-
-    outColor /= 4.0;
-    return outColor;
-}
-
-// Mode 3: Evaluate the BRDF using lower res inputs, ie, lower res mipmap
-// levels from both the material texture and normal map to calculate
-// final pixel colors. This should look less correct than mode 1 or 2.
-[Differentiable]
-float4 genLowResPixelColorFromMipmap(SamplerState sampler, Texture2D materialTex, Texture2D normalTex, float2 fragCoord, float2 windowSize)
-{
-    float2 uv = float2(fragCoord.x / windowSize.x, fragCoord.y / windowSize.y);
-
-    // Calculate texel size for proper sampling. This can be modified to
-    // generate different mipmap levels.
-    float2 texelSize = float2(4.0 / windowSize.x, 4.0 / windowSize.y);
-
-    // Get the downsampled material color and normal using a box filter.
-    float4 lowResColor = boxFilterDownsample(sampler, materialTex, uv, texelSize);
-    float4 lowResNormal = boxFilterDownsample(sampler, normalTex, uv, texelSize);
-
-    // Calculate final color using the same BRDF as the full res function, this
-    // time using the lower res inputs.
-    float4 phong = calculatePhongLighting(lowResColor, lowResNormal);
-
-    return phong;
-}
-
-// Mode 4: Show the difference between mode 1 and mode 3, ie, the L2 loss
-// function which shows how much the color value needs to change to reach the
-// correct value.
-[Differentiable]
-float4 genLowResPixelColorLoss(SamplerState sampler, Texture2D materialTex, Texture2D normalTex, float2 fragCoord, float2 windowSize)
-{
-    // Get colors from both methods.
-    float4 fullColor = genFullResPixelColor(sampler, materialTex, normalTex, fragCoord, windowSize);
-    float4 mipmapColor = genLowResPixelColorFromMipmap(sampler, materialTex, normalTex, fragCoord, windowSize);
-
-    // Calculate L2 loss.
-    float loss = calculateL2Loss(fullColor, mipmapColor);
-
-    // Return the loss as a grayscale color (all channels same value)
-    // The brighter the color, the larger the difference.
-    return float4(loss, loss, loss, 1.0);
-}
-
-// Render the resulting pixel color using modes 1 to 4, as described in
-// main.py. Mode 5 is handled separately.
-float4 renderMipmapMode(SamplerState sampler, Texture2D materialTex, Texture2D normalTex, float2 windowSize, int mode, int2 pixelCoord)
-{
-    // Adjust the incoming pixel coordinate to have 0,0 at the bottom left
-    // which also places world space -1,-1 at the bottom left for ease of use.
-    float2 fragCoord = float2(pixelCoord);
-    fragCoord.y = windowSize.y - fragCoord.y;
-
-    // Default background color is black.
-    float4 outColor = float4(0.0, 0.0, 0.0, 0.0);
-
-    if (mode == 1) {
-        outColor = genFullResPixelColor(sampler, materialTex, normalTex, fragCoord, windowSize);
-    } else if (mode == 2) {
-        outColor = genLowResPixelColorFromAvg(sampler, materialTex, normalTex, fragCoord, windowSize);
-    } else if (mode == 3) {
-        outColor = genLowResPixelColorFromMipmap(sampler, materialTex, normalTex, fragCoord, windowSize);
-    } else if (mode == 4) {
-        outColor = genLowResPixelColorLoss(sampler, materialTex, normalTex, fragCoord, windowSize);
-    }
-
+    float3 outColor = (ambientTerm + diffuseTerm + specularTerm) * lightColor * lightIntensity;
     return outColor;
 }
 
 
-// Give the difference between the expected and current loss values for a
-// given sample point.
-[Differentiable]
-float targetLoss(SamplerState sampler, Texture2D materialTex, Texture2D normalTex, float2 windowSize, float2 samplePoint, float currentlossVal)
+// Wrapper to more easily change which BRDF to use.
+float3 brdf(float3 albedo, float3 normal, float3 lightDir)
 {
-    float2 fragCoord = float2(samplePoint);
-    fragCoord.y = windowSize.y - fragCoord.y;
-
-    // Get colors from both modes (1) and (3).
-    float4 fullColor = genFullResPixelColor(sampler, materialTex, normalTex, fragCoord, windowSize);
-    float4 mipmapColor = genLowResPixelColorFromMipmap(sampler, materialTex, normalTex, fragCoord, windowSize);
-
-    // Calculate L2 loss for the given sample point.
-    float loss = calculateL2Loss(fullColor, mipmapColor);
-    return currentlossVal - loss;
+    return BRDF(albedo, normal, lightDir);
 }
 
 
-// Give the difference between the expected and current loss values for a given
-// sample point.
-[Differentiable]
-float forward(SamplerState sampler, Texture2D materialTex, Texture2D normalTex, float2 windowSize, float2 samplePoint, float lossVal)
+
+// Called from main.py to copy loaded 4 channel texture into 3 channel albedo tensor
+float3 toAlbedoMap(float4 color)
 {
-    float diff = targetLoss(sampler, materialTex, normalTex, windowSize, samplePoint, lossVal);
-    return diff * diff;
+    return color.xyz;
 }
 
-// This function is used to visually show the results of learning from mode 5.
-float4 renderLearnedLoss(SamplerState sampler, Texture2D materialTex, Texture2D normalTex, Texture2D lossTex, float2 windowSize, int2 pixelCoord)
+// Called from main.py to copy loaded 4 channel texture into 3 channel normal tensor
+float3 toNormalMap(float4 color)
 {
-    // Adjust the incoming pixel coordinate to have 0,0 at the bottom left
-    // which also places world space -1,-1 at the bottom left for ease of use.
-    float2 fragCoord = float2(pixelCoord);
-    fragCoord.y = windowSize.y - fragCoord.y;
+    // Convert normal from [0,1] to [-1,1] range.
+    return pow(color.xyz,1/2.2)*2-1;
+}
 
-    // The loss texture has a different memory layout so we use the transposed
-    // pixelCoord instead of the fragCoord.
-    float2 uv = float2(float(pixelCoord.y) / windowSize.y, float(pixelCoord.x) / windowSize.x);
+// Calculate the L2 loss between two float4 values.
+// Returns a scalar value representing the mean squared error.
+float calculateL2Loss(float3 a, float3 b)
+{
+    float3 diff = a - b;
+    // Square each component and sum them.
+    float sumSquaredDiff = diff.x * diff.x + 
+                          diff.y * diff.y + 
+                          diff.z * diff.z;
+    // Take the mean (divide by 3 since float4 has 3 components).
+    return sumSquaredDiff / 3.0;
+}
 
-    // Show the leanred loss value. This texture has a single red channel,
-    // instead we render it as white.
-    float4 learnedLoss = getTexColor(sampler, lossTex, uv);
-    float4 outColor = float4(learnedLoss.x, learnedLoss.x, learnedLoss.x, 1.0);
+float3 sampleTensor(Tensor<float3,2> tensor, int2 pixelPos)
+{
+    // Get the color value from the tensor at the given pixel position.
+    return tensor.get( { pixelPos.y, pixelPos.x });
+}
 
-    return outColor;
+float3 downSample(Tensor<float3, 2> input, int2 pixelPos)
+{
+    float3 res = 0;
+    res += sampleTensor(input, pixelPos * 2 + int2(0, 0));
+    res += sampleTensor(input, pixelPos * 2 + int2(1, 0));
+    res += sampleTensor(input, pixelPos * 2 + int2(0, 1));
+    res += sampleTensor(input, pixelPos * 2 + int2(1, 1));
+    return res * 0.25;
+}
+
+
+
+float3 renderFullRes(float3 albedo, float3 normal, float3 lightDir)
+{
+    return brdf(albedo, normal, lightDir);
+}
+
+/*
+// TODO: Decide if we want to keep these.
+// Mode 2: Calculate BRDF from full res inputs, then take the average.
+float3 renderDownsampledOutputs(Tensor<float3,2> albedoMap, Tensor<float3,2> normalMap, float3 lightDir, int2 pixelPos, int l)
+{
+    float3 result = 0;
+    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * l + int2(0, 0)), sampleTensor(normalMap, pixelPos * l + int2(0, 0)), lightDir);
+    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * l + int2(1, 0)), sampleTensor(normalMap, pixelPos * l + int2(1, 0)), lightDir);
+    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * l + int2(0, 1)), sampleTensor(normalMap, pixelPos * l + int2(0, 1)), lightDir);
+    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * l + int2(1, 1)), sampleTensor(normalMap, pixelPos * l + int2(1, 1)), lightDir);
+    return result * 0.25;
+}
+
+// Mode 3: Take inputs from downsampled inputs, then calculate BRDF.
+float3 renderDownsampledInputs(Tensor<float3, 2> albedoMap, Tensor<float3, 2> normalMap, float3 lightDir, int2 pixelPos, int l)
+{
+    float3 albedo = 0;
+    albedo += sampleTensor(albedoMap, pixelPos * l + int2(0, 0));
+    albedo += sampleTensor(albedoMap, pixelPos * l + int2(1, 0));
+    albedo += sampleTensor(albedoMap, pixelPos * l + int2(0, 1));
+    albedo += sampleTensor(albedoMap, pixelPos * l + int2(1, 1));
+    albedo *= 0.25;
+
+    float3 normal = 0;
+    normal += sampleTensor(normalMap, pixelPos * l + int2(0, 0));
+    normal += sampleTensor(normalMap, pixelPos * l + int2(1, 0));
+    normal += sampleTensor(normalMap, pixelPos * l + int2(0, 1));
+    normal += sampleTensor(normalMap, pixelPos * l + int2(1, 1));
+    normal *= 0.25;
+
+    return calculatePhongLighting(albedo, normal, lightDir);
+}
+*/
+
+// Mode 4: Calculate L2 loss between (2) and (3)
+float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float3 lightDir)
+{
+    // BRDF from downsampled inputs.
+    float3 downColor = brdf(albedo, normal, lightDir);
+
+    float loss = calculateL2Loss(avgColor, downColor);
+    return float3(loss, loss, loss);
+}
+
+
+// Write pixel color outputs from the tensor input.
+void showTensorFloat3(Tensor<float3, 2> tensor, RWTexture2D<float4> output, int2 pixelCoord, int2 offset)
+{
+    // Convert the tensor value to a float4 color.
+    uint width;
+    uint height;
+    output.GetDimensions(width,height);
+
+    int srcY = (tensor.shape[0] * pixelCoord.y) / height;
+    int srcX = (tensor.shape[1] * pixelCoord.x) / width;
+    float3 color = tensor.get( { srcY, srcX });
+    output[pixelCoord] = float4(abs(color), 1.0);
 }
