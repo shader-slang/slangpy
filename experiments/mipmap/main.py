@@ -33,9 +33,9 @@ module = spy.Module.load_from_file(app.device, "mipmapping.slang")
 #    than mode 2.
 # 4. Show the difference between mode (1) and (3), ie the per-pixel
 #    L2 loss values between full res and low res inputs.
-# 5. Train per-pixel loss values to reach the expected values from (4).
-#    This is shown by rendering the learned loss values as white pixels,
-#    which should match the values from mode (4).
+# 5. Train input normals until per-pixel loss values between this and (2)
+#    reach 0. This should give a rendered BRDF result from a low res
+#    normal map that more closely resembles (2) than (3).
 mode = 1
 
 # Cycle modes using the 'tab' key.
@@ -76,6 +76,27 @@ albedo_map: spy.Tensor = module.toAlbedoMap(createTextureFromFile(app.device, "s
 normal_map: spy.Tensor = module.toNormalMap(createTextureFromFile(app.device, "stonewall_2k_normal.jpg"), _result='tensor')
 
 
+# TODO: Can we get away with not creating the tensors in this way, and not declaring the sample points?
+w,h = 512,512 # TODO: Should this be 512x512 or 1024x1024?
+sample_points_array = np.random.randn(w*h, 2).astype(np.float32)
+i = 0
+for x in range(w):
+    for y in range(h):
+        sample_points_array[i] = [x, y]
+        i += 1
+sample_points = spy.Tensor.from_numpy(app.device, sample_points_array)
+
+# Start with normals that are all uniform, but may want to use the downsampled normals instead.
+normal_array = np.random.randn(w*h, 3).astype(np.float32)
+for i in range(w*h):
+    normal_array[i] = [0, 0, 1]
+trained_normals = spy.Tensor.from_numpy(app.device, normal_array).with_grads(zero = True)
+
+forward_result = spy.Tensor.from_numpy(app.device, np.zeros((w*h, ), dtype=np.float32)).with_grads()
+
+all_ones = np.ones((w*h, 1), dtype=np.float32)
+
+
 # Run the app, using the previously defined mode. Only mode 5 will perform
 # actual training.
 iter = 0
@@ -89,13 +110,13 @@ while app.process_events():
     # Downsampled output (avg) from the full res inputs (mode 2).
     # TODO: Decide how much we want to downsample these.
     downsampled: spy.Tensor = module.downSample(rendered, spy.grid((1024,1024)), _result='tensor')
-    #downsampled: spy.Tensor = module.downSample(downsampled, spy.grid((512,512)), _result='tensor')
+    downsampled: spy.Tensor = module.downSample(downsampled, spy.grid((512,512)), _result='tensor')
 
     # Downsampled inputs (mode 3).
     downsampled_albedo_map: spy.Tensor = module.downSample(albedo_map, spy.grid((1024,1024)), _result='tensor')
-    #downsampled_albedo_map: spy.Tensor = module.downSample(downsampled_albedo_map, spy.grid((512,512)), _result='tensor')
+    downsampled_albedo_map: spy.Tensor = module.downSample(downsampled_albedo_map, spy.grid((512,512)), _result='tensor')
     downsampled_normal_map: spy.Tensor = module.downSample(normal_map, spy.grid((1024,1024)), _result='tensor')
-    #downsampled_normal_map: spy.Tensor = module.downSample(downsampled_normal_map, spy.grid((512,512)), _result='tensor')
+    downsampled_normal_map: spy.Tensor = module.downSample(downsampled_normal_map, spy.grid((512,512)), _result='tensor')
 
     if mode == 1:
         # Render BRDF from full res inputs.
@@ -108,12 +129,39 @@ while app.process_events():
         downres: spy.Tensor = module.renderFullRes(downsampled_albedo_map, downsampled_normal_map, light_dir, _result='tensor')
         module.showTensorFloat3(downres, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
     elif mode == 4:
-        # Render L2 loss between (3) and (4).
+        # Render L2 loss between (2) and (3).
         loss: spy.Tensor = module.renderLoss(downsampled, downsampled_albedo_map, downsampled_normal_map, light_dir, _result='tensor')
         module.showTensorFloat3(loss, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
     elif mode == 5:
-        # Render BRDF from trained inputs to more closely match (3).
-        # TODO: Implement me!
-        pass
+        # TODO: Only train up to a maximum iter value.
+        iter += 1
+        # Render BRDF from trained inputs to match (2).
+
+        # Run the shader that calculates the loss (the difference between the downsampled output, and the output calculated with downsampled albedo and the broken normals).
+        module.forward(downsampled, downsampled_albedo_map, trained_normals, light_dir, sample_points, _result=forward_result)
+        forward_result.grad.storage.copy_from_numpy(all_ones)
+
+        # Run said shader backwards to get the derivative of the normals with respect to the loss - aka how changing the normals would affect the loss.
+        module.forward.bwds(downsampled, downsampled_albedo_map, trained_normals, light_dir, sample_points, _result=forward_result)
+
+        # Subtract a tiny bit of that gradient - i.e. if making normal.z greater makes the loss more, we want to make normal.z smaller.
+        # TODO: Is this the correct way to do this?
+        normal_array = trained_normals.to_numpy()
+        normal_grads = trained_normals.grad.to_numpy()
+        normal_array = normal_array - 0.001 * normal_grads
+
+        trained_normals.storage.copy_from_numpy(normal_array)
+        trained_normals.grad.clear()
+
+        if iter % 50 == 0:
+            resultArray = forward_result.to_numpy()
+            loss = np.linalg.norm(resultArray) / (w * h)
+            print("Iteration: {}, Loss: {}".format(iter, loss))
+            print("parameter {}".format(trained_normals.to_numpy()))
+
+        # TODO: Render resulting BRDF, should gradually approach the result from (2).
+        render_result: spy.Tensor = module.testRender(downsampled_albedo_map, trained_normals, light_dir, sample_points, _result='tensor')
+        # TODO: This doesn't seem to render.
+        #module.showTensorFloat3(render_result, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
 
     app.present()

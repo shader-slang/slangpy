@@ -193,7 +193,8 @@ float3 cookTorrence(float3 albedo, float3 normal, float3 lightDir, float roughne
 
 
 // Phong BRDF.
-float3 phong(float3 albedo, float3 normal, float3 lightDir)
+[Differentiable]
+float3 phong(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
 {
     // Fixed light and view directions for this example.
     float3 N = normalize(normal);
@@ -227,9 +228,11 @@ float3 phong(float3 albedo, float3 normal, float3 lightDir)
 
 
 // Wrapper to more easily change which BRDF to use.
-float3 brdf(float3 albedo, float3 normal, float3 lightDir)
+[Differentiable]
+float3 brdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
 {
-    return BRDF(albedo, normal, lightDir);
+    // TODO: Using phong for now for simplicity.
+    return phong(albedo, normal, lightDir);
 }
 
 
@@ -249,18 +252,19 @@ float3 toNormalMap(float4 color)
 
 // Calculate the L2 loss between two float4 values.
 // Returns a scalar value representing the mean squared error.
-float calculateL2Loss(float3 a, float3 b)
+[Differentiable]
+float calculateL2Loss(no_diff float3 target, float3 input)
 {
-    float3 diff = a - b;
+    float3 diff = target - input;
     // Square each component and sum them.
     float sumSquaredDiff = diff.x * diff.x + 
-                          diff.y * diff.y + 
-                          diff.z * diff.z;
+                           diff.y * diff.y + 
+                           diff.z * diff.z;
     // Take the mean (divide by 3 since float4 has 3 components).
     return sumSquaredDiff / 3.0;
 }
 
-float3 sampleTensor(Tensor<float3,2> tensor, int2 pixelPos)
+no_diff float3 sampleTensor(Tensor<float3,2> tensor, no_diff int2 pixelPos)
 {
     // Get the color value from the tensor at the given pixel position.
     return tensor.get( { pixelPos.y, pixelPos.x });
@@ -317,13 +321,49 @@ float3 renderDownsampledInputs(Tensor<float3, 2> albedoMap, Tensor<float3, 2> no
 }
 */
 
-// Mode 4: Calculate L2 loss between (2) and (3)
+// Functions used for training in (5).
+[Differentiable]
+float calculateLoss(float3 targetColor, float3 albedoInput, float3 normalInput, float3 lightDir)
+{
+    float3 inputColor = brdf(albedoInput, normalInput, lightDir);
+    float loss = calculateL2Loss(targetColor, inputColor);
+    return loss;
+}
+
+/*
+// TODO: This version doesn't seem to work, I needed to explicitly declare the tensors and a samplePos, but I'm not sure why.
+[Differentiable]
+float forward(float3 targetColor, float3 albedoInput, float3 normalInput, float3 lightDir)
+{
+    // TODO: Is this correct? I think we want target loss to be 0 to match (2).
+    float targetLoss = 0;
+    float currentLoss = calculateLoss(targetColor, albedoInput, normalInput, lightDir);
+    float diff = targetLoss - currentLoss;
+
+    return diff * diff;
+}
+*/
+
+[Differentiable]
+float forward(Tensor<float3, 2> targetColorTensor, Tensor<float3, 2> albedoInputTensor, float3 normalInput, no_diff float3 lightDir, no_diff float2 samplePos)
+{
+    int2 pixelPos = int2(int(samplePos.x), int(samplePos.y));
+    float3 targetColor = sampleTensor(targetColorTensor, pixelPos);
+    float3 albedoInput = sampleTensor(albedoInputTensor, pixelPos);
+
+    float targetLoss = 0;
+    float currentLoss = calculateLoss(targetColor, albedoInput, normalInput, lightDir);
+    float diff = targetLoss - currentLoss;
+
+    return diff * diff;
+}
+
+
+// Mode 4: Render calculated L2 loss between (2) and (3).
 float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float3 lightDir)
 {
-    // BRDF from downsampled inputs.
-    float3 downColor = brdf(albedo, normal, lightDir);
-
-    float loss = calculateL2Loss(avgColor, downColor);
+    // BRDF from downsampled inputs, avgColor is the downsampled output from full res inputs.
+    float loss = calculateLoss(avgColor, albedo, normal, lightDir);
     return float3(loss, loss, loss);
 }
 
@@ -340,4 +380,12 @@ void showTensorFloat3(Tensor<float3, 2> tensor, RWTexture2D<float4> output, int2
     int srcX = (tensor.shape[1] * pixelCoord.x) / width;
     float3 color = tensor.get( { srcY, srcX });
     output[pixelCoord] = float4(abs(color), 1.0);
+}
+
+
+float3 testRender(Tensor<float3, 2> albedoInputTensor, float3 normalInput, float3 lightDir, float2 samplePos)
+{
+    int2 pixelPos = int2(int(samplePos.x), int(samplePos.y));
+    float3 albedoInput = sampleTensor(albedoInputTensor, pixelPos);
+    return brdf(albedoInput, normalInput, lightDir);
 }
