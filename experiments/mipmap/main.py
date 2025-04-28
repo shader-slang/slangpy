@@ -77,25 +77,27 @@ normal_map: spy.Tensor = module.toNormalMap(createTextureFromFile(app.device, "s
 
 
 # TODO: Can we get away with not creating the tensors in this way, and not declaring the sample points?
-w,h = 512,512 # TODO: Should this be 512x512 or 1024x1024?
-sample_points_array = np.random.randn(w*h, 2).astype(np.float32)
-i = 0
-for x in range(w):
-    for y in range(h):
-        sample_points_array[i] = [x, y]
-        i += 1
-sample_points = spy.Tensor.from_numpy(app.device, sample_points_array)
+#w,h = 512,512 # TODO: Should this be 512x512 or 1024x1024?
+#sample_points_array = np.random.randn(w*h, 2).astype(np.float32)
+#i = 0
+#for x in range(w):
+#    for y in range(h):
+#        sample_points_array[i] = [x, y]
+#        i += 1
+#sample_points = spy.Tensor.from_numpy(app.device, sample_points_array)
 
 # Start with normals that are all uniform, but may want to use the downsampled normals instead.
-normal_array = np.random.randn(w*h, 3).astype(np.float32)
-for i in range(w*h):
-    normal_array[i] = [0, 0, 1]
-trained_normals = spy.Tensor.from_numpy(app.device, normal_array).with_grads(zero = True)
+#normal_array = np.random.randn(w*h, 3).astype(np.float32)
+#for i in range(w*h):
+#    normal_array[i] = [0, 0, 1]
+#trained_normals = spy.Tensor.from_numpy(app.device, normal_array).with_grads(zero = True)
 
-forward_result = spy.Tensor.from_numpy(app.device, np.zeros((w*h, ), dtype=np.float32)).with_grads()
+#forward_result = spy.Tensor.from_numpy(app.device, np.zeros((w*h, ), dtype=np.float32)).with_grads()
 
-all_ones = np.ones((w*h, 1), dtype=np.float32)
+all_ones = np.ones((512*512, 1), dtype=np.float32)
 
+trained_normals: spy.Tensor = module.downSample(normal_map, spy.grid((1024,1024)), _result='tensor').with_grads(zero = True)
+trained_normals: spy.Tensor = module.downSample(trained_normals, spy.grid((512,512)), _result='tensor').with_grads(zero = True)
 
 # Run the app, using the previously defined mode. Only mode 5 will perform
 # actual training.
@@ -135,33 +137,38 @@ while app.process_events():
     elif mode == 5:
         # TODO: Only train up to a maximum iter value.
         iter += 1
-        # Render BRDF from trained inputs to match (2).
+        if iter <= 1500:
+            # Render BRDF from trained inputs to match (2).
 
-        # Run the shader that calculates the loss (the difference between the downsampled output, and the output calculated with downsampled albedo and the broken normals).
-        module.forward(downsampled, downsampled_albedo_map, trained_normals, light_dir, sample_points, _result=forward_result)
-        forward_result.grad.storage.copy_from_numpy(all_ones)
+            # Run the shader that calculates the loss (the difference between the downsampled output, and the output calculated with downsampled albedo and the broken normals).
+            forward_result: spy.Tensor = module.forward(downsampled, downsampled_albedo_map, trained_normals, light_dir, _result='tensor').with_grads()
+            forward_result.grad.storage.copy_from_numpy(all_ones)
 
-        # Run said shader backwards to get the derivative of the normals with respect to the loss - aka how changing the normals would affect the loss.
-        module.forward.bwds(downsampled, downsampled_albedo_map, trained_normals, light_dir, sample_points, _result=forward_result)
+            # Run said shader backwards to get the derivative of the normals with respect to the loss - aka how changing the normals would affect the loss.
+            module.forward.bwds(downsampled, downsampled_albedo_map, trained_normals, light_dir, _result=forward_result)
 
-        # Subtract a tiny bit of that gradient - i.e. if making normal.z greater makes the loss more, we want to make normal.z smaller.
-        # TODO: Is this the correct way to do this?
-        normal_array = trained_normals.to_numpy()
-        normal_grads = trained_normals.grad.to_numpy()
-        normal_array = normal_array - 0.001 * normal_grads
+            # Subtract a tiny bit of that gradient - i.e. if making normal.z greater makes the loss more, we want to make normal.z smaller.
+            # TODO: Is this the correct way to do this?
+            normal_array = trained_normals.to_numpy()
+            normal_grads = trained_normals.grad.to_numpy()
+            normal_array = normal_array - 0.0001 * normal_grads
 
-        trained_normals.storage.copy_from_numpy(normal_array)
-        trained_normals.grad.clear()
+            trained_normals.storage.copy_from_numpy(normal_array)
+            trained_normals.grad.clear()
 
-        if iter % 50 == 0:
-            resultArray = forward_result.to_numpy()
-            loss = np.linalg.norm(resultArray) / (w * h)
-            print("Iteration: {}, Loss: {}".format(iter, loss))
-            print("parameter {}".format(trained_normals.to_numpy()))
+            if iter % 50 == 0:
+                resultArray = forward_result.to_numpy()
+                loss = np.linalg.norm(resultArray) / (512 * 512)
+                print("Iteration: {}, Loss: {}".format(iter, loss))
+                print("parameter {}".format(trained_normals.to_numpy()))
 
-        # TODO: Render resulting BRDF, should gradually approach the result from (2).
-        render_result: spy.Tensor = module.testRender(downsampled_albedo_map, trained_normals, light_dir, sample_points, _result='tensor')
-        # TODO: This doesn't seem to render.
-        #module.showTensorFloat3(render_result, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
+        # Render the result.
+        # TODO: Hard to tell if it's correct from this, so for now I'm rendering the loss function instead to verify.
+        #result: spy.Tensor = module.renderFullRes(downsampled_albedo_map, trained_normals, light_dir, _result='tensor')
+        #module.showTensorFloat3(result, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
+
+        # TODO: Instead just render the loss, it should approach 0 if everything is working.
+        loss: spy.Tensor = module.renderLoss(downsampled, downsampled_albedo_map, trained_normals, light_dir, _result='tensor')
+        module.showTensorFloat3(loss, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
 
     app.present()

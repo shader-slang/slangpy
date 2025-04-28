@@ -323,17 +323,16 @@ float3 renderDownsampledInputs(Tensor<float3, 2> albedoMap, Tensor<float3, 2> no
 
 // Functions used for training in (5).
 [Differentiable]
-float calculateLoss(float3 targetColor, float3 albedoInput, float3 normalInput, float3 lightDir)
+float calculateLoss(no_diff float3 targetColor, no_diff float3 albedoInput, float3 normalInput, no_diff float3 lightDir)
 {
     float3 inputColor = brdf(albedoInput, normalInput, lightDir);
     float loss = calculateL2Loss(targetColor, inputColor);
     return loss;
 }
 
-/*
 // TODO: This version doesn't seem to work, I needed to explicitly declare the tensors and a samplePos, but I'm not sure why.
 [Differentiable]
-float forward(float3 targetColor, float3 albedoInput, float3 normalInput, float3 lightDir)
+float forward(no_diff float3 targetColor, no_diff float3 albedoInput, float3 normalInput, no_diff float3 lightDir)
 {
     // TODO: Is this correct? I think we want target loss to be 0 to match (2).
     float targetLoss = 0;
@@ -342,8 +341,8 @@ float forward(float3 targetColor, float3 albedoInput, float3 normalInput, float3
 
     return diff * diff;
 }
-*/
 
+/*
 [Differentiable]
 float forward(Tensor<float3, 2> targetColorTensor, Tensor<float3, 2> albedoInputTensor, float3 normalInput, no_diff float3 lightDir, no_diff float2 samplePos)
 {
@@ -357,6 +356,7 @@ float forward(Tensor<float3, 2> targetColorTensor, Tensor<float3, 2> albedoInput
 
     return diff * diff;
 }
+*/
 
 
 // Mode 4: Render calculated L2 loss between (2) and (3).
