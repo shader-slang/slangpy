@@ -2,22 +2,25 @@
 import slangpy;
 
 
-// TODO: Trying out some different BRDF functions.
-// TODO: Looks like they only seem to show differences in the specular components.
+// Disney BRDF functions.
 
 #define PI 3.14159265358979323846f
 
+// Simple mathematical helper functions for clamp and square.
+[Differentiable]
 float clamp(float x, float x_min, float x_max)
 {
     return max(min(x, x_max), x_min);
 }
 
+[Differentiable]
 float sqr(float x)
 {
     return x * x;
 }
 
 // Schlick Fresnel approximation for specular reflections.
+[Differentiable]
 float SchlickFresnel(float u)
 {
     float m = clamp(1 - u, 0, 1);
@@ -25,6 +28,7 @@ float SchlickFresnel(float u)
     return m2 * m2 * m; // pow(m,5)
 }
 
+[Differentiable]
 float GTR1(float NdotH, float a)
 {
     if (a >= 1)
@@ -34,6 +38,7 @@ float GTR1(float NdotH, float a)
     return (a2 - 1) / (PI * log(a2) * t);
 }
 
+[Differentiable]
 float GTR2(float NdotH, float a)
 {
     float a2 = a * a;
@@ -41,6 +46,7 @@ float GTR2(float NdotH, float a)
     return a2 / (PI * t * t);
 }
 
+[Differentiable]
 float smithG_GGX(float NdotV, float alphaG)
 {
     float a = alphaG * alphaG;
@@ -50,14 +56,9 @@ float smithG_GGX(float NdotV, float alphaG)
 
 // Compute BRDF lighting for a given light drection (L), view direction (V) and
 // normal vector (N), using given BRDF lighting properties.
-float3 BRDF(float3 albedo, float3 normal, float3 lightDir, float roughness = 0.4, float metallic = 0.4, float specular = 1.0)
+[Differentiable]
+float3 DisneyBRDF(float3 baseColor, float3 L, float3 V, float3 N, float roughness, float metallic, float specular)
 {
-    float3 viewDir = float3(0.0, 0.0, 1.0);
-
-    float3 L = normalize(lightDir);
-    float3 V = normalize(viewDir);
-    float3 N = normalize(normal);
-
     const float subsurface = 0;
     const float specularTint = 0;
     const float anisotropic = 0;
@@ -75,9 +76,7 @@ float3 BRDF(float3 albedo, float3 normal, float3 lightDir, float roughness = 0.4
     float NdotH = dot(N, H);
     float LdotH = dot(L, H);
 
-    float albedoIntensity = 3;
-
-    float3 Cdlin = albedo * albedoIntensity;
+    float3 Cdlin = baseColor;
     float Cdlum = .3f * Cdlin[0] + .6f * Cdlin[1] + .1f * Cdlin[2]; // luminance approx.
 
     float3 Ctint = Cdlum > 0 ? Cdlin / Cdlum : float3(1); // normalize lum. to isolate hue+sat
@@ -119,77 +118,23 @@ float3 BRDF(float3 albedo, float3 normal, float3 lightDir, float roughness = 0.4
         (1 - metallic) + Gs * Fs * Ds + .25f * clearcoat * Gr * Fr * Dr;
 }
 
-
-
-
-
-// see http://en.wikipedia.org/wiki/Schlick%27s_approximation
-float fresnelSchlick(float r0, float vDotH)
+[Differentiable]
+float3 disneyBrdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
 {
-    return r0 + (1.0 - r0) * pow(1.0 - vDotH, 5.0);
-}
-
-// see http://graphicrants.blogspot.de/2013/08/specular-brdf-reference.html
-// see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-float geometricShadowingSchlickBeckmann(float nDotV, float k)
-{
-    return nDotV / (nDotV * (1.0 - k) + k);
-}
-
-// see http://graphicrants.blogspot.de/2013/08/specular-brdf-reference.html
-// see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-float geometricShadowingSmith(float nDotL, float nDotV, float k)
-{
-    return geometricShadowingSchlickBeckmann(nDotL, k) * geometricShadowingSchlickBeckmann(nDotV, k);
-}
-
-// Cook-Torrence BRDF.
-float3 cookTorrence(float3 albedo, float3 normal, float3 lightDir, float roughness = 0.1)
-{
-    float3 viewDir = float3(0, 0, 1);
-
-
-    // See https://github.com/McNopper/OpenGL/blob/master/Example32/shader/brdf.frag.glsl
-    // basis, N, V, K
-    // basis: tangent, bitangent, normal matrix, normal: normal vector, eye: eyeDir vector, k: roughness float
+    // Fixed light and view directions for this example.
     float3 N = normalize(normal);
-    float3 V = normalize(viewDir);
-    float3 L = normalize(lightDir);
-    float3 H = normalize(reflect(-L, N));
+    float3 L = normalize(lightDir);              // Light direction.
+    float3 V = normalize(float3(0.0, 0.0, 1.0)); // View direction.
 
-    float nDotL = dot(N, L);
-    float nDotV = dot(N, V);
-    float nDotH = dot(N, H);
+    float roughness = 0.4;
+    float metallic = 0.0;
+    float specular = 1.0;
 
-    // Lighted and visible?
-    if (nDotL > 0 && nDotV > 0) {
-        float vDotH = max(0, dot(V, H));
+    float lightIntensity = 5.0;
 
-        // Fresnel.
-        float refCoefficient = 1.0;
-        float F = fresnelSchlick(refCoefficient, vDotH);
-
-        // Geometric Shadowing.
-        float G = geometricShadowingSmith(nDotL, nDotV, roughness);
-
-        // Lo = BRDF * L * NdotL / PDF
-        //
-        // BRDF is D * F * G / (4 * NdotL * NdotV).
-        // PDF is D * NdotH / (4 * VdotH).
-        // D and 4 * NdotL are canceled out, which results in this formula: Lo = color * L * F * G * VdotH / (NdotV * NdotH)		
-        float colorFactor = F * G * vDotH / (nDotV * nDotH);
-
-        // Note: Needed for robustness. With specific parameters, a NaN can be the result.
-        if (isnan(colorFactor)) {
-            return float3(0);
-        }
-
-        return albedo * max(0, colorFactor);
-    }
-
-    return float3(0);
+    float3 brdf = DisneyBRDF(albedo, L, V, N, roughness, metallic, specular);
+    return brdf * lightIntensity * max(0, dot(N, L));
 }
-
 
 
 // Phong BRDF.
@@ -197,7 +142,8 @@ float3 cookTorrence(float3 albedo, float3 normal, float3 lightDir, float roughne
 float3 phong(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
 {
     // Fixed light and view directions for this example.
-    float3 N = normalize(normal);
+    //float3 N = normalize(normal);
+    float3 N = normal;
     float3 L = normalize(lightDir);              // Light direction.
     float3 V = normalize(float3(0.0, 0.0, 1.0)); // View direction.
     float3 R = normalize(reflect(-L, N));        // Reflected light direction.
@@ -231,8 +177,8 @@ float3 phong(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
 [Differentiable]
 float3 brdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
 {
-    // TODO: Using phong for now for simplicity.
-    return phong(albedo, normal, lightDir);
+    //return phong(albedo, normal, lightDir);
+    return disneyBrdf(albedo, normal, lightDir);
 }
 
 
@@ -281,47 +227,18 @@ float3 downSample(Tensor<float3, 2> input, int2 pixelPos)
 }
 
 
-
 float3 renderFullRes(float3 albedo, float3 normal, float3 lightDir)
 {
     return brdf(albedo, normal, lightDir);
 }
 
-/*
-// TODO: Decide if we want to keep these.
-// Mode 2: Calculate BRDF from full res inputs, then take the average.
-float3 renderDownsampledOutputs(Tensor<float3,2> albedoMap, Tensor<float3,2> normalMap, float3 lightDir, int2 pixelPos, int l)
-{
-    float3 result = 0;
-    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * l + int2(0, 0)), sampleTensor(normalMap, pixelPos * l + int2(0, 0)), lightDir);
-    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * l + int2(1, 0)), sampleTensor(normalMap, pixelPos * l + int2(1, 0)), lightDir);
-    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * l + int2(0, 1)), sampleTensor(normalMap, pixelPos * l + int2(0, 1)), lightDir);
-    result += calculatePhongLighting(sampleTensor(albedoMap, pixelPos * l + int2(1, 1)), sampleTensor(normalMap, pixelPos * l + int2(1, 1)), lightDir);
-    return result * 0.25;
-}
-
-// Mode 3: Take inputs from downsampled inputs, then calculate BRDF.
-float3 renderDownsampledInputs(Tensor<float3, 2> albedoMap, Tensor<float3, 2> normalMap, float3 lightDir, int2 pixelPos, int l)
-{
-    float3 albedo = 0;
-    albedo += sampleTensor(albedoMap, pixelPos * l + int2(0, 0));
-    albedo += sampleTensor(albedoMap, pixelPos * l + int2(1, 0));
-    albedo += sampleTensor(albedoMap, pixelPos * l + int2(0, 1));
-    albedo += sampleTensor(albedoMap, pixelPos * l + int2(1, 1));
-    albedo *= 0.25;
-
-    float3 normal = 0;
-    normal += sampleTensor(normalMap, pixelPos * l + int2(0, 0));
-    normal += sampleTensor(normalMap, pixelPos * l + int2(1, 0));
-    normal += sampleTensor(normalMap, pixelPos * l + int2(0, 1));
-    normal += sampleTensor(normalMap, pixelPos * l + int2(1, 1));
-    normal *= 0.25;
-
-    return calculatePhongLighting(albedo, normal, lightDir);
-}
-*/
 
 // Functions used for training in (5).
+float3 baseNormal()
+{
+    return normalize(float3(1, 1, 1));
+}
+
 [Differentiable]
 float calculateLoss(no_diff float3 targetColor, no_diff float3 albedoInput, float3 normalInput, no_diff float3 lightDir)
 {
@@ -330,7 +247,6 @@ float calculateLoss(no_diff float3 targetColor, no_diff float3 albedoInput, floa
     return loss;
 }
 
-// TODO: This version doesn't seem to work, I needed to explicitly declare the tensors and a samplePos, but I'm not sure why.
 [Differentiable]
 float forward(no_diff float3 targetColor, no_diff float3 albedoInput, float3 normalInput, no_diff float3 lightDir)
 {
@@ -341,22 +257,6 @@ float forward(no_diff float3 targetColor, no_diff float3 albedoInput, float3 nor
 
     return diff * diff;
 }
-
-/*
-[Differentiable]
-float forward(Tensor<float3, 2> targetColorTensor, Tensor<float3, 2> albedoInputTensor, float3 normalInput, no_diff float3 lightDir, no_diff float2 samplePos)
-{
-    int2 pixelPos = int2(int(samplePos.x), int(samplePos.y));
-    float3 targetColor = sampleTensor(targetColorTensor, pixelPos);
-    float3 albedoInput = sampleTensor(albedoInputTensor, pixelPos);
-
-    float targetLoss = 0;
-    float currentLoss = calculateLoss(targetColor, albedoInput, normalInput, lightDir);
-    float diff = targetLoss - currentLoss;
-
-    return diff * diff;
-}
-*/
 
 
 // Mode 4: Render calculated L2 loss between (2) and (3).
@@ -380,12 +280,4 @@ void showTensorFloat3(Tensor<float3, 2> tensor, RWTexture2D<float4> output, int2
     int srcX = (tensor.shape[1] * pixelCoord.x) / width;
     float3 color = tensor.get( { srcY, srcX });
     output[pixelCoord] = float4(abs(color), 1.0);
-}
-
-
-float3 testRender(Tensor<float3, 2> albedoInputTensor, float3 normalInput, float3 lightDir, float2 samplePos)
-{
-    int2 pixelPos = int2(int(samplePos.x), int(samplePos.y));
-    float3 albedoInput = sampleTensor(albedoInputTensor, pixelPos);
-    return brdf(albedoInput, normalInput, lightDir);
 }

@@ -34,8 +34,9 @@ module = spy.Module.load_from_file(app.device, "mipmapping.slang")
 # 4. Show the difference between mode (1) and (3), ie the per-pixel
 #    L2 loss values between full res and low res inputs.
 # 5. Train input normals until per-pixel loss values between this and (2)
-#    reach 0. This should give a rendered BRDF result from a low res
-#    normal map that more closely resembles (2) than (3).
+#    reach 0.
+# 6. Render the BRDF using the trained normals from (5). This should give a
+#    result that more closely matches (2) than (3).
 mode = 1
 
 # Cycle modes using the 'tab' key.
@@ -43,7 +44,7 @@ def on_keyboard_event(key: sgl.KeyboardEvent):
     if key.type == sgl.KeyboardEventType.key_press and key.key == sgl.KeyCode.tab:
         global mode
         mode += 1
-        if mode > 5:
+        if mode > 6:
             mode = 1
         if mode == 1:
             print("Mode 1: Full res inputs")
@@ -55,6 +56,8 @@ def on_keyboard_event(key: sgl.KeyboardEvent):
             print("Mode 4: Loss between (2) and (3)")
         elif mode == 5:
             print("Mode 5: Trained inputs")
+        elif mode == 6:
+            print("Mode 6: Render BRDF from trained normals")
 
 app.on_keyboard_event = on_keyboard_event
 
@@ -76,28 +79,21 @@ albedo_map: spy.Tensor = module.toAlbedoMap(createTextureFromFile(app.device, "s
 normal_map: spy.Tensor = module.toNormalMap(createTextureFromFile(app.device, "stonewall_2k_normal.jpg"), _result='tensor')
 
 
-# TODO: Can we get away with not creating the tensors in this way, and not declaring the sample points?
-#w,h = 512,512 # TODO: Should this be 512x512 or 1024x1024?
-#sample_points_array = np.random.randn(w*h, 2).astype(np.float32)
-#i = 0
-#for x in range(w):
-#    for y in range(h):
-#        sample_points_array[i] = [x, y]
-#        i += 1
-#sample_points = spy.Tensor.from_numpy(app.device, sample_points_array)
-
-# Start with normals that are all uniform, but may want to use the downsampled normals instead.
-#normal_array = np.random.randn(w*h, 3).astype(np.float32)
-#for i in range(w*h):
-#    normal_array[i] = [0, 0, 1]
-#trained_normals = spy.Tensor.from_numpy(app.device, normal_array).with_grads(zero = True)
-
-#forward_result = spy.Tensor.from_numpy(app.device, np.zeros((w*h, ), dtype=np.float32)).with_grads()
+# Tensor for training the normal map
+trained_normals: spy.Tensor = module.downSample(normal_map, spy.grid((1024,1024)), _result='tensor').with_grads(zero = True)
+trained_normals: spy.Tensor = module.downSample(trained_normals, spy.grid((512,512)), _result='tensor').with_grads(zero = True)
 
 all_ones = np.ones((512*512, 1), dtype=np.float32)
 
-trained_normals: spy.Tensor = module.downSample(normal_map, spy.grid((1024,1024)), _result='tensor').with_grads(zero = True)
-trained_normals: spy.Tensor = module.downSample(trained_normals, spy.grid((512,512)), _result='tensor').with_grads(zero = True)
+learning_rate = 0.001 # This learning rate is specifically for using the downsampled normals as the initial values.
+max_iter = 1500
+
+# TODO: As an alternative we can start with uniform normals and train those, but this only seems to work for static light directions.
+#trained_normals = spy.Tensor.empty(app.device, shape=(512,512), dtype='float3').with_grads(zero = True)
+#module.baseNormal(_result=trained_normals).with_grads(zero = True)
+
+# TODO: This learning rate is specifically for using the base normal as the initial values.
+#learning_rate = 0.1
 
 # Run the app, using the previously defined mode. Only mode 5 will perform
 # actual training.
@@ -110,7 +106,6 @@ while app.process_events():
     rendered: spy.Tensor = module.renderFullRes(albedo_map, normal_map, light_dir, _result='tensor')
 
     # Downsampled output (avg) from the full res inputs (mode 2).
-    # TODO: Decide how much we want to downsample these.
     downsampled: spy.Tensor = module.downSample(rendered, spy.grid((1024,1024)), _result='tensor')
     downsampled: spy.Tensor = module.downSample(downsampled, spy.grid((512,512)), _result='tensor')
 
@@ -135,9 +130,8 @@ while app.process_events():
         loss: spy.Tensor = module.renderLoss(downsampled, downsampled_albedo_map, downsampled_normal_map, light_dir, _result='tensor')
         module.showTensorFloat3(loss, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
     elif mode == 5:
-        # TODO: Only train up to a maximum iter value.
         iter += 1
-        if iter <= 1500:
+        if iter <= max_iter:
             # Render BRDF from trained inputs to match (2).
 
             # Run the shader that calculates the loss (the difference between the downsampled output, and the output calculated with downsampled albedo and the broken normals).
@@ -148,10 +142,9 @@ while app.process_events():
             module.forward.bwds(downsampled, downsampled_albedo_map, trained_normals, light_dir, _result=forward_result)
 
             # Subtract a tiny bit of that gradient - i.e. if making normal.z greater makes the loss more, we want to make normal.z smaller.
-            # TODO: Is this the correct way to do this?
             normal_array = trained_normals.to_numpy()
             normal_grads = trained_normals.grad.to_numpy()
-            normal_array = normal_array - 0.0001 * normal_grads
+            normal_array = normal_array - learning_rate * normal_grads
 
             trained_normals.storage.copy_from_numpy(normal_array)
             trained_normals.grad.clear()
@@ -162,13 +155,12 @@ while app.process_events():
                 print("Iteration: {}, Loss: {}".format(iter, loss))
                 print("parameter {}".format(trained_normals.to_numpy()))
 
-        # Render the result.
-        # TODO: Hard to tell if it's correct from this, so for now I'm rendering the loss function instead to verify.
-        #result: spy.Tensor = module.renderFullRes(downsampled_albedo_map, trained_normals, light_dir, _result='tensor')
-        #module.showTensorFloat3(result, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
-
-        # TODO: Instead just render the loss, it should approach 0 if everything is working.
+        # Render the loss, it should approach 0 if everything is working.
         loss: spy.Tensor = module.renderLoss(downsampled, downsampled_albedo_map, trained_normals, light_dir, _result='tensor')
         module.showTensorFloat3(loss, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
+    elif mode == 6:
+        # Render the result.
+        result: spy.Tensor = module.renderFullRes(downsampled_albedo_map, trained_normals, light_dir, _result='tensor')
+        module.showTensorFloat3(result, app.output, spy.grid(rendered.shape), sgl.int2(0,0))
 
     app.present()
