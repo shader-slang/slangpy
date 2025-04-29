@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import slangpy;
 
 
@@ -210,7 +210,7 @@ float calculateL2Loss(no_diff float3 target, float3 input)
     return sumSquaredDiff / 3.0;
 }
 
-no_diff float3 sampleTensor(Tensor<float3,2> tensor, no_diff int2 pixelPos)
+no_diff float3 sampleTensor(Tensor<float3,2> tensor, int2 pixelPos)
 {
     // Get the color value from the tensor at the given pixel position.
     return tensor.get( { pixelPos.y, pixelPos.x });
