@@ -7,7 +7,6 @@ import sgl
 import sys
 import time
 import math
-from slangpy.types import call_id
 from pathlib import Path
 
 # Create the app and load the sample shader.
