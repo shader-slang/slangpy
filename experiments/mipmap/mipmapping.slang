@@ -216,6 +216,16 @@ no_diff float3 sampleTensor(Tensor<float3,2> tensor, int2 pixelPos)
     return tensor.get( { pixelPos.y, pixelPos.x });
 }
 
+no_diff float3 sampleTensor(Tensor<float3,2> tensor, float2 uv)
+{
+    // Turn UV into clamped integer coordinate...
+    int2 resolution = int2(tensor.shape[1], tensor.shape[0]);
+    int2 texel = int2(uv * float2(resolution));
+    texel = clamp(texel, int2(0), resolution - 1);
+    // ...then sample from that coordinate
+    return sampleTensor(tensor, texel);
+}
+
 float3 downSample(Tensor<float3, 2> input, int2 pixelPos)
 {
     float3 res = 0;
