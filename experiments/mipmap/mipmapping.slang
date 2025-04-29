@@ -181,6 +181,12 @@ float3 brdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
     return disneyBrdf(albedo, normal, lightDir);
 }
 
+// Helper function to turn pixel coordinates into normalized UVs
+float2 pixelToUV(int2 pixel, int2 resolution)
+{
+    return (float2(pixel) + 0.5f) / float2(resolution);
+}
+
 
 
 // Called from main.py to copy loaded 4 channel texture into 3 channel albedo tensor
@@ -278,16 +284,9 @@ float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float3 lightDir
 }
 
 
-// Write pixel color outputs from the tensor input.
-void showTensorFloat3(Tensor<float3, 2> tensor, RWTexture2D<float4> output, int2 pixelCoord, int2 offset)
+// Resample tensor and process into presentable colors.
+float4 showTensorFloat3(Tensor<float3, 2> tensor, float2 uv)
 {
-    // Convert the tensor value to a float4 color.
-    uint width;
-    uint height;
-    output.GetDimensions(width,height);
-
-    int srcY = (tensor.shape[0] * pixelCoord.y) / height;
-    int srcX = (tensor.shape[1] * pixelCoord.x) / width;
-    float3 color = tensor.get( { srcY, srcX });
-    output[pixelCoord] = float4(abs(color), 1.0);
+    float3 color = sampleTensor(tensor, uv);
+    return float4(abs(color), 1.0);
 }

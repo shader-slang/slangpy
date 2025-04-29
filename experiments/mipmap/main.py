@@ -40,6 +40,11 @@ module = spy.Module.load_from_file(app.device, "mipmapping.slang")
 mode = 1
 
 
+# Generate a UV grid for the window, starting at (0, 0) for the top left pixel
+window_w, window_h = app.window.width, app.window.height
+windowUVs = module.pixelToUV(spy.grid((window_h, window_w)), sgl.int2(window_w, window_h))
+
+
 def on_keyboard_event(key: sgl.KeyboardEvent):
     """Cycle modes using the 'tab' key."""
     if key.type == sgl.KeyboardEventType.key_press and key.key == sgl.KeyCode.tab:
@@ -128,20 +133,20 @@ while app.process_events():
 
     if mode == 1:
         # Render BRDF from full res inputs.
-        module.showTensorFloat3(rendered, app.output, spy.grid(rendered.shape), sgl.int2(0, 0))
+        module.showTensorFloat3(rendered, windowUVs, _result=app.output)
     elif mode == 2:
         # Render BRDF by taking average of neighboring full res inputs.
-        module.showTensorFloat3(downsampled, app.output, spy.grid(rendered.shape), sgl.int2(0, 0))
+        module.showTensorFloat3(downsampled, windowUVs, _result=app.output)
     elif mode == 3:
         # Render BRDF using downsampled inputs.
         downres: spy.Tensor = module.renderFullRes(
             downsampled_albedo_map, downsampled_normal_map, light_dir, _result='tensor')
-        module.showTensorFloat3(downres, app.output, spy.grid(rendered.shape), sgl.int2(0, 0))
+        module.showTensorFloat3(downres, windowUVs, _result=app.output)
     elif mode == 4:
         # Render L2 loss between (2) and (3).
         loss: spy.Tensor = module.renderLoss(
             downsampled, downsampled_albedo_map, downsampled_normal_map, light_dir, _result='tensor')
-        module.showTensorFloat3(loss, app.output, spy.grid(rendered.shape), sgl.int2(0, 0))
+        module.showTensorFloat3(loss, windowUVs, _result=app.output)
     elif mode == 5:
         iter += 1
         if iter <= max_iter:
@@ -173,11 +178,11 @@ while app.process_events():
         # Render the loss, it should approach 0 if everything is working.
         loss: spy.Tensor = module.renderLoss(
             downsampled, downsampled_albedo_map, trained_normals, light_dir, _result='tensor')
-        module.showTensorFloat3(loss, app.output, spy.grid(rendered.shape), sgl.int2(0, 0))
+        module.showTensorFloat3(loss, windowUVs, _result=app.output)
     elif mode == 6:
         # Render the result.
         result: spy.Tensor = module.renderFullRes(
             downsampled_albedo_map, trained_normals, light_dir, _result='tensor')
-        module.showTensorFloat3(result, app.output, spy.grid(rendered.shape), sgl.int2(0, 0))
+        module.showTensorFloat3(result, windowUVs, _result=app.output)
 
     app.present()
