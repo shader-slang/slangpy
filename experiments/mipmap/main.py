@@ -166,7 +166,7 @@ while app.process_events():
 
             if iter % 50 == 0:
                 resultArray = forward_result.to_numpy()
-                loss = np.linalg.norm(resultArray) / (512 * 512)
+                loss = np.sum(resultArray) / resultArray.size
                 print("Iteration: {}, Loss: {}".format(iter, loss))
                 print("parameter {}".format(trained_normals.to_numpy()))
 
