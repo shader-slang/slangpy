@@ -263,17 +263,6 @@ float calculateLoss(no_diff float3 targetColor, no_diff float3 albedoInput, floa
     return loss;
 }
 
-[Differentiable]
-float forward(no_diff float3 targetColor, no_diff float3 albedoInput, float3 normalInput, no_diff float3 lightDir)
-{
-    // TODO: Is this correct? I think we want target loss to be 0 to match (2).
-    float targetLoss = 0;
-    float currentLoss = calculateLoss(targetColor, albedoInput, normalInput, lightDir);
-    float diff = targetLoss - currentLoss;
-
-    return diff * diff;
-}
-
 // Perform one step of gradient descent and clear the gradient to zero for the next iteration
 void gradientDescent(inout float3 value, inout float3 gradient, float learningRate)
 {

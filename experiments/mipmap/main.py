@@ -94,7 +94,9 @@ trained_normals: spy.Tensor = module.downSample(
 trained_normals: spy.Tensor = module.downSample(
     trained_normals, spy.grid((512, 512)), _result='tensor').with_grads(zero=True)
 
-all_ones = np.ones((512*512, 1), dtype=np.float32)
+# Tensor containing the training loss and its derivative to propagate backwards (set to 1)
+training_loss = spy.Tensor.zeros(module.device, trained_normals.shape, module.float).with_grads()
+training_loss.grad_in.copy_from_numpy(np.ones(training_loss.shape.as_tuple(), dtype=np.float32))
 
 # This learning rate is specifically for using the downsampled normals as the initial values.
 learning_rate = 0.001
@@ -150,22 +152,20 @@ while app.process_events():
     elif mode == 5:
         iter += 1
         if iter <= max_iter:
-            # Render BRDF from trained inputs to match (2).
+            # Take the function that calculates the loss, i.e. the difference between the downsampled output
+            # and the output calculated with downsampled albedo/normals, and run it 'backwards'
+            # This propagates the gradient of training_loss back to the gradients of trained_normals.
+            module.calculateLoss.bwds(downsampled, downsampled_albedo_map,
+                                      trained_normals, light_dir, _result=training_loss)
+            # trained_normals.grad_out now tells us how trained_normals needs to change
+            # so that training_loss changes by training_loss.grad_in
 
-            # Run the shader that calculates the loss (the difference between the downsampled output, and the output calculated with downsampled albedo and the broken normals).
-            forward_result: spy.Tensor = module.forward(
-                downsampled, downsampled_albedo_map, trained_normals, light_dir, _result='tensor').with_grads()
-            forward_result.grad.storage.copy_from_numpy(all_ones)
-
-            # Run said shader backwards to get the derivative of the normals with respect to the loss - aka how changing the normals would affect the loss.
-            module.forward.bwds(downsampled, downsampled_albedo_map,
-                                trained_normals, light_dir, _result=forward_result)
-
-            # Subtract a tiny bit of that gradient - i.e. if making normal.z greater makes the loss more, we want to make normal.z smaller.
+            # We want training_loss to go down, so we subtract a tiny bit of that gradient.
             module.gradientDescent(trained_normals, trained_normals.grad, learning_rate)
+            # In the next iteration, the updated trained_normals now hopefully reduces the loss
 
             if iter % 50 == 0:
-                resultArray = forward_result.to_numpy()
+                resultArray = training_loss.to_numpy()
                 loss = np.sum(resultArray) / resultArray.size
                 print("Iteration: {}, Loss: {}".format(iter, loss))
                 print("parameter {}".format(trained_normals.to_numpy()))
