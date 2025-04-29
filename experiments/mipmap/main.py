@@ -162,12 +162,7 @@ while app.process_events():
                                 trained_normals, light_dir, _result=forward_result)
 
             # Subtract a tiny bit of that gradient - i.e. if making normal.z greater makes the loss more, we want to make normal.z smaller.
-            normal_array = trained_normals.to_numpy()
-            normal_grads = trained_normals.grad.to_numpy()
-            normal_array = normal_array - learning_rate * normal_grads
-
-            trained_normals.storage.copy_from_numpy(normal_array)
-            trained_normals.grad.clear()
+            module.gradientDescent(trained_normals, trained_normals.grad, learning_rate)
 
             if iter % 50 == 0:
                 resultArray = forward_result.to_numpy()

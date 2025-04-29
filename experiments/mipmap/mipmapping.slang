@@ -274,6 +274,12 @@ float forward(no_diff float3 targetColor, no_diff float3 albedoInput, float3 nor
     return diff * diff;
 }
 
+// Perform one step of gradient descent and clear the gradient to zero for the next iteration
+void gradientDescent(inout float3 value, inout float3 gradient, float learningRate)
+{
+    value -= gradient * learningRate;
+    gradient = float3(0.0f);
+}
 
 // Mode 4: Render calculated L2 loss between (2) and (3).
 float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float3 lightDir)
