@@ -288,3 +288,24 @@ float4 showTensorFloat3(Tensor<float3, 2> tensor, float2 uv, bool gammaCorrect)
         color = pow(color, 1.0f/2.2f);
     return float4(color, 1.0);
 }
+
+float4 showTrainingProgress(Tensor<float3, 2> avgColor, Tensor<float3, 2> loss, Tensor<float3, 2> initialNormal, Tensor<float3, 2> optimizedNormal, float2 uv)
+{
+    uv.x *= 4.0f;
+    int column = int(uv.x);
+    uv.x -= column;
+    
+    float3 color;
+    if (column == 0) {
+        color = pow(sampleTensor(avgColor, uv), 1.0f/2.2f);
+    } else if (column == 1) {
+        color = sampleTensor(loss, uv);
+    } else if (column == 2) {
+        color = sampleTensor(optimizedNormal, uv) * 0.5f + 0.5f;
+    } else if (column == 3) {
+        float3 diff = sampleTensor(optimizedNormal, uv) - sampleTensor(initialNormal, uv);
+        color = saturate(0.5f + diff * 10.0f);
+    }
+
+    return float4(color, 1.0f);
+}
