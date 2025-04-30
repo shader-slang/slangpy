@@ -280,8 +280,11 @@ float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float3 lightDir
 
 
 // Resample tensor and process into presentable colors.
-float4 showTensorFloat3(Tensor<float3, 2> tensor, float2 uv)
+float4 showTensorFloat3(Tensor<float3, 2> tensor, float2 uv, bool gammaCorrect)
 {
     float3 color = sampleTensor(tensor, uv);
-    return float4(abs(color), 1.0);
+    color = abs(color);
+    if (gammaCorrect)
+        color = pow(color, 1.0f/2.2f);
+    return float4(color, 1.0);
 }

@@ -134,20 +134,20 @@ while app.process_events():
 
     if mode == 1:
         # Render BRDF from full res inputs.
-        module.showTensorFloat3(rendered, windowUVs, _result=app.output)
+        module.showTensorFloat3(rendered, windowUVs, True, _result=app.output)
     elif mode == 2:
         # Render BRDF by taking average of neighboring full res inputs.
-        module.showTensorFloat3(downsampled, windowUVs, _result=app.output)
+        module.showTensorFloat3(downsampled, windowUVs, True, _result=app.output)
     elif mode == 3:
         # Render BRDF using downsampled inputs.
         downres: spy.Tensor = module.renderFullRes(
             downsampled_albedo_map, downsampled_normal_map, light_dir, _result='tensor')
-        module.showTensorFloat3(downres, windowUVs, _result=app.output)
+        module.showTensorFloat3(downres, windowUVs, True, _result=app.output)
     elif mode == 4:
         # Render L2 loss between (2) and (3).
         loss: spy.Tensor = module.renderLoss(
             downsampled, downsampled_albedo_map, downsampled_normal_map, light_dir, _result='tensor')
-        module.showTensorFloat3(loss, windowUVs, _result=app.output)
+        module.showTensorFloat3(loss, windowUVs, False, _result=app.output)
     elif mode == 5:
         iter += 1
         if iter <= max_iter:
@@ -172,11 +172,11 @@ while app.process_events():
         # Render the loss, it should approach 0 if everything is working.
         loss: spy.Tensor = module.renderLoss(
             downsampled, downsampled_albedo_map, trained_normals, light_dir, _result='tensor')
-        module.showTensorFloat3(loss, windowUVs, _result=app.output)
+        module.showTensorFloat3(loss, windowUVs, False, _result=app.output)
     elif mode == 6:
         # Render the result.
         result: spy.Tensor = module.renderFullRes(
             downsampled_albedo_map, trained_normals, light_dir, _result='tensor')
-        module.showTensorFloat3(result, windowUVs, _result=app.output)
+        module.showTensorFloat3(result, windowUVs, True, _result=app.output)
 
     app.present()
