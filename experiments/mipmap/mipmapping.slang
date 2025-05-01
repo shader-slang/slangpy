@@ -119,12 +119,11 @@ float3 DisneyBRDF(float3 baseColor, float3 L, float3 V, float3 N, float roughnes
 }
 
 [Differentiable]
-float3 disneyBrdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
+float3 disneyBrdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir, no_diff float3 viewDir)
 {
-    // Fixed light and view directions for this example.
     float3 N = normalize(normal);
     float3 L = normalize(lightDir);              // Light direction.
-    float3 V = normalize(float3(0.0, 0.0, 1.0)); // View direction.
+    float3 V = normalize(viewDir);               // View direction.
 
     float roughness = 0.4;
     float metallic = 0.0;
@@ -139,13 +138,11 @@ float3 disneyBrdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
 
 // Phong BRDF.
 [Differentiable]
-float3 phong(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
+float3 phong(no_diff float3 albedo, float3 normal, no_diff float3 lightDir, no_diff float3 viewDir)
 {
-    // Fixed light and view directions for this example.
-    //float3 N = normalize(normal);
-    float3 N = normal;
+    float3 N = normalize(normal);
     float3 L = normalize(lightDir);              // Light direction.
-    float3 V = normalize(float3(0.0, 0.0, 1.0)); // View direction.
+    float3 V = normalize(viewDir);               // View direction.
     float3 R = normalize(reflect(-L, N));        // Reflected light direction.
 
     // Material properties.
@@ -175,10 +172,10 @@ float3 phong(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
 
 // Wrapper to more easily change which BRDF to use.
 [Differentiable]
-float3 brdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir)
+float3 brdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir, no_diff float3 viewDir)
 {
-    //return phong(albedo, normal, lightDir);
-    return disneyBrdf(albedo, normal, lightDir);
+    //return phong(albedo, normal, lightDir, viewDir);
+    return disneyBrdf(albedo, normal, lightDir, viewDir);
 }
 
 // Helper function to turn pixel coordinates into normalized UVs
@@ -202,7 +199,7 @@ float3 toNormalMap(float4 color)
     return pow(color.xyz,1/2.2)*2-1;
 }
 
-// Calculate the L2 loss between two float4 values.
+// Calculate the L2 loss between two float3 values.
 // Returns a scalar value representing the mean squared error.
 [Differentiable]
 float calculateL2Loss(no_diff float3 target, float3 input)
@@ -212,7 +209,7 @@ float calculateL2Loss(no_diff float3 target, float3 input)
     float sumSquaredDiff = diff.x * diff.x + 
                            diff.y * diff.y + 
                            diff.z * diff.z;
-    // Take the mean (divide by 3 since float4 has 3 components).
+    // Take the mean (divide by 3 since float3 has 3 components).
     return sumSquaredDiff / 3.0;
 }
 
@@ -243,22 +240,22 @@ float3 downSample(Tensor<float3, 2> input, int2 pixelPos)
 }
 
 
-float3 renderFullRes(float3 albedo, float3 normal, float3 lightDir)
+float3 renderFullRes(float3 albedo, float3 normal, float3 lightDir, float3 viewDir)
 {
-    return brdf(albedo, normal, lightDir);
+    return brdf(albedo, normal, lightDir, viewDir);
 }
 
 
 // Functions used for training in (5).
 float3 baseNormal()
 {
-    return normalize(float3(1, 1, 1));
+    return float3(0, 0, 1);
 }
 
 [Differentiable]
-float calculateLoss(no_diff float3 targetColor, no_diff float3 albedoInput, float3 normalInput, no_diff float3 lightDir)
+float calculateLoss(no_diff float3 targetColor, no_diff float3 albedoInput, float3 normalInput, no_diff float3 lightDir, no_diff float3 viewDir)
 {
-    float3 inputColor = brdf(albedoInput, normalInput, lightDir);
+    float3 inputColor = brdf(albedoInput, normalInput, lightDir, viewDir);
     float loss = calculateL2Loss(targetColor, inputColor);
     return loss;
 }
@@ -266,15 +263,45 @@ float calculateLoss(no_diff float3 targetColor, no_diff float3 albedoInput, floa
 // Perform one step of gradient descent and clear the gradient to zero for the next iteration
 void gradientDescent(inout float3 value, inout float3 gradient, float learningRate)
 {
+    // TODO: Gradient descent really struggles with random light and view directions, replace this with an adam optimizer.
     value -= gradient * learningRate;
     gradient = float3(0.0f);
 }
 
+// Adam optimization step. Performs a similar role as the gradient descent function but less likely to get stuck in local minima.
+void adamStep(inout float3 value, inout float3 gradient, inout float3 mPrev, inout float3 vPrev, float learningRate)
+{
+    // Standard Adam default values.
+    const float ADAM_ETA = 0.002;
+    const float ADAM_BETA_1 = 0.9;
+    const float ADAM_BETA_2 = 0.999;
+    const float ADAM_EPSILON = 1e-8;
+
+    // Adam optimization.
+    float3 gradient2 = gradient * gradient;
+
+    float3 m = ADAM_BETA_1 * mPrev + (1.0 - ADAM_BETA_1) * gradient;
+    float3 v = ADAM_BETA_2 * vPrev + (1.0 - ADAM_BETA_2) * gradient2;
+
+    mPrev = m;
+    vPrev = v;
+
+    float3 mHat = m / (1.0f - ADAM_BETA_1);
+    float3 vHat = v / (1.0f - ADAM_BETA_2);
+
+    float3 update = (ADAM_ETA / (sqrt(vHat) + ADAM_EPSILON)) * mHat;
+
+    // Subtract the optimized result from the trained normal and reset the gradient.
+    value -= update;
+
+    gradient = float3(0.0f);
+}
+
 // Mode 4: Render calculated L2 loss between (2) and (3).
-float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float3 lightDir)
+float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float3 lightDir, float3 viewDir)
 {
     // BRDF from downsampled inputs, avgColor is the downsampled output from full res inputs.
-    float loss = calculateLoss(avgColor, albedo, normal, lightDir);
+    float loss = calculateLoss(avgColor, albedo, normal, lightDir, viewDir);
     return float3(loss, loss, loss);
 }
 
@@ -294,17 +321,27 @@ float4 showTrainingProgress(Tensor<float3, 2> avgColor, Tensor<float3, 2> loss, 
     uv.x *= 4.0f;
     int column = int(uv.x);
     uv.x -= column;
-    
+    int row = int(uv.y); // TODO: Stuff with the row.
+
+    // TODO: May want to also render the trained loss, to prove that it's working.
     float3 color;
-    if (column == 0) {
-        color = pow(sampleTensor(avgColor, uv), 1.0f/2.2f);
-    } else if (column == 1) {
-        color = sampleTensor(loss, uv);
-    } else if (column == 2) {
-        color = sampleTensor(optimizedNormal, uv) * 0.5f + 0.5f;
-    } else if (column == 3) {
-        float3 diff = sampleTensor(optimizedNormal, uv) - sampleTensor(initialNormal, uv);
-        color = saturate(0.5f + diff * 10.0f);
+    if (row == 0) {
+        if (column == 0) {
+            // Render BRDF, downsampled after being calculated from full res inputs.
+            color = pow(sampleTensor(avgColor, uv), 1.0f/2.2f);
+        } else if (column == 1) {
+            // Render the loss between the above, and the BRDF calculated from downsampled inputs.
+            color = sampleTensor(loss, uv);
+        } else if (column == 2) {
+            // Render the trained normal map.
+            color = normalize(sampleTensor(optimizedNormal, uv)) * 0.5f + 0.5f;
+        } else if (column == 3) {
+            // Render the difference between the trained normal map, and the initial normal map.
+            float3 diff = normalize(sampleTensor(optimizedNormal, uv)) - normalize(sampleTensor(initialNormal, uv));
+            color = saturate(0.5f + diff * 10.0f);
+        }
+    } else {
+        // TODO: We may want another row to render stuff here.
     }
 
     return float4(color, 1.0f);
