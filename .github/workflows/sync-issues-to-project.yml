@@ -13,4 +13,4 @@ jobs:
       - uses: actions/add-to-project@v1.0.2
         with:
           project-url: https://github.com/orgs/shader-slang/projects/10
-          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          github-token: ${{ secrets.SLANGBOT_ISSUES_WRITE }}
