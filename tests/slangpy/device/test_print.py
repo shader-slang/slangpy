@@ -13,8 +13,6 @@ import sglhelpers as helpers
 def test_print(device_type: spy.DeviceType):
     if device_type == spy.DeviceType.metal:
         pytest.skip("Slang bug https://github.com/shader-slang/slang/issues/6764")
-    if device_type == spy.DeviceType.cuda and (sys.platform == "linux" or sys.platform == "linux2"):
-        pytest.skip("Slang fails to find cuda_fp16.h header")
 
     device = spy.Device(type=device_type, enable_print=True)
     helpers.dispatch_compute(
@@ -126,7 +124,7 @@ uint8_tX: {1, 2} {3, 4, 5} {6, 7, 8, 9}
 uint16_tX: {1000, 2000} {3000, 4000, 5000} {6000, 7000, 8000, 9000}
 uint32_tX: {100000000, 200000000} {300000000, 400000000, 500000000} {600000000, 700000000, 800000000, 900000000}
 uint64_tX: {10000000000000, 20000000000000} {30000000000000, 40000000000000, 50000000000000} {60000000000000, 70000000000000, 80000000000000, 90000000000000}
-float16_tX: {-384, -256} {-192, -96, 0} {102.25, 217, 319.75, 447.75}
+float16_tX: {-400, -300} {-200, -100, 0} {100, 200, 300, 400}
 float32_tX: {-4000000, -3000000} {-2000000, -1000000, 0} {1000000, 2000000, 3000000, 4000000}
 float64_tX: {999999995904, 1999999991808} {2999999987712, 3999999983616, 4999999979520} {5999999975424, 6999999971328, 7999999967232, 8999999963136}
 uint3x4: {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}}
