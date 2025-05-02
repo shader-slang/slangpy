@@ -8,6 +8,7 @@ on:
       - "LICENSES/**"
       - "LICENSE"
       - "**.md"
+      - .github/workflows/wheels.yml
   pull_request:
     branches: [main]
     paths-ignore:
@@ -15,6 +16,7 @@ on:
       - "LICENSES/**"
       - "LICENSE"
       - "**.md"
+      - .github/workflows/wheels.yml
 
 permissions:
   contents: read
