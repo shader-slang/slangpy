@@ -9,6 +9,12 @@ import numpy as np
 sys.path.append(str(Path(__file__).parent))
 import sglhelpers as helpers
 
+@pytest.fixture(autouse=True)
+def skip_metal(device_type: spy.DeviceType):
+    if device_type == spy.DeviceType.metal:
+        pytest.skip(
+            "Texture functionality in slang-gfx is not yet implemented for Metal, trace by https://github.com/shader-slang/slang/issues/6386"
+        )
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_buffer_to_torch(device_type: spy.DeviceType):

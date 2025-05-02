@@ -9,6 +9,7 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/shader_offset.h"
 #include "sgl/device/resource.h"
+#include "sgl/device/device.h"
 
 #include <slang-rhi.h>
 
@@ -49,6 +50,8 @@ public:
     virtual void get_cuda_interop_buffers(std::vector<ref<cuda::InteropBuffer>>& cuda_interop_buffers) const;
 
     rhi::IShaderObject* rhi_shader_object() const { return m_shader_object; }
+
+    ref<Device> get_device() const { return m_device; }
 
 protected:
     ref<Device> m_device;
