@@ -14,9 +14,6 @@ import sglhelpers as helpers
 class PipelineTestContext:
     def __init__(self, device_type: spy.DeviceType, size: int = 128) -> None:
         super().__init__()
-        if device_type == spy.DeviceType.cuda:
-            pytest.skip("Texture access bug on CUDA")
-
         self.device = helpers.get_device(type=device_type)
         self.output_texture = self.device.create_texture(
             format=spy.Format.rgba32_float,
@@ -50,6 +47,8 @@ class PipelineTestContext:
         )
 
     def count(self):
+        if self.device.info.type == spy.DeviceType.cuda:
+            pytest.skip("CUDA doesn't support texture reads in compute shaders")
         self.count_buffer.copy_from_numpy(np.array([0, 0, 0, 0], dtype=np.uint32))
         self.count_kernel.dispatch(
             thread_count=[self.output_texture.width, self.output_texture.height, 1],
