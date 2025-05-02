@@ -42,12 +42,21 @@ def createTextureFromFile(device: sgl.Device, filepath: str):
         sys.exit(1)
 
 
-def downsampleTensor(mip0: spy.Tensor) -> spy.Tensor:
+def downsampleTensorFloat3(mip0: spy.Tensor) -> spy.Tensor:
     mip1_shape = (mip0.shape[0] // 2, mip0.shape[1] // 2)
     mip2_shape = (mip1_shape[0] // 2, mip1_shape[1] // 2)
 
-    mip1: spy.Tensor = module.downSample(mip0, spy.grid(mip1_shape), _result='tensor')
-    mip2: spy.Tensor = module.downSample(mip1, spy.grid(mip2_shape), _result='tensor')
+    mip1: spy.Tensor = module.downSampleFloat3(mip0, spy.grid(mip1_shape), _result='tensor')
+    mip2: spy.Tensor = module.downSampleFloat3(mip1, spy.grid(mip2_shape), _result='tensor')
+
+    return mip2
+
+def downsampleTensorFloat(mip0: spy.Tensor) -> spy.Tensor:
+    mip1_shape = (mip0.shape[0] // 2, mip0.shape[1] // 2)
+    mip2_shape = (mip1_shape[0] // 2, mip1_shape[1] // 2)
+
+    mip1: spy.Tensor = module.downSampleFloat(mip0, spy.grid(mip1_shape), _result='tensor')
+    mip2: spy.Tensor = module.downSampleFloat(mip1, spy.grid(mip2_shape), _result='tensor')
 
     return mip2
 
@@ -61,33 +70,42 @@ def getRandomDir():
     return sgl.float3(Lx, Ly, Lz)
 
 
-# Material and normal map textures used for this example.
+# Material, normal map and roughness textures used for this example.
 albedo_map: spy.Tensor = module.toAlbedoMap(createTextureFromFile(
-    app.device, "stonewall_2k_albedo.jpg"), _result='tensor')
+    app.device, "PavingStones070_2K.diffuse.jpg"), _result='tensor')
 normal_map: spy.Tensor = module.toNormalMap(createTextureFromFile(
-    app.device, "stonewall_2k_normal.jpg"), _result='tensor')
+    app.device, "PavingStones070_2K.normal.jpg"), _result='tensor')
+roughness_map: spy.Tensor = module.toRoughnessMap(createTextureFromFile(
+    app.device, "PavingStones070_2K.roughness.jpg"), _result='tensor')
 
-downsampled_albedo_map = downsampleTensor(albedo_map)
-downsampled_normal_map = downsampleTensor(normal_map)
+downsampled_albedo_map = downsampleTensorFloat3(albedo_map)
+downsampled_normal_map = downsampleTensorFloat3(normal_map)
+downsampled_roughness_map = downsampleTensorFloat(roughness_map)
 
-# TODO: We may also want to train a roughness texture.
 
 # Tensor for training the normal map.
 # One option is to start from the downsampled normal map.
 #trained_normals_without_grads: spy.Tensor = downsampleTensor(normal_map)
-# Another option is to start with uniform normals, however this will only work with an Adam optimizer.
+
+# Another option is to start with uniform normals, however this only works with an Adam optimizer.
 trained_normals_without_grads = spy.Tensor.empty(app.device, shape=(512,512), dtype='float3')
 module.baseNormal(_result=trained_normals_without_grads)
-
 trained_normals = trained_normals_without_grads.with_grads()
+
+trained_roughness_without_grads = spy.Tensor.empty(app.device, shape=(512,512), dtype='float')
+module.baseRoughness(_result=trained_roughness_without_grads)
+trained_roughness = trained_roughness_without_grads.with_grads()
 
 # Tensor containing the training loss and its derivative to propagate backwards (set to 1).
 training_loss = spy.Tensor.zeros(module.device, trained_normals.shape, module.float).with_grads()
 training_loss.grad_in.copy_from_numpy(np.ones(training_loss.shape.as_tuple(), dtype=np.float32))
 
 # m and v tensors for the Adam optimizer.
-m_tensor = spy.Tensor.zeros(module.device, trained_normals.shape, module.float3)
-v_tensor = spy.Tensor.zeros(module.device, trained_normals.shape, module.float3)
+m_normal = spy.Tensor.zeros(module.device, trained_normals.shape, module.float3)
+v_normal = spy.Tensor.zeros(module.device, trained_normals.shape, module.float3)
+
+m_roughness = spy.Tensor.zeros(module.device, trained_roughness.shape, module.float)
+v_roughness = spy.Tensor.zeros(module.device, trained_roughness.shape, module.float)
 
 # This learning rate seems to produce a reasonable result using gradient descent.
 grad_learning_rate = 0.001
@@ -106,16 +124,16 @@ while app.process_events():
     #light_dir = sgl.math.normalize(sgl.float3(t, t, 1.0))
 
     # Full res rendered output BRDF from full res inputs (mode 1).
-    rendered: spy.Tensor = module.renderFullRes(albedo_map, normal_map, light_dir, view_dir, _result='tensor')
+    rendered: spy.Tensor = module.renderFullRes(albedo_map, normal_map, roughness_map, light_dir, view_dir, _result='tensor')
 
     # Downsampled output (avg) from the full res inputs (mode 2).
-    downsampled = downsampleTensor(rendered)
+    downsampled = downsampleTensorFloat3(rendered)
 
     # Take the function that calculates the loss, i.e. the difference between the downsampled output
     # and the output calculated with downsampled albedo/normals, and run it 'backwards'
     # This propagates the gradient of training_loss back to the gradients of trained_normals.
     module.calculateLoss.bwds(downsampled, downsampled_albedo_map,
-                              trained_normals, light_dir, view_dir, _result=training_loss)
+                              trained_normals, trained_roughness, light_dir, view_dir, _result=training_loss)
     # trained_normals.grad_out now tells us how trained_normals needs to change
     # so that training_loss changes by training_loss.grad_in
 
@@ -124,7 +142,8 @@ while app.process_events():
     # In the next iteration, the updated trained_normals now hopefully reduces the loss
 
     # Another option is to use an Adam optimizer.
-    module.adamStep(trained_normals, trained_normals.grad, m_tensor, v_tensor, adam_learning_rate)
+    module.adamFloat3(trained_normals, trained_normals.grad, m_normal, v_normal, adam_learning_rate)
+    module.adamFloat(trained_roughness, trained_roughness.grad, m_roughness, v_roughness, adam_learning_rate)
 
     iter += 1
 
@@ -136,12 +155,12 @@ while app.process_events():
 
     # Render current progress
     loss: spy.Tensor = module.renderLoss(
-        downsampled, downsampled_albedo_map, trained_normals, light_dir, view_dir, _result='tensor')
+        downsampled, downsampled_albedo_map, trained_normals, trained_roughness, light_dir, view_dir, _result='tensor')
     result: spy.Tensor = module.renderFullRes(
-        downsampled_albedo_map, trained_normals, light_dir, view_dir, _result='tensor')
+        downsampled_albedo_map, trained_normals, trained_roughness, light_dir, view_dir, _result='tensor')
 
-    # TODO: Throw in some more visualization modes.
+    # TODO: We could also throw in some more visualization modes.
     module.showTrainingProgress(result, loss, downsampled_normal_map,
-                                trained_normals_without_grads, windowUVs, _result=app.output)
+                                trained_normals_without_grads, trained_roughness_without_grads, windowUVs, _result=app.output)
 
     app.present()

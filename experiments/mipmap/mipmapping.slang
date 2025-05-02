@@ -119,13 +119,13 @@ float3 DisneyBRDF(float3 baseColor, float3 L, float3 V, float3 N, float roughnes
 }
 
 [Differentiable]
-float3 disneyBrdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir, no_diff float3 viewDir)
+float3 disneyBrdf(no_diff float3 albedo, float3 normal, float roughness, no_diff float3 lightDir, no_diff float3 viewDir)
 {
     float3 N = normalize(normal);
     float3 L = normalize(lightDir);              // Light direction.
     float3 V = normalize(viewDir);               // View direction.
 
-    float roughness = 0.4;
+    //float roughness = 0.4;
     float metallic = 0.0;
     float specular = 1.0;
 
@@ -172,13 +172,13 @@ float3 phong(no_diff float3 albedo, float3 normal, no_diff float3 lightDir, no_d
 
 // Wrapper to more easily change which BRDF to use.
 [Differentiable]
-float3 brdf(no_diff float3 albedo, float3 normal, no_diff float3 lightDir, no_diff float3 viewDir)
+float3 brdf(no_diff float3 albedo, float3 normal, float roughness, no_diff float3 lightDir, no_diff float3 viewDir)
 {
     //return phong(albedo, normal, lightDir, viewDir);
-    return disneyBrdf(albedo, normal, lightDir, viewDir);
+    return disneyBrdf(albedo, normal, roughness, lightDir, viewDir);
 }
 
-// Helper function to turn pixel coordinates into normalized UVs
+// Helper function to turn pixel coordinates into normalized UVs.
 float2 pixelToUV(int2 pixel, int2 resolution)
 {
     return (float2(pixel) + 0.5f) / float2(resolution);
@@ -186,18 +186,26 @@ float2 pixelToUV(int2 pixel, int2 resolution)
 
 
 
-// Called from main.py to copy loaded 4 channel texture into 3 channel albedo tensor
+// Called from main.py to copy loaded 4 channel texture into 3 channel albedo tensor.
 float3 toAlbedoMap(float4 color)
 {
     return color.xyz;
 }
 
-// Called from main.py to copy loaded 4 channel texture into 3 channel normal tensor
+// Called from main.py to copy loaded 4 channel texture into 3 channel normal tensor.
 float3 toNormalMap(float4 color)
 {
     // Convert normal from [0,1] to [-1,1] range.
     return pow(color.xyz,1/2.2)*2-1;
 }
+
+// Called from main.py to copy loaded 4 channel texture into 1 channel roughnss tensor.
+float toRoughnessMap(float4 color)
+{
+    // All components should have the same value.
+    return color.x;
+}
+
 
 // Calculate the L2 loss between two float3 values.
 // Returns a scalar value representing the mean squared error.
@@ -213,36 +221,65 @@ float calculateL2Loss(no_diff float3 target, float3 input)
     return sumSquaredDiff / 3.0;
 }
 
-float3 sampleTensor(Tensor<float3,2> tensor, int2 pixelPos)
+
+
+// TODO: Comment these.
+float3 sampleTensorFloat3(Tensor<float3,2> tensor, int2 pixelPos)
 {
     // Get the color value from the tensor at the given pixel position.
     return tensor.get( { pixelPos.y, pixelPos.x });
 }
 
-float3 sampleTensor(Tensor<float3,2> tensor, float2 uv)
+float3 sampleTensorFloat3(Tensor<float3,2> tensor, float2 uv)
 {
     // Turn UV into clamped integer coordinate...
     int2 resolution = int2(tensor.shape[1], tensor.shape[0]);
     int2 texel = int2(uv * float2(resolution));
     texel = clamp(texel, int2(0), resolution - 1);
     // ...then sample from that coordinate
-    return sampleTensor(tensor, texel);
+    return sampleTensorFloat3(tensor, texel);
 }
 
-float3 downSample(Tensor<float3, 2> input, int2 pixelPos)
+float3 downSampleFloat3(Tensor<float3, 2> input, int2 pixelPos)
 {
     float3 res = 0;
-    res += sampleTensor(input, pixelPos * 2 + int2(0, 0));
-    res += sampleTensor(input, pixelPos * 2 + int2(1, 0));
-    res += sampleTensor(input, pixelPos * 2 + int2(0, 1));
-    res += sampleTensor(input, pixelPos * 2 + int2(1, 1));
+    res += sampleTensorFloat3(input, pixelPos * 2 + int2(0, 0));
+    res += sampleTensorFloat3(input, pixelPos * 2 + int2(1, 0));
+    res += sampleTensorFloat3(input, pixelPos * 2 + int2(0, 1));
+    res += sampleTensorFloat3(input, pixelPos * 2 + int2(1, 1));
+    return res * 0.25;
+}
+
+float sampleTensorFloat(Tensor<float,2> tensor, int2 pixelPos)
+{
+    // Get the color value from the tensor at the given pixel position.
+    return tensor.get( { pixelPos.y, pixelPos.x });
+}
+
+float sampleTensorFloat(Tensor<float,2> tensor, float2 uv)
+{
+    // Turn UV into clamped integer coordinate...
+    int2 resolution = int2(tensor.shape[1], tensor.shape[0]);
+    int2 texel = int2(uv * float2(resolution));
+    texel = clamp(texel, int2(0), resolution - 1);
+    // ...then sample from that coordinate
+    return sampleTensorFloat(tensor, texel);
+}
+
+float downSampleFloat(Tensor<float, 2> input, int2 pixelPos)
+{
+    float res = 0;
+    res += sampleTensorFloat(input, pixelPos * 2 + int2(0, 0));
+    res += sampleTensorFloat(input, pixelPos * 2 + int2(1, 0));
+    res += sampleTensorFloat(input, pixelPos * 2 + int2(0, 1));
+    res += sampleTensorFloat(input, pixelPos * 2 + int2(1, 1));
     return res * 0.25;
 }
 
 
-float3 renderFullRes(float3 albedo, float3 normal, float3 lightDir, float3 viewDir)
+float3 renderFullRes(float3 albedo, float3 normal, float roughness, float3 lightDir, float3 viewDir)
 {
-    return brdf(albedo, normal, lightDir, viewDir);
+    return brdf(albedo, normal, roughness, lightDir, viewDir);
 }
 
 
@@ -252,24 +289,32 @@ float3 baseNormal()
     return float3(0, 0, 1);
 }
 
-[Differentiable]
-float calculateLoss(no_diff float3 targetColor, no_diff float3 albedoInput, float3 normalInput, no_diff float3 lightDir, no_diff float3 viewDir)
+float baseRoughness()
 {
-    float3 inputColor = brdf(albedoInput, normalInput, lightDir, viewDir);
+    return 1.0f;
+}
+
+
+
+[Differentiable]
+float calculateLoss(no_diff float3 targetColor, no_diff float3 albedo, float3 normal, float roughness, no_diff float3 lightDir, no_diff float3 viewDir)
+{
+    float3 inputColor = brdf(albedo, normal, roughness, lightDir, viewDir);
     float loss = calculateL2Loss(targetColor, inputColor);
     return loss;
 }
 
+
+
 // Perform one step of gradient descent and clear the gradient to zero for the next iteration
 void gradientDescent(inout float3 value, inout float3 gradient, float learningRate)
 {
-    // TODO: Gradient descent really struggles with random light and view directions, replace this with an adam optimizer.
     value -= gradient * learningRate;
     gradient = float3(0.0f);
 }
 
 // Adam optimization step. Performs a similar role as the gradient descent function but less likely to get stuck in local minima.
-void adamStep(inout float3 value, inout float3 gradient, inout float3 mPrev, inout float3 vPrev, float learningRate)
+void adamFloat3(inout float3 value, inout float3 gradient, inout float3 mPrev, inout float3 vPrev, float learningRate)
 {
     // Standard Adam default values.
     const float ADAM_ETA = 0.002;
@@ -297,11 +342,41 @@ void adamStep(inout float3 value, inout float3 gradient, inout float3 mPrev, ino
     gradient = float3(0.0f);
 }
 
+void adamFloat(inout float value, inout float gradient, inout float mPrev, inout float vPrev, float learningRate)
+{
+    // Standard Adam default values.
+    const float ADAM_ETA = 0.002;
+    const float ADAM_BETA_1 = 0.9;
+    const float ADAM_BETA_2 = 0.999;
+    const float ADAM_EPSILON = 1e-8;
+
+    // Adam optimization.
+    float gradient2 = gradient * gradient;
+
+    float m = ADAM_BETA_1 * mPrev + (1.0 - ADAM_BETA_1) * gradient;
+    float v = ADAM_BETA_2 * vPrev + (1.0 - ADAM_BETA_2) * gradient2;
+
+    mPrev = m;
+    vPrev = v;
+
+    float mHat = m / (1.0f - ADAM_BETA_1);
+    float vHat = v / (1.0f - ADAM_BETA_2);
+
+    float update = (ADAM_ETA / (sqrt(vHat) + ADAM_EPSILON)) * mHat;
+
+    // Subtract the optimized result from the trained normal and reset the gradient.
+    value -= update;
+
+    gradient = 0.0f;
+}
+
+
+
 // Mode 4: Render calculated L2 loss between (2) and (3).
-float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float3 lightDir, float3 viewDir)
+float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float roughness, float3 lightDir, float3 viewDir)
 {
     // BRDF from downsampled inputs, avgColor is the downsampled output from full res inputs.
-    float loss = calculateLoss(avgColor, albedo, normal, lightDir, viewDir);
+    float loss = calculateLoss(avgColor, albedo, normal, roughness, lightDir, viewDir);
     return float3(loss, loss, loss);
 }
 
@@ -309,14 +384,14 @@ float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float3 lightDir
 // Resample tensor and process into presentable colors.
 float4 showTensorFloat3(Tensor<float3, 2> tensor, float2 uv, bool gammaCorrect)
 {
-    float3 color = sampleTensor(tensor, uv);
+    float3 color = sampleTensorFloat3(tensor, uv);
     color = abs(color);
     if (gammaCorrect)
         color = pow(color, 1.0f/2.2f);
     return float4(color, 1.0);
 }
 
-float4 showTrainingProgress(Tensor<float3, 2> avgColor, Tensor<float3, 2> loss, Tensor<float3, 2> initialNormal, Tensor<float3, 2> optimizedNormal, float2 uv)
+float4 showTrainingProgress(Tensor<float3, 2> avgColor, Tensor<float3, 2> loss, Tensor<float3, 2> initialNormal, Tensor<float3, 2> optimizedNormal, Tensor<float, 2> optimizedRoughness, float2 uv)
 {
     uv.x *= 4.0f;
     int column = int(uv.x);
@@ -328,17 +403,18 @@ float4 showTrainingProgress(Tensor<float3, 2> avgColor, Tensor<float3, 2> loss, 
     if (row == 0) {
         if (column == 0) {
             // Render BRDF, downsampled after being calculated from full res inputs.
-            color = pow(sampleTensor(avgColor, uv), 1.0f/2.2f);
+            color = pow(sampleTensorFloat3(avgColor, uv), 1.0f/2.2f);
         } else if (column == 1) {
             // Render the loss between the above, and the BRDF calculated from downsampled inputs.
-            color = sampleTensor(loss, uv);
+            color = sampleTensorFloat3(loss, uv);
         } else if (column == 2) {
             // Render the trained normal map.
-            color = normalize(sampleTensor(optimizedNormal, uv)) * 0.5f + 0.5f;
+            color = normalize(sampleTensorFloat3(optimizedNormal, uv)) * 0.5f + 0.5f;
         } else if (column == 3) {
             // Render the difference between the trained normal map, and the initial normal map.
-            float3 diff = normalize(sampleTensor(optimizedNormal, uv)) - normalize(sampleTensor(initialNormal, uv));
-            color = saturate(0.5f + diff * 10.0f);
+            //float3 diff = normalize(sampleTensorFloat3(optimizedNormal, uv)) - normalize(sampleTensorFloat3(initialNormal, uv));
+            //color = saturate(0.5f + diff * 10.0f);
+            color = float3(sampleTensorFloat(optimizedRoughness, uv));
         }
     } else {
         // TODO: We may want another row to render stuff here.
