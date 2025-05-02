@@ -7,8 +7,13 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.25.0
+----------------------------
 
-Version 0.24.0 (TBA)
+- Fix deploying slangpy shader files
+
+
+Version 0.24.0
 ----------------------------
 
 - Merge SGL (https://github.com/shader-slang/sgl) into SlangPy.
