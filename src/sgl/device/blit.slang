@@ -91,3 +91,15 @@ DstType fs_main(VSOut vs_out)
     let value = src.sample(sampler, uv);
     return reinterpret<DstType>(value);
 }
+
+[shader("compute")]
+void compute_main(uint3 tid: SV_DispatchThreadID, RWTexture2D<DstType> dst)
+{
+    uint2 dim;
+    src.GetDimensions(dim.x, dim.y);
+    if (any(tid.xy >= dim))
+        return;
+    float2 uv = float2(tid.xy) / dim;
+    DstType value = src.sample(sampler, uv);
+    dst[tid.xy] = value;
+}

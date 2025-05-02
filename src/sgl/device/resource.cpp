@@ -478,7 +478,7 @@ NativeHandle Texture::shared_handle() const
 DeviceResource::MemoryUsage Texture::memory_usage() const
 {
     rhi::Size size = 0, alignment = 0;
-    SLANG_RHI_CALL(m_device->rhi_device()->getTextureAllocationInfo(m_rhi_texture->getDesc(), &size, &alignment));
+    // SLANG_CALL(m_device->rhi_device()->getTextureAllocationInfo(m_rhi_texture->getDesc(), &size, &alignment));
     return {.device = size};
 }
 
