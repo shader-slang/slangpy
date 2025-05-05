@@ -48,7 +48,7 @@ SGL_PY_EXPORT(core_bitmap)
                     SGL_THROW("Expect array with dimension 2 or 3.");
 
                 DataStruct::Type component_type;
-                if (auto struct_type = dtype_to_struct_type(data.dtype()))
+                if (auto struct_type = dtype_to_data_struct_type(data.dtype()))
                     component_type = *struct_type;
                 else
                     SGL_THROW("Unsupported data type.");

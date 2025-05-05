@@ -390,7 +390,7 @@ inline DataType dtype_to_data_type(nb::dlpack::dtype dtype)
     SGL_THROW("Unsupported dtype.");
 }
 
-inline std::optional<DataStruct::Type> dtype_to_struct_type(nb::dlpack::dtype dtype)
+inline std::optional<DataStruct::Type> dtype_to_data_struct_type(nb::dlpack::dtype dtype)
 {
     switch (dtype.code) {
     case uint8_t(nb::dlpack::dtype_code::Int):
