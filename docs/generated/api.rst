@@ -275,7 +275,7 @@ Core
     Structured data definition.
     
     This class is used to describe a structured data type layout. It is
-    used by the StructConverter class to convert between different
+    used by the DataStructConverter class to convert between different
     layouts.
     
     .. py:method:: __init__(self, pack: bool = False, byte_order: slangpy.DataStruct.ByteOrder = ByteOrder.host) -> None
@@ -506,11 +506,11 @@ Core
 
 ----
 
-.. py:class:: slangpy.StructConverter
+.. py:class:: slangpy.DataStructConverter
 
     Base class: :py:class:`slangpy.Object`
     
-    Struct converter.
+    Data struct converter.
     
     This helper class can be used to convert between structs with
     different layouts.
@@ -662,7 +662,7 @@ Constants
 
 .. py:data:: slangpy.SGL_GIT_VERSION
     :type: str
-    :value: "commit: 3f7755e / branch: slangpy (local changes)"
+    :value: "commit: d488b10 / branch: rename-struct (local changes)"
 
 
 
@@ -6468,9 +6468,9 @@ Device
     
     .. py:method:: draw_indexed(self, args: slangpy.DrawArguments) -> None
     
-    .. py:method:: draw_indirect(self, max_draw_count: int, arg_buffer: slangpy.BufferOffsetPair, count_buffer: slangpy.BufferOffsetPair = <slangpy.BufferOffsetPair object at 0x0000018DD2F999E0>) -> None
+    .. py:method:: draw_indirect(self, max_draw_count: int, arg_buffer: slangpy.BufferOffsetPair, count_buffer: slangpy.BufferOffsetPair = <slangpy.BufferOffsetPair object at 0x000002A6A1F68780>) -> None
     
-    .. py:method:: draw_indexed_indirect(self, max_draw_count: int, arg_buffer: slangpy.BufferOffsetPair, count_buffer: slangpy.BufferOffsetPair = <slangpy.BufferOffsetPair object at 0x0000018DD2F99A10>) -> None
+    .. py:method:: draw_indexed_indirect(self, max_draw_count: int, arg_buffer: slangpy.BufferOffsetPair, count_buffer: slangpy.BufferOffsetPair = <slangpy.BufferOffsetPair object at 0x000002A6A225D080>) -> None
     
     .. py:method:: draw_mesh_tasks(self, dimensions: slangpy.math.uint3) -> None
     
@@ -13662,7 +13662,7 @@ Miscellaneous
 
 .. py:data:: slangpy.package_dir
     :type: str
-    :value: "c:\src\sgl-slangpy\slangpy"
+    :value: "C:\src\slangpy\slangpy"
 
 
 
@@ -13670,7 +13670,7 @@ Miscellaneous
 
 .. py:data:: slangpy.build_dir
     :type: str
-    :value: "C:/src/sgl-slangpy/build/windows-msvc/Release"
+    :value: "C:/src/slangpy/build/windows-msvc/Release"
 
 
 
@@ -14219,11 +14219,11 @@ Miscellaneous
     
     .. py:attribute:: slangpy.core.function.IThis.get_this
         :type: function
-        :value: <function IThis.get_this at 0x0000018DD334CCC0>
+        :value: <function IThis.get_this at 0x000002A6D15D5A80>
     
     .. py:attribute:: slangpy.core.function.IThis.update_this
         :type: function
-        :value: <function IThis.update_this at 0x0000018DD334C9A0>
+        :value: <function IThis.update_this at 0x000002A6D15D5BC0>
     
 
 
@@ -14241,67 +14241,67 @@ Miscellaneous
     
     .. py:attribute:: slangpy.core.function.FunctionNode.torch
         :type: function
-        :value: <function FunctionNode.torch at 0x0000018DD4350540>
+        :value: <function FunctionNode.torch at 0x000002A6D1611260>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.bind
         :type: function
-        :value: <function FunctionNode.bind at 0x0000018DD43505E0>
+        :value: <function FunctionNode.bind at 0x000002A6D1611300>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.map
         :type: function
-        :value: <function FunctionNode.map at 0x0000018DD4350680>
+        :value: <function FunctionNode.map at 0x000002A6D16113A0>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.set
         :type: function
-        :value: <function FunctionNode.set at 0x0000018DD4350720>
+        :value: <function FunctionNode.set at 0x000002A6D1611440>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.constants
         :type: function
-        :value: <function FunctionNode.constants at 0x0000018DD43507C0>
+        :value: <function FunctionNode.constants at 0x000002A6D16114E0>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.type_conformances
         :type: function
-        :value: <function FunctionNode.type_conformances at 0x0000018DD4350860>
+        :value: <function FunctionNode.type_conformances at 0x000002A6D1611580>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.return_type
         :type: function
-        :value: <function FunctionNode.return_type at 0x0000018DD43509A0>
+        :value: <function FunctionNode.return_type at 0x000002A6D16116C0>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.thread_group_size
         :type: function
-        :value: <function FunctionNode.thread_group_size at 0x0000018DD4350A40>
+        :value: <function FunctionNode.thread_group_size at 0x000002A6D1611760>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.as_func
         :type: function
-        :value: <function FunctionNode.as_func at 0x0000018DD4350AE0>
+        :value: <function FunctionNode.as_func at 0x000002A6D1611800>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.as_struct
         :type: function
-        :value: <function FunctionNode.as_struct at 0x0000018DD4350B80>
+        :value: <function FunctionNode.as_struct at 0x000002A6D16118A0>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.debug_build_call_data
         :type: function
-        :value: <function FunctionNode.debug_build_call_data at 0x0000018DD4350C20>
+        :value: <function FunctionNode.debug_build_call_data at 0x000002A6D1611940>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.call
         :type: function
-        :value: <function FunctionNode.call at 0x0000018DD4350CC0>
+        :value: <function FunctionNode.call at 0x000002A6D16119E0>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.append_to
         :type: function
-        :value: <function FunctionNode.append_to at 0x0000018DD4350D60>
+        :value: <function FunctionNode.append_to at 0x000002A6D1611A80>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.dispatch
         :type: function
-        :value: <function FunctionNode.dispatch at 0x0000018DD4350E00>
+        :value: <function FunctionNode.dispatch at 0x000002A6D1611B20>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.calc_build_info
         :type: function
-        :value: <function FunctionNode.calc_build_info at 0x0000018DD4350EA0>
+        :value: <function FunctionNode.calc_build_info at 0x000002A6D1611BC0>
     
     .. py:attribute:: slangpy.core.function.FunctionNode.generate_call_data
         :type: function
-        :value: <function FunctionNode.generate_call_data at 0x0000018DD43511C0>
+        :value: <function FunctionNode.generate_call_data at 0x000002A6D1611EE0>
     
 
 
@@ -14414,19 +14414,19 @@ Miscellaneous
     
     .. py:attribute:: slangpy.core.struct.Struct.torch
         :type: function
-        :value: <function Struct.torch at 0x0000018DD4352D40>
+        :value: <function Struct.torch at 0x000002A6D1613A60>
     
     .. py:attribute:: slangpy.core.struct.Struct.try_get_child
         :type: function
-        :value: <function Struct.try_get_child at 0x0000018DD4352DE0>
+        :value: <function Struct.try_get_child at 0x000002A6D1613B00>
     
     .. py:attribute:: slangpy.core.struct.Struct.as_func
         :type: function
-        :value: <function Struct.as_func at 0x0000018DD4353060>
+        :value: <function Struct.as_func at 0x000002A6D1613D80>
     
     .. py:attribute:: slangpy.core.struct.Struct.as_struct
         :type: function
-        :value: <function Struct.as_struct at 0x0000018DD4353100>
+        :value: <function Struct.as_struct at 0x000002A6D1613E20>
     
 
 
@@ -14519,7 +14519,7 @@ Miscellaneous
     
     .. py:attribute:: slangpy.core.module.CallDataCache.lookup_value_signature
         :type: function
-        :value: <function CallDataCache.lookup_value_signature at 0x0000018D8D48EFC0>
+        :value: <function CallDataCache.lookup_value_signature at 0x000002A6DC19D940>
     
 
 
@@ -14533,43 +14533,43 @@ Miscellaneous
     
     .. py:attribute:: slangpy.core.module.Module.load_from_source
         :type: function
-        :value: <function Module.load_from_source at 0x0000018D8D48F240>
+        :value: <function Module.load_from_source at 0x000002A6DC19DBC0>
     
     .. py:attribute:: slangpy.core.module.Module.load_from_file
         :type: function
-        :value: <function Module.load_from_file at 0x0000018D8D48F1A0>
+        :value: <function Module.load_from_file at 0x000002A6DC19DB20>
     
     .. py:attribute:: slangpy.core.module.Module.load_from_module
         :type: function
-        :value: <function Module.load_from_module at 0x0000018D8D48F2E0>
+        :value: <function Module.load_from_module at 0x000002A6DC19DC60>
     
     .. py:attribute:: slangpy.core.module.Module.torch
         :type: function
-        :value: <function Module.torch at 0x0000018D8D48F600>
+        :value: <function Module.torch at 0x000002A6DC19DF80>
     
     .. py:attribute:: slangpy.core.module.Module.find_struct
         :type: function
-        :value: <function Module.find_struct at 0x0000018D8D48F6A0>
+        :value: <function Module.find_struct at 0x000002A6DC19E020>
     
     .. py:attribute:: slangpy.core.module.Module.require_struct
         :type: function
-        :value: <function Module.require_struct at 0x0000018D8D48F740>
+        :value: <function Module.require_struct at 0x000002A6DC19E0C0>
     
     .. py:attribute:: slangpy.core.module.Module.find_function
         :type: function
-        :value: <function Module.find_function at 0x0000018D8D48F7E0>
+        :value: <function Module.find_function at 0x000002A6DC19E160>
     
     .. py:attribute:: slangpy.core.module.Module.require_function
         :type: function
-        :value: <function Module.require_function at 0x0000018D8D48F880>
+        :value: <function Module.require_function at 0x000002A6DC19E200>
     
     .. py:attribute:: slangpy.core.module.Module.find_function_in_struct
         :type: function
-        :value: <function Module.find_function_in_struct at 0x0000018D8D48F920>
+        :value: <function Module.find_function_in_struct at 0x000002A6DC19E2A0>
     
     .. py:attribute:: slangpy.core.module.Module.on_hot_reload
         :type: function
-        :value: <function Module.on_hot_reload at 0x0000018D8D48F9C0>
+        :value: <function Module.on_hot_reload at 0x000002A6DC19E340>
     
 
 
@@ -15647,19 +15647,19 @@ Miscellaneous
     
     .. py:attribute:: slangpy.core.instance.InstanceList.set_data
         :type: function
-        :value: <function InstanceList.set_data at 0x0000018D8D4BA200>
+        :value: <function InstanceList.set_data at 0x000002A6DC1A4B80>
     
     .. py:attribute:: slangpy.core.instance.InstanceList.get_this
         :type: function
-        :value: <function InstanceList.get_this at 0x0000018D8D4BA2A0>
+        :value: <function InstanceList.get_this at 0x000002A6DC1A4C20>
     
     .. py:attribute:: slangpy.core.instance.InstanceList.update_this
         :type: function
-        :value: <function InstanceList.update_this at 0x0000018D8D4BA340>
+        :value: <function InstanceList.update_this at 0x000002A6DC1A4CC0>
     
     .. py:attribute:: slangpy.core.instance.InstanceList.construct
         :type: function
-        :value: <function InstanceList.construct at 0x0000018D8D4BA3E0>
+        :value: <function InstanceList.construct at 0x000002A6DC1A4D60>
     
 
 
@@ -15676,11 +15676,11 @@ Miscellaneous
     
     .. py:attribute:: slangpy.core.instance.InstanceBuffer.to_numpy
         :type: function
-        :value: <function InstanceBuffer.to_numpy at 0x0000018D8D4BA840>
+        :value: <function InstanceBuffer.to_numpy at 0x000002A6DC1A51C0>
     
     .. py:attribute:: slangpy.core.instance.InstanceBuffer.copy_from_numpy
         :type: function
-        :value: <function InstanceBuffer.copy_from_numpy at 0x0000018D8D4BA8E0>
+        :value: <function InstanceBuffer.copy_from_numpy at 0x000002A6DC1A5260>
     
 
 
@@ -15690,87 +15690,87 @@ Miscellaneous
 
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.add_import
         :type: function
-        :value: <function CodeGenBlock.add_import at 0x0000018DD334D6C0>
+        :value: <function CodeGenBlock.add_import at 0x000002A6D15D6480>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.inc_indent
         :type: function
-        :value: <function CodeGenBlock.inc_indent at 0x0000018DD334D760>
+        :value: <function CodeGenBlock.inc_indent at 0x000002A6D15D6520>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.dec_indent
         :type: function
-        :value: <function CodeGenBlock.dec_indent at 0x0000018DD334D800>
+        :value: <function CodeGenBlock.dec_indent at 0x000002A6D15D65C0>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.append_indent
         :type: function
-        :value: <function CodeGenBlock.append_indent at 0x0000018DD334D8A0>
+        :value: <function CodeGenBlock.append_indent at 0x000002A6D15D6660>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.append_code
         :type: function
-        :value: <function CodeGenBlock.append_code at 0x0000018DD334D940>
+        :value: <function CodeGenBlock.append_code at 0x000002A6D15D6700>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.append_code_indented
         :type: function
-        :value: <function CodeGenBlock.append_code_indented at 0x0000018DD334D9E0>
+        :value: <function CodeGenBlock.append_code_indented at 0x000002A6D15D67A0>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.empty_line
         :type: function
-        :value: <function CodeGenBlock.empty_line at 0x0000018DD334DA80>
+        :value: <function CodeGenBlock.empty_line at 0x000002A6D15D6840>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.append_line
         :type: function
-        :value: <function CodeGenBlock.append_line at 0x0000018DD334DB20>
+        :value: <function CodeGenBlock.append_line at 0x000002A6D15D68E0>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.append_statement
         :type: function
-        :value: <function CodeGenBlock.append_statement at 0x0000018DD334DBC0>
+        :value: <function CodeGenBlock.append_statement at 0x000002A6D15D6980>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.begin_block
         :type: function
-        :value: <function CodeGenBlock.begin_block at 0x0000018DD334DC60>
+        :value: <function CodeGenBlock.begin_block at 0x000002A6D15D6A20>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.end_block
         :type: function
-        :value: <function CodeGenBlock.end_block at 0x0000018DD334DD00>
+        :value: <function CodeGenBlock.end_block at 0x000002A6D15D6AC0>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.begin_struct
         :type: function
-        :value: <function CodeGenBlock.begin_struct at 0x0000018DD334DDA0>
+        :value: <function CodeGenBlock.begin_struct at 0x000002A6D15D6B60>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.end_struct
         :type: function
-        :value: <function CodeGenBlock.end_struct at 0x0000018DD334DE40>
+        :value: <function CodeGenBlock.end_struct at 0x000002A6D15D6C00>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.type_alias
         :type: function
-        :value: <function CodeGenBlock.type_alias at 0x0000018DD334DEE0>
+        :value: <function CodeGenBlock.type_alias at 0x000002A6D15D6CA0>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.diff_pair
         :type: function
-        :value: <function CodeGenBlock.diff_pair at 0x0000018DD334DF80>
+        :value: <function CodeGenBlock.diff_pair at 0x000002A6D15D6D40>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.declare
         :type: function
-        :value: <function CodeGenBlock.declare at 0x0000018DD334E020>
+        :value: <function CodeGenBlock.declare at 0x000002A6D15D6DE0>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.assign
         :type: function
-        :value: <function CodeGenBlock.assign at 0x0000018DD334E0C0>
+        :value: <function CodeGenBlock.assign at 0x000002A6D15D6E80>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.declarevar
         :type: function
-        :value: <function CodeGenBlock.declarevar at 0x0000018DD334E160>
+        :value: <function CodeGenBlock.declarevar at 0x000002A6D15D6F20>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.statement
         :type: function
-        :value: <function CodeGenBlock.statement at 0x0000018DD334E200>
+        :value: <function CodeGenBlock.statement at 0x000002A6D15D6FC0>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.add_snippet
         :type: function
-        :value: <function CodeGenBlock.add_snippet at 0x0000018DD334E2A0>
+        :value: <function CodeGenBlock.add_snippet at 0x000002A6D15D7060>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGenBlock.finish
         :type: function
-        :value: <function CodeGenBlock.finish at 0x0000018DD334E340>
+        :value: <function CodeGenBlock.finish at 0x000002A6D15D7100>
     
 
 
@@ -15786,15 +15786,15 @@ Miscellaneous
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGen.add_snippet
         :type: function
-        :value: <function CodeGen.add_snippet at 0x0000018DD334E480>
+        :value: <function CodeGen.add_snippet at 0x000002A6D15D7240>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGen.add_import
         :type: function
-        :value: <function CodeGen.add_import at 0x0000018DD334E520>
+        :value: <function CodeGen.add_import at 0x000002A6D15D72E0>
     
     .. py:attribute:: slangpy.bindings.codegen.CodeGen.finish
         :type: function
-        :value: <function CodeGen.finish at 0x0000018DD334E5C0>
+        :value: <function CodeGen.finish at 0x000002A6D15D7380>
     
 
 
@@ -15869,19 +15869,19 @@ Miscellaneous
     
     .. py:attribute:: slangpy.bindings.marshall.Marshall.gen_calldata
         :type: function
-        :value: <function Marshall.gen_calldata at 0x0000018DD334E840>
+        :value: <function Marshall.gen_calldata at 0x000002A6D15D7600>
     
     .. py:attribute:: slangpy.bindings.marshall.Marshall.reduce_type
         :type: function
-        :value: <function Marshall.reduce_type at 0x0000018DD334E8E0>
+        :value: <function Marshall.reduce_type at 0x000002A6D15D76A0>
     
     .. py:attribute:: slangpy.bindings.marshall.Marshall.resolve_type
         :type: function
-        :value: <function Marshall.resolve_type at 0x0000018DD334E980>
+        :value: <function Marshall.resolve_type at 0x000002A6D15D7740>
     
     .. py:attribute:: slangpy.bindings.marshall.Marshall.resolve_dimensionality
         :type: function
-        :value: <function Marshall.resolve_dimensionality at 0x0000018DD334EA20>
+        :value: <function Marshall.resolve_dimensionality at 0x000002A6D15D77E0>
     
 
 
@@ -16045,23 +16045,23 @@ Miscellaneous
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundCall.bind
         :type: function
-        :value: <function BoundCall.bind at 0x0000018DD334ECA0>
+        :value: <function BoundCall.bind at 0x000002A6D15D79C0>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundCall.apply_explicit_vectorization
         :type: function
-        :value: <function BoundCall.apply_explicit_vectorization at 0x0000018DD334F060>
+        :value: <function BoundCall.apply_explicit_vectorization at 0x000002A6D15D7D80>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundCall.values
         :type: function
-        :value: <function BoundCall.values at 0x0000018DD334F100>
+        :value: <function BoundCall.values at 0x000002A6D15D7E20>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundCall.apply_implicit_vectorization
         :type: function
-        :value: <function BoundCall.apply_implicit_vectorization at 0x0000018DD334F1A0>
+        :value: <function BoundCall.apply_implicit_vectorization at 0x000002A6D15D7EC0>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundCall.finalize_mappings
         :type: function
-        :value: <function BoundCall.finalize_mappings at 0x0000018DD334F240>
+        :value: <function BoundCall.finalize_mappings at 0x000002A6D15D7F60>
     
 
 
@@ -16076,31 +16076,31 @@ Miscellaneous
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundVariable.bind
         :type: function
-        :value: <function BoundVariable.bind at 0x0000018DD334F420>
+        :value: <function BoundVariable.bind at 0x000002A6D1610180>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundVariable.apply_explicit_vectorization
         :type: function
-        :value: <function BoundVariable.apply_explicit_vectorization at 0x0000018DD334F600>
+        :value: <function BoundVariable.apply_explicit_vectorization at 0x000002A6D1610360>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundVariable.apply_implicit_vectorization
         :type: function
-        :value: <function BoundVariable.apply_implicit_vectorization at 0x0000018DD334F740>
+        :value: <function BoundVariable.apply_implicit_vectorization at 0x000002A6D16104A0>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundVariable.finalize_mappings
         :type: function
-        :value: <function BoundVariable.finalize_mappings at 0x0000018DD334F880>
+        :value: <function BoundVariable.finalize_mappings at 0x000002A6D16105E0>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundVariable.calculate_differentiability
         :type: function
-        :value: <function BoundVariable.calculate_differentiability at 0x0000018DD334F9C0>
+        :value: <function BoundVariable.calculate_differentiability at 0x000002A6D1610720>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundVariable.get_input_list
         :type: function
-        :value: <function BoundVariable.get_input_list at 0x0000018DD334FA60>
+        :value: <function BoundVariable.get_input_list at 0x000002A6D16107C0>
     
     .. py:attribute:: slangpy.bindings.boundvariable.BoundVariable.gen_call_data_code
         :type: function
-        :value: <function BoundVariable.gen_call_data_code at 0x0000018DD334FCE0>
+        :value: <function BoundVariable.gen_call_data_code at 0x000002A6D1610A40>
     
 
 
@@ -16392,23 +16392,23 @@ Miscellaneous
     
     .. py:attribute:: slangpy.experimental.gridarg.GridArgMarshall.gen_calldata
         :type: function
-        :value: <function GridArgMarshall.gen_calldata at 0x0000018DD435DB20>
+        :value: <function GridArgMarshall.gen_calldata at 0x000002A6D161E840>
     
     .. py:attribute:: slangpy.experimental.gridarg.GridArgMarshall.create_calldata
         :type: function
-        :value: <function GridArgMarshall.create_calldata at 0x0000018DD435DBC0>
+        :value: <function GridArgMarshall.create_calldata at 0x000002A6D161E8E0>
     
     .. py:attribute:: slangpy.experimental.gridarg.GridArgMarshall.get_shape
         :type: function
-        :value: <function GridArgMarshall.get_shape at 0x0000018DD435DC60>
+        :value: <function GridArgMarshall.get_shape at 0x000002A6D161E980>
     
     .. py:attribute:: slangpy.experimental.gridarg.GridArgMarshall.resolve_type
         :type: function
-        :value: <function GridArgMarshall.resolve_type at 0x0000018DD435DD00>
+        :value: <function GridArgMarshall.resolve_type at 0x000002A6D161EA20>
     
     .. py:attribute:: slangpy.experimental.gridarg.GridArgMarshall.resolve_dimensionality
         :type: function
-        :value: <function GridArgMarshall.resolve_dimensionality at 0x0000018DD435DDA0>
+        :value: <function GridArgMarshall.resolve_dimensionality at 0x000002A6D161EAC0>
     
 
 
@@ -16487,31 +16487,31 @@ Miscellaneous
     
     .. py:attribute:: slangpy.experimental.diffbuffer.NDDifferentiableBuffer.primal_to_numpy
         :type: function
-        :value: <function NDDifferentiableBuffer.primal_to_numpy at 0x0000018DD4382E80>
+        :value: <function NDDifferentiableBuffer.primal_to_numpy at 0x000002A6D162FC40>
     
     .. py:attribute:: slangpy.experimental.diffbuffer.NDDifferentiableBuffer.primal_from_numpy
         :type: function
-        :value: <function NDDifferentiableBuffer.primal_from_numpy at 0x0000018DD4382F20>
+        :value: <function NDDifferentiableBuffer.primal_from_numpy at 0x000002A6D162FCE0>
     
     .. py:attribute:: slangpy.experimental.diffbuffer.NDDifferentiableBuffer.primal_to_torch
         :type: function
-        :value: <function NDDifferentiableBuffer.primal_to_torch at 0x0000018DD4382FC0>
+        :value: <function NDDifferentiableBuffer.primal_to_torch at 0x000002A6D162FD80>
     
     .. py:attribute:: slangpy.experimental.diffbuffer.NDDifferentiableBuffer.grad_to_numpy
         :type: function
-        :value: <function NDDifferentiableBuffer.grad_to_numpy at 0x0000018DD4383060>
+        :value: <function NDDifferentiableBuffer.grad_to_numpy at 0x000002A6D162FE20>
     
     .. py:attribute:: slangpy.experimental.diffbuffer.NDDifferentiableBuffer.grad_from_numpy
         :type: function
-        :value: <function NDDifferentiableBuffer.grad_from_numpy at 0x0000018DD4383100>
+        :value: <function NDDifferentiableBuffer.grad_from_numpy at 0x000002A6D162FEC0>
     
     .. py:attribute:: slangpy.experimental.diffbuffer.NDDifferentiableBuffer.grad_to_torch
         :type: function
-        :value: <function NDDifferentiableBuffer.grad_to_torch at 0x0000018DD43831A0>
+        :value: <function NDDifferentiableBuffer.grad_to_torch at 0x000002A6D162FF60>
     
     .. py:attribute:: slangpy.experimental.diffbuffer.NDDifferentiableBuffer.get_grad
         :type: function
-        :value: <function NDDifferentiableBuffer.get_grad at 0x0000018DD4383240>
+        :value: <function NDDifferentiableBuffer.get_grad at 0x000002A6D1658040>
     
 
 
@@ -16676,31 +16676,31 @@ Miscellaneous
     
     .. py:attribute:: slangpy.types.buffer.NDBuffer.broadcast_to
         :type: function
-        :value: <function NDBuffer.broadcast_to at 0x0000018DD4353420>
+        :value: <function NDBuffer.broadcast_to at 0x000002A6D161C180>
     
     .. py:attribute:: slangpy.types.buffer.NDBuffer.view
         :type: function
-        :value: <function NDBuffer.view at 0x0000018DD43534C0>
+        :value: <function NDBuffer.view at 0x000002A6D161C220>
     
     .. py:attribute:: slangpy.types.buffer.NDBuffer.to_numpy
         :type: function
-        :value: <function NDBuffer.to_numpy at 0x0000018DD4353560>
+        :value: <function NDBuffer.to_numpy at 0x000002A6D161C2C0>
     
     .. py:attribute:: slangpy.types.buffer.NDBuffer.to_torch
         :type: function
-        :value: <function NDBuffer.to_torch at 0x0000018DD4353600>
+        :value: <function NDBuffer.to_torch at 0x000002A6D161C360>
     
     .. py:attribute:: slangpy.types.buffer.NDBuffer.clear
         :type: function
-        :value: <function NDBuffer.clear at 0x0000018DD43536A0>
+        :value: <function NDBuffer.clear at 0x000002A6D161C400>
     
     .. py:attribute:: slangpy.types.buffer.NDBuffer.zeros
         :type: function
-        :value: <function NDBuffer.zeros at 0x0000018DD4353740>
+        :value: <function NDBuffer.zeros at 0x000002A6D161C4A0>
     
     .. py:attribute:: slangpy.types.buffer.NDBuffer.zeros_like
         :type: function
-        :value: <function NDBuffer.zeros_like at 0x0000018DD43537E0>
+        :value: <function NDBuffer.zeros_like at 0x000002A6D161C540>
     
 
 
@@ -16742,11 +16742,11 @@ Miscellaneous
     
     .. py:attribute:: slangpy.types.diffpair.DiffPair.get
         :type: function
-        :value: <function DiffPair.get at 0x0000018DD43539C0>
+        :value: <function DiffPair.get at 0x000002A6D161C720>
     
     .. py:attribute:: slangpy.types.diffpair.DiffPair.set
         :type: function
-        :value: <function DiffPair.set at 0x0000018DD4353A60>
+        :value: <function DiffPair.set at 0x000002A6D161C7C0>
     
 
 
@@ -16940,19 +16940,19 @@ Miscellaneous
     
     .. py:attribute:: slangpy.types.wanghasharg.WangHashArgMarshall.gen_calldata
         :type: function
-        :value: <function WangHashArgMarshall.gen_calldata at 0x0000018DD435C860>
+        :value: <function WangHashArgMarshall.gen_calldata at 0x000002A6D161D580>
     
     .. py:attribute:: slangpy.types.wanghasharg.WangHashArgMarshall.create_calldata
         :type: function
-        :value: <function WangHashArgMarshall.create_calldata at 0x0000018DD435C900>
+        :value: <function WangHashArgMarshall.create_calldata at 0x000002A6D161D620>
     
     .. py:attribute:: slangpy.types.wanghasharg.WangHashArgMarshall.resolve_type
         :type: function
-        :value: <function WangHashArgMarshall.resolve_type at 0x0000018DD435C9A0>
+        :value: <function WangHashArgMarshall.resolve_type at 0x000002A6D161D6C0>
     
     .. py:attribute:: slangpy.types.wanghasharg.WangHashArgMarshall.resolve_dimensionality
         :type: function
-        :value: <function WangHashArgMarshall.resolve_dimensionality at 0x0000018DD435CA40>
+        :value: <function WangHashArgMarshall.resolve_dimensionality at 0x000002A6D161D760>
     
 
 
@@ -17083,19 +17083,19 @@ Miscellaneous
     
     .. py:attribute:: slangpy.types.randfloatarg.RandFloatArgMarshall.gen_calldata
         :type: function
-        :value: <function RandFloatArgMarshall.gen_calldata at 0x0000018DD435CEA0>
+        :value: <function RandFloatArgMarshall.gen_calldata at 0x000002A6D161DBC0>
     
     .. py:attribute:: slangpy.types.randfloatarg.RandFloatArgMarshall.create_calldata
         :type: function
-        :value: <function RandFloatArgMarshall.create_calldata at 0x0000018DD435CF40>
+        :value: <function RandFloatArgMarshall.create_calldata at 0x000002A6D161DC60>
     
     .. py:attribute:: slangpy.types.randfloatarg.RandFloatArgMarshall.resolve_type
         :type: function
-        :value: <function RandFloatArgMarshall.resolve_type at 0x0000018DD435CFE0>
+        :value: <function RandFloatArgMarshall.resolve_type at 0x000002A6D161DD00>
     
     .. py:attribute:: slangpy.types.randfloatarg.RandFloatArgMarshall.resolve_dimensionality
         :type: function
-        :value: <function RandFloatArgMarshall.resolve_dimensionality at 0x0000018DD435D080>
+        :value: <function RandFloatArgMarshall.resolve_dimensionality at 0x000002A6D161DDA0>
     
 
 
@@ -17218,15 +17218,15 @@ Miscellaneous
     
     .. py:attribute:: slangpy.types.threadidarg.ThreadIdArgMarshall.gen_calldata
         :type: function
-        :value: <function ThreadIdArgMarshall.gen_calldata at 0x0000018DD435D3A0>
+        :value: <function ThreadIdArgMarshall.gen_calldata at 0x000002A6D161E0C0>
     
     .. py:attribute:: slangpy.types.threadidarg.ThreadIdArgMarshall.resolve_type
         :type: function
-        :value: <function ThreadIdArgMarshall.resolve_type at 0x0000018DD435D440>
+        :value: <function ThreadIdArgMarshall.resolve_type at 0x000002A6D161E160>
     
     .. py:attribute:: slangpy.types.threadidarg.ThreadIdArgMarshall.resolve_dimensionality
         :type: function
-        :value: <function ThreadIdArgMarshall.resolve_dimensionality at 0x0000018DD435D4E0>
+        :value: <function ThreadIdArgMarshall.resolve_dimensionality at 0x000002A6D161E200>
     
 
 
@@ -17320,15 +17320,15 @@ Miscellaneous
     
     .. py:attribute:: slangpy.types.callidarg.CallIdArgMarshall.gen_calldata
         :type: function
-        :value: <function CallIdArgMarshall.gen_calldata at 0x0000018DD435E020>
+        :value: <function CallIdArgMarshall.gen_calldata at 0x000002A6D161ED40>
     
     .. py:attribute:: slangpy.types.callidarg.CallIdArgMarshall.resolve_type
         :type: function
-        :value: <function CallIdArgMarshall.resolve_type at 0x0000018DD435E0C0>
+        :value: <function CallIdArgMarshall.resolve_type at 0x000002A6D161EDE0>
     
     .. py:attribute:: slangpy.types.callidarg.CallIdArgMarshall.resolve_dimensionality
         :type: function
-        :value: <function CallIdArgMarshall.resolve_dimensionality at 0x0000018DD435E160>
+        :value: <function CallIdArgMarshall.resolve_dimensionality at 0x000002A6D161EE80>
     
 
 
@@ -17520,51 +17520,51 @@ Miscellaneous
     
     .. py:attribute:: slangpy.types.tensor.Tensor.broadcast_to
         :type: function
-        :value: <function Tensor.broadcast_to at 0x0000018DD435EB60>
+        :value: <function Tensor.broadcast_to at 0x000002A6D161F880>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.view
         :type: function
-        :value: <function Tensor.view at 0x0000018DD435EC00>
+        :value: <function Tensor.view at 0x000002A6D161F920>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.to_numpy
         :type: function
-        :value: <function Tensor.to_numpy at 0x0000018DD435ED40>
+        :value: <function Tensor.to_numpy at 0x000002A6D161FA60>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.to_torch
         :type: function
-        :value: <function Tensor.to_torch at 0x0000018DD435EDE0>
+        :value: <function Tensor.to_torch at 0x000002A6D161FB00>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.with_grads
         :type: function
-        :value: <function Tensor.with_grads at 0x0000018DD435EE80>
+        :value: <function Tensor.with_grads at 0x000002A6D161FBA0>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.clear
         :type: function
-        :value: <function Tensor.clear at 0x0000018DD435EF20>
+        :value: <function Tensor.clear at 0x000002A6D161FC40>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.numpy
         :type: function
-        :value: <function Tensor.numpy at 0x0000018DD435EFC0>
+        :value: <function Tensor.numpy at 0x000002A6D161FCE0>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.from_numpy
         :type: function
-        :value: <function Tensor.from_numpy at 0x0000018DD435F060>
+        :value: <function Tensor.from_numpy at 0x000002A6D161FD80>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.empty
         :type: function
-        :value: <function Tensor.empty at 0x0000018DD435F100>
+        :value: <function Tensor.empty at 0x000002A6D161FE20>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.zeros
         :type: function
-        :value: <function Tensor.zeros at 0x0000018DD435F1A0>
+        :value: <function Tensor.zeros at 0x000002A6D161FEC0>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.empty_like
         :type: function
-        :value: <function Tensor.empty_like at 0x0000018DD435F240>
+        :value: <function Tensor.empty_like at 0x000002A6D161FF60>
     
     .. py:attribute:: slangpy.types.tensor.Tensor.zeros_like
         :type: function
-        :value: <function Tensor.zeros_like at 0x0000018DD435F2E0>
+        :value: <function Tensor.zeros_like at 0x000002A6D162C040>
     
 
 
@@ -17747,35 +17747,35 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.value.ValueMarshall.gen_calldata
         :type: function
-        :value: <function ValueMarshall.gen_calldata at 0x0000018DD435F7E0>
+        :value: <function ValueMarshall.gen_calldata at 0x000002A6D162C5E0>
     
     .. py:attribute:: slangpy.builtin.value.ValueMarshall.create_calldata
         :type: function
-        :value: <function ValueMarshall.create_calldata at 0x0000018DD435F880>
+        :value: <function ValueMarshall.create_calldata at 0x000002A6D162C680>
     
     .. py:attribute:: slangpy.builtin.value.ValueMarshall.create_dispatchdata
         :type: function
-        :value: <function ValueMarshall.create_dispatchdata at 0x0000018DD435F920>
+        :value: <function ValueMarshall.create_dispatchdata at 0x000002A6D162C720>
     
     .. py:attribute:: slangpy.builtin.value.ValueMarshall.create_output
         :type: function
-        :value: <function ValueMarshall.create_output at 0x0000018DD435F9C0>
+        :value: <function ValueMarshall.create_output at 0x000002A6D162C7C0>
     
     .. py:attribute:: slangpy.builtin.value.ValueMarshall.read_output
         :type: function
-        :value: <function ValueMarshall.read_output at 0x0000018DD435FA60>
+        :value: <function ValueMarshall.read_output at 0x000002A6D162C860>
     
     .. py:attribute:: slangpy.builtin.value.ValueMarshall.resolve_type
         :type: function
-        :value: <function ValueMarshall.resolve_type at 0x0000018DD435FB00>
+        :value: <function ValueMarshall.resolve_type at 0x000002A6D162C900>
     
     .. py:attribute:: slangpy.builtin.value.ValueMarshall.reduce_type
         :type: function
-        :value: <function ValueMarshall.reduce_type at 0x0000018DD435FBA0>
+        :value: <function ValueMarshall.reduce_type at 0x000002A6D162C9A0>
     
     .. py:attribute:: slangpy.builtin.value.ValueMarshall.resolve_dimensionality
         :type: function
-        :value: <function ValueMarshall.resolve_dimensionality at 0x0000018DD435FC40>
+        :value: <function ValueMarshall.resolve_dimensionality at 0x000002A6D162CA40>
     
 
 
@@ -17787,7 +17787,7 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.value.ScalarMarshall.reduce_type
         :type: function
-        :value: <function ScalarMarshall.reduce_type at 0x0000018DD435FE20>
+        :value: <function ScalarMarshall.reduce_type at 0x000002A6D162CC20>
     
 
 
@@ -17799,7 +17799,7 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.value.NoneMarshall.resolve_dimensionality
         :type: function
-        :value: <function NoneMarshall.resolve_dimensionality at 0x0000018DD4380040>
+        :value: <function NoneMarshall.resolve_dimensionality at 0x000002A6D162CE00>
     
 
 
@@ -17811,15 +17811,15 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.value.VectorMarshall.reduce_type
         :type: function
-        :value: <function VectorMarshall.reduce_type at 0x0000018DD4380180>
+        :value: <function VectorMarshall.reduce_type at 0x000002A6D162CF40>
     
     .. py:attribute:: slangpy.builtin.value.VectorMarshall.resolve_type
         :type: function
-        :value: <function VectorMarshall.resolve_type at 0x0000018DD4380220>
+        :value: <function VectorMarshall.resolve_type at 0x000002A6D162CFE0>
     
     .. py:attribute:: slangpy.builtin.value.VectorMarshall.gen_calldata
         :type: function
-        :value: <function VectorMarshall.gen_calldata at 0x0000018DD43802C0>
+        :value: <function VectorMarshall.gen_calldata at 0x000002A6D162D080>
     
 
 
@@ -17831,7 +17831,7 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.value.MatrixMarshall.reduce_type
         :type: function
-        :value: <function MatrixMarshall.reduce_type at 0x0000018DD4380400>
+        :value: <function MatrixMarshall.reduce_type at 0x000002A6D162D1C0>
     
 
 
@@ -18028,35 +18028,35 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.valueref.ValueRefMarshall.resolve_type
         :type: function
-        :value: <function ValueRefMarshall.resolve_type at 0x0000018DD43819E0>
+        :value: <function ValueRefMarshall.resolve_type at 0x000002A6D162E7A0>
     
     .. py:attribute:: slangpy.builtin.valueref.ValueRefMarshall.resolve_dimensionality
         :type: function
-        :value: <function ValueRefMarshall.resolve_dimensionality at 0x0000018DD4381A80>
+        :value: <function ValueRefMarshall.resolve_dimensionality at 0x000002A6D162E840>
     
     .. py:attribute:: slangpy.builtin.valueref.ValueRefMarshall.gen_calldata
         :type: function
-        :value: <function ValueRefMarshall.gen_calldata at 0x0000018DD4381B20>
+        :value: <function ValueRefMarshall.gen_calldata at 0x000002A6D162E8E0>
     
     .. py:attribute:: slangpy.builtin.valueref.ValueRefMarshall.create_calldata
         :type: function
-        :value: <function ValueRefMarshall.create_calldata at 0x0000018DD4381BC0>
+        :value: <function ValueRefMarshall.create_calldata at 0x000002A6D162E980>
     
     .. py:attribute:: slangpy.builtin.valueref.ValueRefMarshall.create_dispatchdata
         :type: function
-        :value: <function ValueRefMarshall.create_dispatchdata at 0x0000018DD4381C60>
+        :value: <function ValueRefMarshall.create_dispatchdata at 0x000002A6D162EA20>
     
     .. py:attribute:: slangpy.builtin.valueref.ValueRefMarshall.read_calldata
         :type: function
-        :value: <function ValueRefMarshall.read_calldata at 0x0000018DD4381D00>
+        :value: <function ValueRefMarshall.read_calldata at 0x000002A6D162EAC0>
     
     .. py:attribute:: slangpy.builtin.valueref.ValueRefMarshall.create_output
         :type: function
-        :value: <function ValueRefMarshall.create_output at 0x0000018DD4381DA0>
+        :value: <function ValueRefMarshall.create_output at 0x000002A6D162EB60>
     
     .. py:attribute:: slangpy.builtin.valueref.ValueRefMarshall.read_output
         :type: function
-        :value: <function ValueRefMarshall.read_output at 0x0000018DD4381E40>
+        :value: <function ValueRefMarshall.read_output at 0x000002A6D162EC00>
     
 
 
@@ -18212,35 +18212,35 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.diffpair.DiffPairMarshall.resolve_type
         :type: function
-        :value: <function DiffPairMarshall.resolve_type at 0x0000018DD43822A0>
+        :value: <function DiffPairMarshall.resolve_type at 0x000002A6D162F060>
     
     .. py:attribute:: slangpy.builtin.diffpair.DiffPairMarshall.resolve_dimensionality
         :type: function
-        :value: <function DiffPairMarshall.resolve_dimensionality at 0x0000018DD4382340>
+        :value: <function DiffPairMarshall.resolve_dimensionality at 0x000002A6D162F100>
     
     .. py:attribute:: slangpy.builtin.diffpair.DiffPairMarshall.gen_calldata
         :type: function
-        :value: <function DiffPairMarshall.gen_calldata at 0x0000018DD43823E0>
+        :value: <function DiffPairMarshall.gen_calldata at 0x000002A6D162F1A0>
     
     .. py:attribute:: slangpy.builtin.diffpair.DiffPairMarshall.get_type
         :type: function
-        :value: <function DiffPairMarshall.get_type at 0x0000018DD4382480>
+        :value: <function DiffPairMarshall.get_type at 0x000002A6D162F240>
     
     .. py:attribute:: slangpy.builtin.diffpair.DiffPairMarshall.create_calldata
         :type: function
-        :value: <function DiffPairMarshall.create_calldata at 0x0000018DD4382520>
+        :value: <function DiffPairMarshall.create_calldata at 0x000002A6D162F2E0>
     
     .. py:attribute:: slangpy.builtin.diffpair.DiffPairMarshall.read_calldata
         :type: function
-        :value: <function DiffPairMarshall.read_calldata at 0x0000018DD43825C0>
+        :value: <function DiffPairMarshall.read_calldata at 0x000002A6D162F380>
     
     .. py:attribute:: slangpy.builtin.diffpair.DiffPairMarshall.create_output
         :type: function
-        :value: <function DiffPairMarshall.create_output at 0x0000018DD4382660>
+        :value: <function DiffPairMarshall.create_output at 0x000002A6D162F420>
     
     .. py:attribute:: slangpy.builtin.diffpair.DiffPairMarshall.read_output
         :type: function
-        :value: <function DiffPairMarshall.read_output at 0x0000018DD4382700>
+        :value: <function DiffPairMarshall.read_output at 0x000002A6D162F4C0>
     
 
 
@@ -18483,19 +18483,19 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDBufferMarshall.reduce_type
         :type: function
-        :value: <function NDBufferMarshall.reduce_type at 0x0000018DD4383880>
+        :value: <function NDBufferMarshall.reduce_type at 0x000002A6D1658680>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDBufferMarshall.resolve_type
         :type: function
-        :value: <function NDBufferMarshall.resolve_type at 0x0000018DD4383920>
+        :value: <function NDBufferMarshall.resolve_type at 0x000002A6D1658720>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDBufferMarshall.resolve_dimensionality
         :type: function
-        :value: <function NDBufferMarshall.resolve_dimensionality at 0x0000018DD43839C0>
+        :value: <function NDBufferMarshall.resolve_dimensionality at 0x000002A6D16587C0>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDBufferMarshall.gen_calldata
         :type: function
-        :value: <function NDBufferMarshall.gen_calldata at 0x0000018DD4383A60>
+        :value: <function NDBufferMarshall.gen_calldata at 0x000002A6D1658860>
     
 
 
@@ -18507,39 +18507,39 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDDifferentiableBufferMarshall.reduce_type
         :type: function
-        :value: <function NDDifferentiableBufferMarshall.reduce_type at 0x0000018DD4383D80>
+        :value: <function NDDifferentiableBufferMarshall.reduce_type at 0x000002A6D1658B80>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDDifferentiableBufferMarshall.resolve_type
         :type: function
-        :value: <function NDDifferentiableBufferMarshall.resolve_type at 0x0000018DD4383E20>
+        :value: <function NDDifferentiableBufferMarshall.resolve_type at 0x000002A6D1658C20>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDDifferentiableBufferMarshall.resolve_dimensionality
         :type: function
-        :value: <function NDDifferentiableBufferMarshall.resolve_dimensionality at 0x0000018DD4383EC0>
+        :value: <function NDDifferentiableBufferMarshall.resolve_dimensionality at 0x000002A6D1658CC0>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDDifferentiableBufferMarshall.gen_calldata
         :type: function
-        :value: <function NDDifferentiableBufferMarshall.gen_calldata at 0x0000018DD4383F60>
+        :value: <function NDDifferentiableBufferMarshall.gen_calldata at 0x000002A6D1658D60>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDDifferentiableBufferMarshall.create_calldata
         :type: function
-        :value: <function NDDifferentiableBufferMarshall.create_calldata at 0x0000018DD4390040>
+        :value: <function NDDifferentiableBufferMarshall.create_calldata at 0x000002A6D1658E00>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDDifferentiableBufferMarshall.create_output
         :type: function
-        :value: <function NDDifferentiableBufferMarshall.create_output at 0x0000018DD43900E0>
+        :value: <function NDDifferentiableBufferMarshall.create_output at 0x000002A6D1658EA0>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDDifferentiableBufferMarshall.read_output
         :type: function
-        :value: <function NDDifferentiableBufferMarshall.read_output at 0x0000018DD4390180>
+        :value: <function NDDifferentiableBufferMarshall.read_output at 0x000002A6D1658F40>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDDifferentiableBufferMarshall.create_dispatchdata
         :type: function
-        :value: <function NDDifferentiableBufferMarshall.create_dispatchdata at 0x0000018DD4390220>
+        :value: <function NDDifferentiableBufferMarshall.create_dispatchdata at 0x000002A6D1658FE0>
     
     .. py:attribute:: slangpy.builtin.ndbuffer.NDDifferentiableBufferMarshall.get_shape
         :type: function
-        :value: <function NDDifferentiableBufferMarshall.get_shape at 0x0000018DD43902C0>
+        :value: <function NDDifferentiableBufferMarshall.get_shape at 0x000002A6D1659080>
     
 
 
@@ -18641,15 +18641,15 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.struct.StructMarshall.resolve_type
         :type: function
-        :value: <function StructMarshall.resolve_type at 0x0000018DD4390720>
+        :value: <function StructMarshall.resolve_type at 0x000002A6D16594E0>
     
     .. py:attribute:: slangpy.builtin.struct.StructMarshall.resolve_dimensionality
         :type: function
-        :value: <function StructMarshall.resolve_dimensionality at 0x0000018DD43907C0>
+        :value: <function StructMarshall.resolve_dimensionality at 0x000002A6D1659580>
     
     .. py:attribute:: slangpy.builtin.struct.StructMarshall.create_dispatchdata
         :type: function
-        :value: <function StructMarshall.create_dispatchdata at 0x0000018DD4390860>
+        :value: <function StructMarshall.create_dispatchdata at 0x000002A6D1659620>
     
 
 
@@ -18769,19 +18769,19 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.structuredbuffer.BufferMarshall.resolve_type
         :type: function
-        :value: <function BufferMarshall.resolve_type at 0x0000018DD4390AE0>
+        :value: <function BufferMarshall.resolve_type at 0x000002A6D16598A0>
     
     .. py:attribute:: slangpy.builtin.structuredbuffer.BufferMarshall.resolve_dimensionality
         :type: function
-        :value: <function BufferMarshall.resolve_dimensionality at 0x0000018DD4390B80>
+        :value: <function BufferMarshall.resolve_dimensionality at 0x000002A6D1659940>
     
     .. py:attribute:: slangpy.builtin.structuredbuffer.BufferMarshall.gen_calldata
         :type: function
-        :value: <function BufferMarshall.gen_calldata at 0x0000018DD4390C20>
+        :value: <function BufferMarshall.gen_calldata at 0x000002A6D16599E0>
     
     .. py:attribute:: slangpy.builtin.structuredbuffer.BufferMarshall.reduce_type
         :type: function
-        :value: <function BufferMarshall.reduce_type at 0x0000018DD4390D60>
+        :value: <function BufferMarshall.reduce_type at 0x000002A6D1659B20>
     
 
 
@@ -18970,23 +18970,23 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.texture.TextureMarshall.reduce_type
         :type: function
-        :value: <function TextureMarshall.reduce_type at 0x0000018DD4391260>
+        :value: <function TextureMarshall.reduce_type at 0x000002A6D165A020>
     
     .. py:attribute:: slangpy.builtin.texture.TextureMarshall.resolve_type
         :type: function
-        :value: <function TextureMarshall.resolve_type at 0x0000018DD4391300>
+        :value: <function TextureMarshall.resolve_type at 0x000002A6D165A0C0>
     
     .. py:attribute:: slangpy.builtin.texture.TextureMarshall.build_type_name
         :type: function
-        :value: <function TextureMarshall.build_type_name at 0x0000018DD4391440>
+        :value: <function TextureMarshall.build_type_name at 0x000002A6D165A200>
     
     .. py:attribute:: slangpy.builtin.texture.TextureMarshall.build_accessor_name
         :type: function
-        :value: <function TextureMarshall.build_accessor_name at 0x0000018DD43914E0>
+        :value: <function TextureMarshall.build_accessor_name at 0x000002A6D165A2A0>
     
     .. py:attribute:: slangpy.builtin.texture.TextureMarshall.gen_calldata
         :type: function
-        :value: <function TextureMarshall.gen_calldata at 0x0000018DD4391580>
+        :value: <function TextureMarshall.gen_calldata at 0x000002A6D165A340>
     
 
 
@@ -18998,15 +18998,15 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.texture.SamplerMarshall.gen_calldata
         :type: function
-        :value: <function SamplerMarshall.gen_calldata at 0x0000018DD43919E0>
+        :value: <function SamplerMarshall.gen_calldata at 0x000002A6D165A7A0>
     
     .. py:attribute:: slangpy.builtin.texture.SamplerMarshall.create_calldata
         :type: function
-        :value: <function SamplerMarshall.create_calldata at 0x0000018DD4391A80>
+        :value: <function SamplerMarshall.create_calldata at 0x000002A6D165A840>
     
     .. py:attribute:: slangpy.builtin.texture.SamplerMarshall.create_dispatchdata
         :type: function
-        :value: <function SamplerMarshall.create_dispatchdata at 0x0000018DD4391B20>
+        :value: <function SamplerMarshall.create_dispatchdata at 0x000002A6D165A8E0>
     
 
 
@@ -19233,15 +19233,15 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.accelerationstructure.AccelerationStructureMarshall.gen_calldata
         :type: function
-        :value: <function AccelerationStructureMarshall.gen_calldata at 0x0000018DD4391F80>
+        :value: <function AccelerationStructureMarshall.gen_calldata at 0x000002A6D165AD40>
     
     .. py:attribute:: slangpy.builtin.accelerationstructure.AccelerationStructureMarshall.create_calldata
         :type: function
-        :value: <function AccelerationStructureMarshall.create_calldata at 0x0000018DD4392020>
+        :value: <function AccelerationStructureMarshall.create_calldata at 0x000002A6D165ADE0>
     
     .. py:attribute:: slangpy.builtin.accelerationstructure.AccelerationStructureMarshall.create_dispatchdata
         :type: function
-        :value: <function AccelerationStructureMarshall.create_dispatchdata at 0x0000018DD43920C0>
+        :value: <function AccelerationStructureMarshall.create_dispatchdata at 0x000002A6D165AE80>
     
 
 
@@ -19370,23 +19370,23 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.range.RangeMarshall.gen_calldata
         :type: function
-        :value: <function RangeMarshall.gen_calldata at 0x0000018DD43922A0>
+        :value: <function RangeMarshall.gen_calldata at 0x000002A6D165B060>
     
     .. py:attribute:: slangpy.builtin.range.RangeMarshall.create_calldata
         :type: function
-        :value: <function RangeMarshall.create_calldata at 0x0000018DD4392340>
+        :value: <function RangeMarshall.create_calldata at 0x000002A6D165B100>
     
     .. py:attribute:: slangpy.builtin.range.RangeMarshall.get_shape
         :type: function
-        :value: <function RangeMarshall.get_shape at 0x0000018DD43923E0>
+        :value: <function RangeMarshall.get_shape at 0x000002A6D165B1A0>
     
     .. py:attribute:: slangpy.builtin.range.RangeMarshall.resolve_type
         :type: function
-        :value: <function RangeMarshall.resolve_type at 0x0000018DD4392480>
+        :value: <function RangeMarshall.resolve_type at 0x000002A6D165B240>
     
     .. py:attribute:: slangpy.builtin.range.RangeMarshall.resolve_dimensionality
         :type: function
-        :value: <function RangeMarshall.resolve_dimensionality at 0x0000018DD4392520>
+        :value: <function RangeMarshall.resolve_dimensionality at 0x000002A6D165B2E0>
     
 
 
@@ -19506,19 +19506,19 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.numpy.NumpyMarshall.reduce_type
         :type: function
-        :value: <function NumpyMarshall.reduce_type at 0x0000018DD4392840>
+        :value: <function NumpyMarshall.reduce_type at 0x000002A6D165B600>
     
     .. py:attribute:: slangpy.builtin.numpy.NumpyMarshall.resolve_type
         :type: function
-        :value: <function NumpyMarshall.resolve_type at 0x0000018DD43928E0>
+        :value: <function NumpyMarshall.resolve_type at 0x000002A6D165B6A0>
     
     .. py:attribute:: slangpy.builtin.numpy.NumpyMarshall.resolve_dimensionality
         :type: function
-        :value: <function NumpyMarshall.resolve_dimensionality at 0x0000018DD4392980>
+        :value: <function NumpyMarshall.resolve_dimensionality at 0x000002A6D165B740>
     
     .. py:attribute:: slangpy.builtin.numpy.NumpyMarshall.gen_calldata
         :type: function
-        :value: <function NumpyMarshall.gen_calldata at 0x0000018DD4392A20>
+        :value: <function NumpyMarshall.gen_calldata at 0x000002A6D165B7E0>
     
 
 
@@ -19691,23 +19691,23 @@ Miscellaneous
     
     .. py:attribute:: slangpy.builtin.tensor.TensorMarshall.resolve_type
         :type: function
-        :value: <function TensorMarshall.resolve_type at 0x0000018DD4393420>
+        :value: <function TensorMarshall.resolve_type at 0x000002A6D1670220>
     
     .. py:attribute:: slangpy.builtin.tensor.TensorMarshall.reduce_type
         :type: function
-        :value: <function TensorMarshall.reduce_type at 0x0000018DD43934C0>
+        :value: <function TensorMarshall.reduce_type at 0x000002A6D16702C0>
     
     .. py:attribute:: slangpy.builtin.tensor.TensorMarshall.resolve_dimensionality
         :type: function
-        :value: <function TensorMarshall.resolve_dimensionality at 0x0000018DD4393560>
+        :value: <function TensorMarshall.resolve_dimensionality at 0x000002A6D1670360>
     
     .. py:attribute:: slangpy.builtin.tensor.TensorMarshall.get_shape
         :type: function
-        :value: <function TensorMarshall.get_shape at 0x0000018DD4393600>
+        :value: <function TensorMarshall.get_shape at 0x000002A6D1670400>
     
     .. py:attribute:: slangpy.builtin.tensor.TensorMarshall.gen_calldata
         :type: function
-        :value: <function TensorMarshall.gen_calldata at 0x0000018DD43936A0>
+        :value: <function TensorMarshall.gen_calldata at 0x000002A6D16704A0>
     
 
 
@@ -19888,7 +19888,7 @@ Miscellaneous
 
     .. py:attribute:: slangpy.torchintegration.wrappedtensor.WrappedTensor.collect_streams
         :type: function
-        :value: <function WrappedTensor.collect_streams at 0x0000018D8D48D9E0>
+        :value: <function WrappedTensor.collect_streams at 0x000002A6DC19C360>
     
 
 
@@ -19900,23 +19900,23 @@ Miscellaneous
     
     .. py:attribute:: slangpy.torchintegration.wrappedtensor.WrappedTensorMarshall.get_shape
         :type: function
-        :value: <function WrappedTensorMarshall.get_shape at 0x0000018D8D48DA80>
+        :value: <function WrappedTensorMarshall.get_shape at 0x000002A6DC19C400>
     
     .. py:attribute:: slangpy.torchintegration.wrappedtensor.WrappedTensorMarshall.create_calldata
         :type: function
-        :value: <function WrappedTensorMarshall.create_calldata at 0x0000018D8D48DBC0>
+        :value: <function WrappedTensorMarshall.create_calldata at 0x000002A6DC19C540>
     
     .. py:attribute:: slangpy.torchintegration.wrappedtensor.WrappedTensorMarshall.read_calldata
         :type: function
-        :value: <function WrappedTensorMarshall.read_calldata at 0x0000018D8D48DC60>
+        :value: <function WrappedTensorMarshall.read_calldata at 0x000002A6DC19C5E0>
     
     .. py:attribute:: slangpy.torchintegration.wrappedtensor.WrappedTensorMarshall.create_output
         :type: function
-        :value: <function WrappedTensorMarshall.create_output at 0x0000018D8D48DD00>
+        :value: <function WrappedTensorMarshall.create_output at 0x000002A6DC19C680>
     
     .. py:attribute:: slangpy.torchintegration.wrappedtensor.WrappedTensorMarshall.read_output
         :type: function
-        :value: <function WrappedTensorMarshall.read_output at 0x0000018D8D48DDA0>
+        :value: <function WrappedTensorMarshall.read_output at 0x000002A6DC19C720>
     
 
 
@@ -20000,11 +20000,11 @@ Miscellaneous
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchAutoGradFunction.forward
         :type: function
-        :value: <function TorchAutoGradFunction.forward at 0x0000018D8D48E3E0>
+        :value: <function TorchAutoGradFunction.forward at 0x000002A6DC19CD60>
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchAutoGradFunction.backward
         :type: function
-        :value: <function TorchAutoGradFunction.backward at 0x0000018D8D48E480>
+        :value: <function TorchAutoGradFunction.backward at 0x000002A6DC19CE00>
     
 
 
@@ -20016,39 +20016,39 @@ Miscellaneous
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchFunction.forward
         :type: function
-        :value: <function TorchFunction.forward at 0x0000018D8D48E5C0>
+        :value: <function TorchFunction.forward at 0x000002A6DC19CF40>
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchFunction.bind
         :type: function
-        :value: <function TorchFunction.bind at 0x0000018D8D48E660>
+        :value: <function TorchFunction.bind at 0x000002A6DC19CFE0>
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchFunction.map
         :type: function
-        :value: <function TorchFunction.map at 0x0000018D8D48E700>
+        :value: <function TorchFunction.map at 0x000002A6DC19D080>
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchFunction.set
         :type: function
-        :value: <function TorchFunction.set at 0x0000018D8D48E7A0>
+        :value: <function TorchFunction.set at 0x000002A6DC19D120>
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchFunction.constants
         :type: function
-        :value: <function TorchFunction.constants at 0x0000018D8D48E840>
+        :value: <function TorchFunction.constants at 0x000002A6DC19D1C0>
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchFunction.type_conformances
         :type: function
-        :value: <function TorchFunction.type_conformances at 0x0000018D8D48E8E0>
+        :value: <function TorchFunction.type_conformances at 0x000002A6DC19D260>
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchFunction.return_type
         :type: function
-        :value: <function TorchFunction.return_type at 0x0000018D8D48E980>
+        :value: <function TorchFunction.return_type at 0x000002A6DC19D300>
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchFunction.as_func
         :type: function
-        :value: <function TorchFunction.as_func at 0x0000018D8D48EAC0>
+        :value: <function TorchFunction.as_func at 0x000002A6DC19D440>
     
     .. py:attribute:: slangpy.torchintegration.torchfunction.TorchFunction.as_struct
         :type: function
-        :value: <function TorchFunction.as_struct at 0x0000018D8D48EB60>
+        :value: <function TorchFunction.as_struct at 0x000002A6DC19D4E0>
     
 
 
@@ -20108,15 +20108,15 @@ Miscellaneous
     
     .. py:attribute:: slangpy.torchintegration.torchstruct.TorchStruct.try_get_child
         :type: function
-        :value: <function TorchStruct.try_get_child at 0x0000018D8D48FEC0>
+        :value: <function TorchStruct.try_get_child at 0x000002A6DC19E840>
     
     .. py:attribute:: slangpy.torchintegration.torchstruct.TorchStruct.as_func
         :type: function
-        :value: <function TorchStruct.as_func at 0x0000018D8D4B8180>
+        :value: <function TorchStruct.as_func at 0x000002A6DC19EAC0>
     
     .. py:attribute:: slangpy.torchintegration.torchstruct.TorchStruct.as_struct
         :type: function
-        :value: <function TorchStruct.as_struct at 0x0000018D8D4B8220>
+        :value: <function TorchStruct.as_struct at 0x000002A6DC19EB60>
     
 
 
@@ -20202,35 +20202,35 @@ Miscellaneous
     
     .. py:attribute:: slangpy.torchintegration.torchmodule.TorchModule.load_from_source
         :type: function
-        :value: <function TorchModule.load_from_source at 0x0000018D8D48EF20>
+        :value: <function TorchModule.load_from_source at 0x000002A6DC19D8A0>
     
     .. py:attribute:: slangpy.torchintegration.torchmodule.TorchModule.load_from_file
         :type: function
-        :value: <function TorchModule.load_from_file at 0x0000018D8D4B82C0>
+        :value: <function TorchModule.load_from_file at 0x000002A6DC19EC00>
     
     .. py:attribute:: slangpy.torchintegration.torchmodule.TorchModule.load_from_module
         :type: function
-        :value: <function TorchModule.load_from_module at 0x0000018D8D4B8360>
+        :value: <function TorchModule.load_from_module at 0x000002A6DC19ECA0>
     
     .. py:attribute:: slangpy.torchintegration.torchmodule.TorchModule.find_struct
         :type: function
-        :value: <function TorchModule.find_struct at 0x0000018D8D4B85E0>
+        :value: <function TorchModule.find_struct at 0x000002A6DC19EF20>
     
     .. py:attribute:: slangpy.torchintegration.torchmodule.TorchModule.require_struct
         :type: function
-        :value: <function TorchModule.require_struct at 0x0000018D8D4B8680>
+        :value: <function TorchModule.require_struct at 0x000002A6DC19EFC0>
     
     .. py:attribute:: slangpy.torchintegration.torchmodule.TorchModule.find_function
         :type: function
-        :value: <function TorchModule.find_function at 0x0000018D8D4B8720>
+        :value: <function TorchModule.find_function at 0x000002A6DC19F060>
     
     .. py:attribute:: slangpy.torchintegration.torchmodule.TorchModule.require_function
         :type: function
-        :value: <function TorchModule.require_function at 0x0000018D8D4B87C0>
+        :value: <function TorchModule.require_function at 0x000002A6DC19F100>
     
     .. py:attribute:: slangpy.torchintegration.torchmodule.TorchModule.find_function_in_struct
         :type: function
-        :value: <function TorchModule.find_function_in_struct at 0x0000018D8D4B8860>
+        :value: <function TorchModule.find_function_in_struct at 0x000002A6DC19F1A0>
     
 
 
@@ -20328,7 +20328,7 @@ Miscellaneous
 
 .. py:data:: slangpy.SHADER_PATH
     :type: str
-    :value: "c:\src\sgl-slangpy\slangpy\slang"
+    :value: "C:\src\slangpy\slangpy\slang"
 
 
 
