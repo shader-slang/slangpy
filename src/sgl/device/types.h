@@ -37,6 +37,7 @@ enum class Feature : uint32_t {
     hardware_device = static_cast<uint32_t>(rhi::Feature::HardwareDevice),
     software_device = static_cast<uint32_t>(rhi::Feature::SoftwareDevice),
     parameter_block = static_cast<uint32_t>(rhi::Feature::ParameterBlock),
+    bindless = static_cast<uint32_t>(rhi::Feature::Bindless),
     surface = static_cast<uint32_t>(rhi::Feature::Surface),
     // Rasterization features
     rasterization = static_cast<uint32_t>(rhi::Feature::Rasterization),
@@ -100,6 +101,7 @@ SGL_ENUM_INFO(
         {Feature::hardware_device, "hardware_device"},
         {Feature::software_device, "software_device"},
         {Feature::parameter_block, "parameter_block"},
+        {Feature::bindless, "bindless"},
         {Feature::surface, "surface"},
         {Feature::rasterization, "rasterization"},
         {Feature::barycentrics, "barycentrics"},
