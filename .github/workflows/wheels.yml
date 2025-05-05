@@ -16,59 +16,154 @@ env:
   CIBW_TEST_COMMAND: "python -c \"import slangpy\""
   # zip required for vcpkg, rest for glfw
   CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel
+  # For macOS, set up the signing environment before building
+  CIBW_BEFORE_ALL_MACOS: |
+    brew install Bearer/tap/gon
+    brew install coreutils
+  # Sign and notarize after the wheel is built but before it's finalized
+  CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
+    if [ "$RUNNER_OS" == "macOS" ]; then
+      # Debug: Show the environment
+      echo "Current directory: $(pwd)"
+      echo "Directory contents:"
+      ls -R
+      
+      # The wheel being repaired should be in the current directory
+      # Find the build directory within the wheel structure
+      WHEEL_BUILD_DIR=$(find . -type d -name "build")
+      
+      if [ -z "$WHEEL_BUILD_DIR" ]; then
+        echo "Error: Could not find build directory"
+        exit 1
+      fi
+      
+      echo "Found build directory at: $WHEEL_BUILD_DIR"
+      
+      # These will match your CMake output structure
+      LIB_DIR="${WHEEL_BUILD_DIR}"
+      BIN_DIR="${WHEEL_BUILD_DIR}"
+      
+      # If using multi-configuration generator (e.g., Xcode)
+      if [ -d "${WHEEL_BUILD_DIR}/Release" ]; then
+        LIB_DIR="${WHEEL_BUILD_DIR}/Release"
+        BIN_DIR="${WHEEL_BUILD_DIR}/Release"
+      fi
+
+      # Create variables
+      CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+      KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+      # Import certificate from secrets
+      echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode --output "$CERTIFICATE_PATH"
+
+      # Create temporary keychain
+      security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+      security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+      security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      # Import certificate to keychain
+      security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+      security list-keychain -d user -s "$KEYCHAIN_PATH"
+      security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${KEYCHAIN_PASSWORD}" "$KEYCHAIN_PATH"
+
+      # Find and sign all .dylib files in the wheel
+      find . -name "*.dylib" -type f -exec /usr/bin/codesign --force --options runtime -s "${IDENTITY_ID}" {} -v \;
+
+      # Create a zip of the signed binaries for notarization
+      TEMP_ZIP="slangpy-macos-dist.zip"
+      binaries=(
+        "${LIB_DIR}/libslang.dylib"
+        "${LIB_DIR}/libsgl.dylib"
+        "${LIB_DIR}/libslang-glslang.dylib"
+        "${LIB_DIR}/libslang-rt.dylib"
+        "${LIB_DIR}/libslang-llvm.dylib"
+        "${LIB_DIR}/libgfx.dylib"
+        "${BIN_DIR}/slangd"
+        "${BIN_DIR}/slangc"
+      )
+
+      # Add debug output
+      echo "Build directory: ${WHEEL_BUILD_DIR}"
+      echo "Library directory: ${LIB_DIR}"
+      echo "Binary directory: ${BIN_DIR}"
+      
+      # Verify binary existence
+      for binary in "${binaries[@]}"; do
+        if [ -f "$binary" ]; then
+          echo "Found: $binary"
+        else
+          echo "Missing: $binary"
+        fi
+      done
+
+      # Notarize the binaries
+      timeout 1000 gon ./notarize.json
+
+      # Clean up
+      rm -f "$TEMP_ZIP" notarize.json
+    fi
+    delocate-wheel -w {dest_dir} -v {wheel}
 
 jobs:
   wheels:
     runs-on: ${{ matrix.runs-on }}
     strategy:
       matrix:
-        os: [windows, linux]
+        os: [windows, linux, macos]
         platform: [x86_64, aarch64]
         python: [cp39, cp310, cp311, cp312, cp313]
         exclude:
           # Exclude aarch64 for windows/linux
           - { os: windows, platform: aarch64 }
           - { os: linux, platform: aarch64 }
+          # Exclude x86_64 for macos
+          - { os: macos, platform: x86_64 }
         include:
           # Specify runners
           - { os: windows, runs-on: [windows-latest] }
           - { os: linux, runs-on: [ubuntu-latest] }
-
+          - { os: macos, runs-on: [macos-latest] }
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           lfs: true
 
-        # Used to host cibuildwheel.
+      # Used to host cibuildwheel
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # Install cibuildwheel.
+      # Install cibuildwheel
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==2.20.0
 
-      # Setup MSVC.
+      # Setup MSVC
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      # Build wheels.
+      # Build wheels with signing environment variables
       - name: Build wheels
         env:
           CIBW_BUILD: ${{ matrix.python }}-*
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          IDENTITY_ID: ${{ secrets.IDENTITY_ID }}
+          AC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          AC_PROVIDER: ${{ secrets.APPLE_ID_PROVIDER }}
+          AC_USERNAME: ${{ secrets.APPLE_ID_USERNAME }}
         run: |
           python -m cibuildwheel --output-dir wheelhouse
 
-      # Copy wheels to artifact.
+      # Copy wheels to artifact
       - name: Copy wheels to artifact
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.python }}
           path: ./wheelhouse/*.whl
-
 
   upload_pypi:
     name: Upload wheels to PyPI
