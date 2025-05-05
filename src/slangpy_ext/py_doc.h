@@ -6458,16 +6458,16 @@ static const char *__doc_sgl_DataStruct =
 R"doc(Structured data definition.
 
 This class is used to describe a structured data type layout. It is
-used by the StructConverter class to convert between different
+used by the DataStructConverter class to convert between different
 layouts.)doc";
 
-static const char *__doc_sgl_StructConverter =
-R"doc(Struct converter.
+static const char *__doc_sgl_DataStructConverter =
+R"doc(Data struct converter.
 
 This helper class can be used to convert between structs with
 different layouts.)doc";
 
-static const char *__doc_sgl_StructConverter_StructConverter =
+static const char *__doc_sgl_DataStructConverter_DataStructConverter =
 R"doc(Constructor.
 
 Parameter ``src``:
@@ -6476,9 +6476,9 @@ Parameter ``src``:
 Parameter ``dst``:
     Destination struct definition.)doc";
 
-static const char *__doc_sgl_StructConverter_class_name = R"doc()doc";
+static const char *__doc_sgl_DataStructConverter_class_name = R"doc()doc";
 
-static const char *__doc_sgl_StructConverter_convert =
+static const char *__doc_sgl_DataStructConverter_convert =
 R"doc(Convert data from source struct to destination struct.
 
 Parameter ``src``:
@@ -6490,15 +6490,15 @@ Parameter ``dst``:
 Parameter ``count``:
     Number of structs to convert.)doc";
 
-static const char *__doc_sgl_StructConverter_dst = R"doc(The destination struct definition.)doc";
+static const char *__doc_sgl_DataStructConverter_dst = R"doc(The destination struct definition.)doc";
 
-static const char *__doc_sgl_StructConverter_m_dst = R"doc()doc";
+static const char *__doc_sgl_DataStructConverter_m_dst = R"doc()doc";
 
-static const char *__doc_sgl_StructConverter_m_src = R"doc()doc";
+static const char *__doc_sgl_DataStructConverter_m_src = R"doc()doc";
 
-static const char *__doc_sgl_StructConverter_src = R"doc(The source struct definition.)doc";
+static const char *__doc_sgl_DataStructConverter_src = R"doc(The source struct definition.)doc";
 
-static const char *__doc_sgl_StructConverter_to_string = R"doc()doc";
+static const char *__doc_sgl_DataStructConverter_to_string = R"doc()doc";
 
 static const char *__doc_sgl_DataStruct_ByteOrder = R"doc(Byte order.)doc";
 
@@ -6517,7 +6517,7 @@ static const char *__doc_sgl_DataStruct_ByteOrder_little_endian = R"doc()doc";
 static const char *__doc_sgl_DataStruct_Field = R"doc(Struct field.)doc";
 
 static const char *__doc_sgl_DataStruct_Field_blend =
-R"doc(List of blend weights and names. If set, the ``StructConverter`` will
+R"doc(List of blend weights and names. If set, the ``DataStructConverter`` will
 blend fields from the source struct with the specified weights to
 generate the destination field. Blending is done in linear space.)doc";
 

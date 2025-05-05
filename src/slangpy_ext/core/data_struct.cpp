@@ -90,20 +90,20 @@ SGL_PY_EXPORT(core_data_struct)
         .def_static("is_signed", &DataStruct::is_signed, D(DataStruct, is_signed))
         .def_static("is_float", &DataStruct::is_float, D(DataStruct, is_float));
 
-    nb::class_<StructConverter, Object>(m, "StructConverter", D(StructConverter))
+    nb::class_<DataStructConverter, Object>(m, "DataStructConverter", D(DataStructConverter))
         .def(
             "__init__",
-            [](StructConverter* self, const DataStruct* src, const DataStruct* dst)
-            { new (self) StructConverter(ref<const DataStruct>(src), ref<const DataStruct>(dst)); },
+            [](DataStructConverter* self, const DataStruct* src, const DataStruct* dst)
+            { new (self) DataStructConverter(ref<const DataStruct>(src), ref<const DataStruct>(dst)); },
             "src"_a,
             "dst"_a,
-            D(StructConverter, StructConverter)
+            D(DataStructConverter, DataStructConverter)
         )
-        .def_prop_ro("src", &StructConverter::src, D(StructConverter, src))
-        .def_prop_ro("dst", &StructConverter::dst, D(StructConverter, dst))
+        .def_prop_ro("src", &DataStructConverter::src, D(DataStructConverter, src))
+        .def_prop_ro("dst", &DataStructConverter::dst, D(DataStructConverter, dst))
         .def(
             "convert",
-            [](StructConverter* self, nb::bytes input) -> nb::bytes
+            [](DataStructConverter* self, nb::bytes input) -> nb::bytes
             {
                 size_t count = input.size() / self->src()->size();
                 std::string output(self->dst()->size() * count, '\0');

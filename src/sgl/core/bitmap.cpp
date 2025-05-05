@@ -402,7 +402,7 @@ std::vector<std::pair<std::string, ref<Bitmap>>> Bitmap::split() const
             target_struct->field(field_name).name = it2->second.second->name;
         }
 
-        StructConverter converter(m_pixel_struct, target_struct);
+        DataStructConverter converter(m_pixel_struct, target_struct);
         converter.convert(data(), target->data(), pixel_count());
 
         result.push_back({prefix, target});
@@ -483,7 +483,7 @@ void Bitmap::convert(Bitmap* target) const
         SGL_THROW("Unable to convert bitmap: cannot determine how to derive field \"{}\" in target image!", field.name);
     }
 
-    ref<StructConverter> converter = make_ref<StructConverter>(src_struct, dst_struct);
+    ref<DataStructConverter> converter = make_ref<DataStructConverter>(src_struct, dst_struct);
     converter->convert(data(), target->data(), pixel_count());
 }
 

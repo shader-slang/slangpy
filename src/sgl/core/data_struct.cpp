@@ -2017,13 +2017,13 @@ private:
 };
 
 
-StructConverter::StructConverter(const DataStruct* src, const DataStruct* dst)
+DataStructConverter::DataStructConverter(const DataStruct* src, const DataStruct* dst)
     : m_src(new DataStruct(*src))
     , m_dst(new DataStruct(*dst))
 {
 }
 
-void StructConverter::convert(const void* src, void* dst, size_t count) const
+void DataStructConverter::convert(const void* src, void* dst, size_t count) const
 {
     // Direct copy if source and destination struct are the same.
     if (*m_src == *m_dst) {
@@ -2036,10 +2036,10 @@ void StructConverter::convert(const void* src, void* dst, size_t count) const
     program->execute(src, dst, count);
 }
 
-std::string StructConverter::to_string() const
+std::string DataStructConverter::to_string() const
 {
     return fmt::format(
-        "StructConverter(\n"
+        "DataStructConverter(\n"
         "  src = {},\n"
         "  dst = {}\n"
         ")",

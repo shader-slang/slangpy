@@ -3,7 +3,7 @@
 from __future__ import annotations
 from typing import Optional
 import pytest
-from slangpy import DataStruct, StructConverter
+from slangpy import DataStruct, DataStructConverter
 import struct
 import numpy as np
 import itertools
@@ -41,7 +41,7 @@ def to_srgb(x: float):
 
 
 def check_conversion(
-    converter: StructConverter,
+    converter: DataStructConverter,
     src_fmt: str | bytes,
     dst_fmt: str | bytes,
     src_values: npt.ArrayLike,  # type: ignore
@@ -126,7 +126,7 @@ def test_fields_packed():
 def test_convert_passthrough(param: TSupportedType):
     src = DataStruct().append("val", param[1])
     dst = DataStruct().append("val", param[1])
-    ss = StructConverter(src, dst)
+    ss = DataStructConverter(src, dst)
     values = list(range(10))
     if DataStruct.is_signed(param[1]):
         values += list(range(-10, 0))
@@ -147,19 +147,19 @@ def test_convert_types(param: tuple[TSupportedType, TSupportedType]):
     # Native -> Native
     s1 = DataStruct().append("val", p1[1])
     s2 = DataStruct().append("val", p2[1])
-    s = StructConverter(s1, s2)
+    s = DataStructConverter(s1, s2)
     check_conversion(s, "@" + p1[0] * len(values), "@" + p2[0] * len(values), values)
 
     # BE -> LE
     s1 = DataStruct(byte_order=DataStruct.ByteOrder.big_endian).append("val", p1[1])
     s2 = DataStruct(byte_order=DataStruct.ByteOrder.little_endian).append("val", p2[1])
-    s = StructConverter(s1, s2)
+    s = DataStructConverter(s1, s2)
     check_conversion(s, ">" + p1[0] * len(values), "<" + p2[0] * len(values), values)
 
     # LE -> BE
     s1 = DataStruct(byte_order=DataStruct.ByteOrder.little_endian).append("val", p1[1])
     s2 = DataStruct(byte_order=DataStruct.ByteOrder.big_endian).append("val", p2[1])
-    s = StructConverter(s1, s2)
+    s = DataStructConverter(s1, s2)
     check_conversion(s, "<" + p1[0] * len(values), ">" + p2[0] * len(values), values)
 
 
@@ -172,7 +172,7 @@ def test_default_value(param: TSupportedType):
         .append("val2", param[1], DataStruct.Flags.default, 123)
         .append("val3", param[1])
     )
-    s = StructConverter(s1, s2)
+    s = DataStructConverter(s1, s2)
 
     values = list(range(10))
     if DataStruct.is_signed(param[1]):
@@ -194,14 +194,14 @@ def test_missing_field_error():
     s1 = DataStruct().append("val1", DataStruct.Type.uint32)
     s2 = DataStruct().append("val2", DataStruct.Type.uint32)
     with pytest.raises(RuntimeError, match='Field "val2" not found in source struct.'):
-        s = StructConverter(s1, s2)
+        s = DataStructConverter(s1, s2)
         check_conversion(s, "@I", "@I", [1], [1])
 
 
 def test_round_and_saturation():
     s1 = DataStruct().append("val", DataStruct.Type.float32)
     s2 = DataStruct().append("val", DataStruct.Type.int8)
-    s = StructConverter(s1, s2)
+    s = DataStructConverter(s1, s2)
     values = [-0.55, -0.45, 0, 0.45, 0.55, 127, 128, -127, -200]
     check_conversion(s, "@fffffffff", "@bbbbbbbbb", values, [-1, 0, 0, 0, 1, 127, 127, -127, -128])
 
@@ -210,7 +210,7 @@ def test_round_and_saturation():
 def test_roundtrip_normalization(param: TSupportedType):
     s1 = DataStruct().append("val", param[1], DataStruct.Flags.normalized)
     s2 = DataStruct().append("val", DataStruct.Type.float32)
-    s = StructConverter(s1, s2)
+    s = DataStructConverter(s1, s2)
     max_range = 1.0
     if DataStruct.is_integer(param[1]):
         max_range = float(DataStruct.type_range(param[1])[1])
@@ -218,7 +218,7 @@ def test_roundtrip_normalization(param: TSupportedType):
     values_out = [i / max_range for i in range(10)]
     check_conversion(s, "@" + (param[0] * 10), "@" + ("f" * 10), values_in, values_out)
 
-    s = StructConverter(s2, s1)
+    s = DataStructConverter(s2, s1)
     check_conversion(s, "@" + ("f" * 10), "@" + (param[0] * 10), values_out, values_in)
 
 
@@ -232,7 +232,7 @@ def test_roundtrip_normalization_int2int(param: TSupportedType):
     s2_range = DataStruct.type_range(param[1])
     s1 = DataStruct().append("val", s1_type, DataStruct.Flags.normalized)
     s2 = DataStruct().append("val", param[1], DataStruct.Flags.normalized)
-    s = StructConverter(s1, s2)
+    s = DataStructConverter(s1, s2)
     values_in = list(range(int(s1_range[0]), int(s1_range[1] + 1)))
     values_out = np.array(values_in, dtype=np.float64)
     values_out *= s2_range[1] / s1_range[1]
@@ -250,7 +250,7 @@ def test_roundtrip_normalization_int2int(param: TSupportedType):
 
 
 def test_gamma_1():
-    s = StructConverter(
+    s = DataStructConverter(
         DataStruct().append(
             "v",
             DataStruct.Type.uint8,
@@ -266,7 +266,7 @@ def test_gamma_1():
 
 
 def test_gamma_2():
-    s = StructConverter(
+    s = DataStructConverter(
         DataStruct().append("v", DataStruct.Type.float32),
         DataStruct().append(
             "v",
@@ -289,7 +289,7 @@ def test_blend():
     target = DataStruct()
     target.append("v", DataStruct.Type.float32, blend=[(3.0, "a"), (4.0, "b")])
 
-    s = StructConverter(src, target)
+    s = DataStructConverter(src, target)
     check_conversion(s, "@ff", "@f", (1.0, 2.0), (3.0 + 8.0,))
 
     src = DataStruct()
@@ -299,7 +299,7 @@ def test_blend():
     target = DataStruct()
     target.append("v", DataStruct.Type.float32, blend=[(3.0, "a"), (4.0, "b")])
 
-    s = StructConverter(src, target)
+    s = DataStructConverter(src, target)
 
     check_conversion(s, "@BB", "@f", (255, 127), (3.0 + 4.0 * (127.0 / 255.0),))
 
@@ -325,7 +325,7 @@ def test_blend_gamma():
         blend=[(1, "a"), (1, "b")],
     )
 
-    s = StructConverter(src, target)
+    s = DataStructConverter(src, target)
     ref = int(np.round(to_srgb(from_srgb(100 / 255.0) + from_srgb(200 / 255.0)) * 255))
 
     check_conversion(s, "@BB", "@B", (100, 200), (ref,))

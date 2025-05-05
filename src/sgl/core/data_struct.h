@@ -58,7 +58,7 @@ namespace sgl {
  * \brief Structured data definition.
  *
  * This class is used to describe a structured data type layout.
- * It is used by the \ref StructConverter class to convert between different layouts.
+ * It is used by the \ref DataStructConverter class to convert between different layouts.
  */
 class SGL_API DataStruct : Object {
     SGL_OBJECT(DataStruct)
@@ -157,7 +157,7 @@ public:
         using BlendList = std::vector<std::pair<double, std::string>>;
 
         /// List of blend weights and names.
-        /// If set, the \c StructConverter will blend fields from the source struct
+        /// If set, the \c DataStructConverter will blend fields from the source struct
         /// with the specified weights to generate the destination field.
         /// Blending is done in linear space.
         BlendList blend;
@@ -326,17 +326,17 @@ SGL_ENUM_CLASS_OPERATORS(DataStruct::Flags);
 SGL_ENUM_REGISTER(DataStruct::ByteOrder);
 
 /**
- * \brief Struct converter.
+ * \brief Data struct converter.
  *
  * This helper class can be used to convert between structs with different layouts.
  */
-class SGL_API StructConverter : Object {
-    SGL_OBJECT(StructConverter)
+class SGL_API DataStructConverter : Object {
+    SGL_OBJECT(DataStructConverter)
 public:
     /// Constructor.
     /// \param src Source struct definition.
     /// \param dst Destination struct definition.
-    StructConverter(const DataStruct* src, const DataStruct* dst);
+    DataStructConverter(const DataStruct* src, const DataStruct* dst);
 
     /// The source struct definition.
     const DataStruct* src() const { return m_src; }
