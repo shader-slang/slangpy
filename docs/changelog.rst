@@ -7,6 +7,14 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.26.0
+----------------------------
+
+- Port samples to use new combined SlangPy/SGL API
+- CUDA and Metal fixes
+- Initial deployment of wheels for macOS
+
+
 Version 0.25.0
 ----------------------------
 
