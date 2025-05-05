@@ -24,9 +24,9 @@ def get_test_tensors(device: Device, N: int = 4):
     np_x = np.random.randn(8).astype(np.float32)
     np_result = np.tile(np_weights.dot(np_x) + np_biases, (N, 1))
 
-    biases = Tensor.numpy(device, np_biases).broadcast_to((N, 5))
-    x = Tensor.numpy(device, np_x).broadcast_to((N, 8))
-    weights = Tensor.numpy(device, np_weights).broadcast_to((N, 5, 8))
+    biases = Tensor.from_numpy(device, np_biases).broadcast_to((N, 5))
+    x = Tensor.from_numpy(device, np_x).broadcast_to((N, 8))
+    weights = Tensor.from_numpy(device, np_weights).broadcast_to((N, 5, 8))
 
     weights = weights.with_grads()
     biases = biases.with_grads()
@@ -86,7 +86,7 @@ void inc(float amount, inout float val) { val += amount; }
 """,
     )
 
-    amount = Tensor.numpy(device, np.array([1.0], dtype=np.float32))
+    amount = Tensor.from_numpy(device, np.array([1.0], dtype=np.float32))
     val = Tensor.zeros(device, (1,), "float").with_grads()
 
     function(amount, val)

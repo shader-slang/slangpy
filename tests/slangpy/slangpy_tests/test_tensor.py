@@ -16,9 +16,9 @@ def get_test_tensors(device: Device, N: int = 4):
     np_x = np.random.randn(8).astype(np.float32)
     np_result = np.tile(np_weights.dot(np_x) + np_biases, (N, 1))
 
-    biases = Tensor.numpy(device, np_biases).broadcast_to((N, 5))
-    x = Tensor.numpy(device, np_x).broadcast_to((N, 8))
-    weights = Tensor.numpy(
+    biases = Tensor.from_numpy(device, np_biases).broadcast_to((N, 5))
+    x = Tensor.from_numpy(device, np_x).broadcast_to((N, 8))
+    weights = Tensor.from_numpy(
         device,
         np_weights,
     ).broadcast_to((N, 5, 8))
