@@ -41,6 +41,8 @@ public:
 
     const SamplerDesc& desc() const { return m_desc; }
 
+    DescriptorHandle descriptor_handle() const;
+
     rhi::ISampler* rhi_sampler() const { return m_rhi_sampler; }
 
     /// Get the native sampler handle.
