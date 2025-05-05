@@ -10,6 +10,8 @@ SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 Version 0.27.0 (TBA)
 ----------------------------
 
+- Load PyTorch module lazily to avoid overhead when PyTorch is not used.
+  (PR `#184 <https://github.com/shader-slang/slangpy/pull/184>`__).
 - Rename ``sgl::Struct`` to ``sgl::DataStruct`` to match ``slangpy.DataStruct``.
   Rename ``sgl::StructConverter`` to ``sgl::DataStructConverter``
   and ``slangpy.StructConverter`` to ``slangpy.DataStructConverter``.
