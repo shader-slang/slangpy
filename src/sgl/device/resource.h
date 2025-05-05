@@ -620,6 +620,9 @@ public:
     const SubresourceRange& subresource_range() const { return m_desc.subresource_range; }
     std::string_view label() const { return m_desc.label; }
 
+    DescriptorHandle descriptor_handle() const;
+    DescriptorHandle rw_descriptor_handle() const;
+
     /// Get the native texture view handle.
     NativeHandle native_handle() const;
 
