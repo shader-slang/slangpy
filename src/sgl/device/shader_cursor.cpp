@@ -440,6 +440,13 @@ void ShaderCursor::set_acceleration_structure(const ref<AccelerationStructure>& 
     m_shader_object->set_acceleration_structure(m_offset, acceleration_structure);
 }
 
+void ShaderCursor::set_descriptor_handle(const DescriptorHandle& handle) const
+{
+    // TODO: check type
+    // currently not possible because they are reported differently depending on the backend
+    m_shader_object->set_descriptor_handle(m_offset, handle);
+}
+
 void ShaderCursor::set_data(const void* data, size_t size) const
 {
     if ((TypeReflection::ParameterCategory)m_type_layout->getParameterCategory()
@@ -612,6 +619,12 @@ template<>
 SGL_API void ShaderCursor::set(const ref<AccelerationStructure>& value) const
 {
     set_acceleration_structure(value);
+}
+
+template<>
+SGL_API void ShaderCursor::set(const DescriptorHandle& value) const
+{
+    set_descriptor_handle(value);
 }
 
 #define SET_SCALAR(type, scalar_type)                                                                                  \
