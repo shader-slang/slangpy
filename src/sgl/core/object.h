@@ -470,7 +470,7 @@ public:
     operator T*() const { return m_ptr; }
 
     /// Check if the object is defined
-    operator bool() const { return m_ptr != nullptr; }
+    explicit operator bool() const { return m_ptr != nullptr; }
 
     /// Swap this reference with another reference.
     void swap(ref& r) noexcept
@@ -602,7 +602,7 @@ public:
     T& operator*() const { return *get(); }
     operator ref<T>() const { return ref<T>(get()); }
     operator T*() const { return get(); }
-    operator bool() const { return get() != nullptr; }
+    explicit operator bool() const { return get() != nullptr; }
 
     void break_strong_reference() { m_strong_ref.reset(); }
 
