@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Union, cast
+from typing import TYPE_CHECKING, Any, Union, cast
 
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
@@ -7,8 +7,8 @@ from slangpy.core.struct import Struct
 from slangpy import SlangModule, Device
 from slangpy.core.module import Module
 
-from slangpy.torchintegration.torchfunction import TorchFunction, check_cuda_enabled
-from slangpy.torchintegration.torchstruct import TorchStruct
+if TYPE_CHECKING:
+    from slangpy.torchintegration.torchstruct import TorchStruct
 
 
 class TorchModule:
@@ -18,6 +18,8 @@ class TorchModule:
 
     def __init__(self, module: "Module"):
         super().__init__()
+        from slangpy.torchintegration.torchfunction import check_cuda_enabled
+
         check_cuda_enabled(module.device)
         self.module = module
 
@@ -88,6 +90,8 @@ class TorchModule:
         """
         spy_struct = self.module.find_struct(name)
         if spy_struct is not None:
+            from slangpy.torchintegration.torchstruct import TorchStruct
+
             return TorchStruct(spy_struct)
         return None
 
@@ -95,6 +99,8 @@ class TorchModule:
         """
         Find a struct by name, raise an error if not found.
         """
+        from slangpy.torchintegration.torchstruct import TorchStruct
+
         return TorchStruct(self.module.require_struct(name))
 
     def find_function(self, name: str):
@@ -103,6 +109,8 @@ class TorchModule:
         """
         spy_function = self.module.find_function(name)
         if spy_function is not None:
+            from slangpy.torchintegration.torchfunction import TorchFunction
+
             return TorchFunction(spy_function)
         return None
 
@@ -110,12 +118,17 @@ class TorchModule:
         """
         Find a function by name, raise an error if not found.
         """
+        from slangpy.torchintegration.torchfunction import TorchFunction
+
         return TorchFunction(self.module.require_function(name))
 
-    def find_function_in_struct(self, struct: Union[TorchStruct, Struct, str], name: str):
+    def find_function_in_struct(self, struct: Union["TorchStruct", Struct, str], name: str):
         """
         Find a function in a struct by name, return None if not found.
         """
+        from slangpy.torchintegration.torchfunction import TorchFunction
+        from slangpy.torchintegration.torchstruct import TorchStruct
+
         if isinstance(struct, TorchStruct):
             struct = struct.struct
         spy_function = self.module.find_function_in_struct(struct, name)
@@ -128,6 +141,9 @@ class TorchModule:
         Attribute accessor attempts to find either a struct or function
         with the specified attribute name.
         """
+        from slangpy.torchintegration.torchfunction import TorchFunction
+        from slangpy.torchintegration.torchstruct import TorchStruct
+
         res = self.module.__getattr__(name)
         if isinstance(res, Struct):
             return TorchStruct(res)
