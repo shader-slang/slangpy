@@ -21,6 +21,9 @@ def test_parameter_block(device_type: spy.DeviceType):
 
     device = helpers.get_device(type=device_type)
 
+    if not device.has_feature(spy.Feature.parameter_block):
+        pytest.skip("Parameter block feature not supported on this device.")
+
     # Load the shader program
     program = device.load_program("test_parameter_block.slang", ["computeMain"])
     kernel = device.create_compute_kernel(program)
