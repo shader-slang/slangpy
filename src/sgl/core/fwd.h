@@ -74,7 +74,7 @@ class static_vector;
 
 class Stream;
 
-// struct.h
+// data_struct.h
 
 class Struct;
 class StructConverter;

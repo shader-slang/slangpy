@@ -7,12 +7,12 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     app/app.cpp
     core/bitmap.cpp
     core/crypto.cpp
+    core/data_struct.cpp
     core/data_type.cpp
     core/input.cpp
     core/logger.cpp
     core/object.cpp
     core/platform.cpp
-    core/struct.cpp
     core/thread.cpp
     core/timer.cpp
     core/window.cpp

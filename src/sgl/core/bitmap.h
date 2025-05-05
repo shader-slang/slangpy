@@ -50,7 +50,7 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
 #include "sgl/core/stream.h"
-#include "sgl/core/struct.h"
+#include "sgl/core/data_struct.h"
 
 #include <filesystem>
 #include <future>

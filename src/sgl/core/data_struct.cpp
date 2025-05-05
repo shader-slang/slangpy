@@ -44,7 +44,7 @@ other computer software, distribute, and sublicense such enhancements or
 derivative works thereof, in binary and source code form.
 */
 
-#include "struct.h"
+#include "data_struct.h"
 
 #include "sgl/core/config.h"
 #include "sgl/core/format.h"

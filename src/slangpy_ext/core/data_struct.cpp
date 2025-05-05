@@ -2,9 +2,9 @@
 
 #include "nanobind.h"
 
-#include "sgl/core/struct.h"
+#include "sgl/core/data_struct.h"
 
-SGL_PY_EXPORT(core_struct)
+SGL_PY_EXPORT(core_data_struct)
 {
     using namespace sgl;
 
