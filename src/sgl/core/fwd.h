@@ -76,7 +76,7 @@ class Stream;
 
 // data_struct.h
 
-class Struct;
+class DataStruct;
 class StructConverter;
 
 // timer.h

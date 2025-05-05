@@ -8,67 +8,68 @@ SGL_PY_EXPORT(core_data_struct)
 {
     using namespace sgl;
 
-    // TODO(slangpy-merge): Struct is also defined in slangpy python part.
-    // we should probably rename the c++ Struct type to DataStruct too.
-    nb::class_<Struct, Object> struct_(m, "DataStruct", D(Struct));
+    nb::class_<DataStruct, Object> struct_(m, "DataStruct", D(DataStruct));
 
-    nb::sgl_enum<Struct::Type>(struct_, "Type", D(Struct, Type));
-    nb::sgl_enum_flags<Struct::Flags>(struct_, "Flags", D(Struct, Flags));
-    nb::sgl_enum<Struct::ByteOrder>(struct_, "ByteOrder", D(Struct, ByteOrder));
+    nb::sgl_enum<DataStruct::Type>(struct_, "Type", D(DataStruct, Type));
+    nb::sgl_enum_flags<DataStruct::Flags>(struct_, "Flags", D(DataStruct, Flags));
+    nb::sgl_enum<DataStruct::ByteOrder>(struct_, "ByteOrder", D(DataStruct, ByteOrder));
 
-    nb::class_<Struct::Field>(struct_, "Field", D(Struct, Field))
-        .def_rw("name", &Struct::Field::name, D(Struct, Field, name))
-        .def_rw("type", &Struct::Field::type, D(Struct, Field, type))
-        .def_rw("flags", &Struct::Field::flags, D(Struct, Field, flags))
-        .def_rw("size", &Struct::Field::size, D(Struct, Field, size))
-        .def_rw("offset", &Struct::Field::offset, D(Struct, Field, offset))
-        .def_rw("default_value", &Struct::Field::default_value, D(Struct, Field, default_value))
-        .def("is_integer", &Struct::Field::is_integer, D(Struct, Field, is_integer))
-        .def("is_unsigned", &Struct::Field::is_unsigned, D(Struct, Field, is_unsigned))
-        .def("is_signed", &Struct::Field::is_signed, D(Struct, Field, is_signed))
-        .def("is_float", &Struct::Field::is_float, D(Struct, Field, is_float))
+    nb::class_<DataStruct::Field>(struct_, "Field", D(DataStruct, Field))
+        .def_rw("name", &DataStruct::Field::name, D(DataStruct, Field, name))
+        .def_rw("type", &DataStruct::Field::type, D(DataStruct, Field, type))
+        .def_rw("flags", &DataStruct::Field::flags, D(DataStruct, Field, flags))
+        .def_rw("size", &DataStruct::Field::size, D(DataStruct, Field, size))
+        .def_rw("offset", &DataStruct::Field::offset, D(DataStruct, Field, offset))
+        .def_rw("default_value", &DataStruct::Field::default_value, D(DataStruct, Field, default_value))
+        .def("is_integer", &DataStruct::Field::is_integer, D(DataStruct, Field, is_integer))
+        .def("is_unsigned", &DataStruct::Field::is_unsigned, D(DataStruct, Field, is_unsigned))
+        .def("is_signed", &DataStruct::Field::is_signed, D(DataStruct, Field, is_signed))
+        .def("is_float", &DataStruct::Field::is_float, D(DataStruct, Field, is_float))
         .def(nb::self == nb::self)
         .def(nb::self != nb::self)
-        .def("__repr__", &Struct::Field::to_string);
+        .def("__repr__", &DataStruct::Field::to_string);
 
     struct_ //
         .def(
-            nb::init<bool, Struct::ByteOrder>(),
+            nb::init<bool, DataStruct::ByteOrder>(),
             "pack"_a = false,
-            "byte_order"_a = Struct::ByteOrder::host,
-            D(Struct, Struct)
+            "byte_order"_a = DataStruct::ByteOrder::host,
+            D(DataStruct, DataStruct)
         )
         .def(
             "append",
-            nb::overload_cast<Struct::Field>(&Struct::append),
+            nb::overload_cast<DataStruct::Field>(&DataStruct::append),
             "field"_a,
             nb::rv_policy::reference,
-            D(Struct, append)
+            D(DataStruct, append)
         )
         .def(
             "append",
-            nb::overload_cast<std::string_view, Struct::Type, Struct::Flags, double, const Struct::Field::BlendList&>(
-                &Struct::append
-            ),
+            nb::overload_cast<
+                std::string_view,
+                DataStruct::Type,
+                DataStruct::Flags,
+                double,
+                const DataStruct::Field::BlendList&>(&DataStruct::append),
             "name"_a,
             "type"_a,
-            "flags"_a = Struct::Flags::none,
+            "flags"_a = DataStruct::Flags::none,
             "default_value"_a = 0.0,
-            "blend"_a = Struct::Field::BlendList(),
+            "blend"_a = DataStruct::Field::BlendList(),
             nb::rv_policy::reference,
-            D(Struct, append, 2)
+            D(DataStruct, append, 2)
         )
-        .def("has_field", &Struct::has_field, "name"_a, D(Struct, has_field))
+        .def("has_field", &DataStruct::has_field, "name"_a, D(DataStruct, has_field))
         .def(
             "field",
-            nb::overload_cast<std::string_view>(&Struct::field),
+            nb::overload_cast<std::string_view>(&DataStruct::field),
             "name"_a,
             nb::rv_policy::reference,
-            D(Struct, field)
+            D(DataStruct, field)
         )
         .def(
             "__getitem__",
-            [](Struct& self, size_t i) -> Struct::Field&
+            [](DataStruct& self, size_t i) -> DataStruct::Field&
             {
                 if (i >= self.field_count())
                     throw nb::index_error();
@@ -76,24 +77,24 @@ SGL_PY_EXPORT(core_data_struct)
             },
             nb::rv_policy::reference_internal
         )
-        .def("__len__", &Struct::field_count)
+        .def("__len__", &DataStruct::field_count)
         .def(nb::self == nb::self)
         .def(nb::self != nb::self)
-        .def_prop_ro("size", &Struct::size, D(Struct, size))
-        .def_prop_ro("alignment", &Struct::alignment, D(Struct, alignment))
-        .def_prop_ro("byte_order", &Struct::byte_order, D(Struct, byte_order))
-        .def_static("type_size", &Struct::type_size, D(Struct, type_size))
-        .def_static("type_range", &Struct::type_range, D(Struct, type_range))
-        .def_static("is_integer", &Struct::is_integer, D(Struct, is_integer))
-        .def_static("is_unsigned", &Struct::is_unsigned, D(Struct, is_unsigned))
-        .def_static("is_signed", &Struct::is_signed, D(Struct, is_signed))
-        .def_static("is_float", &Struct::is_float, D(Struct, is_float));
+        .def_prop_ro("size", &DataStruct::size, D(DataStruct, size))
+        .def_prop_ro("alignment", &DataStruct::alignment, D(DataStruct, alignment))
+        .def_prop_ro("byte_order", &DataStruct::byte_order, D(DataStruct, byte_order))
+        .def_static("type_size", &DataStruct::type_size, D(DataStruct, type_size))
+        .def_static("type_range", &DataStruct::type_range, D(DataStruct, type_range))
+        .def_static("is_integer", &DataStruct::is_integer, D(DataStruct, is_integer))
+        .def_static("is_unsigned", &DataStruct::is_unsigned, D(DataStruct, is_unsigned))
+        .def_static("is_signed", &DataStruct::is_signed, D(DataStruct, is_signed))
+        .def_static("is_float", &DataStruct::is_float, D(DataStruct, is_float));
 
     nb::class_<StructConverter, Object>(m, "StructConverter", D(StructConverter))
         .def(
             "__init__",
-            [](StructConverter* self, const Struct* src, const Struct* dst)
-            { new (self) StructConverter(ref<const Struct>(src), ref<const Struct>(dst)); },
+            [](StructConverter* self, const DataStruct* src, const DataStruct* dst)
+            { new (self) StructConverter(ref<const DataStruct>(src), ref<const DataStruct>(dst)); },
             "src"_a,
             "dst"_a,
             D(StructConverter, StructConverter)

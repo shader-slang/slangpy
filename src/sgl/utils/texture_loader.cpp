@@ -60,7 +60,7 @@ inline std::pair<Format, bool> determine_texture_format(const Bitmap* bitmap, co
                     ) constexpr -> uint32_t
     {
         static_assert(Bitmap::PIXEL_FORMAT_COUNT <= 8);
-        static_assert(Struct::TYPE_COUNT <= 16);
+        static_assert(DataStruct::TYPE_COUNT <= 16);
         uint32_t key = 0;
         key |= (1 << uint32_t(pixel_format));
         key |= (1 << uint32_t(component_type)) << 8;
@@ -120,7 +120,7 @@ inline std::pair<Format, bool> determine_texture_format(const Bitmap* bitmap, co
         pixel_format = PixelFormat::r;
     ComponentType component_type = bitmap->component_type();
     FormatFlags format_flags = FormatFlags::none;
-    if (options.load_as_normalized && Struct::is_integer(component_type))
+    if (options.load_as_normalized && DataStruct::is_integer(component_type))
         format_flags = FormatFlags::normalized;
 
     // Check if bitmap is RGB and we can convert to RGBA.
