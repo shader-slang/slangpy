@@ -6,6 +6,11 @@
 
 namespace sgl {
 
+std::string DescriptorHandle::to_string() const
+{
+    return fmt::format("DescriptorHandle(type={}, value=0x{:08x})", type, value);
+}
+
 std::string Viewport::to_string() const
 {
     return fmt::format(

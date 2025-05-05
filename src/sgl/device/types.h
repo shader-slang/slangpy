@@ -153,6 +153,47 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(Feature);
 
+enum class DescriptorHandleType {
+    undefined = static_cast<uint32_t>(rhi::DescriptorHandleType::Undefined),
+    buffer = static_cast<uint32_t>(rhi::DescriptorHandleType::Buffer),
+    rw_buffer = static_cast<uint32_t>(rhi::DescriptorHandleType::RWBuffer),
+    texture = static_cast<uint32_t>(rhi::DescriptorHandleType::Texture),
+    rw_texture = static_cast<uint32_t>(rhi::DescriptorHandleType::RWTexture),
+    sampler = static_cast<uint32_t>(rhi::DescriptorHandleType::Sampler),
+    acceleration_structure = static_cast<uint32_t>(rhi::DescriptorHandleType::AccelerationStructure),
+};
+
+SGL_ENUM_INFO(
+    DescriptorHandleType,
+    {
+        {DescriptorHandleType::undefined, "undefined"},
+        {DescriptorHandleType::buffer, "buffer"},
+        {DescriptorHandleType::rw_buffer, "rw_buffer"},
+        {DescriptorHandleType::texture, "texture"},
+        {DescriptorHandleType::rw_texture, "rw_texture"},
+        {DescriptorHandleType::sampler, "sampler"},
+        {DescriptorHandleType::acceleration_structure, "acceleration_structure"},
+    }
+);
+SGL_ENUM_REGISTER(DescriptorHandleType);
+
+struct SGL_API DescriptorHandle {
+    DescriptorHandleType type{DescriptorHandleType::undefined};
+    uint64_t value{0};
+
+    explicit DescriptorHandle(const rhi::DescriptorHandle& handle)
+    {
+        type = static_cast<DescriptorHandleType>(handle.type);
+        value = handle.handle;
+    }
+
+    bool is_valid() const { return type != DescriptorHandleType::undefined; }
+
+    explicit operator bool() const { return is_valid(); }
+
+    std::string to_string() const;
+};
+
 enum class ShaderModel : uint32_t {
     unknown = 0,
     sm_6_0 = 60,
