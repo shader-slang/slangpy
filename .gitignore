@@ -15,6 +15,7 @@ docs/_build/
 slangpy/**/*.pyi
 slangpy/*.pdb
 slangpy/*.pyd
+slangpy/*.pyd.manifest
 slangpy/*.ilk
 slangpy/*.so
 slangpy/.build_dir
