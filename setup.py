@@ -107,7 +107,7 @@ with open("README.md", "r") as f:
 
 setup(
     version=version,
-    packages=find_packages(),
+    packages=['slangpy'],
     package_data={
         "slangpy": ["slang/*.slang"],
     },
