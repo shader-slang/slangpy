@@ -47,8 +47,8 @@ jobs:
           - { os: macos, compiler: gcc }
         include:
           # Builds running on self-hosted runners (build + tests + coverage)
-          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation", runs-on: { group: gcp, labels: [Windows, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: gcp, labels: [Windows, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,header-validation,coverage", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
           # Additional builds running on GitHub hosted runners (build only)
@@ -66,6 +66,7 @@ jobs:
       CI_CONFIG: ${{ matrix.config }}
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
+      CI_RUNS_ON_GROUP: ${{ matrix.runs-on.group }}
 
     steps:
       - uses: actions/checkout@v4
@@ -90,12 +91,37 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache: 'pip'
+        if: ${{ !contains(matrix.runs-on.group, 'gcp') }}
+
+      - name: Configure Python Path
+        if: ${{ contains(matrix.runs-on.group, 'gcp') && matrix.os == 'windows' }}
+        shell: pwsh
+        run: |
+          $env:Path = "C:/Python310;C:/Python310/Scripts;C:/Python310/Lib/site-packages;" + $env:Path
+          $env:PYTHONPATH = "C:/Python310/Lib/site-packages"
+          $env:PYTHON = "C:/Python310/python.exe"
+          Write-Host "Using Python: $(python -V)"
 
       # Setup Python environment.
       - name: Setup Python environment
+        if: ${{ !contains(matrix.runs-on.group, 'gcp') }}
         run: |
           python -m pip install -r requirements-dev.txt
           python -m pip install pytest-github-actions-annotate-failures
+
+
+      # Setup Python environment (Windows/GCP).
+      - name: Setup Python environment
+        if: ${{ contains(matrix.runs-on.group, 'gcp') && matrix.os == 'windows' }}
+        shell: pwsh
+        run: |
+          $python = "C:/Python310/python.exe"
+          Write-Host "Using Python: $(& $python -V)"
+          & $python -m pip install --upgrade pip
+          & $python -m pip install -r requirements-dev.txt
+          & $python -m pip install pytest-github-actions-annotate-failures
+          & $python -m pip install pyright
+          & $python -m pip install pytest
 
       # Setup MSVC.
       - name: Setup MSVC
