@@ -44,7 +44,7 @@ other computer software, distribute, and sublicense such enhancements or
 derivative works thereof, in binary and source code form.
 */
 
-#include "struct.h"
+#include "data_struct.h"
 
 #include "sgl/core/config.h"
 #include "sgl/core/format.h"
@@ -77,7 +77,7 @@ derivative works thereof, in binary and source code form.
 
 namespace sgl {
 
-size_t hash(const Struct::Field& field)
+size_t hash(const DataStruct::Field& field)
 {
     size_t value = hash(field.name, field.type, field.flags, field.size, field.offset, field.default_value);
     for (const auto& [weight, name] : field.blend)
@@ -85,7 +85,7 @@ size_t hash(const Struct::Field& field)
     return value;
 }
 
-std::string Struct::Field::to_string() const
+std::string DataStruct::Field::to_string() const
 {
     std::string result;
     result = fmt::format("Field(name=\"{}\", type={}, flags={}, size={}, offset={}", name, type, flags, size, offset);
@@ -101,20 +101,20 @@ std::string Struct::Field::to_string() const
     return result;
 }
 
-Struct::Struct(bool pack, ByteOrder byte_order)
+DataStruct::DataStruct(bool pack, ByteOrder byte_order)
     : m_pack(pack)
 {
     m_byte_order = byte_order == ByteOrder::host ? host_byte_order() : byte_order;
 }
 
-Struct& Struct::append(Field field)
+DataStruct& DataStruct::append(Field field)
 {
     m_fields.push_back(field);
     return *this;
 }
 
-Struct&
-Struct::append(std::string_view name, Type type, Flags flags, double default_value, const Field::BlendList& blend)
+DataStruct&
+DataStruct::append(std::string_view name, Type type, Flags flags, double default_value, const Field::BlendList& blend)
 {
     size_t size = type_size(type);
     size_t offset = 0;
@@ -126,7 +126,7 @@ Struct::append(std::string_view name, Type type, Flags flags, double default_val
     return append({std::string(name), type, flags, size, offset, default_value, blend});
 }
 
-Struct::Field& Struct::field(std::string_view name)
+DataStruct::Field& DataStruct::field(std::string_view name)
 {
     for (auto& field : m_fields)
         if (field.name == name)
@@ -134,7 +134,7 @@ Struct::Field& Struct::field(std::string_view name)
     SGL_THROW("Field \"{}\" not found.", name);
 }
 
-const Struct::Field& Struct::field(std::string_view name) const
+const DataStruct::Field& DataStruct::field(std::string_view name) const
 {
     for (const auto& field : m_fields)
         if (field.name == name)
@@ -142,7 +142,7 @@ const Struct::Field& Struct::field(std::string_view name) const
     SGL_THROW("Field \"{}\" not found.", name);
 }
 
-bool Struct::has_field(std::string_view name) const
+bool DataStruct::has_field(std::string_view name) const
 {
     for (const auto& field : m_fields)
         if (field.name == name)
@@ -150,7 +150,7 @@ bool Struct::has_field(std::string_view name) const
     return false;
 }
 
-size_t Struct::size() const
+size_t DataStruct::size() const
 {
     if (m_fields.empty())
         return 0;
@@ -162,7 +162,7 @@ size_t Struct::size() const
     return size;
 }
 
-size_t Struct::alignment() const
+size_t DataStruct::alignment() const
 {
     if (m_pack)
         return 1;
@@ -172,7 +172,7 @@ size_t Struct::alignment() const
     return alignment;
 }
 
-size_t hash(const Struct& struct_)
+size_t hash(const DataStruct& struct_)
 {
     size_t hash = 0;
     for (const auto& field : struct_)
@@ -180,10 +180,10 @@ size_t hash(const Struct& struct_)
     return hash;
 }
 
-std::string Struct::to_string() const
+std::string DataStruct::to_string() const
 {
     return fmt::format(
-        "Struct(\n"
+        "DataStruct(\n"
         "  pack = {},\n"
         "  byte_order = {},\n"
         "  fields = {},\n"
@@ -198,7 +198,7 @@ std::string Struct::to_string() const
     );
 }
 
-Struct::ByteOrder Struct::host_byte_order()
+DataStruct::ByteOrder DataStruct::host_byte_order()
 {
     if constexpr (stdx::endian::native == stdx::endian::little)
         return ByteOrder::little_endian;
@@ -206,7 +206,7 @@ Struct::ByteOrder Struct::host_byte_order()
         return ByteOrder::big_endian;
 }
 
-std::pair<double, double> Struct::type_range(Type type)
+std::pair<double, double> DataStruct::type_range(Type type)
 {
 #define RANGE(type)                                                                                                    \
     std::make_pair<double, double>(                                                                                    \
@@ -268,7 +268,7 @@ struct Op {
     union {
         struct {
             size_t offset;
-            Struct::Type type;
+            DataStruct::Type type;
             bool swap;
         } load_mem;
         struct {
@@ -276,12 +276,12 @@ struct Op {
         } load_imm;
         struct {
             size_t offset;
-            Struct::Type type;
+            DataStruct::Type type;
             bool swap;
         } save_mem;
         struct {
-            Struct::Type from;
-            Struct::Type to;
+            DataStruct::Type from;
+            DataStruct::Type to;
         } cast;
         struct {
             double value;
@@ -300,7 +300,7 @@ struct Op {
 /// Virtual machine for running conversion programs.
 struct VM {
     struct Value {
-        Struct::Type type;
+        DataStruct::Type type;
         union {
             /// Signed integer value (int8, int16, int32, int64).
             int64_t i;
@@ -326,7 +326,7 @@ struct VM {
                 value = load(src, op.load_mem.offset, op.load_mem.type, op.load_mem.swap);
                 break;
             case Op::Type::load_imm:
-                value.type = Struct::Type::float64;
+                value.type = DataStruct::Type::float64;
                 value.d = op.load_imm.value;
                 break;
             case Op::Type::save_mem:
@@ -336,24 +336,24 @@ struct VM {
             case Op::Type::cast: {
                 SGL_ASSERT(value.type == op.cast.from);
                 double tmp;
-                if (Struct::is_integer(op.cast.from)) {
-                    if (Struct::is_unsigned(op.cast.from))
+                if (DataStruct::is_integer(op.cast.from)) {
+                    if (DataStruct::is_unsigned(op.cast.from))
                         tmp = static_cast<double>(value.u);
                     else
                         tmp = static_cast<double>(value.i);
                 } else {
-                    if (op.cast.from == Struct::Type::float64)
+                    if (op.cast.from == DataStruct::Type::float64)
                         tmp = value.d;
                     else
                         tmp = value.s;
                 }
-                if (Struct::is_integer(op.cast.to)) {
-                    if (Struct::is_unsigned(op.cast.to))
+                if (DataStruct::is_integer(op.cast.to)) {
+                    if (DataStruct::is_unsigned(op.cast.to))
                         value.u = static_cast<uint64_t>(tmp);
                     else
                         value.i = static_cast<int64_t>(tmp);
                 } else {
-                    if (op.cast.to == Struct::Type::float64)
+                    if (op.cast.to == DataStruct::Type::float64)
                         value.d = tmp;
                     else
                         value.s = static_cast<float>(tmp);
@@ -362,28 +362,28 @@ struct VM {
                 break;
             }
             case Op::Type::linear_to_srgb:
-                SGL_ASSERT(value.type == Struct::Type::float64);
+                SGL_ASSERT(value.type == DataStruct::Type::float64);
                 value.d = math::linear_to_srgb(value.d);
                 break;
             case Op::Type::srgb_to_linear:
-                SGL_ASSERT(value.type == Struct::Type::float64);
+                SGL_ASSERT(value.type == DataStruct::Type::float64);
                 value.d = math::srgb_to_linear(value.d);
                 break;
             case Op::Type::multiply:
-                SGL_ASSERT(value.type == Struct::Type::float64);
+                SGL_ASSERT(value.type == DataStruct::Type::float64);
                 value.d *= op.multiply.value;
                 break;
             case Op::Type::multiply_add:
-                SGL_ASSERT(value.type == Struct::Type::float64);
-                SGL_ASSERT(registers[op.multiply_add.reg].type == Struct::Type::float64);
+                SGL_ASSERT(value.type == DataStruct::Type::float64);
+                SGL_ASSERT(registers[op.multiply_add.reg].type == DataStruct::Type::float64);
                 value.d += registers[op.multiply_add.reg].d * op.multiply_add.factor;
                 break;
             case Op::Type::round:
-                SGL_ASSERT(value.type == Struct::Type::float64);
+                SGL_ASSERT(value.type == DataStruct::Type::float64);
                 value.d = std::rint(value.d);
                 break;
             case Op::Type::clamp:
-                SGL_ASSERT(value.type == Struct::Type::float64);
+                SGL_ASSERT(value.type == DataStruct::Type::float64);
                 value.d = std::clamp(value.d, op.clamp.min, op.clamp.max);
                 break;
             }
@@ -391,7 +391,7 @@ struct VM {
     }
 
     /// Load a value from memory.
-    Value load(const uint8_t* base, size_t offset, Struct::Type type, bool swap)
+    Value load(const uint8_t* base, size_t offset, DataStruct::Type type, bool swap)
     {
         Value value;
         value.type = type;
@@ -406,39 +406,39 @@ struct VM {
     }
 
         switch (type) {
-        case Struct::Type::int8:
+        case DataStruct::Type::int8:
             value.i = *reinterpret_cast<const int8_t*>(base + offset);
             break;
-        case Struct::Type::int16:
+        case DataStruct::Type::int16:
             CASE(int16_t, value.i)
-        case Struct::Type::int32:
+        case DataStruct::Type::int32:
             CASE(int32_t, value.i)
-        case Struct::Type::int64:
+        case DataStruct::Type::int64:
             CASE(int64_t, value.i)
-        case Struct::Type::uint8:
+        case DataStruct::Type::uint8:
             value.u = *reinterpret_cast<const uint8_t*>(base + offset);
             break;
-        case Struct::Type::uint16:
+        case DataStruct::Type::uint16:
             CASE(uint16_t, value.u)
-        case Struct::Type::uint32:
+        case DataStruct::Type::uint32:
             CASE(uint32_t, value.u)
-        case Struct::Type::uint64:
+        case DataStruct::Type::uint64:
             CASE(uint64_t, value.u)
-        case Struct::Type::float16: {
+        case DataStruct::Type::float16: {
             uint16_t v = *reinterpret_cast<const uint16_t*>(base + offset);
             if (swap) [[unlikely]]
                 v = stdx::byteswap(v);
             value.s = math::float16_to_float32(v);
             break;
         }
-        case Struct::Type::float32: {
+        case DataStruct::Type::float32: {
             uint32_t v = *reinterpret_cast<const uint32_t*>(base + offset);
             if (swap) [[unlikely]]
                 v = stdx::byteswap(v);
             value.s = stdx::bit_cast<float>(v);
             break;
         }
-        case Struct::Type::float64: {
+        case DataStruct::Type::float64: {
             uint64_t v = *reinterpret_cast<const uint64_t*>(base + offset);
             if (swap) [[unlikely]]
                 v = stdx::byteswap(v);
@@ -465,39 +465,39 @@ struct VM {
     }
 
         switch (value.type) {
-        case Struct::Type::int8:
+        case DataStruct::Type::int8:
             *reinterpret_cast<int8_t*>(base + offset) = static_cast<int8_t>(value.i);
             break;
-        case Struct::Type::int16:
+        case DataStruct::Type::int16:
             CASE(int16_t, value.i)
-        case Struct::Type::int32:
+        case DataStruct::Type::int32:
             CASE(int32_t, value.i)
-        case Struct::Type::int64:
+        case DataStruct::Type::int64:
             CASE(int64_t, value.i)
-        case Struct::Type::uint8:
+        case DataStruct::Type::uint8:
             *reinterpret_cast<uint8_t*>(base + offset) = static_cast<uint8_t>(value.u);
             break;
-        case Struct::Type::uint16:
+        case DataStruct::Type::uint16:
             CASE(uint16_t, value.u)
-        case Struct::Type::uint32:
+        case DataStruct::Type::uint32:
             CASE(uint32_t, value.u)
-        case Struct::Type::uint64:
+        case DataStruct::Type::uint64:
             CASE(uint64_t, value.u)
-        case Struct::Type::float16: {
+        case DataStruct::Type::float16: {
             uint16_t v = math::float32_to_float16(value.s);
             if (swap) [[unlikely]]
                 v = stdx::byteswap(v);
             *reinterpret_cast<uint16_t*>(base + offset) = v;
             break;
         }
-        case Struct::Type::float32: {
+        case DataStruct::Type::float32: {
             uint32_t v = stdx::bit_cast<uint32_t>(value.s);
             if (swap) [[unlikely]]
                 v = stdx::byteswap(v);
             *reinterpret_cast<uint32_t*>(base + offset) = v;
             break;
         }
-        case Struct::Type::float64: {
+        case DataStruct::Type::float64: {
             uint64_t v = stdx::bit_cast<uint64_t>(value.d);
             if (swap) [[unlikely]]
                 v = stdx::byteswap(v);
@@ -513,10 +513,10 @@ struct VM {
 /// Generate conversion program for converting from \c src_struct to \c dst_struct.
 /// This generates code for the virtual machine.
 /// If using a JIT compiler, this code can be compiled to native code.
-std::vector<Op> generate_code(const Struct& src_struct, const Struct& dst_struct)
+std::vector<Op> generate_code(const DataStruct& src_struct, const DataStruct& dst_struct)
 {
-    const bool src_swap = src_struct.byte_order() != Struct::host_byte_order();
-    const bool dst_swap = dst_struct.byte_order() != Struct::host_byte_order();
+    const bool src_swap = src_struct.byte_order() != DataStruct::host_byte_order();
+    const bool dst_swap = dst_struct.byte_order() != DataStruct::host_byte_order();
 
     std::vector<Op> code;
     std::map<std::string, uint8_t> src_regs;
@@ -530,7 +530,7 @@ std::vector<Op> generate_code(const Struct& src_struct, const Struct& dst_struct
             // Accumulate source fields.
             for (const auto& [weight, name] : dst_field.blend) {
                 const auto& src_field = src_struct.field(name);
-                const auto src_range = Struct::type_range(src_field.type);
+                const auto src_range = DataStruct::type_range(src_field.type);
                 uint8_t src_reg;
                 auto it = src_regs.find(name);
                 if (it != src_regs.end()) {
@@ -549,40 +549,41 @@ std::vector<Op> generate_code(const Struct& src_struct, const Struct& dst_struct
 
                     // Convert to double.
                     code.push_back(
-                        {.type = Op::Type::cast, .reg = src_reg, .cast = {src_field.type, Struct::Type::float64}}
+                        {.type = Op::Type::cast, .reg = src_reg, .cast = {src_field.type, DataStruct::Type::float64}}
                     );
 
                     // Normalize source value.
-                    if (Struct::is_integer(src_field.type) && is_set(src_field.flags, Struct::Flags::normalized))
+                    if (DataStruct::is_integer(src_field.type)
+                        && is_set(src_field.flags, DataStruct::Flags::normalized))
                         code.push_back(
                             {.type = Op::Type::multiply, .reg = src_reg, .multiply = {1.0 / src_range.second}}
                         );
 
                     // Linearize source value.
-                    if (is_set(src_field.flags, Struct::Flags::srgb_gamma))
+                    if (is_set(src_field.flags, DataStruct::Flags::srgb_gamma))
                         code.push_back({.type = Op::Type::srgb_to_linear, .reg = src_reg});
                 }
 
                 // Add weighted value to accumulator.
                 code.push_back({.type = Op::Type::multiply_add, .reg = 0, .multiply_add = {src_reg, weight}});
             }
-            const auto dst_range = Struct::type_range(dst_field.type);
+            const auto dst_range = DataStruct::type_range(dst_field.type);
 
             // De-linearize destination value.
-            if (is_set(dst_field.flags, Struct::Flags::srgb_gamma))
+            if (is_set(dst_field.flags, DataStruct::Flags::srgb_gamma))
                 code.push_back({.type = Op::Type::linear_to_srgb, .reg = 0});
 
             // De-normalize destination value.
-            if (Struct::is_integer(dst_field.type) && is_set(dst_field.flags, Struct::Flags::normalized))
+            if (DataStruct::is_integer(dst_field.type) && is_set(dst_field.flags, DataStruct::Flags::normalized))
                 code.push_back({.type = Op::Type::multiply, .reg = 0, .multiply = {dst_range.second}});
 
             // Round and clamp integers.
-            if (Struct::is_integer(dst_field.type)) {
+            if (DataStruct::is_integer(dst_field.type)) {
                 code.push_back({.type = Op::Type::round, .reg = 0});
                 code.push_back({.type = Op::Type::clamp, .reg = 0, .clamp = {dst_range.first, dst_range.second}});
             }
 
-            code.push_back({.type = Op::Type::cast, .reg = 0, .cast = {Struct::Type::float64, dst_field.type}});
+            code.push_back({.type = Op::Type::cast, .reg = 0, .cast = {DataStruct::Type::float64, dst_field.type}});
 
             // Save value to destination struct.
             code.push_back(
@@ -598,47 +599,47 @@ std::vector<Op> generate_code(const Struct& src_struct, const Struct& dst_struct
             );
 
             // Convert value if types don't match.
-            Struct::Flags flag_mask = Struct::Flags::normalized | Struct::Flags::srgb_gamma;
+            DataStruct::Flags flag_mask = DataStruct::Flags::normalized | DataStruct::Flags::srgb_gamma;
             if (src_field.type != dst_field.type || (src_field.flags & flag_mask) != (dst_field.flags & flag_mask)) {
-                const auto src_range = Struct::type_range(src_field.type);
-                const auto dst_range = Struct::type_range(dst_field.type);
+                const auto src_range = DataStruct::type_range(src_field.type);
+                const auto dst_range = DataStruct::type_range(dst_field.type);
 
                 // Convert to double.
-                code.push_back({.type = Op::Type::cast, .reg = 0, .cast = {src_field.type, Struct::Type::float64}});
+                code.push_back({.type = Op::Type::cast, .reg = 0, .cast = {src_field.type, DataStruct::Type::float64}});
 
                 // Normalize source value.
-                if (Struct::is_integer(src_field.type) && is_set(src_field.flags, Struct::Flags::normalized))
+                if (DataStruct::is_integer(src_field.type) && is_set(src_field.flags, DataStruct::Flags::normalized))
                     code.push_back({.type = Op::Type::multiply, .reg = 0, .multiply = {1.0 / src_range.second}});
 
                 // Linearize source value.
-                if (is_set(src_field.flags, Struct::Flags::srgb_gamma))
+                if (is_set(src_field.flags, DataStruct::Flags::srgb_gamma))
                     code.push_back({.type = Op::Type::srgb_to_linear, .reg = 0});
 
                 // De-linearize destination value.
-                if (is_set(dst_field.flags, Struct::Flags::srgb_gamma))
+                if (is_set(dst_field.flags, DataStruct::Flags::srgb_gamma))
                     code.push_back({.type = Op::Type::linear_to_srgb, .reg = 0});
 
                 // De-normalize destination value.
-                if (Struct::is_integer(dst_field.type) && is_set(dst_field.flags, Struct::Flags::normalized))
+                if (DataStruct::is_integer(dst_field.type) && is_set(dst_field.flags, DataStruct::Flags::normalized))
                     code.push_back({.type = Op::Type::multiply, .reg = 0, .multiply = {dst_range.second}});
 
                 // Round and clamp integers.
-                if (Struct::is_integer(dst_field.type)) {
+                if (DataStruct::is_integer(dst_field.type)) {
                     code.push_back({.type = Op::Type::round, .reg = 0});
                     code.push_back({.type = Op::Type::clamp, .reg = 0, .clamp = {dst_range.first, dst_range.second}});
                 }
 
-                code.push_back({.type = Op::Type::cast, .reg = 0, .cast = {Struct::Type::float64, dst_field.type}});
+                code.push_back({.type = Op::Type::cast, .reg = 0, .cast = {DataStruct::Type::float64, dst_field.type}});
             }
 
             // Save value to destination struct.
             code.push_back(
                 {.type = Op::Type::save_mem, .reg = 0, .save_mem = {dst_field.offset, dst_field.type, dst_swap}}
             );
-        } else if (is_set(dst_field.flags, Struct::Flags::default_)) {
+        } else if (is_set(dst_field.flags, DataStruct::Flags::default_)) {
             // Set default value.
             code.push_back({.type = Op::Type::load_imm, .reg = 0, .load_imm = {dst_field.default_value}});
-            code.push_back({.type = Op::Type::cast, .reg = 0, .cast = {Struct::Type::float64, dst_field.type}});
+            code.push_back({.type = Op::Type::cast, .reg = 0, .cast = {DataStruct::Type::float64, dst_field.type}});
             code.push_back(
                 {.type = Op::Type::save_mem, .reg = 0, .save_mem = {dst_field.offset, dst_field.type, dst_swap}}
             );
@@ -676,7 +677,7 @@ struct VMProgram : public Program {
         }
     }
 
-    static std::unique_ptr<Program> compile(const Struct& src_struct, const Struct& dst_struct)
+    static std::unique_ptr<Program> compile(const DataStruct& src_struct, const DataStruct& dst_struct)
     {
         auto program = std::make_unique<VMProgram>();
         program->code = generate_code(src_struct, dst_struct);
@@ -696,7 +697,7 @@ struct X86Program : public Program {
 
     void execute(const void* src, void* dst, size_t count) const override { func(src, dst, count); }
 
-    static std::unique_ptr<Program> compile(const Struct& src_struct, const Struct& dst_struct)
+    static std::unique_ptr<Program> compile(const DataStruct& src_struct, const DataStruct& dst_struct)
     {
         asmjit::CodeHolder code;
         code.init(runtime().environment(), runtime().cpuFeatures());
@@ -910,7 +911,7 @@ private:
             }
         }
 
-        void build(const Struct& src_struct, const Struct& dst_struct)
+        void build(const DataStruct& src_struct, const DataStruct& dst_struct)
         {
             std::vector<Op> ops = generate_code(src_struct, dst_struct);
 
@@ -1045,20 +1046,20 @@ private:
         /// Floating point values are stored in a XMM register.
         /// Half precision floating point values are converted to single precision,
         /// either using the F16C instruction set or a software implementation.
-        void load(Register& reg, const asmjit::x86::Gp& base, int32_t offset, Struct::Type type, bool swap)
+        void load(Register& reg, const asmjit::x86::Gp& base, int32_t offset, DataStruct::Type type, bool swap)
         {
             using namespace asmjit;
 
-            if (Struct::is_integer(type))
+            if (DataStruct::is_integer(type))
                 reg.gp = c.newInt64();
             else
                 reg.xmm = c.newXmm();
 
             switch (type) {
-            case Struct::Type::int8:
+            case DataStruct::Type::int8:
                 c.movsx(reg.gp, x86::byte_ptr(base, offset));
                 break;
-            case Struct::Type::int16:
+            case DataStruct::Type::int16:
                 if (swap) {
                     x86::Gp tmp = c.newUInt16();
                     c.movzx(tmp, x86::word_ptr(base, offset));
@@ -1068,7 +1069,7 @@ private:
                     c.movsx(reg.gp, x86::word_ptr(base, offset));
                 }
                 break;
-            case Struct::Type::int32:
+            case DataStruct::Type::int32:
                 if (swap) {
                     x86::Gp tmp = c.newUInt32();
                     c.mov(tmp, x86::dword_ptr(base, offset));
@@ -1078,30 +1079,30 @@ private:
                     c.movsxd(reg.gp.r32(), x86::dword_ptr(base, offset));
                 }
                 break;
-            case Struct::Type::int64:
+            case DataStruct::Type::int64:
                 c.mov(reg.gp, x86::qword_ptr(base, offset));
                 if (swap)
                     c.bswap(reg.gp.r64());
                 break;
-            case Struct::Type::uint8:
+            case DataStruct::Type::uint8:
                 c.movzx(reg.gp, x86::byte_ptr(base, offset));
                 break;
-            case Struct::Type::uint16:
+            case DataStruct::Type::uint16:
                 c.movzx(reg.gp, x86::word_ptr(base, offset));
                 if (swap)
                     c.xchg(reg.gp.r8Lo(), reg.gp.r8Hi());
                 break;
-            case Struct::Type::uint32:
+            case DataStruct::Type::uint32:
                 c.mov(reg.gp.r32(), x86::dword_ptr(base, offset));
                 if (swap)
                     c.bswap(reg.gp.r32());
                 break;
-            case Struct::Type::uint64:
+            case DataStruct::Type::uint64:
                 c.mov(reg.gp, x86::qword_ptr(base, offset));
                 if (swap)
                     c.bswap(reg.gp.r64());
                 break;
-            case Struct::Type::float16: {
+            case DataStruct::Type::float16: {
                 x86::Gp tmp = c.newUInt16();
                 c.movzx(tmp, x86::word_ptr(base, offset));
                 if (swap)
@@ -1121,7 +1122,7 @@ private:
                 }
                 break;
             }
-            case Struct::Type::float32:
+            case DataStruct::Type::float32:
                 if (swap) {
                     x86::Gp tmp = c.newUInt32();
                     c.mov(tmp, x86::dword_ptr(base, offset));
@@ -1131,7 +1132,7 @@ private:
                     movss(reg.xmm, x86::dword_ptr(base, offset));
                 }
                 break;
-            case Struct::Type::float64:
+            case DataStruct::Type::float64:
                 if (swap) {
                     x86::Gp tmp = c.newUInt64();
                     c.mov(tmp, x86::qword_ptr(base, offset));
@@ -1146,17 +1147,17 @@ private:
 
         /// Save a value from a register to memory (base + offset).
         /// Optionally swaps the endianess of the value.
-        void save(const Register& reg, const asmjit::x86::Gp& base, int32_t offset, Struct::Type type, bool swap)
+        void save(const Register& reg, const asmjit::x86::Gp& base, int32_t offset, DataStruct::Type type, bool swap)
         {
             using namespace asmjit;
 
             switch (type) {
-            case Struct::Type::int8:
-            case Struct::Type::uint8:
+            case DataStruct::Type::int8:
+            case DataStruct::Type::uint8:
                 c.mov(x86::byte_ptr(base, offset), reg.gp.r8());
                 break;
-            case Struct::Type::int16:
-            case Struct::Type::uint16:
+            case DataStruct::Type::int16:
+            case DataStruct::Type::uint16:
                 if (swap) {
                     x86::Gp tmp = c.newUInt16();
                     c.mov(tmp, reg.gp.r16());
@@ -1166,8 +1167,8 @@ private:
                     c.mov(x86::word_ptr(base, offset), reg.gp.r16());
                 }
                 break;
-            case Struct::Type::int32:
-            case Struct::Type::uint32:
+            case DataStruct::Type::int32:
+            case DataStruct::Type::uint32:
                 if (swap) {
                     x86::Gp tmp = c.newUInt32();
                     c.mov(tmp, reg.gp.r32());
@@ -1177,8 +1178,8 @@ private:
                     c.mov(x86::dword_ptr(base, offset), reg.gp.r32());
                 }
                 break;
-            case Struct::Type::int64:
-            case Struct::Type::uint64:
+            case DataStruct::Type::int64:
+            case DataStruct::Type::uint64:
                 if (swap) {
                     x86::Gp tmp = c.newUInt64();
                     c.mov(tmp, reg.gp);
@@ -1188,7 +1189,7 @@ private:
                     c.mov(x86::qword_ptr(base, offset), reg.gp);
                 }
                 break;
-            case Struct::Type::float16: {
+            case DataStruct::Type::float16: {
                 x86::Gp tmp2 = c.newUInt16();
                 if (has_avx && has_f16c) {
                     x86::Xmm tmp3 = c.newXmm();
@@ -1209,7 +1210,7 @@ private:
                 c.mov(x86::word_ptr(base, offset), tmp2.r16());
                 break;
             }
-            case Struct::Type::float32:
+            case DataStruct::Type::float32:
                 if (swap) {
                     x86::Gp tmp = c.newUInt32();
                     movd(tmp, reg.xmm);
@@ -1219,7 +1220,7 @@ private:
                     movss(x86::dword_ptr(base, offset), reg.xmm);
                 }
                 break;
-            case Struct::Type::float64:
+            case DataStruct::Type::float64:
                 if (swap) {
                     x86::Gp tmp = c.newUInt64();
                     movq(tmp, reg.xmm);
@@ -1233,15 +1234,15 @@ private:
         }
 
         /// Convert a register from one type to another.
-        void cast(Register& reg, Struct::Type from, Struct::Type to)
+        void cast(Register& reg, DataStruct::Type from, DataStruct::Type to)
         {
             using namespace asmjit;
 
             x86::Xmm dbl = c.newXmm();
-            if (Struct::is_integer(from)) {
-                if (from == Struct::Type::uint32 || from == Struct::Type::int64) {
+            if (DataStruct::is_integer(from)) {
+                if (from == DataStruct::Type::uint32 || from == DataStruct::Type::int64) {
                     cvtsi2sd(dbl, reg.gp.r64());
-                } else if (from == Struct::Type::uint64) {
+                } else if (from == DataStruct::Type::uint64) {
                     auto tmp = c.newUInt64();
                     c.mov(tmp, reg.gp.r64());
                     auto tmp2 = c.newUInt64Const(asmjit::ConstPoolScope::kGlobal, 0x7fffffffffffffffull);
@@ -1256,16 +1257,16 @@ private:
                     cvtsi2sd(dbl, reg.gp.r32());
                 }
             } else {
-                if (from == Struct::Type::float64)
+                if (from == DataStruct::Type::float64)
                     movsd(dbl, reg.xmm);
                 else
                     c.cvtss2sd(dbl, reg.xmm);
             }
-            if (Struct::is_integer(to)) {
-                if (to == Struct::Type::uint32 || to == Struct::Type::int64) {
+            if (DataStruct::is_integer(to)) {
+                if (to == DataStruct::Type::uint32 || to == DataStruct::Type::int64) {
                     reg.gp = c.newInt64();
                     cvtsd2si(reg.gp, dbl);
-                } else if (to == Struct::Type::uint64) {
+                } else if (to == DataStruct::Type::uint64) {
                     reg.gp = c.newInt64();
                     cvtsd2si(reg.gp.r64(), dbl);
 
@@ -1290,7 +1291,7 @@ private:
                 }
             } else {
                 reg.xmm = c.newXmm();
-                if (to == Struct::Type::float64)
+                if (to == DataStruct::Type::float64)
                     movsd(reg.xmm, dbl);
                 else
                     cvtsd2ss(reg.xmm, dbl);
@@ -1417,7 +1418,7 @@ struct ARMProgram : public Program {
 
     void execute(const void* src, void* dst, size_t count) const override { func(src, dst, count); }
 
-    static std::unique_ptr<Program> compile(const Struct& src_struct, const Struct& dst_struct)
+    static std::unique_ptr<Program> compile(const DataStruct& src_struct, const DataStruct& dst_struct)
     {
         // TODO: check cpu features, but for some reason these are all false
         bool supported = true;
@@ -1427,7 +1428,7 @@ struct ARMProgram : public Program {
         // supported &= runtime().cpuFeatures().arm().hasFRINT();
         // supported &= runtime().cpuFeatures().arm().hasFP16CONV();
         if (!supported) {
-            log_warn_once("Struct converter cannot use AArch64 JIT: unsupported CPU features");
+            log_warn_once("DataStruct converter cannot use AArch64 JIT: unsupported CPU features");
             return nullptr;
         }
 
@@ -1497,7 +1498,7 @@ private:
         /// Load a constant value.
         asmjit::a64::Mem const_(double value) { return c.newDoubleConst(asmjit::ConstPoolScope::kGlobal, value); }
 
-        void build(const Struct& src_struct, const Struct& dst_struct)
+        void build(const DataStruct& src_struct, const DataStruct& dst_struct)
         {
             std::vector<Op> ops = generate_code(src_struct, dst_struct);
 
@@ -1640,20 +1641,20 @@ private:
         /// Floating point values are stored in a XMM register.
         /// Half precision floating point values are converted to single precision,
         /// either using the F16C instruction set or a software implementation.
-        void load(Register& reg, const asmjit::a64::Gp& base, int32_t offset, Struct::Type type, bool swap)
+        void load(Register& reg, const asmjit::a64::Gp& base, int32_t offset, DataStruct::Type type, bool swap)
         {
             using namespace asmjit;
 
-            if (Struct::is_integer(type))
+            if (DataStruct::is_integer(type))
                 reg.gp = c.newGpx();
             else
                 reg.vec = c.newVecD();
 
             switch (type) {
-            case Struct::Type::int8:
+            case DataStruct::Type::int8:
                 c.ldrsb(reg.gp.x(), a64::ptr(base, offset));
                 break;
-            case Struct::Type::int16:
+            case DataStruct::Type::int16:
                 if (swap) {
                     auto tmp = c.newGpw();
                     c.ldrh(tmp, a64::ptr(base, offset));
@@ -1663,7 +1664,7 @@ private:
                     c.ldrsh(reg.gp.x(), a64::ptr(base, offset));
                 }
                 break;
-            case Struct::Type::int32:
+            case DataStruct::Type::int32:
                 if (swap) {
                     auto tmp = c.newGpw();
                     c.ldr(tmp, a64::ptr(base, offset));
@@ -1673,30 +1674,30 @@ private:
                     c.ldrsw(reg.gp.x(), a64::ptr(base, offset));
                 }
                 break;
-            case Struct::Type::int64:
+            case DataStruct::Type::int64:
                 c.ldr(reg.gp.x(), a64::ptr(base, offset));
                 if (swap)
                     c.rev64(reg.gp.x(), reg.gp.x());
                 break;
-            case Struct::Type::uint8:
+            case DataStruct::Type::uint8:
                 c.ldrb(reg.gp.w(), a64::ptr(base, offset));
                 break;
-            case Struct::Type::uint16:
+            case DataStruct::Type::uint16:
                 c.ldrh(reg.gp.w(), a64::ptr(base, offset));
                 if (swap)
                     c.rev16(reg.gp.w(), reg.gp.w());
                 break;
-            case Struct::Type::uint32:
+            case DataStruct::Type::uint32:
                 c.ldr(reg.gp.w(), a64::ptr(base, offset));
                 if (swap)
                     c.rev32(reg.gp.w(), reg.gp.w());
                 break;
-            case Struct::Type::uint64:
+            case DataStruct::Type::uint64:
                 c.ldr(reg.gp.x(), a64::ptr(base, offset));
                 if (swap)
                     c.rev64(reg.gp.x(), reg.gp.x());
                 break;
-            case Struct::Type::float16: {
+            case DataStruct::Type::float16: {
                 if (swap) {
                     auto tmp = c.newGpw();
                     c.ldrh(tmp, a64::ptr(base, offset));
@@ -1707,7 +1708,7 @@ private:
                 }
                 break;
             }
-            case Struct::Type::float32:
+            case DataStruct::Type::float32:
                 if (swap) {
                     auto tmp = c.newGpw();
                     c.ldr(tmp, a64::ptr(base, offset));
@@ -1717,7 +1718,7 @@ private:
                     c.ldr(reg.vec.s(), a64::ptr(base, offset));
                 }
                 break;
-            case Struct::Type::float64:
+            case DataStruct::Type::float64:
                 if (swap) {
                     auto tmp = c.newGpx();
                     c.ldr(tmp, a64::ptr(base, offset));
@@ -1732,17 +1733,17 @@ private:
 
         /// Save a value from a register to memory (base + offset).
         /// Optionally swaps the endianess of the value.
-        void save(const Register& reg, const asmjit::a64::Gp& base, int32_t offset, Struct::Type type, bool swap)
+        void save(const Register& reg, const asmjit::a64::Gp& base, int32_t offset, DataStruct::Type type, bool swap)
         {
             using namespace asmjit;
 
             switch (type) {
-            case Struct::Type::int8:
-            case Struct::Type::uint8:
+            case DataStruct::Type::int8:
+            case DataStruct::Type::uint8:
                 c.strb(reg.gp.w(), a64::ptr(base, offset));
                 break;
-            case Struct::Type::int16:
-            case Struct::Type::uint16:
+            case DataStruct::Type::int16:
+            case DataStruct::Type::uint16:
                 if (swap) {
                     auto tmp = c.newGpw();
                     c.mov(tmp, reg.gp.w());
@@ -1752,8 +1753,8 @@ private:
                     c.strh(reg.gp.w(), a64::ptr(base, offset));
                 }
                 break;
-            case Struct::Type::int32:
-            case Struct::Type::uint32:
+            case DataStruct::Type::int32:
+            case DataStruct::Type::uint32:
                 if (swap) {
                     auto tmp = c.newGpw();
                     c.mov(tmp, reg.gp.w());
@@ -1763,8 +1764,8 @@ private:
                     c.str(reg.gp.w(), a64::ptr(base, offset));
                 }
                 break;
-            case Struct::Type::int64:
-            case Struct::Type::uint64:
+            case DataStruct::Type::int64:
+            case DataStruct::Type::uint64:
                 if (swap) {
                     auto tmp = c.newGpx();
                     c.mov(tmp, reg.gp.x());
@@ -1774,7 +1775,7 @@ private:
                     c.str(reg.gp, a64::ptr(base, offset));
                 }
                 break;
-            case Struct::Type::float16: {
+            case DataStruct::Type::float16: {
                 if (swap) {
                     auto tmp = c.newGpw();
                     c.fmov(tmp, reg.vec.h());
@@ -1785,7 +1786,7 @@ private:
                 }
                 break;
             }
-            case Struct::Type::float32:
+            case DataStruct::Type::float32:
                 if (swap) {
                     auto tmp = c.newGpw();
                     c.fmov(tmp, reg.vec.s());
@@ -1795,7 +1796,7 @@ private:
                     c.str(reg.vec.s(), a64::ptr(base, offset));
                 }
                 break;
-            case Struct::Type::float64:
+            case DataStruct::Type::float64:
                 if (swap) {
                     auto tmp = c.newGpx();
                     c.fmov(tmp, reg.vec.d());
@@ -1809,38 +1810,38 @@ private:
         }
 
         /// Convert a register from one type to another.
-        void cast(Register& reg, Struct::Type from, Struct::Type to)
+        void cast(Register& reg, DataStruct::Type from, DataStruct::Type to)
         {
             using namespace asmjit;
 
             a64::Vec dbl = c.newVecD();
-            if (Struct::is_integer(from)) {
-                if (Struct::is_signed(from)) {
+            if (DataStruct::is_integer(from)) {
+                if (DataStruct::is_signed(from)) {
                     c.scvtf(dbl, reg.gp.x());
                 } else {
                     c.ucvtf(dbl, reg.gp.x());
                 }
             } else {
-                if (from == Struct::Type::float16) {
+                if (from == DataStruct::Type::float16) {
                     c.fcvt(dbl, reg.vec.h());
-                } else if (from == Struct::Type::float32) {
+                } else if (from == DataStruct::Type::float32) {
                     c.fcvt(dbl, reg.vec.s());
                 } else {
                     c.fmov(dbl, reg.vec.d());
                 }
             }
-            if (Struct::is_integer(to)) {
+            if (DataStruct::is_integer(to)) {
                 reg.gp = c.newGpx();
-                if (Struct::is_signed(to)) {
+                if (DataStruct::is_signed(to)) {
                     c.fcvtzs(reg.gp.x(), dbl);
                 } else {
                     c.fcvtzu(reg.gp.x(), dbl);
                 }
             } else {
                 reg.vec = c.newVecD();
-                if (to == Struct::Type::float16) {
+                if (to == DataStruct::Type::float16) {
                     c.fcvt(reg.vec.h(), dbl);
-                } else if (to == Struct::Type::float32) {
+                } else if (to == DataStruct::Type::float32) {
                     c.fcvt(reg.vec.s(), dbl);
                 } else {
                     c.fmov(reg.vec.d(), dbl);
@@ -1970,7 +1971,7 @@ private:
 
 class ProgramCache {
 public:
-    const Program* get_program(const Struct& src_struct, const Struct& dst_struct)
+    const Program* get_program(const DataStruct& src_struct, const DataStruct& dst_struct)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -1989,7 +1990,7 @@ public:
     }
 
 private:
-    std::unique_ptr<Program> compile_program(const Struct& src_struct, const Struct& dst_struct)
+    std::unique_ptr<Program> compile_program(const DataStruct& src_struct, const DataStruct& dst_struct)
     {
         std::unique_ptr<Program> program;
 
@@ -2008,21 +2009,21 @@ private:
 
     std::mutex m_mutex;
     std::unordered_map<
-        std::pair<Struct, Struct>,
+        std::pair<DataStruct, DataStruct>,
         std::unique_ptr<Program>,
-        hasher<std::pair<Struct, Struct>>,
-        comparator<std::pair<Struct, Struct>>>
+        hasher<std::pair<DataStruct, DataStruct>>,
+        comparator<std::pair<DataStruct, DataStruct>>>
         m_programs;
 };
 
 
-StructConverter::StructConverter(const Struct* src, const Struct* dst)
-    : m_src(new Struct(*src))
-    , m_dst(new Struct(*dst))
+DataStructConverter::DataStructConverter(const DataStruct* src, const DataStruct* dst)
+    : m_src(new DataStruct(*src))
+    , m_dst(new DataStruct(*dst))
 {
 }
 
-void StructConverter::convert(const void* src, void* dst, size_t count) const
+void DataStructConverter::convert(const void* src, void* dst, size_t count) const
 {
     // Direct copy if source and destination struct are the same.
     if (*m_src == *m_dst) {
@@ -2035,10 +2036,10 @@ void StructConverter::convert(const void* src, void* dst, size_t count) const
     program->execute(src, dst, count);
 }
 
-std::string StructConverter::to_string() const
+std::string DataStructConverter::to_string() const
 {
     return fmt::format(
-        "StructConverter(\n"
+        "DataStructConverter(\n"
         "  src = {},\n"
         "  dst = {}\n"
         ")",

@@ -47,8 +47,8 @@ SGL_PY_EXPORT(core_bitmap)
                 if (data.ndim() != 2 && data.ndim() != 3)
                     SGL_THROW("Expect array with dimension 2 or 3.");
 
-                Struct::Type component_type;
-                if (auto struct_type = dtype_to_struct_type(data.dtype()))
+                DataStruct::Type component_type;
+                if (auto struct_type = dtype_to_data_struct_type(data.dtype()))
                     component_type = *struct_type;
                 else
                     SGL_THROW("Unsupported data type.");
@@ -176,10 +176,10 @@ SGL_PY_EXPORT(core_bitmap)
 
                 std::string format(3, '\0');
                 format[0] = stdx::endian::native == stdx::endian::little ? '<' : '>';
-                format[1] = Struct::is_float(self.component_type())
+                format[1] = DataStruct::is_float(self.component_type())
                     ? 'f'
-                    : (Struct::is_unsigned(self.component_type()) ? 'u' : 'i');
-                format[2] = '0' + static_cast<char>(Struct::type_size(self.component_type()));
+                    : (DataStruct::is_unsigned(self.component_type()) ? 'u' : 'i');
+                format[2] = '0' + static_cast<char>(DataStruct::type_size(self.component_type()));
                 result["typestr"] = format;
 
                 result["data"] = nb::make_tuple(reinterpret_cast<uintptr_t>(self.data()), false);

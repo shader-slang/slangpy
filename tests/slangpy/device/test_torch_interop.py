@@ -14,6 +14,8 @@ import sglhelpers as helpers
 def test_buffer_to_torch(device_type: spy.DeviceType):
     if device_type == spy.DeviceType.cuda:
         pytest.skip("Not tested with CUDA device")
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Not supported Metal device")
     try:
         import torch
     except ImportError:
@@ -50,6 +52,8 @@ def test_buffer_to_torch(device_type: spy.DeviceType):
 def test_torch_interop(device_type: spy.DeviceType):
     if device_type == spy.DeviceType.cuda:
         pytest.skip("Not tested with CUDA device")
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Not supported Metal device")
     try:
         import torch
     except ImportError:

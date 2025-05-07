@@ -24,7 +24,7 @@ def create_device(
     enable_cuda_interop: bool = False,
 ):
     """
-    Create an SGL device with basic settings for SlangPy. For full control over device init,
+    Create a device with basic settings for SlangPy. For full control over device init,
     use sgl.create_device directly, being sure to add slangpy.SHADER_PATH
     to the list of include paths for the compiler.
     """

@@ -22,7 +22,7 @@
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
 #include "sgl/core/type_utils.h"
-#include "sgl/core/struct.h"
+#include "sgl/core/data_struct.h"
 #include "sgl/core/data_type.h"
 #include "sgl/core/static_vector.h"
 
@@ -390,41 +390,41 @@ inline DataType dtype_to_data_type(nb::dlpack::dtype dtype)
     SGL_THROW("Unsupported dtype.");
 }
 
-inline std::optional<Struct::Type> dtype_to_struct_type(nb::dlpack::dtype dtype)
+inline std::optional<DataStruct::Type> dtype_to_data_struct_type(nb::dlpack::dtype dtype)
 {
     switch (dtype.code) {
     case uint8_t(nb::dlpack::dtype_code::Int):
         switch (dtype.bits) {
         case 8:
-            return Struct::Type::int8;
+            return DataStruct::Type::int8;
         case 16:
-            return Struct::Type::int16;
+            return DataStruct::Type::int16;
         case 32:
-            return Struct::Type::int32;
+            return DataStruct::Type::int32;
         case 64:
-            return Struct::Type::int64;
+            return DataStruct::Type::int64;
         }
         break;
     case uint8_t(nb::dlpack::dtype_code::UInt):
         switch (dtype.bits) {
         case 8:
-            return Struct::Type::uint8;
+            return DataStruct::Type::uint8;
         case 16:
-            return Struct::Type::uint16;
+            return DataStruct::Type::uint16;
         case 32:
-            return Struct::Type::uint32;
+            return DataStruct::Type::uint32;
         case 64:
-            return Struct::Type::uint64;
+            return DataStruct::Type::uint64;
         }
         break;
     case uint8_t(nb::dlpack::dtype_code::Float):
         switch (dtype.bits) {
         case 16:
-            return Struct::Type::float16;
+            return DataStruct::Type::float16;
         case 32:
-            return Struct::Type::float32;
+            return DataStruct::Type::float32;
         case 64:
-            return Struct::Type::float64;
+            return DataStruct::Type::float64;
         }
         break;
     }

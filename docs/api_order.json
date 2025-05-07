@@ -4,7 +4,7 @@
         "slangpy.Object",
         "slangpy.Bitmap",
         "slangpy.DataStruct",
-        "slangpy.StructConverter",
+        "slangpy.DataStructConverter",
         "slangpy.Timer",
         "slangpy.SHA1"
     ],

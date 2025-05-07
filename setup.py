@@ -108,6 +108,10 @@ with open("README.md", "r") as f:
 setup(
     version=version,
     packages=find_packages(),
+    package_data={
+        "slangpy": ["slang/*.slang"],
+    },
+    include_package_data=True,
     ext_modules=[CMakeExtension("slangpy.slangpy_ext")],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,

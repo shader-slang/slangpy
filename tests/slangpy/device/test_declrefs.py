@@ -791,6 +791,7 @@ HASHGRID_NO_GENERICS_DUMP = {
 
 
 @pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.skip("Breaks with current slang release")
 def test_ast_cursor_hashgrid_nogenerics(device_type: spy.DeviceType):
 
     device = helpers.get_device(type=device_type)

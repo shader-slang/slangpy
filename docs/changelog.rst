@@ -7,8 +7,30 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.27.0 (TBA)
+----------------------------
 
-Version 0.24.0 (TBA)
+- Rename ``sgl::Struct`` to ``sgl::DataStruct`` to match ``slangpy.DataStruct``.
+  Rename ``sgl::StructConverter`` to ``sgl::DataStructConverter``
+  and ``slangpy.StructConverter`` to ``slangpy.DataStructConverter``.
+  (PR `#185 <https://github.com/shader-slang/slangpy/pull/185>`__).
+
+
+Version 0.26.0
+----------------------------
+
+- Port samples to use new combined SlangPy/SGL API
+- CUDA and Metal fixes
+- Initial deployment of wheels for macOS
+
+
+Version 0.25.0
+----------------------------
+
+- Fix deploying slangpy shader files
+
+
+Version 0.24.0
 ----------------------------
 
 - Merge SGL (https://github.com/shader-slang/sgl) into SlangPy.

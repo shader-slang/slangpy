@@ -153,7 +153,7 @@ extension float16_t : IPrintable {
     [ForceInline]
     static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return f32tof16(this); }
+    uint get_printable_data(uint index) { return asuint16(this); }
 }
 
 extension float : IPrintable {

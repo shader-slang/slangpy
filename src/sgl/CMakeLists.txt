@@ -14,6 +14,8 @@ target_sources(sgl PRIVATE
     core/bitmap.h
     core/crypto.cpp
     core/crypto.h
+    core/data_struct.cpp
+    core/data_struct.h
     core/data_type.h
     core/dds_file.cpp
     core/dds_file.h
@@ -54,8 +56,6 @@ target_sources(sgl PRIVATE
     core/stream.h
     core/string.cpp
     core/string.h
-    core/struct.cpp
-    core/struct.h
     core/thread.cpp
     core/thread.h
     core/timer.cpp

@@ -148,7 +148,7 @@ Bitmap::Bitmap(
 Bitmap::Bitmap(const Bitmap& other)
     : m_pixel_format(other.m_pixel_format)
     , m_component_type(other.m_component_type)
-    , m_pixel_struct(new Struct(*other.m_pixel_struct))
+    , m_pixel_struct(new DataStruct(*other.m_pixel_struct))
     , m_width(other.m_width)
     , m_height(other.m_height)
     , m_srgb_gamma(other.m_srgb_gamma)
@@ -299,12 +299,12 @@ void Bitmap::set_srgb_gamma(bool srgb_gamma)
     m_srgb_gamma = srgb_gamma;
     // Adjust pixel struct flags.
     if (m_pixel_format != PixelFormat::multi_channel) {
-        for (Struct::Field& field : *m_pixel_struct) {
+        for (DataStruct::Field& field : *m_pixel_struct) {
             if (field.name != "A") {
                 if (m_srgb_gamma)
-                    field.flags |= Struct::Flags::srgb_gamma;
+                    field.flags |= DataStruct::Flags::srgb_gamma;
                 else
-                    field.flags &= ~Struct::Flags::srgb_gamma;
+                    field.flags &= ~DataStruct::Flags::srgb_gamma;
             }
         }
     }
@@ -335,8 +335,8 @@ std::vector<std::pair<std::string, ref<Bitmap>>> Bitmap::split() const
         return {{"", ref(const_cast<Bitmap*>(this))}};
 
     // Split fields by prefix.
-    std::multimap<std::string, std::pair<std::string, Struct::Field*>> split_fields;
-    for (Struct::Field& field : *m_pixel_struct) {
+    std::multimap<std::string, std::pair<std::string, DataStruct::Field*>> split_fields;
+    for (DataStruct::Field& field : *m_pixel_struct) {
         size_t pos = field.name.find_last_of(".");
         std::string prefix;
         std::string suffix;
@@ -395,14 +395,14 @@ std::vector<std::pair<std::string, ref<Bitmap>>> Bitmap::split() const
 
         target->set_srgb_gamma(m_srgb_gamma);
 
-        ref<Struct> target_struct = ref(new Struct(*target->pixel_struct()));
+        ref<DataStruct> target_struct = ref(new DataStruct(*target->pixel_struct()));
         for (auto it2 = range.first; it2 != range.second; ++it2) {
             std::string field_name
                 = pixel_format == PixelFormat::multi_channel ? it2->second.first : string::to_upper(it2->second.first);
             target_struct->field(field_name).name = it2->second.second->name;
         }
 
-        StructConverter converter(m_pixel_struct, target_struct);
+        DataStructConverter converter(m_pixel_struct, target_struct);
         converter.convert(data(), target->data(), pixel_count());
 
         result.push_back({prefix, target});
@@ -441,10 +441,10 @@ void Bitmap::convert(Bitmap* target) const
     bool src_is_rgb = m_pixel_format == PixelFormat::rgb || m_pixel_format == PixelFormat::rgba;
     bool src_is_y = m_pixel_format == PixelFormat::y || m_pixel_format == PixelFormat::ya;
 
-    const Struct* src_struct = pixel_struct();
-    ref<Struct> dst_struct = make_ref<Struct>(*target->pixel_struct());
+    const DataStruct* src_struct = pixel_struct();
+    ref<DataStruct> dst_struct = make_ref<DataStruct>(*target->pixel_struct());
 
-    for (Struct::Field& field : *dst_struct) {
+    for (DataStruct::Field& field : *dst_struct) {
         if (src_struct->has_field(field.name)) {
             continue;
         }
@@ -476,14 +476,14 @@ void Bitmap::convert(Bitmap* target) const
             }
         }
         if (field.name == "A") {
-            field.default_value = Struct::is_float(field.type) ? 1.0 : Struct::type_range(field.type).second;
-            field.flags |= Struct::Flags::default_;
+            field.default_value = DataStruct::is_float(field.type) ? 1.0 : DataStruct::type_range(field.type).second;
+            field.flags |= DataStruct::Flags::default_;
             continue;
         }
         SGL_THROW("Unable to convert bitmap: cannot determine how to derive field \"{}\" in target image!", field.name);
     }
 
-    ref<StructConverter> converter = make_ref<StructConverter>(src_struct, dst_struct);
+    ref<DataStructConverter> converter = make_ref<DataStructConverter>(src_struct, dst_struct);
     converter->convert(data(), target->data(), pixel_count());
 }
 
@@ -604,14 +604,14 @@ void Bitmap::rebuild_pixel_struct(uint32_t channel_count, const std::vector<std:
         break;
     }
 
-    m_pixel_struct = make_ref<Struct>();
+    m_pixel_struct = make_ref<DataStruct>();
     for (const auto& channel : channels) {
         bool is_alpha = m_pixel_format != PixelFormat::multi_channel && channel == "A";
-        Struct::Flags flags = Struct::Flags::none;
-        if (Struct::is_integer(m_component_type) && Struct::type_size(m_component_type) <= 2)
-            flags |= Struct::Flags::normalized;
+        DataStruct::Flags flags = DataStruct::Flags::none;
+        if (DataStruct::is_integer(m_component_type) && DataStruct::type_size(m_component_type) <= 2)
+            flags |= DataStruct::Flags::normalized;
         if (m_srgb_gamma && !is_alpha)
-            flags |= Struct::Flags::srgb_gamma;
+            flags |= DataStruct::Flags::srgb_gamma;
         m_pixel_struct->append(channel, m_component_type, flags);
     }
 }
@@ -1544,7 +1544,7 @@ void Bitmap::read_exr(Stream* stream)
     // m_srgb_gamma = false;
     // m_premultiplied_alpha = true;
     // m_pixel_format = PixelFormat::MultiChannel;
-    // m_struct = new Struct();
+    // m_struct = new DataStruct();
     Imf::PixelType pixel_type = channels.begin().channel().type;
 
     switch (pixel_type) {
@@ -1621,7 +1621,7 @@ void Bitmap::read_exr(Stream* stream)
     );
 
     // Create pixel struct.
-    m_pixel_struct = ref(new Struct());
+    m_pixel_struct = ref(new DataStruct());
     for (const auto& name : channels_sorted) {
         m_pixel_struct->append(name, m_component_type);
     }
@@ -1750,7 +1750,7 @@ void Bitmap::read_exr(Stream* stream)
             m_size.y());
 
         buf.second = buf.second->resample(m_size);
-        const Struct::Field& field = m_struct->field(buf.first);
+        const DataStruct::Field& field = m_struct->field(buf.first);
 
         size_t comp_size = field.size;
         uint8_t* dst = uint8_data() + field.offset;
@@ -1886,13 +1886,13 @@ void Bitmap::read_exr(Stream* stream)
         };
 
         switch (m_component_format) {
-        case Struct::Type::Float16:
+        case DataStruct::Type::Float16:
             convert((dr::half*)m_data.get());
             break;
-        case Struct::Type::Float32:
+        case DataStruct::Type::Float32:
             convert((float*)m_data.get());
             break;
-        case Struct::Type::UInt32:
+        case DataStruct::Type::UInt32:
             convert((uint32_t*)m_data.get());
             break;
         default:
@@ -2030,7 +2030,7 @@ void Bitmap::write_exr(Stream* stream, int quality) const
         SGL_THROW("Unsupported component type!");
     }
 
-    size_t component_size = Struct::type_size(m_component_type);
+    size_t component_size = DataStruct::type_size(m_component_type);
     size_t pixel_stride = m_pixel_struct->size();
     size_t row_stride = pixel_stride * m_width;
 
@@ -2146,7 +2146,7 @@ void Bitmap::read_exr(Stream* stream)
     );
 
     // Create pixel struct.
-    m_pixel_struct = ref(new Struct());
+    m_pixel_struct = ref(new DataStruct());
     for (const auto& name : channels_sorted) {
         m_pixel_struct->append(name, m_component_type);
     }
@@ -2211,7 +2211,7 @@ void Bitmap::read_exr(Stream* stream)
     m_width = header.data_window.max_x - header.data_window.min_x + 1;
     m_height = header.data_window.max_y - header.data_window.min_y + 1;
 
-    size_t component_size = Struct::type_size(m_component_type);
+    size_t component_size = DataStruct::type_size(m_component_type);
     size_t pixel_stride = this->bytes_per_pixel();
     size_t pixel_count = this->pixel_count();
     size_t row_stride = pixel_stride * m_width;
@@ -2290,7 +2290,7 @@ void Bitmap::write_exr(Stream* stream, int quality) const
     header.requested_pixel_types = pixel_types.data();
 
     // Convert interleaved data to planar format.
-    size_t component_size = Struct::type_size(m_component_type);
+    size_t component_size = DataStruct::type_size(m_component_type);
     size_t pixel_stride = m_pixel_struct->size();
     size_t row_stride = pixel_stride * m_width;
     size_t plane_size = row_stride * m_height;

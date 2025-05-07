@@ -50,7 +50,7 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
 #include "sgl/core/stream.h"
-#include "sgl/core/struct.h"
+#include "sgl/core/data_struct.h"
 
 #include <filesystem>
 #include <future>
@@ -121,7 +121,7 @@ public:
         }
     );
 
-    using ComponentType = Struct::Type;
+    using ComponentType = DataStruct::Type;
 
     Bitmap(
         PixelFormat pixel_format,
@@ -161,8 +161,8 @@ public:
     /// The component type.
     ComponentType component_type() const { return m_component_type; }
 
-    /// Struct describing the pixel layout.
-    const Struct* pixel_struct() const { return m_pixel_struct; }
+    /// DataStruct describing the pixel layout.
+    const DataStruct* pixel_struct() const { return m_pixel_struct; }
 
     /// The width of the bitmap in pixels.
     uint32_t width() const { return m_width; }
@@ -288,7 +288,7 @@ private:
 
     PixelFormat m_pixel_format;
     ComponentType m_component_type;
-    ref<Struct> m_pixel_struct;
+    ref<DataStruct> m_pixel_struct;
     uint32_t m_width;
     uint32_t m_height;
     bool m_srgb_gamma;

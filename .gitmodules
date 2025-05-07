@@ -6,10 +6,10 @@
 	url = https://github.com/microsoft/vcpkg.git
 [submodule "data"]
 	path = data
-	url = https://github.com/shader-slang/sgl-data.git
+	url = https://github.com/shader-slang/slangpy-data.git
 [submodule "samples"]
 	path = samples
-	url = https://github.com/shader-slang/sgl-tutorials.git
+	url = https://github.com/shader-slang/slangpy-samples.git
 [submodule "external/fmt"]
 	path = external/fmt
 	url = https://github.com/fmtlib/fmt.git

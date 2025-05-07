@@ -6454,20 +6454,20 @@ static const char *__doc_sgl_Stream_write =
 R"doc(Write data to the stream. Throws an exception if not all data could be
 written.)doc";
 
-static const char *__doc_sgl_Struct =
+static const char *__doc_sgl_DataStruct =
 R"doc(Structured data definition.
 
 This class is used to describe a structured data type layout. It is
-used by the StructConverter class to convert between different
+used by the DataStructConverter class to convert between different
 layouts.)doc";
 
-static const char *__doc_sgl_StructConverter =
-R"doc(Struct converter.
+static const char *__doc_sgl_DataStructConverter =
+R"doc(Data struct converter.
 
 This helper class can be used to convert between structs with
 different layouts.)doc";
 
-static const char *__doc_sgl_StructConverter_StructConverter =
+static const char *__doc_sgl_DataStructConverter_DataStructConverter =
 R"doc(Constructor.
 
 Parameter ``src``:
@@ -6476,9 +6476,9 @@ Parameter ``src``:
 Parameter ``dst``:
     Destination struct definition.)doc";
 
-static const char *__doc_sgl_StructConverter_class_name = R"doc()doc";
+static const char *__doc_sgl_DataStructConverter_class_name = R"doc()doc";
 
-static const char *__doc_sgl_StructConverter_convert =
+static const char *__doc_sgl_DataStructConverter_convert =
 R"doc(Convert data from source struct to destination struct.
 
 Parameter ``src``:
@@ -6490,82 +6490,82 @@ Parameter ``dst``:
 Parameter ``count``:
     Number of structs to convert.)doc";
 
-static const char *__doc_sgl_StructConverter_dst = R"doc(The destination struct definition.)doc";
+static const char *__doc_sgl_DataStructConverter_dst = R"doc(The destination struct definition.)doc";
 
-static const char *__doc_sgl_StructConverter_m_dst = R"doc()doc";
+static const char *__doc_sgl_DataStructConverter_m_dst = R"doc()doc";
 
-static const char *__doc_sgl_StructConverter_m_src = R"doc()doc";
+static const char *__doc_sgl_DataStructConverter_m_src = R"doc()doc";
 
-static const char *__doc_sgl_StructConverter_src = R"doc(The source struct definition.)doc";
+static const char *__doc_sgl_DataStructConverter_src = R"doc(The source struct definition.)doc";
 
-static const char *__doc_sgl_StructConverter_to_string = R"doc()doc";
+static const char *__doc_sgl_DataStructConverter_to_string = R"doc()doc";
 
-static const char *__doc_sgl_Struct_ByteOrder = R"doc(Byte order.)doc";
+static const char *__doc_sgl_DataStruct_ByteOrder = R"doc(Byte order.)doc";
 
-static const char *__doc_sgl_Struct_ByteOrder_big_endian = R"doc()doc";
+static const char *__doc_sgl_DataStruct_ByteOrder_big_endian = R"doc()doc";
 
-static const char *__doc_sgl_Struct_ByteOrder_host = R"doc()doc";
+static const char *__doc_sgl_DataStruct_ByteOrder_host = R"doc()doc";
 
-static const char *__doc_sgl_Struct_ByteOrder_info = R"doc()doc";
+static const char *__doc_sgl_DataStruct_ByteOrder_info = R"doc()doc";
 
-static const char *__doc_sgl_Struct_ByteOrder_info_items = R"doc()doc";
+static const char *__doc_sgl_DataStruct_ByteOrder_info_items = R"doc()doc";
 
-static const char *__doc_sgl_Struct_ByteOrder_info_name = R"doc()doc";
+static const char *__doc_sgl_DataStruct_ByteOrder_info_name = R"doc()doc";
 
-static const char *__doc_sgl_Struct_ByteOrder_little_endian = R"doc()doc";
+static const char *__doc_sgl_DataStruct_ByteOrder_little_endian = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Field = R"doc(Struct field.)doc";
+static const char *__doc_sgl_DataStruct_Field = R"doc(Struct field.)doc";
 
-static const char *__doc_sgl_Struct_Field_blend =
-R"doc(List of blend weights and names. If set, the ``StructConverter`` will
+static const char *__doc_sgl_DataStruct_Field_blend =
+R"doc(List of blend weights and names. If set, the ``DataStructConverter`` will
 blend fields from the source struct with the specified weights to
 generate the destination field. Blending is done in linear space.)doc";
 
-static const char *__doc_sgl_Struct_Field_default_value = R"doc(Default value.)doc";
+static const char *__doc_sgl_DataStruct_Field_default_value = R"doc(Default value.)doc";
 
-static const char *__doc_sgl_Struct_Field_flags = R"doc(Field flags.)doc";
+static const char *__doc_sgl_DataStruct_Field_flags = R"doc(Field flags.)doc";
 
-static const char *__doc_sgl_Struct_Field_is_float = R"doc(Check if the field is a floating point type.)doc";
+static const char *__doc_sgl_DataStruct_Field_is_float = R"doc(Check if the field is a floating point type.)doc";
 
-static const char *__doc_sgl_Struct_Field_is_integer = R"doc(Check if the field is an integer type.)doc";
+static const char *__doc_sgl_DataStruct_Field_is_integer = R"doc(Check if the field is an integer type.)doc";
 
-static const char *__doc_sgl_Struct_Field_is_signed = R"doc(Check if the field is a signed type.)doc";
+static const char *__doc_sgl_DataStruct_Field_is_signed = R"doc(Check if the field is a signed type.)doc";
 
-static const char *__doc_sgl_Struct_Field_is_unsigned = R"doc(Check if the field is an unsigned type.)doc";
+static const char *__doc_sgl_DataStruct_Field_is_unsigned = R"doc(Check if the field is an unsigned type.)doc";
 
-static const char *__doc_sgl_Struct_Field_name = R"doc(Name of the field.)doc";
+static const char *__doc_sgl_DataStruct_Field_name = R"doc(Name of the field.)doc";
 
-static const char *__doc_sgl_Struct_Field_offset = R"doc(Offset of the field in bytes.)doc";
+static const char *__doc_sgl_DataStruct_Field_offset = R"doc(Offset of the field in bytes.)doc";
 
-static const char *__doc_sgl_Struct_Field_operator_eq = R"doc(Equality operator.)doc";
+static const char *__doc_sgl_DataStruct_Field_operator_eq = R"doc(Equality operator.)doc";
 
-static const char *__doc_sgl_Struct_Field_operator_ne = R"doc(Inequality operator.)doc";
+static const char *__doc_sgl_DataStruct_Field_operator_ne = R"doc(Inequality operator.)doc";
 
-static const char *__doc_sgl_Struct_Field_size = R"doc(Size of the field in bytes.)doc";
+static const char *__doc_sgl_DataStruct_Field_size = R"doc(Size of the field in bytes.)doc";
 
-static const char *__doc_sgl_Struct_Field_to_string = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Field_to_string = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Field_type = R"doc(Type of the field.)doc";
+static const char *__doc_sgl_DataStruct_Field_type = R"doc(Type of the field.)doc";
 
-static const char *__doc_sgl_Struct_Flags = R"doc(Struct field flags.)doc";
+static const char *__doc_sgl_DataStruct_Flags = R"doc(Struct field flags.)doc";
 
-static const char *__doc_sgl_Struct_Flags_default =
+static const char *__doc_sgl_DataStruct_Flags_default =
 R"doc(Use default when field is not present in the source struct during
 conversion.)doc";
 
-static const char *__doc_sgl_Struct_Flags_info = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Flags_info = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Flags_info_items = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Flags_info_items = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Flags_info_name = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Flags_info_name = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Flags_none = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Flags_none = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Flags_normalized = R"doc(Integer fields represent normalized values in the range [0, 1].)doc";
+static const char *__doc_sgl_DataStruct_Flags_normalized = R"doc(Integer fields represent normalized values in the range [0, 1].)doc";
 
-static const char *__doc_sgl_Struct_Flags_srgb_gamma = R"doc(Field encodes an sRGB gamma-corrected value.)doc";
+static const char *__doc_sgl_DataStruct_Flags_srgb_gamma = R"doc(Field encodes an sRGB gamma-corrected value.)doc";
 
-static const char *__doc_sgl_Struct_Struct =
+static const char *__doc_sgl_DataStruct_DataStruct =
 R"doc(Constructor.
 
 Parameter ``pack``:
@@ -6574,41 +6574,41 @@ Parameter ``pack``:
 Parameter ``byte_order``:
     Byte order of the struct.)doc";
 
-static const char *__doc_sgl_Struct_Type = R"doc(Struct field type.)doc";
+static const char *__doc_sgl_DataStruct_Type = R"doc(Struct field type.)doc";
 
-static const char *__doc_sgl_Struct_Type_float16 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_float16 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_float32 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_float32 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_float64 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_float64 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_info = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_info = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_info_items = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_info_items = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_info_name = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_info_name = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_int16 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_int16 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_int32 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_int32 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_int64 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_int64 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_int8 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_int8 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_uint16 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_uint16 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_uint32 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_uint32 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_uint64 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_uint64 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_Type_uint8 = R"doc()doc";
+static const char *__doc_sgl_DataStruct_Type_uint8 = R"doc()doc";
 
-static const char *__doc_sgl_Struct_alignment = R"doc(The alignment of the struct in bytes.)doc";
+static const char *__doc_sgl_DataStruct_alignment = R"doc(The alignment of the struct in bytes.)doc";
 
-static const char *__doc_sgl_Struct_append = R"doc(Append a field to the struct.)doc";
+static const char *__doc_sgl_DataStruct_append = R"doc(Append a field to the struct.)doc";
 
-static const char *__doc_sgl_Struct_append_2 =
+static const char *__doc_sgl_DataStruct_append_2 =
 R"doc(Append a field to the struct.
 
 Parameter ``name``:
@@ -6629,57 +6629,57 @@ Parameter ``blend``:
 Returns:
     Reference to the struct.)doc";
 
-static const char *__doc_sgl_Struct_begin = R"doc(Field iterator (begin).)doc";
+static const char *__doc_sgl_DataStruct_begin = R"doc(Field iterator (begin).)doc";
 
-static const char *__doc_sgl_Struct_begin_2 = R"doc(Const field iterator (begin).)doc";
+static const char *__doc_sgl_DataStruct_begin_2 = R"doc(Const field iterator (begin).)doc";
 
-static const char *__doc_sgl_Struct_byte_order = R"doc(The byte order of the struct.)doc";
+static const char *__doc_sgl_DataStruct_byte_order = R"doc(The byte order of the struct.)doc";
 
-static const char *__doc_sgl_Struct_class_name = R"doc()doc";
+static const char *__doc_sgl_DataStruct_class_name = R"doc()doc";
 
-static const char *__doc_sgl_Struct_end = R"doc(Field iterator (end).)doc";
+static const char *__doc_sgl_DataStruct_end = R"doc(Field iterator (end).)doc";
 
-static const char *__doc_sgl_Struct_end_2 = R"doc(Const field iterator (end).)doc";
+static const char *__doc_sgl_DataStruct_end_2 = R"doc(Const field iterator (end).)doc";
 
-static const char *__doc_sgl_Struct_field = R"doc(Access field by name. Throws if field is not found.)doc";
+static const char *__doc_sgl_DataStruct_field = R"doc(Access field by name. Throws if field is not found.)doc";
 
-static const char *__doc_sgl_Struct_field_2 = R"doc(Access field by name. Throws if field is not found.)doc";
+static const char *__doc_sgl_DataStruct_field_2 = R"doc(Access field by name. Throws if field is not found.)doc";
 
-static const char *__doc_sgl_Struct_field_count = R"doc(The number of fields in the struct.)doc";
+static const char *__doc_sgl_DataStruct_field_count = R"doc(The number of fields in the struct.)doc";
 
-static const char *__doc_sgl_Struct_has_field = R"doc(Check if a field with the specified name exists.)doc";
+static const char *__doc_sgl_DataStruct_has_field = R"doc(Check if a field with the specified name exists.)doc";
 
-static const char *__doc_sgl_Struct_host_byte_order = R"doc(The host byte order.)doc";
+static const char *__doc_sgl_DataStruct_host_byte_order = R"doc(The host byte order.)doc";
 
-static const char *__doc_sgl_Struct_is_float = R"doc(Check if ``type`` is a floating point type.)doc";
+static const char *__doc_sgl_DataStruct_is_float = R"doc(Check if ``type`` is a floating point type.)doc";
 
-static const char *__doc_sgl_Struct_is_integer = R"doc(Check if ``type`` is an integer type.)doc";
+static const char *__doc_sgl_DataStruct_is_integer = R"doc(Check if ``type`` is an integer type.)doc";
 
-static const char *__doc_sgl_Struct_is_signed = R"doc(Check if ``type`` is a signed type.)doc";
+static const char *__doc_sgl_DataStruct_is_signed = R"doc(Check if ``type`` is a signed type.)doc";
 
-static const char *__doc_sgl_Struct_is_unsigned = R"doc(Check if ``type`` is an unsigned type.)doc";
+static const char *__doc_sgl_DataStruct_is_unsigned = R"doc(Check if ``type`` is an unsigned type.)doc";
 
-static const char *__doc_sgl_Struct_m_byte_order = R"doc()doc";
+static const char *__doc_sgl_DataStruct_m_byte_order = R"doc()doc";
 
-static const char *__doc_sgl_Struct_m_fields = R"doc()doc";
+static const char *__doc_sgl_DataStruct_m_fields = R"doc()doc";
 
-static const char *__doc_sgl_Struct_m_pack = R"doc()doc";
+static const char *__doc_sgl_DataStruct_m_pack = R"doc()doc";
 
-static const char *__doc_sgl_Struct_operator_array = R"doc(Access field by index.)doc";
+static const char *__doc_sgl_DataStruct_operator_array = R"doc(Access field by index.)doc";
 
-static const char *__doc_sgl_Struct_operator_array_2 = R"doc(Access field by index.)doc";
+static const char *__doc_sgl_DataStruct_operator_array_2 = R"doc(Access field by index.)doc";
 
-static const char *__doc_sgl_Struct_operator_eq = R"doc(Equality operator.)doc";
+static const char *__doc_sgl_DataStruct_operator_eq = R"doc(Equality operator.)doc";
 
-static const char *__doc_sgl_Struct_operator_ne = R"doc(Inequality operator.)doc";
+static const char *__doc_sgl_DataStruct_operator_ne = R"doc(Inequality operator.)doc";
 
-static const char *__doc_sgl_Struct_size = R"doc(The size of the struct in bytes (with padding).)doc";
+static const char *__doc_sgl_DataStruct_size = R"doc(The size of the struct in bytes (with padding).)doc";
 
-static const char *__doc_sgl_Struct_to_string = R"doc()doc";
+static const char *__doc_sgl_DataStruct_to_string = R"doc()doc";
 
-static const char *__doc_sgl_Struct_type_range = R"doc(Get the numeric range of a type.)doc";
+static const char *__doc_sgl_DataStruct_type_range = R"doc(Get the numeric range of a type.)doc";
 
-static const char *__doc_sgl_Struct_type_size = R"doc(Get the size of a type in bytes.)doc";
+static const char *__doc_sgl_DataStruct_type_size = R"doc(Get the size of a type in bytes.)doc";
 
 static const char *__doc_sgl_SubresourceData = R"doc()doc";
 

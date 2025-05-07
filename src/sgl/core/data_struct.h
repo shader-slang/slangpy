@@ -58,10 +58,10 @@ namespace sgl {
  * \brief Structured data definition.
  *
  * This class is used to describe a structured data type layout.
- * It is used by the \ref StructConverter class to convert between different layouts.
+ * It is used by the \ref DataStructConverter class to convert between different layouts.
  */
-class SGL_API Struct : Object {
-    SGL_OBJECT(Struct)
+class SGL_API DataStruct : Object {
+    SGL_OBJECT(DataStruct)
 public:
     /// Struct field type.
     enum class Type {
@@ -157,22 +157,22 @@ public:
         using BlendList = std::vector<std::pair<double, std::string>>;
 
         /// List of blend weights and names.
-        /// If set, the \c StructConverter will blend fields from the source struct
+        /// If set, the \c DataStructConverter will blend fields from the source struct
         /// with the specified weights to generate the destination field.
         /// Blending is done in linear space.
         BlendList blend;
 
         /// Check if the field is an integer type.
-        bool is_integer() const { return Struct::is_integer(type); }
+        bool is_integer() const { return DataStruct::is_integer(type); }
 
         /// Check if the field is a floating point type.
-        bool is_float() const { return Struct::is_float(type); }
+        bool is_float() const { return DataStruct::is_float(type); }
 
         /// Check if the field is an unsigned type.
-        bool is_unsigned() const { return Struct::is_unsigned(type); }
+        bool is_unsigned() const { return DataStruct::is_unsigned(type); }
 
         /// Check if the field is a signed type.
-        bool is_signed() const { return Struct::is_signed(type); }
+        bool is_signed() const { return DataStruct::is_signed(type); }
 
         /// Equality operator.
         bool operator==(const Field& other) const
@@ -196,13 +196,13 @@ public:
     /// Constructor.
     /// \param pack If true, the struct will be packed.
     /// \param byte_order Byte order of the struct.
-    Struct(bool pack = true, ByteOrder byte_order = ByteOrder::host);
+    DataStruct(bool pack = true, ByteOrder byte_order = ByteOrder::host);
 
     /// The byte order of the struct.
     ByteOrder byte_order() const { return m_byte_order; }
 
     /// Append a field to the struct.
-    Struct& append(Field field);
+    DataStruct& append(Field field);
 
     /// Append a field to the struct.
     /// \param name Name of the field.
@@ -211,7 +211,7 @@ public:
     /// \param default_value Default value.
     /// \param blend List of blend weights/names.
     /// \return Reference to the struct.
-    Struct& append(
+    DataStruct& append(
         std::string_view name,
         Type type,
         Flags flags = Flags::none,
@@ -256,16 +256,16 @@ public:
     size_t alignment() const;
 
     /// Equality operator.
-    bool operator==(const Struct& other) const
+    bool operator==(const DataStruct& other) const
     {
         return m_pack == other.m_pack && m_byte_order == other.m_byte_order && m_fields == other.m_fields;
     }
 
     /// Inequality operator.
-    bool operator!=(const Struct& other) const { return !operator==(other); }
+    bool operator!=(const DataStruct& other) const { return !operator==(other); }
 
     /// Compute hash from the struct.
-    SGL_API friend size_t hash(const Struct& struct_);
+    SGL_API friend size_t hash(const DataStruct& struct_);
 
     std::string to_string() const override;
 
@@ -320,29 +320,29 @@ private:
     std::vector<Field> m_fields;
 };
 
-SGL_ENUM_REGISTER(Struct::Type);
-SGL_ENUM_REGISTER(Struct::Flags);
-SGL_ENUM_CLASS_OPERATORS(Struct::Flags);
-SGL_ENUM_REGISTER(Struct::ByteOrder);
+SGL_ENUM_REGISTER(DataStruct::Type);
+SGL_ENUM_REGISTER(DataStruct::Flags);
+SGL_ENUM_CLASS_OPERATORS(DataStruct::Flags);
+SGL_ENUM_REGISTER(DataStruct::ByteOrder);
 
 /**
- * \brief Struct converter.
+ * \brief Data struct converter.
  *
  * This helper class can be used to convert between structs with different layouts.
  */
-class SGL_API StructConverter : Object {
-    SGL_OBJECT(StructConverter)
+class SGL_API DataStructConverter : Object {
+    SGL_OBJECT(DataStructConverter)
 public:
     /// Constructor.
     /// \param src Source struct definition.
     /// \param dst Destination struct definition.
-    StructConverter(const Struct* src, const Struct* dst);
+    DataStructConverter(const DataStruct* src, const DataStruct* dst);
 
     /// The source struct definition.
-    const Struct* src() const { return m_src; }
+    const DataStruct* src() const { return m_src; }
 
     /// The destination struct definition.
-    const Struct* dst() const { return m_dst; }
+    const DataStruct* dst() const { return m_dst; }
 
     /// Convert data from source struct to destination struct.
     /// \param src Source data.
@@ -353,8 +353,8 @@ public:
     std::string to_string() const override;
 
 private:
-    ref<const Struct> m_src;
-    ref<const Struct> m_dst;
+    ref<const DataStruct> m_src;
+    ref<const DataStruct> m_dst;
 };
 
 } // namespace sgl
