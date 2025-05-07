@@ -163,6 +163,25 @@
                 "VCPKG_TARGET_TRIPLET": "arm64-osx",
                 "CMAKE_APPLE_SILICON_PROCESSOR": "arm64"
             }
+        },
+        {
+            "name": "nix-base",
+            "description": "Configuration for nix.",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "binaryDir": "${sourceDir}/build/${presetName}"
+        },
+        {
+            "name": "nix-gcc",
+            "description": "Base Nix/GCC configuration.",
+            "inherits": "nix-base",
+            "generator": "Ninja Multi-Config",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++"
+            }
         }
     ],
     "buildPresets": [
@@ -212,6 +231,18 @@
             "name": "linux-gcc-debug",
             "displayName": "Debug",
             "configurePreset": "linux-gcc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "nix-gcc-release",
+            "displayName": "Release",
+            "configurePreset": "nix-gcc",
+            "configuration": "Release"
+        },
+        {
+            "name": "nix-gcc-debug",
+            "displayName": "Debug",
+            "configurePreset": "nix-gcc",
             "configuration": "Debug"
         },
         {

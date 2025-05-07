@@ -6,10 +6,13 @@ docs/_build/
 
 .DS_Store
 *.pyc
+.direnv
 
 .vscode/
 .vs/
 .temp/
+.cache/clangd/index
+compile_commands.json
 
 # Python files installed into source tree
 slangpy/**/*.pyi
@@ -19,3 +22,5 @@ slangpy/*.ilk
 slangpy/*.so
 slangpy/.build_dir
 slangpy.egg-info/
+.cache/clangd/index
+compile_commands.json

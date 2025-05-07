@@ -21,7 +21,9 @@ except ImportError:
 
 SOURCE_DIR = Path(__file__).parent.resolve()
 
-if sys.platform.startswith("win"):
+if os.getenv("USE_NIX", "False").lower() in ("true", "1", "t"):
+    PLATFORM = "nix"
+elif sys.platform.startswith("win"):
     PLATFORM = "windows"
 elif sys.platform.startswith("linux"):
     PLATFORM = "linux"
@@ -31,6 +33,7 @@ else:
     raise Exception(f"Unsupported platform: {sys.platform}")
 
 CMAKE_PRESET = {
+    "nix": "nix-gcc",
     "windows": "windows-msvc",
     "linux": "linux-gcc",
     "macos": "macos-arm64-clang",
