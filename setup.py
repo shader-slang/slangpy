@@ -48,6 +48,10 @@ class CMakeExtension(Extension):
 
 class CMakeBuild(build_ext):
     def build_extension(self, ext: CMakeExtension) -> None:
+        if os.environ.get('NO_CMAKE_BUILD') == '1':
+            print("Skipping CMake build as per NO_CMAKE_BUILD environment variable.")
+            return
+
         # Must be in this form due to bug in .resolve() only fixed in Python 3.10+
         ext_fullpath = Path.cwd() / self.get_ext_fullpath(ext.name)
         extdir = ext_fullpath.parent.resolve()
@@ -105,6 +109,10 @@ with open("src/sgl/sgl.h") as f:
 with open("README.md", "r") as f:
     long_description = f.read()
 
+current_ext_modules = []
+if os.environ.get('NO_CMAKE_BUILD') != '1':
+    current_ext_modules = [CMakeExtension("slangpy.slangpy_ext")]
+
 setup(
     version=version,
     packages=['slangpy'],
@@ -112,7 +120,7 @@ setup(
         "slangpy": ["slang/*.slang"],
     },
     include_package_data=True,
-    ext_modules=[CMakeExtension("slangpy.slangpy_ext")],
+    ext_modules=current_ext_modules,
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
 )
