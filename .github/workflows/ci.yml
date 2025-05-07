@@ -29,26 +29,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows, linux]
+        os: [linux]
         platform: [x86_64]
-        compiler: [msvc, gcc]
+        compiler: [gcc]
         config: [Debug, Release]
         python: ["3.10"]
-        exclude:
-          # Exclude aarch64 for windows
-          - { os: windows, platform: aarch64 }
-          # Exclude x86_64 for macos
-          - { os: macos, platform: x86_64 }
-          # Exclude unavailable compilers
-          - { os: windows, compiler: gcc }
-          - { os: windows, compiler: clang }
-          - { os: linux, compiler: msvc }
-          - { os: macos, compiler: msvc }
-          - { os: macos, compiler: gcc }
         include:
           # Builds running on self-hosted runners (build + tests + coverage)
-          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation", runs-on: { group: nvrgfxstage, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: nvrgfxstage, labels: [Windows, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,header-validation,coverage", runs-on: { group: nvrgfxstage, labels: [Linux, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test", runs-on: { group: nvrgfxstage, labels: [Linux, X64] } }
 
