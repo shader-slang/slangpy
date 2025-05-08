@@ -676,7 +676,7 @@ struct less<::sgl::ref<T>> {
 
 template<typename T>
 struct hash<::sgl::ref<T>> {
-    constexpr int operator()(const ::sgl::ref<T>& r) const { return std::hash<T*>()(r.get()); }
+    constexpr size_t operator()(const ::sgl::ref<T>& r) const { return std::hash<T*>()(r.get()); }
 };
 
 
