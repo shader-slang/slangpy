@@ -163,7 +163,7 @@ def typing_check_python(args: Any):
 def unit_test_python(args: Any):
     env = get_python_env(args)
     os.makedirs("reports", exist_ok=True)
-    run_command(f"pytest tests -r a --junit-xml=reports/pytest-junit.xml", env=env)
+    run_command(f"pytest slangpy/tests -r a --junit-xml=reports/pytest-junit.xml", env=env)
 
 
 def coverage_report(args: Any):
