@@ -125,7 +125,6 @@ float3 disneyBrdf(no_diff float3 albedo, float3 normal, float roughness, no_diff
     float3 L = normalize(lightDir);              // Light direction.
     float3 V = normalize(viewDir);               // View direction.
 
-    //float roughness = 0.4;
     float metallic = 0.0;
     float specular = 1.0;
 
@@ -223,7 +222,8 @@ float calculateL2Loss(no_diff float3 target, float3 input)
 
 
 
-// TODO: Comment these.
+// Functions to facilitate downsampling of float and float3 tensors at given
+// coords. Note that Slangpy transposes x and y.
 float3 sampleTensorFloat3(Tensor<float3,2> tensor, int2 pixelPos)
 {
     // Get the color value from the tensor at the given pixel position.
@@ -277,25 +277,29 @@ float downSampleFloat(Tensor<float, 2> input, int2 pixelPos)
 }
 
 
+// Render full res BRDF from given inputs.
 float3 renderFullRes(float3 albedo, float3 normal, float roughness, float3 lightDir, float3 viewDir)
 {
     return brdf(albedo, normal, roughness, lightDir, viewDir);
 }
 
 
-// Functions used for training in (5).
+// Base normal of 0,0,1 to begin traning the normal tensor.
 float3 baseNormal()
 {
     return float3(0, 0, 1);
 }
 
+// As above, but a base roughness of 1.
 float baseRoughness()
 {
     return 1.0f;
 }
 
 
-
+// Calculate the loss between a target color and calculated BRDF from the given
+// inputs. This is used for training the normal and roughness values so these
+// need to be differentiable. Other inputs are not trained.
 [Differentiable]
 float calculateLoss(no_diff float3 targetColor, no_diff float3 albedo, float3 normal, float roughness, no_diff float3 lightDir, no_diff float3 viewDir)
 {
@@ -305,15 +309,23 @@ float calculateLoss(no_diff float3 targetColor, no_diff float3 albedo, float3 no
 }
 
 
-
-// Perform one step of gradient descent and clear the gradient to zero for the next iteration
-void gradientDescent(inout float3 value, inout float3 gradient, float learningRate)
+// Perform one step of gradient descent and clear the gradient to zero for the
+// next iteration.
+void gradientDescentFloat3(inout float3 value, inout float3 gradient, float learningRate)
 {
     value -= gradient * learningRate;
     gradient = float3(0.0f);
 }
 
-// Adam optimization step. Performs a similar role as the gradient descent function but less likely to get stuck in local minima.
+void gradientDescentFloat(inout float value, inout float gradient, float learningRate)
+{
+    value -= gradient * learningRate;
+    gradient = 0.0f;
+}
+
+
+// Adam optimization step. Performs a similar role as the gradient descent
+// function but less likely to get stuck in local minima.
 void adamFloat3(inout float3 value, inout float3 gradient, inout float3 mPrev, inout float3 vPrev, float learningRate)
 {
     // Standard Adam default values.
@@ -372,7 +384,8 @@ void adamFloat(inout float value, inout float gradient, inout float mPrev, inout
 
 
 
-// Mode 4: Render calculated L2 loss between (2) and (3).
+// Render calculated L2 loss between a given avgColor and BRDF calculated from
+// given inputs.
 float3 renderLoss(float3 avgColor, float3 albedo, float3 normal, float roughness, float3 lightDir, float3 viewDir)
 {
     // BRDF from downsampled inputs, avgColor is the downsampled output from full res inputs.
@@ -391,33 +404,54 @@ float4 showTensorFloat3(Tensor<float3, 2> tensor, float2 uv, bool gammaCorrect)
     return float4(color, 1.0);
 }
 
+
+// Calculate the loss between the downsampled result, and rendering the BRDF
+// from low res inputs.
+float3 lossLowres(float3 downsampled, float3 lowres)
+{
+    float loss = calculateL2Loss(downsampled, lowres);
+    return float3(loss, loss, loss);
+}
+
+// Get the difference between the trained loss, and the loss from the above
+// function. Green pixels indicate a better result and red pixels indicate a
+// worse result.
+float3 lossDiff(float3 trainedLoss, float3 lowresLoss)
+{
+    float3 color = float3(0.0);
+    if (trainedLoss.x < lowresLoss.x) {
+        color.y = trainedLoss.x;
+    } else if (trainedLoss.x > lowresLoss.x) {
+        color.x = lowresLoss.x;
+    }
+    return color;
+}
+
+
+// Main rendering function to render different tensors showing the training
+// progress of the normal and roughness.
 float4 showTrainingProgress(Tensor<float3, 2> avgColor, Tensor<float3, 2> loss, Tensor<float3, 2> initialNormal, Tensor<float3, 2> optimizedNormal, Tensor<float, 2> optimizedRoughness, float2 uv)
 {
     uv.x *= 4.0f;
     int column = int(uv.x);
     uv.x -= column;
-    int row = int(uv.y); // TODO: Stuff with the row.
+    int row = int(uv.y);
 
-    // TODO: May want to also render the trained loss, to prove that it's working.
     float3 color;
     if (row == 0) {
         if (column == 0) {
             // Render BRDF, downsampled after being calculated from full res inputs.
             color = pow(sampleTensorFloat3(avgColor, uv), 1.0f/2.2f);
         } else if (column == 1) {
-            // Render the loss between the above, and the BRDF calculated from downsampled inputs.
+            // Render difference in the loss between the above, and the BRDF calculated from downsampled inputs.
             color = sampleTensorFloat3(loss, uv);
         } else if (column == 2) {
             // Render the trained normal map.
             color = normalize(sampleTensorFloat3(optimizedNormal, uv)) * 0.5f + 0.5f;
         } else if (column == 3) {
-            // Render the difference between the trained normal map, and the initial normal map.
-            //float3 diff = normalize(sampleTensorFloat3(optimizedNormal, uv)) - normalize(sampleTensorFloat3(initialNormal, uv));
-            //color = saturate(0.5f + diff * 10.0f);
+            // Render the trained roughness.
             color = float3(sampleTensorFloat(optimizedRoughness, uv));
         }
-    } else {
-        // TODO: We may want another row to render stuff here.
     }
 
     return float4(color, 1.0f);
