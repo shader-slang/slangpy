@@ -529,11 +529,15 @@ SGL_PY_EXPORT(device_resource)
         .def_prop_ro("aspect", &TextureView::aspect, D(TextureView, aspect))
         .def_prop_ro("subresource_range", &TextureView::subresource_range, D(TextureView, subresource_range))
         .def_prop_ro("label", &TextureView::label, D(TextureView, label))
-        .def_prop_ro("descriptor_handle", &TextureView::descriptor_handle, D_NA(TextureView, descriptor_handle))
         .def_prop_ro(
-            "rw_descriptor_handle",
-            &TextureView::rw_descriptor_handle,
-            D_NA(TextureView, rw_descriptor_handle)
+            "descriptor_handle_ro",
+            &TextureView::descriptor_handle_ro,
+            D_NA(TextureView, descriptor_handle_ro)
+        )
+        .def_prop_ro(
+            "descriptor_handle_rw",
+            &TextureView::descriptor_handle_rw,
+            D_NA(TextureView, descriptor_handle_rw)
         )
         .def_prop_ro("native_handle", &TextureView::native_handle, D(TextureView, native_handle))
         .def("__repr__", &TextureView::to_string, D(TextureView, to_string));

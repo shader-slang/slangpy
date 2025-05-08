@@ -665,14 +665,14 @@ TextureView::TextureView(ref<Device> device, ref<Texture> texture, TextureViewDe
     );
 }
 
-DescriptorHandle TextureView::descriptor_handle() const
+DescriptorHandle TextureView::descriptor_handle_ro() const
 {
     rhi::DescriptorHandle rhi_handle = {};
     m_rhi_texture_view->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, &rhi_handle);
     return DescriptorHandle(rhi_handle);
 }
 
-DescriptorHandle TextureView::rw_descriptor_handle() const
+DescriptorHandle TextureView::descriptor_handle_rw() const
 {
     rhi::DescriptorHandle rhi_handle = {};
     m_rhi_texture_view->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle);
