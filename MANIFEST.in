@@ -1,0 +1,5 @@
+graft slangpy/slang
+graft slangpy/tests
+
+global-exclude **/__pycache__ *
+global-exclude *.py[cod]
