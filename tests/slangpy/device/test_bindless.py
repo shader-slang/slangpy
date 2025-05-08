@@ -65,7 +65,7 @@ def test_bindless_texture(device_type: spy.DeviceType):
     # even textures are sampled with linear sampler, odd textures with point sampler
     c = spy.BufferCursor(texture_info_layout, texture_infos_buffer, load_before_write=False)
     for i in range(TEXTURE_COUNT):
-        c[i].texture = texture_views[i].descriptor_handle
+        c[i].texture = texture_views[i].descriptor_handle_ro
         c[i].sampler = [sampler_linear, sampler_point][i % 2].descriptor_handle
         c[i].uv = spy.float2(0.5)
     c.apply()
