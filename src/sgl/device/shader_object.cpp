@@ -26,7 +26,7 @@ inline rhi::DescriptorHandle rhi_descriptor_handle(const DescriptorHandle& handl
 {
     return {
         .type = static_cast<rhi::DescriptorHandleType>(handle.type),
-        .handle = handle.value,
+        .value = handle.value,
     };
 }
 

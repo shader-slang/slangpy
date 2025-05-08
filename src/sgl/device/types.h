@@ -184,7 +184,7 @@ struct SGL_API DescriptorHandle {
     explicit DescriptorHandle(const rhi::DescriptorHandle& handle)
     {
         type = static_cast<DescriptorHandleType>(handle.type);
-        value = handle.handle;
+        value = handle.value;
     }
 
     bool is_valid() const { return type != DescriptorHandleType::undefined; }
