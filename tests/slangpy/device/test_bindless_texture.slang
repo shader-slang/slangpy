@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 struct TextureInfo
 {
     Texture2D<float>.Handle texture;
