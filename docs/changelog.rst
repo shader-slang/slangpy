@@ -10,6 +10,13 @@ SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 Version 0.27.0 (TBA)
 ----------------------------
 
+- Introduce basic support for bindless textures and samplers. Currently only supported on D3D12.
+  Add ``sgl::Feature::bindless`` (``slangpy.Feature.bindless``) to detect bindless support.
+  Add ``sgl::DescriptorHandle`` (``slangpy.DescriptorHandle``) to represent bindless descriptor handles.
+  Add ``sgl::Sampler::descriptor_handle()`` (``slangpy.Sampler.descriptor_handle``) to get the descriptor handle for a sampler.
+  Add ``sgl::Texture::descriptor_handle_ro()`` (``slangpy.Texture.descriptor_handle_ro``) to get the read-only descriptor handle for a texture.
+  Add ``sgl::Texture::descriptor_handle_rw()`` (``slangpy.Texture.descriptor_handle_rw``) to get the read-write descriptor handle for a texture.
+  (PR `#196 <https://github.com/shader-slang/slangpy/pull/196>`__).
 - Rename ``sgl::Struct`` to ``sgl::DataStruct`` to match ``slangpy.DataStruct``.
   Rename ``sgl::StructConverter`` to ``sgl::DataStructConverter``
   and ``slangpy.StructConverter`` to ``slangpy.DataStructConverter``.
