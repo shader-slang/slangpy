@@ -7,7 +7,7 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Version 0.27.0 (TBA)
+Version 0.27.0 (May 9, 2025)
 ----------------------------
 
 - Package and distribute pytest tests. Fix deploying ``.pyi`` files in wheels + other minor fixes.
