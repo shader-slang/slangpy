@@ -103,7 +103,12 @@ const std::string& executable_name()
 
 const std::filesystem::path& project_directory()
 {
-    static std::filesystem::path path = std::filesystem::path{SGL_PROJECT_DIR}.lexically_normal();
+    static std::filesystem::path path = [](){
+        std::filesystem::path path_ = std::filesystem::path{SGL_PROJECT_DIR}.lexically_normal();
+        if (path_.empty())
+            return runtime_directory();
+        return path_;
+    }();
     return path;
 }
 

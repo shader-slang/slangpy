@@ -9,6 +9,7 @@ from pathlib import Path
 
 try:
     from setuptools import Extension, setup
+    from setuptools.command.build_py import build_py as _build_py
     from setuptools.command.build_ext import build_ext
 except ImportError:
     print(
@@ -38,6 +39,9 @@ CMAKE_PRESET = {
 
 # Check if native extension build is disabled
 NO_CMAKE_BUILD = os.environ.get("NO_CMAKE_BUILD") == "1"
+
+# Check if we're building a release wheel
+BUILD_RELEASE_WHEEL = os.environ.get("BUILD_RELEASE_WHEEL") == "1"
 
 
 # A CMakeExtension needs a sourcedir instead of a file list.
@@ -86,6 +90,9 @@ class CMakeBuild(build_ext):
             "-DSGL_BUILD_TESTS=OFF",
         ]
 
+        if BUILD_RELEASE_WHEEL:
+            cmake_args += ["-DSGL_PROJECT_DIR="]
+
         # Adding CMake arguments set as environment variable
         if "CMAKE_ARGS" in os.environ:
             cmake_args += [item for item in os.environ["CMAKE_ARGS"].split(" ") if item]
@@ -102,6 +109,20 @@ class CMakeBuild(build_ext):
                 os.remove(path)
 
 
+class CustomBuildPy(_build_py):
+    def run(self):
+        if BUILD_RELEASE_WHEEL:
+            # Copy data/ into slangpy/data/ before building
+            src = os.path.abspath("data")
+            dst = os.path.join(self.build_lib, "slangpy", "data")
+            if os.path.exists(dst):
+                shutil.rmtree(dst)
+            shutil.copytree(src, dst)
+
+        # Continue normal build
+        super().run()
+
+
 VERSION_REGEX = re.compile(r"^\s*#\s*define\s+SGL_VERSION_([A-Z]+)\s+(.*)$", re.MULTILINE)
 
 with open("src/sgl/sgl.h") as f:
@@ -115,6 +136,6 @@ with open("README.md", "r") as f:
 setup(
     version=version,
     ext_modules=[] if NO_CMAKE_BUILD else [CMakeExtension("slangpy.slangpy_ext")],
-    cmdclass={"build_ext": CMakeBuild},
+    cmdclass={"build_ext": CMakeBuild, "build_py": CustomBuildPy},
     zip_safe=False,
 )
