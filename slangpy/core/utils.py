@@ -23,7 +23,7 @@ def create_device(
     include_paths: Sequence[Union[str, PathLike[str]]] = [],
     enable_cuda_interop: bool = False,
     enable_print: bool = False,
-    enable_hot_reload: bool = False,
+    enable_hot_reload: bool = True,
 ):
     """
     Create a device with basic settings for SlangPy. For full control over device init,
