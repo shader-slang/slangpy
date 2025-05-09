@@ -48,7 +48,7 @@ class CMakeExtension(Extension):
 
 class CMakeBuild(build_ext):
     def build_extension(self, ext: CMakeExtension) -> None:
-        if os.environ.get('NO_CMAKE_BUILD') == '1':
+        if os.environ.get("NO_CMAKE_BUILD") == "1":
             print("Skipping CMake build as per NO_CMAKE_BUILD environment variable.")
             return
 
@@ -110,12 +110,12 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 current_ext_modules = []
-if os.environ.get('NO_CMAKE_BUILD') != '1':
+if os.environ.get("NO_CMAKE_BUILD") != "1":
     current_ext_modules = [CMakeExtension("slangpy.slangpy_ext")]
 
 setup(
     version=version,
-    packages=['slangpy'],
+    packages=["slangpy"],
     package_data={
         "slangpy": ["slang/*.slang"],
     },
