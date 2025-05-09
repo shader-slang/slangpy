@@ -168,15 +168,8 @@ NB_MODULE(slangpy_ext, m_)
         }
     ));
 
-    // Cleanup when the last sgl::Object is garbage collected.
-    nb::weakref(
-        m.attr("Object"),
-        nb::cpp_function(
-            [](nb::handle weakref)
-            {
-                sgl::static_shutdown();
-                weakref.dec_ref();
-            }
-        )
-    ).release();
+    // Shutdown on module unload.
+    nanobind_module_def_slangpy_ext.m_free = [](void*) {
+        sgl::static_shutdown();
+    };
 }
