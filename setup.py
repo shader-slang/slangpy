@@ -36,6 +36,9 @@ CMAKE_PRESET = {
     "macos": "macos-arm64-clang",
 }[PLATFORM]
 
+# Check if native extension build is disabled
+NO_CMAKE_BUILD = os.environ.get("NO_CMAKE_BUILD") == "1"
+
 
 # A CMakeExtension needs a sourcedir instead of a file list.
 # The name must be the _single_ output extension from the CMake build.
@@ -61,6 +64,10 @@ class CMakeBuild(build_ext):
             env = msvc.msvc14_get_vc_env("x64")
 
         build_dir = str(SOURCE_DIR / "build/pip")
+
+        # Wipe out the build directory if it exists
+        if os.path.exists(build_dir):
+            shutil.rmtree(build_dir)
 
         cmake_args = [
             "--preset",
@@ -107,8 +114,7 @@ with open("README.md", "r") as f:
 
 setup(
     version=version,
-    packages=find_packages(),
-    ext_modules=[CMakeExtension("slangpy.slangpy_ext")],
+    ext_modules=[] if NO_CMAKE_BUILD else [CMakeExtension("slangpy.slangpy_ext")],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
 )
