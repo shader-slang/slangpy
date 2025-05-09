@@ -17,6 +17,7 @@ on:
       - "LICENSE"
       - "**.md"
       - .github/workflows/wheels.yml
+  workflow_dispatch:
 
 permissions:
   contents: read
