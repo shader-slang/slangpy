@@ -11,7 +11,6 @@ docs/_build/
 .vs/
 .temp/
 .cache/clangd/index
-compile_commands.json
 
 # Python files installed into source tree
 slangpy/**/*.pyi
