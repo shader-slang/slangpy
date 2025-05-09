@@ -33,6 +33,9 @@ Repository = "https://github.com/shader-slang/slangpy"
 Issues = "https://github.com/shader-slang/slangpy/issues"
 Changelog = "https://slangpy.shader-slang.org/en/latest/changelog.html"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["slangpy*"]
