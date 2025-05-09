@@ -43,7 +43,7 @@ include = ["slangpy*"]
 [tool.setuptools.package-data]
 "*" = ["*.py", "*.pyi"]
 "slangpy" = ["slang/**"]
-"slangpy.tests" = ["*"]
+"slangpy.tests" = ["**"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["__pycache__/*", "*.pyc"]
