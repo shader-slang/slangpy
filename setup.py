@@ -8,7 +8,7 @@ import sys, re, os, subprocess, shutil
 from pathlib import Path
 
 try:
-    from setuptools import Extension, setup, find_packages
+    from setuptools import Extension, setup
     from setuptools.command.build_ext import build_ext
 except ImportError:
     print(
