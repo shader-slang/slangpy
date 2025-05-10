@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <initializer_list>
+#include "device/cursor_utils.h"
 #include "nanobind.h"
 
 #include "sgl/device/device.h"
@@ -362,8 +363,26 @@ nb::ndarray<nb::numpy> StridedBufferView::to_numpy() const
     size_t dtype_size = desc().element_layout->stride();
     size_t byte_offset = desc().offset * dtype_size;
     size_t data_size = m_storage->size() - byte_offset;
-    void* data = new uint8_t[data_size];
-    m_storage->get_data(data, data_size, byte_offset);
+    uint8_t* data = new uint8_t[data_size];
+#if SGL_MACOS
+    auto type = this->cursor()->element_type();
+    bool is_matrix = type->kind() == TypeReflection::Kind::matrix;
+    uint32_t num_col = type->col_count();
+    if (is_matrix && num_col < 4 && num_col != 2) {
+        auto element_count = this->element_count();
+        uint32_t num_row = type->row_count();
+        size_t scalar_size = get_scalar_type_size(type->scalar_type());
+        for (size_t i = 0; i < num_row * element_count; i++) {
+            size_t block = i / num_row;
+            size_t row = i % num_row;
+            uint8_t* target = data + block * dtype_size + num_col * row * scalar_size;
+            m_storage->get_data(target, num_col * scalar_size, byte_offset + 4 * i * scalar_size);
+        }
+    } else
+#endif
+    {
+        m_storage->get_data(data, data_size, byte_offset);
+    }
     nb::capsule owner(data, [](void* p) noexcept { delete[] reinterpret_cast<uint8_t*>(p); });
 
     return to_ndarray<nb::numpy>(data, owner, desc());
