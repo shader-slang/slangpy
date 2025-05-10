@@ -14,6 +14,30 @@
 
 namespace sgl {
 
+inline size_t get_scalar_type_size(TypeReflection::ScalarType type)
+{
+    switch (type) {
+    case TypeReflection::ScalarType::int8:
+    case TypeReflection::ScalarType::uint8:
+        return 1;
+    case TypeReflection::ScalarType::int16:
+    case TypeReflection::ScalarType::uint16:
+    case TypeReflection::ScalarType::float16:
+        return 2;
+    case TypeReflection::ScalarType::bool_:
+    case TypeReflection::ScalarType::int32:
+    case TypeReflection::ScalarType::uint32:
+    case TypeReflection::ScalarType::float32:
+        return 4;
+    case TypeReflection::ScalarType::int64:
+    case TypeReflection::ScalarType::uint64:
+    case TypeReflection::ScalarType::float64:
+        return 8;
+    default:
+        return 0;
+    }
+}
+
 /// Helper to convert from numpy type mask to slang scalar type.
 inline std::optional<TypeReflection::ScalarType> dtype_to_scalar_type(nb::dlpack::dtype dtype)
 {
