@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <cstring>
 #include <initializer_list>
+#include <vector>
 #include "nanobind.h"
 
 #include "sgl/device/device.h"
@@ -410,7 +412,32 @@ void StridedBufferView::copy_from_numpy(nb::ndarray<nb::numpy> data)
     size_t buffer_size = m_storage->size() - byte_offset;
     SGL_CHECK(data_size <= buffer_size, "Numpy array is larger than the buffer ({} > {})", data_size, buffer_size);
 
-    m_storage->set_data(data.data(), data_size, byte_offset);
+#if SGL_MACOS
+    auto type_refl = this->desc().dtype->buffer_type_layout()->type();
+    bool is_matrix = type_refl->kind() == TypeReflection::Kind::matrix;
+    auto row_count = type_refl->row_count();
+    auto col_count = type_refl->col_count();
+    if (is_matrix && col_count < 4 && col_count != 2) {
+        // Get dlpack type from scalar type.
+        ref<NativeSlangType> innermost = innermost_type(this->desc().dtype);
+        ref<TypeLayoutReflection> innermost_layout = innermost->buffer_type_layout();
+        size_t scalar_size = innermost_layout->stride();
+        // Temporary buffer.
+        std::vector<uint8_t> buffer(data_size / col_count * 4);
+        // Copy row by row.
+        for (size_t i = 0; i < data_size / (col_count * scalar_size); i++) {
+            std::memcpy(
+                buffer.data() + i * 4 * scalar_size,
+                static_cast<uint8_t*>(data.data()) + i * col_count * scalar_size,
+                col_count * scalar_size
+            );
+        }
+        m_storage->set_data(buffer.data(), buffer.size(), byte_offset);
+    } else
+#endif
+    {
+        m_storage->set_data(data.data(), data_size, byte_offset);
+    }
 }
 
 } // namespace sgl::slangpy
