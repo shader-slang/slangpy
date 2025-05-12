@@ -243,6 +243,7 @@ nb::object NativeNumpyMarshall::create_output(CallContext* context, NativeBoundV
 
 nb::object NativeNumpyMarshall::create_dispatchdata(nb::object data) const
 {
+    SGL_UNUSED(data);
     SGL_THROW("Raw dispatch is not supported for numpy arrays.");
 }
 

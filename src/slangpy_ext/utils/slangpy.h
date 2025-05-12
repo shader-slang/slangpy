@@ -315,6 +315,8 @@ public:
     /// Default behaviour is to always cast directly to the bound type.
     virtual ref<NativeSlangType> resolve_type(nb::object context, const ref<NativeSlangType> bound_type) const
     {
+        SGL_UNUSED(context);
+        SGL_UNUSED(bound_type);
         return m_slang_type;
     }
 
