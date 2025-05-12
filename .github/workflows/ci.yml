@@ -59,7 +59,7 @@ jobs:
           - { os: macos, platform: aarch64, compiler: clang, flags: "unit-test", runs-on: macos-latest }
 
     env:
-      VCPKG_DEFAULT_BINARY_CACHE: "${github.workspace}/vcpkg-cache"
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
       # Environment variables used by ci.py
       CI_OS: ${{ matrix.os }}
       CI_PLATFORM: ${{ matrix.platform }}
