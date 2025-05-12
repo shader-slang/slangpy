@@ -27,11 +27,12 @@ inline std::string strerror_safe(int errnum)
     char buf[1024];
 #if SGL_WINDOWS
     strerror_s(buf, sizeof(buf), errnum);
-    return buf;
 #else
-    strerror_r(errnum, buf, sizeof(buf));
-    return buf;
+    const char* result = strerror_r(errnum, buf, sizeof(buf));
+    SGL_UNUSED(result);
 #endif
+    buf[sizeof(buf) - 1] = '\0'; // Ensure null-termination
+    return buf;
 }
 
 FileStream::FileStream(const std::filesystem::path& path, Mode mode)
