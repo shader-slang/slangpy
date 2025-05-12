@@ -75,20 +75,6 @@ std::string get_extension_from_path(const std::filesystem::path& path)
     return ext;
 }
 
-std::filesystem::path get_temp_file_path()
-{
-    static std::mutex mutex;
-    std::lock_guard<std::mutex> guard(mutex);
-    SGL_DIAGNOSTIC_PUSH
-    SGL_DISABLE_MSVC_WARNING(4996)
-    SGL_DISABLE_CLANG_WARNING("-Wdeprecated-declarations")
-    char* name = std::tmpnam(nullptr);
-    SGL_DIAGNOSTIC_POP
-    if (name == nullptr)
-        SGL_THROW("Failed to create temporary file path.");
-    return name;
-}
-
 const std::filesystem::path& executable_directory()
 {
     static std::filesystem::path directory{executable_path().parent_path()};
