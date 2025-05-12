@@ -43,7 +43,7 @@ inline std::string strerror_safe(int errnum)
         return "Unknown error";
     return buf;
 #elif
-#error "Unsupported platform
+#error "Unsupported platform"
 #endif
 }
 
