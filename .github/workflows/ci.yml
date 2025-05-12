@@ -59,7 +59,6 @@ jobs:
           - { os: macos, platform: aarch64, compiler: clang, flags: "unit-test", runs-on: macos-latest }
 
     env:
-      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
       # Environment variables used by ci.py
       CI_OS: ${{ matrix.os }}
       CI_PLATFORM: ${{ matrix.platform }}
@@ -111,9 +110,13 @@ jobs:
         run: python tools/ci.py setup
 
       # Setup vcpkg caching.
-      - name: Create cache directory
-        run: mkdir -p ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+      - name: Set vcpkg cache directory
+        if: startsWith(matrix.runs-on, 'ubuntu-') || startsWith(matrix.runs-on, 'macos-') || startsWith(matrix.runs-on, 'windows-')
+        run: |
+          echo "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}/vcpkg-cache" >> $GITHUB_ENV
+          mkdir -p ${{ github.workspace }}/vcpkg-cache
       - name: Setup vcpkg caching
+        if: startsWith(matrix.runs-on, 'ubuntu-') || startsWith(matrix.runs-on, 'macos-') || startsWith(matrix.runs-on, 'windows-')
         uses: actions/cache@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
