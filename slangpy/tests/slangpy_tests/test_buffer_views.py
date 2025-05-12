@@ -18,10 +18,6 @@ try:
 except ImportError:
     pytest.skip("Pytorch not installed", allow_module_level=True)
 
-# Skip all tests in this file if running on MacOS
-if sys.platform == "darwin":
-    pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
-
 MODULE = r"""
 struct RGB {
     float x;
@@ -123,7 +119,8 @@ def test_to_torch(
     buffer_type: Union[Type[Tensor], Type[NDBuffer]],
     test_dtype: tuple[str, Optional[torch.dtype], Type[Any], tuple[int, ...]],
 ):
-
+    if sys.platform == "darwin":
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
     device = helpers.get_device(device_type, cuda_interop=True)
     module = helpers.create_module(device, MODULE)
 
