@@ -215,6 +215,7 @@ class Tensor(NativeTensor):
         shape: TShapeOrTuple,
         dtype: Any,
         program_layout: Optional[SlangProgramLayout] = None,
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access
     ) -> Tensor:
         """
         Creates a tensor with the requested shape and element type without attempting to initialize the data.
@@ -227,7 +228,6 @@ class Tensor(NativeTensor):
         shape_tuple = shape if isinstance(shape, tuple) else shape.as_tuple()
         num_elems = math.prod(shape_tuple)
 
-        usage = BufferUsage.shader_resource | BufferUsage.unordered_access
         buffer = device.create_buffer(
             element_count=num_elems, struct_size=dtype.buffer_layout.stride, usage=usage
         )
