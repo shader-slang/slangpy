@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <cstdint>
 #include <initializer_list>
+#include <vector>
 #include "nanobind.h"
 
 #include "sgl/device/device.h"
@@ -324,7 +326,6 @@ static nb::ndarray<Framework> to_ndarray(void* data, nb::handle owner, const Str
     //      Buffer with shape (5, ) of struct Foo { ... } -> ndarray of shape (5, sizeof(Foo)) and dtype uint8
     bool is_scalar = innermost_layout->type()->kind() == TypeReflection::Kind::scalar;
     auto dtype_shape = desc.dtype->get_shape();
-    auto dtype_strides = dtype_shape.calc_contiguous_strides();
 
     size_t innermost_size = is_scalar ? innermost_layout->stride() : 1;
     TypeReflection::ScalarType scalar_type
@@ -339,9 +340,13 @@ static nb::ndarray<Framework> to_ndarray(void* data, nb::handle owner, const Str
         sizes.push_back(desc.shape[i]);
         strides.push_back(desc.strides[i] * dtype_size / innermost_size);
     }
+    // Use cursor reflection to calculate dtype stride.
+    ref<NativeSlangType> curr_type = desc.dtype;
     for (size_t i = 0; i < dtype_shape.size(); ++i) {
         sizes.push_back(dtype_shape[i]);
-        strides.push_back(dtype_strides[i]);
+        curr_type = curr_type->element_type();
+        auto dtype_stride = curr_type->buffer_type_layout()->stride() / innermost_size;
+        strides.push_back(dtype_stride);
     }
     // If the innermost dtype is not a scalar, add one innermost dimension over
     // the bytes of the element
