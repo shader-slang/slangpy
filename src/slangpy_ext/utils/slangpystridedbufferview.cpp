@@ -7,7 +7,6 @@
 #include "sgl/device/command.h"
 #include "sgl/device/buffer_cursor.h"
 
-#include "sgl/device/reflection.h"
 #include "utils/slangpybuffer.h"
 
 namespace sgl::slangpy {
@@ -325,19 +324,7 @@ static nb::ndarray<Framework> to_ndarray(void* data, nb::handle owner, const Str
     //      Buffer with shape (5, ) of struct Foo { ... } -> ndarray of shape (5, sizeof(Foo)) and dtype uint8
     bool is_scalar = innermost_layout->type()->kind() == TypeReflection::Kind::scalar;
     auto dtype_shape = desc.dtype->get_shape();
-    Shape dtype_strides;
-#if SGL_MACOS
-    auto type_refl = desc.dtype->buffer_type_layout()->type();
-    bool is_matrix = type_refl->kind() == TypeReflection::Kind::matrix;
-    auto row_count = type_refl->row_count();
-    auto col_count = type_refl->col_count();
-    if (is_matrix && col_count < 4 && col_count != 2) {
-        dtype_strides = Shape({4, 1});
-    } else
-#endif
-    {
-        dtype_strides = dtype_shape.calc_contiguous_strides();
-    }
+    auto dtype_strides = dtype_shape.calc_contiguous_strides();
 
     size_t innermost_size = is_scalar ? innermost_layout->stride() : 1;
     TypeReflection::ScalarType scalar_type
