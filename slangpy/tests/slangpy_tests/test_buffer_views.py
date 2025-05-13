@@ -108,7 +108,7 @@ def test_to_numpy(
     strides = Shape(unravelled_shape).calc_contiguous_strides()
     byte_strides = tuple(s * np_dtype.itemsize for s in strides)
 
-    ndarray = buffer.to_numpy()
+    ndarray = np.ascontiguousarray(buffer.to_numpy())
     assert ndarray.shape == unravelled_shape
     assert ndarray.strides == byte_strides
     assert ndarray.dtype == np_dtype
