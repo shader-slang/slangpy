@@ -9,6 +9,7 @@
 #include "sgl/device/command.h"
 #include "sgl/device/buffer_cursor.h"
 
+#include "sgl/device/reflection.h"
 #include "utils/slangpybuffer.h"
 
 namespace sgl::slangpy {
@@ -64,6 +65,21 @@ ref<NativeSlangType> innermost_type(ref<NativeSlangType> type)
         result = child;
     }
     return result;
+}
+
+std::vector<ref<NativeSlangType>> type_stack(ref<NativeSlangType> type)
+{
+    std::vector<ref<NativeSlangType>> res;
+    ref<NativeSlangType> curr = type;
+    while (true) {
+        res.push_back(curr);
+        ref<NativeSlangType> child = curr->element_type();
+        if (!child || child == curr) {
+            break;
+        }
+        curr = child;
+    }
+    return res;
 }
 
 StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc& desc, ref<Buffer> storage)
@@ -393,6 +409,8 @@ nb::ndarray<nb::pytorch> StridedBufferView::to_torch() const
 
 void StridedBufferView::copy_from_numpy(nb::ndarray<nb::numpy> data)
 {
+    // StridedBufferView::is_contiguous() == true does not necessarily means the internal buffer is continuous in memory
+    // (4 element alignment requirement on metal will break this continuity).
     SGL_CHECK(is_ndarray_contiguous(data), "Source Numpy array must be contiguous");
     SGL_CHECK(is_contiguous(), "Destination buffer view must be contiguous");
 
@@ -402,7 +420,39 @@ void StridedBufferView::copy_from_numpy(nb::ndarray<nb::numpy> data)
     size_t buffer_size = m_storage->size() - byte_offset;
     SGL_CHECK(data_size <= buffer_size, "Numpy array is larger than the buffer ({} > {})", data_size, buffer_size);
 
-    m_storage->set_data(data.data(), data_size, byte_offset);
+    // At this point, the only possible way to break stride in a contiguous buffer is metal buffer alignment in the
+    // second last dimension. (matrix or vector)
+    auto kind = desc().dtype->buffer_type_layout()->kind();
+    if (kind != TypeReflection::Kind::vector && kind != TypeReflection::Kind::matrix) {
+        m_storage->set_data(data.data(), data_size, byte_offset);
+        return;
+    }
+    // Get dlpack type from scalar type.
+    auto stack = type_stack(desc().dtype);
+    ref<NativeSlangType> innermost = stack[stack.size() - 1];
+    ref<TypeLayoutReflection> innermost_layout = innermost->buffer_type_layout();
+    size_t innermost_size = innermost_layout->stride();
+    ref<NativeSlangType> second_innermost = stack[stack.size() - 2];
+    ref<TypeLayoutReflection> second_innermost_layout = second_innermost->buffer_type_layout();
+    size_t second_innermost_size = second_innermost_layout->stride();
+    // Alignment fits.
+    if (second_innermost_size == second_innermost_layout->type()->col_count() * innermost_size) {
+        m_storage->set_data(data.data(), data_size, byte_offset);
+        return;
+    }
+
+    // Copy with local buffer.
+    std::vector<uint8_t> buffer(buffer_size);
+    auto actual_size = second_innermost_layout->type()->col_count() * innermost_size;
+    // Write element.
+    for (size_t i = 0; i < data_size / actual_size; i++) {
+        std::memcpy(
+            buffer.data() + i * second_innermost_size,
+            static_cast<uint8_t*>(data.data()) + i * actual_size,
+            actual_size
+        );
+    }
+    m_storage->set_data(buffer.data(), buffer.size(), byte_offset);
 }
 
 } // namespace sgl::slangpy
