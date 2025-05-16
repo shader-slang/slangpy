@@ -74,6 +74,12 @@ NB_MODULE(slangpy_ext, m_)
     nb::set_leak_warnings(false);
 #endif
 
+    // TODO: For now, we disable leak warnings even in Debug builds.
+    // The reason is that slangpy currently leaks objects because of cyclic references
+    // created in the native Python code, which uses sgl bindings for typing.
+    // We need to investigate this further and make sure Python code doesn't create cyclic references.
+    nb::set_leak_warnings(false);
+
     nb::module_ m = nb::module_::import_("slangpy");
     m.attr("__doc__") = "slangpy";
 
