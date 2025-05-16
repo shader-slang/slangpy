@@ -408,7 +408,7 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
                                 for i in range(len(ndbuffer.strides))
                             ],
                             "offset": ndbuffer.offset,
-                        }
+                        },
                     }
             return res
 
