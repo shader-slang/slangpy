@@ -111,10 +111,12 @@ ref<BufferCursor> StridedBufferView::cursor(std::optional<int> start, std::optio
 nb::dict StridedBufferView::uniforms() const
 {
     nb::dict res;
-    res["buffer"] = m_storage;
-    res["offset"] = desc().offset;
-    res["strides"] = desc().strides.as_vector();
-    res["shape"] = desc().shape.as_vector();
+    res["buffer"] = storage();
+    res["_shape"] = shape().as_vector();
+    nb::dict layout;
+    layout["offset"] = offset();
+    layout["strides"] = strides().as_vector();
+    res["layout"] = layout;
     return res;
 }
 
