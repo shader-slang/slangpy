@@ -386,10 +386,7 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
                 "buffer": data.storage,
                 "strides": data.strides,
                 "_shape": data.shape.as_tuple(),
-                "layout": {
-                    "strides": data.strides,
-                    "offset": data.offset
-                }
+                "layout": {"strides": data.strides, "offset": data.offset},
             }
         else:
             broadcast = _calc_broadcast(context, binding)
@@ -412,7 +409,7 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
                                 for i in range(len(data.strides))
                             ],
                             "offset": data.offset,
-                        }
+                        },
                     }
             return res
 
