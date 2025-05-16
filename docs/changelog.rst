@@ -10,6 +10,8 @@ SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 Version 0.28.0 (TBA)
 ----------------------------
 
+- Improve warning when tev image viewer is not running.
+  (PR `#216 <https://github.com/shader-slang/slangpy/pull/216>`__).
 - Report correct LUID in ``sgl::DeviceInfo::adapter_luid`` (``slangpy.DeviceInfo.adapter_luid``).
   (PR `#215 <https://github.com/shader-slang/slangpy/pull/215>`__).
 
