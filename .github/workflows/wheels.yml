@@ -19,6 +19,10 @@ env:
   MACOSX_DEPLOYMENT_TARGET: 14.0
   # make sure slangpy wheel is build with testing data + corrected project directory
   BUILD_RELEASE_WHEEL: 1
+  BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+  P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+  KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+  CIBW_REPAIR_WHEEL_COMMAND_MACOS: "bash .github/scripts/sign_macos_bins.sh {wheel} {dest_dir}"
 
 jobs:
   wheels:
@@ -67,6 +71,37 @@ jobs:
           CIBW_BUILD: ${{ matrix.python }}-*
         run: |
           python -m cibuildwheel --output-dir wheelhouse
+
+      # Notarize macOS Wheels
+      - name: Notarize macOS Wheels
+        if: matrix.os == 'macos'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }} # For the repair script, if needed there explicitly
+        run: |
+          echo "Looking for wheels in ./wheelhouse"
+          ls -l ./wheelhouse
+          for wheel_path in ./wheelhouse/*.whl; do
+            if [[ -f "$wheel_path" ]]; then
+              echo "Processing wheel: $wheel_path"
+              echo "Submitting $wheel_path for notarization..."
+              # Ensure you have logged in with notarytool if required, or use appropriate flags for credentials
+              if xcrun notarytool submit "$wheel_path" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait; then
+                echo "Notarization successful for $wheel_path. Stapling..."
+                xcrun stapler staple "$wheel_path"
+              else
+                echo "Notarization failed for $wheel_path. Check logs."
+                # Optionally, retrieve the log for the submission
+                # xcrun notarytool log <submission_id> --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" > notarization_log.json
+                # cat notarization_log.json
+                exit 1 # Fail the workflow if notarization fails
+              fi
+            else
+              echo "No wheels found matching ./wheelhouse/*.whl, or $wheel_path is not a file."
+            fi
+          done
 
       # Copy wheels to artifact.
       - name: Copy wheels to artifact
