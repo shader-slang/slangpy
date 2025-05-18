@@ -1,5 +1,12 @@
 name: wheels
 on:
+  pull_request:
+    branches: [ main ]
+    inputs:
+      upload:
+        description: 'Upload wheels to PyPI? (0: no, 1: yes)'
+        required: true
+        default: '0'
   workflow_dispatch:
     inputs:
       upload:
