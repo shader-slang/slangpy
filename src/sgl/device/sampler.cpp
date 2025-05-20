@@ -36,6 +36,13 @@ Sampler::Sampler(ref<Device> device, SamplerDesc desc)
 
 Sampler::~Sampler() { }
 
+DescriptorHandle Sampler::descriptor_handle() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_sampler->getDescriptorHandle(&rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
 NativeHandle Sampler::native_handle() const
 {
     rhi::NativeHandle rhi_handle = {};

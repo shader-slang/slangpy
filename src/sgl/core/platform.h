@@ -119,10 +119,6 @@ save_file_dialog(std::span<const FileDialogFilter> filters = {});
 /// Get the file extension from a path in lower-case and without the leading '.' character.
 [[nodiscard]] SGL_API std::string get_extension_from_path(const std::filesystem::path& path);
 
-/// Create a unique path to a temporary file.
-/// Note: A file with the same name could still be created by another process.
-[[nodiscard]] SGL_API std::filesystem::path get_temp_file_path();
-
 /// Create a junction (soft link).
 [[nodiscard]] SGL_API bool create_junction(const std::filesystem::path& link, const std::filesystem::path& target);
 

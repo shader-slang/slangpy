@@ -42,6 +42,15 @@ namespace sgl {
 static std::vector<Device*> s_devices;
 static std::mutex s_devices_mutex;
 
+inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
+{
+    AdapterLUID luid;
+    for (size_t i = 0; i < 16; ++i)
+        luid[i] = rhi_luid.luid[i];
+    return luid;
+}
+
+
 Device::Device(const DeviceDesc& desc)
     : m_desc(desc)
 {
@@ -112,11 +121,11 @@ Device::Device(const DeviceDesc& desc)
         SGL_THROW("Failed to create device!");
 
     // Get device info.
-    const rhi::DeviceInfo& rhi_device_info = m_rhi_device->getDeviceInfo();
+    const rhi::DeviceInfo& rhi_device_info = m_rhi_device->getInfo();
     m_info.type = m_desc.type;
     m_info.api_name = rhi_device_info.apiName;
     m_info.adapter_name = rhi_device_info.adapterName;
-    m_info.adapter_luid = m_desc.adapter_luid ? *m_desc.adapter_luid : AdapterLUID();
+    m_info.adapter_luid = from_rhi(rhi_device_info.adapterLUID);
     m_info.timestamp_frequency = rhi_device_info.timestampFrequency;
     m_info.limits.max_texture_dimension_1d = rhi_device_info.limits.maxTextureDimension1D;
     m_info.limits.max_texture_dimension_2d = rhi_device_info.limits.maxTextureDimension2D;
@@ -751,14 +760,6 @@ std::vector<AdapterInfo> Device::enumerate_adapters(DeviceType type)
 #endif
     }
 
-    auto convert_luid = [](const rhi::AdapterLUID& rhi_luid) -> AdapterLUID
-    {
-        AdapterLUID luid;
-        for (size_t i = 0; i < 16; ++i)
-            luid[i] = rhi_luid.luid[i];
-        return luid;
-    };
-
     rhi::AdapterList rhi_adapters = rhi::getRHI()->getAdapters(static_cast<rhi::DeviceType>(type));
 
     std::vector<AdapterInfo> adapters(rhi_adapters.getCount());
@@ -768,7 +769,7 @@ std::vector<AdapterInfo> Device::enumerate_adapters(DeviceType type)
             .name = rhi_adapter.name,
             .vendor_id = rhi_adapter.vendorID,
             .device_id = rhi_adapter.deviceID,
-            .luid = convert_luid(rhi_adapter.luid),
+            .luid = from_rhi(rhi_adapter.luid),
         };
     }
 

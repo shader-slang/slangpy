@@ -236,9 +236,11 @@ nb::object NativeTensorMarshall::create_dispatchdata(nb::object data) const
     auto buffer = nb::cast<NativeTensor*>(data);
     nb::dict res;
     res["buffer"] = buffer->storage();
-    res["offset"] = buffer->offset();
     res["_shape"] = buffer->shape().as_vector();
-    res["strides"] = buffer->strides().as_vector();
+    nb::dict layout;
+    layout["offset"] = buffer->offset();
+    layout["strides"] = buffer->strides().as_vector();
+    res["layout"] = layout;
     return res;
 }
 

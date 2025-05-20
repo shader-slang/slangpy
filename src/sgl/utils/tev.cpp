@@ -93,6 +93,8 @@ bool show(const Bitmap* bitmap, std::string name, std::string host, uint16_t por
         channel_strides[i] = pixel_struct.size() / sizeof(float);
     }
 
+    bool connected = false;
+
     for (uint32_t attempt = 1; attempt <= max_retries; ++attempt) {
         std::unique_ptr<tevclient::Client> client = ClientPool::get().acquire_client(host, port);
 
@@ -107,6 +109,8 @@ bool show(const Bitmap* bitmap, std::string name, std::string host, uint16_t por
                 continue;
             }
         }
+
+        connected = true;
 
         if (client->createImage(
                 name.c_str(),
@@ -149,6 +153,14 @@ bool show(const Bitmap* bitmap, std::string name, std::string host, uint16_t por
         }
 
         ClientPool::get().release_client(std::move(client));
+    }
+
+    if (!connected) {
+        log_warn(
+            "Failed to connect to tev after {} attempts. Make sure the tev image viewer (https://github.com/Tom94/tev) "
+            "is running.",
+            max_retries
+        );
     }
 
     return true;

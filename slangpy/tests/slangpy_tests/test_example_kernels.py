@@ -384,12 +384,12 @@ def test_vec3_nested_calldata_soa_generics(device_type: DeviceType):
 
     call_data = {
         "a": {
-            "x": {"buffer": a_x.storage, "strides": list(a_x.strides)},
-            "y": {"buffer": a_y.storage, "strides": list(a_y.strides)},
-            "z": {"buffer": a_z.storage, "strides": list(a_z.strides)},
+            "x": {"buffer": a_x.storage, "layout": {"strides": list(a_x.strides)}},
+            "y": {"buffer": a_y.storage, "layout": {"strides": list(a_y.strides)}},
+            "z": {"buffer": a_z.storage, "layout": {"strides": list(a_z.strides)}},
         },
-        "b": {"buffer": b.storage, "strides": list(b.strides)},
-        "_result": {"buffer": res.storage, "strides": list(res.strides)},
+        "b": {"buffer": b.storage, "layout": {"strides": list(b.strides)}},
+        "_result": {"buffer": res.storage, "layout": {"strides": list(res.strides)}},
         "_call_stride": [1],
         "_call_dim": [32],
         "_thread_count": uint3(total_threads, 1, 1),

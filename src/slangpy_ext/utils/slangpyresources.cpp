@@ -57,6 +57,7 @@ void NativeTextureMarshall::write_shader_cursor_pre_dispatch(
 ) const
 {
     SGL_UNUSED(context);
+    SGL_UNUSED(read_back);
     AccessType primal_access = binding->get_access().first;
     if (primal_access != AccessType::none) {
 

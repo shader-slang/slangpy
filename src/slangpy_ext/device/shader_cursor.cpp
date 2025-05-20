@@ -36,8 +36,12 @@ namespace detail {
             add_type(TextureView, set_texture_view);
             add_type(Sampler, set_sampler);
             add_type(AccelerationStructure, set_acceleration_structure);
+            m_write_table[typeid(DescriptorHandle)] = [](ShaderCursor& self, nb::object nbval)
+            {
+                self.set_descriptor_handle(nb::cast<DescriptorHandle>(nbval));
+                return true;
+            };
         }
-
 
         bool write_value(ShaderCursor& self, nb::object nbval) override
         {

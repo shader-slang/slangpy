@@ -238,7 +238,7 @@ Device::Device(const sgl::Device* device)
     SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), selected_device));
     int major = get_device_attribute(selected_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
     int minor = get_device_attribute(selected_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
-    log_info("Created CUDA device \"{}\" (architecture {}.{}).", name, major, minor);
+    log_debug("Created CUDA device \"{}\" (architecture {}.{}).", name, major, minor);
 }
 
 Device::~Device()

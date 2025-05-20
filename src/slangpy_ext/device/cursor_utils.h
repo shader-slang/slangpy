@@ -172,6 +172,7 @@ private:
     {
         if (!self.is_valid())
             return nb::none();
+
         auto type = self.type();
         if (type) {
             switch (type->kind()) {
@@ -373,6 +374,16 @@ private:
     {
         if (!self.is_valid())
             return;
+
+        // Special case for handling DescriptorHandle.
+        // These are reflected differently by slang depending on the backend.
+        // For example, in D3D12 and Vulkan, they are of type uint2.
+        // In Metal and CUDA, they are actual resource types.
+        if (nb::isinstance<DescriptorHandle>(nbval)) {
+            auto handle = nb::cast<DescriptorHandle>(nbval);
+            self.set(handle);
+            return;
+        }
 
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();

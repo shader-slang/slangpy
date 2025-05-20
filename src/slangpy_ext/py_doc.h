@@ -9469,10 +9469,6 @@ leading '.' character.)doc";
 
 static const char *__doc_sgl_platform_get_proc_address = R"doc(Get a function pointer from a library.)doc";
 
-static const char *__doc_sgl_platform_get_temp_file_path =
-R"doc(Create a unique path to a temporary file. Note: A file with the same
-name could still be created by another process.)doc";
-
 static const char *__doc_sgl_platform_has_extension =
 R"doc(Check if a file path has a given file extension. Does a case-
 insensitive comparison.)doc";

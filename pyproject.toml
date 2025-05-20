@@ -12,6 +12,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slangpy"
+dynamic = ["version"]
+requires-python = ">=3.9"
+dependencies = ["typing_extensions", "numpy>=1.26.0"]
 authors = [
     { name = "Simon Kallweit", email = "skallweit@nvidia.com" },
     { name = "Chris Cummings", email = "chriscummings@nvidia.com" },
@@ -22,9 +25,6 @@ authors = [
 description = "Easily call Slang functions and integrate with PyTorch auto diff directly from Python."
 readme = "README.md"
 license="Apache-2.0"
-requires-python = ">=3.9"
-dependencies = ["typing_extensions", "numpy>=1.26.0"]
-dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/shader-slang/slangpy"
@@ -32,6 +32,21 @@ Documentation = "https://slangpy.shader-slang.org/en/latest/"
 Repository = "https://github.com/shader-slang/slangpy"
 Issues = "https://github.com/shader-slang/slangpy/issues"
 Changelog = "https://slangpy.shader-slang.org/en/latest/changelog.html"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["slangpy*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.py", "*.pyi"]
+"slangpy" = ["slang/**", "data/**"]
+"slangpy.tests" = ["**"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["__pycache__/*", "*.pyc"]
 
 [tool.black]
 line-length = 100

@@ -69,6 +69,8 @@ option(SGL_ENABLE_ASAN "Enable address sanitizer" OFF)
 # If enabled, additional targets are generated to validate that headers are self sufficient.
 option(SGL_ENABLE_HEADER_VALIDATION "Enable header validation" OFF)
 
+set(SGL_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Project directory (defaults to CMAKE_CURRENT_SOURCE_DIR)")
+
 set(SGL_BINARY_DIR ${CMAKE_BINARY_DIR} CACHE STRING "Binary directory (defaults to CMAKE_BINARY_DIR)")
 
 # -----------------------------------------------------------------------------

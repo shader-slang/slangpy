@@ -66,6 +66,8 @@ public:
     void set_sampler(const ref<Sampler>& sampler) const;
     void set_acceleration_structure(const ref<AccelerationStructure>& acceleration_structure) const;
 
+    void set_descriptor_handle(const DescriptorHandle& handle) const;
+
     void set_data(const void* data, size_t size) const;
 
     void set_cuda_tensor_view(const cuda::TensorView& tensor_view) const;

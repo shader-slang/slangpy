@@ -12,35 +12,6 @@ public interface IRWTensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     [Differentiable] public void set(int idx[D], T value);
 }
 
-public struct StridedLayout<let D : int>
-{
-    public int offset;
-    public int[D] strides;
-
-    public int at(int[D] idx)
-    {
-        int result = offset;
-        for (int i = 0; i < D; ++i)
-            result += strides[i] * idx[i];
-        return result;
-    }
-
-    public __generic<let SliceD : int>
-    StridedLayout<SliceD> slice(int[D - SliceD] idx)
-    {
-        StridedLayout<SliceD> result;
-
-        for (int i = 0; i < SliceD; ++i)
-            result.strides[i] = strides[D - SliceD + i];
-
-        result.offset = offset;
-        for (int i = 0; i < D - SliceD; ++i)
-            result.offset += strides[i] * idx[i];
-
-        return result;
-    }
-}
-
 namespace impl
 {
     // Helper function to turn a variadic list into an array of statically known size

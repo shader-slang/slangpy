@@ -257,21 +257,61 @@ public struct RWValueRef<T>
     public void store(Context0D context, in T value) { this.value[0] = value; }
 }
 
+public struct StridedLayout<let D : int>
+{
+    public int offset;
+    public int[D] strides;
+
+    public int at(int[D] idx)
+    {
+        int result = offset;
+        for (int i = 0; i < D; ++i)
+            result += strides[i] * idx[i];
+        return result;
+    }
+
+    // at_vec handles the fact that the vector form of the coordinate is the transpose
+    // of the array form.
+    int at_vec(vector<int, D> index) {
+        int result = offset;
+        int end = D - 1;
+        for (int i = 0; i < D; i++) { result += index[end - i] * strides[i]; }
+        return result;
+    }
+
+    public __generic<let SliceD : int>
+    StridedLayout<SliceD> slice(int[D - SliceD] idx)
+    {
+        StridedLayout<SliceD> result;
+
+        for (int i = 0; i < SliceD; ++i)
+            result.strides[i] = strides[D - SliceD + i];
+
+        result.offset = offset;
+        for (int i = 0; i < D - SliceD; ++i)
+            result.offset += strides[i] * idx[i];
+
+        return result;
+    }
+}
+
+
 public struct NDBuffer<T, let N : int>
 {
     public StructuredBuffer<T> buffer;
-    public int offset;
-    public int[N] strides;
-    public int[N] shape;
+    public StridedLayout<N> layout;
+    private uint _shape[N];
 
-    public T get(int[N] index) { return buffer[offset + _idx(index, strides)]; }
-    //public T get(vector<int,N> index) { return buffer[offset + _idx(index, strides)]; }
+    public property shape : uint[N] { get { return _shape; } }
 
-    //public __subscript(int[N] index)->T { get { return get(index); } }
-    public __subscript(vector<int,N> index)->T { get { return buffer[offset + _idx_vec(index, strides)]; } }
+    public T get(int[N] idx) { return buffer[layout.at(idx)]; }
+     //public T get(vector<int,N> index) { return buffer[offset + _idx(index, strides)]; }
 
-    public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
-    public void store(ContextND<N> context, in T value) {};
+    // public __subscript(int[N] index)->T { get { return get(index); } }
+    public __subscript(vector<int, N> idx)->T { get { return buffer[layout.at_vec(idx)]; } }
+
+     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
+     public void store(ContextND<N> context, in T value) {};
 
     public void load(Context0D context, out NDBuffer<T,N> value) {
         value = this;
@@ -290,7 +330,7 @@ public struct NDBuffer<T, let N : int>
 
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
-            value[vi] = buffer[offset + _idx(call_id, strides)];
+            value[vi] = get(call_id);
         }
     }
 
@@ -300,15 +340,16 @@ public struct NDBuffer<T, let N : int>
 public struct RWNDBuffer<T, let N : int>
 {
     public RWStructuredBuffer<T> buffer;
-    public int offset;
-    public int[N] strides;
-    public int[N] shape;
+    public StridedLayout<N> layout;
+    private uint _shape[N];
 
-    public T get(int[N] index) { return buffer[offset + _idx(index, strides)]; }
-    //public T get(vector<int,N> index) { return buffer[offset + _idx(index, strides)]; }
+    public property shape : uint[N] { get { return _shape; } }
 
-    public void set(int[N] index, T value) { buffer[offset + _idx(index, strides)] = value; }
-    //public void set(vector<int,N> index, T value) { buffer[offset + _idx(index, strides)] = value; }
+    public T get(int[N] idx) { return buffer[layout.at(idx)]; }
+     //public T get(vector<int,N> index) { return buffer[offset + _idx(index, strides)]; }
+
+    public void set(int[N] idx, T value) { buffer[layout.at(idx)] = value; }
+     //public void set(vector<int,N> index, T value) { buffer[offset + _idx(index, strides)] = value; }
 
     //public __subscript(int[N] index)->T {
     //    get { return get(index); }
@@ -317,9 +358,9 @@ public struct RWNDBuffer<T, let N : int>
     //}
 
     public __subscript(vector<int,N> index)->T {
-        get { return buffer[offset + _idx_vec(index, strides)]; }
+        get { return buffer[layout.at_vec(index)]; }
         [nonmutating]
-        set { buffer[offset + _idx_vec(index, strides)] = newValue; }
+        set { buffer[layout.at_vec(index)] = newValue; }
     }
 
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }

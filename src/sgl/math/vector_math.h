@@ -1770,7 +1770,7 @@ struct std::not_equal_to<::sgl::math::vector<T, N>> {
 
 template<typename T, int N>
 struct std::hash<::sgl::math::vector<T, N>> {
-    constexpr int operator()(const ::sgl::math::vector<T, N>& v) const
+    constexpr size_t operator()(const ::sgl::math::vector<T, N>& v) const
     {
         size_t result = 0;
         for (int i = 0; i < N; ++i)

@@ -146,7 +146,8 @@ Bitmap::Bitmap(
 }
 
 Bitmap::Bitmap(const Bitmap& other)
-    : m_pixel_format(other.m_pixel_format)
+    : Object() // gcc complains otherwise
+    , m_pixel_format(other.m_pixel_format)
     , m_component_type(other.m_component_type)
     , m_pixel_struct(new DataStruct(*other.m_pixel_struct))
     , m_width(other.m_width)

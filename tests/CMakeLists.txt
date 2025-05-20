@@ -40,8 +40,4 @@ if(SGL_BUILD_TESTS)
 
     add_test(NAME sgl_tests COMMAND $<TARGET_FILE:sgl_tests>)
 
-    if(SGL_BUILD_PYTHON)
-        add_test(NAME python_tests COMMAND ${Python_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR})
-    endif()
-
 endif(SGL_BUILD_TESTS)

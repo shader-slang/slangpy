@@ -18,10 +18,10 @@ void NativeValueMarshall::write_shader_cursor_pre_dispatch(
     nb::list read_back
 ) const
 {
+    SGL_UNUSED(context);
+    SGL_UNUSED(read_back);
     AccessType primal_access = binding->get_access().first;
     if (!value.is_none() && (primal_access == AccessType::read || primal_access == AccessType::readwrite)) {
-        SGL_UNUSED(binding);
-        SGL_UNUSED(context);
         ShaderCursor field = cursor[binding->get_variable_name()]["value"];
         write_shader_cursor(field, value);
     }
