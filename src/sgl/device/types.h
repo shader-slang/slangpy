@@ -93,7 +93,14 @@ enum class Feature : uint32_t {
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
     // Metal specific features
     argument_buffer_tier2 = static_cast<uint32_t>(rhi::Feature::ArgumentBufferTier2),
+
+    count,
 };
+
+static_assert(
+    static_cast<uint32_t>(Feature::count) == static_cast<uint32_t>(rhi::Feature::_Count),
+    "Feature table size mismatch"
+);
 
 SGL_ENUM_INFO(
     Feature,
