@@ -7,7 +7,7 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Version 0.28.0 (TBA)
+Version 0.28.0 (May 21, 2025)
 ----------------------------
 
 - Load PyTorch module lazily to avoid overhead when PyTorch is not used.
