@@ -51,7 +51,7 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     cache->get_args_signature(builder, args, kwargs);
 
     std::string sig = builder->str();
-    NativeCallData* call_data = cache->find_call_data(sig);
+    ref<NativeCallData> call_data = cache->find_call_data(sig);
 
     if (call_data) {
         return call_data->call(options, args, kwargs);
