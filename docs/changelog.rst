@@ -7,6 +7,16 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.29.0 (May 22, 2025)
+----------------------------
+
+- Update `slang-rhi` to latest version. Make enum infos constexpr.
+  (PR `#234 <https://github.com/shader-slang/slangpy/pull/234>`__).
+- Fix ``sgl::Feature`` (``slangpy.Feature``) to include missing value.
+  (PR `#233 <https://github.com/shader-slang/slangpy/pull/233>`__).
+- Fix registered matrix types in ``PYTHON_TYPES``.
+  (PR `#232 <https://github.com/shader-slang/slangpy/pull/232>`__).
+
 Version 0.28.0 (May 21, 2025)
 ----------------------------
 
