@@ -120,6 +120,7 @@ SGL_ENUM_INFO(
         {Feature::sampler_feedback, "sampler_feedback"},
         {Feature::acceleration_structure, "acceleration_structure"},
         {Feature::acceleration_structure_spheres, "acceleration_structure_spheres"},
+        {Feature::acceleration_structure_linear_swept_spheres, "acceleration_structure_linear_swept_spheres"},
         {Feature::ray_tracing, "ray_tracing"},
         {Feature::ray_query, "ray_query"},
         {Feature::shader_execution_reordering, "shader_execution_reordering"},
