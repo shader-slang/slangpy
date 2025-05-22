@@ -343,18 +343,22 @@ SGL_API const FormatInfo& get_format_info(Format format);
 
 enum class FormatSupport : uint32_t {
     none = static_cast<uint32_t>(rhi::FormatSupport::None),
-    buffer = static_cast<uint32_t>(rhi::FormatSupport::Buffer),
-    index_buffer = static_cast<uint32_t>(rhi::FormatSupport::IndexBuffer),
-    vertex_buffer = static_cast<uint32_t>(rhi::FormatSupport::VertexBuffer),
+    copy_source = static_cast<uint32_t>(rhi::FormatSupport::CopySource),
+    copy_destination = static_cast<uint32_t>(rhi::FormatSupport::CopyDestination),
     texture = static_cast<uint32_t>(rhi::FormatSupport::Texture),
     depth_stencil = static_cast<uint32_t>(rhi::FormatSupport::DepthStencil),
     render_target = static_cast<uint32_t>(rhi::FormatSupport::RenderTarget),
     blendable = static_cast<uint32_t>(rhi::FormatSupport::Blendable),
+    multisampling = static_cast<uint32_t>(rhi::FormatSupport::Multisampling),
+    resolvable = static_cast<uint32_t>(rhi::FormatSupport::Resolvable),
     shader_load = static_cast<uint32_t>(rhi::FormatSupport::ShaderLoad),
     shader_sample = static_cast<uint32_t>(rhi::FormatSupport::ShaderSample),
     shader_uav_load = static_cast<uint32_t>(rhi::FormatSupport::ShaderUavLoad),
     shader_uav_store = static_cast<uint32_t>(rhi::FormatSupport::ShaderUavStore),
     shader_atomic = static_cast<uint32_t>(rhi::FormatSupport::ShaderAtomic),
+    buffer = static_cast<uint32_t>(rhi::FormatSupport::Buffer),
+    index_buffer = static_cast<uint32_t>(rhi::FormatSupport::IndexBuffer),
+    vertex_buffer = static_cast<uint32_t>(rhi::FormatSupport::VertexBuffer),
 };
 SGL_ENUM_CLASS_OPERATORS(FormatSupport);
 
@@ -362,18 +366,22 @@ SGL_ENUM_INFO(
     FormatSupport,
     {
         {FormatSupport::none, "none"},
-        {FormatSupport::buffer, "buffer"},
-        {FormatSupport::index_buffer, "index_buffer"},
-        {FormatSupport::vertex_buffer, "vertex_buffer"},
+        {FormatSupport::copy_source, "copy_source"},
+        {FormatSupport::copy_destination, "copy_destination"},
         {FormatSupport::texture, "texture"},
         {FormatSupport::depth_stencil, "depth_stencil"},
         {FormatSupport::render_target, "render_target"},
         {FormatSupport::blendable, "blendable"},
+        {FormatSupport::multisampling, "multisampling"},
+        {FormatSupport::resolvable, "resolvable"},
         {FormatSupport::shader_load, "shader_load"},
         {FormatSupport::shader_sample, "shader_sample"},
         {FormatSupport::shader_uav_load, "shader_uav_load"},
         {FormatSupport::shader_uav_store, "shader_uav_store"},
         {FormatSupport::shader_atomic, "shader_atomic"},
+        {FormatSupport::buffer, "buffer"},
+        {FormatSupport::index_buffer, "index_buffer"},
+        {FormatSupport::vertex_buffer, "vertex_buffer"},
     }
 );
 SGL_ENUM_REGISTER(FormatSupport);
