@@ -7,6 +7,12 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.30.0 (TBA)
+----------------------------
+
+- Update `slang-rhi` to latest version (improve CUDA error reporting).
+  Reduce default log level for RHI messages to ``LogLevel::warn``.
+
 Version 0.29.0 (May 22, 2025)
 ----------------------------
 
