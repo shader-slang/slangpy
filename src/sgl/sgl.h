@@ -5,7 +5,7 @@
 #include "sgl/core/macros.h"
 
 #define SGL_VERSION_MAJOR 0
-#define SGL_VERSION_MINOR 28
+#define SGL_VERSION_MINOR 29
 #define SGL_VERSION_PATCH 0
 
 #define SGL_VERSION                                                                                                    \
