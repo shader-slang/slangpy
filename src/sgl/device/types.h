@@ -160,6 +160,7 @@ SGL_ENUM_INFO(
     }
 );
 SGL_ENUM_REGISTER(Feature);
+static_assert(EnumInfo<Feature>::items.size() == static_cast<size_t>(Feature::count));
 
 enum class DescriptorHandleType {
     undefined = static_cast<uint32_t>(rhi::DescriptorHandleType::Undefined),

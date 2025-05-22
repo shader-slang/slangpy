@@ -15,9 +15,10 @@
 
 #include <slang-rhi.h>
 
+#include <limits>
 #include <map>
 #include <set>
-#include <limits>
+#include <span>
 
 namespace sgl {
 
