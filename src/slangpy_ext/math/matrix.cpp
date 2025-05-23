@@ -6,6 +6,7 @@
 #include "sgl/core/traits.h"
 
 #include "math/primitivetype.h"
+#include "sgl/math/matrix_types.h"
 
 #include <array>
 #include <type_traits>
@@ -195,9 +196,15 @@ void bind_matrix_type(nb::module_& m, const char* name)
 inline void bind_matrix(nb::module_& m)
 {
     bind_matrix_type<float2x2>(m, "float2x2");
-    bind_matrix_type<float3x3>(m, "float3x3");
+    bind_matrix_type<float2x3>(m, "float2x3");
     bind_matrix_type<float2x4>(m, "float2x4");
+
+    bind_matrix_type<float3x2>(m, "float3x2");
+    bind_matrix_type<float3x3>(m, "float3x3");
     bind_matrix_type<float3x4>(m, "float3x4");
+
+    bind_matrix_type<float4x2>(m, "float4x2");
+    bind_matrix_type<float4x3>(m, "float4x3");
     bind_matrix_type<float4x4>(m, "float4x4");
 
     m.def(
@@ -330,8 +337,14 @@ SGL_PY_EXPORT(math_matrix)
     sgl::math::bind_matrix(math);
 
     m.attr("float2x2") = math.attr("float2x2");
-    m.attr("float3x3") = math.attr("float3x3");
+    m.attr("float2x3") = math.attr("float2x3");
     m.attr("float2x4") = math.attr("float2x4");
+
+    m.attr("float3x2") = math.attr("float3x2");
+    m.attr("float3x3") = math.attr("float3x3");
     m.attr("float3x4") = math.attr("float3x4");
+
+    m.attr("float4x2") = math.attr("float4x2");
+    m.attr("float4x3") = math.attr("float4x3");
     m.attr("float4x4") = math.attr("float4x4");
 }

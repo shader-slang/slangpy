@@ -290,9 +290,15 @@ GETSET_VECTOR(float3, float32);
 GETSET_VECTOR(float4, float32);
 
 GETSET_MATRIX(float2x2, float32);
-GETSET_MATRIX(float3x3, float32);
+GETSET_MATRIX(float2x3, float32);
 GETSET_MATRIX(float2x4, float32);
+
+GETSET_MATRIX(float3x2, float32);
+GETSET_MATRIX(float3x3, float32);
 GETSET_MATRIX(float3x4, float32);
+
+GETSET_MATRIX(float4x2, float32);
+GETSET_MATRIX(float4x3, float32);
 GETSET_MATRIX(float4x4, float32);
 
 GETSET_SCALAR(double, float64);

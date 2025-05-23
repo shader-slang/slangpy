@@ -23,6 +23,32 @@ from slangpy.builtin.value import slang_type_to_return_type
 from slangpy.reflection.reflectiontypes import SlangType
 from slangpy.types import ValueRef
 
+# The input value for this function is not aligned, because it's user provided data.
+# So we need to take care of the alignment of the matrix here. When the matrix size is aligned,
+# we can just return the numpy array. Otherwise, we need to padding each row to the alignment.
+# Calculate the number of columns that is aligned to the buffer layout alignment
+# slang_type.buffer_layout.alignment is the alignment in bytes of each row of the matrix
+def slang_matrix_to_numpy_with_padding(slang_type: kfr.MatrixType, value: Any) -> npt.NDArray[Any]:
+    colAligned = slang_type.buffer_layout.alignment // slang_type.scalar_type._py_buffer_type_layout().size
+    if colAligned == slang_type.cols:
+        return value.to_numpy()
+    else:
+        matAligned = np.zeros((slang_type.rows, colAligned), dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type])
+        matAligned[:, :slang_type.cols] = value.to_numpy()
+        return matAligned
+
+# The input value for this function is aligned, because it's the output of the kernel.
+# We need to remove the padding of the matrix here before returning to user code.
+def numpy_to_slang_matrix_remove_padding(slang_type: kfr.MatrixType, value: npt.NDArray[Any], python_type: Any) -> Any:
+    np_data = value.view(dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type])
+    colAligned = slang_type.buffer_layout.alignment // slang_type.scalar_type._py_buffer_type_layout().size
+    if colAligned == slang_type.cols:
+        return python_type(np_data)
+    else:
+        matAligned = np_data.reshape((slang_type.rows, colAligned))
+        matRemovePadding = np.zeros((slang_type.rows, slang_type.cols), dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type])
+        matRemovePadding = matAligned[:, :slang_type.cols]
+        return python_type(matRemovePadding)
 
 def slang_value_to_numpy(slang_type: kfr.SlangType, value: Any) -> npt.NDArray[Any]:
     if isinstance(slang_type, kfr.ScalarType):
@@ -34,10 +60,9 @@ def slang_value_to_numpy(slang_type: kfr.SlangType, value: Any) -> npt.NDArray[A
         return np.array(data, dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type])
     elif isinstance(slang_type, kfr.MatrixType):
         # value should be an SGL matrix type, which has a to_numpy function
-        return value.to_numpy()
+        return slang_matrix_to_numpy_with_padding(slang_type, value)
     else:
         raise ValueError(f"Can not convert slang type {slang_type} to numpy array")
-
 
 def numpy_to_slang_value(slang_type: kfr.SlangType, value: npt.NDArray[Any]) -> Any:
     python_type = slang_type_to_return_type(slang_type)
@@ -51,8 +76,7 @@ def numpy_to_slang_value(slang_type: kfr.SlangType, value: npt.NDArray[Any]) -> 
         return python_type(*np_data)
     elif isinstance(slang_type, kfr.MatrixType):
         # convert to one of the SGL matrix types (can be constructed from numpy array)
-        np_data = value.view(dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type])
-        return python_type(np_data)
+        return numpy_to_slang_matrix_remove_padding(slang_type, value, python_type)
     else:
         raise ValueError(f"Can not convert numpy array to slang type {slang_type}")
 
@@ -134,6 +158,7 @@ class ValueRefMarshall(Marshall):
                 else:
                     npdata = self.value_type.to_numpy(data.value)
                 npdata = npdata.view(dtype=np.uint8)
+
                 return {
                     "value": context.device.create_buffer(
                         element_count=1,
