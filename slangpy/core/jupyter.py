@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import slangpy
 from slangpy import TextureType
 from slangpy import Module, Function, Struct
 from slangpy import (
