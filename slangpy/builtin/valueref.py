@@ -30,14 +30,15 @@ from slangpy.types import ValueRef
 # Calculate the number of columns that is aligned to the buffer layout alignment
 # slang_type.buffer_layout.alignment is the alignment in bytes of each row of the matrix
 def slang_matrix_to_numpy_with_padding(slang_type: kfr.MatrixType, value: Any) -> npt.NDArray[Any]:
-    colAligned = (
-        slang_type.buffer_layout.alignment // slang_type.scalar_type._py_buffer_type_layout().size
-    )
-    if colAligned == slang_type.cols:
+    alignedRowNum = (
+        slang_type.buffer_layout.stride // slang_type.rows
+    ) // slang_type.scalar_type.buffer_layout.stride
+
+    if alignedRowNum == slang_type.cols:
         return value.to_numpy()
     else:
         matAligned = np.zeros(
-            (slang_type.rows, colAligned),
+            (slang_type.rows, alignedRowNum),
             dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type],
         )
         matAligned[:, : slang_type.cols] = value.to_numpy()
@@ -50,13 +51,13 @@ def numpy_to_slang_matrix_remove_padding(
     slang_type: kfr.MatrixType, value: npt.NDArray[Any], python_type: Any
 ) -> Any:
     np_data = value.view(dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type])
-    colAligned = (
-        slang_type.buffer_layout.alignment // slang_type.scalar_type._py_buffer_type_layout().size
-    )
-    if colAligned == slang_type.cols:
+    alignedRowNum = (
+        slang_type.buffer_layout.stride // slang_type.rows
+    ) // slang_type.scalar_type.buffer_layout.stride
+    if alignedRowNum == slang_type.cols:
         return python_type(np_data)
     else:
-        matAligned = np_data.reshape((slang_type.rows, colAligned))
+        matAligned = np_data.reshape((slang_type.rows, alignedRowNum))
         matRemovePadding = np.zeros(
             (slang_type.rows, slang_type.cols),
             dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type],

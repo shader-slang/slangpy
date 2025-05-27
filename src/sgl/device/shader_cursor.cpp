@@ -563,13 +563,11 @@ void ShaderCursor::_set_matrix(
 #endif
 
     if (rows > 1) {
-        // each row is aligned to 16 bytes
         size_t row_size = size / rows;
         ShaderOffset offset = m_offset;
         for (int row = 0; row < rows; ++row) {
             m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + row * row_size, row_size);
-            auto rowAglinment = m_type_layout->getAlignment();
-            offset.uniform_offset += rowAglinment;
+            offset.uniform_offset += row_size;
         }
     } else {
         m_shader_object->set_data(m_offset, data, size);
