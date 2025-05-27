@@ -568,7 +568,7 @@ void ShaderCursor::_set_matrix(
         ShaderOffset offset = m_offset;
         for (int row = 0; row < rows; ++row) {
             m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + row * row_size, row_size);
-            offset.uniform_offset += row_size;
+            offset.uniform_offset += static_cast<uint32_t>(row_size);
         }
     } else {
         m_shader_object->set_data(m_offset, data, size);
