@@ -40,7 +40,6 @@ Wrapper flattenMatrix<int R, int C>(matrix<float, R, C> mat){
 """
 
 
-
 def load_test_module(device_type: DeviceType):
     device = helpers.get_device(device_type)
     return helpers.create_module(device, NUMPY_MODULE)
@@ -155,6 +154,7 @@ def test_cache(device_type: DeviceType):
 
     assert np.allclose(res, res_expected)
 
+
 # test that we handle the matrix alignment correctly when reading the matrix from the buffer
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_return_numpy_matrix(device_type: DeviceType):
@@ -171,6 +171,7 @@ def test_return_numpy_matrix(device_type: DeviceType):
             assert res.shape == (R, C)
             assert np.allclose(res, np.ones((R, C)))
 
+
 # test that we handle the matrix alignment correctly when reading the matrix from the buffer
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_setup_numpy_matrix(device_type: DeviceType):
@@ -185,7 +186,8 @@ def test_setup_numpy_matrix(device_type: DeviceType):
             res = func(matType(np.ones((R, C))))
 
             assert res is not None
-            assert np.allclose(res['data'][0:R * C], np.ones(R * C))
+            assert np.allclose(res["data"][0 : R * C], np.ones(R * C))
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
