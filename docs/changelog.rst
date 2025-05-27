@@ -10,7 +10,10 @@ SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 Version 0.30.0 (TBA)
 ----------------------------
 
-- Update `slang-rhi` to latest version. Improve CUDA error reporting. Improve debug marker support and add WinPixRuntime.
+- Update `slang-rhi` to latest version.
+  Improve CUDA error reporting.
+  Improve debug marker support and add `WinPixEventRuntime`.
+  Fix resource lifetime tracking for entry point arguments.
   (PR `#236 <https://github.com/shader-slang/slangpy/pull/236>`__).
 
 Version 0.29.0 (May 22, 2025)
