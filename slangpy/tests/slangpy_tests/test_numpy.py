@@ -155,7 +155,7 @@ def test_cache(device_type: DeviceType):
     assert np.allclose(res, res_expected)
 
 
-# test that we handle the matrix alignment correctly when reading the matrix from the buffer
+# test that we handle the matrix alignment correctly when reading the matrix from the output buffer
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_return_numpy_matrix(device_type: DeviceType):
 
@@ -172,7 +172,7 @@ def test_return_numpy_matrix(device_type: DeviceType):
             assert np.allclose(res, np.ones((R, C)))
 
 
-# test that we handle the matrix alignment correctly when reading the matrix from the buffer
+# test that we handle the matrix alignment correctly when writing the matrix to the input buffer
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_setup_numpy_matrix(device_type: DeviceType):
 
@@ -187,7 +187,6 @@ def test_setup_numpy_matrix(device_type: DeviceType):
 
             assert res is not None
             assert np.allclose(res["data"][0 : R * C], np.ones(R * C))
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
