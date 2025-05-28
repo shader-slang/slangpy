@@ -188,5 +188,6 @@ def test_setup_numpy_matrix(device_type: DeviceType):
             assert res is not None
             assert np.allclose(res["data"][0 : R * C], np.ones(R * C))
 
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

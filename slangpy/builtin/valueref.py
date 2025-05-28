@@ -30,19 +30,19 @@ from slangpy.types import ValueRef
 # Calculate the number of columns that is aligned to the buffer layout alignment
 # slang_type.buffer_layout.alignment is the alignment in bytes of each row of the matrix
 def slang_matrix_to_numpy_with_padding(slang_type: kfr.MatrixType, value: Any) -> npt.NDArray[Any]:
-    alignedRowNum = (
+    aligned_row_num = (
         slang_type.buffer_layout.stride // slang_type.rows
     ) // slang_type.scalar_type.buffer_layout.stride
 
-    if alignedRowNum == slang_type.cols:
+    if aligned_row_num == slang_type.cols:
         return value.to_numpy()
     else:
-        matAligned = np.zeros(
-            (slang_type.rows, alignedRowNum),
+        mat_aligned = np.zeros(
+            (slang_type.rows, aligned_row_num),
             dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type],
         )
-        matAligned[:, : slang_type.cols] = value.to_numpy()
-        return matAligned
+        mat_aligned[:, : slang_type.cols] = value.to_numpy()
+        return mat_aligned
 
 
 # The input value for this function is aligned, because it's the output of the kernel.
@@ -51,19 +51,19 @@ def numpy_to_slang_matrix_remove_padding(
     slang_type: kfr.MatrixType, value: npt.NDArray[Any], python_type: Any
 ) -> Any:
     np_data = value.view(dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type])
-    alignedRowNum = (
+    aligned_row_num = (
         slang_type.buffer_layout.stride // slang_type.rows
     ) // slang_type.scalar_type.buffer_layout.stride
-    if alignedRowNum == slang_type.cols:
+    if aligned_row_num == slang_type.cols:
         return python_type(np_data)
     else:
-        matAligned = np_data.reshape((slang_type.rows, alignedRowNum))
-        matRemovePadding = np.zeros(
+        mat_aligned = np_data.reshape((slang_type.rows, aligned_row_num))
+        mat_remove_padding = np.zeros(
             (slang_type.rows, slang_type.cols),
             dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type],
         )
-        matRemovePadding = matAligned[:, : slang_type.cols]
-        return python_type(matRemovePadding)
+        mat_remove_padding[:, : slang_type.cols] = mat_aligned
+        return python_type(mat_remove_padding)
 
 
 def slang_value_to_numpy(slang_type: kfr.SlangType, value: Any) -> npt.NDArray[Any]:
@@ -175,7 +175,6 @@ class ValueRefMarshall(Marshall):
                 else:
                     npdata = self.value_type.to_numpy(data.value)
                 npdata = npdata.view(dtype=np.uint8)
-
                 return {
                     "value": context.device.create_buffer(
                         element_count=1,
