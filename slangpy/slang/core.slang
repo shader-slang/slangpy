@@ -91,6 +91,17 @@ public struct VectorValueType<T,let N: int>
     public void store(Context1D context, in T value) {};
 }
 
+public struct Array1DValueType<T,let N: int>
+{
+    Array<T, N> value;
+
+    public void load(Context0D context, out Array<T, N> value) { value = this.value; }
+    public void store(Context0D context, in Array<T, N> value) {};
+
+    public void load(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
+    public void store(Context1D context, in T value) {};
+}
+
 public struct RangeType
 {
     int start;

@@ -385,6 +385,11 @@ private:
             return;
         }
 
+        // Check if nbval has a '.uniforms' function that can be called to get simple python object
+        if (nb::hasattr(nbval, "uniforms")) {
+            nbval = nb::getattr(nbval, "uniforms")();
+        }
+
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
 
