@@ -563,11 +563,14 @@ void ShaderCursor::_set_matrix(
 #endif
 
     if (rows > 1) {
+        size_t matStride = m_type_layout->getStride();
+        size_t rowStride = matStride / rows;
+
         size_t row_size = size / rows;
         ShaderOffset offset = m_offset;
         for (int row = 0; row < rows; ++row) {
             m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + row * row_size, row_size);
-            offset.uniform_offset += narrow_cast<uint32_t>(row_size);
+            offset.uniform_offset += narrow_cast<uint32_t>(rowStride);
         }
     } else {
         m_shader_object->set_data(m_offset, data, size);
