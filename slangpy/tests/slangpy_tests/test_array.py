@@ -38,6 +38,7 @@ int sum(int[4] vals) {
     result = function([1, 2, 3, 4])
     assert result == 10
 
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_untyped_struct_array(device_type: DeviceType):
 
@@ -62,8 +63,9 @@ int sum(Val[4] vals) {
 
     # just verify it can be called with no exceptions
     with pytest.raises(Exception, match=".*Element type must be fully defined.*"):
-        result = function([{'x':1}, {'x':2}, {'x':3}, {'x':4}])
+        result = function([{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}])
         assert result == 10
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_typed_struct_array(device_type: DeviceType):
@@ -88,8 +90,16 @@ int sum(Val[4] vals) {
     )
 
     # just verify it can be called with no exceptions
-    result = function([{'x':1, "_type":"Val"}, {'x':2, "_type":"Val"}, {'x':3, "_type":"Val"}, {'x':4, "_type":"Val"}])
+    result = function(
+        [
+            {"x": 1, "_type": "Val"},
+            {"x": 2, "_type": "Val"},
+            {"x": 3, "_type": "Val"},
+            {"x": 4, "_type": "Val"},
+        ]
+    )
     assert result == 10
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_array(device_type: DeviceType):
@@ -106,11 +116,12 @@ int inc(int val) {
     )
 
     # just verify it can be called with no exceptions
-    results = function([1, 2, 3, 4], _result='numpy')
+    results = function([1, 2, 3, 4], _result="numpy")
     assert isinstance(results, np.ndarray)
     assert results.shape == (4,)
     assert results.dtype == np.int32
     assert np.array_equal(results, np.array([2, 3, 4, 5], dtype=np.int32))
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_array(device_type: DeviceType):
@@ -130,11 +141,20 @@ int inc(Val val) {
     )
 
     # just verify it can be called with no exceptions
-    results = function([{'x':1, "_type":"Val"}, {'x':2, "_type":"Val"}, {'x':3, "_type":"Val"}, {'x':4, "_type":"Val"}], _result='numpy')
+    results = function(
+        [
+            {"x": 1, "_type": "Val"},
+            {"x": 2, "_type": "Val"},
+            {"x": 3, "_type": "Val"},
+            {"x": 4, "_type": "Val"},
+        ],
+        _result="numpy",
+    )
     assert isinstance(results, np.ndarray)
     assert results.shape == (4,)
     assert results.dtype == np.int32
     assert np.array_equal(results, np.array([2, 3, 4, 5], dtype=np.int32))
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_with_resource_array(device_type: DeviceType):
@@ -155,15 +175,21 @@ int inc(Val val) {
 
     vals = []
     for i in range(4):
-        buffer = device.create_buffer(element_count=1, struct_size=4, data= np.array([i + 1], dtype=np.int32), usage=BufferUsage.shader_resource)
-        vals.append({'x': buffer, "_type": "Val"})
+        buffer = device.create_buffer(
+            element_count=1,
+            struct_size=4,
+            data=np.array([i + 1], dtype=np.int32),
+            usage=BufferUsage.shader_resource,
+        )
+        vals.append({"x": buffer, "_type": "Val"})
 
     # just verify it can be called with no exceptions
-    results = function(vals, _result='numpy')
+    results = function(vals, _result="numpy")
     assert isinstance(results, np.ndarray)
     assert results.shape == (4,)
     assert results.dtype == np.int32
     assert np.array_equal(results, np.array([2, 3, 4, 5], dtype=np.int32))
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_with_ndbuffer_array(device_type: DeviceType):
@@ -184,16 +210,22 @@ int inc(Val val) {
 
     vals = []
     for i in range(4):
-        buffer = NDBuffer.zeros(device, dtype=function.module.int, shape=(1,), usage=BufferUsage.shader_resource| BufferUsage.unordered_access)
+        buffer = NDBuffer.zeros(
+            device,
+            dtype=function.module.int,
+            shape=(1,),
+            usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
+        )
         buffer.copy_from_numpy(np.array([i + 1], dtype=np.int32))
-        vals.append({'x': buffer, "_type": "Val"})
+        vals.append({"x": buffer, "_type": "Val"})
 
     # just verify it can be called with no exceptions
-    results = function(vals, _result='numpy')
+    results = function(vals, _result="numpy")
     assert isinstance(results, np.ndarray)
     assert results.shape == (4,)
     assert results.dtype == np.int32
     assert np.array_equal(results, np.array([2, 3, 4, 5], dtype=np.int32))
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_with_tensor_array(device_type: DeviceType):
@@ -216,14 +248,15 @@ float inc(Val val) {
     for i in range(4):
         buffer = Tensor.zeros(device, dtype=function.module.float, shape=(1,))
         buffer.copy_from_numpy(np.array([i + 1], dtype=np.float32))
-        vals.append({'x': buffer, "_type": "Val"})
+        vals.append({"x": buffer, "_type": "Val"})
 
     # just verify it can be called with no exceptions
-    results = function(vals, _result='numpy')
+    results = function(vals, _result="numpy")
     assert isinstance(results, np.ndarray)
     assert results.shape == (4,)
     assert results.dtype == np.float32
     assert np.array_equal(results, np.array([2, 3, 4, 5], dtype=np.float32))
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_2d_mapped_vectorize_struct_with_tensor_array(device_type: DeviceType):
@@ -247,16 +280,22 @@ float add(Val val, float val2) {
     for i in range(4):
         buffer = Tensor.zeros(device, dtype=function.module.float, shape=(1,))
         buffer.copy_from_numpy(np.array([i + 1], dtype=np.float32))
-        vals.append({'x': buffer, "_type": "Val"})
+        vals.append({"x": buffer, "_type": "Val"})
 
     # Map the tensor list to the first dimension, and a list of floats to the second dimensions
-    results = function.map((0,),(1,))(vals, [5.0,10.0,15.0,20.0], _result='numpy')
+    results = function.map((0,), (1,))(vals, [5.0, 10.0, 15.0, 20.0], _result="numpy")
 
     # Should end up with 4x4 matrix, where each row corresponds to a tensor and each column corresponds to the float value added
     assert isinstance(results, np.ndarray)
-    assert results.shape == (4,4)
+    assert results.shape == (4, 4)
     assert results.dtype == np.float32
-    assert np.array_equal(results, np.array([[6,11,16,21],[7,12,17,22],[8,13,18,23],[9,14,19,24]], dtype=np.float32))
+    assert np.array_equal(
+        results,
+        np.array(
+            [[6, 11, 16, 21], [7, 12, 17, 22], [8, 13, 18, 23], [9, 14, 19, 24]], dtype=np.float32
+        ),
+    )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
