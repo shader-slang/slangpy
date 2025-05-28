@@ -237,12 +237,11 @@ Device::~Device()
 
 ShaderCacheStats Device::shader_cache_stats() const
 {
-    size_t hit_count, miss_count, cache_size;
-    m_rhi_device->getShaderCacheStats(&hit_count, &miss_count, &cache_size);
+    // TODO: revisit when we add a shader cache.
     return {
-        .entry_count = cache_size,
-        .hit_count = hit_count,
-        .miss_count = miss_count,
+        .entry_count = 0,
+        .hit_count = 0,
+        .miss_count = 0,
     };
 }
 
