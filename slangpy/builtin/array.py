@@ -52,9 +52,15 @@ class ArrayMarshall(ValueMarshall):
         access = binding.access
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
-            st = cast(kfr.ArrayType, self.slang_type)
-            et = cast(SlangType, st.element_type)
-            cgb.type_alias(f"_t_{name}", f"Array1DValueType<{et.full_name},{st.num_elements}>")
+            if binding.call_dimensionality == 0:
+                # If not vectorizing, fallback to use of basic type as it works well
+                # with Slang's implicit casts etc
+                return super().gen_calldata(cgb, context, binding)
+            else:
+                # If vectorizing, utilize the value type.
+                st = cast(kfr.ArrayType, self.slang_type)
+                et = cast(SlangType, st.element_type)
+                cgb.type_alias(f"_t_{name}", f"Array1DValueType<{et.full_name},{st.num_elements}>")
         else:
             cgb.type_alias(f"_t_{name}", f"NoneType")
 
