@@ -118,7 +118,32 @@ def load_buffer_data_from_image(
 
     # Load bitmap + convert to numpy array
     bitmap = Bitmap(path)
-    data: np.ndarray[Any, Any] = np.asarray(bitmap)
+
+    # Select target pixel format based on channel count and greyscale flag.
+    pix_fmt = bitmap.pixel_format
+    if greyscale:
+        pix_fmt = Bitmap.PixelFormat.r
+    else:
+        if bitmap.channel_count == 1:
+            pix_fmt = Bitmap.PixelFormat.r
+        elif bitmap.channel_count == 2:
+            pix_fmt = Bitmap.PixelFormat.rg
+        elif bitmap.channel_count == 3:
+            pix_fmt = Bitmap.PixelFormat.rgb
+        elif bitmap.channel_count == 4:
+            pix_fmt = Bitmap.PixelFormat.rgba
+
+    # Select whether to de-gamma the bitmap based on linearization flag.
+    if linearize:
+        srgb_gamma = False
+    else:
+        srgb_gamma = bitmap.srgb_gamma
+
+    # Perform conversion to the desired pixel format.
+    bitmap = bitmap.convert(pix_fmt, DataStruct.Type.float32, srgb_gamma)
+
+    # Convert bitmap to numpy array.
+    data: np.ndarray[Any, Any] = np.asarray(bitmap, copy=False)
 
     # Validate array shape.
     if data.ndim != 3:
@@ -127,31 +152,12 @@ def load_buffer_data_from_image(
         raise ValueError(
             f"Bitmap data must have 1, 2, 3 or 4 channels, got {data.shape[2]} channels"
         )
+    if data.dtype != np.float32:
+        raise ValueError(f"Bitmap data must be float32, got {data.dtype}")
 
     # Flip if requested
     if flip_y:
         data = np.flipud(data)
-
-    # If not floating point, assume needs converting to normalized range.
-    if bitmap.component_type not in [
-        DataStruct.Type.float16,
-        DataStruct.Type.float32,
-        DataStruct.Type.float64,
-    ]:
-        data = data.astype(np.float32) / 255.0
-
-    # Optionally apply gammar correction.
-    if bitmap.srgb_gamma:
-        if linearize:
-            data = np.pow(data, 2.2)
-
-    # Optionally convert to single channel by averaging channels.
-    if greyscale:
-        if data.shape[2] > 1:
-            data = np.mean(data, axis=2, keepdims=True)
-
-    # Convert to float32 if not already.
-    data = data.astype(np.float32)
 
     # Apply scale and offset if requested.
     if scale != 1.0 or offset != 0.0:
@@ -331,14 +337,14 @@ class NDBuffer(NativeNDBuffer):
         linearize: bool = False,
         scale: float = 1.0,
         offset: float = 0.0,
-        greyscale: bool = False,
+        grayscale: bool = False,
     ) -> "NDBuffer":
         """
         Helper to load an image from a file and convert it to a floating point tensor.
         """ ""
 
         # Load bitmap + convert to numpy array
-        data = load_buffer_data_from_image(path, flip_y, linearize, scale, offset, greyscale)
+        data = load_buffer_data_from_image(path, flip_y, linearize, scale, offset, grayscale)
 
         # Create buffer with appropriate dtype based on number of channels.
         if data.shape[2] == 1:
