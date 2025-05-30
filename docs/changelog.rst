@@ -7,6 +7,13 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version pending release
+----------------------------
+
+- Add support for vectorizing against Python lists
+- `NDBuffer` and `Tensor` `empty` / `zeros` apis consistent
+- Added `load_from_image` for `NDBuffer` and `Tensor`
+
 Version 0.30.0 (May 27, 2025)
 ----------------------------
 
