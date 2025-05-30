@@ -405,6 +405,32 @@ public struct RWNDBuffer<T, let N : int>
             set(call_id, value[vi]);
         }
     }
+
+    public void load<let R : int, let C: int>(ContextND<N - 2> context, out matrix<T, R, C> value) {
+        int call_id[N];
+        for (int i = 0; i < N-1; i++) { call_id[i] = context.call_id[i]; }
+
+        for (int r = 0; r < R; r++)
+        {
+            for (int vi = 0; vi < C; vi++) {
+                call_id[N - 1] = r * C + vi;
+                value[r][vi] = get(call_id);
+            }
+        }
+    }
+
+    public void store<let R : int, let C: int>(ContextND<N - 2> context, in matrix<T, R, C> value) {
+        int call_id[N];
+        for (int i = 0; i < N - 1; i++) { call_id[i] = context.call_id[i]; }
+
+        for (int r = 0; r < R; r++)
+        {
+            for (int vi = 0; vi < C; vi++) {
+                call_id[N - 1] = r * C + vi;
+                set(call_id, value[r][vi]);
+            }
+        }
+    }
 }
 
 namespace impl
