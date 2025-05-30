@@ -146,12 +146,13 @@ def load_buffer_data_from_image(
     data: np.ndarray[Any, Any] = np.asarray(bitmap, copy=False)
 
     # Validate array shape.
-    if data.ndim != 3:
-        raise ValueError(f"Bitmap data must be 3D, got {data.ndim}D")
-    if data.shape[2] not in [1, 2, 3, 4]:
-        raise ValueError(
-            f"Bitmap data must have 1, 2, 3 or 4 channels, got {data.shape[2]} channels"
-        )
+    if data.ndim < 2 or data.ndim > 3:
+        raise ValueError(f"Bitmap data must be 2 or 3 dimensional, got {data.ndim} dimensions")
+    if data.ndim == 3:
+        if data.shape[2] not in [1, 2, 3, 4]:
+            raise ValueError(
+                f"Bitmap data must have 1, 2, 3 or 4 channels, got {data.shape[2]} channels"
+            )
     if data.dtype != np.float32:
         raise ValueError(f"Bitmap data must be float32, got {data.dtype}")
 
@@ -347,7 +348,7 @@ class NDBuffer(NativeNDBuffer):
         data = load_buffer_data_from_image(path, flip_y, linearize, scale, offset, grayscale)
 
         # Create buffer with appropriate dtype based on number of channels.
-        if data.shape[2] == 1:
+        if len(data.shape) == 2 or data.shape[2] == 1:
             dtype = "float"
         elif data.shape[2] == 2:
             dtype = "float2"

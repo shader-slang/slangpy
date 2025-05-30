@@ -296,7 +296,7 @@ class Tensor(NativeTensor):
         data = load_buffer_data_from_image(path, flip_y, linearize, scale, offset, grayscale)
 
         # Create tensor with appropriate dtype based on number of channels.
-        if data.shape[2] == 1:
+        if len(data.shape) == 2 or data.shape[2] == 1:
             dtype = "float"
         elif data.shape[2] == 2:
             dtype = "float2"
