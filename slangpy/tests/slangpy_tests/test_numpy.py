@@ -205,13 +205,14 @@ def test_numpy_matrix_as_result(device_type: DeviceType):
             func = module.find_function(funName)
             assert func is not None
             matType = getattr(spy, f"float{R}x{C}")
-            N = R*C
+            N = R * C
             #  import pdb; pdb.set_trace()
             res = func(matType(np.arange(1, N + 1).reshape(R, C)), _result="numpy")
 
             assert res is not None
             assert res.shape == (R, C)
             assert np.allclose(res, (np.arange(1, N + 1) + 2.0).reshape(R, C))
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
