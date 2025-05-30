@@ -341,7 +341,7 @@ class NDBuffer(NativeNDBuffer):
     ) -> "NDBuffer":
         """
         Helper to load an image from a file and convert it to a floating point tensor.
-        """ ""
+        """
 
         # Load bitmap + convert to numpy array
         data = load_buffer_data_from_image(path, flip_y, linearize, scale, offset, grayscale)
