@@ -2,7 +2,16 @@
 from __future__ import annotations
 from os import PathLike
 
-from slangpy import Device, Buffer, BufferUsage, TypeReflection, CommandBuffer, Bitmap, DataStruct
+from slangpy import (
+    Device,
+    Buffer,
+    BufferUsage,
+    TypeReflection,
+    CommandBuffer,
+    Bitmap,
+    DataStruct,
+    MemoryType,
+)
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
 from slangpy.reflection import reflectiontypes
 from slangpy.core.native import Shape
@@ -11,6 +20,7 @@ from slangpy.types.buffer import (
     get_lookup_module,
     resolve_element_type,
     resolve_program_layout,
+    load_buffer_data_from_image,
 )
 from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
@@ -214,6 +224,8 @@ class Tensor(NativeTensor):
         device: Device,
         shape: TShapeOrTuple,
         dtype: Any,
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
+        memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None,
     ) -> Tensor:
         """
@@ -227,19 +239,28 @@ class Tensor(NativeTensor):
         shape_tuple = shape if isinstance(shape, tuple) else shape.as_tuple()
         num_elems = math.prod(shape_tuple)
 
-        usage = BufferUsage.shader_resource | BufferUsage.unordered_access
         buffer = device.create_buffer(
-            element_count=num_elems, struct_size=dtype.buffer_layout.stride, usage=usage
+            element_count=num_elems,
+            struct_size=dtype.buffer_layout.stride,
+            usage=usage,
+            memory_type=memory_type,
         )
 
         return Tensor(buffer, dtype, shape)
 
     @staticmethod
-    def zeros(device: Device, shape: TShapeOrTuple, dtype: Any) -> Tensor:
+    def zeros(
+        device: Device,
+        shape: TShapeOrTuple,
+        dtype: Any,
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
+        memory_type: MemoryType = MemoryType.device_local,
+        program_layout: Optional[SlangProgramLayout] = None,
+    ) -> Tensor:
         """
         Creates a zero-initialized tensor with the requested shape and element type.
         """
-        tensor = Tensor.empty(device, shape, dtype)
+        tensor = Tensor.empty(device, shape, dtype, usage, memory_type, program_layout)
         tensor.clear()
         return tensor
 
@@ -272,45 +293,7 @@ class Tensor(NativeTensor):
         """ ""
 
         # Load bitmap + convert to numpy array
-        bitmap = Bitmap(path)
-        data: np.ndarray = np.asarray(bitmap)
-
-        # Validate array shape.
-        if data.ndim != 3:
-            raise ValueError(f"Bitmap data must be 3D, got {data.ndim}D")
-        if data.shape[2] not in [1, 2, 3, 4]:
-            raise ValueError(
-                f"Bitmap data must have 1, 2, 3 or 4 channels, got {data.shape[2]} channels"
-            )
-
-        # Flip if requested
-        if flip_y:
-            data = np.flipud(data)
-
-        # If not floating point, assume needs converting to normalized range.
-        if bitmap.component_type not in [
-            DataStruct.Type.float16,
-            DataStruct.Type.float32,
-            DataStruct.Type.float64,
-        ]:
-            data = data.astype(np.float32) / 255.0
-
-        # Optionally apply gammar correction.
-        if bitmap.srgb_gamma:
-            if linearize:
-                data = np.pow(data, 2.2)
-
-        # Optionally convert to single channel by averaging channels.
-        if greyscale:
-            if data.shape[2] > 1:
-                data = np.mean(data, axis=2, keepdims=True)
-
-        # Convert to float32 if not already.
-        data = data.astype(np.float32)
-
-        # Apply scale and offset if requested.
-        if scale != 1.0 or offset != 0.0:
-            data = data * scale + offset
+        data = load_buffer_data_from_image(path, flip_y, linearize, scale, offset, greyscale)
 
         # Create tensor with appropriate dtype based on number of channels.
         if data.shape[2] == 1:

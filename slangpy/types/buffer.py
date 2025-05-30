@@ -104,6 +104,62 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
     return element_type
 
 
+def load_buffer_data_from_image(
+    path: Union[str, PathLike[str]],
+    flip_y: bool = False,
+    linearize: bool = False,
+    scale: float = 1.0,
+    offset: float = 0.0,
+    greyscale: bool = False,
+) -> np.ndarray[Any, Any]:
+    """
+    Helper to load an image from a file and convert it to a floating point tensor.
+    """ ""
+
+    # Load bitmap + convert to numpy array
+    bitmap = Bitmap(path)
+    data: np.ndarray[Any, Any] = np.asarray(bitmap)
+
+    # Validate array shape.
+    if data.ndim != 3:
+        raise ValueError(f"Bitmap data must be 3D, got {data.ndim}D")
+    if data.shape[2] not in [1, 2, 3, 4]:
+        raise ValueError(
+            f"Bitmap data must have 1, 2, 3 or 4 channels, got {data.shape[2]} channels"
+        )
+
+    # Flip if requested
+    if flip_y:
+        data = np.flipud(data)
+
+    # If not floating point, assume needs converting to normalized range.
+    if bitmap.component_type not in [
+        DataStruct.Type.float16,
+        DataStruct.Type.float32,
+        DataStruct.Type.float64,
+    ]:
+        data = data.astype(np.float32) / 255.0
+
+    # Optionally apply gammar correction.
+    if bitmap.srgb_gamma:
+        if linearize:
+            data = np.pow(data, 2.2)
+
+    # Optionally convert to single channel by averaging channels.
+    if greyscale:
+        if data.shape[2] > 1:
+            data = np.mean(data, axis=2, keepdims=True)
+
+    # Convert to float32 if not already.
+    data = data.astype(np.float32)
+
+    # Apply scale and offset if requested.
+    if scale != 1.0 or offset != 0.0:
+        data = data * scale + offset
+
+    return data
+
+
 class NDBuffer(NativeNDBuffer):
     """
     An N dimensional buffer of a given slang type. The supplied type can come from a SlangType (via
@@ -282,47 +338,9 @@ class NDBuffer(NativeNDBuffer):
         """ ""
 
         # Load bitmap + convert to numpy array
-        bitmap = Bitmap(path)
-        data: np.ndarray = np.asarray(bitmap)
+        data = load_buffer_data_from_image(path, flip_y, linearize, scale, offset, greyscale)
 
-        # Validate array shape.
-        if data.ndim != 3:
-            raise ValueError(f"Bitmap data must be 3D, got {data.ndim}D")
-        if data.shape[2] not in [1, 2, 3, 4]:
-            raise ValueError(
-                f"Bitmap data must have 1, 2, 3 or 4 channels, got {data.shape[2]} channels"
-            )
-
-        # Flip if requested
-        if flip_y:
-            data = np.flipud(data)
-
-        # If not floating point, assume needs converting to normalized range.
-        if bitmap.component_type not in [
-            DataStruct.Type.float16,
-            DataStruct.Type.float32,
-            DataStruct.Type.float64,
-        ]:
-            data = data.astype(np.float32) / 255.0
-
-        # Optionally apply gammar correction.
-        if bitmap.srgb_gamma:
-            if linearize:
-                data = np.pow(data, 2.2)
-
-        # Optionally convert to single channel by averaging channels.
-        if greyscale:
-            if data.shape[2] > 1:
-                data = np.mean(data, axis=2, keepdims=True)
-
-        # Convert to float32 if not already.
-        data = data.astype(np.float32)
-
-        # Apply scale and offset if requested.
-        if scale != 1.0 or offset != 0.0:
-            data = data * scale + offset
-
-        # Create tensor with appropriate dtype based on number of channels.
+        # Create buffer with appropriate dtype based on number of channels.
         if data.shape[2] == 1:
             dtype = "float"
         elif data.shape[2] == 2:
@@ -333,6 +351,6 @@ class NDBuffer(NativeNDBuffer):
             dtype = "float4"
         else:
             raise ValueError(f"Unsupported number of channels: {data.shape[2]}")
-        tensor = NDBuffer.empty(device, data.shape[:2], dtype)
-        tensor.copy_from_numpy(data)
-        return tensor
+        buffer = NDBuffer.empty(device, data.shape[:2], dtype)
+        buffer.copy_from_numpy(data)
+        return buffer
