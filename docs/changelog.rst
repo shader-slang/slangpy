@@ -7,6 +7,11 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.31.0 (TBA)
+----------------------------
+
+- Fix typings for ``float2x3``, ``float3x2``, ``float4x2`` and ``float4x3``.
+
 Version 0.30.0 (May 27, 2025)
 ----------------------------
 
