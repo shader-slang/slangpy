@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
+from os import PathLike
 
-from slangpy import Device, Buffer, BufferUsage, TypeReflection, CommandBuffer
-from slangpy.core.utils import shape_to_contiguous_strides
+from slangpy import Device, Buffer, BufferUsage, TypeReflection, CommandBuffer, Bitmap, DataStruct
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
 from slangpy.reflection import reflectiontypes
 from slangpy.core.native import Shape
@@ -16,7 +16,7 @@ from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
 from warnings import warn
 
-from typing import Optional, Any, cast, TYPE_CHECKING
+from typing import Optional, Any, Union, cast, TYPE_CHECKING
 import numpy as np
 import math
 
@@ -256,3 +256,73 @@ class Tensor(NativeTensor):
         Creates a zero-initialized tensor with the same shape and element type as the given tensor.
         """
         return Tensor.zeros(other.storage.device, other.shape, other.dtype)
+
+    @staticmethod
+    def load_from_image(
+        device: Device,
+        path: Union[str, PathLike[str]],
+        flip_y: bool = False,
+        linearize: bool = False,
+        scale: float = 1.0,
+        offset: float = 0.0,
+        greyscale: bool = False,
+    ) -> Tensor:
+        """
+        Helper to load an image from a file and convert it to a floating point tensor.
+        """ ""
+
+        # Load bitmap + convert to numpy array
+        bitmap = Bitmap(path)
+        data: np.ndarray = np.asarray(bitmap)
+
+        # Validate array shape.
+        if data.ndim != 3:
+            raise ValueError(f"Bitmap data must be 3D, got {data.ndim}D")
+        if data.shape[2] not in [1, 2, 3, 4]:
+            raise ValueError(
+                f"Bitmap data must have 1, 2, 3 or 4 channels, got {data.shape[2]} channels"
+            )
+
+        # Flip if requested
+        if flip_y:
+            data = np.flipud(data)
+
+        # If not floating point, assume needs converting to normalized range.
+        if bitmap.component_type not in [
+            DataStruct.Type.float16,
+            DataStruct.Type.float32,
+            DataStruct.Type.float64,
+        ]:
+            data = data.astype(np.float32) / 255.0
+
+        # Optionally apply gammar correction.
+        if bitmap.srgb_gamma:
+            if linearize:
+                data = np.pow(data, 2.2)
+
+        # Optionally convert to single channel by averaging channels.
+        if greyscale:
+            if data.shape[2] > 1:
+                data = np.mean(data, axis=2, keepdims=True)
+
+        # Convert to float32 if not already.
+        data = data.astype(np.float32)
+
+        # Apply scale and offset if requested.
+        if scale != 1.0 or offset != 0.0:
+            data = data * scale + offset
+
+        # Create tensor with appropriate dtype based on number of channels.
+        if data.shape[2] == 1:
+            dtype = "float"
+        elif data.shape[2] == 2:
+            dtype = "float2"
+        elif data.shape[2] == 3:
+            dtype = "float3"
+        elif data.shape[2] == 4:
+            dtype = "float4"
+        else:
+            raise ValueError(f"Unsupported number of channels: {data.shape[2]}")
+        tensor = Tensor.empty(device, data.shape[:2], dtype)
+        tensor.copy_from_numpy(data)
+        return tensor
