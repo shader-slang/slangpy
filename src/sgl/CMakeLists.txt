@@ -335,6 +335,7 @@ target_include_directories(sgl PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TY
 target_link_libraries(sgl
     PUBLIC
         fmt::fmt
+        nanothread
         slang
         slang-rhi
         slang-rhi-vulkan-headers
