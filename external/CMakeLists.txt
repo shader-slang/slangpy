@@ -48,6 +48,11 @@ if(SGL_BUILD_PYTHON)
     nanobind_build_library(nanobind SHARED)
 endif()
 
+# nanothread
+
+set(NANOTHREAD_STATIC ON)
+add_subdirectory(nanothread)
+
 # slang
 
 set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downloading a prebuilt binary")
