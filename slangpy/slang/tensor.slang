@@ -5,11 +5,17 @@ public interface ITensor<T : IDifferentiable, let D : int>
 {
     [Differentiable] public T get(int idx[D]);
 
+    [Differentiable] public T getv(vector<int,D> idx);
+
+
     public property shape : uint[D];
 }
 public interface IRWTensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
     [Differentiable] public void set(int idx[D], T value);
+
+    [Differentiable] public void setv(vector<int,D> idx, T value);
+
 }
 
 namespace impl
@@ -246,11 +252,19 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     public T get(int[D] idx) { return buffer.Load<T>(layout.at(idx) * sizeof(T), sizeof(T)); }
 
     [TreatAsDifferentiable]
+    public T getv(vector<int,D> idx) { return buffer.Load<T>(layout.at_vec(idx)); }
+
+    [TreatAsDifferentiable]
     public void set(int idx[D], T value) {
         T::atomicAdd(buffer, layout.at(idx) * sizeof(T), value);
         // TODO: Atomic adds are conservative and not always needed. If we inspect the layout
         // during load() and determine each call id sees a unique slice, we could do the Store below instead:
         //buffer.Store<T>(layout.at(idx) * sizeof(T), value, sizeof(T));
+    }
+
+    [TreatAsDifferentiable]
+    public void setv(vector<int,D> idx, T value) {
+        T::atomicAdd(buffer, layout.at_vec(idx), value);
     }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out AtomicTensor<T, SliceD> value)
@@ -272,10 +286,19 @@ public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D> wh
     [Differentiable]
     public T get(int[D] idx) { return primal.get(idx); }
 
+    [Differentiable]
+    public T getv(vector<int,D> idx) { return primal.getv(idx); }
+
     [BackwardDerivativeOf(get)]
     public void get_bwd(int[D] idx, T.Differential grad)
     {
         d_out.set(idx, grad);
+    }
+
+    [BackwardDerivativeOf(getv)]
+    public void getv_bwd(vector<int,D> idx, T.Differential grad)
+    {
+        d_out.setv(idx, grad);
     }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out GradOutTensor<T, SliceD> value)
@@ -295,11 +318,20 @@ public struct GradInTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return primal.get(idx); }
 
+    [TreatAsDifferentiable]
+    public T getv(vector<int,D> idx) { return primal.getv(idx); }
+
     [Differentiable]
     public void set(int[D] idx, T value) { primal.set(idx, value); }
 
+    [Differentiable]
+    public void setv(vector<int,D> idx, T value) { primal.setv(idx, value); }
+
     [BackwardDerivativeOf(set)]
     public void set_bwd(int[D] idx, inout DifferentialPair<T> grad) { grad = diffPair(grad.p, d_in.get(idx)); }
+
+    [BackwardDerivativeOf(setv)]
+    public void setv_bwd(vector<int,D> idx, inout DifferentialPair<T> grad) { grad = diffPair(grad.p, d_in.getv(idx)); }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out GradInTensor<T, SliceD> value)
     {
@@ -319,17 +351,32 @@ public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D
     [Differentiable]
     public T get(int[D] idx) { return primal.get(idx); }
 
+    [Differentiable]
+    public T getv(vector<int,D> idx) { return primal.getv(idx); }
+
     [BackwardDerivativeOf(get)]
     public void get_bwd(int[D] idx, T.Differential grad)
     {
         d_out.set(idx, grad);
     }
 
+    [BackwardDerivativeOf(getv)]
+    public void getv_bwd(vector<int,D> idx, T.Differential grad)
+    {
+        d_out.setv(idx, grad);
+    }
+
     [Differentiable]
     public void set(int[D] idx, T value) { primal.set(idx, value); }
 
+    [Differentiable]
+    public void setv(vector<int,D> idx, T value) { primal.setv(idx, value); }
+
     [BackwardDerivativeOf(set)]
     public void set_bwd(int[D] idx, inout DifferentialPair<T> grad) { grad = diffPair(grad.p, d_in.get(idx)); }
+
+    [BackwardDerivativeOf(setv)]
+    public void setv_bwd(vector<int,D> idx, inout DifferentialPair<T> grad) { grad = diffPair(grad.p, d_in.getv(idx)); }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out GradInOutTensor<T, SliceD> value)
     {
