@@ -62,7 +62,12 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         self._source_for_exceptions = source
 
         #: Name of variable.
-        self.variable_name = source.variable_name
+        if source.create_param_block:
+            self.variable_name = "_param_" + source.variable_name
+            self.is_param_block = True
+        else:
+            self.variable_name = source.variable_name
+            self.is_param_block = False
 
         if source.children is not None:
             #: Child variables.

@@ -193,6 +193,9 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
 
+    [TreatAsDifferentiable]
+    public T getv(vector<int,D> idx) { return buffer[layout.at_vec(idx)]; }
+
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out Tensor<T, SliceD> value)
     {
         value.buffer = buffer;

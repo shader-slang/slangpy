@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, cast
 
-from slangpy.core.native import AccessType, CallContext, NativeValueMarshall
+from slangpy.core.native import AccessType, CallContext, NativeValueMarshall, unpack_arg
 
 import slangpy
 from slangpy import TypeReflection
@@ -137,6 +137,16 @@ class ValueMarshall(NativeValueMarshall):
             raise ValueError(f"Cannot resolve dimensionality of {type(self)} without slang type")
         return len(self.slang_type.shape) - len(vector_target_type.shape)
 
+    def build_shader_object(self, context: "BindContext", data: Any) -> "slangpy.ShaderObject":
+        unpacked = unpack_arg(data)
+        bt = context.layout.find_type_by_name(f"ValueType<{self.slang_type.full_name}>")
+        if bt is None:
+            raise ValueError(f"Could not find Slang type for {self.slang_type.full_name}")
+        so = context.device.create_shader_object(bt.uniform_layout.reflection)
+        cursor = slangpy.ShaderCursor(so)
+        cursor.write({"value": unpacked})
+        return so
+
 
 """
 Mapping of type reflection enum to slang type name
@@ -253,6 +263,18 @@ class VectorMarshall(ValueMarshall):
             cgb.type_alias(f"_t_{name}", f"VectorValueType<{et.full_name},{st.num_elements}>")
         else:
             cgb.type_alias(f"_t_{name}", f"NoneType")
+
+    def build_shader_object(self, context: "BindContext", data: Any) -> "slangpy.ShaderObject":
+        unpacked = unpack_arg(data)
+        st = cast(kfr.VectorType, self.slang_type)
+        et = cast(SlangType, st.element_type)
+        bt = context.layout.find_type_by_name(f"VectorValueType<{et.full_name},{st.num_elements}>")
+        if bt is None:
+            raise ValueError(f"Could not find Slang type for {self.slang_type.full_name}")
+        so = context.device.create_shader_object(bt.uniform_layout.reflection)
+        cursor = slangpy.ShaderCursor(so)
+        cursor.write({"value": unpacked})
+        return so
 
 
 class MatrixMarshall(ValueMarshall):

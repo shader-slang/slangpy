@@ -126,6 +126,9 @@ class CodeGen:
         self.call_data.append_line("struct CallData")
         self.call_data.begin_block()
 
+        #: Additional parameter blocks
+        self.parameter_blocks: list[str] = []
+
         # legacy
         self.input_load_store = CodeGenBlock(self)
 
@@ -166,6 +169,9 @@ class CodeGen:
         """
         self.imports.add(import_name)
 
+    def add_parameter_block(self, type_name: str, var_name: str):
+        self.parameter_blocks.append(f"ParameterBlock<{type_name}> {var_name};\n")
+
     def finish(
         self,
         header: bool = False,
@@ -204,6 +210,8 @@ class CodeGen:
             all_code.append("\n")
         if call_data:
             all_code = all_code + self.call_data.code
+            all_code.append("\n")
+            all_code = all_code + self.parameter_blocks
             all_code.append("\n")
         if snippets:
             all_code = all_code + list(self.snippets.values())
