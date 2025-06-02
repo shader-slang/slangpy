@@ -7,6 +7,7 @@
 #include "sgl/core/bitmap.h"
 #include "sgl/core/format.h"
 #include "sgl/core/thread.h"
+#include "sgl/device/device.h"
 
 #include "git_version.h"
 
@@ -34,6 +35,7 @@ void static_init()
     thread::static_init();
     Logger::static_init();
     platform::static_init();
+    Device::static_init();
     Bitmap::static_init();
 }
 
@@ -45,6 +47,7 @@ void static_shutdown()
     thread::wait_for_tasks();
 
     Bitmap::static_shutdown();
+    Device::static_shutdown();
     platform::static_shutdown();
     Logger::static_shutdown();
     thread::static_shutdown();

@@ -624,6 +624,10 @@ public:
             hook({});
     }
 
+    static void static_init();
+    static void static_shutdown();
+    static slang::IGlobalSession* _global_session();
+
 private:
     DeviceDesc m_desc;
     DeviceInfo m_info;
