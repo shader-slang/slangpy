@@ -193,6 +193,9 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
 
+    [TreatAsDifferentiable]
+    public T getv(vector<int,D> idx) { return buffer[layout.at_vec(idx)]; }
+
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out Tensor<T, SliceD> value)
     {
         value.buffer = buffer;
@@ -214,7 +217,13 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
 
     [TreatAsDifferentiable]
+    public T getv(vector<int,D> idx) { return buffer[layout.at_vec(idx)]; }
+
+    [TreatAsDifferentiable]
     public void set(int idx[D], T value) { buffer[layout.at(idx)] = value; }
+
+    [TreatAsDifferentiable]
+    public void setv(vector<int,D> idx, T value) { buffer[layout.at_vec(idx)] = value; }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out RWTensor<T, SliceD> value)
     {
