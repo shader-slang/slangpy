@@ -385,3 +385,39 @@ public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D
         d_out.load(ctx, value.d_out);
     }
 }
+
+public extension<T: __BuiltinFloatingPointType> Tensor<T, 2>
+{
+    public T sample(float2 uv)
+    {
+        int2 shape = int2(shape[1], shape[0]);
+        int2 maxidx = shape - 1;
+        int2 texel = int2(uv * shape);
+        float2 frac = frac(uv * shape);
+
+        T c00 = getv(texel);
+        T c10 = getv(min(texel + int2(1, 0),maxidx));
+        T c01 = getv(min(texel + int2(0, 1),maxidx));
+        T c11 = getv(min(texel + int2(1, 1),maxidx));
+
+        return lerp(lerp(c00, c10, (T)frac.x), lerp(c01, c11, (T)frac.x), (T)frac.y);
+    }
+}
+
+public extension<T: __BuiltinFloatingPointType, let N:int> Tensor<vector<T,N>, 2>
+{
+    public vector<T,N> sample(float2 uv)
+    {
+        int2 shape = int2(shape[1], shape[0]);
+        int2 maxidx = shape - 1;
+        int2 texel = int2(uv * shape);
+        float2 frac = frac(uv * shape);
+
+        vector<T,N> c00 = getv(texel);
+        vector<T,N> c10 = getv(min(texel + int2(1, 0),maxidx));
+        vector<T,N> c01 = getv(min(texel + int2(0, 1),maxidx));
+        vector<T,N> c11 = getv(min(texel + int2(1, 1),maxidx));
+
+        return lerp(lerp(c00, c10, (T)frac.x), lerp(c01, c11, (T)frac.x), (T)frac.y);
+    }
+}
