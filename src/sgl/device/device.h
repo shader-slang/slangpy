@@ -665,6 +665,10 @@ public:
     void _register_device_child(DeviceChild* device_child);
     void _unregister_device_child(DeviceChild* device_child);
 
+    static void static_init();
+    static void static_shutdown();
+    static slang::IGlobalSession* _global_session();
+
 private:
     DeviceDesc m_desc;
     DeviceInfo m_info;
