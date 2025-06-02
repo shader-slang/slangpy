@@ -39,6 +39,7 @@ enum class Feature : uint32_t {
     parameter_block = static_cast<uint32_t>(rhi::Feature::ParameterBlock),
     bindless = static_cast<uint32_t>(rhi::Feature::Bindless),
     surface = static_cast<uint32_t>(rhi::Feature::Surface),
+    pipeline_cache = static_cast<uint32_t>(rhi::Feature::PipelineCache),
     // Rasterization features
     rasterization = static_cast<uint32_t>(rhi::Feature::Rasterization),
     barycentrics = static_cast<uint32_t>(rhi::Feature::Barycentrics),
@@ -110,6 +111,7 @@ SGL_ENUM_INFO(
         {Feature::parameter_block, "parameter_block"},
         {Feature::bindless, "bindless"},
         {Feature::surface, "surface"},
+        {Feature::pipeline_cache, "pipeline_cache"},
         {Feature::rasterization, "rasterization"},
         {Feature::barycentrics, "barycentrics"},
         {Feature::multi_view, "multi_view"},
