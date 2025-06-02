@@ -165,8 +165,8 @@ def test_return_numpy_matrix(device_type: DeviceType):
 
     module = load_test_module(device_type)
 
-    for R in range(2, 4):
-        for C in range(2, 4):
+    for R in range(2, 5):
+        for C in range(2, 5):
             funName = f"matFunc<{R}, {C}>"
             func = module.find_function(funName)
             assert func is not None
@@ -181,8 +181,8 @@ def test_return_numpy_matrix(device_type: DeviceType):
 def test_setup_numpy_matrix(device_type: DeviceType):
 
     module = load_test_module(device_type)
-    for R in range(2, 4):
-        for C in range(2, 4):
+    for R in range(2, 5):
+        for C in range(2, 5):
             funName = f"flattenMatrix<{R}, {C}>"
             func = module.find_function(funName)
             assert func is not None
@@ -199,14 +199,13 @@ def test_numpy_matrix_as_result(device_type: DeviceType):
 
     module = load_test_module(device_type)
 
-    for R in range(2, 4):
-        for C in range(2, 4):
+    for R in range(2, 5):
+        for C in range(2, 5):
             funName = f"matFunc1<{R}, {C}>"
             func = module.find_function(funName)
             assert func is not None
             matType = getattr(spy, f"float{R}x{C}")
             N = R * C
-            #  import pdb; pdb.set_trace()
             res = func(matType(np.arange(1, N + 1).reshape(R, C)), _result="numpy")
 
             assert res is not None
