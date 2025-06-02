@@ -30,8 +30,8 @@ def temp_dir():
 def format_bitmap_png(bmp: Bitmap):
     # Cast component to 8 bit if the source has more bits
     # We always do gamma correction here - is there a better way?
-    if bmp.component_type != slangpy.Bitmap.ComponentType.uint8:
-        bmp = bmp.convert(component_type=slangpy.Bitmap.ComponentType.uint8, srgb_gamma=True)
+    if bmp.component_type != Bitmap.ComponentType.uint8:
+        bmp = bmp.convert(component_type=Bitmap.ComponentType.uint8, srgb_gamma=True)
 
     # Make sure bitmap is RGB/RGBA or saving to PNG will fail
     if bmp.channel_count not in (3, 4):
