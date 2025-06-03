@@ -249,7 +249,7 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     public property shape : uint[D] { get { return _shape; } }
 
     [TreatAsDifferentiable]
-    public T get(int[D] idx) { return buffer.Load<T>(layout.at(idx) * sizeof(T), sizeof(T)); }
+    public T get(int[D] idx) { return buffer.Load<T>(layout.at(idx) * sizeof(T)); }
 
     [TreatAsDifferentiable]
     public T getv(vector<int,D> idx) { return buffer.Load<T>(layout.at_vec(idx)); }
