@@ -138,12 +138,9 @@ class Struct:
         """
         Returns a pytorch wrapper around this struct
         """
-        import slangpy.torchintegration as spytorch
+        from slangpy.torchintegration.torchstruct import TorchStruct
 
-        if spytorch.TORCH_ENABLED:
-            return spytorch.TorchStruct(self)
-        else:
-            raise RuntimeError("Pytorch integration is not enabled")
+        return TorchStruct(self)
 
     def try_get_child(self, name: str) -> Optional[Union["Struct", "Function"]]:
         """

@@ -172,6 +172,7 @@ private:
     {
         if (!self.is_valid())
             return nb::none();
+
         auto type = self.type();
         if (type) {
             switch (type->kind()) {
@@ -235,24 +236,9 @@ private:
         requires IsSpecializationOfMatrix<ValType>
     inline static nb::object _read_matrix(const CursorType& self)
     {
-#if SGL_MACOS
-        // metal always require alignedement of 4 elements for each column, so we need to read by matrix<R, 4>
-        // and convert to target matrix type. The only expcetion is when column is 2, because it's just satisfies
-        // the alignment requirement.
-        if (ValType::cols < 4 && ValType::cols != 2) {
-            using elementType = typename ValType::value_type;
-            int rows = ValType::rows;
-            sgl::math::matrix<elementType, ValType::rows, 4> internal_res;
-            self.get(internal_res);
-            ValType res(internal_res);
-            return nb::cast(res);
-        } else
-#endif
-        {
-            ValType res;
-            self.get(res);
-            return nb::cast(res);
-        }
+        ValType res;
+        self.get(res);
+        return nb::cast(res);
     }
 };
 
@@ -334,9 +320,15 @@ public:
 
         // Register converters for all supported matrix types.
         matrix_case(float2x2, float32);
-        matrix_case(float3x3, float32);
+        matrix_case(float2x3, float32);
         matrix_case(float2x4, float32);
+
+        matrix_case(float3x2, float32);
+        matrix_case(float3x3, float32);
         matrix_case(float3x4, float32);
+
+        matrix_case(float4x2, float32);
+        matrix_case(float4x3, float32);
         matrix_case(float4x4, float32);
     }
 
@@ -373,6 +365,21 @@ private:
     {
         if (!self.is_valid())
             return;
+
+        // Special case for handling DescriptorHandle.
+        // These are reflected differently by slang depending on the backend.
+        // For example, in D3D12 and Vulkan, they are of type uint2.
+        // In Metal and CUDA, they are actual resource types.
+        if (nb::isinstance<DescriptorHandle>(nbval)) {
+            auto handle = nb::cast<DescriptorHandle>(nbval);
+            self.set(handle);
+            return;
+        }
+
+        // Check if nbval has a '.uniforms' function that can be called to get simple python object
+        if (nb::hasattr(nbval, "uniforms")) {
+            nbval = nb::getattr(nbval, "uniforms")();
+        }
 
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
@@ -567,41 +574,15 @@ private:
         }
     }
 
-    template<typename ValType>
-        requires IsSpecializationOfMatrix<ValType>
-    inline static void _write_matrix_maybe_aglined(CursorType& self, ValType& val)
-    {
-#if SGL_MACOS
-        // metal always require alignedement of 4 elements for each column, so we need to read by matrix<R, 4>
-        // and convert to target matrix type. The only expcetion is when column is 2, because it's just satisfies
-        // the alignment requirement.
-        if (ValType::cols < 4 && ValType::cols != 2) {
-            using elementType = typename ValType::value_type;
-            int rows = ValType::rows;
-            sgl::math::matrix<elementType, ValType::rows, 4> internal_val(val);
-            self.set(internal_val);
-        } else
-#endif
-        {
-            self.set(val);
-        }
-    }
-
     /// Write matrix value to buffer element cursor from Python object.
     template<typename ValType>
         requires IsSpecializationOfMatrix<ValType>
     inline static void _write_matrix(CursorType& self, nb::object nbval)
     {
-        if (nb::isinstance<ValType>(nbval)) {
+        if (nb::isinstance<ValType>(nbval) || nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
             // Matrix of correct type
             auto val = nb::cast<ValType>(nbval);
-            _write_matrix_maybe_aglined(self, val);
-
-        } else if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
-            // A numpy array. We have a python cast from numpy->matrix,
-            // so can just call it here to convert properly.
-            auto val = nb::cast<ValType>(nbval);
-            _write_matrix_maybe_aglined(self, val);
+            self.set(val);
         } else {
             SGL_THROW("Expected numpy array or matrix");
         }

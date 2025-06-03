@@ -384,8 +384,8 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
         if isinstance(binding.vector_type, NDBufferType):
             return {
                 "buffer": data.storage,
-                "strides": data.strides,
-                "shape": data.shape.as_tuple(),
+                "_shape": data.shape.as_tuple(),
+                "layout": {"strides": data.strides, "offset": data.offset},
             }
         else:
             broadcast = _calc_broadcast(context, binding)
@@ -401,11 +401,14 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
                     value = ndbuffer.storage if prim == PrimType.primal else ndbuffer.storage
                     res[prim_name] = {
                         "buffer": value,
-                        "strides": [
-                            data.strides[i] if not broadcast[i] else 0
-                            for i in range(len(data.strides))
-                        ],
-                        "shape": data.shape.as_tuple(),
+                        "_shape": ndbuffer.shape.as_tuple(),
+                        "layout": {
+                            "strides": [
+                                ndbuffer.strides[i] if not broadcast[i] else 0
+                                for i in range(len(ndbuffer.strides))
+                            ],
+                            "offset": ndbuffer.offset,
+                        },
                     }
             return res
 

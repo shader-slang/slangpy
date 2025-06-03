@@ -22,6 +22,8 @@ def create_device(
     adapter_luid: Optional[Sequence[int]] = None,
     include_paths: Sequence[Union[str, PathLike[str]]] = [],
     enable_cuda_interop: bool = False,
+    enable_print: bool = False,
+    enable_hot_reload: bool = True,
 ):
     """
     Create a device with basic settings for SlangPy. For full control over device init,
@@ -42,6 +44,8 @@ def create_device(
         enable_debug_layers=enable_debug_layers,
         adapter_luid=adapter_luid,
         enable_cuda_interop=enable_cuda_interop,
+        enable_print=enable_print,
+        enable_hot_reload=enable_hot_reload,
     )
 
     if is_running_in_jupyter():

@@ -167,7 +167,7 @@ public:
 
     bool is_valid() const { return m_type != NativeHandleType::undefined; }
 
-    operator bool() const { return is_valid(); }
+    explicit operator bool() const { return is_valid(); }
 
     template<typename T>
     T as() const

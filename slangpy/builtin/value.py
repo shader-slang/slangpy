@@ -322,7 +322,7 @@ for pair in zip(
 
     for row in range(2, 5):
         for col in range(2, 5):
-            mat_type = getattr(math, f"float{row}x{col}", None)
+            mat_type = getattr(math, f"{base_name}{row}x{col}", None)
             if mat_type is not None:
                 t = lambda layout, pytype, row=row, st=slang_scalar_type, col=col: MatrixMarshall(
                     layout, st, row, col

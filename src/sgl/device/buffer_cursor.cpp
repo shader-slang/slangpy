@@ -194,7 +194,16 @@ void BufferElementCursor::_set_matrix(
 )
 {
     cursor_utils::check_matrix(m_type_layout->slang_target(), size, scalar_type, rows, cols);
-    write_data(m_offset, data, size);
+    size_t stride = slang_type_layout()->getStride();
+    if (stride != size) {
+        size_t row_stride = stride / rows;
+        size_t row_size = size / rows;
+        for (int i = 0; i < rows; ++i) {
+            write_data(m_offset + i * row_stride, reinterpret_cast<const uint8_t*>(data) + i * row_size, row_size);
+        }
+    } else {
+        write_data(m_offset, data, size);
+    }
 }
 
 void BufferElementCursor::_get_matrix(
@@ -206,7 +215,16 @@ void BufferElementCursor::_get_matrix(
 ) const
 {
     cursor_utils::check_matrix(m_type_layout->slang_target(), size, scalar_type, rows, cols);
-    read_data(m_offset, data, size);
+    size_t stride = slang_type_layout()->getStride();
+    if (stride != size) {
+        size_t row_stride = stride / rows;
+        size_t row_size = size / rows;
+        for (int i = 0; i < rows; ++i) {
+            read_data(m_offset + i * row_stride, reinterpret_cast<uint8_t*>(data) + i * row_size, row_size);
+        }
+    } else {
+        read_data(m_offset, data, size);
+    }
 }
 
 
@@ -290,9 +308,15 @@ GETSET_VECTOR(float3, float32);
 GETSET_VECTOR(float4, float32);
 
 GETSET_MATRIX(float2x2, float32);
-GETSET_MATRIX(float3x3, float32);
+GETSET_MATRIX(float2x3, float32);
 GETSET_MATRIX(float2x4, float32);
+
+GETSET_MATRIX(float3x2, float32);
+GETSET_MATRIX(float3x3, float32);
 GETSET_MATRIX(float3x4, float32);
+
+GETSET_MATRIX(float4x2, float32);
+GETSET_MATRIX(float4x3, float32);
 GETSET_MATRIX(float4x4, float32);
 
 GETSET_SCALAR(double, float64);
@@ -408,6 +432,18 @@ SGL_API void BufferElementCursor::get(bool4& value) const
 #endif
     _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 4);
     value = {v.x != 0, v.y != 0, v.z != 0, v.w != 0};
+}
+
+template<>
+SGL_API void BufferElementCursor::set(const DescriptorHandle& value)
+{
+    write_data(m_offset, &value.value, sizeof(value.value));
+}
+
+template<>
+SGL_API void BufferElementCursor::get(DescriptorHandle& value) const
+{
+    read_data(m_offset, &value.value, sizeof(value.value));
 }
 
 void BufferElementCursor::write_data(size_t offset, const void* data, size_t size)

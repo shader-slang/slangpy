@@ -92,8 +92,8 @@ TEST_CASE("enum_to_string")
     CHECK(enum_to_string(TestStruct::TestEnum::X) == "X");
     CHECK(enum_to_string(TestStruct::TestEnum::Y) == "Y");
 
-    // Converting unregistered values throws.
-    CHECK_THROWS(enum_to_string(TestEnum(-1)));
+    // Test converting unregistered values.
+    CHECK(enum_to_string(TestEnum(-1)) == "TestEnum(-1)");
 }
 
 TEST_CASE("enum_has_value")
@@ -113,8 +113,8 @@ TEST_CASE("flags_to_string_list")
         flags_to_string_list(TestFlags::A | TestFlags::B | TestFlags::C) == std::vector<std::string>({"A", "B", "C"})
     );
 
-    // Converting unregistered values throws.
-    CHECK_THROWS(flags_to_string_list(TestFlags(-1)));
+    // Test converting unregistered values.
+    CHECK(flags_to_string_list(TestFlags::B | TestFlags(16)) == std::vector<std::string>({"B", "TestFlags(16)"}));
 }
 
 TEST_CASE("string_list_to_flags")

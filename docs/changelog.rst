@@ -7,9 +7,56 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Version 0.27.0 (TBA)
+Version 0.31.0 (TBA)
 ----------------------------
 
+- Add support for vectorizing against Python lists
+- `NDBuffer` and `Tensor` `empty` / `zeros` apis consistent
+- Added `load_from_image` for `NDBuffer` and `Tensor`
+- Fix typings for ``float2x3``, ``float3x2``, ``float4x2`` and ``float4x3``.
+
+Version 0.30.0 (May 27, 2025)
+----------------------------
+
+- Update `slang-rhi` to latest version.
+  Improve CUDA error reporting.
+  Improve debug marker support and add `WinPixEventRuntime`.
+  Fix resource lifetime tracking for entry point arguments.
+  (PR `#236 <https://github.com/shader-slang/slangpy/pull/236>`__).
+
+Version 0.29.0 (May 22, 2025)
+----------------------------
+
+- Update `slang-rhi` to latest version. Make enum infos constexpr.
+  (PR `#234 <https://github.com/shader-slang/slangpy/pull/234>`__).
+- Fix ``sgl::Feature`` (``slangpy.Feature``) to include missing value.
+  (PR `#233 <https://github.com/shader-slang/slangpy/pull/233>`__).
+- Fix registered matrix types in ``PYTHON_TYPES``.
+  (PR `#232 <https://github.com/shader-slang/slangpy/pull/232>`__).
+
+Version 0.28.0 (May 21, 2025)
+----------------------------
+
+- Load PyTorch module lazily to avoid overhead when PyTorch is not used.
+  (PR `#184 <https://github.com/shader-slang/slangpy/pull/184>`__).
+- Improve warning when tev image viewer is not running.
+  (PR `#216 <https://github.com/shader-slang/slangpy/pull/216>`__).
+- Report correct LUID in ``sgl::DeviceInfo::adapter_luid`` (``slangpy.DeviceInfo.adapter_luid``).
+  (PR `#215 <https://github.com/shader-slang/slangpy/pull/215>`__).
+
+
+Version 0.27.0 (May 9, 2025)
+----------------------------
+
+- Package and distribute pytest tests. Fix deploying ``.pyi`` files in wheels + other minor fixes.
+  (PR `#197 <https://github.com/shader-slang/slangpy/pull/197>`__).
+- Introduce basic support for bindless textures and samplers. Currently only supported on D3D12.
+  Add ``sgl::Feature::bindless`` (``slangpy.Feature.bindless``) to detect bindless support.
+  Add ``sgl::DescriptorHandle`` (``slangpy.DescriptorHandle``) to represent bindless descriptor handles.
+  Add ``sgl::Sampler::descriptor_handle()`` (``slangpy.Sampler.descriptor_handle``) to get the descriptor handle for a sampler.
+  Add ``sgl::Texture::descriptor_handle_ro()`` (``slangpy.Texture.descriptor_handle_ro``) to get the read-only descriptor handle for a texture.
+  Add ``sgl::Texture::descriptor_handle_rw()`` (``slangpy.Texture.descriptor_handle_rw``) to get the read-write descriptor handle for a texture.
+  (PR `#196 <https://github.com/shader-slang/slangpy/pull/196>`__).
 - Rename ``sgl::Struct`` to ``sgl::DataStruct`` to match ``slangpy.DataStruct``.
   Rename ``sgl::StructConverter`` to ``sgl::DataStructConverter``
   and ``slangpy.StructConverter`` to ``slangpy.DataStructConverter``.

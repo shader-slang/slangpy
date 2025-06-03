@@ -164,7 +164,7 @@ def unit_test_python(args: Any):
     env = get_python_env(args)
     os.makedirs("reports", exist_ok=True)
     run_command(
-        f"python -m pytest tests -r a --junit-xml=reports/pytest-junit.xml", env=env
+        f"python -m pytest slangpy/tests -r a --junit-xml=reports/pytest-junit.xml", env=env
     )
 
 

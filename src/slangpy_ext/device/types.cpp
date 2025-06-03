@@ -95,6 +95,14 @@ SGL_PY_EXPORT(device_types)
     nb::sgl_enum<CommandQueueType>(m, "CommandQueueType");
 
     nb::sgl_enum<Feature>(m, "Feature", nb::is_arithmetic());
+
+    nb::sgl_enum<DescriptorHandleType>(m, "DescriptorHandleType", nb::is_arithmetic());
+    nb::class_<DescriptorHandle>(m, "DescriptorHandle", D_NA(DescriptorHandle))
+        .def_ro("type", &DescriptorHandle::type, D_NA(DescriptorHandle, type))
+        .def_ro("value", &DescriptorHandle::value, D_NA(DescriptorHandle, value))
+        .def("__bool__", &DescriptorHandle::is_valid)
+        .def("__repr__", &DescriptorHandle::to_string);
+
     nb::sgl_enum<ShaderModel>(m, "ShaderModel", nb::is_arithmetic());
     nb::sgl_enum<ShaderStage>(m, "ShaderStage");
 

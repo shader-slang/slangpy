@@ -4,6 +4,8 @@ import pytest
 
 from . import helpers
 from slangpy import DeviceType
+import slangpy as spy
+
 
 NUMPY_MODULE = r"""
 import "slangpy";
@@ -14,6 +16,26 @@ float add_floats(float a, float b) {
 
 float3 add_float3s(float3 a, float3 b) {
     return a + b;
+}
+
+
+matrix<float, R, C> matFunc<int R, int C>(){
+    return matrix<float, R, C>(1);
+}
+
+struct Wrapper
+{
+    float[16] data;
+}
+
+Wrapper flattenMatrix<int R, int C>(matrix<float, R, C> mat){
+    Wrapper res;
+    for (int i = 0; i < R; i++) {
+        for (int j = 0; j < C; j++) {
+            res.data[i * C + j] = mat[i][j];
+        }
+    }
+    return res;
 }
 """
 
@@ -131,6 +153,40 @@ def test_cache(device_type: DeviceType):
     res_expected = a + b
 
     assert np.allclose(res, res_expected)
+
+
+# test that we handle the matrix alignment correctly when reading the matrix from the output buffer
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_return_numpy_matrix(device_type: DeviceType):
+
+    module = load_test_module(device_type)
+
+    for R in range(2, 4):
+        for C in range(2, 4):
+            funName = f"matFunc<{R}, {C}>"
+            func = module.find_function(funName)
+            assert func is not None
+            res = func().to_numpy()
+            assert res is not None
+            assert res.shape == (R, C)
+            assert np.allclose(res, np.ones((R, C)))
+
+
+# test that we handle the matrix alignment correctly when writing the matrix to the input buffer
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_setup_numpy_matrix(device_type: DeviceType):
+
+    module = load_test_module(device_type)
+    for R in range(2, 4):
+        for C in range(2, 4):
+            funName = f"flattenMatrix<{R}, {C}>"
+            func = module.find_function(funName)
+            assert func is not None
+            matType = getattr(spy, f"float{R}x{C}")
+            res = func(matType(np.ones((R, C))))
+
+            assert res is not None
+            assert np.allclose(res["data"][0 : R * C], np.ones(R * C))
 
 
 if __name__ == "__main__":

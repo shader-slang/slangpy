@@ -10,6 +10,8 @@
 
 #include "git_version.h"
 
+#include <atomic>
+
 static inline const char* git_version()
 {
     static std::string str{
@@ -22,8 +24,13 @@ const char* SGL_GIT_VERSION = git_version();
 
 namespace sgl {
 
+static std::atomic<uint32_t> s_sgl_ref_count{0};
+
 void static_init()
 {
+    if (s_sgl_ref_count++ > 0)
+        return;
+
     thread::static_init();
     Logger::static_init();
     platform::static_init();
@@ -32,6 +39,9 @@ void static_init()
 
 void static_shutdown()
 {
+    if (--s_sgl_ref_count > 0)
+        return;
+
     thread::wait_for_tasks();
 
     Bitmap::static_shutdown();

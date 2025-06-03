@@ -105,6 +105,102 @@ enum class Format : uint32_t {
     count,
 };
 
+SGL_ENUM_INFO(
+    Format,
+    {
+        {Format::undefined, "undefined"},
+
+        {Format::r8_uint, "r8_uint"},
+        {Format::r8_sint, "r8_sint"},
+        {Format::r8_unorm, "r8_unorm"},
+        {Format::r8_snorm, "r8_snorm"},
+
+        {Format::rg8_uint, "rg8_uint"},
+        {Format::rg8_sint, "rg8_sint"},
+        {Format::rg8_unorm, "rg8_unorm"},
+        {Format::rg8_snorm, "rg8_snorm"},
+
+        {Format::rgba8_uint, "rgba8_uint"},
+        {Format::rgba8_sint, "rgba8_sint"},
+        {Format::rgba8_unorm, "rgba8_unorm"},
+        {Format::rgba8_unorm_srgb, "rgba8_unorm_srgb"},
+        {Format::rgba8_snorm, "rgba8_snorm"},
+
+        {Format::bgra8_unorm, "bgra8_unorm"},
+        {Format::bgra8_unorm_srgb, "bgra8_unorm_srgb"},
+        {Format::bgrx8_unorm, "bgrx8_unorm"},
+        {Format::bgrx8_unorm_srgb, "bgrx8_unorm_srgb"},
+
+        {Format::r16_uint, "r16_uint"},
+        {Format::r16_sint, "r16_sint"},
+        {Format::r16_unorm, "r16_unorm"},
+        {Format::r16_snorm, "r16_snorm"},
+        {Format::r16_float, "r16_float"},
+
+        {Format::rg16_uint, "rg16_uint"},
+        {Format::rg16_sint, "rg16_sint"},
+        {Format::rg16_unorm, "rg16_unorm"},
+        {Format::rg16_snorm, "rg16_snorm"},
+        {Format::rg16_float, "rg16_float"},
+
+        {Format::rgba16_uint, "rgba16_uint"},
+        {Format::rgba16_sint, "rgba16_sint"},
+        {Format::rgba16_unorm, "rgba16_unorm"},
+        {Format::rgba16_snorm, "rgba16_snorm"},
+        {Format::rgba16_float, "rgba16_float"},
+
+        {Format::r32_uint, "r32_uint"},
+        {Format::r32_sint, "r32_sint"},
+        {Format::r32_float, "r32_float"},
+
+        {Format::rg32_uint, "rg32_uint"},
+        {Format::rg32_sint, "rg32_sint"},
+        {Format::rg32_float, "rg32_float"},
+
+        {Format::rgb32_uint, "rgb32_uint"},
+        {Format::rgb32_sint, "rgb32_sint"},
+        {Format::rgb32_float, "rgb32_float"},
+
+        {Format::rgba32_uint, "rgba32_uint"},
+        {Format::rgba32_sint, "rgba32_sint"},
+        {Format::rgba32_float, "rgba32_float"},
+
+        {Format::r64_uint, "r64_uint"},
+        {Format::r64_sint, "r64_sint"},
+
+        {Format::bgra4_unorm, "bgra4_unorm"},
+        {Format::b5g6r5_unorm, "b5g6r5_unorm"},
+        {Format::bgr5a1_unorm, "bgr5a1_unorm"},
+
+        {Format::rgb9e5_ufloat, "rgb9e5_ufloat"},
+        {Format::rgb10a2_uint, "rgb10a2_uint"},
+        {Format::rgb10a2_unorm, "rgb10a2_unorm"},
+        {Format::r11g11b10_float, "r11g11b10_float"},
+
+        {Format::d32_float, "d32_float"},
+        {Format::d16_unorm, "d16_unorm"},
+        {Format::d32_float_s8_uint, "d32_float_s8_uint"},
+
+        {Format::bc1_unorm, "bc1_unorm"},
+        {Format::bc1_unorm_srgb, "bc1_unorm_srgb"},
+        {Format::bc2_unorm, "bc2_unorm"},
+        {Format::bc2_unorm_srgb, "bc2_unorm_srgb"},
+        {Format::bc3_unorm, "bc3_unorm"},
+        {Format::bc3_unorm_srgb, "bc3_unorm_srgb"},
+        {Format::bc4_unorm, "bc4_unorm"},
+        {Format::bc4_snorm, "bc4_snorm"},
+        {Format::bc5_unorm, "bc5_unorm"},
+        {Format::bc5_snorm, "bc5_snorm"},
+        {Format::bc6h_ufloat, "bc6h_ufloat"},
+        {Format::bc6h_sfloat, "bc6h_sfloat"},
+        {Format::bc7_unorm, "bc7_unorm"},
+        {Format::bc7_unorm_srgb, "bc7_unorm_srgb"},
+
+    }
+);
+SGL_ENUM_REGISTER(Format);
+static_assert(EnumInfo<Format>::items.size() == static_cast<size_t>(Format::count));
+
 /// Resource format types.
 enum class FormatType {
     /// Unknown format.
@@ -247,18 +343,22 @@ SGL_API const FormatInfo& get_format_info(Format format);
 
 enum class FormatSupport : uint32_t {
     none = static_cast<uint32_t>(rhi::FormatSupport::None),
-    buffer = static_cast<uint32_t>(rhi::FormatSupport::Buffer),
-    index_buffer = static_cast<uint32_t>(rhi::FormatSupport::IndexBuffer),
-    vertex_buffer = static_cast<uint32_t>(rhi::FormatSupport::VertexBuffer),
+    copy_source = static_cast<uint32_t>(rhi::FormatSupport::CopySource),
+    copy_destination = static_cast<uint32_t>(rhi::FormatSupport::CopyDestination),
     texture = static_cast<uint32_t>(rhi::FormatSupport::Texture),
     depth_stencil = static_cast<uint32_t>(rhi::FormatSupport::DepthStencil),
     render_target = static_cast<uint32_t>(rhi::FormatSupport::RenderTarget),
     blendable = static_cast<uint32_t>(rhi::FormatSupport::Blendable),
+    multisampling = static_cast<uint32_t>(rhi::FormatSupport::Multisampling),
+    resolvable = static_cast<uint32_t>(rhi::FormatSupport::Resolvable),
     shader_load = static_cast<uint32_t>(rhi::FormatSupport::ShaderLoad),
     shader_sample = static_cast<uint32_t>(rhi::FormatSupport::ShaderSample),
     shader_uav_load = static_cast<uint32_t>(rhi::FormatSupport::ShaderUavLoad),
     shader_uav_store = static_cast<uint32_t>(rhi::FormatSupport::ShaderUavStore),
     shader_atomic = static_cast<uint32_t>(rhi::FormatSupport::ShaderAtomic),
+    buffer = static_cast<uint32_t>(rhi::FormatSupport::Buffer),
+    index_buffer = static_cast<uint32_t>(rhi::FormatSupport::IndexBuffer),
+    vertex_buffer = static_cast<uint32_t>(rhi::FormatSupport::VertexBuffer),
 };
 SGL_ENUM_CLASS_OPERATORS(FormatSupport);
 
@@ -266,18 +366,22 @@ SGL_ENUM_INFO(
     FormatSupport,
     {
         {FormatSupport::none, "none"},
-        {FormatSupport::buffer, "buffer"},
-        {FormatSupport::index_buffer, "index_buffer"},
-        {FormatSupport::vertex_buffer, "vertex_buffer"},
+        {FormatSupport::copy_source, "copy_source"},
+        {FormatSupport::copy_destination, "copy_destination"},
         {FormatSupport::texture, "texture"},
         {FormatSupport::depth_stencil, "depth_stencil"},
         {FormatSupport::render_target, "render_target"},
         {FormatSupport::blendable, "blendable"},
+        {FormatSupport::multisampling, "multisampling"},
+        {FormatSupport::resolvable, "resolvable"},
         {FormatSupport::shader_load, "shader_load"},
         {FormatSupport::shader_sample, "shader_sample"},
         {FormatSupport::shader_uav_load, "shader_uav_load"},
         {FormatSupport::shader_uav_store, "shader_uav_store"},
         {FormatSupport::shader_atomic, "shader_atomic"},
+        {FormatSupport::buffer, "buffer"},
+        {FormatSupport::index_buffer, "index_buffer"},
+        {FormatSupport::vertex_buffer, "vertex_buffer"},
     }
 );
 SGL_ENUM_REGISTER(FormatSupport);
@@ -320,29 +424,5 @@ inline constexpr Format host_type_to_format()
 {
     return detail::HostTypeToFormat<T>::value;
 }
-
-// Manually define the struct that SGL_ENUM_INFO(Format) would generate so we
-// can use the existing table of resource formats.
-struct Format_info {
-    static const std::string& name()
-    {
-        static const std::string name = "Format";
-        return name;
-    }
-
-    static std::span<std::pair<Format, std::string>> items()
-    {
-        auto create_items = []()
-        {
-            std::vector<std::pair<Format, std::string>> items((size_t)Format::count);
-            for (size_t i = 0; i < (size_t)Format::count; ++i)
-                items[i] = std::make_pair(Format(i), get_format_info(Format(i)).name);
-            return items;
-        };
-        static std::vector<std::pair<Format, std::string>> items = create_items();
-        return items;
-    }
-};
-SGL_ENUM_REGISTER(Format);
 
 } // namespace sgl

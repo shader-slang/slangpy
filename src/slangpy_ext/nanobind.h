@@ -153,8 +153,8 @@ public:
     NB_INLINE sgl_enum(handle scope, const char* name, const Extra&... extra)
         : Base(scope, name, extra...)
     {
-        for (const auto& item : ::sgl::EnumInfo<T>::items())
-            Base::value(item.second.c_str(), item.first);
+        for (const auto& item : ::sgl::EnumInfo<T>::items)
+            Base::value(item.second, item.first);
     }
 };
 

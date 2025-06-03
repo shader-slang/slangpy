@@ -1229,7 +1229,7 @@ public:
 
     bool is_valid() const { return m_valid; }
 
-    // operator bool() const { return is_valid(); }
+    // explicit operator bool() const { return is_valid(); }
 
     operator ref<const TypeLayoutReflection>() const { return type_layout(); }
 

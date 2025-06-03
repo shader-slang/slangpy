@@ -28,9 +28,22 @@ inline std::string strerror_safe(int errnum)
 #if SGL_WINDOWS
     strerror_s(buf, sizeof(buf), errnum);
     return buf;
-#else
-    strerror_r(errnum, buf, sizeof(buf));
+#elif SGL_LINUX
+#if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !_GNU_SOURCE
+    // XSI strerror_r
+    if (strerror_r(errnum, buf, sizeof(buf)) != 0)
+        return "Unknown error";
     return buf;
+#else
+    // GNU strerror_r
+    return strerror_r(errnum, buf, sizeof(buf));
+#endif
+#elif SGL_MACOS
+    if (strerror_r(errnum, buf, sizeof(buf)) != 0)
+        return "Unknown error";
+    return buf;
+#elif
+#error "Unsupported platform"
 #endif
 }
 

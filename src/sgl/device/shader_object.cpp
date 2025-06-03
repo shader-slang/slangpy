@@ -22,6 +22,14 @@ inline rhi::ShaderOffset rhi_shader_offset(const ShaderOffset& offset)
     };
 }
 
+inline rhi::DescriptorHandle rhi_descriptor_handle(const DescriptorHandle& handle)
+{
+    return {
+        .type = static_cast<rhi::DescriptorHandleType>(handle.type),
+        .value = handle.value,
+    };
+}
+
 //
 // ShaderObject
 //
@@ -129,6 +137,11 @@ void ShaderObject::set_acceleration_structure(
         rhi_shader_offset(offset),
         rhi::Binding(acceleration_structure ? acceleration_structure->rhi_acceleration_structure() : nullptr)
     ));
+}
+
+void ShaderObject::set_descriptor_handle(const ShaderOffset& offset, const DescriptorHandle& handle)
+{
+    SLANG_RHI_CALL(m_shader_object->setDescriptorHandle(rhi_shader_offset(offset), rhi_descriptor_handle(handle)));
 }
 
 void ShaderObject::set_data(const ShaderOffset& offset, const void* data, size_t size)

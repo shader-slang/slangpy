@@ -5,40 +5,17 @@ public interface ITensor<T : IDifferentiable, let D : int>
 {
     [Differentiable] public T get(int idx[D]);
 
+    [Differentiable] public T getv(vector<int,D> idx);
+
+
     public property shape : uint[D];
 }
 public interface IRWTensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
     [Differentiable] public void set(int idx[D], T value);
-}
 
-public struct StridedLayout<let D : int>
-{
-    public int offset;
-    public int[D] strides;
+    [Differentiable] public void setv(vector<int,D> idx, T value);
 
-    public int at(int[D] idx)
-    {
-        int result = offset;
-        for (int i = 0; i < D; ++i)
-            result += strides[i] * idx[i];
-        return result;
-    }
-
-    public __generic<let SliceD : int>
-    StridedLayout<SliceD> slice(int[D - SliceD] idx)
-    {
-        StridedLayout<SliceD> result;
-
-        for (int i = 0; i < SliceD; ++i)
-            result.strides[i] = strides[D - SliceD + i];
-
-        result.offset = offset;
-        for (int i = 0; i < D - SliceD; ++i)
-            result.offset += strides[i] * idx[i];
-
-        return result;
-    }
 }
 
 namespace impl
@@ -222,6 +199,9 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
 
+    [TreatAsDifferentiable]
+    public T getv(vector<int,D> idx) { return buffer[layout.at_vec(idx)]; }
+
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out Tensor<T, SliceD> value)
     {
         value.buffer = buffer;
@@ -243,7 +223,13 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     public T get(int[D] idx) { return buffer[layout.at(idx)]; }
 
     [TreatAsDifferentiable]
+    public T getv(vector<int,D> idx) { return buffer[layout.at_vec(idx)]; }
+
+    [TreatAsDifferentiable]
     public void set(int idx[D], T value) { buffer[layout.at(idx)] = value; }
+
+    [TreatAsDifferentiable]
+    public void setv(vector<int,D> idx, T value) { buffer[layout.at_vec(idx)] = value; }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out RWTensor<T, SliceD> value)
     {
@@ -266,11 +252,19 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     public T get(int[D] idx) { return buffer.Load<T>(layout.at(idx) * sizeof(T), sizeof(T)); }
 
     [TreatAsDifferentiable]
+    public T getv(vector<int,D> idx) { return buffer.Load<T>(layout.at_vec(idx)); }
+
+    [TreatAsDifferentiable]
     public void set(int idx[D], T value) {
         T::atomicAdd(buffer, layout.at(idx) * sizeof(T), value);
         // TODO: Atomic adds are conservative and not always needed. If we inspect the layout
         // during load() and determine each call id sees a unique slice, we could do the Store below instead:
         //buffer.Store<T>(layout.at(idx) * sizeof(T), value, sizeof(T));
+    }
+
+    [TreatAsDifferentiable]
+    public void setv(vector<int,D> idx, T value) {
+        T::atomicAdd(buffer, layout.at_vec(idx), value);
     }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out AtomicTensor<T, SliceD> value)
@@ -292,10 +286,19 @@ public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D> wh
     [Differentiable]
     public T get(int[D] idx) { return primal.get(idx); }
 
+    [Differentiable]
+    public T getv(vector<int,D> idx) { return primal.getv(idx); }
+
     [BackwardDerivativeOf(get)]
     public void get_bwd(int[D] idx, T.Differential grad)
     {
         d_out.set(idx, grad);
+    }
+
+    [BackwardDerivativeOf(getv)]
+    public void getv_bwd(vector<int,D> idx, T.Differential grad)
+    {
+        d_out.setv(idx, grad);
     }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out GradOutTensor<T, SliceD> value)
@@ -315,11 +318,20 @@ public struct GradInTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     [TreatAsDifferentiable]
     public T get(int[D] idx) { return primal.get(idx); }
 
+    [TreatAsDifferentiable]
+    public T getv(vector<int,D> idx) { return primal.getv(idx); }
+
     [Differentiable]
     public void set(int[D] idx, T value) { primal.set(idx, value); }
 
+    [Differentiable]
+    public void setv(vector<int,D> idx, T value) { primal.setv(idx, value); }
+
     [BackwardDerivativeOf(set)]
     public void set_bwd(int[D] idx, inout DifferentialPair<T> grad) { grad = diffPair(grad.p, d_in.get(idx)); }
+
+    [BackwardDerivativeOf(setv)]
+    public void setv_bwd(vector<int,D> idx, inout DifferentialPair<T> grad) { grad = diffPair(grad.p, d_in.getv(idx)); }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out GradInTensor<T, SliceD> value)
     {
@@ -339,22 +351,73 @@ public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D
     [Differentiable]
     public T get(int[D] idx) { return primal.get(idx); }
 
+    [Differentiable]
+    public T getv(vector<int,D> idx) { return primal.getv(idx); }
+
     [BackwardDerivativeOf(get)]
     public void get_bwd(int[D] idx, T.Differential grad)
     {
         d_out.set(idx, grad);
     }
 
+    [BackwardDerivativeOf(getv)]
+    public void getv_bwd(vector<int,D> idx, T.Differential grad)
+    {
+        d_out.setv(idx, grad);
+    }
+
     [Differentiable]
     public void set(int[D] idx, T value) { primal.set(idx, value); }
 
+    [Differentiable]
+    public void setv(vector<int,D> idx, T value) { primal.setv(idx, value); }
+
     [BackwardDerivativeOf(set)]
     public void set_bwd(int[D] idx, inout DifferentialPair<T> grad) { grad = diffPair(grad.p, d_in.get(idx)); }
+
+    [BackwardDerivativeOf(setv)]
+    public void setv_bwd(vector<int,D> idx, inout DifferentialPair<T> grad) { grad = diffPair(grad.p, d_in.getv(idx)); }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out GradInOutTensor<T, SliceD> value)
     {
         primal.load(ctx, value.primal);
         d_in.load(ctx, value.d_in);
         d_out.load(ctx, value.d_out);
+    }
+}
+
+public extension<T: __BuiltinFloatingPointType> Tensor<T, 2>
+{
+    public T sample(float2 uv)
+    {
+        int2 shape = int2(shape[1], shape[0]);
+        int2 maxidx = shape - 1;
+        int2 texel = int2(uv * shape);
+        float2 frac = frac(uv * shape);
+
+        T c00 = getv(texel);
+        T c10 = getv(min(texel + int2(1, 0),maxidx));
+        T c01 = getv(min(texel + int2(0, 1),maxidx));
+        T c11 = getv(min(texel + int2(1, 1),maxidx));
+
+        return lerp(lerp(c00, c10, (T)frac.x), lerp(c01, c11, (T)frac.x), (T)frac.y);
+    }
+}
+
+public extension<T: __BuiltinFloatingPointType, let N:int> Tensor<vector<T,N>, 2>
+{
+    public vector<T,N> sample(float2 uv)
+    {
+        int2 shape = int2(shape[1], shape[0]);
+        int2 maxidx = shape - 1;
+        int2 texel = int2(uv * shape);
+        float2 frac = frac(uv * shape);
+
+        vector<T,N> c00 = getv(texel);
+        vector<T,N> c10 = getv(min(texel + int2(1, 0),maxidx));
+        vector<T,N> c01 = getv(min(texel + int2(0, 1),maxidx));
+        vector<T,N> c11 = getv(min(texel + int2(1, 1),maxidx));
+
+        return lerp(lerp(c00, c10, (T)frac.x), lerp(c01, c11, (T)frac.x), (T)frac.y);
     }
 }

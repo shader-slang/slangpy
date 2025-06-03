@@ -15,9 +15,10 @@
 
 #include <slang-rhi.h>
 
+#include <limits>
 #include <map>
 #include <set>
-#include <limits>
+#include <span>
 
 namespace sgl {
 
@@ -619,6 +620,9 @@ public:
     TextureAspect aspect() const { return m_desc.aspect; }
     const SubresourceRange& subresource_range() const { return m_desc.subresource_range; }
     std::string_view label() const { return m_desc.label; }
+
+    DescriptorHandle descriptor_handle_ro() const;
+    DescriptorHandle descriptor_handle_rw() const;
 
     /// Get the native texture view handle.
     NativeHandle native_handle() const;

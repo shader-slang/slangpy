@@ -69,6 +69,8 @@ option(SGL_ENABLE_ASAN "Enable address sanitizer" OFF)
 # If enabled, additional targets are generated to validate that headers are self sufficient.
 option(SGL_ENABLE_HEADER_VALIDATION "Enable header validation" OFF)
 
+set(SGL_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Project directory (defaults to CMAKE_CURRENT_SOURCE_DIR)")
+
 set(SGL_BINARY_DIR ${CMAKE_BINARY_DIR} CACHE STRING "Binary directory (defaults to CMAKE_BINARY_DIR)")
 
 # -----------------------------------------------------------------------------
@@ -399,6 +401,16 @@ if(SGL_GENERATE_SETPATH_SCRIPTS)
     if(SGL_LINUX OR SGL_MACOS)
         file(GENERATE OUTPUT ${SGL_OUTPUT_DIRECTORY}/setpath.sh INPUT ${CMAKE_CURRENT_SOURCE_DIR}/resources/setpath.sh.in)
     endif()
+endif()
+
+# Create compile_commands.json symlink.
+if (PROJECT_IS_TOP_LEVEL AND UNIX)
+    # Create symlink to compile_commands.json for IDE to pick it up
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${SGL_BINARY_DIR}/compile_commands.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/build/compile_commands.json
+    )
 endif()
 
 # -----------------------------------------------------------------------------

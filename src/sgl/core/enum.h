@@ -5,7 +5,7 @@
 #include "sgl/core/error.h"
 #include "sgl/core/format.h"
 
-#include <span>
+#include <array>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -20,26 +20,28 @@ template<typename T>
 using EnumInfo = decltype(find_enum_info_adl(std::declval<T>()));
 
 template<typename T>
-concept has_enum_info = requires(T v) {
+concept is_enum_info = requires(T v) {
     {
-        EnumInfo<T>::name()
-    } -> std::same_as<const std::string&>;
+        v.name
+    } -> std::same_as<const char* const&>;
     {
-        EnumInfo<T>::items()
-    } -> std::same_as<std::span<std::pair<T, std::string>>>;
+        v.items[0]
+    } -> std::same_as<const std::pair<typename T::enum_type, const char*>&>;
 };
+
+template<typename T>
+concept has_enum_info = requires(T v) { requires is_enum_info<EnumInfo<T>>; };
 
 /**
  * Convert an enum value to a string.
- * Throws if the enum value is not found in the registered enum information.
  */
 template<has_enum_info T>
-inline const std::string& enum_to_string(T value)
+inline std::string enum_to_string(T value)
 {
-    const auto& items = EnumInfo<T>::items();
+    const auto& items = EnumInfo<T>::items;
     auto it = std::find_if(items.begin(), items.end(), [value](const auto& item) { return item.first == value; });
     if (it == items.end())
-        SGL_THROW("Invalid enum value {}", int(value));
+        return fmt::format("{}({})", EnumInfo<T>::name, std::underlying_type_t<T>(value));
     return it->second;
 }
 
@@ -50,7 +52,7 @@ inline const std::string& enum_to_string(T value)
 template<has_enum_info T>
 inline T string_to_enum(std::string_view name)
 {
-    const auto& items = EnumInfo<T>::items();
+    const auto& items = EnumInfo<T>::items;
     auto it = std::find_if(items.begin(), items.end(), [name](const auto& item) { return item.second == name; });
     if (it == items.end())
         SGL_THROW("Invalid enum name \"{}\"", name);
@@ -63,28 +65,25 @@ inline T string_to_enum(std::string_view name)
 template<has_enum_info T>
 inline bool enum_has_value(std::string_view name)
 {
-    const auto& items = EnumInfo<T>::items();
+    const auto& items = EnumInfo<T>::items;
     auto it = std::find_if(items.begin(), items.end(), [name](const auto& item) { return item.second == name; });
     return it != items.end();
 }
 
 /**
  * Convert an flags enum value to a list of strings.
- * Throws if any of the flags are not found in the registered enum information.
  */
 template<has_enum_info T>
 inline std::vector<std::string> flags_to_string_list(T flags)
 {
     std::vector<std::string> list;
-    const auto& items = EnumInfo<T>::items();
-    for (const auto& item : items) {
-        if (is_set(flags, item.first)) {
-            list.push_back(item.second);
-            flip_bit(flags, item.first);
-        }
+    const auto& items = EnumInfo<T>::items;
+    size_t bits = sizeof(std::underlying_type_t<T>) * 8;
+    for (size_t i = 0; i < bits; ++i) {
+        T flag = T(1 << i);
+        if (is_set(flags, flag))
+            list.push_back(enum_to_string(flag));
     }
-    if (flags != T(0))
-        SGL_THROW("Invalid enum flags value {}", int(flags));
     return list;
 }
 
@@ -110,11 +109,11 @@ namespace detail {
     template<has_enum_info T>
     inline std::string format_enum(T value)
     {
-        const auto& items = EnumInfo<T>::items();
+        const auto& items = EnumInfo<T>::items;
         // Check for single value.
         for (const auto& item : items)
             if (item.first == value)
-                return item.second;
+                return std::string{item.second};
         // Check for flags.
         std::string str = "(";
         uint64_t bits = uint64_t(value);
@@ -152,16 +151,10 @@ namespace detail {
  */
 #define SGL_ENUM_INFO(T, ...)                                                                                          \
     struct T##_info {                                                                                                  \
-        static const std::string& name()                                                                               \
-        {                                                                                                              \
-            static const std::string name = #T;                                                                        \
-            return name;                                                                                               \
-        }                                                                                                              \
-        static std::span<std::pair<T, std::string>> items()                                                            \
-        {                                                                                                              \
-            static std::pair<T, std::string> items[] = __VA_ARGS__;                                                    \
-            return {std::begin(items), std::end(items)};                                                               \
-        }                                                                                                              \
+        using enum_type = T;                                                                                           \
+        static constexpr const char* name{#T};                                                                         \
+        static constexpr std::array<std::pair<T, const char*>, std::size<std::pair<T, const char*>>(__VA_ARGS__)>      \
+            items{__VA_ARGS__};                                                                                        \
     };
 
 /**

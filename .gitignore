@@ -10,11 +10,13 @@ docs/_build/
 .vscode/
 .vs/
 .temp/
+.cache/clangd/index
 
 # Python files installed into source tree
 slangpy/**/*.pyi
 slangpy/*.pdb
 slangpy/*.pyd
+slangpy/*.pyd.manifest
 slangpy/*.ilk
 slangpy/*.so
 slangpy/.build_dir

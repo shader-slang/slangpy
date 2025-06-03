@@ -440,6 +440,13 @@ void ShaderCursor::set_acceleration_structure(const ref<AccelerationStructure>& 
     m_shader_object->set_acceleration_structure(m_offset, acceleration_structure);
 }
 
+void ShaderCursor::set_descriptor_handle(const DescriptorHandle& handle) const
+{
+    // TODO: check type
+    // currently not possible because they are reported differently depending on the backend
+    m_shader_object->set_descriptor_handle(m_offset, handle);
+}
+
 void ShaderCursor::set_data(const void* data, size_t size) const
 {
     if ((TypeReflection::ParameterCategory)m_type_layout->getParameterCategory()
@@ -556,12 +563,14 @@ void ShaderCursor::_set_matrix(
 #endif
 
     if (rows > 1) {
-        // each row is aligned to 16 bytes
+        size_t mat_stride = m_type_layout->getStride();
+        size_t row_stride = mat_stride / rows;
+
         size_t row_size = size / rows;
         ShaderOffset offset = m_offset;
         for (int row = 0; row < rows; ++row) {
             m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + row * row_size, row_size);
-            offset.uniform_offset += 16;
+            offset.uniform_offset += narrow_cast<uint32_t>(row_stride);
         }
     } else {
         m_shader_object->set_data(m_offset, data, size);
@@ -612,6 +621,12 @@ template<>
 SGL_API void ShaderCursor::set(const ref<AccelerationStructure>& value) const
 {
     set_acceleration_structure(value);
+}
+
+template<>
+SGL_API void ShaderCursor::set(const DescriptorHandle& value) const
+{
+    set_descriptor_handle(value);
 }
 
 #define SET_SCALAR(type, scalar_type)                                                                                  \
@@ -675,9 +690,15 @@ SET_VECTOR(float3, float32);
 SET_VECTOR(float4, float32);
 
 SET_MATRIX(float2x2, float32);
-SET_MATRIX(float3x3, float32);
+SET_MATRIX(float2x3, float32);
 SET_MATRIX(float2x4, float32);
+
+SET_MATRIX(float3x2, float32);
+SET_MATRIX(float3x3, float32);
 SET_MATRIX(float3x4, float32);
+
+SET_MATRIX(float4x2, float32);
+SET_MATRIX(float4x3, float32);
 SET_MATRIX(float4x4, float32);
 
 SET_SCALAR(double, float64);

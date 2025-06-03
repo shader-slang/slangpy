@@ -71,7 +71,7 @@ namespace detail {
 
 void PassEncoder::push_debug_group(const char* name, float3 color)
 {
-    m_rhi_pass_encoder->pushDebugGroup(name, &color[0]);
+    m_rhi_pass_encoder->pushDebugGroup(name, rhi::MarkerColor{color.r, color.g, color.b});
 }
 
 void PassEncoder::pop_debug_group()
@@ -81,7 +81,7 @@ void PassEncoder::pop_debug_group()
 
 void PassEncoder::insert_debug_marker(const char* name, float3 color)
 {
-    m_rhi_pass_encoder->insertDebugMarker(name, &color[0]);
+    m_rhi_pass_encoder->insertDebugMarker(name, rhi::MarkerColor{color.r, color.g, color.b});
 }
 
 void PassEncoder::end()
@@ -792,7 +792,7 @@ void CommandEncoder::push_debug_group(const char* name, float3 color)
 {
     SGL_CHECK(m_open, "Command encoder is finished");
 
-    m_rhi_command_encoder->pushDebugGroup(name, &color[0]);
+    m_rhi_command_encoder->pushDebugGroup(name, rhi::MarkerColor{color.r, color.g, color.b});
 }
 
 void CommandEncoder::pop_debug_group()
@@ -806,7 +806,7 @@ void CommandEncoder::insert_debug_marker(const char* name, float3 color)
 {
     SGL_CHECK(m_open, "Command encoder is finished");
 
-    m_rhi_command_encoder->insertDebugMarker(name, &color[0]);
+    m_rhi_command_encoder->insertDebugMarker(name, rhi::MarkerColor{color.r, color.g, color.b});
 }
 
 void CommandEncoder::write_timestamp(QueryPool* query_pool, uint32_t index)

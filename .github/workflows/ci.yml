@@ -17,6 +17,7 @@ on:
       - "LICENSE"
       - "**.md"
       - .github/workflows/wheels.yml
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -58,7 +59,6 @@ jobs:
           - { os: macos, platform: aarch64, compiler: clang, flags: "unit-test", runs-on: macos-latest }
 
     env:
-      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
       # Environment variables used by ci.py
       CI_OS: ${{ matrix.os }}
       CI_PLATFORM: ${{ matrix.platform }}
@@ -119,12 +119,19 @@ jobs:
         run: python tools/ci.py setup
 
       # Setup vcpkg caching.
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v7
+      # Only run on hosted runners.
+      # For self-hosted runners, we use a local cache directory.
+      - name: Set vcpkg cache directory
+        if: startsWith(matrix.runs-on, 'ubuntu-') || startsWith(matrix.runs-on, 'macos-') || startsWith(matrix.runs-on, 'windows-')
+        run: |
+          echo "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}/vcpkg-cache" >> $GITHUB_ENV
+          mkdir -p ${{ github.workspace }}/vcpkg-cache
+      - name: Setup vcpkg caching
+        if: startsWith(matrix.runs-on, 'ubuntu-') || startsWith(matrix.runs-on, 'macos-') || startsWith(matrix.runs-on, 'windows-')
+        uses: actions/cache@v4
         with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-cache-${{ runner.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ hashFiles('vcpkg.json', 'external/vcpkg-triplets/**') }}
 
       # Configure.
       - name: Configure

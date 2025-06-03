@@ -37,7 +37,9 @@ enum class Feature : uint32_t {
     hardware_device = static_cast<uint32_t>(rhi::Feature::HardwareDevice),
     software_device = static_cast<uint32_t>(rhi::Feature::SoftwareDevice),
     parameter_block = static_cast<uint32_t>(rhi::Feature::ParameterBlock),
+    bindless = static_cast<uint32_t>(rhi::Feature::Bindless),
     surface = static_cast<uint32_t>(rhi::Feature::Surface),
+    pipeline_cache = static_cast<uint32_t>(rhi::Feature::PipelineCache),
     // Rasterization features
     rasterization = static_cast<uint32_t>(rhi::Feature::Rasterization),
     barycentrics = static_cast<uint32_t>(rhi::Feature::Barycentrics),
@@ -92,7 +94,14 @@ enum class Feature : uint32_t {
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
     // Metal specific features
     argument_buffer_tier2 = static_cast<uint32_t>(rhi::Feature::ArgumentBufferTier2),
+
+    count,
 };
+
+static_assert(
+    static_cast<uint32_t>(Feature::count) == static_cast<uint32_t>(rhi::Feature::_Count),
+    "Feature table size mismatch"
+);
 
 SGL_ENUM_INFO(
     Feature,
@@ -100,7 +109,9 @@ SGL_ENUM_INFO(
         {Feature::hardware_device, "hardware_device"},
         {Feature::software_device, "software_device"},
         {Feature::parameter_block, "parameter_block"},
+        {Feature::bindless, "bindless"},
         {Feature::surface, "surface"},
+        {Feature::pipeline_cache, "pipeline_cache"},
         {Feature::rasterization, "rasterization"},
         {Feature::barycentrics, "barycentrics"},
         {Feature::multi_view, "multi_view"},
@@ -111,6 +122,7 @@ SGL_ENUM_INFO(
         {Feature::sampler_feedback, "sampler_feedback"},
         {Feature::acceleration_structure, "acceleration_structure"},
         {Feature::acceleration_structure_spheres, "acceleration_structure_spheres"},
+        {Feature::acceleration_structure_linear_swept_spheres, "acceleration_structure_linear_swept_spheres"},
         {Feature::ray_tracing, "ray_tracing"},
         {Feature::ray_query, "ray_query"},
         {Feature::shader_execution_reordering, "shader_execution_reordering"},
@@ -150,6 +162,48 @@ SGL_ENUM_INFO(
     }
 );
 SGL_ENUM_REGISTER(Feature);
+static_assert(EnumInfo<Feature>::items.size() == static_cast<size_t>(Feature::count));
+
+enum class DescriptorHandleType {
+    undefined = static_cast<uint32_t>(rhi::DescriptorHandleType::Undefined),
+    buffer = static_cast<uint32_t>(rhi::DescriptorHandleType::Buffer),
+    rw_buffer = static_cast<uint32_t>(rhi::DescriptorHandleType::RWBuffer),
+    texture = static_cast<uint32_t>(rhi::DescriptorHandleType::Texture),
+    rw_texture = static_cast<uint32_t>(rhi::DescriptorHandleType::RWTexture),
+    sampler = static_cast<uint32_t>(rhi::DescriptorHandleType::Sampler),
+    acceleration_structure = static_cast<uint32_t>(rhi::DescriptorHandleType::AccelerationStructure),
+};
+
+SGL_ENUM_INFO(
+    DescriptorHandleType,
+    {
+        {DescriptorHandleType::undefined, "undefined"},
+        {DescriptorHandleType::buffer, "buffer"},
+        {DescriptorHandleType::rw_buffer, "rw_buffer"},
+        {DescriptorHandleType::texture, "texture"},
+        {DescriptorHandleType::rw_texture, "rw_texture"},
+        {DescriptorHandleType::sampler, "sampler"},
+        {DescriptorHandleType::acceleration_structure, "acceleration_structure"},
+    }
+);
+SGL_ENUM_REGISTER(DescriptorHandleType);
+
+struct SGL_API DescriptorHandle {
+    DescriptorHandleType type{DescriptorHandleType::undefined};
+    uint64_t value{0};
+
+    explicit DescriptorHandle(const rhi::DescriptorHandle& handle)
+    {
+        type = static_cast<DescriptorHandleType>(handle.type);
+        value = handle.value;
+    }
+
+    bool is_valid() const { return type != DescriptorHandleType::undefined; }
+
+    explicit operator bool() const { return is_valid(); }
+
+    std::string to_string() const;
+};
 
 enum class ShaderModel : uint32_t {
     unknown = 0,

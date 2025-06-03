@@ -308,7 +308,7 @@ target_compile_definitions(sgl
         $<$<PLATFORM_ID:Darwin>:IMGUI_API=__attribute__\(\(visibility\("default"\)\)\)>
         # Linux.
         $<$<PLATFORM_ID:Linux>:__USE_LARGEFILE64>
-        SGL_PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../"
+        SGL_PROJECT_DIR="${SGL_PROJECT_DIR}"
 )
 
 file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TYPE}/include/sgl/core/config.h CONTENT
