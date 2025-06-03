@@ -41,6 +41,7 @@ class ITensorType(SlangType):
             "RWTensor",
             "GradInTensor",
             "GradInOutTensor",
+            "AtomicTensor",
         )
         self._dims = args[1]
 
@@ -64,6 +65,7 @@ TYPE_OVERRIDES["RWTensor"] = ITensorType
 TYPE_OVERRIDES["GradInTensor"] = ITensorType
 TYPE_OVERRIDES["GradOutTensor"] = ITensorType
 TYPE_OVERRIDES["GradInOutTensor"] = ITensorType
+TYPE_OVERRIDES["AtomicTensor"] = ITensorType
 
 
 def types_equal(a: SlangType, b: SlangType):
@@ -193,6 +195,10 @@ class TensorMarshall(NativeTensorMarshall):
                     f"to tensor with element type {bound_type.dtype.full_name}"
                 )
 
+            # Atomic tensors are special, they must be passed as-is
+            if bound_type.name == "AtomicTensor":
+                return bound_type
+
             return build_tensor_type(
                 self.layout,
                 bound_type.dtype,
@@ -257,13 +263,17 @@ class TensorMarshall(NativeTensorMarshall):
         else:
             writable = binding.access[0] in (AccessType.write, AccessType.readwrite)
 
-        type_name = build_tensor_name(
-            self.slang_element_type,
-            self.dims,
-            writable,
-            self.d_in is not None,
-            self.d_out is not None,
-        )
+        # Atomic tensors are special, they must be passed as-is
+        if binding.vector_type.name == "AtomicTensor":
+            type_name = binding.vector_type.full_name
+        else:
+            type_name = build_tensor_name(
+                self.slang_element_type,
+                self.dims,
+                writable,
+                self.d_in is not None,
+                self.d_out is not None,
+            )
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
 
