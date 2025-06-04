@@ -21,10 +21,13 @@ import slangpy.reflection as kfr
 class ArrayMarshall(ValueMarshall):
     def __init__(self, layout: SlangProgramLayout, element_type: SlangType, shape: Shape):
         super().__init__(layout)
-        if element_type.full_name == "Unknown":
-            raise ValueError(
-                "Element type must be fully defined. If using a Python dict, ensure it has an _type field."
-            )
+        ### Disabled as binding a struct containing an array of Tensors failed here.
+        ### See https://github.com/shader-slang/slangpy/issues/255
+        # if element_type.full_name == "Unknown":
+        #     raise ValueError(
+        #         "Element type must be fully defined. If using a Python dict, ensure it has an _type field."
+        #     )
+
         st = element_type
         for dim in reversed(shape.as_tuple()):
             st = layout.array_type(st, dim)

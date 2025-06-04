@@ -351,8 +351,11 @@ void SlangSession::create_session(SlangSessionBuild& build)
     uint32_t shader_model_minor = get_shader_model_minor_version(shader_model);
     std::string profile_str = fmt::format("sm_{}_{}", shader_model_major, shader_model_minor);
 
-    target_desc.profile = m_device->global_session()->findProfile(profile_str.c_str());
-    SGL_CHECK(target_desc.profile != SLANG_PROFILE_UNKNOWN, "Unsupported target profile: {}", profile_str);
+    // TODO: CUDA doesn't support shader model profiles like Vulkan or D3D12.
+    if (device_type == DeviceType::d3d12 || device_type == DeviceType::vulkan) {
+        target_desc.profile = m_device->global_session()->findProfile(profile_str.c_str());
+        SGL_CHECK(target_desc.profile != SLANG_PROFILE_UNKNOWN, "Unsupported target profile: {}", profile_str);
+    }
 
     // Set floating point mode.
     target_desc.floatingPointMode = static_cast<::SlangFloatingPointMode>(options.floating_point_mode);

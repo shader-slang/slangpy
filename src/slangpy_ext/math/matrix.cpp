@@ -326,6 +326,21 @@ inline void bind_matrix(nb::module_& m)
         [](const quatf& q) { return matrix_from_quat(q); },
         "q"_a
     );
+    m.def(
+        "decompose",
+        [](const float4x4& model_matrix,
+           float3& scale,
+           quatf& orientation,
+           float3& translation,
+           float3& skew,
+           float4& perspective) { return decompose(model_matrix, scale, orientation, translation, skew, perspective); },
+        "model_matrix"_a,
+        "scale"_a,
+        "orientation"_a,
+        "translation"_a,
+        "skew"_a,
+        "perspective"_a
+    );
 }
 
 } // namespace sgl::math
