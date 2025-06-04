@@ -35,7 +35,7 @@ elif sys.platform == "linux" or sys.platform == "linux2":
     DEFAULT_DEVICE_TYPES = [DeviceType.vulkan]
 elif sys.platform == "darwin":
     # TODO: we don't run any slangpy tests on metal due to slang bugs for now
-    DEFAULT_DEVICE_TYPES = []  # [DeviceType.metal]
+    DEFAULT_DEVICE_TYPES = [DeviceType.metal]
 else:
     raise RuntimeError("Unsupported platform")
 

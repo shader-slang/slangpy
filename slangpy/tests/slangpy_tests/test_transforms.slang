@@ -9,6 +9,11 @@ void copy_vectors(float3 input, out float3 output) {
     output = input;
 }
 
+void copy_matrix(float2x3 input, out float2x3 output) {
+    output = input;
+}
+
+
 float3 add_vectors(float3 a, float3 b) {
     return a + b;
 }
