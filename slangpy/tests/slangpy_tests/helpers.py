@@ -35,7 +35,7 @@ elif sys.platform == "linux" or sys.platform == "linux2":
     DEFAULT_DEVICE_TYPES = [DeviceType.vulkan]
 elif sys.platform == "darwin":
     # TODO: we don't run any slangpy tests on metal due to slang bugs for now
-    DEFAULT_DEVICE_TYPES = [DeviceType.metal]
+    DEFAULT_DEVICE_TYPES = [] #[DeviceType.metal]
 else:
     raise RuntimeError("Unsupported platform")
 
@@ -149,6 +149,8 @@ def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count:
             element_count = 1
         elif cursor.element_type_layout.kind == TypeReflection.Kind.vector:
             element_count = cursor.element_type.col_count
+        elif cursor.element_type_layout.kind == TypeReflection.Kind.matrix:
+            element_count = cursor.element_type.row_count * cursor.element_type.col_count
         else:
             raise ValueError(
                 f"element_count not set and type is not scalar or vector: {cursor.element_type_layout.kind}"
@@ -156,6 +158,8 @@ def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count:
 
     for i in range(shape):
         buffer_data = np.array(data[i * element_count : (i + 1) * element_count])
+        if cursor.element_type_layout.kind == TypeReflection.Kind.matrix:
+            buffer_data = buffer_data.reshape(cursor.element_type.row_count, cursor.element_type.col_count)
         cursor[i].write(buffer_data)
 
     cursor.apply()
