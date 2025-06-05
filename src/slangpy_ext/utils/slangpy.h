@@ -115,6 +115,7 @@ public:
 
     virtual void read_signature(SignatureBuilder* builder) const { builder->add(m_signature); }
 
+
 private:
     std::string m_signature;
 };
