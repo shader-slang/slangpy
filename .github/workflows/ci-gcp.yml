@@ -1,22 +1,22 @@
 name: ci-gcp
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "LICENSES/**"
-      - "LICENSE"
-      - "**.md"
-      - .github/workflows/wheels.yml
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "LICENSES/**"
-      - "LICENSE"
-      - "**.md"
-      - .github/workflows/wheels.yml
+  # push:
+  #   branches: [main]
+  #   paths-ignore:
+  #     - "docs/**"
+  #     - "LICENSES/**"
+  #     - "LICENSE"
+  #     - "**.md"
+  #     - .github/workflows/wheels.yml
+  # pull_request:
+  #   branches: [main]
+  #   paths-ignore:
+  #     - "docs/**"
+  #     - "LICENSES/**"
+  #     - "LICENSE"
+  #     - "**.md"
+  #     - .github/workflows/wheels.yml
   workflow_dispatch:
 
 permissions:
