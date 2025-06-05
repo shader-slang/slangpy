@@ -1,24 +1,22 @@
-name: ci
+name: ci-gcp
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "LICENSES/**"
-      - "LICENSE"
-      - "**.md"
-      - .github/workflows/wheels.yml
-      - .github/workflows/ci-gcp.yml
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "LICENSES/**"
-      - "LICENSE"
-      - "**.md"
-      - .github/workflows/wheels.yml
-      - .github/workflows/ci-gcp.yml
+  # push:
+  #   branches: [main]
+  #   paths-ignore:
+  #     - "docs/**"
+  #     - "LICENSES/**"
+  #     - "LICENSE"
+  #     - "**.md"
+  #     - .github/workflows/wheels.yml
+  # pull_request:
+  #   branches: [main]
+  #   paths-ignore:
+  #     - "docs/**"
+  #     - "LICENSES/**"
+  #     - "LICENSE"
+  #     - "**.md"
+  #     - .github/workflows/wheels.yml
   workflow_dispatch:
 
 permissions:
@@ -28,6 +26,8 @@ permissions:
 
 jobs:
   build:
+    # We don't require GCP runs to be successful, they are not the primary means of testing
+    continue-on-error: true
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
@@ -48,17 +48,15 @@ jobs:
           - { os: linux, compiler: msvc }
           - { os: macos, compiler: msvc }
           - { os: macos, compiler: gcc }
+          # Exclude builds currently not supported by GCP
+          - { os: windows, platform: x86_64, compiler: msvc, config: Debug }
+          - { os: linux, platform: x86_64, compiler: gcc }
+          - { os: linux, platform: x86_64, compiler: clang }
+          - { os: linux, platform: aarch64, compiler: gcc }
+          - { os: linux, platform: aarch64, compiler: clang }
+          - { os: macos, platform: aarch64, compiler: clang }
         include:
-          # Builds running on self-hosted runners (build + tests + coverage)
-          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,header-validation,coverage", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
-          # Additional builds running on GitHub hosted runners (build only)
-          - { os: linux, platform: x86_64, compiler: clang, runs-on: ubuntu-latest }
-          - { os: linux, platform: aarch64, compiler: gcc, runs-on: ubuntu-24.04-arm }
-          - { os: linux, platform: aarch64, compiler: clang, runs-on: ubuntu-24.04-arm }
-          - { os: macos, platform: aarch64, compiler: clang, flags: "unit-test", runs-on: macos-latest }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: gcp, labels: [Windows, X64] } }
 
     env:
       # Environment variables used by ci.py
@@ -88,16 +86,25 @@ jobs:
 
       # Setup Python.
       - name: Setup Python ${{ matrix.python }}
+        if: ${{ matrix.runs-on.group != 'gcp' }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
           cache: 'pip'
 
-      # Setup Python environment.
+      # Setup Python environment (GCP Windows)
       - name: Setup Python environment
+        if: matrix.runs-on.group == 'gcp' && runner.os == 'Windows'
         run: |
-          python -m pip install -r requirements-dev.txt
-          python -m pip install pytest-github-actions-annotate-failures
+          python --version
+          powershell -Command "Start-Process python -ArgumentList '-m pip install -r requirements-dev.txt pytest-github-actions-annotate-failures' -Verb RunAs -Wait"
+
+      # Setup Python environment
+      - name: Setup Python environment
+        if: matrix.runs-on.group != 'gcp'
+        run: |
+          python --version
+          python -m pip install -r requirements-dev.txt pytest-github-actions-annotate-failures
 
       # Setup MSVC.
       - name: Setup MSVC
@@ -147,24 +154,3 @@ jobs:
       - name: Unit Tests (Python)
         if: contains(matrix.flags, 'unit-test')
         run: python tools/ci.py unit-test-python
-
-      # Unit Test Report
-      - name: Unit Test Report
-        uses: mikepenz/action-junit-report@v4
-        if: contains(matrix.flags, 'unit-test')
-        with:
-          report_paths: 'reports/*-junit.xml'
-          check_name: "Unit Test Report"
-
-      # Generate Coverage Report
-      - name: Generate Coverage Report
-        if: contains(matrix.flags, 'coverage')
-        run: python tools/ci.py coverage-report
-
-      # Coverage Report
-      - name: Coverage Report
-        uses: actions/upload-artifact@v4
-        if: contains(matrix.flags, 'coverage')
-        with:
-          name: coverage-report
-          path: reports/coverage.html

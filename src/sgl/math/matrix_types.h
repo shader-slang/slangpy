@@ -185,11 +185,15 @@ private:
 };
 
 using float2x2 = matrix<float, 2, 2>;
-
-using float3x3 = matrix<float, 3, 3>;
-
+using float2x3 = matrix<float, 2, 3>;
 using float2x4 = matrix<float, 2, 4>;
+
+using float3x2 = matrix<float, 3, 2>;
+using float3x3 = matrix<float, 3, 3>;
 using float3x4 = matrix<float, 3, 4>;
+
+using float4x2 = matrix<float, 4, 2>;
+using float4x3 = matrix<float, 4, 3>;
 using float4x4 = matrix<float, 4, 4>;
 
 } // namespace sgl::math
@@ -197,11 +201,15 @@ using float4x4 = matrix<float, 4, 4>;
 namespace sgl {
 
 using float2x2 = math::float2x2;
-
-using float3x3 = math::float3x3;
-
+using float2x3 = math::float2x3;
 using float2x4 = math::float2x4;
+
+using float3x2 = math::float3x2;
+using float3x3 = math::float3x3;
 using float3x4 = math::float3x4;
+
+using float4x2 = math::float4x2;
+using float4x3 = math::float4x3;
 using float4x4 = math::float4x4;
 
 } // namespace sgl

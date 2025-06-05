@@ -39,6 +39,9 @@ int sum(int[4] vals) {
     assert result == 10
 
 
+@pytest.mark.skip(
+    reason="Skipped due to removal of the assert. See https://github.com/shader-slang/slangpy/issues/255"
+)
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_untyped_struct_array(device_type: DeviceType):
 

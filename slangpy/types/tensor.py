@@ -1,8 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
+from os import PathLike
 
-from slangpy import Device, Buffer, BufferUsage, TypeReflection, CommandBuffer
-from slangpy.core.utils import shape_to_contiguous_strides
+from slangpy import (
+    Device,
+    Buffer,
+    BufferUsage,
+    TypeReflection,
+    CommandBuffer,
+    Bitmap,
+    DataStruct,
+    MemoryType,
+)
 from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
 from slangpy.reflection import reflectiontypes
 from slangpy.core.native import Shape
@@ -11,12 +20,13 @@ from slangpy.types.buffer import (
     get_lookup_module,
     resolve_element_type,
     resolve_program_layout,
+    load_buffer_data_from_image,
 )
 from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
 from warnings import warn
 
-from typing import Optional, Any, cast, TYPE_CHECKING
+from typing import Optional, Any, Union, cast, TYPE_CHECKING
 import numpy as np
 import math
 
@@ -214,6 +224,8 @@ class Tensor(NativeTensor):
         device: Device,
         shape: TShapeOrTuple,
         dtype: Any,
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
+        memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None,
     ) -> Tensor:
         """
@@ -227,19 +239,28 @@ class Tensor(NativeTensor):
         shape_tuple = shape if isinstance(shape, tuple) else shape.as_tuple()
         num_elems = math.prod(shape_tuple)
 
-        usage = BufferUsage.shader_resource | BufferUsage.unordered_access
         buffer = device.create_buffer(
-            element_count=num_elems, struct_size=dtype.buffer_layout.stride, usage=usage
+            element_count=num_elems,
+            struct_size=dtype.buffer_layout.stride,
+            usage=usage,
+            memory_type=memory_type,
         )
 
         return Tensor(buffer, dtype, shape)
 
     @staticmethod
-    def zeros(device: Device, shape: TShapeOrTuple, dtype: Any) -> Tensor:
+    def zeros(
+        device: Device,
+        shape: TShapeOrTuple,
+        dtype: Any,
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
+        memory_type: MemoryType = MemoryType.device_local,
+        program_layout: Optional[SlangProgramLayout] = None,
+    ) -> Tensor:
         """
         Creates a zero-initialized tensor with the requested shape and element type.
         """
-        tensor = Tensor.empty(device, shape, dtype)
+        tensor = Tensor.empty(device, shape, dtype, usage, memory_type, program_layout)
         tensor.clear()
         return tensor
 
@@ -256,3 +277,35 @@ class Tensor(NativeTensor):
         Creates a zero-initialized tensor with the same shape and element type as the given tensor.
         """
         return Tensor.zeros(other.storage.device, other.shape, other.dtype)
+
+    @staticmethod
+    def load_from_image(
+        device: Device,
+        path: Union[str, PathLike[str]],
+        flip_y: bool = False,
+        linearize: bool = False,
+        scale: float = 1.0,
+        offset: float = 0.0,
+        grayscale: bool = False,
+    ) -> Tensor:
+        """
+        Helper to load an image from a file and convert it to a floating point tensor.
+        """
+
+        # Load bitmap + convert to numpy array
+        data = load_buffer_data_from_image(path, flip_y, linearize, scale, offset, grayscale)
+
+        # Create tensor with appropriate dtype based on number of channels.
+        if len(data.shape) == 2 or data.shape[2] == 1:
+            dtype = "float"
+        elif data.shape[2] == 2:
+            dtype = "float2"
+        elif data.shape[2] == 3:
+            dtype = "float3"
+        elif data.shape[2] == 4:
+            dtype = "float4"
+        else:
+            raise ValueError(f"Unsupported number of channels: {data.shape[2]}")
+        tensor = Tensor.empty(device, data.shape[:2], dtype)
+        tensor.copy_from_numpy(data)
+        return tensor
