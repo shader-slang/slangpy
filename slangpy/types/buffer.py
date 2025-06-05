@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import TYPE_CHECKING, Any, Optional, cast
+import math
+from os import PathLike
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 from slangpy.core.native import Shape, NativeNDBuffer, NativeNDBufferDesc
 from slangpy.core.shapes import TShapeOrTuple
@@ -13,6 +15,8 @@ from slangpy import (
     TypeLayoutReflection,
     TypeReflection,
     CommandEncoder,
+    Bitmap,
+    DataStruct,
 )
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
@@ -98,6 +102,69 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
     if element_type is None:
         raise ValueError("Element type could not be resolved")
     return element_type
+
+
+def load_buffer_data_from_image(
+    path: Union[str, PathLike[str]],
+    flip_y: bool = False,
+    linearize: bool = False,
+    scale: float = 1.0,
+    offset: float = 0.0,
+    greyscale: bool = False,
+) -> np.ndarray[Any, Any]:
+    """
+    Helper to load an image from a file and convert it to a floating point tensor.
+    """ ""
+
+    # Load bitmap + convert to numpy array
+    bitmap = Bitmap(path)
+
+    # Select target pixel format based on channel count and greyscale flag.
+    pix_fmt = bitmap.pixel_format
+    if greyscale:
+        pix_fmt = Bitmap.PixelFormat.r
+    else:
+        if bitmap.channel_count == 1:
+            pix_fmt = Bitmap.PixelFormat.r
+        elif bitmap.channel_count == 2:
+            pix_fmt = Bitmap.PixelFormat.rg
+        elif bitmap.channel_count == 3:
+            pix_fmt = Bitmap.PixelFormat.rgb
+        elif bitmap.channel_count == 4:
+            pix_fmt = Bitmap.PixelFormat.rgba
+
+    # Select whether to de-gamma the bitmap based on linearization flag.
+    if linearize:
+        srgb_gamma = False
+    else:
+        srgb_gamma = bitmap.srgb_gamma
+
+    # Perform conversion to the desired pixel format.
+    bitmap = bitmap.convert(pix_fmt, DataStruct.Type.float32, srgb_gamma)
+
+    # Convert bitmap to numpy array.
+    data: np.ndarray[Any, Any] = np.asarray(bitmap, copy=False)
+
+    # Validate array shape.
+    if data.ndim < 2 or data.ndim > 3:
+        raise ValueError(f"Bitmap data must be 2 or 3 dimensional, got {data.ndim} dimensions")
+    if data.ndim == 3:
+        if data.shape[2] not in [1, 2, 3, 4]:
+            raise ValueError(
+                f"Bitmap data must have 1, 2, 3 or 4 channels, got {data.shape[2]} channels"
+            )
+    if data.dtype != np.float32:
+        raise ValueError(f"Bitmap data must be float32, got {data.dtype}")
+
+    # Flip if requested
+    if flip_y:
+        data = np.flipud(data)
+
+    # Apply scale and offset if requested.
+    if scale != 1.0 or offset != 0.0:
+        data = data * scale + offset
+
+    return data
 
 
 class NDBuffer(NativeNDBuffer):
@@ -209,11 +276,31 @@ class NDBuffer(NativeNDBuffer):
         super().clear()
 
     @staticmethod
+    def empty(
+        device: Device,
+        shape: TShapeOrTuple,
+        dtype: Any,
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
+        memory_type: MemoryType = MemoryType.device_local,
+        program_layout: Optional[SlangProgramLayout] = None,
+    ) -> "NDBuffer":
+        """
+        Creates an NDBuffer with the requested shape and element type without attempting to initialize the data.
+        """
+        return NDBuffer(
+            device,
+            dtype=dtype,
+            shape=shape,
+            usage=usage,
+            memory_type=memory_type,
+            program_layout=program_layout,
+        )
+
+    @staticmethod
     def zeros(
         device: Device,
+        shape: TShapeOrTuple,
         dtype: Any,
-        element_count: Optional[int] = None,
-        shape: Optional[TShapeOrTuple] = None,
         usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None,
@@ -221,13 +308,56 @@ class NDBuffer(NativeNDBuffer):
         """
         Creates a zero-initialized nbuffer with the requested shape and element type.
         """
-        buffer = NDBuffer(device, dtype, element_count, shape, usage, memory_type, program_layout)
+        buffer = NDBuffer.empty(device, shape, dtype, usage, memory_type, program_layout)
         buffer.clear()
         return buffer
+
+    @staticmethod
+    def empty_like(other: "NDBuffer") -> "NDBuffer":
+        """
+        Creates a new tensor with the same shape and element type as the given tensor, without initializing the data.
+        """
+        return NDBuffer.empty(
+            other.device, other.shape, other.dtype, other.usage, other.memory_type
+        )
 
     @staticmethod
     def zeros_like(other: "NDBuffer") -> "NDBuffer":
         """
         Creates a zero-initialized ndbuffer with the same shape and element type as the given ndbuffer.
         """
-        return NDBuffer.zeros(other.storage.device, shape=other.shape, dtype=other.dtype)
+        return NDBuffer.zeros(
+            other.device, other.shape, other.dtype, other.usage, other.memory_type
+        )
+
+    @staticmethod
+    def load_from_image(
+        device: Device,
+        path: Union[str, PathLike[str]],
+        flip_y: bool = False,
+        linearize: bool = False,
+        scale: float = 1.0,
+        offset: float = 0.0,
+        grayscale: bool = False,
+    ) -> "NDBuffer":
+        """
+        Helper to load an image from a file and convert it to a floating point tensor.
+        """
+
+        # Load bitmap + convert to numpy array
+        data = load_buffer_data_from_image(path, flip_y, linearize, scale, offset, grayscale)
+
+        # Create buffer with appropriate dtype based on number of channels.
+        if len(data.shape) == 2 or data.shape[2] == 1:
+            dtype = "float"
+        elif data.shape[2] == 2:
+            dtype = "float2"
+        elif data.shape[2] == 3:
+            dtype = "float3"
+        elif data.shape[2] == 4:
+            dtype = "float4"
+        else:
+            raise ValueError(f"Unsupported number of channels: {data.shape[2]}")
+        buffer = NDBuffer.empty(device, data.shape[:2], dtype)
+        buffer.copy_from_numpy(data)
+        return buffer

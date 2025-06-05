@@ -49,7 +49,7 @@ jobs:
         include:
           # Builds running on self-hosted runners (build + tests + coverage)
           - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: gcp, labels: [Windows, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,header-validation,coverage", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
           # Additional builds running on GitHub hosted runners (build only)
@@ -86,16 +86,25 @@ jobs:
 
       # Setup Python.
       - name: Setup Python ${{ matrix.python }}
+        if: ${{ matrix.runs-on.group != 'gcp' }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
           cache: 'pip'
 
-      # Setup Python environment.
+      # Setup Python environment (GCP Windows)
       - name: Setup Python environment
+        if: matrix.runs-on.group == 'gcp' && runner.os == 'Windows'
         run: |
-          python -m pip install -r requirements-dev.txt
-          python -m pip install pytest-github-actions-annotate-failures
+          python --version
+          powershell -Command "Start-Process python -ArgumentList '-m pip install -r requirements-dev.txt pytest-github-actions-annotate-failures' -Verb RunAs -Wait"
+
+      # Setup Python environment
+      - name: Setup Python environment
+        if: matrix.runs-on.group != 'gcp'
+        run: |
+          python --version
+          python -m pip install -r requirements-dev.txt pytest-github-actions-annotate-failures
 
       # Setup MSVC.
       - name: Setup MSVC
