@@ -203,7 +203,7 @@ class BoundVariable:
         import slangpy.core.packedarg
 
         if isinstance(value, slangpy.core.packedarg.PackedArg):
-            # If this is a finalised arg, we need to use the slang type from the marshall
+            # If this is a packed arg, we need to use the slang type from the marshall
             if parent is not None:
                 raise BoundVariableException(
                     f"PackedArg {value} must be a top level argument", self
@@ -211,7 +211,7 @@ class BoundVariable:
             self.python = value.python
             self.create_param_block = True
         else:
-            # Not finalised arg so we need to create a marshall for the value
+            # Not packed arg so we need to create a marshall for the value
             try:
                 self.python = get_or_create_type(context.layout, type(value), value)
             except Exception as e:
