@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <sstream>
+#include <cmath>
 
 #include "nanobind.h"
 
@@ -391,15 +392,126 @@ nb::object NativeCallData::exec(
         }
     }
 
-    // Calculate total threads and strides.
-    int total_threads = 1;
-    std::vector<int> strides;
     const std::vector<int>& cs = call_shape.as_vector();
+    std::vector<int> strides;
+    int current_stride = 1;
     for (auto it = cs.rbegin(); it != cs.rend(); ++it) {
-        strides.push_back(total_threads);
-        total_threads *= *it;
+        strides.push_back(current_stride);
+        current_stride *= *it;
     }
     std::reverse(strides.begin(), strides.end());
+
+    // Get call group shape from build info
+    std::vector<int> call_group_shape;
+
+    if (m_call_group_shape.valid() && m_call_group_shape.size() > 0) {
+        // Similar to cs, this will be recieved with the first dimension
+        // as the right most element, ex: [..., z, y, x].
+        call_group_shape = m_call_group_shape.as_vector();
+
+        // Verify that call_group_shape has valid dimensions and values.
+        // Our check above should have already validated that
+        // call_group_shape.size() > 0.
+        if (call_group_shape.size() > cs.size()) {
+            throw std::runtime_error(fmt::format(
+                "call_group_shape dimension ({}) must be <= call_shape dimension ({}). "
+                "call_group_shape cannot have more dimensions than call_shape.",
+                call_group_shape.size(),
+                cs.size()
+            ));
+        } else if (call_group_shape.size() < cs.size()) {
+            // Call group shape size is less than the call shape size so we need to
+            // pad the call group shape with 1's to account for the missing dimensions.
+            // However, inserting at the front of the vector will be inefficient, so
+            // log a debug message, giving users a chance to correct their calls.
+            if (is_log_enabled(LogLevel::debug)) {
+                log_debug(
+                    "call_group_shape dimension ({}) < call_shape dimension ({}). "
+                    "Padding call_group_shape with {} leading 1's. "
+                    "Consider specifying full dimensions for better performance.",
+                    call_group_shape.size(),
+                    cs.size(),
+                    cs.size() - call_group_shape.size()
+                );
+            }
+
+            for (size_t i = 0; i < (cs.size() - call_group_shape.size()); ++i) {
+                // Insert 1's for the dimensions we were not given
+                call_group_shape.insert(call_group_shape.begin(), 1);
+            }
+        }
+
+        // Verify that all elements of call_group_shape are >= 1
+        for (size_t i = 0; i < call_group_shape.size(); ++i) {
+            if (call_group_shape[i] < 1) {
+                throw std::runtime_error(fmt::format(
+                    "call_group_shape[{}] = {} is invalid. All call_group_shape elements must be >= 1.",
+                    i,
+                    call_group_shape[i]
+                ));
+            }
+        }
+    } else {
+
+        // We already know the size/dimensionality of all the shape and
+        // stride vectors at this point. Use reserve() to preallocate
+        // to the exact size required for efficiency.
+        call_group_shape.reserve(cs.size());
+
+        // Default to making the call group shape all 1's. This will force the
+        // grid shape to be identical to the call shape giving us linear
+        // dispatches by default when a call group shape is not specified.
+        // In this case, conceptually all thread's have their own "group" even
+        // though they will still be executed in groups of 32.
+        for (int i = 0; i < cs.size(); i++) {
+            call_group_shape.push_back(1);
+        }
+    }
+
+    // Calculate the group strides
+    std::vector<int> call_group_strides;
+    call_group_strides.reserve(cs.size());
+    current_stride = 1;
+    for (auto it = call_group_shape.rbegin(); it != call_group_shape.rend(); ++it) {
+        call_group_strides.push_back(current_stride);
+        current_stride *= *it;
+    }
+    std::reverse(call_group_strides.begin(), call_group_strides.end());
+
+    // Calculate the grid shape and total threads.
+    //
+    // Note: The call shape may not be call group shape aligned, in which case we
+    //       will align up the call shape. This will result in
+    //       aligned_call_shape.size - call_shape.size wasted threads. It might be
+    //       possible to create some logic to avoid waste, but a call group would
+    //       likely end up torn and representing different regions of the call shape,
+    //       which would likely defeat the purpose of using call groups for better
+    //       memory coherency and uses of shared memory.
+    int total_threads = 1;
+    std::vector<int> call_grid_shape;
+    std::vector<int> aligned_call_shape;
+    call_grid_shape.reserve(cs.size());
+    aligned_call_shape.reserve(cs.size());
+    bool is_call_shape_unaligned = false;
+    for (int i = 0; i < cs.size(); i++) {
+        // When the call shape is not call group shape aligned, we will add some
+        // padding to align up.
+        call_grid_shape.push_back((int)std::ceil((float)cs[i] / (float)call_group_shape[i]));
+        aligned_call_shape.push_back(call_grid_shape.back() * call_group_shape[i]);
+        if (aligned_call_shape[i] != cs[i])
+            is_call_shape_unaligned = true;
+        total_threads *= aligned_call_shape.back();
+    }
+
+    // Calculate the grid strides
+    std::vector<int> call_grid_strides;
+    call_grid_strides.reserve(cs.size());
+    current_stride = 1;
+    for (auto it = call_grid_shape.rbegin(); it != call_grid_shape.rend(); ++it) {
+        call_grid_strides.push_back(current_stride);
+        current_stride *= *it;
+    }
+    std::reverse(call_grid_strides.begin(), call_grid_strides.end());
 
     nb::list read_back;
 
@@ -415,10 +527,18 @@ nb::object NativeCallData::exec(
         if (call_data_cursor.is_reference())
             call_data_cursor = call_data_cursor.dereference();
 
-        if (!strides.empty()) {
-            call_data_cursor["_call_stride"]._set_array_unsafe(&strides[0], strides.size() * 4, strides.size());
+        if (!call_grid_strides.empty()) {
             call_data_cursor["_call_dim"]._set_array_unsafe(&cs[0], cs.size() * 4, cs.size());
+            call_data_cursor["_grid_stride"]
+                ._set_array_unsafe(&call_grid_strides[0], call_grid_strides.size() * 4, call_grid_strides.size());
+            call_data_cursor["_grid_dim"]
+                ._set_array_unsafe(&call_grid_shape[0], call_grid_shape.size() * 4, call_grid_shape.size());
+            call_data_cursor["_group_stride"]
+                ._set_array_unsafe(&call_group_strides[0], call_group_strides.size() * 4, call_group_strides.size());
+            call_data_cursor["_group_dim"]
+                ._set_array_unsafe(&call_group_shape[0], call_group_shape.size() * 4, call_group_shape.size());
         }
+
         call_data_cursor["_thread_count"] = uint3(total_threads, 1, 1);
 
         m_runtime->write_shader_cursor_pre_dispatch(
@@ -448,6 +568,16 @@ nb::object NativeCallData::exec(
         log_debug("  Call shape: {}", call_shape.to_string());
         log_debug("  Call mode: {}", m_call_mode);
         log_debug("  Strides: [{}]", fmt::join(strides, ", "));
+        log_debug("  Call grid shape: [{}]", fmt::join(call_grid_shape, ", "));
+        log_debug("  Call grid strides: [{}]", fmt::join(call_grid_strides, ", "));
+        log_debug("  Call group shape: [{}]", fmt::join(call_group_shape, ", "));
+        log_debug("  Call group strides: [{}]", fmt::join(call_group_strides, ", "));
+        if (is_call_shape_unaligned) {
+            log_debug("  Call shape was not aligned to the given call group shape");
+            log_debug("  and has been padded up as a reult. Note that this will");
+            log_debug("  result in wasted threads.");
+            log_debug("  Aligned call shape: [{}]", fmt::join(aligned_call_shape, ", "));
+        }
         log_debug("  Threads: {}", total_threads);
     }
 
@@ -1074,6 +1204,12 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg("args"),
             nb::arg("kwargs"),
             D_NA(NativeCallData, append_to)
+        )
+        .def_prop_rw(
+            "call_group_shape",
+            &NativeCallData::get_call_group_shape,
+            &NativeCallData::set_call_group_shape,
+            D_NA(NativeCallData, call_group_shape)
         )
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))
         .DEF_LOG_METHOD(log_debug)

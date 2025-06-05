@@ -652,6 +652,12 @@ public:
     /// Set the logger
     void set_logger(ref<Logger> logger) { m_logger = logger; }
 
+    /// Set the shape of call groups when a dispatch is made.
+    void set_call_group_shape(Shape call_group_shape) { m_call_group_shape = call_group_shape; }
+
+    /// Get the shape of call groups when a dispatch is made.
+    const Shape& get_call_group_shape() const { return m_call_group_shape; }
+
     /// Call the compute kernel with the provided arguments and keyword arguments.
     nb::object call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs);
 
@@ -696,6 +702,7 @@ private:
     Shape m_last_call_shape;
     std::string m_debug_name;
     ref<Logger> m_logger;
+    Shape m_call_group_shape;
 
     nb::object
     exec(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);

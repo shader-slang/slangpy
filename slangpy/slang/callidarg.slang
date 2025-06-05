@@ -59,3 +59,12 @@ extension<T : __BuiltinIntegerType> VectorizeCallidArgTo<T, -1> {
 extension<T : __BuiltinIntegerType> VectorizeCallidArgTo<T, 1> {
     typealias VectorType = T;
 }
+
+// Functions provided for use in user's shaders
+// Note: In the returned arrays, the first component represents the right-most dimension,
+// the second component the next dimension to the left, and so on. This aligns with
+// behavior described at https://slangpy.shader-slang.org/en/latest/src/generators/generator_ids.html
+// but could be confusing to a user using these and expecting [x, y, z, ...] formatting.
+export public int[N] get_call_id<let N: int>();
+export public uint[N] get_call_group_id<let N: int>();
+export public uint[N] get_call_group_thread_id<let N: int>();
