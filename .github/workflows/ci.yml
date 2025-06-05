@@ -9,6 +9,7 @@ on:
       - "LICENSE"
       - "**.md"
       - .github/workflows/wheels.yml
+      - .github/workflows/ci-gcp.yml
   pull_request:
     branches: [main]
     paths-ignore:
@@ -17,6 +18,7 @@ on:
       - "LICENSE"
       - "**.md"
       - .github/workflows/wheels.yml
+      - .github/workflows/ci-gcp.yml
   workflow_dispatch:
 
 permissions:
