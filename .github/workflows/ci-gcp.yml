@@ -1,0 +1,156 @@
+name: ci-gcp
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "LICENSES/**"
+      - "LICENSE"
+      - "**.md"
+      - .github/workflows/wheels.yml
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "LICENSES/**"
+      - "LICENSE"
+      - "**.md"
+      - .github/workflows/wheels.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+  id-token: write
+
+jobs:
+  build:
+    # We don't require GCP runs to be successful, they are not the primary means of testing
+    continue-on-error: true
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows, linux, macos]
+        platform: [x86_64, aarch64]
+        compiler: [msvc, gcc, clang]
+        config: [Debug, Release]
+        python: ["3.10"]
+        exclude:
+          # Exclude aarch64 for windows
+          - { os: windows, platform: aarch64 }
+          # Exclude x86_64 for macos
+          - { os: macos, platform: x86_64 }
+          # Exclude unavailable compilers
+          - { os: windows, compiler: gcc }
+          - { os: windows, compiler: clang }
+          - { os: linux, compiler: msvc }
+          - { os: macos, compiler: msvc }
+          - { os: macos, compiler: gcc }
+          # Exclude builds currently not supported by GCP
+          - { os: windows, platform: x86_64, compiler: msvc, config: Debug }
+          - { os: linux, platform: x86_64, compiler: gcc }
+          - { os: linux, platform: x86_64, compiler: clang }
+          - { os: linux, platform: aarch64, compiler: gcc }
+          - { os: linux, platform: aarch64, compiler: clang }
+          - { os: macos, platform: aarch64, compiler: clang }
+        include:
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: gcp, labels: [Windows, X64] } }
+
+    env:
+      # Environment variables used by ci.py
+      CI_OS: ${{ matrix.os }}
+      CI_PLATFORM: ${{ matrix.platform }}
+      CI_COMPILER: ${{ matrix.compiler }}
+      CI_CONFIG: ${{ matrix.config }}
+      CI_PYTHON: ${{ matrix.python }}
+      CI_FLAGS: ${{ matrix.flags }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Cleanup submodules # Fix for https://github.com/actions/checkout/issues/358
+        run: |
+          git submodule foreach --recursive git clean -ffdx
+          git submodule foreach --recursive git reset --hard
+
+      # Setup Linux.
+      - name: Setup Linux
+        if: startsWith(matrix.os, 'linux') && contains(matrix.runs-on, 'ubuntu-')
+        run: |
+          sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
+
+      # Setup Python.
+      - name: Setup Python ${{ matrix.python }}
+        if: ${{ matrix.runs-on.group != 'gcp' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: 'pip'
+
+      # Setup Python environment (GCP Windows)
+      - name: Setup Python environment
+        if: matrix.runs-on.group == 'gcp' && runner.os == 'Windows'
+        run: |
+          python --version
+          powershell -Command "Start-Process python -ArgumentList '-m pip install -r requirements-dev.txt pytest-github-actions-annotate-failures' -Verb RunAs -Wait"
+
+      # Setup Python environment
+      - name: Setup Python environment
+        if: matrix.runs-on.group != 'gcp'
+        run: |
+          python --version
+          python -m pip install -r requirements-dev.txt pytest-github-actions-annotate-failures
+
+      # Setup MSVC.
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # Setup CMake/Ninja.
+      - name: Setup CMake/Ninja
+        uses: lukka/get-cmake@latest
+
+      # Setup.
+      - name: Setup
+        run: python tools/ci.py setup
+
+      # Setup vcpkg caching.
+      # Only run on hosted runners.
+      # For self-hosted runners, we use a local cache directory.
+      - name: Set vcpkg cache directory
+        if: startsWith(matrix.runs-on, 'ubuntu-') || startsWith(matrix.runs-on, 'macos-') || startsWith(matrix.runs-on, 'windows-')
+        run: |
+          echo "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}/vcpkg-cache" >> $GITHUB_ENV
+          mkdir -p ${{ github.workspace }}/vcpkg-cache
+      - name: Setup vcpkg caching
+        if: startsWith(matrix.runs-on, 'ubuntu-') || startsWith(matrix.runs-on, 'macos-') || startsWith(matrix.runs-on, 'windows-')
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-cache-${{ runner.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ hashFiles('vcpkg.json', 'external/vcpkg-triplets/**') }}
+
+      # Configure.
+      - name: Configure
+        run: python tools/ci.py configure
+
+      # Build.
+      - name: Build
+        run: python tools/ci.py build
+
+      # Typing Checks (Python)
+      - name: Typing Checks (Python)
+        run: python tools/ci.py typing-check-python
+
+      # Unit Tests (C++)
+      - name: Unit Tests (C++)
+        if: contains(matrix.flags, 'unit-test')
+        run: python tools/ci.py unit-test-cpp
+
+      # Unit Tests (Python)
+      - name: Unit Tests (Python)
+        if: contains(matrix.flags, 'unit-test')
+        run: python tools/ci.py unit-test-python
