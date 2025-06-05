@@ -59,7 +59,7 @@ from .core.function import Function
 from .core.struct import Struct
 from .core.module import Module
 from .core.instance import InstanceList, InstanceBuffer
-from .core.finalisedarg import FinalisedArg
+from .core.packedarg import PackedArg
 
 # Py torch integration
 from .torchintegration import *

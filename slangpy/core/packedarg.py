@@ -6,7 +6,7 @@ from slangpy.bindings import get_or_create_type, PYTHON_TYPES, Marshall, BindCon
 from slangpy.reflection import SlangType, SlangProgramLayout
 
 
-class FinalisedArg:
+class PackedArg:
     def __init__(self, module: Module, arg_value: Any):
         super().__init__()
 

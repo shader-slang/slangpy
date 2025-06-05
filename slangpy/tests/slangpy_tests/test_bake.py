@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 
 import pytest
-from slangpy import FinalisedArg, Tensor
+from slangpy import PackedArg, Tensor
 import numpy as np
 
 sys.path.append(str(Path(__file__).parent))
@@ -26,7 +26,7 @@ int copy(int val) {
 """,
     )
 
-    fv = FinalisedArg(function.module, 42)
+    fv = PackedArg(function.module, 42)
 
     # just verify it can be called with no exceptions
     result = function(fv)
@@ -51,7 +51,7 @@ int copy(Val val) {
 """,
     )
 
-    fv = FinalisedArg(function.module, {"_type": "Val", "value": 42})
+    fv = PackedArg(function.module, {"_type": "Val", "value": 42})
 
     # just verify it can be called with no exceptions
     result = function(fv)
@@ -75,7 +75,7 @@ int inc(Val val) {
 """,
     )
 
-    fv = FinalisedArg(
+    fv = PackedArg(
         function.module,
         [
             {"x": 1, "_type": "Val"},
@@ -115,7 +115,7 @@ float inc(Val val) {
         buffer = Tensor.zeros(device, dtype=function.module.float, shape=(1,))
         buffer.copy_from_numpy(np.array([i + 1], dtype=np.float32))
         vals.append({"x": buffer, "_type": "Val"})
-    fv = FinalisedArg(function.module, vals)
+    fv = PackedArg(function.module, vals)
 
     # just verify it can be called with no exceptions
     results = function(fv, _result="numpy")

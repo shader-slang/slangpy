@@ -200,13 +200,13 @@ class BoundVariable:
         #: The python marshall for this variable
         self.python: NativeMarshall
 
-        import slangpy.core.finalisedarg
+        import slangpy.core.packedarg
 
-        if isinstance(value, slangpy.core.finalisedarg.FinalisedArg):
+        if isinstance(value, slangpy.core.packedarg.PackedArg):
             # If this is a finalised arg, we need to use the slang type from the marshall
             if parent is not None:
                 raise BoundVariableException(
-                    f"FinalisedArg {value} must be a top level argument", self
+                    f"PackedArg {value} must be a top level argument", self
                 )
             self.python = value.python
             self.create_param_block = True
