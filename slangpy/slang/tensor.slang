@@ -264,7 +264,7 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
 
     [TreatAsDifferentiable]
     public void setv(vector<int,D> idx, T value) {
-        T::atomicAdd(buffer, layout.at_vec(idx), value);
+        T::atomicAdd(buffer, layout.at_vec(idx) * sizeof(T), value);
     }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out AtomicTensor<T, SliceD> value)
