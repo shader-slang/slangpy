@@ -51,6 +51,14 @@ class InstanceList:
         if self._init is not None:
             self._init(*args, **kwargs, _result=self.get_this())
 
+    def pack(self) -> Any:
+        """
+        Pack the instance list into a shader object.
+        """
+        from slangpy.core.packedarg import pack
+
+        return pack(self._struct.module, self.get_this())
+
     def __getattr__(self, name: str) -> Any:
         """
         Either returns field data (if this is an SOA list and the field has
