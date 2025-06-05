@@ -157,15 +157,13 @@ def unit_test_cpp(args: Any):
 
 def typing_check_python(args: Any):
     env = get_python_env(args)
-    run_command(f"python -m pyright", env=env)
+    run_command(f"pyright", env=env)
 
 
 def unit_test_python(args: Any):
     env = get_python_env(args)
     os.makedirs("reports", exist_ok=True)
-    run_command(
-        f"python -m pytest slangpy/tests -r a --junit-xml=reports/pytest-junit.xml", env=env
-    )
+    run_command(f"pytest slangpy/tests -r a --junit-xml=reports/pytest-junit.xml", env=env)
 
 
 def coverage_report(args: Any):
