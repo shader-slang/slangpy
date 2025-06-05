@@ -48,3 +48,16 @@ extension<T : __BuiltinIntegerType> VectorizeCallidArgTo<T, -1> {
 extension<T : __BuiltinIntegerType> VectorizeCallidArgTo<T, 1> {
     typealias VectorType = T;
 }
+
+// Sticking these here for now but they could be put into another
+// file if desired
+// vector<int, N> or int[N] for these???
+// Doesn't seem possible to get the generics to work
+export public int[N] get_call_id<let N: int>();
+//export public void get_call_id<let N: int>(out int[N] result);
+export public uint[N] get_call_group_id<let N: int>();
+export public uint[N] get_call_group_thread_id<let N: int>();
+
+export public uint get_flat_call_id();
+export public uint get_flat_call_group_id();
+export public uint get_flat_call_group_thread_id();
