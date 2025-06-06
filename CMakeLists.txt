@@ -3,6 +3,7 @@ cmake_policy(SET CMP0077 NEW)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(utils)
+include(mt-retry)
 
 set(VCPKG_INSTALL_OPTIONS "--no-print-usage" "--allow-unsupported")
 
