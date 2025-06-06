@@ -34,7 +34,6 @@ Blitter::~Blitter() { }
 void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureView* src, TextureFilteringMode filter)
 {
     bool use_compute = m_device->type() == DeviceType::cuda;
-    use_compute = true;
 
     SGL_UNUSED(filter);
 
@@ -49,9 +48,9 @@ void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureVie
         dst_texture->type() == TextureType::texture_2d || dst_texture->type() == TextureType::texture_2d_array,
         "dst must be a 2D texture"
     );
-    if (use_compute)
+    if (use_compute && m_device->type() != DeviceType::cuda)
         SGL_CHECK(is_set(dst_texture->desc().usage, TextureUsage::unordered_access), "dst must be a unordered access");
-    else
+    if (!use_compute)
         SGL_CHECK(is_set(dst_texture->desc().usage, TextureUsage::render_target), "dst must be a render target");
     SGL_CHECK(
         src_texture->type() == TextureType::texture_2d || src_texture->type() == TextureType::texture_2d_array,

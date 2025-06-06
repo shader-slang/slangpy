@@ -691,7 +691,7 @@ class App:
         )
         self.surface = self.device.create_surface(self.window)
         self.surface.configure(
-            {"width": self.window.width, "height": self.window.height, "vsync": False, "usage": sgl.TextureUsage.unordered_access}
+            {"width": self.window.width, "height": self.window.height, "vsync": False}
         )
 
         self.render_texture: spy.Texture = None  # type: ignore (will be set immediately)
@@ -739,6 +739,7 @@ class App:
     def main_loop(self):
         frame = 0
         timer = spy.Timer()
+        fps = 0.0
         while not self.window.should_close():
             dt = timer.elapsed_s()
             timer.reset()
@@ -791,11 +792,14 @@ class App:
             self.device.submit_command_buffer(command_encoder.finish())
             del surface_texture
 
-            sgl.tev.show(self.render_texture)
+            # spy.tev.show(self.render_texture)
 
             self.surface.present()
 
             frame += 1
+
+            fps = 0.95 * fps + 0.05 * (1.0 / dt)
+            print(f"FPS: {fps:.2f}")
 
         self.device.wait()
 

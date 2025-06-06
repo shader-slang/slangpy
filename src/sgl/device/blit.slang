@@ -93,7 +93,7 @@ DstType fs_main(VSOut vs_out)
 }
 
 [shader("compute")]
-void compute_main(uint3 tid: SV_DispatchThreadID, RWTexture2D<DstType> dst)
+void compute_main(uint3 tid: SV_DispatchThreadID, [format("rgba8")] RWTexture2D<DstType> dst)
 {
     uint2 dim;
     src.GetDimensions(dim.x, dim.y);
