@@ -7,7 +7,7 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Version 0.31.0 (TBA)
+Version 0.31.0 (June 5, 2025)
 ----------------------------
 
 - Update to slang version 2025.10.1.
