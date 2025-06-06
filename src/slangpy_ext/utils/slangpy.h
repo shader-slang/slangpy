@@ -460,7 +460,7 @@ public:
     void set_shape(const Shape& shape) { m_shape = shape; }
 
     /// Check if this is a parameter block.
-    bool get_is_param_block() const { return m_is_param_block; }
+    bool is_param_block() const { return m_is_param_block; }
 
     /// Set if this is a parameter block.
     void set_is_param_block(bool is_param_block) { m_is_param_block = is_param_block; }

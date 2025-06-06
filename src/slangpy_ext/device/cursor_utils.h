@@ -385,7 +385,7 @@ private:
             if constexpr (requires { self.set_object(nullptr); }) {
                 self.set_object(packed_arg->shader_object());
             } else {
-                SGL_THROW("Cannot set packed arg to shader object without set_object method.");
+                SGL_THROW("A SlangPy packed argument can only be used as a function argument or shader cursor field.");
             }
             return;
         }

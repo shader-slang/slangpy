@@ -158,7 +158,7 @@ void NativeBoundVariableRuntime::write_shader_cursor_pre_dispatch(
     nb::list read_back
 )
 {
-    if (get_is_param_block()) {
+    if (is_param_block()) {
         // This variable is represented as a fixed parameter block so just
         // write it straight in.
         auto pb_cursor = cursor[m_variable_name.c_str()];
@@ -294,7 +294,7 @@ void NativeBoundCallRuntime::write_shader_cursor_pre_dispatch(
 {
     // Write call data for each positional argument.
     for (size_t idx = 0; idx < args.size(); ++idx) {
-        auto cursor = m_args[idx]->get_is_param_block() ? root_cursor : call_data_cursor;
+        auto cursor = m_args[idx]->is_param_block() ? root_cursor : call_data_cursor;
         m_args[idx]->write_shader_cursor_pre_dispatch(context, cursor, args[idx], read_back);
     }
 
@@ -302,7 +302,7 @@ void NativeBoundCallRuntime::write_shader_cursor_pre_dispatch(
     for (auto [key, value] : kwargs) {
         auto it = m_kwargs.find(nb::str(key).c_str());
         if (it != m_kwargs.end()) {
-            auto cursor = it->second->get_is_param_block() ? root_cursor : call_data_cursor;
+            auto cursor = it->second->is_param_block() ? root_cursor : call_data_cursor;
             it->second->write_shader_cursor_pre_dispatch(context, cursor, nb::cast<nb::object>(value), read_back);
         }
     }
@@ -939,7 +939,7 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def_prop_rw(
             "is_param_block",
-            &NativeBoundVariableRuntime::get_is_param_block,
+            &NativeBoundVariableRuntime::is_param_block,
             &NativeBoundVariableRuntime::set_is_param_block,
             D_NA(NativeBoundVariableRuntime, is_param_block)
         )
