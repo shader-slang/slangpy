@@ -158,7 +158,12 @@ void NativeBoundVariableRuntime::write_shader_cursor_pre_dispatch(
     nb::list read_back
 )
 {
-    if (m_children) {
+    if (is_param_block()) {
+        // This variable is represented as a fixed parameter block so just
+        // write it straight in.
+        auto pb_cursor = cursor[m_variable_name.c_str()];
+        write_shader_cursor(pb_cursor, value);
+    } else if (m_children) {
         // We have children, so generate call data for each child and
         // store in a dictionary, then store the dictionary as the call data.
         ShaderCursor child_field = cursor[m_variable_name.c_str()];
@@ -279,7 +284,8 @@ Shape NativeBoundCallRuntime::calculate_call_shape(
 
 void NativeBoundCallRuntime::write_shader_cursor_pre_dispatch(
     CallContext* context,
-    ShaderCursor cursor,
+    ShaderCursor root_cursor,
+    ShaderCursor call_data_cursor,
     nb::list args,
     nb::dict kwargs,
     nb::list read_back
@@ -288,6 +294,7 @@ void NativeBoundCallRuntime::write_shader_cursor_pre_dispatch(
 {
     // Write call data for each positional argument.
     for (size_t idx = 0; idx < args.size(); ++idx) {
+        auto cursor = m_args[idx]->is_param_block() ? root_cursor : call_data_cursor;
         m_args[idx]->write_shader_cursor_pre_dispatch(context, cursor, args[idx], read_back);
     }
 
@@ -295,6 +302,7 @@ void NativeBoundCallRuntime::write_shader_cursor_pre_dispatch(
     for (auto [key, value] : kwargs) {
         auto it = m_kwargs.find(nb::str(key).c_str());
         if (it != m_kwargs.end()) {
+            auto cursor = it->second->is_param_block() ? root_cursor : call_data_cursor;
             it->second->write_shader_cursor_pre_dispatch(context, cursor, nb::cast<nb::object>(value), read_back);
         }
     }
@@ -407,8 +415,14 @@ nb::object NativeCallData::exec(
         }
         call_data_cursor["_thread_count"] = uint3(total_threads, 1, 1);
 
-        m_runtime
-            ->write_shader_cursor_pre_dispatch(context, call_data_cursor, unpacked_args, unpacked_kwargs, read_back);
+        m_runtime->write_shader_cursor_pre_dispatch(
+            context,
+            cursor,
+            call_data_cursor,
+            unpacked_args,
+            unpacked_kwargs,
+            read_back
+        );
 
         nb::list uniforms = opts->get_uniforms();
         if (uniforms) {
@@ -882,6 +896,13 @@ SGL_PY_EXPORT(utils_slangpy)
             "binding"_a,
             "vector_target_type"_a,
             D_NA(NativeMarshall, resolve_dimensionality)
+        )
+        .def(
+            "build_shader_object",
+            &NativeMarshall::build_shader_object,
+            "context"_a,
+            "data"_a,
+            D_NA(NativeMarshall, build_shader_object)
         );
 
     nb::class_<NativeBoundVariableRuntime, Object>(slangpy, "NativeBoundVariableRuntime") //
@@ -915,6 +936,12 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeBoundVariableRuntime::get_shape,
             &NativeBoundVariableRuntime::set_shape,
             D_NA(NativeBoundVariableRuntime, shape)
+        )
+        .def_prop_rw(
+            "is_param_block",
+            &NativeBoundVariableRuntime::is_param_block,
+            &NativeBoundVariableRuntime::set_is_param_block,
+            D_NA(NativeBoundVariableRuntime, is_param_block)
         )
         .def_prop_rw(
             "variable_name",

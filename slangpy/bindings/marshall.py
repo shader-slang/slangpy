@@ -8,7 +8,7 @@ from slangpy.core.native import CallMode, NativeMarshall
 from slangpy.bindings.codegen import CodeGenBlock
 
 if TYPE_CHECKING:
-    from slangpy import SlangModule
+    from slangpy import SlangModule, ShaderObject, Device
     from slangpy.bindings.boundvariable import BoundVariable
     from slangpy.reflection import SlangProgramLayout, SlangType
 
@@ -41,6 +41,13 @@ class BindContext:
 
         #: Kernel gen options.
         self.options = options
+
+    @property
+    def device(self) -> "Device":
+        """
+        The device this context is bound to.
+        """
+        return self.device_module.session.device
 
 
 class ReturnContext:
@@ -128,3 +135,10 @@ class Marshall(NativeMarshall):
         type and the target type.
         """
         return super().resolve_dimensionality(context, binding, vector_target_type)
+
+    def build_shader_object(self, context: BindContext, data: Any) -> "ShaderObject":
+        """
+        Build a shader object from the given data. This is called when attempting to finalize
+        a value before passing it as a read only shader object.
+        """
+        return super().build_shader_object(data)

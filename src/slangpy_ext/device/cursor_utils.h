@@ -12,6 +12,9 @@
 #include "sgl/math/vector_types.h"
 #include "sgl/math/matrix_types.h"
 
+#include "utils/slangpypackedarg.h"
+#include "utils/slangpystridedbufferview.h"
+
 namespace sgl {
 
 /// Helper to convert from numpy type mask to slang scalar type.
@@ -376,9 +379,21 @@ private:
             return;
         }
 
-        // Check if nbval has a '.uniforms' function that can be called to get simple python object
-        if (nb::hasattr(nbval, "uniforms")) {
-            nbval = nb::getattr(nbval, "uniforms")();
+        // Special case for handling SlangPy PackedArg.
+        if (nb::isinstance<sgl::slangpy::NativePackedArg>(nbval)) {
+            auto packed_arg = nb::cast<sgl::slangpy::NativePackedArg*>(nbval);
+            if constexpr (requires { self.set_object(nullptr); }) {
+                self.set_object(packed_arg->shader_object());
+            } else {
+                SGL_THROW("A SlangPy packed argument can only be used as a function argument or shader cursor field.");
+            }
+            return;
+        }
+
+        // Read uniforms for StridedBufferView
+        if (nb::isinstance<sgl::slangpy::StridedBufferView>(nbval)) {
+            auto view = nb::cast<sgl::slangpy::StridedBufferView*>(nbval);
+            nbval = view->uniforms();
         }
 
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();

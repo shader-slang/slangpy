@@ -59,6 +59,7 @@ SGL_PY_DECLARE(utils_slangpy);
 SGL_PY_DECLARE(utils_slangpy_strided_buffer_view);
 SGL_PY_DECLARE(utils_slangpy_buffer);
 SGL_PY_DECLARE(utils_slangpy_function);
+SGL_PY_DECLARE(utils_slangpy_packedarg);
 SGL_PY_DECLARE(utils_slangpy_resources);
 SGL_PY_DECLARE(utils_slangpy_tensor);
 SGL_PY_DECLARE(utils_slangpy_value);
@@ -144,6 +145,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(utils_slangpy_strided_buffer_view);
     SGL_PY_IMPORT(utils_slangpy_buffer);
     SGL_PY_IMPORT(utils_slangpy_function);
+    SGL_PY_IMPORT(utils_slangpy_packedarg);
     SGL_PY_IMPORT(utils_slangpy_resources);
     SGL_PY_IMPORT(utils_slangpy_tensor);
     SGL_PY_IMPORT(utils_slangpy_value);

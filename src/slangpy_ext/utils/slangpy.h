@@ -14,6 +14,7 @@
 #include "sgl/core/object.h"
 #include "sgl/device/fwd.h"
 #include "sgl/device/shader_cursor.h"
+#include "sgl/device/shader_object.h"
 #include "sgl/utils/slangpy.h"
 
 namespace sgl::slangpy {
@@ -113,6 +114,7 @@ public:
     void set_slangpy_signature(std::string_view signature) { m_signature = signature; }
 
     virtual void read_signature(SignatureBuilder* builder) const { builder->add(m_signature); }
+
 
 private:
     std::string m_signature;
@@ -334,6 +336,14 @@ public:
             - static_cast<int>(vector_target_type->get_shape().size());
     }
 
+    /// Builds finalized shader object for a value when requested.
+    virtual ref<ShaderObject> build_shader_object(nb::object context, nb::object data) const
+    {
+        SGL_UNUSED(context);
+        SGL_UNUSED(data);
+        return nullptr;
+    }
+
 
 protected:
     void
@@ -347,7 +357,7 @@ private:
 
 /// Nanobind trampoline class for NativeMarshall
 struct PyNativeMarshall : public NativeMarshall {
-    NB_TRAMPOLINE(NativeMarshall, 13);
+    NB_TRAMPOLINE(NativeMarshall, 14);
 
     Shape get_shape(nb::object data) const override { NB_OVERRIDE(get_shape, data); }
 
@@ -405,6 +415,11 @@ struct PyNativeMarshall : public NativeMarshall {
     {
         NB_OVERRIDE(resolve_dimensionality, context, binding, vector_target_type);
     }
+
+    ref<ShaderObject> build_shader_object(nb::object context, nb::object data) const override
+    {
+        NB_OVERRIDE(build_shader_object, context, data);
+    }
 };
 
 /// Binding information that links a python argument to a slang parameter. In
@@ -443,6 +458,12 @@ public:
 
     /// Set the shape being used for the current call.
     void set_shape(const Shape& shape) { m_shape = shape; }
+
+    /// Check if this is a parameter block.
+    bool is_param_block() const { return m_is_param_block; }
+
+    /// Set if this is a parameter block.
+    void set_is_param_block(bool is_param_block) { m_is_param_block = is_param_block; }
 
     /// Get the uniform variable name.
     std::string_view get_variable_name() const { return m_variable_name; }
@@ -491,6 +512,7 @@ private:
     std::optional<std::map<std::string, ref<NativeBoundVariableRuntime>>> m_children;
     int m_call_dimensionality{0};
     ref<NativeSlangType> m_vector_type;
+    bool m_is_param_block{false};
 };
 
 /// Binding information for a call to a compute kernel. Includes a set of positional
@@ -526,7 +548,8 @@ public:
 
     void write_shader_cursor_pre_dispatch(
         CallContext* context,
-        ShaderCursor cursor,
+        ShaderCursor root_cursor,
+        ShaderCursor call_data_cursor,
         nb::list args,
         nb::dict kwargs,
         nb::list read_back

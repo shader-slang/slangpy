@@ -14,7 +14,8 @@ from slangpy.bindings import (
     BoundVariableRuntime,
     CodeGenBlock,
 )
-from slangpy.core.native import AccessType, CallContext, NativeValueMarshall
+from slangpy import ShaderCursor, ShaderObject
+from slangpy.core.native import AccessType, CallContext, NativeValueMarshall, unpack_arg
 import slangpy.reflection as kfr
 
 
@@ -66,6 +67,21 @@ class ArrayMarshall(ValueMarshall):
                 cgb.type_alias(f"_t_{name}", f"Array1DValueType<{et.full_name},{st.num_elements}>")
         else:
             cgb.type_alias(f"_t_{name}", f"NoneType")
+
+    def build_shader_object(self, context: "BindContext", data: Any) -> "ShaderObject":
+        if len(self.concrete_shape) != 1:
+            return super().build_shader_object(context, data)
+
+        unpacked = unpack_arg(data)
+        st = cast(kfr.VectorType, self.slang_type)
+        et = cast(SlangType, st.element_type)
+        bt = context.layout.find_type_by_name(f"Array1DValueType<{et.full_name},{st.num_elements}>")
+        if bt is None:
+            raise ValueError(f"Could not find Slang type for {self.slang_type.full_name}")
+        so = context.device.create_shader_object(bt.uniform_layout.reflection)
+        cursor = ShaderCursor(so)
+        cursor.write({"value": unpacked})
+        return so
 
 
 def _distill_array(layout: SlangProgramLayout, value: Union[list[Any], tuple[Any]]):

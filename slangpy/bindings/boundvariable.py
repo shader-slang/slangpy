@@ -2,7 +2,7 @@
 from typing import Any, Optional, Union, cast
 
 from slangpy.core.enums import IOType
-from slangpy.core.native import AccessType, CallMode, Shape
+from slangpy.core.native import AccessType, CallMode, Shape, NativeMarshall
 
 from slangpy import ModifierID
 from slangpy.bindings.marshall import BindContext
@@ -198,13 +198,28 @@ class BoundVariable:
             self.path = f"{parent.path}.{self.name}"
 
         #: The python marshall for this variable
-        try:
-            self.python = get_or_create_type(context.layout, type(value), value)
-        except Exception as e:
-            raise BoundVariableException(
-                f"Failed to create type marshall for argument {self.debug_name}: {value} with error {e}",
-                self,
-            ) from e
+        self.python: NativeMarshall
+
+        import slangpy.core.packedarg
+
+        if isinstance(value, slangpy.core.packedarg.PackedArg):
+            # If this is a packed arg, we need to use the slang type from the marshall
+            if parent is not None:
+                raise BoundVariableException(
+                    f"PackedArg {value} must be a top level argument", self
+                )
+            self.python = value.python
+            self.create_param_block = True
+        else:
+            # Not packed arg so we need to create a marshall for the value
+            try:
+                self.python = get_or_create_type(context.layout, type(value), value)
+            except Exception as e:
+                raise BoundVariableException(
+                    f"Failed to create type marshall for argument {self.debug_name}: {value} with error {e}",
+                    self,
+                ) from e
+            self.create_param_block = False
 
         # Create children
         # TODO: Should this be based off type fields
@@ -550,7 +565,10 @@ class BoundVariable:
             cg.call_data_structs.append_statement(f"static const int _m_{self.variable_name} = 0")
 
         if depth == 0:
-            cg.call_data.declare(f"_t_{self.variable_name}", self.variable_name)
+            if self.create_param_block:
+                cg.add_parameter_block(f"_t_{self.variable_name}", "_param_" + self.variable_name)
+            else:
+                cg.call_data.declare(f"_t_{self.variable_name}", self.variable_name)
 
     def _gen_trampoline_argument(self):
         assert self.vector_type is not None
