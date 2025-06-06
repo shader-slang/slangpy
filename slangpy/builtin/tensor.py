@@ -9,7 +9,7 @@ from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorTyp
 from slangpy.types.tensor import Tensor, innermost_type
 from slangpy.core.native import NativeTensorMarshall, NativeTensor
 
-from slangpy import TypeReflection
+from slangpy import TypeReflection, ShaderObject, ShaderCursor
 from slangpy.reflection import (
     TYPE_OVERRIDES,
     SlangProgramLayout,
@@ -251,12 +251,6 @@ class TensorMarshall(NativeTensorMarshall):
         else:
             return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
 
-    def get_shape(self, value: Optional[Tensor] = None) -> Shape:
-        if value is not None:
-            return Shape(value.shape)
-        else:
-            return Shape((-1,) * self.dims)
-
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         if isinstance(binding.vector_type, ITensorType):
             writable = binding.vector_type.writable
@@ -276,6 +270,11 @@ class TensorMarshall(NativeTensorMarshall):
             )
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
+    def build_shader_object(self, context: "BindContext", data: Any) -> "ShaderObject":
+        so = context.device.create_shader_object(self.slang_type.uniform_layout.reflection)
+        cursor = ShaderCursor(so)
+        cursor.write(data.uniforms())
+        return so
 
 def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
     if isinstance(value, NativeTensor):
