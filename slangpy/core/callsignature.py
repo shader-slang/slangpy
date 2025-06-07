@@ -394,18 +394,72 @@ def generate_code(
     """
     nodes: list[BoundVariable] = []
 
+    cg.header = ""
     # Generate the header
     cg.add_import("slangpy")
+
+    # Specify some global-scope static variables here
+    # to allow users to access call_id, call_group_id, call_group_thread_id directly.
+    # TODO: Do we want to move these to the slangpy module? I'm not sure what the
+    #       benefit would be though. If the generated kernel code can set these
+    #       then it seems like the user code will also have write access. Not sure
+    #       How to make these read only for user code if the generated kernel code
+    #       needs to set these.
+    # Note: Support for static global variables should be seen as a legacy feature
+    #       and its use is discouraged. As such, this may need to be reworked or
+    #       even removed.
+    call_data_len = context.call_dimensionality
+
+    # Get the call size to update the number of threads
+    # 1 is the default size if a call shape has not been set, as we
+    # can use that to make things linear.
+    call_group_size = 1
+    call_group_shape = build_info.call_group_shape
+    if call_group_shape is not None:
+        call_group_shape_vector = call_group_shape.as_list()
+        # Calculate call group size as product of all dimensions
+        for dim in call_group_shape_vector:
+            call_group_size *= dim
+
+        #print(f"call_group_size is {call_group_size}")
+    #if call_data_len > 0:
+        # Don't think this will actually work, at least not for the non-scalars.
+        # Users module is already compiled at this point So I'm not sure how it
+        # can get generic N-dimensional ids at this point.
+        # Context wants call_id as an int for some reason, so respect that here
+        # for now
+        #cg.add_snippet("call_id", f"static int[{call_data_len}] call_id;\n")
+        #cg.add_snippet("call_group_id", f"static uint[{call_data_len}] call_group_id;\n")
+        #cg.add_snippet("call_group_thread_id", f"static uint[{call_data_len}] call_group_thread_id;\n")
+        # "flat_*" here refers to the N-dimensional id being converted to a
+        # 1-dimensional id.
+        #cg.add_snippet("flat_call_id", f"static uint flat_call_id;\n")
+        #cg.add_snippet("flat_call_group_id", f"static uint flat_call_group_id;\n")
+        #cg.add_snippet("flat_call_group_thread_id", f"static uint flat_call_group_thread_id;\n")
+
+        #cg.add_snippet("get_call_id", f"export public static int[N] get_call_id<let N: int>() {{ return call_id; }};\n")
+        #cg.add_snippet("get_call_group_id", f"export public static uint[{call_data_len}] get_call_group_id<let N: int>() {{ return call_group_id; }};\n")
+        #cg.add_snippet("get_call_group_thread_id", f"export public static uint[{call_data_len}] get_call_group_thread_id<let N: int>() {{ return call_group_thread_id; }};\n")
+
+        #cg.add_snippet("get_flat_call_id", "export public uint get_flat_call_id() { return flat_call_id; };\n")
+        #cg.add_snippet("get_flat_call_group_id", "export public uint get_flat_call_group_id() { return flat_call_group_id; };\n")
+        #cg.add_snippet("get_flat_call_group_thread_id", "export public uint get_flat_call_group_thread_id() { return flat_call_group_thread_id; };\n")
+
+
     cg.add_import(build_info.module.name)
 
     # Generate constants if specified
     generate_constants(build_info, cg)
 
     # Generate call data inputs if vector call
-    call_data_len = context.call_dimensionality
     if call_data_len > 0:
-        cg.call_data.append_statement(f"int[{call_data_len}] _call_stride")
-        cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
+        # A group can be thought of as a "window" looking at a
+        # portion of the entire call. Grid here refers to the
+        # ND call shape being broken up into ND "window"s / groups.
+        cg.call_data.append_statement(f"uint[{call_data_len}] _grid_stride")
+        cg.call_data.append_statement(f"uint[{call_data_len}] _grid_dim")
+        cg.call_data.append_statement(f"uint[{call_data_len}] _group_stride")
+        cg.call_data.append_statement(f"uint[{call_data_len}] _group_dim")
     cg.call_data.append_statement(f"uint3 _thread_count")
 
     # Generate the context structure
@@ -483,23 +537,40 @@ def generate_code(
 
     # Generate the main function
     cg.kernel.append_line('[shader("compute")]')
-    cg.kernel.append_line("[numthreads(32, 1, 1)]")
-    cg.kernel.append_line("void compute_main(uint3 dispatchThreadID: SV_DispatchThreadID)")
+    if call_group_size is not 1:
+        cg.kernel.append_line(f"[numthreads({call_group_size}, 1, 1)]")
+    else:
+        cg.kernel.append_line("[numthreads(32, 1, 1)]")
+    # TODO: Should probably be consistent between camel case and underscore naming styles here.
+    # Note: While flatCallThreadID is 3-dimensional, we consider it "flat" and 1-dimensional because of the
+    #       true call group shape of [32, 1, 1] and only use the first dimension for the call thread id.
+    cg.kernel.append_line("void compute_main(uint3 flatCallThreadID: SV_DispatchThreadID, uint flatGroupThreadID: SV_GroupIndex)")
     cg.kernel.begin_block()
-    cg.kernel.append_statement("if (any(dispatchThreadID >= call_data._thread_count)) return")
+    cg.kernel.append_statement("if (any(flatCallThreadID >= call_data._thread_count)) return")
+
+    # Calculate the ids that we'll use to compute the call id. We'll also store these in
+    # global-scope static variables
+    if call_data_len > 0:
+        cg.kernel.append_statement(f"int[{call_data_len}] call_id")
+        cg.kernel.append_statement(f"uint[{call_data_len}] call_group_id")
+        cg.kernel.append_statement(f"uint[{call_data_len}] call_group_thread_id")
+        cg.kernel.append_statement(f"uint flat_call_id = flatCallThreadID.x")
+        cg.kernel.append_statement(f"uint flat_call_group_id = flatCallThreadID.x / {call_group_size}")
+        cg.kernel.append_statement(f"uint flat_call_group_thread_id = flatCallThreadID.x % {call_group_size}")
 
     # Loads / initializes call id
-    context_args = "dispatchThreadID"
+    context_args = "flatCallThreadID"
     if call_data_len > 0:
-        cg.kernel.append_line(f"int[{call_data_len}] call_id = {{")
+        cg.kernel.append_line(f"for (int i=0; i<{call_data_len}; i++)")
+        cg.kernel.append_line("{")
         cg.kernel.inc_indent()
-        for i in range(call_data_len):
-            cg.kernel.append_line(
-                f"(dispatchThreadID.x/call_data._call_stride[{i}]) % call_data._call_dim[{i}],"
-            )
+        cg.kernel.append_statement("call_group_thread_id[i] = (flat_call_group_thread_id/call_data._group_stride[i]) % call_data._group_dim[i]")
+        cg.kernel.append_statement("call_group_id[i] = (flat_call_group_id/call_data._grid_stride[i]) % call_data._grid_dim[i]")
+        cg.kernel.append_statement(f"call_id[i] = call_group_id[i] * call_data._group_dim[i] + call_group_thread_id[i]")
         cg.kernel.dec_indent()
         cg.kernel.append_statement("}")
-        context_args += ", call_id"
+    context_args += f", call_id, call_group_id, call_group_thread_id, flat_call_group_id, flat_call_group_thread_id"
+
     cg.kernel.append_statement(f"Context context = {{{context_args}}}")
 
     # Call the trampoline function

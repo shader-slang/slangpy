@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <sstream>
+#include <cmath>
 
 #include "nanobind.h"
 
@@ -394,6 +395,47 @@ nb::object NativeCallData::exec(
         total_threads *= *it;
     }
     std::reverse(strides.begin(), strides.end());
+    
+    // Get call group shape from build info
+    std::vector<int> call_group_shape;
+    if (m_call_group_shape.valid() && m_call_group_shape.size() > 0) {
+        // This will be recieved backwards as well
+        call_group_shape = m_call_group_shape.as_vector();
+        // TODO: Should verify that call_group_shape dimension matches call_shape
+        //       dimension and do something if they do not match
+    } else {
+        // Default to making the call group shape all 1's. This will force the
+        // grid shape to be identical to the call shape giving us the same
+        // linear calls as before
+        for (int i = 0; i < cs.size(); i++) {
+            call_group_shape.push_back(1);
+        }
+    }
+
+    // Calculate the group strides
+    std::vector<int> call_group_strides;
+    int current_stride = 1;
+    for (auto it = call_group_shape.rbegin(); it != call_group_shape.rend(); ++it) {
+        call_group_strides.push_back(current_stride);
+        current_stride *= *it;
+    }
+    std::reverse(call_group_strides.begin(), call_group_strides.end());
+
+    // Calculate the grid shape
+    std::vector<int> call_grid_shape;
+    for (int i = 0; i < cs.size(); i++) {
+        // Need to think this through a bit more
+        call_grid_shape.push_back((int)std::ceil((float)cs[i] / (float)call_group_shape[i]));
+    }
+
+    // Calculate the grid strides
+    std::vector<int> call_grid_strides;
+    current_stride = 1;
+    for (auto it = call_grid_shape.rbegin(); it != call_grid_shape.rend(); ++it) {
+        call_grid_strides.push_back(current_stride);
+        current_stride *= *it;
+    }
+    std::reverse(call_grid_strides.begin(), call_grid_strides.end());
 
     nb::list read_back;
 
@@ -410,9 +452,15 @@ nb::object NativeCallData::exec(
             call_data_cursor = call_data_cursor.dereference();
 
         if (!strides.empty()) {
-            call_data_cursor["_call_stride"]._set_array_unsafe(&strides[0], strides.size() * 4, strides.size());
-            call_data_cursor["_call_dim"]._set_array_unsafe(&cs[0], cs.size() * 4, cs.size());
+            // TODO: These should be able to replace call stride and call dim so long as we use N dimensional
+            //       sudo 1D defaults, ex [32,1,1, ..., 1] for group shape and a grid shape based on this
+            call_data_cursor["_grid_stride"]._set_array_unsafe(&call_grid_strides[0], call_grid_strides.size() * 4, call_grid_strides.size());
+            call_data_cursor["_grid_dim"]._set_array_unsafe(&call_grid_shape[0], call_grid_shape.size() * 4, call_grid_shape.size());
+            call_data_cursor["_group_stride"]._set_array_unsafe(&call_group_strides[0], call_group_strides.size() * 4, call_group_strides.size());
+            call_data_cursor["_group_dim"]._set_array_unsafe(&call_group_shape[0], call_group_shape.size() * 4, call_group_shape.size());
+            //call_data_cursor["_group_size"] = uint(call_group_size);
         }
+
         call_data_cursor["_thread_count"] = uint3(total_threads, 1, 1);
 
         m_runtime->write_shader_cursor_pre_dispatch(
@@ -437,12 +485,17 @@ nb::object NativeCallData::exec(
     };
 
     if (is_log_enabled(LogLevel::debug)) {
+        // All of the shapes are normal but all of the strides here are reversed?
         log_debug("Dispatching {}", m_debug_name);
         log_debug("  Call type: {}", command_encoder ? "append" : "call");
         log_debug("  Call shape: {}", call_shape.to_string());
         log_debug("  Call mode: {}", m_call_mode);
         log_debug("  Strides: [{}]", fmt::join(strides, ", "));
         log_debug("  Threads: {}", total_threads);
+        log_debug("  Call grid shape: [{}]", fmt::join(call_grid_shape, ", "));
+        log_debug("  Call grid strides: [{}]", fmt::join(call_grid_strides, ", "));
+        log_debug("  Call group shape: [{}]", fmt::join(call_group_shape, ", "));
+        log_debug("  Call group strides: [{}]", fmt::join(call_group_strides, ", "));
     }
 
     m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, command_encoder);
@@ -1068,6 +1121,12 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg("args"),
             nb::arg("kwargs"),
             D_NA(NativeCallData, append_to)
+        )
+        .def_prop_rw(
+            "call_group_shape",
+            &NativeCallData::get_call_group_shape,
+            &NativeCallData::set_call_group_shape,
+            D_NA(NativeCallData, call_group_shape)
         )
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))
         .DEF_LOG_METHOD(log_debug)

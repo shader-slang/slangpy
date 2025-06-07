@@ -84,10 +84,13 @@ class CallData(NativeCallData):
             # Read temps from function
             function = func
             build_info = function.calc_build_info()
+            #self.build_info = build_info  # Set the build_info on the NativeCallData
             return_type = build_info.return_type
             positional_mapping = build_info.map_args
             keyword_mapping = build_info.map_kwargs
             type_conformances = build_info.type_conformances
+            if build_info.call_group_shape is not None:
+                self.call_group_shape = build_info.call_group_shape
 
             # Store logger from either function or module
             if build_info.logger is not None:
@@ -194,6 +197,9 @@ class CallData(NativeCallData):
                 call_data_structs=True,
                 constants=True,
             )
+
+            # Store the generated code
+            self.code = code
 
             # Optionally write the shader to a file for debugging.
             sanitized = ""

@@ -6,6 +6,10 @@ public struct ContextND<let N: int>
     // Workaround for slang bug #6039
     public uint3 thread_id;
     public int[N] call_id;
+    public uint[N] call_group_id;
+    public uint[N] call_group_thread_id;
+    public uint flat_call_group_id;
+    public uint flat_call_group_thread_id;
 
     // Conversion to vector gives transpose of the array based coordinate.
     public property vector<int, N> call_id_vec {
@@ -20,15 +24,20 @@ public struct ContextND<let N: int>
 
     public ContextND<0> map(int)
     {
-        return { thread_id };
+        return { thread_id, {}, {}, {}, flat_call_group_id, flat_call_group_thread_id };
     }
 
     public ContextND<M> map<let M : int>(int[M] mapping)
     {
         ContextND<M> result;
         result.thread_id = thread_id;
-        for (int i = 0; i < M; ++i)
+        result.flat_call_group_id = flat_call_group_id;
+        result.flat_call_group_thread_id = flat_call_group_thread_id;
+        for (int i = 0; i < M; ++i) {
             result.call_id[i] = call_id[mapping[i]];
+            result.call_group_id[i] = call_group_id[mapping[i]];
+            result.call_group_thread_id[i] = call_group_thread_id[mapping[i]];
+        }
         return result;
     }
 }
