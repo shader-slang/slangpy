@@ -60,6 +60,10 @@ class ref;
 template<typename>
 class breakable_ref;
 
+// persistent_cache.h
+
+class PersistentCache;
+
 // short_vector.h
 
 template<typename T, size_t N>

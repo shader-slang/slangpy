@@ -38,6 +38,10 @@ class Texture;
 struct TextureViewDesc;
 class TextureView;
 
+// rhi_persistent_cache.h
+
+class RHIPersistentCache;
+
 // sampler.h
 
 struct SamplerDesc;

@@ -633,6 +633,7 @@ private:
 
     bool m_shader_cache_enabled{false};
     std::filesystem::path m_shader_cache_path;
+    ref<RHIPersistentCache> m_rhi_persistent_cache;
 
     Slang::ComPtr<rhi::IDevice> m_rhi_device;
     Slang::ComPtr<rhi::ICommandQueue> m_rhi_graphics_queue;
