@@ -144,9 +144,15 @@ public:
 
         // Register converters for all supported matrix types.
         matrix_case(float2x2, float32);
-        matrix_case(float3x3, float32);
+        matrix_case(float2x3, float32);
         matrix_case(float2x4, float32);
+
+        matrix_case(float3x2, float32);
+        matrix_case(float3x3, float32);
         matrix_case(float3x4, float32);
+
+        matrix_case(float4x2, float32);
+        matrix_case(float4x3, float32);
         matrix_case(float4x4, float32);
     }
 

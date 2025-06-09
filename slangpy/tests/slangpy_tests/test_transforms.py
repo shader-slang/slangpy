@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import numpy as np
 import pytest
+from typing import Any
+
+import slangpy as spy
 
 from . import helpers
 from slangpy import Module
-from slangpy import DeviceType, float3, Logger, LogLevel
+from slangpy import DeviceType, float3, Logger, LogLevel, float2x3
 from slangpy.types import NDBuffer, Tensor
 
 
@@ -45,28 +48,34 @@ def test_copy_values_basic_input_transform(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_basic_input_transform(device_type: DeviceType):
+@pytest.mark.parametrize("data_type", [[float3, [3]], [float2x3, [2, 3]]])
+def test_add_vectors_matrix_basic_input_transform(device_type: DeviceType, data_type: Any):
     m = load_test_module(device_type)
 
-    # Slightly more complex test involving 2 inputs of float3s,
+    # Slightly more complex test involving 2 inputs of float3s/float2x3s,
     # outputing to a result buffer
+    type = data_type[0]
+    shape = data_type[1]
 
-    a = NDBuffer(device=m.device, shape=(2, 3), dtype=float3)
-    b = NDBuffer(device=m.device, shape=(3, 2), dtype=float3)
+    a = NDBuffer(device=m.device, shape=(2, 3), dtype=type)
+    b = NDBuffer(device=m.device, shape=(3, 2), dtype=type)
 
-    a_data = np.random.rand(2, 3, 3).astype(np.float32)
-    b_data = np.random.rand(3, 2, 3).astype(np.float32)
+    a_data = np.random.rand(2, 3, *shape).astype(np.float32)
+    b_data = np.random.rand(3, 2, *shape).astype(np.float32)
 
-    helpers.write_ndbuffer_from_numpy(a, a_data.flatten(), 3)
-    helpers.write_ndbuffer_from_numpy(b, b_data.flatten(), 3)
+    helpers.write_ndbuffer_from_numpy(a, a_data.flatten())
+    helpers.write_ndbuffer_from_numpy(b, b_data.flatten())
 
-    func = m.add_vectors.map((1, 0))
+    if type == float3:
+        func = m.add_vectors.map((1, 0))
+    else:
+        func = m.add_matrix.map((1, 0))
 
     res: NDBuffer = func(a, b)
 
     assert res.shape == (3, 2)
 
-    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(3, 2, 3)
+    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(3, 2, *shape)
 
     for i in range(3):
         for j in range(2):
@@ -78,29 +87,42 @@ def test_add_vectors_basic_input_transform(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_vecindex_inputcontainer_input_transform(device_type: DeviceType):
+@pytest.mark.parametrize("data_type", [[float3, [3]], [float2x3, [2, 3]]])
+def test_add_vectors_matrix_vecindex_inputcontainer_input_transform(
+    device_type: DeviceType, data_type: Any
+):
     m = load_test_module(device_type)
 
+    # Test 1
     # Test remapping when one of the inputs is an 3D buffer of floats
     # instead of 2D buffer of float3s. In this case, the remapping
     # involves only the lower 2 dimensions (i.e. those of the container)
 
-    a = NDBuffer(device=m.device, shape=(2, 3, 3), dtype=float)
-    b = NDBuffer(device=m.device, shape=(3, 2), dtype=float3)
+    # Test 2
+    # Test remapping when one of the inputs is an 4D buffer of floats
+    # instead of 2D buffer of float2x3s. In this case, the remapping
+    # involves only the lower 2 dimensions (i.e. those of the container)
 
-    a_data = np.random.rand(2, 3, 3).astype(np.float32)
-    b_data = np.random.rand(3, 2, 3).astype(np.float32)
+    type = data_type[0]
+    shape = data_type[1]
 
-    helpers.write_ndbuffer_from_numpy(a, a_data.flatten(), 1)
-    helpers.write_ndbuffer_from_numpy(b, b_data.flatten(), 3)
+    a = NDBuffer(device=m.device, shape=(2, 3, *shape), dtype=float)
+    b = NDBuffer(device=m.device, shape=(3, 2), dtype=type)
+    a_data = np.random.rand(2, 3, *shape).astype(np.float32)
+    b_data = np.random.rand(3, 2, *shape).astype(np.float32)
 
-    func = m.add_vectors.map((1, 0))
+    helpers.write_ndbuffer_from_numpy(a, a_data.flatten())
+    helpers.write_ndbuffer_from_numpy(b, b_data.flatten())
+
+    if type == float3:
+        func = m.add_vectors.map((1, 0))
+    else:
+        func = m.add_matrix.map((1, 0))
 
     res: NDBuffer = func(a, b)
-
     assert res.shape == (3, 2)
 
-    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(3, 2, 3)
+    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(3, 2, *shape)
 
     for i in range(3):
         for j in range(2):
@@ -112,24 +134,39 @@ def test_add_vectors_vecindex_inputcontainer_input_transform(device_type: Device
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_copy_vectors_vecindex_inputcontainer_input_transform(device_type: DeviceType):
+@pytest.mark.parametrize("data_type", [[float3, [3]], [float2x3, [2, 3]]])
+def test_copy_data_vecindex_inputcontainer_input_transform(device_type: DeviceType, data_type: Any):
     m = load_test_module(device_type)
 
+    # Test 1
     # Test remapping when one of the inputs is an 3D buffer of floats
-    # instead of 2D buffer of float3s. In this case, the remapping
+    # instead of 2D buffer of float3. In this case, the remapping
     # involves only the lower 2 dimensions (i.e. those of the container)
 
-    inn = NDBuffer(device=m.device, shape=(2, 3, 3), dtype=float)
-    out = NDBuffer(device=m.device, shape=(3, 2), dtype=float3)
+    # Test 2
+    # Test remapping when one of the inputs is an 4D buffer of floats
+    # instead of 2D buffer of float2x3. In this case, the remapping
+    # involves only the lower 2 dimensions (i.e. those of the container)
 
-    inn_data = np.random.rand(2, 3, 3).astype(np.float32)
-    helpers.write_ndbuffer_from_numpy(inn, inn_data.flatten(), 1)
+    type = data_type[0]
+    shape = data_type[1]
 
-    func = m.copy_vectors.map((1, 0))
+    # inn is a 4D buffer of floats to represent a 2x3 float2x3 matrix
+
+    inn = NDBuffer(device=m.device, shape=(2, 3, *shape), dtype=float)
+    out = NDBuffer(device=m.device, shape=(3, 2), dtype=type)
+    inn_data = np.random.rand(2, 3, *shape).astype(np.float32)
+
+    helpers.write_ndbuffer_from_numpy(inn, inn_data.flatten())
+
+    if type == float3:
+        func = m.copy_vectors.map((1, 0))
+    else:
+        func = m.copy_matrix.map((1, 0))
 
     func(inn, out)
 
-    out_data = helpers.read_ndbuffer_from_numpy(out).reshape(3, 2, 3)
+    out_data = helpers.read_ndbuffer_from_numpy(out).reshape(3, 2, *shape)
 
     for i in range(3):
         for j in range(2):
@@ -167,28 +204,35 @@ def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: Devi
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_basic_output_transform(device_type: DeviceType):
+@pytest.mark.parametrize("data_type", [[float3, [3]], [float2x3, [2, 3]]])
+def test_add_vectors_matrix_basic_output_transform(device_type: DeviceType, data_type: Any):
     m = load_test_module(device_type)
 
     # Test the output transform, where we take 2 1D buffers with different
     # sizes and braodcast each to a different dimension.
 
-    a = NDBuffer(device=m.device, shape=(5,), dtype=float3)
-    b = NDBuffer(device=m.device, shape=(10,), dtype=float3)
+    type = data_type[0]
+    shape = data_type[1]
 
-    a_data = np.random.rand(a.shape[0], 3).astype(np.float32)
-    b_data = np.random.rand(b.shape[0], 3).astype(np.float32)
+    a = NDBuffer(device=m.device, shape=(5,), dtype=type)
+    b = NDBuffer(device=m.device, shape=(10,), dtype=type)
 
-    helpers.write_ndbuffer_from_numpy(a, a_data.flatten(), 3)
-    helpers.write_ndbuffer_from_numpy(b, b_data.flatten(), 3)
+    a_data = np.random.rand(a.shape[0], *shape).astype(np.float32)
+    b_data = np.random.rand(b.shape[0], *shape).astype(np.float32)
 
-    func = m.add_vectors.map((0,), (1,))
+    helpers.write_ndbuffer_from_numpy(a, a_data.flatten())
+    helpers.write_ndbuffer_from_numpy(b, b_data.flatten())
+
+    if type == float3:
+        func = m.add_vectors.map((0,), (1,))
+    else:
+        func = m.add_matrix.map((0,), (1,))
 
     res: NDBuffer = func(a, b)
 
     assert res.shape == (a.shape[0], b.shape[0])
 
-    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(a.shape[0], b.shape[0], 3)
+    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(a.shape[0], b.shape[0], *shape)
 
     for i in range(a.shape[0]):
         for j in range(b.shape[0]):
@@ -200,25 +244,33 @@ def test_add_vectors_basic_output_transform(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_broadcast_from_buffer(device_type: DeviceType):
+@pytest.mark.parametrize("data_type", [[float3, [3]], [float2x3, [2, 3]]])
+def test_add_vectors_matrix_broadcast_from_buffer(device_type: DeviceType, data_type: Any):
     m = load_test_module(device_type)
 
     # Test the output transform, where we take 2 1D buffers with different
     # sizes and braodcast each to a different dimension.
 
-    a = NDBuffer(device=m.device, shape=(1,), dtype=float3)
-    b = NDBuffer(device=m.device, shape=(10,), dtype=float3)
+    type = data_type[0]
+    shape = data_type[1]
 
-    a_data = np.random.rand(a.shape[0], 3).astype(np.float32)
-    b_data = np.random.rand(b.shape[0], 3).astype(np.float32)
+    a = NDBuffer(device=m.device, shape=(1,), dtype=type)
+    b = NDBuffer(device=m.device, shape=(10,), dtype=type)
 
-    helpers.write_ndbuffer_from_numpy(a, a_data.flatten(), 3)
-    helpers.write_ndbuffer_from_numpy(b, b_data.flatten(), 3)
+    a_data = np.random.rand(a.shape[0], *shape).astype(np.float32)
+    b_data = np.random.rand(b.shape[0], *shape).astype(np.float32)
 
-    res: NDBuffer = m.add_vectors(a, b)
+    helpers.write_ndbuffer_from_numpy(a, a_data.flatten())
+    helpers.write_ndbuffer_from_numpy(b, b_data.flatten())
+
+    if type == float3:
+        res: NDBuffer = m.add_vectors(a, b)
+    else:
+        res: NDBuffer = m.add_matrix(a, b)
+
     assert res.shape == (b.shape[0],)
 
-    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(b.shape[0], 3)
+    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(b.shape[0], *shape)
 
     for j in range(b.shape[0]):
         a = a_data[0]
@@ -229,25 +281,33 @@ def test_add_vectors_broadcast_from_buffer(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_broadcast_from_buffer_2(device_type: DeviceType):
+@pytest.mark.parametrize("data_type", [[float3, [3]], [float2x3, [2, 3]]])
+def test_add_vectors_matrix_broadcast_from_buffer_2(device_type: DeviceType, data_type: Any):
     m = load_test_module(device_type)
 
     # Test the output transform, where we take 2 1D buffers with different
     # sizes and braodcast each to a different dimension.
 
-    a = NDBuffer(device=m.device, shape=(1, 5), dtype=float3)
-    b = NDBuffer(device=m.device, shape=(10, 5), dtype=float3)
+    type = data_type[0]
+    shape = data_type[1]
 
-    a_data = np.random.rand(a.shape[0], a.shape[1], 3).astype(np.float32)
-    b_data = np.random.rand(b.shape[0], b.shape[1], 3).astype(np.float32)
+    a = NDBuffer(device=m.device, shape=(1, 5), dtype=type)
+    b = NDBuffer(device=m.device, shape=(10, 5), dtype=type)
 
-    helpers.write_ndbuffer_from_numpy(a, a_data.flatten(), 3)
-    helpers.write_ndbuffer_from_numpy(b, b_data.flatten(), 3)
+    a_data = np.random.rand(a.shape[0], a.shape[1], *shape).astype(np.float32)
+    b_data = np.random.rand(b.shape[0], b.shape[1], *shape).astype(np.float32)
 
-    res: NDBuffer = m.add_vectors(a, b)
+    helpers.write_ndbuffer_from_numpy(a, a_data.flatten())
+    helpers.write_ndbuffer_from_numpy(b, b_data.flatten())
+
+    if type == float3:
+        res: NDBuffer = m.add_vectors(a, b)
+    else:
+        res: NDBuffer = m.add_matrix(a, b)
+
     assert res.shape == (b.shape[0], b.shape[1])
 
-    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(b.shape[0], b.shape[1], 3)
+    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(b.shape[0], b.shape[1], *shape)
 
     for i in range(b.shape[0]):
         for j in range(b.shape[1]):
@@ -259,25 +319,33 @@ def test_add_vectors_broadcast_from_buffer_2(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_add_vectors_broadcast_from_diff_buffer(device_type: DeviceType):
+@pytest.mark.parametrize("data_type", [[float3, [3]], [float2x3, [2, 3]]])
+def test_add_vectors_matrix_broadcast_from_diff_buffer(device_type: DeviceType, data_type: Any):
     m = load_test_module(device_type)
 
     # Test the output transform, where we take 2 1D buffers with different
     # sizes and braodcast each to a different dimension.
 
-    a = Tensor.empty(device=m.device, shape=(1, 5), dtype=float3)
-    b = NDBuffer(device=m.device, shape=(10, 5), dtype=float3)
+    type = data_type[0]
+    shape = data_type[1]
 
-    a_data = np.random.rand(a.shape[0], a.shape[1], 3).astype(np.float32)
-    b_data = np.random.rand(b.shape[0], b.shape[1], 3).astype(np.float32)
+    a = Tensor.empty(device=m.device, shape=(1, 5), dtype=type)
+    b = NDBuffer(device=m.device, shape=(10, 5), dtype=type)
 
-    helpers.write_ndbuffer_from_numpy(a, a_data.flatten(), 3)
-    helpers.write_ndbuffer_from_numpy(b, b_data.flatten(), 3)
+    a_data = np.random.rand(a.shape[0], a.shape[1], *shape).astype(np.float32)
+    b_data = np.random.rand(b.shape[0], b.shape[1], *shape).astype(np.float32)
 
-    res: NDBuffer = m.add_vectors(a, b)
+    helpers.write_ndbuffer_from_numpy(a, a_data.flatten())
+    helpers.write_ndbuffer_from_numpy(b, b_data.flatten())
+
+    if type == float3:
+        res: NDBuffer = m.add_vectors(a, b)
+    else:
+        res: NDBuffer = m.add_matrix(a, b)
+
     assert res.shape == (b.shape[0], b.shape[1])
 
-    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(b.shape[0], b.shape[1], 3)
+    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(b.shape[0], b.shape[1], *shape)
 
     for i in range(b.shape[0]):
         for j in range(b.shape[1]):

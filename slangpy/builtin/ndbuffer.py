@@ -26,6 +26,7 @@ from slangpy.reflection import (
     SlangProgramLayout,
     SlangType,
     VectorType,
+    MatrixType,
     StructuredBufferType,
     is_matching_array_type,
 )
@@ -111,9 +112,8 @@ def ndbuffer_resolve_type(
     # if implicit tensor casts enabled, allow conversion from vector to element type
     if context.options["implicit_tensor_casts"]:
         if (
-            isinstance(bound_type, VectorType)
-            and self.slang_element_type == bound_type.element_type
-        ):
+            isinstance(bound_type, VectorType) or isinstance(bound_type, MatrixType)
+        ) and self.slang_element_type == bound_type.scalar_type:
             return bound_type
 
     # Default to just casting to itself (i.e. no implicit cast)

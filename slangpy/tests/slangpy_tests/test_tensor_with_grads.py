@@ -9,13 +9,6 @@ import os
 import sys
 
 
-if sys.platform == "darwin":
-    pytest.skip(
-        "Skipping on macOS: Waiting for slang-gfx fix for resource clear API https://github.com/shader-slang/slang/issues/6640",
-        allow_module_level=True,
-    )
-
-
 def get_test_tensors(device: Device, N: int = 4):
     np.random.seed(0)
 
