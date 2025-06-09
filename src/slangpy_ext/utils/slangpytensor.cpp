@@ -98,6 +98,13 @@ ref<NativeTensor> NativeTensor::with_grads(ref<NativeTensor> grad_in, ref<Native
     return result;
 }
 
+ref<NativeTensor> NativeTensor::detach() const
+{
+    // Create a new tensor object that refers to the same data as this one, but without
+    // associated grads.
+    return make_ref<NativeTensor>(m_desc, storage(), nullptr, nullptr);
+}
+
 Shape NativeTensorMarshall::get_shape(nb::object data) const
 {
     auto buffer = nb::cast<NativeTensor*>(data);
@@ -275,7 +282,8 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
             "grad_in"_a.none() = nullptr,
             "grad_out"_a.none() = nullptr,
             "zero"_a = false
-        );
+        )
+        .def("detach", &NativeTensor::detach);
 
 
     nb::class_<NativeTensorMarshall, PyNativeTensorMarshall, NativeMarshall>(slangpy, "NativeTensorMarshall") //

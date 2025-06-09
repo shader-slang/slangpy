@@ -85,10 +85,14 @@ class ArrayMarshall(ValueMarshall):
 
 
 def _distill_array(layout: SlangProgramLayout, value: Union[list[Any], tuple[Any]]):
+    from slangpy import InstanceList
     shape = (len(value),)
     while True:
         if len(value) == 0:
             return shape, tr.get_or_create_type(layout, int).slang_type
+        if isinstance(value[0], InstanceList):
+            et = value[0]._struct.struct
+            return shape, et
         if not isinstance(value[0], (list, tuple)):
             et = tr.get_or_create_type(layout, type(value[0]), value[0]).slang_type
             return shape, et

@@ -60,6 +60,9 @@ public:
     ref<NativeTensor>
     with_grads(ref<NativeTensor> grad_in = nullptr, ref<NativeTensor> grad_out = nullptr, bool zero = false) const;
 
+    /// Create a new version of this tensor without grads that refers to the same storage.
+    ref<NativeTensor> detach() const;
+
 private:
     NativeTensorDesc m_desc;
     ref<NativeTensor> m_grad_in;

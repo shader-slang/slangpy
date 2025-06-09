@@ -492,7 +492,7 @@ private:
         if (write_value(self, nbval))
             return;
 
-        SGL_THROW("Unsupported element type");
+        SGL_THROW("Unsupported element type: {}", kind);
     }
 
 

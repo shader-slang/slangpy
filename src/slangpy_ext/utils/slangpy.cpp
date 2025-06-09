@@ -14,6 +14,7 @@
 #include "utils/slangpy.h"
 #include "utils/slangpyvalue.h"
 #include "utils/slangpybuffer.h"
+#include "utils/slangpypackedarg.h"
 
 namespace sgl {
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
@@ -108,7 +109,13 @@ void NativeBoundVariableRuntime::populate_call_shape(
         else if (m_python_type->get_match_call_shape())
             m_shape = Shape(std::vector<int>(tf.size(), 1));
         else
-            m_shape = m_python_type->get_shape(value);
+        {
+            NativePackedArg* packed_arg = nullptr;
+            auto src_value = value;
+            if (nb::try_cast<NativePackedArg*>(value, packed_arg))
+                src_value = packed_arg->python_object();
+            m_shape = m_python_type->get_shape(src_value);
+        }
 
         // Apply this shape to the overall call shape.
         const std::vector<int>& shape = m_shape.as_vector();

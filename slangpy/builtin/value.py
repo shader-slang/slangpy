@@ -139,6 +139,8 @@ class ValueMarshall(NativeValueMarshall):
 
     def build_shader_object(self, context: "BindContext", data: Any) -> "slangpy.ShaderObject":
         unpacked = unpack_arg(data)
+        if self.slang_type is None or self.slang_type.full_name == "Unknown":
+            raise ValueError(f"Cannot build shader object for {type(self)} without slang type")
         bt = context.layout.find_type_by_name(f"ValueType<{self.slang_type.full_name}>")
         if bt is None:
             raise ValueError(f"Could not find Slang type for {self.slang_type.full_name}")

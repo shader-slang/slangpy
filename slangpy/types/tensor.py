@@ -178,6 +178,13 @@ class Tensor(NativeTensor):
         """
         return super().with_grads(grad_in, grad_out, zero)
 
+    def detach(self):
+        """
+        Returns a new tensor view with gradients detached. The returned tensor will not have any
+        gradients attached, and will not be differentiable.
+        """
+        return super().detach()
+
     def clear(self, command_buffer: Optional[CommandBuffer] = None):
         """
         Fill the tensor with zeros. If no command buffer is provided, a new one is created and

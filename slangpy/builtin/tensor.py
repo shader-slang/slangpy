@@ -273,6 +273,15 @@ class TensorMarshall(NativeTensorMarshall):
     def build_shader_object(self, context: "BindContext", data: Any) -> "ShaderObject":
         so = context.device.create_shader_object(self.slang_type.uniform_layout.reflection)
         cursor = ShaderCursor(so)
+        if not self.has_derivative:
+            cursor.write(data.uniforms())
+        else:
+            cursor["primal"].write(data.uniforms())
+            if self.d_in is not None:
+                cursor["d_in"].write(data.grad_in.uniforms())
+            if self.d_out is not None:
+                cursor["d_out"].write(data.grad_out.uniforms())
+
         cursor.write(data.uniforms())
         return so
 

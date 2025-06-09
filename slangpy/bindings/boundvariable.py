@@ -225,7 +225,7 @@ class BoundVariable:
         # TODO: Should this be based off type fields
         if isinstance(value, dict):
             # Child variables.
-            self.children = {n: BoundVariable(context, v, self, n) for n, v in value.items()}
+            self.children = {n: BoundVariable(context, v, self, n) for n, v in value.items() if n != "_type"}
         else:
             self.children = None
 

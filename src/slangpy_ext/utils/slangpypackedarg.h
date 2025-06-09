@@ -17,9 +17,10 @@ class NativeMarshall;
 
 class NativePackedArg : public NativeObject {
 public:
-    NativePackedArg(ref<NativeMarshall> python, ref<ShaderObject> shader_object)
+    NativePackedArg(ref<NativeMarshall> python, ref<ShaderObject> shader_object, nb::object python_object)
         : m_python(std::move(python))
         , m_shader_object(std::move(shader_object))
+        , m_python_object(python_object)
     {
     }
 
@@ -31,9 +32,13 @@ public:
     /// Get the shader object.
     ref<ShaderObject> shader_object() const { return m_shader_object; }
 
+    /// Get the Python object.
+    nb::object python_object() const { return m_python_object; }
+
 private:
     ref<NativeMarshall> m_python;
     ref<ShaderObject> m_shader_object;
+    nb::object m_python_object;
 };
 
 } // namespace sgl::slangpy

@@ -233,7 +233,7 @@ class NDBufferMarshall(NativeNDBufferMarshall):
 
     def build_shader_object(self, context: "BindContext", data: Any) -> "ShaderObject":
         et = cast(SlangType, self.slang_element_type)
-        slang_type = context.layout.find_type_by_name(f"NDBuffer<{et.full_name},{self.dims}>")
+        slang_type = context.layout.find_type_by_name(f"RWNDBuffer<{et.full_name},{self.dims}>")
         so = context.device.create_shader_object(slang_type.uniform_layout.reflection)
         cursor = ShaderCursor(so)
         cursor.write(data.uniforms())

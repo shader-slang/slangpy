@@ -70,9 +70,8 @@ def create_vr_type_for_value(layout: SlangProgramLayout, value: dict[str, Any]):
         slang_type = layout.find_type_by_name(type_name)
         if slang_type is None:
             raise ValueError(f"Could not find type {type_name}")
-        del value["_type"]
 
-    fields = {name: tr.get_or_create_type(layout, type(val), val) for name, val in value.items()}
+    fields = {name: tr.get_or_create_type(layout, type(val), val) for name, val in value.items() if name != "_type"}
 
     return StructMarshall(layout, fields, slang_type)
 

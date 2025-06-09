@@ -19,7 +19,11 @@ class InstanceList:
     def __init__(self, struct: Struct, data: Optional[Any] = None):
         super().__init__()
         if data is None:
-            data = {}
+            data = {
+                "_type": struct.full_name,
+            }
+        elif isinstance(data,dict) and not "_type" in data:
+            data["_type"] = struct.full_name
         self._loaded_functions: dict[str, FunctionNode] = {}
         self.set_data(data)
         self._struct = struct
@@ -92,6 +96,7 @@ class InstanceList:
             and name in self._struct.struct.fields
         ):
             self._data[name] = value
+
         return super().__setattr__(name, value)
 
     def _try_load_func(self, name: str):
