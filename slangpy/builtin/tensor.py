@@ -285,6 +285,7 @@ class TensorMarshall(NativeTensorMarshall):
         cursor.write(data.uniforms())
         return so
 
+
 def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
     if isinstance(value, NativeTensor):
         d_in = create_tensor_marshall(layout, value.grad_in) if value.grad_in is not None else None

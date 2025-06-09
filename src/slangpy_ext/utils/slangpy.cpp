@@ -108,8 +108,7 @@ void NativeBoundVariableRuntime::populate_call_shape(
             m_shape = m_python_type->get_concrete_shape();
         else if (m_python_type->get_match_call_shape())
             m_shape = Shape(std::vector<int>(tf.size(), 1));
-        else
-        {
+        else {
             NativePackedArg* packed_arg = nullptr;
             auto src_value = value;
             if (nb::try_cast<NativePackedArg*>(value, packed_arg))

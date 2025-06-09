@@ -30,9 +30,8 @@ class PackedArg(NativePackedArg):
 
         # Read full signature then turn into shorter hash
         full_signature = get_value_signature(python_object)
-        signature_hash = hashlib.sha256(full_signature.encode('utf-8')).hexdigest()[:8]
+        signature_hash = hashlib.sha256(full_signature.encode("utf-8")).hexdigest()[:8]
         self.slangpy_signature = f"PK[H:{signature_hash}]"
-
 
 
 def pack(module: Module, arg_value: Any) -> PackedArg:

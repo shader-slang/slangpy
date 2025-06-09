@@ -239,6 +239,7 @@ class NDBufferMarshall(NativeNDBufferMarshall):
         cursor.write(data.uniforms())
         return so
 
+
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
     if isinstance(value, (NDBuffer, NativeNDBuffer)):
         return NDBufferMarshall(

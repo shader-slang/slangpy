@@ -86,6 +86,7 @@ class ArrayMarshall(ValueMarshall):
 
 def _distill_array(layout: SlangProgramLayout, value: Union[list[Any], tuple[Any]]):
     from slangpy import InstanceList
+
     shape = (len(value),)
     while True:
         if len(value) == 0:
