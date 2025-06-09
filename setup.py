@@ -80,7 +80,7 @@ class CMakeBuild(build_ext):
             CMAKE_PRESET,
             "-B",
             build_dir,
-            "-DCMAKE_DEFAULT_BUILD_TYPE={CMAKE_CONFIG}",
+            f"-DCMAKE_DEFAULT_BUILD_TYPE={CMAKE_CONFIG}",
             f"-DPython_ROOT_DIR:PATH={sys.prefix}",
             f"-DPython_FIND_REGISTRY:STRING=NEVER",
             f"-DCMAKE_INSTALL_PREFIX={extdir}",
