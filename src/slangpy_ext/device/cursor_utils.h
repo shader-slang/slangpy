@@ -441,6 +441,13 @@ private:
         for (size_t dim = 1; dim < nbarray.ndim(); ++dim) {
             element_byte_size *= nbarray.shape(dim);
         }
+        SGL_CHECK(
+            element_byte_size == self.type_layout()->size(),
+            "The BufferElement size ({}) does not match the ndarray size ({}) of the last {} dimensions.",
+            self.type_layout()->size(),
+            element_byte_size,
+            nbarray.ndim() - 1
+        );
 
         for (size_t index = 0; index < dst.element_count(); ++index) {
             self.set_data(data + index * nbarray.stride(0) * itemsize, element_byte_size);
