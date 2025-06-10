@@ -423,5 +423,89 @@ def test_apply_changes(device_type: spy.DeviceType, seed: int):
             check_match(test, element[name].read())
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("seed", RAND_SEEDS)
+def test_apply_changes_ndarray(device_type: spy.DeviceType, seed: int):
+
+    # Randomize the order of the tests
+    tests = [
+        ("f_float", "float", "1.0", 1.0),
+        ("f_float1", "float1", "2.0", [2.0]),
+        ("f_float2", "float2", "float2(2.0, 3.0)", [2.0, 3.0]),
+        ("f_float3", "float3", "float3(2.0, 3.0, 4.0)", [2.0, 3.0, 4.0]),
+        ("f_float4", "float4", "float4(2.0, 3.0, 4.0, 5.0)", [2.0, 3.0, 4.0, 5.0]),
+    ]
+    random.seed(seed)
+    random.shuffle(tests)
+
+    # Create the module and buffer layout
+    (kernel, buffer_layout) = make_copy_module(device_type, tests)
+
+    # Make a buffer with 128 elements and a cursor to wrap it
+    count = 128
+    src = kernel.device.create_buffer(
+        element_count=count,
+        struct_type=buffer_layout,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.zeros(buffer_layout.element_type_layout.stride * count, dtype=np.uint8),
+    )
+    dest = kernel.device.create_buffer(
+        element_count=count,
+        struct_type=buffer_layout,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.zeros(buffer_layout.element_type_layout.stride * count, dtype=np.uint8),
+    )
+    src_cursor = spy.BufferCursor(buffer_layout.element_type_layout, src)
+    dest_cursor = spy.BufferCursor(buffer_layout.element_type_layout, dest)
+
+    # Populate source cursor
+    source_data = {}
+    for test in tests:
+        (name, gpu_type, gpu_val, value) = test[0:4]
+        my_list = []
+        if isinstance(value, list):
+            my_list = [[x + i for x in value] for i in range(count)]
+        elif isinstance(value, float):
+            my_list = [value + i for i in range(count)]
+        source_data[name] = np.array(my_list, dtype=np.float32)
+
+    src_cursor.write_multiple(source_data)
+
+    # Apply changes to source
+    src_cursor.apply()
+
+    # Load the dest cursor - this should end up with it containing 0s as its not been written
+    dest_cursor.load()
+
+    # Verify 0s
+    for i in range(count):
+        element = dest_cursor[i]
+        assert element["f_float"].read() == 0
+
+    # Dispatch the kernel
+    kernel.dispatch([count, 1, 1], src=src, dest=dest)
+
+    # Verify still 0s as we've not refreshed the cursor yet!
+    for i in range(count):
+        element = dest_cursor[i]
+        assert element["f_float"].read() == 0
+
+    # Refresh the buffer
+    dest_cursor.load()
+
+    # Verify data in dest buffer matches
+    for i in range(count):
+        element = dest_cursor[i]
+        for test in tests:
+            name = test[0]
+            expected_value = test[3]
+            if isinstance(expected_value, float):
+                expected_value += i
+            elif isinstance(expected_value, list):
+                expected_value = [x + i for x in expected_value]
+            result = element[name].read()
+            assert expected_value == result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

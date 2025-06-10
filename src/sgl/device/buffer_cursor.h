@@ -75,6 +75,8 @@ public:
     void _get_vector(void* data, size_t size, TypeReflection::ScalarType scalar_type, int dimension) const;
     void _get_matrix(void* data, size_t size, TypeReflection::ScalarType scalar_type, int rows, int cols) const;
 
+    void _set_offset(size_t new_offset) { m_offset = new_offset; }
+
 private:
     void write_data(size_t offset, const void* data, size_t size);
     void read_data(size_t offset, void* data, size_t size) const;

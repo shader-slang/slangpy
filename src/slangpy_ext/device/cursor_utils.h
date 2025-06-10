@@ -14,6 +14,7 @@
 
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpystridedbufferview.h"
+#include "sgl/device/buffer_cursor.h"
 
 namespace sgl {
 
@@ -362,6 +363,17 @@ public:
         }
     }
 
+    void write_multiple(BufferCursor& dst, nb::object nbval)
+        requires std::same_as<CursorType, BufferElementCursor>
+    {
+        m_stack.clear();
+        try {
+            write_multiple_internal(dst, dst[0], nbval);
+        } catch (const std::exception& err) {
+            SGL_THROW("{}: {}", build_error(), err.what());
+        }
+    }
+
 private:
     std::function<void(CursorType&, nb::object)> m_write_scalar[(int)TypeReflection::ScalarType::COUNT];
     std::function<void(CursorType&, nb::object)> m_write_vector[(int)TypeReflection::ScalarType::COUNT][5];
@@ -369,6 +381,72 @@ private:
     std::vector<const char*> m_stack;
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
+
+    void write_multiple_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval)
+        requires std::same_as<CursorType, BufferElementCursor>
+    {
+        if (!self.is_valid())
+            return;
+
+        slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
+        auto kind = (TypeReflection::Kind)type_layout->getKind();
+
+        switch (kind) {
+        case TypeReflection::Kind::constant_buffer:
+        case TypeReflection::Kind::parameter_block:
+        case TypeReflection::Kind::struct_: {
+            // Unwrap constant buffers or parameter blocks
+            if (kind != TypeReflection::Kind::struct_)
+                type_layout = type_layout->getElementTypeLayout();
+
+            // Expect a dict for a slang struct.
+            if (nb::isinstance<nb::dict>(nbval)) {
+                auto dict = nb::cast<nb::dict>(nbval);
+                for (uint32_t i = 0; i < type_layout->getFieldCount(); i++) {
+                    auto field = type_layout->getFieldByIndex(i);
+                    const char* name = field->getName();
+                    auto child = self[name];
+                    if (dict.contains(name)) {
+                        m_stack.push_back(name);
+                        write_multiple_internal(dst, child, dict[name]);
+                        m_stack.pop_back();
+                    }
+                }
+                return;
+            } else {
+                SGL_THROW("Expected dict");
+            }
+        }
+        }
+
+        SGL_CHECK(
+            nb::isinstance<nb::ndarray<nb::numpy>>(nbval),
+            "Only ndarrays and dictionaries of ndarrays are supported"
+        );
+        auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
+        SGL_CHECK(
+            nbarray.shape(0) == dst.element_count(),
+            "First dimension of ndarray ({}) does not match the size of destination buffer ({})",
+            nbarray.shape(0),
+            dst.element_count()
+        );
+
+        const size_t itemsize = nbarray.itemsize();
+        auto data = reinterpret_cast<uint8_t*>(nbarray.data());
+        size_t element_byte_size = itemsize;
+        SGL_CHECK(
+            nbarray.ndim() == 1 || is_ndarray_partially_contiguous(nbarray, 1),
+            "ndarray must be contiguous in all but the first dimension"
+        );
+        for (size_t dim = 1; dim < nbarray.ndim(); ++dim) {
+            element_byte_size *= nbarray.shape(dim);
+        }
+
+        for (size_t index = 0; index < dst.element_count(); ++index) {
+            self.set_data(data + index * nbarray.stride(0) * itemsize, element_byte_size);
+            self._set_offset(self.offset() + dst.element_type_layout()->stride());
+        }
+    }
 
     void write_internal(CursorType& self, nb::object nbval)
     {
