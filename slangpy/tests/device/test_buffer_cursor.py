@@ -469,7 +469,7 @@ def test_apply_changes_ndarray(device_type: spy.DeviceType, seed: int):
             my_list = [value + i for i in range(count)]
         source_data[name] = np.array(my_list, dtype=np.float32)
 
-    src_cursor.write_multiple(source_data)
+    src_cursor.write_from_numpy(source_data)
 
     # Apply changes to source
     src_cursor.apply()

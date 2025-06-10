@@ -107,8 +107,8 @@ SGL_PY_EXPORT(device_buffer_cursor)
         .def("__getitem__", [](BufferCursor& self, int index) { return self[index]; })
         .def("__len__", [](BufferCursor& self) { return self.element_count(); })
         .def(
-            "write_multiple",
-            [](BufferCursor& self, nb::object nbval) { detail::_writeconv.write_multiple(self, nbval); },
+            "write_from_numpy",
+            [](BufferCursor& self, nb::object nbval) { detail::_writeconv.write_from_numpy(self, nbval); },
             "data"_a
         )
         .def(

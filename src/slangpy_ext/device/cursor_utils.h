@@ -363,12 +363,16 @@ public:
         }
     }
 
-    void write_multiple(BufferCursor& dst, nb::object nbval)
+    /// Writes a (dictionary of) ndarrays to the whole buffer.
+    /// First dimension of the ndarray is treated as an index into the buffer,
+    /// and all the other dimensions are then written to the corresponding
+    /// BufferElementCursors.
+    void write_from_numpy(BufferCursor& dst, nb::object nbval)
         requires std::same_as<CursorType, BufferElementCursor>
     {
         m_stack.clear();
         try {
-            write_multiple_internal(dst, dst[0], nbval);
+            write_from_numpy_internal(dst, dst[0], nbval);
         } catch (const std::exception& err) {
             SGL_THROW("{}: {}", build_error(), err.what());
         }
@@ -382,7 +386,7 @@ private:
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
 
-    void write_multiple_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval)
+    void write_from_numpy_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval)
         requires std::same_as<CursorType, BufferElementCursor>
     {
         if (!self.is_valid())
@@ -408,7 +412,7 @@ private:
                     auto child = self[name];
                     if (dict.contains(name)) {
                         m_stack.push_back(name);
-                        write_multiple_internal(dst, child, dict[name]);
+                        write_from_numpy_internal(dst, child, dict[name]);
                         m_stack.pop_back();
                     }
                 }
@@ -419,10 +423,6 @@ private:
         }
         }
 
-        SGL_CHECK(
-            nb::isinstance<nb::ndarray<nb::numpy>>(nbval),
-            "Only ndarrays and dictionaries of ndarrays are supported"
-        );
         auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
         SGL_CHECK(
             nbarray.shape(0) == dst.element_count(),
@@ -434,23 +434,33 @@ private:
         const size_t itemsize = nbarray.itemsize();
         auto data = reinterpret_cast<uint8_t*>(nbarray.data());
         size_t element_byte_size = itemsize;
-        SGL_CHECK(
-            nbarray.ndim() == 1 || is_ndarray_partially_contiguous(nbarray, 1),
-            "ndarray must be contiguous in all but the first dimension"
-        );
-        for (size_t dim = 1; dim < nbarray.ndim(); ++dim) {
-            element_byte_size *= nbarray.shape(dim);
-        }
-        SGL_CHECK(
-            element_byte_size == self.type_layout()->size(),
-            "The BufferElement size ({}) does not match the ndarray size ({}) of the last {} dimensions.",
-            self.type_layout()->size(),
-            element_byte_size,
-            nbarray.ndim() - 1
-        );
 
         for (size_t index = 0; index < dst.element_count(); ++index) {
-            self.set_data(data + index * nbarray.stride(0) * itemsize, element_byte_size);
+            nb::ndarray<nb::numpy> subarray;
+            if (nbarray.ndim() == 1) {
+                subarray = nb::ndarray<nb::numpy>(
+                    data + index * nbarray.stride(0) * itemsize,
+                    {1},
+                    {},
+                    {},
+                    nbarray.dtype(),
+                    nbarray.device_type(),
+                    nbarray.device_id()
+                );
+            } else {
+                subarray = nb::ndarray<nb::numpy>(
+                    data + index * nbarray.stride(0) * itemsize,
+                    nbarray.ndim() - 1,
+                    reinterpret_cast<const size_t*>(nbarray.shape_ptr()) + 1,
+                    {},
+                    nbarray.stride_ptr() + 1,
+                    nbarray.dtype(),
+                    nbarray.device_type(),
+                    nbarray.device_id()
+                );
+            }
+
+            write_internal(self, subarray.cast());
             self._set_offset(self.offset() + dst.element_type_layout()->stride());
         }
     }
