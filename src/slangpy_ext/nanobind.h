@@ -270,21 +270,29 @@ nb::type_slots gc_helper_type_slots()
 
 namespace sgl {
 
+/// Check if ndarray is contiguous from the `first_dimension` (inclusive) onwards
 template<typename... Args>
-size_t is_ndarray_contiguous(const nb::ndarray<Args...>& array)
+size_t is_ndarray_partially_contiguous(const nb::ndarray<Args...>& array, size_t first_dimension = 0)
 {
-    if (array.ndim() == 0)
+    if (array.ndim() <= first_dimension)
         return false;
     size_t prod = 1;
     for (size_t i = array.ndim() - 1;;) {
         if (array.stride(i) != narrow_cast<int64_t>(prod))
             return false;
         prod *= array.shape(i);
-        if (i == 0)
+        if (i == first_dimension)
             break;
         --i;
     }
     return true;
+}
+
+
+template<typename... Args>
+size_t is_ndarray_contiguous(const nb::ndarray<Args...>& array)
+{
+    return is_ndarray_partially_contiguous(array, 0);
 }
 
 inline cuda::TensorView ndarray_to_cuda_tensor_view(nb::ndarray<nb::device::cuda> array)
