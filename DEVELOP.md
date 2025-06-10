@@ -26,7 +26,7 @@ pre-commit install
 pre-commit run --all-files
 
 #Run unit tests
-pytest
+pytest slangpy/tests
 ```
 
 ## Tests
@@ -34,13 +34,13 @@ pytest
 If opened in VS Code, the default setup will detect and register tests in the VS Code testing tools. To run manually:
 
 ```
-pytest
+pytest slangpy/tests
 ```
 
 To debug a test, simply run the corresponding test file
 
 ## Adding new tests
 
-`tests/slangpy/slangpy_tests/test_sgl.py` is a very basic test example. Note it:
+`slangpy/tests/slangpy_tests/test_sgl.py` is a very basic test example. Note it:
 - Use parameterization to create a test that runs once per device type
 - Includes an `__main__` handler at the bottom to allow the file to be debugged
