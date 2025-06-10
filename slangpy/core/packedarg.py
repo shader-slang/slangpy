@@ -5,6 +5,7 @@ from slangpy.core.native import (
     get_value_signature,
     CallMode,
     NativePackedArg,
+    unpack_arg
 )
 from slangpy.bindings import get_or_create_type, BindContext
 import hashlib
@@ -18,9 +19,15 @@ class PackedArg(NativePackedArg):
 
     def __init__(self, module: Module, python_object: Any):
 
-        python = get_or_create_type(module.layout, type(python_object), python_object)
+        # Confusing terminology: use 'unpack_arg' to convert object to plain-old-type (dict/list etc)
+        unpacked_obj = unpack_arg(python_object)
+
+        # Get python marshall for the unpacked object
+        python = get_or_create_type(module.layout, type(unpacked_obj), unpacked_obj)
+
+        # Create a shader object from the python marshall and init native structure
         shader_object = python.build_shader_object(
-            BindContext(module.layout, CallMode.prim, module.device_module, {}), python_object
+            BindContext(module.layout, CallMode.prim, module.device_module, {}), unpacked_obj
         )
         if shader_object is None:
             raise ValueError(
@@ -30,7 +37,7 @@ class PackedArg(NativePackedArg):
 
         # Read full signature then turn into shorter hash
         full_signature = get_value_signature(python_object)
-        signature_hash = hashlib.sha256(full_signature.encode('utf-8')).hexdigest()[:8]
+        signature_hash = hashlib.sha256(full_signature.encode('utf-8')).hexdigest()[:16]
         self.slangpy_signature = f"PK[H:{signature_hash}]"
 
 
