@@ -160,11 +160,15 @@ def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count:
             )
 
     for i in range(shape):
-        buffer_data = np.array(data[i * element_count : (i + 1) * element_count])
-        if cursor.element_type_layout.kind == TypeReflection.Kind.matrix:
-            buffer_data = buffer_data.reshape(
-                cursor.element_type.row_count, cursor.element_type.col_count
-            )
-        cursor[i].write(buffer_data)
+        # Resolves warning that converting a single-element numpy array to a scalar is deprecated
+        if cursor.element_type_layout.kind == TypeReflection.Kind.scalar:
+            cursor[i].write(data[i])
+        else:
+            buffer_data = np.array(data[i * element_count : (i + 1) * element_count])
+            if cursor.element_type_layout.kind == TypeReflection.Kind.matrix:
+                buffer_data = buffer_data.reshape(
+                    cursor.element_type.row_count, cursor.element_type.col_count
+                )
+            cursor[i].write(buffer_data)
 
     cursor.apply()
