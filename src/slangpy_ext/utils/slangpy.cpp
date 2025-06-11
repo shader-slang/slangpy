@@ -527,16 +527,12 @@ nb::object NativeCallData::exec(
         if (call_data_cursor.is_reference())
             call_data_cursor = call_data_cursor.dereference();
 
-        if (!call_grid_strides.empty()) {
+        if (!cs.empty()) {
             call_data_cursor["_call_dim"]._set_array_unsafe(&cs[0], cs.size() * 4, cs.size());
             call_data_cursor["_grid_stride"]
                 ._set_array_unsafe(&call_grid_strides[0], call_grid_strides.size() * 4, call_grid_strides.size());
             call_data_cursor["_grid_dim"]
                 ._set_array_unsafe(&call_grid_shape[0], call_grid_shape.size() * 4, call_grid_shape.size());
-            call_data_cursor["_group_stride"]
-                ._set_array_unsafe(&call_group_strides[0], call_group_strides.size() * 4, call_group_strides.size());
-            call_data_cursor["_group_dim"]
-                ._set_array_unsafe(&call_group_shape[0], call_group_shape.size() * 4, call_group_shape.size());
         }
 
         call_data_cursor["_thread_count"] = uint3(total_threads, 1, 1);
@@ -1209,6 +1205,7 @@ SGL_PY_EXPORT(utils_slangpy)
             "call_group_shape",
             &NativeCallData::get_call_group_shape,
             &NativeCallData::set_call_group_shape,
+            nb::arg().none(),
             D_NA(NativeCallData, call_group_shape)
         )
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))

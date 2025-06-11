@@ -99,8 +99,8 @@ float tensor_add_with_call_groups(
     uint2 grid_cell
 ) {
     // Use call group functions in differentiable context
-    uint[2] call_group_id = get_call_group_id<2>();
-    uint[2] call_group_thread_id = get_call_group_thread_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_thread_id = get_call_group_thread_id<2>();
 
     // Simple operation that can be differentiated
     // Scale the result by call group position for variety
@@ -114,7 +114,7 @@ float tensor_matrix_multiply_with_groups(
     float x_element,
     uint2 grid_cell
 ) {
-    uint[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
 
     // Simple operation with call group scaling
     float scale = 1.0f + 0.05f * float(call_group_id[0] * call_group_id[1]);
@@ -126,8 +126,8 @@ float tensor_aggregation_with_groups(
     float input_element,
     uint2 grid_cell
 ) {
-    uint[2] call_group_id = get_call_group_id<2>();
-    uint[2] call_group_thread_id = get_call_group_thread_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_thread_id = get_call_group_thread_id<2>();
 
     // Transform input based on call group information
     float group_factor = 1.0f + 0.1f * float(call_group_id[0]);
@@ -168,8 +168,8 @@ float ndbuffer_process_with_groups(
     out float output,
     uint2 grid_cell
 ) {
-    uint[2] call_group_id = get_call_group_id<2>();
-    uint[2] call_group_thread_id = get_call_group_thread_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_thread_id = get_call_group_thread_id<2>();
 
     // Apply a transformation based on call group position
     float group_factor = 1.0f + 0.1f * float(call_group_id[0] * call_group_id[1]);
@@ -184,8 +184,8 @@ float3 ndbuffer_vector_ops_with_groups(
     float3 vector_input,
     uint grid_cell
 ) {
-    uint[1] call_group_id = get_call_group_id<1>();
-    uint[1] call_group_thread_id = get_call_group_thread_id<1>();
+    int[1] call_group_id = get_call_group_id<1>();
+    int[1] call_group_thread_id = get_call_group_thread_id<1>();
 
     // Transform vector based on call group information
     float3 group_offset = float3(
@@ -201,8 +201,8 @@ int ndbuffer_reduce_with_groups(
     int data_input,
     uint3 grid_cell
 ) {
-    uint[3] call_group_id = get_call_group_id<3>();
-    uint[3] call_group_thread_id = get_call_group_thread_id<3>();
+    int[3] call_group_id = get_call_group_id<3>();
+    int[3] call_group_thread_id = get_call_group_thread_id<3>();
 
     // Compute a reduction-like operation using call group info
     int sum = data_input;
@@ -253,8 +253,8 @@ float4 texture_sample_with_groups(
     RWTexture2D<float4> output_tex,
     uint2 grid_cell
 ) {
-    uint[2] call_group_id = get_call_group_id<2>();
-    uint[2] call_group_thread_id = get_call_group_thread_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_thread_id = get_call_group_thread_id<2>();
     int[2] call_id = get_call_id<2>();
 
     // Sample from input texture with call group-based offset
@@ -279,8 +279,8 @@ float texture_reduce_with_groups(
     Texture2D<vector<float,1>> input_tex,
     uint2 grid_cell
 ) {
-    uint[2] call_group_id = get_call_group_id<2>();
-    uint[2] call_group_thread_id = get_call_group_thread_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_thread_id = get_call_group_thread_id<2>();
     int[2] call_id = get_call_id<2>();
 
     // Sample multiple texels based on call group configuration
@@ -302,8 +302,8 @@ float3 texture_3d_with_groups(
     Texture3D<float4> tex3d,
     uint3 grid_cell
 ) {
-    uint[3] call_group_id = get_call_group_id<3>();
-    uint[3] call_group_thread_id = get_call_group_thread_id<3>();
+    int[3] call_group_id = get_call_group_id<3>();
+    int[3] call_group_thread_id = get_call_group_thread_id<3>();
     int[3] call_id = get_call_id<3>();
 
     // 3D texture sampling with call group-based coordinates
@@ -338,8 +338,8 @@ float transform_with_call_groups(
     out float output,
     uint2 grid_cell
 ) {
-    uint[2] call_group_id = get_call_group_id<2>();
-    uint[2] call_group_thread_id = get_call_group_thread_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_thread_id = get_call_group_thread_id<2>();
 
     // Apply transformation that depends on call group structure
     float group_transform = sin(float(call_group_id[0]) * 0.5f) + cos(float(call_group_id[1]) * 0.5f);
@@ -353,8 +353,8 @@ float3 vector_transform_with_groups(
     float3 vector_input,
     uint2 grid_cell
 ) {
-    uint[2] call_group_id = get_call_group_id<2>();
-    uint[2] call_group_thread_id = get_call_group_thread_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_thread_id = get_call_group_thread_id<2>();
 
     // Rotate vector based on call group position
     float angle = float(call_group_id[0] + call_group_id[1]) * 0.1f;

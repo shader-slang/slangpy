@@ -653,7 +653,14 @@ public:
     void set_logger(ref<Logger> logger) { m_logger = logger; }
 
     /// Set the shape of call groups when a dispatch is made.
-    void set_call_group_shape(Shape call_group_shape) { m_call_group_shape = call_group_shape; }
+    void set_call_group_shape(std::optional<Shape> call_group_shape)
+    {
+        if (call_group_shape.has_value()) {
+            m_call_group_shape = call_group_shape.value();
+        } else {
+            m_call_group_shape = Shape(std::nullopt);
+        }
+    }
 
     /// Get the shape of call groups when a dispatch is made.
     const Shape& get_call_group_shape() const { return m_call_group_shape; }

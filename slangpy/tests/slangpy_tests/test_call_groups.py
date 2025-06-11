@@ -58,8 +58,8 @@ import "slangpy";
 float test_functions_exist(uint2 grid_cell) {
     // Test global getter functions with explicit types
     int[2] call_id_result = get_call_id<2>();
-    uint[2] call_group_id_result = get_call_group_id<2>();
-    uint[2] call_group_thread_id_result = get_call_group_thread_id<2>();
+    int[2] call_group_id_result = get_call_group_id<2>();
+    int[2] call_group_thread_id_result = get_call_group_thread_id<2>();
 
     // Return success - we just want to verify compilation works
     return 1.0f;
@@ -85,8 +85,8 @@ def test_1d_call_groups_with_validation(device_type: DeviceType):
 import "slangpy";
 
 uint test_1d_groups(uint grid_cell) {
-    uint[1] call_group_id = get_call_group_id<1>();
-    uint[1] call_group_thread_id = get_call_group_thread_id<1>();
+    int[1] call_group_id = get_call_group_id<1>();
+    int[1] call_group_thread_id = get_call_group_thread_id<1>();
 
     // Return packed result: high 16 bits = group_id, low 16 bits = thread_id
     return (call_group_id[0] << 16) | call_group_thread_id[0];
@@ -148,8 +148,8 @@ import "slangpy";
 
 uint test_call_group_math_2d(uint2 grid_cell) {
     int[2] call_id = get_call_id<2>();
-    uint[2] call_group_id = get_call_group_id<2>();
-    uint[2] call_group_thread_id = get_call_group_thread_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_thread_id = get_call_group_thread_id<2>();
 
     // Pack the results:
     // Bits 24-31: call_group_id[0] (Y)
@@ -255,8 +255,8 @@ import "slangpy";
 uint test_5d_basic(uint[5] grid_cell) {
     // Get call group values
     int[5] call_id = get_call_id<5>();
-    uint[5] call_group_id = get_call_group_id<5>();
-    uint[5] call_group_thread_id = get_call_group_thread_id<5>();
+    int[5] call_group_id = get_call_group_id<5>();
+    int[5] call_group_thread_id = get_call_group_thread_id<5>();
 
     // Pack some of the results to validate they're not all zeros
     // Pack dimensions 2, 3, 4 (which have non-trivial group shapes)
@@ -311,8 +311,8 @@ import "slangpy";
 
 uint test_edge_case_basic(uint2 grid_cell) {
     // Get call group functionality and pack results
-    uint[2] call_group_id = get_call_group_id<2>();
-    uint[2] call_group_thread_id = get_call_group_thread_id<2>();
+    int[2] call_group_id = get_call_group_id<2>();
+    int[2] call_group_thread_id = get_call_group_thread_id<2>();
 
     // Pack results to validate they're meaningful
     return (call_group_id[0] << 24) | (call_group_id[1] << 16) |
@@ -394,8 +394,8 @@ import "slangpy";
 float test_call_group_math({param_type} grid_pos) {{
     // Just test that the functions can be called without error
     int[{dimension}] call_id = get_call_id<{dimension}>();
-    uint[{dimension}] call_group_id = get_call_group_id<{dimension}>();
-    uint[{dimension}] call_group_thread_id = get_call_group_thread_id<{dimension}>();
+    int[{dimension}] call_group_id = get_call_group_id<{dimension}>();
+    int[{dimension}] call_group_thread_id = get_call_group_thread_id<{dimension}>();
 
     // Return a simple validation that functions executed
     return 1.0f;
@@ -443,8 +443,8 @@ import "slangpy";
 float test_edge_case({param_type} grid_pos) {{
     // Test that edge cases don't crash
     int[{dimension}] call_id = get_call_id<{dimension}>();
-    uint[{dimension}] call_group_id = get_call_group_id<{dimension}>();
-    uint[{dimension}] call_group_thread_id = get_call_group_thread_id<{dimension}>();
+    int[{dimension}] call_group_id = get_call_group_id<{dimension}>();
+    int[{dimension}] call_group_thread_id = get_call_group_thread_id<{dimension}>();
 
     return 1.0f;
 }}
