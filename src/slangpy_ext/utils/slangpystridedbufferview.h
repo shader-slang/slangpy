@@ -65,6 +65,8 @@ public:
     /// Copy from CPU memory (as a numpy array) into GPU buffer
     void copy_from_numpy(nb::ndarray<nb::numpy> data);
 
+    void point_to(ref<StridedBufferView> target);
+
 protected:
     // In-place versions of view changing methods.
     // Derived classes are supposed the non-inplace versions by creating a copy
