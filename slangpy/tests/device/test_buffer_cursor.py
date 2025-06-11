@@ -131,6 +131,103 @@ TESTS = [
         spy.float3(1.0, 2.0, 3.0),
     ),
     ("f_child", "TestChild", "TestChild(1, 2.0)", {"uintval": 1, "floatval": 2.0}),
+    ## Test arrays of bools and their vectors
+    ("f_bool_array", "bool[2]", "{true, false}", [True, False]),
+    (
+        "f_bool2_array",
+        "bool2[2]",
+        "{ {true, false}, {true, false} }",
+        [spy.bool2(True, False), spy.bool2(True, False)],
+    ),
+    # Fails on: SGL_CHECK(nbarray.ndim() == 1, "numpy array must have 1 dimension.");
+    # (
+    #     "f_bool2_array_numpy",
+    #     "bool2[2]",
+    #     "{ {true, false}, {true, false} }",
+    #     np.array([[True, False], [True, False]], dtype=bool),
+    #     [spy.bool2(True, False), spy.bool2(True, False)],
+    # ),
+    ## Test nested arrays of scalar and vector (and matrix) types
+    ("f_float32_array", "float[2]", "{ 1.0, 2.0 }", [1.0, 2.0]),
+    ("f_float32_array2", "float[2][2]", "{ { 1.0, 2.0 }, { 3.0, 4.0 } }", [[1.0, 2.0], [3.0, 4.0]]),
+    # Fails on: SGL_CHECK(nbarray.ndim() == 1, "numpy array must have 1 dimension.");
+    # (
+    #     "f_float_array2_numpy",
+    #     "float[2][2]",
+    #     "{ { 1.0, 2.0 }, { 3.0, 4.0 } }",
+    #     np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
+    #     [[1.0, 2.0], [3.0, 4.0]],
+    # ),
+    (
+        "f_float2_array2",
+        "float2[2][2]",
+        "{ { { 1.0, 2.0 }, { 3.0, 4.0 } }, { { 5.0, 6.0 }, { 7.0, 8.0 } } }",
+        [
+            [spy.float2(1.0, 2.0), spy.float2(3.0, 4.0)],
+            [spy.float2(5.0, 6.0), spy.float2(7.0, 8.0)],
+        ],
+    ),
+    # Fails on: SGL_CHECK(nbarray.ndim() == 1, "numpy array must have 1 dimension.");
+    # (
+    #     "f_float2_array2_numpy",
+    #     "float2[2][2]",
+    #     "{ { { 1.0, 2.0 }, { 3.0, 4.0 } }, { { 5.0, 6.0 }, { 7.0, 8.0 } } }",
+    #     np.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]], dtype=np.float32),
+    #     [
+    #         [spy.float2(1.0, 2.0), spy.float2(3.0, 4.0)],
+    #         [spy.float2(5.0, 6.0), spy.float2(7.0, 8.0)],
+    #     ],
+    # ),
+    ("f_int32_array", "int32_t[2]", "{ 1, 2 }", [1, 2]),
+    ("f_int32_array2", "int32_t[2][2]", "{ { 1, 2 }, { 3, 4 } }", [[1, 2], [3, 4]]),
+    # Fails on: SGL_CHECK(nbarray.ndim() == 1, "numpy array must have 1 dimension.");
+    # (
+    #     "f_int_array2_numpy",
+    #     "int32_t[2][2]",
+    #     "{ { 1, 2 }, { 3, 4 } }",
+    #     np.array([[[1, 2], [3, 4]]], dtype=np.int32),
+    #     [[1, 2], [3, 4]],
+    # ),
+    (
+        "f_int2_array2",
+        "int2[2][2]",
+        "{ { { 1, 2 }, { 3, 4 } }, { { 5, 6 }, { 7, 8 } } }",
+        [[spy.int2(1, 2), spy.int2(3, 4)], [spy.int2(5, 6), spy.int2(7, 8)]],
+    ),
+    # Fails on: SGL_CHECK(nbarray.ndim() == 1, "numpy array must have 1 dimension.");
+    # (
+    #     "f_int2_array2_numpy",
+    #     "int2[2][2]",
+    #     "{ { { 1, 2 }, { 3, 4 } }, { { 5, 6 }, { 7, 8 } } }",
+    #     np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], dtype=np.int32),
+    #     [[spy.int2(1, 2), spy.int2(3, 4)], [spy.int2(5, 6), spy.int2(7, 8)]],
+    # ),
+    # Fails on: SGL_CHECK(nbarray.ndim() == 1, "numpy array must have 1 dimension.");
+    # (
+    #     "f_float2x2_array_numpy",
+    #     "float2x2[2]",
+    #     "{ { 1.0, 2.0, 3.0, 4.0 }, { 5.0, 6.0, 7.0, 8.0 } }",
+    #     np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], dtype=np.float32),
+    #     [
+    #         spy.float2x2(np.array([[1, 2], [3, 4]], dtype=np.float32)),
+    #         spy.float2x2(np.array([[5, 6], [7, 8]], dtype=np.float32)),
+    #     ],
+    # ),
+    (
+        "f_float2x2_array2",
+        "float2x2[2][2]",
+        "{ { { 1.0, 2.0, 3.0, 4.0 }, { 5.0, 6.0, 7.0, 8.0 } }, { { 1.0, 2.0, 3.0, 4.0 }, { 5.0, 6.0, 7.0, 8.0 } } }",
+        [
+            [
+                spy.float2x2(np.array([[1, 2], [3, 4]], dtype=np.float32)),
+                spy.float2x2(np.array([[5, 6], [7, 8]], dtype=np.float32)),
+            ],
+            [
+                spy.float2x2(np.array([[1, 2], [3, 4]], dtype=np.float32)),
+                spy.float2x2(np.array([[5, 6], [7, 8]], dtype=np.float32)),
+            ],
+        ],
+    ),
 ]
 
 
@@ -364,7 +461,7 @@ def test_cursor_lifetime(device_type: spy.DeviceType):
     # Null the cursor
     cursor = None
 
-    # Ensure we can still write to the element (as it shoudl be holding a reference to the cursor)
+    # Ensure we can still write to the element (as it should be holding a reference to the cursor)
     element["f_int32"] = 123
 
 
