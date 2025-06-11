@@ -124,7 +124,13 @@ namespace cursor_utils {
             (TypeReflection::ScalarType)type->getScalarType(),
             scalar_type
         );
-        SGL_UNUSED(size);
+        SGL_CHECK(
+            type_layout->getSize() >= size,
+            "Mismatched size, writing {} B into backend type ({}) of only {} B.",
+            size,
+            type_layout->getName(),
+            type_layout->getSize()
+        );
     }
 
     void check_vector(
@@ -155,7 +161,13 @@ namespace cursor_utils {
             (TypeReflection::ScalarType)type->getScalarType(),
             scalar_type
         );
-        SGL_UNUSED(size);
+        SGL_CHECK(
+            type_layout->getSize() >= size,
+            "Mismatched size, writing {} B into backend type ({}) of only {} B.",
+            size,
+            type_layout->getName(),
+            type_layout->getSize()
+        );
     }
 
     void check_matrix(
@@ -192,7 +204,13 @@ namespace cursor_utils {
             (TypeReflection::ScalarType)type->getScalarType(),
             scalar_type
         );
-        SGL_UNUSED(size);
+        SGL_CHECK(
+            type_layout->getSize() >= size,
+            "Mismatched size, writing {} B into backend type ({}) of only {} B.",
+            size,
+            type_layout->getName(),
+            type_layout->getSize()
+        );
     }
 
 
