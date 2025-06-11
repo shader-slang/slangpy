@@ -37,6 +37,8 @@ CMAKE_PRESET = {
     "macos": "macos-arm64-clang",
 }[PLATFORM]
 
+CMAKE_CONFIG = "RelWithDebInfo"
+
 # Check if native extension build is disabled
 NO_CMAKE_BUILD = os.environ.get("NO_CMAKE_BUILD") == "1"
 
@@ -78,7 +80,7 @@ class CMakeBuild(build_ext):
             CMAKE_PRESET,
             "-B",
             build_dir,
-            "-DCMAKE_DEFAULT_BUILD_TYPE=Release",
+            f"-DCMAKE_DEFAULT_BUILD_TYPE={CMAKE_CONFIG}",
             f"-DPython_ROOT_DIR:PATH={sys.prefix}",
             f"-DPython_FIND_REGISTRY:STRING=NEVER",
             f"-DCMAKE_INSTALL_PREFIX={extdir}",
@@ -99,8 +101,12 @@ class CMakeBuild(build_ext):
 
         # Configure, build and install
         subprocess.run(["cmake", *cmake_args], env=env, check=True)
-        subprocess.run(["cmake", "--build", build_dir], env=env, check=True)
-        subprocess.run(["cmake", "--install", build_dir], env=env, check=True)
+        subprocess.run(
+            ["cmake", "--build", build_dir, "--config", CMAKE_CONFIG], env=env, check=True
+        )
+        subprocess.run(
+            ["cmake", "--install", build_dir, "--config", CMAKE_CONFIG], env=env, check=True
+        )
 
         # Remove files that are not needed
         for file in ["slang-rhi.lib"]:

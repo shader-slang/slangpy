@@ -37,6 +37,10 @@ Wrapper flattenMatrix<int R, int C>(matrix<float, R, C> mat){
     }
     return res;
 }
+
+matrix<float, R, C> matFunc1<int R, int C>(matrix<float, R, C> input){
+    return input + 2.0f;
+}
 """
 
 
@@ -161,8 +165,8 @@ def test_return_numpy_matrix(device_type: DeviceType):
 
     module = load_test_module(device_type)
 
-    for R in range(2, 4):
-        for C in range(2, 4):
+    for R in range(2, 5):
+        for C in range(2, 5):
             funName = f"matFunc<{R}, {C}>"
             func = module.find_function(funName)
             assert func is not None
@@ -177,8 +181,8 @@ def test_return_numpy_matrix(device_type: DeviceType):
 def test_setup_numpy_matrix(device_type: DeviceType):
 
     module = load_test_module(device_type)
-    for R in range(2, 4):
-        for C in range(2, 4):
+    for R in range(2, 5):
+        for C in range(2, 5):
             funName = f"flattenMatrix<{R}, {C}>"
             func = module.find_function(funName)
             assert func is not None
@@ -187,6 +191,26 @@ def test_setup_numpy_matrix(device_type: DeviceType):
 
             assert res is not None
             assert np.allclose(res["data"][0 : R * C], np.ones(R * C))
+
+
+# test that we can use "numpy" as the result type for a function that returns a matrix
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_numpy_matrix_as_result(device_type: DeviceType):
+
+    module = load_test_module(device_type)
+
+    for R in range(2, 5):
+        for C in range(2, 5):
+            funName = f"matFunc1<{R}, {C}>"
+            func = module.find_function(funName)
+            assert func is not None
+            matType = getattr(spy, f"float{R}x{C}")
+            N = R * C
+            res = func(matType(np.arange(1, N + 1).reshape(R, C)), _result="numpy")
+
+            assert res is not None
+            assert res.shape == (R, C)
+            assert np.allclose(res, (np.arange(1, N + 1) + 2.0).reshape(R, C))
 
 
 if __name__ == "__main__":

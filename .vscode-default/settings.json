@@ -4,8 +4,6 @@
     },
     "cmake.configureOnEdit": false,
     "cmake.options.statusBarVisibility": "visible",
-    "C_Cpp.clang_format_path": "${workspaceFolder}/tools/host/clang-format/clang-format",
-    "slang.format.clangFormatLocation": "${workspaceFolder}/tools/host/clang-format/clang-format",
     "cmake.configureOnOpen": false,
     "python.testing.pytestEnabled": true,
     "python.testing.pytestArgs": [

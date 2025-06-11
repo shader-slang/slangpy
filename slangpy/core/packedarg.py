@@ -1,12 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, cast
 from slangpy import Module
-from slangpy.core.native import (
-    get_value_signature,
-    CallMode,
-    NativePackedArg,
-    unpack_arg
-)
+from slangpy.core.native import get_value_signature, CallMode, NativePackedArg, unpack_arg
 from slangpy.bindings import get_or_create_type, BindContext
 import hashlib
 
@@ -37,9 +32,8 @@ class PackedArg(NativePackedArg):
 
         # Read full signature then turn into shorter hash
         full_signature = get_value_signature(python_object)
-        signature_hash = hashlib.sha256(full_signature.encode('utf-8')).hexdigest()[:16]
+        signature_hash = hashlib.sha256(full_signature.encode("utf-8")).hexdigest()[:16]
         self.slangpy_signature = f"PK[H:{signature_hash}]"
-
 
 
 def pack(module: Module, arg_value: Any) -> PackedArg:

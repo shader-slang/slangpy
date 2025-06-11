@@ -62,7 +62,7 @@ def numpy_to_slang_matrix_remove_padding(
             (slang_type.rows, slang_type.cols),
             dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[slang_type.slang_scalar_type],
         )
-        mat_remove_padding[:, : slang_type.cols] = mat_aligned
+        mat_remove_padding = mat_aligned[:, : slang_type.cols]
         return python_type(mat_remove_padding)
 
 

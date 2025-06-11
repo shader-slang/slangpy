@@ -345,7 +345,23 @@ public struct NDBuffer<T, let N : int>
         }
     }
 
-    public void store<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {}
+    public void store<let VD : int>(ContextND<N - 1> context, in vector<T, VD> value) {}
+
+    public void load<let R : int, let C: int>(ContextND<N - 2> context, out matrix<T, R, C> value) {
+        int call_id[N];
+        for (int i = 0; i < N - 2; i++) { call_id[i] = context.call_id[i]; }
+
+        for (int r = 0; r < R; r++)
+        {
+            call_id[N - 2] = r;
+            for (int vi = 0; vi < C; vi++) {
+                call_id[N - 1] = vi;
+                value[r][vi] = get(call_id);
+            }
+        }
+    }
+
+    public void store<let R : int, let C: int>(ContextND<N - 2> context, in matrix<T, R, C> value) {}
 }
 
 public struct RWNDBuffer<T, let N : int>
@@ -403,6 +419,34 @@ public struct RWNDBuffer<T, let N : int>
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
             set(call_id, value[vi]);
+        }
+    }
+
+    public void load<let R : int, let C: int>(ContextND<N - 2> context, out matrix<T, R, C> value) {
+        int call_id[N];
+        for (int i = 0; i < N - 2; i++) { call_id[i] = context.call_id[i]; }
+
+        for (int r = 0; r < R; r++)
+        {
+            call_id[N - 2] = r;
+            for (int vi = 0; vi < C; vi++) {
+                call_id[N - 1] = vi;
+                value[r][vi] = get(call_id);
+            }
+        }
+    }
+
+    public void store<let R : int, let C: int>(ContextND<N - 2> context, in matrix<T, R, C> value) {
+        int call_id[N];
+        for (int i = 0; i < N - 2; i++) { call_id[i] = context.call_id[i]; }
+
+        for (int r = 0; r < R; r++)
+        {
+            call_id[N - 2] = r;
+            for (int vi = 0; vi < C; vi++) {
+                call_id[N - 1] = vi;
+                set(call_id, value[r][vi]);
+            }
         }
     }
 }

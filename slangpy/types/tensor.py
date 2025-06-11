@@ -123,14 +123,14 @@ class Tensor(NativeTensor):
         """
         Returns a new view of the tensor with the requested shape, following standard broadcasting rules.
         """
-        return super().broadcast_to(Shape(shape))
+        return cast(Tensor, super().broadcast_to(Shape(shape)))
 
     def view(self, shape: TShapeOrTuple, strides: TShapeOrTuple = Shape(), offset: int = 0):
         """
         Returns a new view of the tensor with the requested shape, strides and offset
         The offset is in elements (not bytes) and is specified relative to the current offset
         """
-        return super().view(Shape(shape), Shape(strides), offset)
+        return cast(Tensor, super().view(Shape(shape), Shape(strides), offset))
 
     def __str__(self):
         return str(self.to_numpy())
@@ -176,7 +176,14 @@ class Tensor(NativeTensor):
         be read from grad_in (if not None). When differentiating a slang call that read inputs from a
         tensor, input gradients will be written to grad_out (if not None).
         """
-        return super().with_grads(grad_in, grad_out, zero)
+        return cast(Tensor, super().with_grads(grad_in, grad_out, zero))
+
+    def detach(self):
+        """
+        Returns a new tensor view with gradients detached. The returned tensor will not have any
+        gradients attached, and will not be differentiable.
+        """
+        return cast(Tensor, super().detach())
 
     def detach(self):
         """

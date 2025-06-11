@@ -135,8 +135,9 @@ set(SLANG_RHI_ENABLE_WGPU OFF)
 # TODO: We should rename SLANG_RHI_BUILD_FROM_SLANG_REPO to something more generic.
 # We want slang-rhi to support using a `slang` target that is provided from the outside.
 set(SLANG_RHI_BUILD_FROM_SLANG_REPO ON)
-set(SLANG_RHI_SLANG_INCLUDE_DIR ${SLANG_INCLUDE_DIR})
-set(SLANG_RHI_SLANG_BINARY_DIR ${SLANG_DIR})
+set(SLANG_RHI_FETCH_SLANG OFF)
+set(SLANG_RHI_SLANG_INCLUDE_DIR ${SLANG_INCLUDE_DIR} CACHE STRING "" FORCE)
+set(SLANG_RHI_SLANG_BINARY_DIR ${SLANG_DIR} CACHE STRING "" FORCE)
 add_subdirectory(slang-rhi)
 
 if(TARGET slang-rhi-nvapi)

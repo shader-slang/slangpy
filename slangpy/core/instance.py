@@ -22,7 +22,7 @@ class InstanceList:
             data = {
                 "_type": struct.full_name,
             }
-        elif isinstance(data,dict) and not "_type" in data:
+        elif isinstance(data, dict) and not "_type" in data:
             data["_type"] = struct.full_name
         self._loaded_functions: dict[str, FunctionNode] = {}
         self.set_data(data)
