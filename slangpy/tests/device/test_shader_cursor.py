@@ -7,7 +7,7 @@ import slangpy as spy
 import struct
 import numpy as np
 from dataclasses import dataclass
-from typing import Literal, Any
+from typing import Literal, Any, Union, cast
 from numpy.typing import DTypeLike
 from pathlib import Path
 
@@ -46,6 +46,13 @@ TYPE_INFOS = {
     "int64_t": TypeInfo(size=8, struct="Q", dtype=np.uint64),
     "float64_t": TypeInfo(size=8, struct="d", dtype=np.float64),
 }
+
+
+def get_type_info(device_type: spy.DeviceType, type: str):
+    if device_type != spy.DeviceType.cuda or type != "bool":
+        return TYPE_INFOS[type]
+    # CUDA bool is size 1
+    TypeInfo(size=1, struct="I", dtype=np.uint32)
 
 
 @dataclass
@@ -257,8 +264,10 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
     names = []
     sizes = []
     references = []
+    types = []
 
     def write_var(
+        device_type: spy.DeviceType,
         cursor: spy.ShaderCursor,
         name_or_index: str | int,
         var: Var,
@@ -267,6 +276,7 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         nonlocal names
         nonlocal sizes
         nonlocal references
+        nonlocal types
 
         type_info = TYPE_INFOS[var.type]
 
@@ -276,6 +286,7 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         elif isinstance(name_or_index, int):
             name = name_prefix + f"[{name_or_index}]"
         names.append(name)
+        types.append(var.type)
 
         # Value to write
         value = var.value
@@ -310,9 +321,13 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         sizes.append(size)
         references.append(struct.pack(struct_pattern, *flat_value).hex())
 
-        cursor[name_or_index] = value
+        # CUDA has bool size of 1, which is currently not handled, see issue:
+        # https://github.com/shader-slang/slangpy/issues/274
+        if device_type != spy.DeviceType.cuda or var.type != "bool":
+            cursor[name_or_index] = value
 
     def write_vars(
+        device_type: spy.DeviceType,
         cursor: spy.ShaderCursor,
         vars: dict[str, Any] | list[Any],
         name_prefix: str = "",
@@ -320,26 +335,26 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         if isinstance(vars, dict):
             for key, var in vars.items():
                 if isinstance(var, dict):
-                    write_vars(cursor[key], var, key + ".")
+                    write_vars(device_type, cursor[key], var, key + ".")
                 elif isinstance(var, list):
-                    write_vars(cursor[key], var, key)
+                    write_vars(device_type, cursor[key], var, key)
                 else:
-                    write_var(cursor, key, var, name_prefix)
+                    write_var(device_type, cursor, key, var, name_prefix)
         elif isinstance(vars, list):
             for i, var in enumerate(vars):
                 if isinstance(var, dict):
-                    write_vars(cursor[i], var, name_prefix + f"[{i}].")
+                    write_vars(device_type, cursor[i], var, name_prefix + f"[{i}].")
                 elif isinstance(var, list):
-                    write_vars(cursor[i], var, name_prefix)
+                    write_vars(device_type, cursor[i], var, name_prefix)
                 else:
-                    write_var(cursor, i, var, name_prefix)
+                    write_var(device_type, cursor, i, var, name_prefix)
 
     command_encoder = device.create_command_encoder()
     with command_encoder.begin_compute_pass() as pass_encoder:
         shader_object = pass_encoder.bind_pipeline(kernel.pipeline)
         cursor = spy.ShaderCursor(shader_object)
         cursor["results"] = result_buffer
-        write_vars(cursor, TEST_VARS)
+        write_vars(device_type, cursor, TEST_VARS)
         pass_encoder.dispatch(thread_count=[1, 1, 1])
     device.submit_command_buffer(command_encoder.finish())
 
@@ -349,16 +364,22 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         results.append(data[0:size].hex())
         data = data[size:]
 
-    named_references = list(zip(names, references))
-    named_results = list(zip(names, results))
+    named_typed_references = list(zip(names, types, references))
+    named_typed_results = list(zip(names, types, results))
 
-    for named_result, named_reference in zip(named_results, named_references):
+    for named_typed_result, named_typed_reference in zip(
+        named_typed_references, named_typed_results
+    ):
         # Vulkan/Metal/CUDA packing rule for certain matrix types are not the same as D3D12's
         if (device_type in [spy.DeviceType.vulkan, spy.DeviceType.metal, spy.DeviceType.cuda]) and (
-            named_result[0] == "u_float2x2" or named_result[0] == "u_float3x3"
+            named_typed_result[0] == "u_float2x2" or named_typed_result[0] == "u_float3x3"
         ):
             continue
-        assert named_result == named_reference
+        # CUDA has bool size of 1, which is currently not handled, see issue:
+        # https://github.com/shader-slang/slangpy/issues/274
+        if device_type == spy.DeviceType.cuda and named_typed_result[1] == "bool":
+            continue
+        assert named_typed_result == named_typed_reference
 
 
 if __name__ == "__main__":

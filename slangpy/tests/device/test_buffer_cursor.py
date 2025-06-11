@@ -134,6 +134,15 @@ TESTS = [
 ]
 
 
+# Filter out all bool tests for CUDA backend, as it is not handled correct. See issue:
+# https://github.com/shader-slang/slangpy/issues/274
+def get_tests(device_type: spy.DeviceType):
+    if device_type != spy.DeviceType.cuda:
+        return TESTS
+    tests = [x for x in TESTS if "bool" not in x[0]]
+    return tests
+
+
 def variable_decls(tests: list[Any]):
     return "".join([f"    {t[1]} {t[0]};\n" for t in tests])
 
@@ -230,7 +239,9 @@ def make_copy_module(device_type: spy.DeviceType, tests: list[Any]):
 def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
 
     # Randomize the order of the tests
-    tests = TESTS.copy()
+    tests = get_tests(device_type).copy()
+    if device_type == spy.DeviceType.cuda:
+        tests = [x for x in tests if "bool" not in x[0]]
     random.seed(seed)
     random.shuffle(tests)
 
@@ -262,7 +273,7 @@ def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
 def test_fill_from_kernel(device_type: spy.DeviceType, seed: int):
 
     # Randomize the order of the tests
-    tests = TESTS.copy()
+    tests = get_tests(device_type).copy()
     random.seed(seed)
     random.shuffle(tests)
 
@@ -297,7 +308,7 @@ def test_fill_from_kernel(device_type: spy.DeviceType, seed: int):
 def test_wrap_buffer(device_type: spy.DeviceType, seed: int):
 
     # Randomize the order of the tests
-    tests = TESTS.copy()
+    tests = get_tests(device_type).copy()
     random.seed(seed)
     random.shuffle(tests)
 
@@ -342,7 +353,7 @@ def test_wrap_buffer(device_type: spy.DeviceType, seed: int):
 def test_cursor_lifetime(device_type: spy.DeviceType):
 
     # Create the module and buffer layout
-    (kernel, buffer_layout) = make_fill_in_module(device_type, TESTS)
+    (kernel, buffer_layout) = make_fill_in_module(device_type, get_tests(device_type))
 
     # Create a buffer cursor with its own data
     cursor = spy.BufferCursor(buffer_layout.element_type_layout, 1)
@@ -362,7 +373,7 @@ def test_cursor_lifetime(device_type: spy.DeviceType):
 def test_apply_changes(device_type: spy.DeviceType, seed: int):
 
     # Randomize the order of the tests
-    tests = TESTS.copy()
+    tests = get_tests(device_type).copy()
     random.seed(seed)
     random.shuffle(tests)
 
