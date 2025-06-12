@@ -123,6 +123,7 @@ TEST_VARS = {
     "u_float2x4": Var(kind="matrix", type="float", value=[[0, 1, 2, 3], [4, 5, 6, 7]]),
     "u_float3x4": Var(kind="matrix", type="float", value=[[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]]),
     "u_float4x4": Var(kind="matrix", type="float", value=[[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]),
+    "pb_float4x4": Var(kind="matrix", type="float", value=[[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]),
     # float16_t
     "u_float16_t": Var(kind="scalar", type="float16_t", value=1.2345),
     "u_float16_t_min": Var(kind="scalar", type="float16_t", value=FLOAT16_MIN),

@@ -85,6 +85,7 @@ uniform float3x3 u_float3x3;
 uniform float2x4 u_float2x4;
 uniform float3x4 u_float3x4;
 uniform float4x4 u_float4x4;
+ParameterBlock<float4x4> pb_float4x4;
 
 uniform float16_t u_float16_t;
 uniform float16_t u_float16_t_min;
@@ -260,6 +261,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
     writer.write(u_float2x4);
     writer.write(u_float3x4);
     writer.write(u_float4x4);
+    writer.write(pb_float4x4);
 
     writer.write(u_float16_t);
     writer.write(u_float16_t_min);
