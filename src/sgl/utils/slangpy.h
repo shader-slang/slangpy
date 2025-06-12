@@ -163,6 +163,16 @@ public:
         }
     }
 
+    bool operator==(const Shape& o) const
+    {
+        if (valid() != o.valid())
+            return false;
+        if (!valid() && !o.valid())
+            return true;
+
+        return *m_shape == *o.m_shape;
+    }
+
 private:
     std::optional<std::vector<int>> m_shape;
 };

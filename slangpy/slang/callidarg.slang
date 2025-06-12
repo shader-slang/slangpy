@@ -20,6 +20,17 @@ public struct CallIdArg {
         }
     }
 
+    //Vector load (transpose of array load)
+    //TODO: Add array version of this, and see if we can support a version for any other size, not just N+1
+    public void load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out vector<T,N+1> value) {
+        var t = context.call_id;
+        int end = N - 1;
+        for (int i = 0; i < N; i++) {
+            value[end-i] = (T)t[i];
+        }
+        value[N] = (T)0; // Fill the last element with zero
+    }
+
     // Scalar load (works for N = 1)
     public void load<T : __BuiltinIntegerType>(ContextND<1> context, out T value) {
         value = (T)context.call_id[0];

@@ -402,6 +402,18 @@ void StridedBufferView::copy_from_numpy(nb::ndarray<nb::numpy> data)
     m_storage->set_data(data.data(), data_size, byte_offset);
 }
 
+void StridedBufferView::point_to(ref<StridedBufferView> target)
+{
+    SGL_CHECK(shape() == target->shape(), "Shape of existing and new view must match");
+    SGL_CHECK(usage() == target->usage(), "Usage flags of existing and new buffer must match");
+    SGL_CHECK(memory_type() == target->memory_type(), "Memory type of existing and new buffer must match");
+    SGL_CHECK(element_stride() == target->element_stride(), "Element size of new and existing data type must match");
+
+    desc().offset = target->offset();
+    desc().strides = target->strides();
+    m_storage = target->m_storage;
+}
+
 } // namespace sgl::slangpy
 
 SGL_PY_EXPORT(utils_slangpy_strided_buffer_view)
@@ -438,5 +450,6 @@ SGL_PY_EXPORT(utils_slangpy_strided_buffer_view)
         .def("to_numpy", &StridedBufferView::to_numpy, D_NA(StridedBufferView, to_numpy))
         .def("to_torch", &StridedBufferView::to_torch, D_NA(StridedBufferView, to_torch))
         .def("copy_from_numpy", &StridedBufferView::copy_from_numpy, "data"_a, D_NA(StridedBufferView, copy_from_numpy))
-        .def("is_contiguous", &StridedBufferView::is_contiguous, D_NA(&StridedBufferView, is_contiguous));
+        .def("is_contiguous", &StridedBufferView::is_contiguous, D_NA(&StridedBufferView, is_contiguous))
+        .def("point_to", &StridedBufferView::point_to, "target"_a, D_NA(&StridedBufferView, point_to));
 }
