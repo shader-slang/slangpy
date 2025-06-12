@@ -124,6 +124,8 @@ TEST_VARS = {
     "u_float3x4": Var(kind="matrix", type="float", value=[[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]]),
     "u_float4x4": Var(kind="matrix", type="float", value=[[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]),
     "pb_float4x4": Var(kind="matrix", type="float", value=[[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]),
+    "pb_float4x3": Var(kind="matrix", type="float", value=[[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]]),
+    "pb_float3x4": Var(kind="matrix", type="float", value=[[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]]),
     # float16_t
     "u_float16_t": Var(kind="scalar", type="float16_t", value=1.2345),
     "u_float16_t_min": Var(kind="scalar", type="float16_t", value=FLOAT16_MIN),
@@ -163,6 +165,31 @@ TEST_VARS = {
         "f_float2": Var(kind="vector", type="float", value=[1.23, 1.234]),
         "f_float3": Var(kind="vector", type="float", value=[1.23, 1.234, 1.2345]),
         "f_float4": Var(kind="vector", type="float", value=[1.23, 1.235, 1.23456, 1.234567]),
+        "f_float4x3": Var(kind="matrix", type="float", value=[[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]]),
+        "f_bool_array": Var(kind="array", type="bool", value=[False]),
+        "f_int_array": Var(kind="array", type="int", value=[-10, 10]),
+        "f_uint_array": Var(kind="array", type="uint", value=[0, 10, 20]),
+        "f_float_array": Var(kind="array", type="float", value=[0.1, 0.2, 0.3, 0.4]),
+    },
+    # pb_struct
+    "pb_struct": {
+        "f_bool": Var(kind="scalar", type="bool", value=True),
+        "f_bool2": Var(kind="vector", type="bool", value=[False, True]),
+        "f_bool3": Var(kind="vector", type="bool", value=[False, True, False]),
+        "f_bool4": Var(kind="vector", type="bool", value=[False, True, False, True]),
+        "f_int": Var(kind="scalar", type="int", value=-123),
+        "f_int2": Var(kind="vector", type="int", value=[-123, 123]),
+        "f_int3": Var(kind="vector", type="int", value=[-123, 123, -1234]),
+        "f_int4": Var(kind="vector", type="int", value=[-123, 123, -1234, 1234]),
+        "f_uint": Var(kind="scalar", type="uint", value=12),
+        "f_uint2": Var(kind="vector", type="uint", value=[123, 1234]),
+        "f_uint3": Var(kind="vector", type="uint", value=[123, 1234, 12345]),
+        "f_uint4": Var(kind="vector", type="uint", value=[123, 1235, 123456, 1234567]),
+        "f_float": Var(kind="scalar", type="float", value=1.2),
+        "f_float2": Var(kind="vector", type="float", value=[1.23, 1.234]),
+        "f_float3": Var(kind="vector", type="float", value=[1.23, 1.234, 1.2345]),
+        "f_float4": Var(kind="vector", type="float", value=[1.23, 1.235, 1.23456, 1.234567]),
+        "f_float4x3": Var(kind="matrix", type="float", value=[[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]]),
         "f_bool_array": Var(kind="array", type="bool", value=[False]),
         "f_int_array": Var(kind="array", type="int", value=[-10, 10]),
         "f_uint_array": Var(kind="array", type="uint", value=[0, 10, 20]),
@@ -226,6 +253,7 @@ def convert_matrix(type: str, rows: int, cols: int, values: Any):
     TABLE = {
         ("float", 2, 2): spy.float2x2,
         ("float", 3, 3): spy.float3x3,
+        ("float", 4, 3): spy.float4x3,
         ("float", 2, 4): spy.float2x4,
         ("float", 3, 4): spy.float3x4,
         ("float", 4, 4): spy.float4x4,
@@ -321,6 +349,10 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
     ):
         if isinstance(vars, dict):
             for key, var in vars.items():
+                # Disabling ParameterBlock tests on Vulkan, due to issue:
+                # https://github.com/shader-slang/slang/issues/7431
+                if device_type == spy.DeviceType.vulkan and key.startswith("pb_"):
+                    continue
                 if isinstance(var, dict):
                     write_vars(device_type, cursor[key], var, key + ".")
                 elif isinstance(var, list):
