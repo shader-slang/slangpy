@@ -7,6 +7,11 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.32.0 (TBA)
+----------------------------
+
+- Allow creating ``Bitmap`` from non-contiguous arrays.
+
 Version 0.31.0 (June 5, 2025)
 ----------------------------
 

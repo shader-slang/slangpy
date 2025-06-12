@@ -135,6 +135,19 @@ def test_bitmap_vflip():
     assert np.all(a == np.flip(img, 0))
 
 
+def test_bitmap_from_non_contiguous_array():
+    a = create_test_array(100, 100, 4, np.float32, (0.0, 1.0))
+    # Strided 2-dimensional array
+    b = Bitmap(a[:, :, 0].reshape((100, 100)))
+    assert np.all(np.array(b, copy=False) == a[:, :, 0])
+    # Strided 3-dimensional array with 1 channel
+    b = Bitmap(a[:, :, 0])
+    assert np.all(np.array(b, copy=False) == a[:, :, 0])
+    # Strided 3-dimensional array with 3 channels
+    b = Bitmap(a[:, :, 0:2])
+    assert np.all(np.array(b, copy=False) == a[:, :, 0:2])
+
+
 EXR_LAYOUTS = [
     (5, 10, Bitmap.PixelFormat.y, Bitmap.ComponentType.float16),
     (10, 20, Bitmap.PixelFormat.ya, Bitmap.ComponentType.float16),
