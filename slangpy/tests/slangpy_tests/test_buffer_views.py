@@ -244,6 +244,35 @@ def test_view_errors(device_type: DeviceType, buffer_type: Union[Type[Tensor], T
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_point_to(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+
+    # Create two identical buffers with different random data
+    data_a = np.random.rand(16, 16, 16)
+    data_b = np.random.rand(16, 16, 16)
+
+    tensor_a = Tensor.from_numpy(device, data_a)
+    tensor_b = Tensor.from_numpy(device, data_b)
+
+    # Take a slice from the first buffer
+    slice_a = tensor_a[5]
+    assert slice_a.shape == (16, 16)
+    assert slice_a.offset == 5 * 16 * 16
+
+    # Sanity check: Verify slice matches expected data
+    assert np.all(slice_a.to_numpy() == data_a[5])
+
+    # Retarget slice_a to point to a slice of data_b
+    slice_b = tensor_b[2]
+    slice_a.point_to(slice_b)
+
+    # Very shape is unchanged, but data reflects new view
+    assert slice_a.shape == (16, 16)
+    assert np.all(slice_a.to_numpy() == data_b[2])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
 def test_broadcast_to(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]):
 
