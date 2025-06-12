@@ -601,6 +601,13 @@ private:
     template<typename ValType>
     inline static void _write_scalar(CursorType& self, nb::object nbval)
     {
+        // Avoid warning about converting from numpy array to scalar
+        if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+            auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
+            auto val = *reinterpret_cast<ValType*>(nbarray.data());
+            self.set(val);
+            return;
+        }
         auto val = nb::cast<ValType>(nbval);
         self.set(val);
     }
