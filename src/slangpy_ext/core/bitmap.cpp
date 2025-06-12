@@ -94,7 +94,7 @@ SGL_PY_EXPORT(core_bitmap)
                     size_t dst_component_size = DataStruct::type_size(self->component_type());
                     size_t dst_row_stride = self->width() * self->bytes_per_pixel();
                     size_t dst_pixel_stride = self->bytes_per_pixel();
-                    size_t src_component_size = data.dtype().bits / 8;
+                    size_t src_component_size = data.itemsize();
                     size_t src_row_stride = data.stride(0) * src_component_size;
                     size_t src_pixel_stride = data.stride(1) * src_component_size;
                     if (data.ndim() == 2) {
