@@ -35,7 +35,7 @@ class TypeInfo:
 
 
 TYPE_INFOS = {
-    "bool": TypeInfo(size=4, struct="I", dtype=np.uint32),  # np.bool is 8 bits
+    "bool": TypeInfo(size=4, struct="I", dtype=np.bool_),  # np.bool is 8 bits
     "int": TypeInfo(size=4, struct="i", dtype=np.int32),
     "uint": TypeInfo(size=4, struct="I", dtype=np.uint32),
     "float": TypeInfo(size=4, struct="f", dtype=np.float32),
@@ -49,10 +49,7 @@ TYPE_INFOS = {
 
 
 def get_type_info(device_type: spy.DeviceType, type: str):
-    if device_type != spy.DeviceType.cuda or type != "bool":
-        return TYPE_INFOS[type]
-    # CUDA bool is size 1
-    TypeInfo(size=1, struct="I", dtype=np.uint32)
+    return TYPE_INFOS[type]
 
 
 @dataclass
@@ -321,10 +318,7 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         sizes.append(size)
         references.append(struct.pack(struct_pattern, *flat_value).hex())
 
-        # CUDA/Metal have bool size of 1, which is currently not handled, see issue:
-        # https://github.com/shader-slang/slangpy/issues/274
-        if device_type not in [spy.DeviceType.cuda, spy.DeviceType.metal] or var.type != "bool":
-            cursor[name_or_index] = value
+        cursor[name_or_index] = value
 
     def write_vars(
         device_type: spy.DeviceType,
@@ -375,13 +369,7 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
             named_typed_result[0] == "u_float2x2" or named_typed_result[0] == "u_float3x3"
         ):
             continue
-        # CUDA/Metal have bool size of 1, which is currently not handled, see issue:
-        # https://github.com/shader-slang/slangpy/issues/274
-        if (
-            device_type in [spy.DeviceType.cuda, spy.DeviceType.metal]
-            and named_typed_result[1] == "bool"
-        ):
-            continue
+
         assert named_typed_result == named_typed_reference
 
 

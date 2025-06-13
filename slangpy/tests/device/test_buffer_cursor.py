@@ -73,6 +73,12 @@ TESTS = [
         spy.float3x4([1.0, 2.0, 3.0, 4.0, -1.0, -2.0, -3.0, -4.0, 5.0, 6.0, 7.0, 8.0]),
     ),
     (
+        "f_float4x3",
+        "float4x3",
+        "float4x3(1.0, 2.0, 3.0, 4.0, -1.0, -2.0, -3.0, -4.0, 5.0, 6.0, 7.0, 8.0)",
+        spy.float4x3([1.0, 2.0, 3.0, 4.0, -1.0, -2.0, -3.0, -4.0, 5.0, 6.0, 7.0, 8.0]),
+    ),
+    (
         "f_float4x4",
         "float4x4",
         "float4x4(1.0, 2.0, 3.0, 4.0, -1.0, -2.0, -3.0, -4.0, 5.0, 6.0, 7.0, 8.0, -5.0, -6.0, -7.0, -8.0)",
@@ -231,13 +237,8 @@ TESTS = [
 ]
 
 
-# Filter out all bool tests for CUDA/Metal backend, as it is not handled correct. See issue:
-# https://github.com/shader-slang/slangpy/issues/274
 def get_tests(device_type: spy.DeviceType):
-    if device_type not in [spy.DeviceType.cuda, spy.DeviceType.metal]:
-        return TESTS
-    tests = [x for x in TESTS if "bool" not in x[0]]
-    return tests
+    return TESTS
 
 
 def variable_decls(tests: list[Any]):
@@ -529,6 +530,178 @@ def test_apply_changes(device_type: spy.DeviceType, seed: int):
         for test in tests:
             name = test[0]
             check_match(test, element[name].read())
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("seed", RAND_SEEDS)
+@pytest.mark.parametrize("element_class", [np.array, spy.bool2, tuple, list])
+def test_bool_buffers(device_type: spy.DeviceType, seed: int, element_class: Any):
+    code = f"""
+    [shader("compute")]
+    [numthreads(1, 1, 1)]
+    void compute_main(uint3 tid: SV_DispatchThreadID, StructuredBuffer<bool2> src, RWStructuredBuffer<bool2> dest) {{
+        uint i = tid.x;
+        dest[i] = src[i];
+    }}
+    """
+    mod_name = (
+        "test_buffer_cursor_TestBoolBuffers_" + hashlib.sha256(code.encode()).hexdigest()[0:8]
+    )
+    device = helpers.get_device(device_type)
+    module = device.load_module_from_source(mod_name, code)
+    prog = device.link_program([module], [module.entry_point("compute_main")])
+    buffer_layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<bool2>")
+    )
+    (kernel, buffer_layout) = (device.create_compute_kernel(prog), buffer_layout)
+
+    # Make a buffer with 128 elements and a cursor to wrap it
+    count = 128
+    src = kernel.device.create_buffer(
+        element_count=count,
+        struct_type=buffer_layout,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.zeros(buffer_layout.element_type_layout.stride * count, dtype=np.uint8),
+    )
+    dest = kernel.device.create_buffer(
+        element_count=count,
+        struct_type=buffer_layout,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.zeros(buffer_layout.element_type_layout.stride * count, dtype=np.uint8),
+    )
+    src_cursor = spy.BufferCursor(buffer_layout.element_type_layout, src)
+    dest_cursor = spy.BufferCursor(buffer_layout.element_type_layout, dest)
+
+    random.seed(seed)
+    list_data = [[random.randint(0, 1) == 1, random.randint(0, 1) == 1] for i in range(count)]
+    data = []
+    if element_class == np.array:
+        data = [element_class(x, dtype=np.bool_) for x in list_data]
+    elif element_class == spy.bool2:
+        data = [element_class(x) for x in list_data]
+    elif element_class == tuple:
+        data = [(x[0], x[1]) for x in list_data]
+    elif element_class == list:
+        data = list_data
+
+    for i in range(count):
+        src_cursor[i].write(data[i])
+
+    # Apply changes to source
+    src_cursor.apply()
+
+    # Dispatch the kernel
+    kernel.dispatch([count, 1, 1], src=src, dest=dest)
+
+    dest_cursor.load()
+    for i in range(count):
+        result = dest_cursor[i].read()
+        data_ref = spy.bool2(list_data[i])
+        src_ref = src_cursor[i].read()
+        assert result == data_ref
+        assert result == src_ref
+
+
+# test introduced to warn us when issue https://github.com/shader-slang/slang/issues/7441
+# has been resolved and the type information or the underlying types have changed.
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_boolX_reflection(device_type: spy.DeviceType):
+    code = f"""
+    [shader("compute")]
+    [numthreads(1, 1, 1)]
+    void compute_main(uint3 tid: SV_DispatchThreadID, StructuredBuffer<bool2> src, RWStructuredBuffer<bool2> dest) {{
+        uint i = tid.x;
+        dest[i] = src[i];
+    }}
+    """
+    mod_name = (
+        "test_buffer_cursor_test_boolX_reflection_" + hashlib.sha256(code.encode()).hexdigest()[0:8]
+    )
+    device = helpers.get_device(device_type)
+    module = device.load_module_from_source(mod_name, code)
+    prog = device.link_program([module], [module.entry_point("compute_main")])
+    sb_bool2_layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<bool2>")
+    )
+    pb_bool2_layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("ParameterBlock<bool2>")
+    )
+    u_bool2_layout = module.layout.get_type_layout(module.layout.find_type_by_name("bool2"))
+
+    sb_bool2_element_layout = sb_bool2_layout.element_type_layout
+    pb_bool2_element_layout = pb_bool2_layout.element_type_layout
+
+    def make_layout(type_layout: spy.TypeLayoutReflection):
+        return {
+            "size": type_layout.size,
+            "stride": type_layout.size,
+            "element_stride": type_layout.element_stride(),
+            "element_type_layout.size": type_layout.element_type_layout.size,
+            "element_type_layout.stride": type_layout.element_type_layout.stride,
+        }
+
+    def make_layout_ref():
+        if device_type == spy.DeviceType.d3d12:
+            return {
+                "size": 8,
+                "stride": 8,
+                "element_stride": 4,
+                "element_type_layout.size": 4,
+                "element_type_layout.stride": 4,
+            }
+        if device_type == spy.DeviceType.vulkan:
+            return {
+                "size": 8,
+                "stride": 8,
+                "element_stride": 4,
+                "element_type_layout.size": 4,
+                "element_type_layout.stride": 4,
+            }
+        if device_type == spy.DeviceType.metal:
+            return {
+                "size": 2,
+                "stride": 2,
+                "element_stride": 1,
+                "element_type_layout.size": 1,
+                "element_type_layout.stride": 1,
+            }
+        if device_type == spy.DeviceType.wgpu:
+            return {
+                "size": 8,
+                "stride": 8,
+                "element_stride": 4,
+                "element_type_layout.size": 4,
+                "element_type_layout.stride": 4,
+            }
+        if device_type == spy.DeviceType.cpu:
+            return {
+                "size": 2,
+                "stride": 2,
+                "element_stride": 1,
+                "element_type_layout.size": 1,
+                "element_type_layout.stride": 1,
+            }
+        # This is actually reporting wrong, see issue: https://github.com/shader-slang/slang/issues/7441
+        # Once that issue has been resolved, this test should trigger and workarounds can be removed
+        if device_type == spy.DeviceType.cuda:
+            return {
+                "size": 8,
+                "stride": 8,
+                "element_stride": 1,
+                "element_type_layout.size": 1,
+                "element_type_layout.stride": 1,
+            }
+
+    layout_descs = {
+        "u_bool2": make_layout(u_bool2_layout),
+        "sb_bool2_element": make_layout(sb_bool2_element_layout),
+        "pb_bool2_element": make_layout(pb_bool2_element_layout),
+    }
+
+    ref_desc = make_layout_ref()
+
+    for k, v in layout_descs.items():
+        assert v == ref_desc
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

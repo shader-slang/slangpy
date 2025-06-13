@@ -479,6 +479,69 @@ void ShaderCursor::set_cuda_tensor_view(const cuda::TensorView& tensor_view) con
     }
 }
 
+template<typename TDst, typename TSrc, typename Func>
+void ShaderCursor::write_data(
+    ShaderOffset dst_offset,
+    uint32_t dst_stride,
+    const void* src_data,
+    size_t src_stride,
+    size_t dimension,
+    Func&& convert
+) const
+{
+    const uint8_t* src_ptr = reinterpret_cast<const uint8_t*>(src_data);
+    for (size_t i = 0; i < dimension; ++i, dst_offset.uniform_offset += dst_stride, src_ptr += src_stride) {
+        const TDst& dst = convert(*reinterpret_cast<const TSrc*>(src_ptr));
+        m_shader_object->set_data(dst_offset, &dst, sizeof(TDst));
+    }
+}
+
+void ShaderCursor::set_bool_array(const void* data, size_t src_size, size_t element_count) const
+{
+    size_t src_element_size = src_size / element_count;
+    size_t src_element_stride = src_element_size;
+    size_t dst_element_size = m_type_layout->getElementTypeLayout()->getSize();
+    uint32_t dst_element_stride
+        = narrow_cast<uint32_t>(m_type_layout->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM));
+
+    if (m_type_layout->getSize() == src_size) {
+        m_shader_object->set_data(m_offset, data, src_size);
+        return;
+    }
+
+    if (src_element_size == 1) // cpu bool
+    {
+        if (dst_element_size == 4) // d4d12, vulkan
+        {
+            write_data<uint32_t, bool>(
+                m_offset,
+                dst_element_stride,
+                data,
+                src_element_stride,
+                element_count,
+                [](bool b) -> uint32_t { return b ? 1 : 0; }
+            );
+            return;
+        } else if (dst_element_size == 1) // cuda, metal
+        {
+            write_data<uint8_t, bool>(
+                m_offset,
+                dst_element_stride,
+                data,
+                src_element_stride,
+                element_count,
+                [](bool b) -> uint8_t { return b ? 1 : 0; }
+            );
+            return;
+        }
+    }
+    SGL_THROW(
+        "Invalid configuration of bool array write, source is {}B, device is {}B.",
+        src_element_size,
+        dst_element_size
+    );
+}
+
 void ShaderCursor::_set_array(
     const void* data,
     size_t size,
@@ -486,8 +549,11 @@ void ShaderCursor::_set_array(
     size_t element_count
 ) const
 {
-    slang::TypeReflection* element_type = cursor_utils::unwrap_array(m_type_layout)->getType();
-    size_t element_size = cursor_utils::get_scalar_type_size((TypeReflection::ScalarType)element_type->getScalarType());
+    if (scalar_type == TypeReflection::ScalarType::bool_)
+        return set_bool_array(data, size, element_count);
+
+    slang::TypeLayoutReflection* element_type_layout = cursor_utils::unwrap_array(m_type_layout);
+    size_t element_size = element_type_layout->getSize();
 
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
     cursor_utils::check_array(m_type_layout, size, scalar_type, element_count);
@@ -510,8 +576,11 @@ void ShaderCursor::_set_array(
 
 void ShaderCursor::_set_array_unsafe(const void* data, size_t size, size_t element_count) const
 {
-    slang::TypeReflection* element_type = cursor_utils::unwrap_array(m_type_layout)->getType();
-    size_t element_size = cursor_utils::get_scalar_type_size((TypeReflection::ScalarType)element_type->getScalarType());
+    slang::TypeLayoutReflection* element_type_layout = cursor_utils::unwrap_array(m_type_layout);
+    size_t element_size = element_type_layout->getSize();
+
+    // Check that we are not writing too much memory.
+    SGL_ASSERT(size <= element_size * element_count);
 
     size_t stride = m_type_layout->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
     if (element_size == stride) {
@@ -565,12 +634,15 @@ void ShaderCursor::_set_matrix(
     if (rows > 1) {
         size_t mat_stride = m_type_layout->getStride();
         size_t row_stride = mat_stride / rows;
-
-        size_t row_size = size / rows;
-        ShaderOffset offset = m_offset;
-        for (int row = 0; row < rows; ++row) {
-            m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + row * row_size, row_size);
-            offset.uniform_offset += narrow_cast<uint32_t>(row_stride);
+        if (mat_stride == size) {
+            m_shader_object->set_data(m_offset, data, size);
+        } else {
+            size_t row_size = size / rows;
+            ShaderOffset offset = m_offset;
+            for (int row = 0; row < rows; ++row) {
+                m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + row * row_size, row_size);
+                offset.uniform_offset += narrow_cast<uint32_t>(row_stride);
+            }
         }
     } else {
         m_shader_object->set_data(m_offset, data, size);
@@ -714,66 +786,64 @@ SET_SCALAR(double, float64);
 template<>
 SGL_API void ShaderCursor::set(const bool& value) const
 {
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
+    if (slang_type_layout()->getSize() == 1) {
+        SGL_ASSERT_GE(slang_type_layout()->getSize(), sizeof(value));
         _set_scalar(&value, sizeof(value), TypeReflection::ScalarType::bool_);
         return;
     }
-#endif
     uint v = value ? 1 : 0;
+    SGL_ASSERT_GE(slang_type_layout()->getSize(), sizeof(v));
     _set_scalar(&v, sizeof(v), TypeReflection::ScalarType::bool_);
+}
+
+template<int N>
+void ShaderCursor::set_boolN(const sgl::math::vector<bool, N>& value) const
+{
+    /// Workaround for issue: https://github.com/shader-slang/slang/issues/7441
+    if (m_shader_object->device()->type() == DeviceType::cuda) {
+        sgl::math::vector<uint32_t, N> v;
+        for (int i = 0; i < N; ++i)
+            v[i] = value[i] ? 1 : 0;
+        set_data(&v, sizeof(v));
+        return;
+    }
+
+    if (slang_type_layout()->getElementTypeLayout()->getSize() == 1) {
+        SGL_ASSERT_GE(slang_type_layout()->getSize(), sizeof(value));
+        SGL_ASSERT_EQ(slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM), 1);
+        _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, N);
+        return;
+    }
+    sgl::math::vector<uint32_t, N> v;
+    for (int i = 0; i < N; ++i)
+        v[i] = value[i] ? 1 : 0;
+    SGL_ASSERT_GE(slang_type_layout()->getStride(), sizeof(v));
+    SGL_ASSERT_EQ(slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM), sizeof(uint32_t));
+    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, N);
 }
 
 template<>
 SGL_API void ShaderCursor::set(const bool1& value) const
 {
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
-        _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 1);
-        return;
-    }
-#endif
-    uint1 v(value.x ? 1 : 0);
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
+    set_boolN(value);
 }
 
 template<>
 SGL_API void ShaderCursor::set(const bool2& value) const
 {
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
-        _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 2);
-        return;
-    }
-#endif
-    uint2 v = {value.x ? 1 : 0, value.y ? 1 : 0};
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 2);
+    set_boolN(value);
 }
 
 template<>
 SGL_API void ShaderCursor::set(const bool3& value) const
 {
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
-        _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 3);
-        return;
-    }
-#endif
-    uint3 v = {value.x ? 1 : 0, value.y ? 1 : 0, value.z ? 1 : 0};
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 3);
+    set_boolN(value);
 }
 
 template<>
 SGL_API void ShaderCursor::set(const bool4& value) const
 {
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
-        _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 4);
-        return;
-    }
-#endif
-    uint4 v = {value.x ? 1 : 0, value.y ? 1 : 0, value.z ? 1 : 0, value.w ? 1 : 0};
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 4);
+    set_boolN(value);
 }
 
 } // namespace sgl

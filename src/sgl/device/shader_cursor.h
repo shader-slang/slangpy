@@ -89,6 +89,21 @@ public:
     void _set_matrix(const void* data, size_t size, TypeReflection::ScalarType scalar_type, int rows, int cols) const;
 
 private:
+    void set_bool_array(const void* data, size_t size, size_t element_count) const;
+
+    template<int N>
+    void set_boolN(const sgl::math::vector<bool, N>& value) const;
+
+    template<typename TDst, typename TSrc, typename Func>
+    void write_data(
+        ShaderOffset dst_offset,
+        uint32_t dst_stride,
+        const void* src_data,
+        size_t src_stride,
+        size_t dimension,
+        Func&& convert
+    ) const;
+
     slang::TypeLayoutReflection* m_type_layout;
     ShaderObject* m_shader_object{nullptr};
     ShaderOffset m_offset;

@@ -131,6 +131,12 @@ SGL_PY_EXPORT(device_reflection)
             D(TypeLayoutReflection, element_type_layout)
         )
         .def("unwrap_array", &TypeLayoutReflection::unwrap_array, D(TypeLayoutReflection, unwrap_array))
+        .def(
+            "element_stride",
+            &TypeLayoutReflection::element_stride,
+            "category"_a = TypeReflection::ParameterCategory::uniform,
+            D(TypeLayoutReflection, element_stride)
+        )
         .def("__repr__", &TypeLayoutReflection::to_string);
 
     bind_list_type<TypeLayoutReflectionFieldList>(m, "TypeLayoutReflectionFieldList", D(TypeLayoutReflectionFieldList));

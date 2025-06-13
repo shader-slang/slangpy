@@ -154,7 +154,7 @@ extension bool : IWritable
 {
     void write(inout Writer writer)
     {
-        writer.buffer[writer.offset++] = asuint(this);
+        writer.buffer[writer.offset++] = (this) ? 1u : 0u;
     }
 }
 

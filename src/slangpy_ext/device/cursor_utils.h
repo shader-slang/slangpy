@@ -55,6 +55,8 @@ inline std::optional<TypeReflection::ScalarType> dtype_to_scalar_type(nb::dlpack
         case 64:
             return TypeReflection::ScalarType::float64;
         }
+    case uint8_t(nb::dlpack::dtype_code::Bool):
+        return TypeReflection::ScalarType::bool_;
         break;
     }
     return {};
@@ -518,6 +520,13 @@ private:
         }
         case TypeReflection::Kind::constant_buffer:
         case TypeReflection::Kind::parameter_block:
+            if constexpr (requires { self.dereference(); }) {
+                // Unwrap constant buffers or parameter blocks for shader cursors
+                auto child = self.dereference();
+                write_internal(child, nbval);
+                return;
+            } else
+                SGL_THROW("constant_buffer and param_block not expected in BufferElementCursor");
         case TypeReflection::Kind::struct_: {
             // Unwrap constant buffers or parameter blocks
             if (kind != TypeReflection::Kind::struct_)
@@ -561,7 +570,7 @@ private:
                 self._set_array(
                     nbarray.data(),
                     nbarray.nbytes(),
-                    (TypeReflection::ScalarType)type_layout->getElementTypeLayout()->getType()->getScalarType(),
+                    *dtype_to_scalar_type(nbarray.dtype()),
                     narrow_cast<int>(nbarray.shape(0))
                 );
                 return;
@@ -622,15 +631,6 @@ private:
         self.set(val);
     }
 
-    /// Version of vector write specifically for bool vectors (which are stored as uint32_t)
-    template<typename ValType>
-        requires IsSpecializationOfVector<ValType>
-    inline static void _write_bool_vector_from_numpy(CursorType& self, nb::ndarray<nb::numpy> nbarray)
-    {
-        SGL_CHECK(nbarray.nbytes() == ValType::dimension * 4, "numpy array has wrong size.");
-        self._set_vector(nbarray.data(), nbarray.nbytes(), TypeReflection::ScalarType::bool_, ValType::dimension);
-    }
-
     /// Write vector value to buffer element cursor from Python object
     template<typename ValType>
         requires IsSpecializationOfVector<ValType>
@@ -682,7 +682,7 @@ private:
             for (size_t i = 0; i < nbarray.ndim(); ++i)
                 dimension *= nbarray.shape(i);
             SGL_CHECK(dimension == ValType::dimension, "numpy array has wrong dimension.");
-            _write_bool_vector_from_numpy<ValType>(self, nbarray);
+            _write_vector_from_numpy<ValType>(self, nbarray);
         } else if (nb::isinstance<nb::sequence>(nbval)) {
             // A list or tuple. Attempt to cast each element of list to element of vector.
             auto seq = nb::cast<nb::sequence>(nbval);

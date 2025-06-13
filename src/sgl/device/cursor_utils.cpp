@@ -23,12 +23,13 @@ namespace cursor_utils {
             };
 
             using ST = TypeReflection::ScalarType;
+            // bool can be converted to 32 or 8b int types, but needs additional size check.
             add_conversion(ST::int32, ST::uint32, ST::bool_);
             add_conversion(ST::uint32, ST::int32, ST::bool_);
             add_conversion(ST::int64, ST::uint64);
             add_conversion(ST::uint64, ST::int64);
-            add_conversion(ST::int8, ST::uint8);
-            add_conversion(ST::uint8, ST::int8);
+            add_conversion(ST::int8, ST::uint8, ST::bool_);
+            add_conversion(ST::uint8, ST::int8, ST::bool_);
             add_conversion(ST::int16, ST::uint16);
             add_conversion(ST::uint16, ST::int16);
         }
@@ -47,30 +48,6 @@ namespace cursor_utils {
         return table.allow_conversion(from, to);
     }
 
-    size_t get_scalar_type_size(TypeReflection::ScalarType type)
-    {
-        switch (type) {
-        case TypeReflection::ScalarType::int8:
-        case TypeReflection::ScalarType::uint8:
-            return 1;
-        case TypeReflection::ScalarType::int16:
-        case TypeReflection::ScalarType::uint16:
-        case TypeReflection::ScalarType::float16:
-            return 2;
-        case TypeReflection::ScalarType::bool_:
-        case TypeReflection::ScalarType::int32:
-        case TypeReflection::ScalarType::uint32:
-        case TypeReflection::ScalarType::float32:
-            return 4;
-        case TypeReflection::ScalarType::int64:
-        case TypeReflection::ScalarType::uint64:
-        case TypeReflection::ScalarType::float64:
-            return 8;
-        default:
-            return 0;
-        }
-    }
-
     slang::TypeLayoutReflection* unwrap_array(slang::TypeLayoutReflection* layout)
     {
         while (layout->isArray()) {
@@ -80,136 +57,171 @@ namespace cursor_utils {
     }
 
     void check_array(
-        slang::TypeLayoutReflection* type_layout,
-        size_t size,
-        TypeReflection::ScalarType scalar_type,
-        size_t element_count
+        slang::TypeLayoutReflection* dst_type_layout,
+        size_t src_size,
+        TypeReflection::ScalarType src_scalar_type,
+        size_t src_element_count
     )
     {
-        slang::TypeReflection* type = type_layout->getType();
-        slang::TypeReflection* element_type = unwrap_array(type_layout)->getType();
-        size_t element_size = get_scalar_type_size((TypeReflection::ScalarType)element_type->getScalarType());
+        slang::TypeLayoutReflection* element_type_layout = unwrap_array(dst_type_layout);
+        size_t dst_element_size = element_type_layout->getSize();
+        size_t src_element_size = src_size / src_element_count;
 
-        SGL_CHECK(type->isArray(), "\"{}\" cannot bind an array", type_layout->getName());
+        SGL_CHECK(dst_type_layout->isArray(), "\"{}\" cannot bind an array", dst_type_layout->getName());
         SGL_CHECK(
-            allow_scalar_conversion(scalar_type, (TypeReflection::ScalarType)element_type->getScalarType()),
-            "\"{}\" expects scalar type {} (no implicit conversion from type {})",
-            type_layout->getName(),
-            (TypeReflection::ScalarType)element_type->getScalarType(),
-            scalar_type
+            dst_element_size == src_element_size
+                && allow_scalar_conversion(
+                    src_scalar_type,
+                    (TypeReflection::ScalarType)element_type_layout->getScalarType()
+                ),
+            "\"{}\" expects scalar type {} ({}B) (no implicit conversion from type {} ({}B))",
+            dst_type_layout->getName(),
+            (TypeReflection::ScalarType)element_type_layout->getScalarType(),
+            dst_element_size,
+            src_scalar_type,
+            src_element_size
         );
         SGL_CHECK(
-            element_count <= type->getElementCount(),
+            src_element_count == dst_type_layout->getElementCount(),
             "\"{}\" expects an array with at most {} elements (got {})",
-            type_layout->getName(),
-            type->getElementCount(),
-            element_count
+            dst_type_layout->getName(),
+            dst_type_layout->getElementCount(),
+            src_element_count
         );
-        SGL_ASSERT(element_count * element_size == size);
+        SGL_ASSERT(src_element_count * dst_element_size == src_size);
     }
 
-    void check_scalar(slang::TypeLayoutReflection* type_layout, size_t size, TypeReflection::ScalarType scalar_type)
+    void check_scalar(
+        slang::TypeLayoutReflection* dst_type_layout,
+        size_t src_size,
+        TypeReflection::ScalarType src_scalar_type
+    )
     {
-        slang::TypeReflection* type = unwrap_array(type_layout)->getType();
+        size_t dst_size = dst_type_layout->getSize();
 
         SGL_CHECK(
-            (TypeReflection::Kind)type->getKind() == TypeReflection::Kind::scalar,
+            (TypeReflection::Kind)dst_type_layout->getKind() == TypeReflection::Kind::scalar,
             "\"{}\" cannot bind a scalar value",
-            type_layout->getName()
+            dst_type_layout->getName()
         );
         SGL_CHECK(
-            allow_scalar_conversion(scalar_type, (TypeReflection::ScalarType)type->getScalarType()),
-            "\"{}\" expects scalar type {} (no implicit conversion from type {})",
-            type_layout->getName(),
-            (TypeReflection::ScalarType)type->getScalarType(),
-            scalar_type
+            dst_size == src_size
+                && allow_scalar_conversion(
+                    src_scalar_type,
+                    (TypeReflection::ScalarType)dst_type_layout->getScalarType()
+                ),
+            "\"{}\" expects scalar type {} ({}B) (no implicit conversion from type {} ({}B))",
+            dst_type_layout->getName(),
+            (TypeReflection::ScalarType)dst_type_layout->getScalarType(),
+            dst_size,
+            src_scalar_type,
+            src_size
         );
         SGL_CHECK(
-            type_layout->getSize() >= size,
+            src_size <= dst_type_layout->getSize(),
             "Mismatched size, writing {} B into backend type ({}) of only {} B.",
-            size,
-            type_layout->getName(),
-            type_layout->getSize()
+            src_size,
+            dst_type_layout->getName(),
+            dst_type_layout->getSize()
         );
     }
 
     void check_vector(
-        slang::TypeLayoutReflection* type_layout,
-        size_t size,
-        TypeReflection::ScalarType scalar_type,
-        int dimension
+        slang::TypeLayoutReflection* dst_type_layout,
+        size_t src_size,
+        TypeReflection::ScalarType src_scalar_type,
+        int src_dimension
     )
     {
-        slang::TypeReflection* type = unwrap_array(type_layout)->getType();
+        slang::TypeLayoutReflection* element_type_layout = dst_type_layout->getElementTypeLayout();
+        size_t dst_element_size = element_type_layout->getSize();
+        size_t src_element_size = src_size / src_dimension;
 
         SGL_CHECK(
-            (TypeReflection::Kind)type->getKind() == TypeReflection::Kind::vector,
+            (TypeReflection::Kind)dst_type_layout->getKind() == TypeReflection::Kind::vector,
             "\"{}\" cannot bind a vector value",
-            type_layout->getName()
+            dst_type_layout->getName()
         );
         SGL_CHECK(
-            type->getColumnCount() == uint32_t(dimension),
+            dst_type_layout->getColumnCount() == uint32_t(src_dimension),
             "\"{}\" expects a vector with dimension {} (got dimension {})",
-            type_layout->getName(),
-            type->getColumnCount(),
-            dimension
+            dst_type_layout->getName(),
+            dst_type_layout->getColumnCount(),
+            src_dimension
         );
         SGL_CHECK(
-            allow_scalar_conversion(scalar_type, (TypeReflection::ScalarType)type->getScalarType()),
-            "\"{}\" expects a vector with scalar type {} (no implicit conversion from type {})",
-            type_layout->getName(),
-            (TypeReflection::ScalarType)type->getScalarType(),
-            scalar_type
+            dst_element_size == src_element_size
+                && allow_scalar_conversion(
+                    src_scalar_type,
+                    (TypeReflection::ScalarType)dst_type_layout->getScalarType()
+                ),
+            "\"{}\" expects a vector with scalar type {} ({}B) (no implicit conversion from type {} ({}B))",
+            dst_type_layout->getName(),
+            (TypeReflection::ScalarType)element_type_layout->getScalarType(),
+            dst_element_size,
+            src_scalar_type,
+            src_element_size
         );
         SGL_CHECK(
-            type_layout->getSize() >= size,
+            src_size <= dst_type_layout->getSize(),
             "Mismatched size, writing {} B into backend type ({}) of only {} B.",
-            size,
-            type_layout->getName(),
-            type_layout->getSize()
+            src_size,
+            dst_type_layout->getName(),
+            dst_type_layout->getSize()
         );
     }
 
     void check_matrix(
-        slang::TypeLayoutReflection* type_layout,
-        size_t size,
-        TypeReflection::ScalarType scalar_type,
-        int rows,
-        int cols
+        slang::TypeLayoutReflection* dst_type_layout,
+        size_t src_size,
+        TypeReflection::ScalarType src_scalar_type,
+        int src_rows,
+        int src_cols
     )
     {
-        slang::TypeReflection* type = unwrap_array(type_layout)->getType();
+        // Element of `matrix` is a vector, so the `scalar` is element applied twice.
+        slang::TypeLayoutReflection* element_type_layout
+            = dst_type_layout->getElementTypeLayout()->getElementTypeLayout();
+        size_t dst_element_size = element_type_layout->getSize();
+        size_t src_element_size = src_size / (src_rows * src_cols);
 
         SGL_CHECK(
-            (TypeReflection::Kind)type->getKind() == TypeReflection::Kind::matrix,
+            (TypeReflection::Kind)dst_type_layout->getKind() == TypeReflection::Kind::matrix,
             "\"{}\" cannot bind a matrix value",
-            type_layout->getName()
+            dst_type_layout->getName()
         );
 
-        bool dimensionCondition = type->getRowCount() == uint32_t(rows) && type->getColumnCount() == uint32_t(cols);
+        bool dimensionCondition = dst_type_layout->getRowCount() == uint32_t(src_rows)
+            && dst_type_layout->getColumnCount() == uint32_t(src_cols);
 
         SGL_CHECK(
             dimensionCondition,
             "\"{}\" expects a matrix with dimension {}x{} (got dimension {}x{})",
-            type_layout->getName(),
-            type->getRowCount(),
-            type->getColumnCount(),
-            rows,
-            cols
+            dst_type_layout->getName(),
+            element_type_layout->getRowCount(),
+            element_type_layout->getColumnCount(),
+            src_rows,
+            src_cols
         );
         SGL_CHECK(
-            allow_scalar_conversion(scalar_type, (TypeReflection::ScalarType)type->getScalarType()),
-            "\"{}\" expects a matrix with scalar type {} (no implicit conversion from type {})",
-            type_layout->getName(),
-            (TypeReflection::ScalarType)type->getScalarType(),
-            scalar_type
+            dst_element_size == src_element_size
+                && allow_scalar_conversion(
+                    src_scalar_type,
+                    (TypeReflection::ScalarType)element_type_layout->getScalarType()
+                ),
+            "\"{}\" expects a matrix with scalar type {} ({}B) (no implicit conversion from type {} ({}B))",
+            dst_type_layout->getName(),
+            (TypeReflection::ScalarType)element_type_layout->getScalarType(),
+            dst_element_size,
+            src_scalar_type,
+            src_element_size
         );
         SGL_CHECK(
-            type_layout->getSize() >= size,
+            src_size <= dst_type_layout->getSize(),
             "Mismatched size, writing {} B into backend type ({}) of only {} B.",
-            size,
-            type_layout->getName(),
-            type_layout->getSize()
+            src_size,
+            dst_type_layout->getName(),
+            dst_type_layout->getSize()
         );
     }
 

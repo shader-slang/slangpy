@@ -8,8 +8,6 @@
 namespace sgl {
 
 namespace cursor_utils {
-    size_t get_scalar_type_size(TypeReflection::ScalarType type);
-
     slang::TypeLayoutReflection* unwrap_array(slang::TypeLayoutReflection* layout);
 
     void check_array(
