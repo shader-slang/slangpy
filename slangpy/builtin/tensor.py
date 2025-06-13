@@ -268,11 +268,13 @@ class TensorMarshall(NativeTensorMarshall):
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
 
-        if isinstance(binding.vector_type,ITensorType):
+        if isinstance(binding.vector_type, ITensorType):
             # If binding to a tensor type, we need to use the same basic tensor type. However
             # dimensionality may differ, we still need to generate the full tensor type name.
-            assert not binding.vector_type.name in  ("ITensor", "RWTensor")
-            type_name = f"{binding.vector_type.name}<{self.slang_element_type.full_name}, {self.dims}>"
+            assert not binding.vector_type.name in ("ITensor", "RWTensor")
+            type_name = (
+                f"{binding.vector_type.name}<{self.slang_element_type.full_name}, {self.dims}>"
+            )
         else:
             # If binding to another type (eg vectorizing to a scalar), the tensor type to use
             # is based on writability and existence of gradients.
@@ -280,8 +282,10 @@ class TensorMarshall(NativeTensorMarshall):
                 self.slang_element_type,
                 self.dims,
                 binding.access[0] in (AccessType.write, AccessType.readwrite),
-                self.d_in is not None and binding.access[1] in (AccessType.read, AccessType.readwrite),
-                self.d_out is not None and binding.access[1] in (AccessType.write, AccessType.readwrite),
+                self.d_in is not None
+                and binding.access[1] in (AccessType.read, AccessType.readwrite),
+                self.d_out is not None
+                and binding.access[1] in (AccessType.write, AccessType.readwrite),
             )
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 

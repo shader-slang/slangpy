@@ -130,7 +130,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
         const ref<NativeTensor>& grad_out = primal->grad_out();
 
         ShaderCursor primal_field = field.find_field("primal");
-        if(primal_field.is_valid()) {
+        if (primal_field.is_valid()) {
             // Record these pointers for debug checks
             Buffer* bound_primal_buffer = primal->storage().get();
             Buffer* bound_grad_in_buffer = nullptr;
@@ -155,13 +155,11 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
                 }
             }
 
-            if (bound_primal_buffer == bound_grad_in_buffer || bound_primal_buffer == bound_grad_out_buffer)
-            {
+            if (bound_primal_buffer == bound_grad_in_buffer || bound_primal_buffer == bound_grad_out_buffer) {
                 log_warn("Binding the same storage for primal and gradient on the same tensor. This will have serious "
                          "performance impacts.");
             }
-            if (bound_grad_in_buffer != nullptr && bound_grad_in_buffer == bound_grad_out_buffer)
-            {
+            if (bound_grad_in_buffer != nullptr && bound_grad_in_buffer == bound_grad_out_buffer) {
                 log_warn("Binding the same storage for grad in and grad out on the same tensor. This will have serious "
                          "performance impacts.");
             }
