@@ -2,6 +2,7 @@
 import numpy as np
 import pytest
 from slangpy import TextureDesc, TextureUsage
+from typing import Union
 
 from . import helpers
 from slangpy import InstanceBuffer, Module
@@ -274,7 +275,7 @@ def test_read_write_texture_with_resource_views(
     [TextureType.texture_1d, TextureType.texture_2d, TextureType.texture_3d],
 )
 @pytest.mark.parametrize("slices", [1, 4])
-@pytest.mark.parametrize("mips", [1])
+@pytest.mark.parametrize("mips", [ALL_MIPS, 1])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_copy_value(device_type: DeviceType, slices: int, mips: int, type: TextureType):
     m = load_test_module(device_type)
@@ -432,13 +433,13 @@ def test_texture_3d_shapes(device_type: DeviceType, shape: tuple[int, ...]):
     assert np.allclose(copied, tex_data)
 
 
-@pytest.mark.parametrize(
-    "texel_name", ["uint8_t", "uint16_t", "int8_t", "int16_t", "float", "half", "uint"]
-)
-@pytest.mark.parametrize("dims", [1, 2, 3])
-@pytest.mark.parametrize("channels", [1, 2, 4])
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: int, channels: int):
+def texture_return_value_impl(
+    device_type: DeviceType,
+    texel_name: str,
+    dims: int,
+    channels: int,
+    return_type: Union[str, type],
+):
     if texel_name in ("uint8_t", "int8_t") and device_type == DeviceType.d3d12:
         pytest.skip("8-bit types not supported by DXC")
 
@@ -460,7 +461,7 @@ def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: in
     buffer = NDBuffer(m.device, dtype, shape=shape)
     buffer.copy_from_numpy(data)
 
-    result = m.passthru.map(buffer.dtype)(buffer, _result=Texture)
+    result = m.passthru.map(buffer.dtype)(buffer, _result=return_type)
 
     assert isinstance(result, Texture)
     if dims == 1:
@@ -487,6 +488,28 @@ def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: in
     # result_np = result_np.transpose(order)
 
     assert np.allclose(result_np, data.squeeze())
+
+
+@pytest.mark.parametrize(
+    "texel_name", ["uint8_t", "uint16_t", "int8_t", "int16_t", "float", "half", "uint"]
+)
+@pytest.mark.parametrize("dims", [1, 2, 3])
+@pytest.mark.parametrize("channels", [1, 2, 4])
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: int, channels: int):
+    texture_return_value_impl(device_type, texel_name, dims, channels, Texture)
+
+
+# This case checks for when the return type is the string "texture".
+# This checks a subset of the "test_texture_return_value" parameters.
+@pytest.mark.parametrize("texel_name", ["float"])
+@pytest.mark.parametrize("dims", [1, 2, 3])
+@pytest.mark.parametrize("channels", [4])
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_return_value_str(
+    device_type: DeviceType, texel_name: str, dims: int, channels: int
+):
+    texture_return_value_impl(device_type, texel_name, dims, channels, "texture")
 
 
 if __name__ == "__main__":
