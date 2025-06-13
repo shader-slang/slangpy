@@ -211,10 +211,15 @@ class FunctionNode(NativeFunctionNode):
 
         # Handle specifying a command encoder to append to, rather than using the func.append_to
         # syntax.
-        app_to = kwargs.get("_append_to", None)
-        if isinstance(app_to, CommandEncoder):
+        if "_append_to" in kwargs:
+            app_to = kwargs["_append_to"]
             del kwargs["_append_to"]
-            return self.append_to(app_to, *args, **kwargs)
+            if app_to is not None:
+                if not isinstance(app_to, CommandEncoder):
+                    raise ValueError(
+                        f"Expected _append_to to be a CommandEncoder, got {type(app_to)}"
+                    )
+                return self.append_to(app_to, *args, **kwargs)
 
         try:
             return self._native_call(self.module.call_data_cache, *args, **kwargs)

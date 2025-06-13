@@ -62,6 +62,9 @@ def test_command_buffer(device_type: DeviceType, use_arg: bool):
     assert np.allclose(a_grad, 2 * a_data)
     assert np.allclose(b_grad, np.ones_like(b_data))
 
+    # Also check nothing dies when calling function directly with a None encoder
+    polynomial(a, b, _result=res, _append_to=None)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
