@@ -208,37 +208,44 @@ class FunctionNode(NativeFunctionNode):
         if isinstance(resval, (type, str)):
             del kwargs["_result"]
             return self.return_type(resval).call(*args, **kwargs)
-        else:
-            try:
-                return self._native_call(self.module.call_data_cache, *args, **kwargs)
-            except ValueError as e:
-                # If runtime returned useful information, reformat it and raise a new exception
-                # Otherwise just throw the original.
-                if (
-                    len(e.args) != 1
-                    or not isinstance(e.args[0], dict)
-                    or not "message" in e.args[0]
-                    or not "source" in e.args[0]
-                    or not "context" in e.args[0]
-                ):
-                    raise
-                from slangpy.bindings.boundvariableruntime import (
-                    BoundCallRuntime,
-                    BoundVariableRuntime,
-                )
-                from slangpy.core.native import NativeCallData
-                from slangpy.core.logging import bound_runtime_call_table
 
-                msg: str = e.args[0]["message"]
-                source: BoundVariableRuntime = e.args[0]["source"]
-                context: NativeCallData = e.args[0]["context"]
-                runtime = cast(BoundCallRuntime, context.runtime)
-                msg += (
-                    "\n\n"
-                    + bound_runtime_call_table(runtime, source)
-                    + "\n\nFor help and support: https://khr.io/slangdiscord"
-                )
-                raise ValueError(msg) from e
+        # Handle specifying a command encoder to append to, rather than using the func.append_to
+        # syntax.
+        app_to = kwargs.get("_append_to", None)
+        if isinstance(app_to, CommandEncoder):
+            del kwargs["_append_to"]
+            return self.append_to(app_to, *args, **kwargs)
+
+        try:
+            return self._native_call(self.module.call_data_cache, *args, **kwargs)
+        except ValueError as e:
+            # If runtime returned useful information, reformat it and raise a new exception
+            # Otherwise just throw the original.
+            if (
+                len(e.args) != 1
+                or not isinstance(e.args[0], dict)
+                or not "message" in e.args[0]
+                or not "source" in e.args[0]
+                or not "context" in e.args[0]
+            ):
+                raise
+            from slangpy.bindings.boundvariableruntime import (
+                BoundCallRuntime,
+                BoundVariableRuntime,
+            )
+            from slangpy.core.native import NativeCallData
+            from slangpy.core.logging import bound_runtime_call_table
+
+            msg: str = e.args[0]["message"]
+            source: BoundVariableRuntime = e.args[0]["source"]
+            context: NativeCallData = e.args[0]["context"]
+            runtime = cast(BoundCallRuntime, context.runtime)
+            msg += (
+                "\n\n"
+                + bound_runtime_call_table(runtime, source)
+                + "\n\nFor help and support: https://khr.io/slangdiscord"
+            )
+            raise ValueError(msg) from e
 
     def append_to(self, command_buffer: CommandEncoder, *args: Any, **kwargs: Any):
         """
