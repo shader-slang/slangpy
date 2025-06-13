@@ -13,10 +13,6 @@ import sglhelpers as helpers
 def test_print(device_type: spy.DeviceType):
     if device_type == spy.DeviceType.metal:
         pytest.skip("Slang bug https://github.com/shader-slang/slang/issues/6764")
-    if device_type == spy.DeviceType.cuda and (sys.platform == "linux" or sys.platform == "linux2"):
-        pytest.skip(
-            "Slang fails to find cuda_fp16.h header https://github.com/shader-slang/slang/issues/7037"
-        )
 
     device = spy.Device(type=device_type, enable_print=True)
     helpers.dispatch_compute(
