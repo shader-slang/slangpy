@@ -129,18 +129,46 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
         const ref<NativeTensor>& grad_in = primal->grad_in();
         const ref<NativeTensor>& grad_out = primal->grad_out();
 
-        if (!has_derivative()) {
-            write_shader_cursor_fields(context, binding, field, primal, read_back);
-        } else {
-            write_shader_cursor_fields(context, binding, field["primal"], primal, read_back);
+        ShaderCursor primal_field = field.find_field("primal");
+        if(primal_field.is_valid()) {
+            // Record these pointers for debug checks
+            Buffer* bound_primal_buffer = primal->storage().get();
+            Buffer* bound_grad_in_buffer = nullptr;
+            Buffer* bound_grad_out_buffer = nullptr;
+
+            // Binding to a Tensor object that contains child primal and derivative Tensors.
+            write_shader_cursor_fields(context, binding, primal_field, primal, read_back);
+
             if (m_d_in) {
-                SGL_CHECK(grad_in, "Missing required input gradients");
-                write_shader_cursor_fields(context, binding, field["d_in"], grad_in.get(), read_back);
+                ShaderCursor d_in_field = field.find_field("d_in");
+                if (d_in_field.is_valid()) {
+                    bound_grad_in_buffer = grad_in->storage().get();
+                    write_shader_cursor_fields(context, binding, d_in_field, grad_in.get(), read_back);
+                }
             }
+
             if (m_d_out) {
-                SGL_CHECK(grad_out, "Missing required input gradients");
-                write_shader_cursor_fields(context, binding, field["d_out"], grad_out.get(), read_back);
+                ShaderCursor d_out_field = field.find_field("d_out");
+                if (d_out_field.is_valid()) {
+                    bound_grad_out_buffer = grad_out->storage().get();
+                    write_shader_cursor_fields(context, binding, d_out_field, grad_out.get(), read_back);
+                }
             }
+
+            if (bound_primal_buffer == bound_grad_in_buffer || bound_primal_buffer == bound_grad_out_buffer)
+            {
+                log_warn("Binding the same storage for primal and gradient on the same tensor. This will have serious "
+                         "performance impacts.");
+            }
+            if (bound_grad_in_buffer != nullptr && bound_grad_in_buffer == bound_grad_out_buffer)
+            {
+                log_warn("Binding the same storage for grad in and grad out on the same tensor. This will have serious "
+                         "performance impacts.");
+            }
+
+        } else {
+            // Binding to a single Tensor object that represents the primal.
+            write_shader_cursor_fields(context, binding, field, primal, read_back);
         }
 
         if (context->call_mode() != CallMode::prim && grad_in && grad_in == grad_out) {

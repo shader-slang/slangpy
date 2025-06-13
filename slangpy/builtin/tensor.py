@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, cast
 
-from slangpy.core.native import AccessType, Shape
+from slangpy.core.native import AccessType, Shape, CallMode
 
 from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorType
 from slangpy.types.tensor import Tensor, innermost_type
@@ -195,18 +195,33 @@ class TensorMarshall(NativeTensorMarshall):
                     f"to tensor with element type {bound_type.dtype.full_name}"
                 )
 
-            # Atomic tensors are special, they must be passed as-is
-            if bound_type.name == "AtomicTensor":
-                return bound_type
+            # If binding to an interface, need to decide on tensor type based on call mode
+            if bound_type.name in ("ITensor", "RWTensor"):
+                if context.call_mode == CallMode.prim:
+                    # In forwards pass, bind a Tensor or RWTensor depending on writability
+                    return build_tensor_type(
+                        self.layout,
+                        bound_type.dtype,
+                        bound_type.dims,
+                        bound_type.writable,
+                        False,
+                        False,
+                    )
+                else:
+                    # If we are in a backward pass, no choice but to bind the full tensor
+                    # type as we don't have context at this point to know if it should be
+                    # GradIn/GradOut/GradInOutTensor
+                    return build_tensor_type(
+                        self.layout,
+                        bound_type.dtype,
+                        bound_type.dims,
+                        bound_type.writable,
+                        self.d_in is not None,
+                        self.d_out is not None,
+                    )
 
-            return build_tensor_type(
-                self.layout,
-                bound_type.dtype,
-                bound_type.dims,
-                bound_type.writable,
-                self.d_in is not None,
-                self.d_out is not None,
-            )
+            # None-interfaces have to be bound to the exact type
+            return bound_type
 
         # if implicit element casts enabled, allow conversion from type to element type
         if context.options["implicit_element_casts"]:
@@ -252,21 +267,21 @@ class TensorMarshall(NativeTensorMarshall):
             return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
-        if isinstance(binding.vector_type, ITensorType):
-            writable = binding.vector_type.writable
-        else:
-            writable = binding.access[0] in (AccessType.write, AccessType.readwrite)
 
-        # Atomic tensors are special, they must be passed as-is
-        if binding.vector_type.name == "AtomicTensor":
-            type_name = binding.vector_type.full_name
+        if isinstance(binding.vector_type,ITensorType):
+            # If binding to a tensor type, we need to use the same basic tensor type. However
+            # dimensionality may differ, we still need to generate the full tensor type name.
+            assert not binding.vector_type.name in  ("ITensor", "RWTensor")
+            type_name = f"{binding.vector_type.name}<{self.slang_element_type.full_name}, {self.dims}>"
         else:
+            # If binding to another type (eg vectorizing to a scalar), the tensor type to use
+            # is based on writability and existence of gradients.
             type_name = build_tensor_name(
                 self.slang_element_type,
                 self.dims,
-                writable,
-                self.d_in is not None,
-                self.d_out is not None,
+                binding.access[0] in (AccessType.write, AccessType.readwrite),
+                self.d_in is not None and binding.access[1] in (AccessType.read, AccessType.readwrite),
+                self.d_out is not None and binding.access[1] in (AccessType.write, AccessType.readwrite),
             )
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
