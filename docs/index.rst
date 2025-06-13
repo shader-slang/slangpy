@@ -56,6 +56,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
     :caption: Basics
 
     src/basics/firstfunctions
+    src/basics/returntype
     src/basics/buffers
     src/basics/textures
     src/basics/nested
