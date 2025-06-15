@@ -58,9 +58,9 @@ public:
      *
      * \param command_encoder Command encoder.
      * \param texture Texture to generate mipmaps for.
-     * \param array_layer Array layer to generate mipmaps for.
+     * \param layer Array layer to generate mipmaps for.
      */
-    void generate_mips(CommandEncoder* command_encoder, Texture* texture, uint32_t array_layer = 0);
+    void generate_mips(CommandEncoder* command_encoder, Texture* texture, uint32_t layer = 0);
 
 private:
     enum class TextureDataType {
