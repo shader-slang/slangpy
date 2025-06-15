@@ -46,9 +46,10 @@ public:
     void set_data(const void* data, size_t size);
 
     template<typename T>
-    void operator=(const T& value)
+    BufferElementCursor& operator=(const T& value)
     {
         set(value);
+        return *this;
     }
 
     template<typename T>

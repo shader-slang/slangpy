@@ -73,9 +73,10 @@ public:
     void set_cuda_tensor_view(const cuda::TensorView& tensor_view) const;
 
     template<typename T>
-    void operator=(const T& value) const
+    const ShaderCursor& operator=(const T& value) const
     {
         set(value);
+        return *this;
     }
 
     template<typename T>
