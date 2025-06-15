@@ -450,6 +450,13 @@ SGL_PY_EXPORT(device_command)
             D(CommandEncoder, blit, 2)
         )
         .def(
+            "generate_mips",
+            &CommandEncoder::generate_mips,
+            "texture"_a,
+            "layer"_a = 0,
+            D_NA(CommandEncoder, generate_mips)
+        )
+        .def(
             "resolve_query",
             &CommandEncoder::resolve_query,
             "query_pool"_a,
