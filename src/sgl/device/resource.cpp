@@ -575,8 +575,20 @@ ref<Bitmap> Texture::to_bitmap(uint32_t layer, uint32_t mip) const
     bitmap->set_srgb_gamma(info.is_srgb_format());
 
     // TODO would be better to avoid this extra copy
-    SGL_ASSERT(bitmap->buffer_size() == subresource_data.size);
-    std::memcpy(bitmap->data(), subresource_data.data, subresource_data.size);
+    size_t bitmap_row_pitch = bitmap->width() * bitmap->bytes_per_pixel();
+    if (subresource_data.row_pitch == bitmap_row_pitch) {
+        // If the row pitch matches the bitmap's row pitch, we can copy the entire data in one go.
+        std::memcpy(bitmap->data(), subresource_data.data, subresource_data.size);
+    } else {
+        // Otherwise copy each row separately to handle different row pitches.
+        uint8_t* dst = reinterpret_cast<uint8_t*>(bitmap->data());
+        const uint8_t* src = reinterpret_cast<const uint8_t*>(subresource_data.data);
+        for (uint32_t y = 0; y < height; ++y) {
+            std::memcpy(dst, src, bitmap_row_pitch);
+            dst += bitmap_row_pitch;
+            src += subresource_data.row_pitch;
+        }
+    }
 
     return bitmap;
 }
