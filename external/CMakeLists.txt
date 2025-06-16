@@ -131,6 +131,7 @@ endif()
 if(NOT SGL_LOCAL_SLANG AND SGL_SLANG_DEBUG_INFO)
     sgl_download_package(slang_debug_info ${SLANG_DEBUG_INFO_URL})
     if(SGL_WINDOWS)
+        # Note: The downloaded archive has single top-level 'bin' folder that is stripped out by FetchContent.
         sgl_copy_binary(${slang_debug_info_SOURCE_DIR}/slang.pdb .)
         sgl_copy_binary(${slang_debug_info_SOURCE_DIR}/slang-rt.pdb .)
     elseif(SGL_LINUX)
