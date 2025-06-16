@@ -11,11 +11,13 @@ macro(sgl_download_package name url)
     FetchContent_Declare(
         ${name}
         URL ${url}
+        SOURCE_SUBDIR _does_not_exist_ # avoid adding contained CMakeLists.txt
+        HTTP_HEADER "Authorization: token ${SLANG_GITHUB_TOKEN}"
     )
     FetchContent_GetProperties(${name})
     if(NOT ${name}_POPULATED)
         message(STATUS "Populating ${name} ...")
-        FetchContent_Populate(${name})
+        FetchContent_MakeAvailable(${name})
     endif()
 endmacro()
 
