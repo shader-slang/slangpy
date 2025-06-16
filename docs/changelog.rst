@@ -11,6 +11,7 @@ Version 0.32.0 (TBA)
 ----------------------------
 
 - Allow creating ``Bitmap`` from non-contiguous arrays.
+- Add ``sgl::CommandEncoder::generate_mips()`` (``slangpy.CommandEncoder.generate_mips()``) to generate mipmaps for textures.
 
 Version 0.31.0 (June 5, 2025)
 ----------------------------
