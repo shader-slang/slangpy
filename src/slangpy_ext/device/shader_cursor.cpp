@@ -45,6 +45,10 @@ namespace detail {
 
         bool write_value(ShaderCursor& self, nb::object nbval) override
         {
+            if (nbval.is_none()) {
+                return true;
+            }
+
             if (WriteConverterTable<ShaderCursor>::write_value(self, nbval))
                 return true;
 
