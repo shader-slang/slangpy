@@ -10,12 +10,14 @@ SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 Version 0.32.0 (TBA)
 ----------------------------
 
-- Allow creating ``Bitmap`` from non-contiguous arrays.
-  (PR `#282 <https://github.com/shader-slang/slangpy/pull/282>`__).
+- Add ``SGL_SLANG_DEBUG_INFO`` cmake variable to enable downloading Slang debug info (enabled by default).
+  (PR `#296 <https://github.com/shader-slang/slangpy/pull/296>`__).
 - Add ``sgl::CommandEncoder::generate_mips()`` (``slangpy.CommandEncoder.generate_mips()``) to generate mipmaps for textures.
   (PR `#293 <https://github.com/shader-slang/slangpy/pull/293>`__).
 - Add optional ``_append_to`` argument to slangpy call functions to append commands to an existing command encoder.
   (PR `#287 <https://github.com/shader-slang/slangpy/pull/287>`__).
+- Allow creating ``Bitmap`` from non-contiguous arrays.
+  (PR `#282 <https://github.com/shader-slang/slangpy/pull/282>`__).
 
 Version 0.31.0 (June 5, 2025)
 ----------------------------
