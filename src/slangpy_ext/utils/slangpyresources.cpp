@@ -16,11 +16,12 @@ Shape NativeBufferMarshall::get_shape(nb::object data) const
 {
     const Buffer* buffer;
     if (nb::try_cast<const Buffer*>(data, buffer)) {
-        std::vector<int> shape = {int(buffer->desc().size / buffer->desc().struct_size)};
-        return Shape(shape);
-    } else {
-        return Shape({-1});
+        if (buffer->desc().struct_size != 0) {
+            std::vector<int> shape = {int(buffer->desc().size / buffer->desc().struct_size)};
+            return Shape(shape);
+        }
     }
+    return Shape({-1});
 }
 
 void NativeBufferMarshall::write_shader_cursor_pre_dispatch(
