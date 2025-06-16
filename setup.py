@@ -95,7 +95,7 @@ class CMakeBuild(build_ext):
         if BUILD_RELEASE_WHEEL:
             cmake_args += [
                 "-DSGL_PROJECT_DIR=",
-                "-DSGL_SLANG_DEBUG_INFO=OFF",
+                "-DSGL_SLANG_DEBUG_INFO:BOOL=OFF",
             ]
 
         # Adding CMake arguments set as environment variable
