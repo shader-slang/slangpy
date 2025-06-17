@@ -420,6 +420,8 @@ private:
             } else {
                 SGL_THROW("Expected dict");
             }
+        default:
+            break;
         }
         }
 
