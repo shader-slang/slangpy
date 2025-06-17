@@ -116,6 +116,9 @@ public:
         _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, N);
     }
 
+protected:
+    CursorWriteWrappers() = default;
+
 private:
     void _set_data_internal(BaseCursorOffset offset, const void* data, size_t size) const
     {
@@ -214,6 +217,9 @@ public:
         for (int i = 0; i < N; ++i)
             value[i] = (v[i] != 0);
     }
+
+protected:
+    CursorReadWrappers() = default;
 
 private:
     void _get_data_internal(BaseCursorOffset offset, void* data, size_t size) const
