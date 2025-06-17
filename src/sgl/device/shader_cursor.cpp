@@ -514,8 +514,13 @@ void ShaderCursor::_set_data(ShaderOffset offset, const void* data, size_t size)
     m_shader_object->set_data(offset, data, size);
 }
 
+// Explicit instantiation of the methods
 template void
 CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_array(const void*, size_t, TypeReflection::ScalarType, size_t)
+    const;
+
+template void
+CursorWriteWrappers<BufferElementCursor, size_t>::_set_vector(const void*, size_t, TypeReflection::ScalarType, int)
     const;
 
 //

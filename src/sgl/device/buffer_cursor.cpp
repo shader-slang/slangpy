@@ -120,6 +120,10 @@ template void
 CursorWriteWrappers<BufferElementCursor, size_t>::_set_array(const void*, size_t, TypeReflection::ScalarType, size_t)
     const;
 
+template void
+CursorWriteWrappers<BufferElementCursor, size_t>::_set_vector(const void*, size_t, TypeReflection::ScalarType, int)
+    const;
+
 //
 // Setter specializations
 //
