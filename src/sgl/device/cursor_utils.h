@@ -10,28 +10,28 @@
 namespace sgl {
 
 namespace cursor_utils {
-    size_t SGL_API get_scalar_type_size(TypeReflection::ScalarType type);
+    SGL_API size_t get_scalar_type_size(TypeReflection::ScalarType type);
 
-    slang::TypeLayoutReflection* SGL_API unwrap_array(slang::TypeLayoutReflection* layout);
+    SGL_API slang::TypeLayoutReflection* unwrap_array(slang::TypeLayoutReflection* layout);
 
-    void SGL_API check_array(
+    SGL_API void check_array(
         slang::TypeLayoutReflection* type_layout,
         size_t size,
         TypeReflection::ScalarType scalar_type,
         size_t element_count
     );
 
-    void SGL_API
+    SGL_API void
     check_scalar(slang::TypeLayoutReflection* type_layout, size_t size, TypeReflection::ScalarType scalar_type);
 
-    void SGL_API check_vector(
+    SGL_API void check_vector(
         slang::TypeLayoutReflection* type_layout,
         size_t size,
         TypeReflection::ScalarType scalar_type,
         int dimension
     );
 
-    void SGL_API check_matrix(
+    SGL_API void check_matrix(
         slang::TypeLayoutReflection* type_layout,
         size_t size,
         TypeReflection::ScalarType scalar_type,
