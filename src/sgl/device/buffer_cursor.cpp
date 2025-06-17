@@ -115,6 +115,11 @@ void BufferElementCursor::set_data(const void* data, size_t size)
     write_data(m_offset, data, size);
 }
 
+DeviceType BufferElementCursor::_get_device_type() const
+{
+    return m_buffer->get_device_type();
+}
+
 // Explicit instantiation of the methods
 template void
 CursorWriteWrappers<BufferElementCursor, size_t>::_set_array(const void*, size_t, TypeReflection::ScalarType, size_t)
@@ -305,16 +310,18 @@ void BufferElementCursor::read_data(size_t offset, void* data, size_t size) cons
     m_buffer->read_data(offset, data, size);
 }
 
-BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, void* data, size_t size)
+BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, void* data, size_t size)
     : m_element_type_layout(std::move(element_layout))
+    , m_device_type(device_type)
     , m_buffer((uint8_t*)data)
     , m_size(size)
     , m_owner(false)
 {
 }
 
-BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, size_t element_count)
+BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, size_t element_count)
     : m_element_type_layout(std::move(element_layout))
+    , m_device_type(device_type)
 {
     m_size = element_count * m_element_type_layout->stride();
     m_buffer = new uint8_t[m_size];
@@ -323,6 +330,7 @@ BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, size_t elem
 
 BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, ref<Buffer> resource, bool load_before_write)
     : m_element_type_layout(std::move(element_layout))
+    , m_device_type(resource->device()->type())
 {
     m_resource = std::move(resource);
     m_size = m_resource->size();

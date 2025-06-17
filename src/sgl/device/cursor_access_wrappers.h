@@ -3,6 +3,7 @@
 #pragma once
 
 #include "sgl/device/fwd.h"
+#include "sgl/device/device.h"
 #include "sgl/device/reflection.h"
 #include "sgl/device/cursor_utils.h"
 
@@ -91,7 +92,7 @@ public:
     void _set_bool(const bool& value) const
     {
 #if SGL_MACOS
-        if (m_shader_object->device()->type() == DeviceType::metal) {
+        if (_get_device_type_internal == DeviceType::metal) {
             _set_scalar(&value, sizeof(value), TypeReflection::ScalarType::bool_);
             return;
         }
@@ -104,7 +105,7 @@ public:
     void _set_boolN(const sgl::math::vector<bool, N>& value) const
     {
 #if SGL_MACOS
-        if (m_shader_object->device()->type() == DeviceType::metal) {
+        if (_get_device_type_internal == DeviceType::metal) {
             _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 1);
             return;
         }
@@ -135,6 +136,8 @@ private:
     {
         return static_cast<const BaseCursor*>(this)->slang_type_layout();
     }
+
+    DeviceType _get_device_type_internal() const { return static_cast<const BaseCursor*>(this)->_get_device_type(); }
 };
 
 template<typename BaseCursor, typename TOffset>
@@ -193,7 +196,7 @@ public:
     void _get_bool(bool& value) const
     {
 #if SGL_MACOS
-        if (m_shader_object->device()->type() == DeviceType::metal) {
+        if (_get_device_type_internal == DeviceType::metal) {
             _get_scalar(&value, sizeof(value), TypeReflection::ScalarType::bool_);
             return;
         }
@@ -207,8 +210,8 @@ public:
     void _get_boolN(sgl::math::vector<bool, N>& value) const
     {
 #if SGL_MACOS
-        if (m_shader_object->device()->type() == DeviceType::metal) {
-            _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, N);
+        if (_get_device_type_internal == DeviceType::metal) {
+            _get_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, N);
             return;
         }
 #endif
@@ -237,6 +240,8 @@ private:
     {
         return static_cast<const BaseCursor*>(this)->slang_type_layout();
     }
+
+    DeviceType _get_device_type_internal() const { return static_cast<const BaseCursor*>(this)->_get_device_type(); }
 };
 
 

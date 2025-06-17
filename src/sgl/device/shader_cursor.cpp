@@ -514,6 +514,11 @@ void ShaderCursor::_set_data(ShaderOffset offset, const void* data, size_t size)
     m_shader_object->set_data(offset, data, size);
 }
 
+DeviceType ShaderCursor::_get_device_type() const
+{
+    return m_shader_object->device()->type();
+}
+
 // Explicit instantiation of the methods
 template void
 CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_array(const void*, size_t, TypeReflection::ScalarType, size_t)

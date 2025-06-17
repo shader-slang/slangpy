@@ -96,6 +96,7 @@ public:
         offset.uniform_offset += narrow_cast<uint32_t>(diff);
         return offset;
     }
+    DeviceType _get_device_type() const;
 
 private:
     slang::TypeLayoutReflection* m_type_layout;

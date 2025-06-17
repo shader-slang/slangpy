@@ -6,6 +6,7 @@
 #include "sgl/device/shader_offset.h"
 #include "sgl/device/reflection.h"
 #include "sgl/device/cursor_utils.h"
+#include "sgl/device/device.h"
 
 #include "sgl/core/config.h"
 #include "sgl/core/macros.h"
@@ -78,6 +79,7 @@ public:
     void _get_data(size_t offset, void* data, size_t size) const { return read_data(offset, data, size); }
     size_t _get_offset() const { return m_offset; }
     static size_t _increment_offset(size_t offset, size_t diff) { return offset + diff; }
+    DeviceType _get_device_type() const;
 
 private:
     void write_data(size_t offset, const void* data, size_t size) const;
@@ -100,10 +102,10 @@ public:
 
     /// Create with none-owning view of specific block of memory. Number of
     /// elements is inferred from the size of the block and the type layout.
-    BufferCursor(ref<TypeLayoutReflection> element_layout, void* data, size_t size);
+    BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, void* data, size_t size);
 
     /// Create buffer + allocate space internally for a given number of elements.
-    BufferCursor(ref<TypeLayoutReflection> element_layout, size_t element_count);
+    BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, size_t element_count);
 
     /// Create as a view onto a buffer resource. Disable load_before_write to
     /// prevent automatic loading of current buffer state before writing data to it.
@@ -163,9 +165,13 @@ public:
     /// Get the resource this cursor represents (if any).
     ref<Buffer> resource() const { return m_resource; }
 
+    /// Get device type that determines the data layout rules.
+    DeviceType get_device_type() const { return m_device_type; }
+
 private:
     ref<const TypeLayoutReflection> m_element_type_layout;
     ref<Buffer> m_resource;
+    DeviceType m_device_type;
     uint8_t* m_buffer{nullptr};
     size_t m_size{0};
     bool m_owner{false};
