@@ -13,7 +13,7 @@
 
 namespace sgl {
 
-template<typename TOffset, typename BaseCursor>
+template<typename BaseCursor, typename TOffset>
 class SGL_API CursorWriteWrappers {
     using BaseCursorOffset = TOffset;
 
@@ -76,20 +76,44 @@ public:
         if (rows > 1) {
             size_t mat_stride = _get_slang_type_layout()->getStride();
             size_t row_stride = mat_stride / rows;
-
             size_t row_size = size / rows;
+
             auto offset = _get_offset_internal();
             for (int row = 0; row < rows; ++row) {
-                _set_data_internal(
-                    _get_offset_internal(),
-                    reinterpret_cast<const uint8_t*>(data) + row * row_size,
-                    row_size
-                );
+                _set_data_internal(offset, reinterpret_cast<const uint8_t*>(data) + row * row_size, row_size);
                 offset = _increment_offset_internal(offset, row_stride);
             }
         } else {
             _set_data_internal(_get_offset_internal(), data, size);
         }
+    }
+
+    void _set_bool(const bool& value) const
+    {
+#if SGL_MACOS
+        if (m_shader_object->device()->type() == DeviceType::metal) {
+            _set_scalar(&value, sizeof(value), TypeReflection::ScalarType::bool_);
+            return;
+        }
+#endif
+        uint32_t v = value ? 1 : 0;
+        _set_scalar(&v, sizeof(v), TypeReflection::ScalarType::bool_);
+    }
+
+    template<int N>
+    void _set_boolN(const sgl::math::vector<bool, N>& value) const
+    {
+#if SGL_MACOS
+        if (m_shader_object->device()->type() == DeviceType::metal) {
+            _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 1);
+            return;
+        }
+#endif
+
+        sgl::math::vector<uint32_t, N> v;
+        for (int i = 0; i < N; ++i)
+            v[i] = value[i] ? 1 : 0;
+        _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, N);
     }
 
 private:
@@ -110,7 +134,7 @@ private:
     }
 };
 
-template<typename TOffset, typename BaseCursor>
+template<typename BaseCursor, typename TOffset>
 class SGL_API CursorReadWrappers {
     using BaseCursorOffset = TOffset;
 
@@ -161,6 +185,34 @@ public:
         } else {
             _get_data_internal(_get_offset_internal(), data, size);
         }
+    }
+
+    void _get_bool(bool& value) const
+    {
+#if SGL_MACOS
+        if (m_shader_object->device()->type() == DeviceType::metal) {
+            _get_scalar(&value, sizeof(value), TypeReflection::ScalarType::bool_);
+            return;
+        }
+#endif
+        uint32_t v;
+        _get_scalar(&v, sizeof(v), TypeReflection::ScalarType::bool_);
+        value = (v != 0);
+    }
+
+    template<int N>
+    void _get_boolN(sgl::math::vector<bool, N>& value) const
+    {
+#if SGL_MACOS
+        if (m_shader_object->device()->type() == DeviceType::metal) {
+            _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, N);
+            return;
+        }
+#endif
+        sgl::math::vector<uint32_t, N> v;
+        _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, N);
+        for (int i = 0; i < N; ++i)
+            value[i] = (v[i] != 0);
     }
 
 private:
