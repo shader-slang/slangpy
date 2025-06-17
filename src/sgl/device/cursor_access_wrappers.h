@@ -92,7 +92,7 @@ public:
     void _set_bool(const bool& value) const
     {
 #if SGL_MACOS
-        if (_get_device_type_internal == DeviceType::metal) {
+        if (_get_device_type_internal() == DeviceType::metal) {
             _set_scalar(&value, sizeof(value), TypeReflection::ScalarType::bool_);
             return;
         }
@@ -105,7 +105,7 @@ public:
     void _set_boolN(const sgl::math::vector<bool, N>& value) const
     {
 #if SGL_MACOS
-        if (_get_device_type_internal == DeviceType::metal) {
+        if (_get_device_type_internal() == DeviceType::metal) {
             _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 1);
             return;
         }
@@ -196,7 +196,7 @@ public:
     void _get_bool(bool& value) const
     {
 #if SGL_MACOS
-        if (_get_device_type_internal == DeviceType::metal) {
+        if (_get_device_type_internal() == DeviceType::metal) {
             _get_scalar(&value, sizeof(value), TypeReflection::ScalarType::bool_);
             return;
         }
@@ -210,7 +210,7 @@ public:
     void _get_boolN(sgl::math::vector<bool, N>& value) const
     {
 #if SGL_MACOS
-        if (_get_device_type_internal == DeviceType::metal) {
+        if (_get_device_type_internal() == DeviceType::metal) {
             _get_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, N);
             return;
         }
