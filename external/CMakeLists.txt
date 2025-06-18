@@ -11,11 +11,13 @@ macro(sgl_download_package name url)
     FetchContent_Declare(
         ${name}
         URL ${url}
+        SOURCE_SUBDIR _does_not_exist_ # avoid adding contained CMakeLists.txt
+        HTTP_HEADER "Authorization: token ${SLANG_GITHUB_TOKEN}"
     )
     FetchContent_GetProperties(${name})
     if(NOT ${name}_POPULATED)
         message(STATUS "Populating ${name} ...")
-        FetchContent_Populate(${name})
+        FetchContent_MakeAvailable(${name})
     endif()
 endmacro()
 
@@ -50,6 +52,8 @@ endif()
 
 # slang
 
+set(SGL_SLANG_DEBUG_INFO ON CACHE BOOL "Download debug info for slang")
+
 set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downloading a prebuilt binary")
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
@@ -60,20 +64,26 @@ set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${S
 if(SGL_WINDOWS)
     if(SGL_ARCHITECTURE MATCHES "x86_64")
         set(SLANG_URL "${SLANG_URL_BASE}-windows-x86_64.zip")
+        set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-windows-x86_64-debug-info.zip")
     elseif(SGL_ARCHITECTURE MATCHES "aarch64|arm64")
         set(SLANG_URL "${SLANG_URL_BASE}-windows-aarch64.zip")
+        set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-windows-aarch64-debug-info.zip")
     endif()
 elseif(SGL_LINUX)
     if(SGL_ARCHITECTURE MATCHES "x86_64")
         set(SLANG_URL "${SLANG_URL_BASE}-linux-x86_64.tar.gz")
+        set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-linux-x86_64-debug-info.tar.gz")
     elseif(SGL_ARCHITECTURE MATCHES "aarch64|arm64")
         set(SLANG_URL "${SLANG_URL_BASE}-linux-aarch64.tar.gz")
+        set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-linux-aarch64-debug-info.tar.gz")
     endif()
 elseif(SGL_MACOS)
     if(CMAKE_APPLE_SILICON_PROCESSOR MATCHES "x86_64")
         set(SLANG_URL "${SLANG_URL_BASE}-macos-x86_64.zip")
+        set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-macos-x86_64-debug-info.zip")
     else()
         set(SLANG_URL "${SLANG_URL_BASE}-macos-aarch64.zip")
+        set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-macos-aarch64-debug-info.zip")
     endif()
 endif()
 
@@ -118,6 +128,21 @@ elseif(SGL_MACOS)
     sgl_copy_binary(${SLANG_DIR}/lib/libslang-glslang.dylib .)
     # sgl_copy_binary(${SLANG_DIR}/lib/libslang-llvm.dylib .)
     sgl_copy_binary(${SLANG_DIR}/lib/libslang-rt.dylib .)
+endif()
+
+if(NOT SGL_LOCAL_SLANG AND SGL_SLANG_DEBUG_INFO)
+    sgl_download_package(slang_debug_info ${SLANG_DEBUG_INFO_URL})
+    if(SGL_WINDOWS)
+        # Note: The downloaded archive has single top-level 'bin' folder that is stripped out by FetchContent.
+        sgl_copy_binary(${slang_debug_info_SOURCE_DIR}/slang.pdb .)
+        sgl_copy_binary(${slang_debug_info_SOURCE_DIR}/slang-rt.pdb .)
+    elseif(SGL_LINUX)
+        sgl_copy_binary(${slang_debug_info_SOURCE_DIR}/lib/libslang.so.dwarf .)
+        sgl_copy_binary(${slang_debug_info_SOURCE_DIR}/lib/libslang-rt.so.dwarf .)
+    elseif(SGL_MACOS)
+        sgl_copy_binary(${slang_debug_info_SOURCE_DIR}/lib/libslang.dylib.dwarf .)
+        sgl_copy_binary(${slang_debug_info_SOURCE_DIR}/lib/libslang-rt.dylib.dwarf .)
+    endif()
 endif()
 
 # Install slang header files

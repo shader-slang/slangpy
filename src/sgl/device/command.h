@@ -316,6 +316,8 @@ public:
      */
     void blit(Texture* dst, Texture* src, TextureFilteringMode filter = TextureFilteringMode::linear);
 
+    void generate_mips(Texture* texture, uint32_t layer = 0);
+
     void resolve_query(QueryPool* query_pool, uint32_t index, uint32_t count, Buffer* buffer, DeviceOffset offset);
 
     void build_acceleration_structure(

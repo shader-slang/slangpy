@@ -101,16 +101,16 @@ void Blitter::blit(CommandEncoder* command_encoder, Texture* dst, Texture* src, 
     blit(command_encoder, dst->create_view({}), src->create_view({}), filter);
 }
 
-void Blitter::generate_mips(CommandEncoder* command_encoder, Texture* texture, uint32_t array_layer)
+void Blitter::generate_mips(CommandEncoder* command_encoder, Texture* texture, uint32_t layer)
 {
     SGL_CHECK_NOT_NULL(command_encoder);
     SGL_CHECK_NOT_NULL(texture);
-    SGL_CHECK_LT(array_layer, texture->array_length());
+    SGL_CHECK_LT(layer, texture->layer_count());
 
     for (uint32_t i = 0; i < texture->mip_count() - 1; ++i) {
         ref<TextureView> src = texture->create_view({
             .subresource_range{
-                .layer = array_layer,
+                .layer = layer,
                 .layer_count = 1,
                 .mip = i,
                 .mip_count = 1,
@@ -118,7 +118,7 @@ void Blitter::generate_mips(CommandEncoder* command_encoder, Texture* texture, u
         });
         ref<TextureView> dst = texture->create_view({
             .subresource_range{
-                .layer = array_layer,
+                .layer = layer,
                 .layer_count = 1,
                 .mip = i + 1,
                 .mip_count = 1,
