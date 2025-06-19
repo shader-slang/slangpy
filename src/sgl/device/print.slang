@@ -43,6 +43,11 @@ interface IPrintOutput {
     /// \param total_data_count The total number of data elements in all arguments.
     /// \param[out] offset Offset into the output buffer. This needs to be passed to \c write_arg calls.
     /// \return True if the message was written successfully, false if there was not enough space.
+    /// \TODO: Note that the implementation of this interface is using RWByteAddressBuffer::GetDimensions which
+    /// has the requirement that the Metal is not supported. Slang requires the capability requirement on the interface,
+    /// so we will add this requirement here to prevent Slang generating invalid code for Metal.
+    /// See: https://github.com/shader-slang/slangpy/issues/302
+    [require(cpp_cuda_glsl_hlsl_spirv_wgsl, structuredbuffer_rw)]
     bool write_msg(String fmt, uint arg_count, uint total_data_count, out uint offset);
 
     /// Write a single printable argument.
