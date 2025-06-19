@@ -411,7 +411,13 @@ if (PROJECT_IS_TOP_LEVEL AND UNIX)
         COMMAND ${CMAKE_COMMAND} -E create_symlink
             ${SGL_BINARY_DIR}/compile_commands.json
             ${CMAKE_CURRENT_SOURCE_DIR}/build/compile_commands.json
+        RESULT_VARIABLE _symlink_result
+        OUTPUT_VARIABLE _symlink_output
+        ERROR_VARIABLE _symlink_error
     )
+    if (NOT _symlink_result EQUAL 0)
+        message(WARNING "Failed to create symlink for compile_commands.json: ${_symlink_error}")
+    endif()
 endif()
 
 # -----------------------------------------------------------------------------
