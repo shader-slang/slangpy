@@ -453,35 +453,6 @@ def generate_code(
                 f"enforced by most APIs. Consider reducing your call_group_shape dimensions."
             )
 
-    # Specify some global-scope static variables here to allow users to make calls
-    # to functions like get_call_id<N>() etc in order to access call_id,
-    # call_group_id, and call_group_thread_id.
-
-    # Note: Support for static global variables should be seen as a legacy feature
-    #       and its use is discouraged. As such, this may need to be reworked in
-    #       the future.
-    if call_data_len > 0:
-        cg.add_snippet("call_id", f"static int[{call_data_len}] call_id;\n")
-        cg.add_snippet("call_group_id", f"static int[{call_data_len}] call_group_id;\n")
-        cg.add_snippet(
-            "call_group_thread_id", f"static int[{call_data_len}] call_group_thread_id;\n"
-        )
-
-        # TODO: Ideally there would be a way to just return call_id here so we could avoid wasted effort itterating.
-        #       Not enough of a slang expert at the moment to know what that could/should look like.
-        cg.add_snippet(
-            "get_call_id",
-            f"export public static int[N] get_call_id<let N: int>() {{ int[N] ret;  for(int i=0; i<{call_data_len}; i++) {{ ret[i] = call_id[i]; }} return ret; }};\n",
-        )
-        cg.add_snippet(
-            "get_call_group_id",
-            f"export public static int[N] get_call_group_id<let N: int>() {{ int[N] ret;  for(int i=0; i<{call_data_len}; i++) {{ ret[i] = call_group_id[i]; }} return ret; }};\n",
-        )
-        cg.add_snippet(
-            "get_call_group_thread_id",
-            f"export public static int[N] get_call_group_thread_id<let N: int>() {{ int[N] ret;  for(int i=0; i<{call_data_len}; i++) {{ ret[i] = call_group_thread_id[i]; }} return ret; }};\n",
-        )
-
     cg.add_import(build_info.module.name)
 
     # Generate constants if specified
@@ -503,9 +474,6 @@ def generate_code(
         cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
 
     cg.call_data.append_statement(f"uint3 _thread_count")
-
-    # Generate the context structure
-    cg.context.type_alias("Context", f"ContextND<{context.call_dimensionality}>")
 
     # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
@@ -594,70 +562,16 @@ def generate_code(
 
     # Loads / initializes call id
     context_args = "flat_call_thread_id"
+
+    # call init_thread_local_call_shape_info to initialize the call shape info
+    cg.kernel.append_line(f"""
+    if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
+        flat_call_thread_id, flat_call_group_id, call_data._grid_stride,
+        call_data._grid_dim, call_data._call_dim))
+        return;""")
+
     if call_data_len > 0:
-
-        if call_group_size != 1:
-            # Calculate the N-dimensional id's based on call group shape.
-            cg.kernel.append_line(f"call_group_thread_id = {{")
-            cg.kernel.inc_indent()
-            for i in range(call_data_len):
-                cg.kernel.append_line(
-                    f"(flat_call_group_thread_id/{call_group_strides[i]}) % {call_group_shape_vector[i]},"
-                )
-            cg.kernel.dec_indent()
-            cg.kernel.append_statement("}")
-
-            cg.kernel.append_line(f"call_group_id = {{")
-            cg.kernel.inc_indent()
-            for i in range(call_data_len):
-                cg.kernel.append_line(
-                    f"(flat_call_group_id.x/call_data._grid_stride[{i}]) % call_data._grid_dim[{i}],"
-                )
-            cg.kernel.dec_indent()
-            cg.kernel.append_statement("}")
-
-            cg.kernel.append_line(f"call_id = {{")
-            cg.kernel.inc_indent()
-            for i in range(call_data_len):
-                cg.kernel.append_line(
-                    f"call_group_id[{i}] * {call_group_shape_vector[i]} + call_group_thread_id[{i}],"
-                )
-            cg.kernel.dec_indent()
-            cg.kernel.append_statement("}")
-            # In the event that the call shape is not aligned to the call group shape,
-            # we use an aligned call shape to calculate the number of threads that we
-            # need. However, that means that some threads will fall outside the call shape
-            # and as a result will need to return early and be wasted.
-            for i in range(call_data_len):
-                cg.kernel.append_statement(f"if (call_id[{i}] >= call_data._call_dim[{i}]) return")
-        else:
-            # Default linear calculate of the N-dimensional id's.
-            # We can use _grid_dim and _grid_stride here as each thread technically has its own
-            # call group in this case, such that _grid_dim == _call_dim and _grid_stride == _call_stride
-            cg.kernel.append_line(f"call_id = {{")
-            cg.kernel.inc_indent()
-            for i in range(call_data_len):
-                cg.kernel.append_line(
-                    f"(flat_call_thread_id.x/call_data._grid_stride[{i}]) % call_data._grid_dim[{i}],"
-                )
-            cg.kernel.dec_indent()
-            cg.kernel.append_statement("}")
-
-            cg.kernel.append_line(f"call_group_thread_id = {{")
-            cg.kernel.inc_indent()
-            for i in range(call_data_len):
-                cg.kernel.append_line(f"0,")
-            cg.kernel.dec_indent()
-            cg.kernel.append_statement("}")
-
-            cg.kernel.append_line(f"call_group_id = {{")
-            cg.kernel.inc_indent()
-            for i in range(call_data_len):
-                cg.kernel.append_line(f"call_id[{i}],")
-            cg.kernel.dec_indent()
-            cg.kernel.append_statement("}")
-
-        context_args += f", call_id"
+        context_args += ", CallShapeInfo::get_call_id().shape"
 
     cg.kernel.append_statement(f"Context context = {{{context_args}}}")
 
@@ -668,3 +582,25 @@ def generate_code(
     cg.kernel.append_statement(f"{fn}(context, call_data)")
 
     cg.kernel.end_block()
+
+    # Next, we are going to generate the link time constants definition code, this code will be compiled to a
+    # separate slang module, and linked to the main module.
+    cg.constants.append_statement(f"export static const int call_data_len = {call_data_len}")
+    cg.constants.append_statement(f"export static const int call_group_size = {call_group_size}")
+
+    cg.constants.append_line(f"export static const int[call_data_len] call_group_strides = {{")
+    cg.constants.inc_indent()
+    if call_group_size != 1:
+        for i in range(call_data_len):
+            cg.constants.append_line(f"{call_group_strides[i]},")
+    cg.constants.dec_indent()
+    cg.constants.append_statement("}")
+
+    cg.constants.append_line(f"export static const int[call_data_len] call_group_shape_vector = {{")
+    cg.constants.inc_indent()
+    if call_group_size != 1:
+        for i in range(call_data_len):
+            cg.constants.append_line(f"{call_group_shape_vector[i]},")
+    cg.constants.dec_indent()
+    cg.constants.append_statement("}")
+
