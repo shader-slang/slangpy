@@ -468,8 +468,9 @@ namespace impl
     // If type B implements IConvertibleFrom<A>, then we can safely convert from A to B
     interface IConvertibleFrom<From> {}
 
-    // A python int can be passed to any slang integer scalar type
-    extension<T : __BuiltinIntegerType> T : IConvertibleFrom<int> {}
+    // A python int can be passed to any slang float/int scalar type
+    extension<T : __BuiltinArithmeticType> T : IConvertibleFrom<int> {}
+    // extension<T : __BuiltinIntegerType> T : IConvertibleFrom<int> {}
 
     // A python float can be passed to any slang float scalar type
     extension<T : __BuiltinFloatingPointType> T : IConvertibleFrom<float> {}
