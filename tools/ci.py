@@ -138,6 +138,8 @@ def configure(args: Any):
         cmd += " -DSGL_ENABLE_HEADER_VALIDATION=ON"
     if "coverage" in args.flags:
         cmd += " -DSGL_ENABLE_COVERAGE=ON"
+    if args.cmake_args != "":
+        cmd += " " + args.cmake_args
     run_command(cmd)
 
 
@@ -181,6 +183,7 @@ def main():
     parser.add_argument("--config", type=str, action="store", help="Config (Release, Debug)")
     parser.add_argument("--python", type=str, action="store", help="Python version")
     parser.add_argument("--flags", type=str, action="store", help="Additional flags")
+    parser.add_argument("--cmake-args", type=str, action="store", help="Additional CMake arguments")
 
     commands = parser.add_subparsers(dest="command", required=True, help="sub-command help")
 
@@ -210,6 +213,7 @@ def main():
         ("config", "CI_CONFIG", "Debug"),
         ("python", "CI_PYTHON", "3.9"),
         ("flags", "CI_FLAGS", ""),
+        ("cmake_args", "CI_CMAKE_ARGS", ""),
     ]
 
     for var, env_var, default_value in VARS:
