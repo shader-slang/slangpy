@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Callable
+from typing import Any, Tuple, Callable
 import numpy as np
 import numpy.typing as npt
 import pytest
@@ -448,10 +448,32 @@ int range_test(int input) {
     # Call function with 3D random arg
     res = kernel_output_values(range(10, 20, 2))
 
-    # Should get random numbers
     data = res.storage.to_numpy().view("int32")
     assert np.all(data == [10, 12, 14, 16, 18])
 
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("configuration", [(int, 'float'), (float, 'int')])
+def test_parameter_to_field_conversion(device_type: DeviceType, configuration: Tuple[type, str]):
+
+    # Create function that just dumps input to output
+    device = helpers.get_device(device_type)
+    ptype, field = configuration
+    kernel_output_values = helpers.create_function_from_module(
+        device,
+        "parameter_to_field_test",
+        f"""
+struct Uniform {{
+    {field} x;
+}}
+
+int parameter_to_field_test(Uniform u) {{
+    return int(u.x);
+}}
+""",
+    )
+
+    assert kernel_output_values({'x': ptype(512)}) == 512
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
