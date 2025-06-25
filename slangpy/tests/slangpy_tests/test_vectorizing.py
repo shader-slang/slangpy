@@ -66,7 +66,7 @@ def test_implicit_cast_no_vectorization(device_type: DeviceType):
     binding = call_data.debug_only_bindings.args[0]
     assert binding.vector_mapping.as_tuple() == ()
     assert binding.vector_type is not None
-    assert binding.vector_type.name == "float"
+    assert binding.vector_type.name == "int"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

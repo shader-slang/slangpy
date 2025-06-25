@@ -453,7 +453,7 @@ int range_test(int input) {
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("configuration", [(int, 'float'), (float, 'int')])
+@pytest.mark.parametrize("configuration", [(int, "float"), (float, "int")])
 def test_parameter_to_field_conversion(device_type: DeviceType, configuration: Tuple[type, str]):
 
     # Create function that just dumps input to output
@@ -473,7 +473,7 @@ int parameter_to_field_test(Uniform u) {{
 """,
     )
 
-    assert kernel_output_values({'x': ptype(512)}) == 512
+    assert kernel_output_values({"x": ptype(512)}) == 512
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
