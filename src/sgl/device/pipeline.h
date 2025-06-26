@@ -43,6 +43,7 @@ private:
 
 struct ComputePipelineDesc {
     ref<ShaderProgram> program;
+    std::string label;
 };
 
 /// Compute pipeline.
@@ -80,6 +81,7 @@ struct RenderPipelineDesc {
     DepthStencilDesc depth_stencil;
     RasterizerDesc rasterizer;
     MultisampleDesc multisample;
+    std::string label;
 };
 
 /// Render pipeline.
@@ -123,6 +125,7 @@ struct RayTracingPipelineDesc {
     uint32_t max_ray_payload_size{0};
     uint32_t max_attribute_size{8};
     RayTracingPipelineFlags flags{RayTracingPipelineFlags::none};
+    std::string label;
 };
 
 /// Ray tracing pipeline.

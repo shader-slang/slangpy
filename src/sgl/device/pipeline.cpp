@@ -50,7 +50,10 @@ ComputePipeline::ComputePipeline(ref<Device> device, ComputePipelineDesc desc)
 
 void ComputePipeline::recreate()
 {
-    rhi::ComputePipelineDesc rhi_desc{.program = m_desc.program->rhi_shader_program()};
+    rhi::ComputePipelineDesc rhi_desc{
+        .program = m_desc.program->rhi_shader_program(),
+        .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
+    };
     SLANG_RHI_CALL(
         m_device->rhi_device()->createComputePipeline(rhi_desc, (rhi::IComputePipeline**)m_rhi_pipeline.writeRef())
     );
@@ -70,10 +73,12 @@ std::string ComputePipeline::to_string() const
         "ComputePipeline(\n"
         "  device = {},\n"
         "  program = {},\n"
+        "  label = {},\n"
         "  thread_group_size = {}\n"
         ")",
         m_device,
         m_desc.program,
+        m_desc.label,
         m_thread_group_size
     );
 }
@@ -162,6 +167,7 @@ void RenderPipeline::recreate()
             .alphaToCoverageEnable = desc.multisample.alpha_to_coverage_enable,
             .alphaToOneEnable = desc.multisample.alpha_to_one_enable,
         },
+        .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
 
     SLANG_RHI_CALL(
@@ -180,11 +186,13 @@ std::string RenderPipeline::to_string() const
 {
     return fmt::format(
         "RenderPipeline(\n"
-        "  device = {}\n"
-        "  program = {}\n"
+        "  device = {},\n"
+        "  program = {},\n"
+        "  label = {}\n"
         ")",
         m_device,
-        m_desc.program
+        m_desc.program,
+        m_desc.label
     );
 }
 
@@ -224,6 +232,7 @@ void RayTracingPipeline::recreate()
         .maxRayPayloadSize = desc.max_ray_payload_size,
         .maxAttributeSizeInBytes = desc.max_attribute_size,
         .flags = static_cast<rhi::RayTracingPipelineFlags>(desc.flags),
+        .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
     SLANG_RHI_CALL(m_device->rhi_device()
                        ->createRayTracingPipeline(rhi_desc, (rhi::IRayTracingPipeline**)m_rhi_pipeline.writeRef()));
@@ -240,11 +249,13 @@ std::string RayTracingPipeline::to_string() const
 {
     return fmt::format(
         "RayTracingPipeline(\n"
-        "  device = {}\n"
-        "  program = {}\n"
+        "  device = {},\n"
+        "  program = {},\n"
+        "  label = {}\n"
         ")",
         m_device,
-        m_desc.program
+        m_desc.program,
+        m_desc.label
     );
 }
 
