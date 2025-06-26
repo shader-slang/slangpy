@@ -57,9 +57,9 @@ import "slangpy";
 
 float test_functions_exist(uint2 grid_cell) {
     // Test global getter functions with explicit types
-    int[2] call_id_result = get_call_id<2>();
-    int[2] call_group_id_result = get_call_group_id<2>();
-    int[2] call_group_thread_id_result = get_call_group_thread_id<2>();
+    CallShapeInfo call_id_result = CallShapeInfo::get_call_id();
+    CallShapeInfo call_group_id_result = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id_result = CallShapeInfo::get_call_group_thread_id();
 
     // Return success - we just want to verify compilation works
     return 1.0f;
@@ -85,11 +85,11 @@ def test_1d_call_groups_with_validation(device_type: DeviceType):
 import "slangpy";
 
 uint test_1d_groups(uint grid_cell) {
-    int[1] call_group_id = get_call_group_id<1>();
-    int[1] call_group_thread_id = get_call_group_thread_id<1>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Return packed result: high 16 bits = group_id, low 16 bits = thread_id
-    return (call_group_id[0] << 16) | call_group_thread_id[0];
+    return (call_group_id.shape[0] << 16) | call_group_thread_id.shape[0];
 }
 """
 
@@ -102,10 +102,13 @@ uint test_1d_groups(uint grid_cell) {
     result = module.test_1d_groups.call_group_shape(Shape(call_group_shape))(
         spy.grid(call_shape), _result="numpy"
     )
+    print(result)
 
     # Extract group IDs and thread IDs
     group_ids = (result >> 16) & 0xFFFF
     thread_ids = result & 0xFFFF
+
+
 
     # Validate dimensions
     assert result.shape == call_shape
@@ -114,6 +117,7 @@ uint test_1d_groups(uint grid_cell) {
     assert np.all(group_ids >= 0) and np.all(group_ids < 4)
 
     # Thread IDs should be in range [0, 1] (group size is 2)
+    print(group_ids)
     assert np.all(thread_ids >= 0) and np.all(thread_ids < 2)
 
     # Validate that each call group has exactly one thread with thread_id [0]
@@ -140,24 +144,24 @@ def test_call_group_math_2d_validation(device_type: DeviceType):
     3. Mathematical consistency between call_id, call_group_id, and call_group_thread_id
     4. Proper bounds checking for different call group configurations
     """
-
+    spy.set_dump_generated_shaders(True)
     device = helpers.get_device(device_type)
 
     kernel_source = """
 import "slangpy";
 
 uint test_call_group_math_2d(uint2 grid_cell) {
-    int[2] call_id = get_call_id<2>();
-    int[2] call_group_id = get_call_group_id<2>();
-    int[2] call_group_thread_id = get_call_group_thread_id<2>();
+    CallShapeInfo call_id = CallShapeInfo::get_call_id();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Pack the results:
     // Bits 24-31: call_group_id[0] (Y)
     // Bits 16-23: call_group_id[1] (X)
     // Bits 8-15: call_group_thread_id[0] (Y)
     // Bits 0-7: call_group_thread_id[1] (X)
-    return (call_group_id[0] << 24) | (call_group_id[1] << 16) |
-           (call_group_thread_id[0] << 8) | call_group_thread_id[1];
+    return (call_group_id.shape[0] << 24) | (call_group_id.shape[1] << 16) |
+           (call_group_thread_id.shape[0] << 8) | call_group_thread_id.shape[1];
 }
 """
 
@@ -254,13 +258,13 @@ import "slangpy";
 
 uint test_5d_basic(uint[5] grid_cell) {
     // Get call group values
-    int[5] call_id = get_call_id<5>();
-    int[5] call_group_id = get_call_group_id<5>();
-    int[5] call_group_thread_id = get_call_group_thread_id<5>();
+    CallShapeInfo call_id = CallShapeInfo::get_call_id();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Pack some of the results to validate they're not all zeros
     // Pack dimensions 2, 3, 4 (which have non-trivial group shapes)
-    return (call_group_id[2] << 16) | (call_group_thread_id[3] << 8) | call_group_thread_id[4];
+    return (call_group_id.shape[2] << 16) | (call_group_thread_id.shape[3] << 8) | call_group_thread_id.shape[4];
 }
 """
 
@@ -311,12 +315,12 @@ import "slangpy";
 
 uint test_edge_case_basic(uint2 grid_cell) {
     // Get call group functionality and pack results
-    int[2] call_group_id = get_call_group_id<2>();
-    int[2] call_group_thread_id = get_call_group_thread_id<2>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Pack results to validate they're meaningful
-    return (call_group_id[0] << 24) | (call_group_id[1] << 16) |
-           (call_group_thread_id[0] << 8) | call_group_thread_id[1];
+    return (call_group_id.shape[0] << 24) | (call_group_id.shape[1] << 16) |
+           (call_group_thread_id.shape[0] << 8) | call_group_thread_id.shape[1];
 }
 """
 
@@ -391,14 +395,16 @@ def test_call_group_dimensions(
     kernel_source = f"""
 import "slangpy";
 
-float test_call_group_math({param_type} grid_pos) {{
+int test_call_group_math({param_type} grid_pos) {{
     // Just test that the functions can be called without error
-    int[{dimension}] call_id = get_call_id<{dimension}>();
-    int[{dimension}] call_group_id = get_call_group_id<{dimension}>();
-    int[{dimension}] call_group_thread_id = get_call_group_thread_id<{dimension}>();
+    CallShapeInfo call_id = CallShapeInfo::get_call_id();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Return a simple validation that functions executed
-    return 1.0f;
+    return (call_id.dimension == {dimension}) &&
+           (call_group_id.dimension == {dimension}) &&
+           (call_group_thread_id.dimension == {dimension});
 }}
 """
 
@@ -415,7 +421,7 @@ float test_call_group_math({param_type} grid_pos) {{
     # Validate that all calls completed successfully (all should be 1.0)
     results = result_buffer.to_numpy()
     assert np.all(
-        results == 1.0
+        results == 1
     ), f"Failed for {description}: {call_shape} with groups {call_group_shape}"
 
 
@@ -440,13 +446,16 @@ def test_call_group_edge_cases(
     kernel_source = f"""
 import "slangpy";
 
-float test_edge_case({param_type} grid_pos) {{
+int test_edge_case({param_type} grid_pos) {{
     // Test that edge cases don't crash
-    int[{dimension}] call_id = get_call_id<{dimension}>();
-    int[{dimension}] call_group_id = get_call_group_id<{dimension}>();
-    int[{dimension}] call_group_thread_id = get_call_group_thread_id<{dimension}>();
+    CallShapeInfo call_id = CallShapeInfo::get_call_id();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
-    return 1.0f;
+    // Return a simple validation that functions executed
+    return (call_id.dimension == {dimension}) &&
+           (call_group_id.dimension == {dimension}) &&
+           (call_group_thread_id.dimension == {dimension});
 }}
 """
 
@@ -463,7 +472,7 @@ float test_edge_case({param_type} grid_pos) {{
     # Validate that all calls completed successfully
     results = result_buffer.to_numpy()
     assert np.all(
-        results == 1.0
+        results == 1
     ), f"Failed edge case {description}: {call_shape} with groups {call_group_shape}"
 
 
@@ -659,8 +668,8 @@ import "slangpy";
 // Returns call_id and thread_id for pattern validation
 // Note: get_call_id<2>() returns [y, x] order
 uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
-    int[2] call_id = get_call_id<2>();
-    return uint3(call_id[1], call_id[0], thread_id.x);  // Return as [x, y, thread_id.x]
+    CallShapeInfo call_id = CallShapeInfo::get_call_id();
+    return uint3(call_id.shape[1], call_id.shape[0], thread_id.x);  // Return as [x, y, thread_id.x]
 }
 """
 

@@ -46,9 +46,9 @@ works with major SlangPy components.
 
 ### Call Group API Usage
 All tests properly utilize the call group intrinsic functions:
-- `get_call_group_id<N>()` - Gets the call group index in N dimensions
-- `get_call_group_thread_id<N>()` - Gets thread position within call group
-- `get_call_id<N>()` - Gets absolute thread position
+- `get_call_group_id()` - Gets the call group index in N dimensions
+- `get_call_group_thread_id()` - Gets thread position within call group
+- `get_call_id()` - Gets absolute thread position
 
 ### Multi-Device Support
 All tests are parameterized to run on multiple backend devices:
@@ -99,12 +99,12 @@ float tensor_add_with_call_groups(
     uint2 grid_cell
 ) {
     // Use call group functions in differentiable context
-    int[2] call_group_id = get_call_group_id<2>();
-    int[2] call_group_thread_id = get_call_group_thread_id<2>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Simple operation that can be differentiated
     // Scale the result by call group position for variety
-    float scale = 1.0f + 0.1f * float(call_group_id[0] + call_group_id[1]);
+    float scale = 1.0f + 0.1f * float(call_group_id.shape[0] + call_group_id.shape[1]);
     return (a + b) * scale;
 }
 
@@ -114,10 +114,10 @@ float tensor_matrix_multiply_with_groups(
     float x_element,
     uint2 grid_cell
 ) {
-    int[2] call_group_id = get_call_group_id<2>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
 
     // Simple operation with call group scaling
-    float scale = 1.0f + 0.05f * float(call_group_id[0] * call_group_id[1]);
+    float scale = 1.0f + 0.05f * float(call_group_id.shape[0] * call_group_id.shape[1]);
 
     return weight_element * x_element * scale;
 }
@@ -126,12 +126,12 @@ float tensor_aggregation_with_groups(
     float input_element,
     uint2 grid_cell
 ) {
-    int[2] call_group_id = get_call_group_id<2>();
-    int[2] call_group_thread_id = get_call_group_thread_id<2>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Transform input based on call group information
-    float group_factor = 1.0f + 0.1f * float(call_group_id[0]);
-    float thread_factor = 1.0f + 0.05f * float(call_group_thread_id[1]);
+    float group_factor = 1.0f + 0.1f * float(call_group_id.shape[0]);
+    float thread_factor = 1.0f + 0.05f * float(call_group_thread_id.shape[1]);
 
     return input_element * group_factor * thread_factor;
 }
@@ -168,12 +168,12 @@ float ndbuffer_process_with_groups(
     out float output,
     uint2 grid_cell
 ) {
-    int[2] call_group_id = get_call_group_id<2>();
-    int[2] call_group_thread_id = get_call_group_thread_id<2>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Apply a transformation based on call group position
-    float group_factor = 1.0f + 0.1f * float(call_group_id[0] * call_group_id[1]);
-    float thread_factor = 1.0f + 0.05f * float(call_group_thread_id[0] + call_group_thread_id[1]);
+    float group_factor = 1.0f + 0.1f * float(call_group_id.shape[0] * call_group_id.shape[1]);
+    float thread_factor = 1.0f + 0.05f * float(call_group_thread_id.shape[0] + call_group_thread_id.shape[1]);
 
     output = input * group_factor * thread_factor;
 
@@ -184,13 +184,13 @@ float3 ndbuffer_vector_ops_with_groups(
     float3 vector_input,
     uint grid_cell
 ) {
-    int[1] call_group_id = get_call_group_id<1>();
-    int[1] call_group_thread_id = get_call_group_thread_id<1>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Transform vector based on call group information
     float3 group_offset = float3(
-        float(call_group_id[0]) * 0.1f,
-        float(call_group_thread_id[0]) * 0.05f,
+        float(call_group_id.shape[0]) * 0.1f,
+        float(call_group_thread_id.shape[0]) * 0.05f,
         0.0f
     );
 
@@ -201,14 +201,14 @@ int ndbuffer_reduce_with_groups(
     int data_input,
     uint3 grid_cell
 ) {
-    int[3] call_group_id = get_call_group_id<3>();
-    int[3] call_group_thread_id = get_call_group_thread_id<3>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Compute a reduction-like operation using call group info
     int sum = data_input;
 
     // Add contribution from call group position
-    sum += int(call_group_id[0] + call_group_id[1] + call_group_id[2]);
+    sum += int(call_group_id.shape[0] + call_group_id.shape[1] + call_group_id.shape[2]);
 
     return sum;
 }
@@ -253,23 +253,23 @@ float4 texture_sample_with_groups(
     RWTexture2D<float4> output_tex,
     uint2 grid_cell
 ) {
-    int[2] call_group_id = get_call_group_id<2>();
-    int[2] call_group_thread_id = get_call_group_thread_id<2>();
-    int[2] call_id = get_call_id<2>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
+    CallShapeInfo call_id = CallShapeInfo::get_call_id();
 
     // Sample from input texture with call group-based offset
-    float2 uv = float2(float(call_id[0]), float(call_id[1])) / float2(32.0f, 32.0f);
-    float2 group_offset = float2(float(call_group_id[0]), float(call_group_id[1])) * 0.01f;
+    float2 uv = float2(float(call_id.shape[0]), float(call_id.shape[1])) / float2(32.0f, 32.0f);
+    float2 group_offset = float2(float(call_group_id.shape[0]), float(call_group_id.shape[1])) * 0.01f;
 
     SamplerState samp;
     float4 sampled = input_tex.SampleLevel(samp, uv + group_offset, 0);
 
     // Modulate color based on call group thread position
-    float thread_scale = 1.0f + 0.1f * float(call_group_thread_id[0] + call_group_thread_id[1]);
+    float thread_scale = 1.0f + 0.1f * float(call_group_thread_id.shape[0] + call_group_thread_id.shape[1]);
     float4 result = sampled * thread_scale;
 
     // Write to output texture
-    uint2 write_coord = uint2(call_id[0], call_id[1]);
+    uint2 write_coord = uint2(call_id.shape[0], call_id.shape[1]);
     output_tex[write_coord] = result;
 
     return result;
@@ -279,38 +279,38 @@ float texture_reduce_with_groups(
     Texture2D<vector<float,1>> input_tex,
     uint2 grid_cell
 ) {
-    int[2] call_group_id = get_call_group_id<2>();
-    int[2] call_group_thread_id = get_call_group_thread_id<2>();
-    int[2] call_id = get_call_id<2>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
+    CallShapeInfo call_id = CallShapeInfo::get_call_id();
 
     // Sample multiple texels based on call group configuration
     float sum = 0.0f;
 
-    for (int dx = -int(call_group_thread_id[0]); dx <= int(call_group_thread_id[0]); dx++) {
-        for (int dy = -int(call_group_thread_id[1]); dy <= int(call_group_thread_id[1]); dy++) {
-            int2 coord = int2(call_id[0] + dx, call_id[1] + dy);
+    for (int dx = -int(call_group_thread_id.shape[0]); dx <= int(call_group_thread_id.shape[0]); dx++) {
+        for (int dy = -int(call_group_thread_id.shape[1]); dy <= int(call_group_thread_id.shape[1]); dy++) {
+            int2 coord = int2(call_id.shape[0] + dx, call_id.shape[1] + dy);
             if (coord.x >= 0 && coord.x < 32 && coord.y >= 0 && coord.y < 32) {
                 sum += input_tex.Load(int3(coord, 0)).r;  // Now we need .r since it's vector<float,1>
             }
         }
     }
 
-    return sum / float((2 * call_group_thread_id[0] + 1) * (2 * call_group_thread_id[1] + 1));
+    return sum / float((2 * call_group_thread_id.shape[0] + 1) * (2 * call_group_thread_id.shape[1] + 1));
 }
 
 float3 texture_3d_with_groups(
     Texture3D<float4> tex3d,
     uint3 grid_cell
 ) {
-    int[3] call_group_id = get_call_group_id<3>();
-    int[3] call_group_thread_id = get_call_group_thread_id<3>();
-    int[3] call_id = get_call_id<3>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
+    CallShapeInfo call_id = CallShapeInfo::get_call_id();
 
     // 3D texture sampling with call group-based coordinates
-    float3 uvw = float3(float(call_id[0]), float(call_id[1]), float(call_id[2])) / float3(16.0f, 16.0f, 16.0f);
+    float3 uvw = float3(float(call_id.shape[0]), float(call_id.shape[1]), float(call_id.shape[2])) / float3(16.0f, 16.0f, 16.0f);
 
     // Offset based on call group
-    float3 group_offset = float3(float(call_group_id[0]), float(call_group_id[1]), float(call_group_id[2])) * 0.02f;
+    float3 group_offset = float3(float(call_group_id.shape[0]), float(call_group_id.shape[1]), float(call_group_id.shape[2])) * 0.02f;
 
     SamplerState samp;
     float4 sampled = tex3d.SampleLevel(samp, uvw + group_offset, 0);
@@ -338,12 +338,12 @@ float transform_with_call_groups(
     out float output,
     uint2 grid_cell
 ) {
-    int[2] call_group_id = get_call_group_id<2>();
-    int[2] call_group_thread_id = get_call_group_thread_id<2>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Apply transformation that depends on call group structure
-    float group_transform = sin(float(call_group_id[0]) * 0.5f) + cos(float(call_group_id[1]) * 0.5f);
-    float thread_transform = float(call_group_thread_id[0] + call_group_thread_id[1]) * 0.1f;
+    float group_transform = sin(float(call_group_id.shape[0]) * 0.5f) + cos(float(call_group_id.shape[1]) * 0.5f);
+    float thread_transform = float(call_group_thread_id.shape[0] + call_group_thread_id.shape[1]) * 0.1f;
 
     output = input + group_transform + thread_transform;
     return input;
@@ -353,11 +353,11 @@ float3 vector_transform_with_groups(
     float3 vector_input,
     uint2 grid_cell
 ) {
-    int[2] call_group_id = get_call_group_id<2>();
-    int[2] call_group_thread_id = get_call_group_thread_id<2>();
+    CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
+    CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Rotate vector based on call group position
-    float angle = float(call_group_id[0] + call_group_id[1]) * 0.1f;
+    float angle = float(call_group_id.shape[0] + call_group_id.shape[1]) * 0.1f;
     float cos_a = cos(angle);
     float sin_a = sin(angle);
 
@@ -365,7 +365,7 @@ float3 vector_transform_with_groups(
     float3 rotated = float3(
         vector_input.x * cos_a - vector_input.y * sin_a,
         vector_input.x * sin_a + vector_input.y * cos_a,
-        vector_input.z + float(call_group_thread_id[0]) * 0.05f
+        vector_input.z + float(call_group_thread_id.shape[0]) * 0.05f
     );
 
     return rotated;

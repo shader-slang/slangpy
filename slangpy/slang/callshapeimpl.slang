@@ -33,7 +33,11 @@ public struct CallShapeInfo
         m_flag = flag;
     }
 
-    int getDimension() { return call_data_len; }
+    public property int dimension
+    {
+        get { return call_data_len; }
+    }
+
     public property int[call_data_len] shape
     {
         get
@@ -93,7 +97,7 @@ public bool init_thread_local_call_shape_info<let N: int = call_data_len>(
         {
             call_group_thread_id[i] = (flat_call_group_thread_id / call_group_strides[i]) % call_group_shape_vector[i];
             call_group_id[i]        = (flat_call_group_id.x      / grid_stride[i])        % grid_dim[i];
-            call_id[i] = call_group_id[i] % call_group_shape_vector[i] + call_group_thread_id[i];
+            call_id[i] = call_group_id[i] * call_group_shape_vector[i] + call_group_thread_id[i];
 
             // In the event that the call shape is not aligned to the call group shape,
             // we use an aligned call shape to calculate the number of threads that we
