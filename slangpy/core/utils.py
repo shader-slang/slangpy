@@ -24,6 +24,7 @@ def create_device(
     enable_cuda_interop: bool = False,
     enable_print: bool = False,
     enable_hot_reload: bool = True,
+    enable_compilation_reports: bool = False,
 ):
     """
     Create a device with basic settings for SlangPy. For full control over device init,
@@ -46,6 +47,7 @@ def create_device(
         enable_cuda_interop=enable_cuda_interop,
         enable_print=enable_print,
         enable_hot_reload=enable_hot_reload,
+        enable_compilation_reports=enable_compilation_reports,
     )
 
     if is_running_in_jupyter():

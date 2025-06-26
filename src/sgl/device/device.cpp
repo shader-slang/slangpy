@@ -111,6 +111,7 @@ Device::Device(const DeviceDesc& desc)
         // TODO(slang-rhi) make configurable but default to true
         .enableValidation = true,
         .debugCallback = &DebugLogger::get(),
+        .enableCompilationReports = m_desc.enable_compilation_reports,
     };
     log_debug(
         "Creating graphics device (type: {}, luid: {}, shader_cache_path: {}).",
@@ -848,6 +849,10 @@ std::string Device::to_string() const
         "  adapter_name = \"{}\",\n"
         "  adapter_luid = {},\n"
         "  enable_debug_layers = {},\n"
+        "  enable_cuda_interop = {},\n"
+        "  enable_print = {},\n"
+        "  enable_hot_reload = {},\n"
+        "  enable_compilation_reports = {},\n"
         "  supported_shader_model = {},\n"
         "  shader_cache_enabled = {},\n"
         "  shader_cache_path = \"{}\"\n"
@@ -856,6 +861,10 @@ std::string Device::to_string() const
         m_info.adapter_name,
         string::hexlify(m_info.adapter_luid),
         m_desc.enable_debug_layers,
+        m_desc.enable_cuda_interop,
+        m_desc.enable_print,
+        m_desc.enable_hot_reload,
+        m_desc.enable_compilation_reports,
         m_supported_shader_model,
         m_shader_cache_enabled,
         m_shader_cache_path
