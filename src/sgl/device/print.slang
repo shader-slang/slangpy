@@ -377,8 +377,14 @@ struct DebugPrinter : IPrintOutput {
         uint size = (3 + arg_count + total_data_count) * sizeof(uint);
 
         // Reserve space for the message.
+#ifdef __TARGET_METAL__
+        // Workaround for Slang issue https://github.com/shader-slang/slang/issues/7536
+        offset = buffer.Load(0);
+        buffer.Store(0, offset + size);
+#else
         offset = 0;
         buffer.InterlockedAdd(0, size, offset);
+#endif
         offset += 4;
         if (offset + size > buffer_capacity - 4) {
             // Write sentinel value indicating that we have a buffer overlow.
@@ -387,7 +393,12 @@ struct DebugPrinter : IPrintOutput {
         }
 
         buffer.Store(offset, size);
+#ifdef __TARGET_METAL__
+        // Workaround for Slang issue https://github.com/shader-slang/slang/issues/7534
+        buffer.Store(offset + 4, uint(getStringHash(fmt)));
+#else
         buffer.Store(offset + 4, getStringHash(fmt));
+#endif
         buffer.Store(offset + 8, arg_count);
         offset += 12;
         return true;
