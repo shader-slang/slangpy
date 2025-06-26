@@ -261,6 +261,10 @@ DebugPrinter::DebugPrinter(Device* device, size_t buffer_size)
         .label = "debug_printer_buffer",
     });
 
+    ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
+    command_encoder->clear_buffer(m_buffer, sgl::BufferRange{0, 4});
+    m_device->submit_command_buffer(command_encoder->finish());
+
     m_readback_buffer = m_device->create_buffer({
         .size = buffer_size,
         .memory_type = MemoryType::read_back,
@@ -310,15 +314,17 @@ void DebugPrinter::bind(ShaderCursor cursor)
 {
     if (cursor.is_valid())
         cursor = cursor.find_field("g_debug_printer");
-    if (cursor.is_valid())
+    if (cursor.is_valid()) {
         cursor["buffer"] = m_buffer;
+        cursor["buffer_capacity"] = static_cast<uint32_t>(m_buffer->size());
+    }
 }
 
 void DebugPrinter::flush_device(bool wait)
 {
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
     command_encoder->copy_buffer(m_readback_buffer, 0, m_buffer, 0, m_buffer->size());
-    command_encoder->clear_buffer(m_buffer);
+    command_encoder->clear_buffer(m_buffer, sgl::BufferRange{0, 4});
     m_device->submit_command_buffer(command_encoder->finish());
     if (wait)
         m_device->wait_for_idle();

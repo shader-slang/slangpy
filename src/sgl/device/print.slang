@@ -43,11 +43,6 @@ interface IPrintOutput {
     /// \param total_data_count The total number of data elements in all arguments.
     /// \param[out] offset Offset into the output buffer. This needs to be passed to \c write_arg calls.
     /// \return True if the message was written successfully, false if there was not enough space.
-    /// \TODO: Note that the implementation of this interface is using RWByteAddressBuffer::GetDimensions which
-    /// has the requirement that the Metal is not supported. Slang requires the capability requirement on the interface,
-    /// so we will add this requirement here to prevent Slang generating invalid code for Metal.
-    /// See: https://github.com/shader-slang/slangpy/issues/302
-    [require(cpp_cuda_glsl_hlsl_spirv_wgsl, structuredbuffer_rw)]
     bool write_msg(String fmt, uint arg_count, uint total_data_count, out uint offset);
 
     /// Write a single printable argument.
@@ -373,19 +368,23 @@ struct DebugPrinter : IPrintOutput {
     /// Single buffer that contains the print messages.
     /// The first 4 bytes of the buffer store the size of the data following.
     RWByteAddressBuffer buffer;
+    uint buffer_capacity;
 
     [ForceInline]
     bool write_msg(String fmt, uint arg_count, uint total_data_count, out uint offset)
     {
-        uint buffer_capacity;
-        buffer.GetDimensions(buffer_capacity);
-
         // Compute the size of the message.
         uint size = (3 + arg_count + total_data_count) * sizeof(uint);
 
         // Reserve space for the message.
+#ifdef __TARGET_METAL__
+        // Workaround for Slang issue https://github.com/shader-slang/slang/issues/7536
+        offset = buffer.Load(0);
+        buffer.Store(0, offset + size);
+#else
         offset = 0;
         buffer.InterlockedAdd(0, size, offset);
+#endif
         offset += 4;
         if (offset + size > buffer_capacity - 4) {
             // Write sentinel value indicating that we have a buffer overlow.
@@ -394,7 +393,12 @@ struct DebugPrinter : IPrintOutput {
         }
 
         buffer.Store(offset, size);
+#ifdef __TARGET_METAL__
+        // Workaround for Slang issue https://github.com/shader-slang/slang/issues/7534
+        buffer.Store(offset + 4, uint(getStringHash(fmt)));
+#else
         buffer.Store(offset + 4, getStringHash(fmt));
+#endif
         buffer.Store(offset + 8, arg_count);
         offset += 12;
         return true;
@@ -419,7 +423,7 @@ struct DebugPrinter : IPrintOutput {
 
 #if SGL_ENABLE_PRINT
 
-ParameterBlock<detail::DebugPrinter> g_debug_printer;
+detail::DebugPrinter g_debug_printer;
 
 // clang-format off
 [ForceInline] void print(String fmt) { detail::print(g_debug_printer, fmt); }
