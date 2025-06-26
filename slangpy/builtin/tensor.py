@@ -17,6 +17,7 @@ from slangpy.reflection import (
     TypeReflection,
     ArrayType,
     ScalarType,
+    MatrixType,
 )
 from slangpy.bindings import (
     PYTHON_TYPES,

@@ -115,7 +115,6 @@ public extension<T : IDifferentiable, let D : int, TensorType : ITensor<T, D>> T
         }
     }
 
-    // TODO: row major/column major options
     [Differentiable]
     public void load<let M : int, let N : int>(ContextND<D - 2> context, out matrix <T, M, N> value)
     {
@@ -191,7 +190,6 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>>
         }
     }
 
-    // TODO: row major/column major options
     [Differentiable]
     public void store<let M : int, let N : int>(ContextND<D - 2> context, in matrix <T, M, N> value)
     {
