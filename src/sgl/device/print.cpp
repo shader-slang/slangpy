@@ -261,6 +261,10 @@ DebugPrinter::DebugPrinter(Device* device, size_t buffer_size)
         .label = "debug_printer_buffer",
     });
 
+    ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
+    command_encoder->clear_buffer(m_buffer);
+    m_device->submit_command_buffer(command_encoder->finish());
+
     m_readback_buffer = m_device->create_buffer({
         .size = buffer_size,
         .memory_type = MemoryType::read_back,
