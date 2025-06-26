@@ -105,7 +105,7 @@ struct DeviceDesc {
     bool enable_hot_reload{true};
 
     /// Enable compilation reports.
-    bool enable_compilation_reports{true};
+    bool enable_compilation_reports{false};
 
     /// Adapter LUID to select adapter on which the device will be created.
     std::optional<AdapterLUID> adapter_luid;
