@@ -608,8 +608,18 @@ private:
             self.set(val);
             return;
         }
-        auto val = nb::cast<ValType>(nbval);
-        self.set(val);
+
+        try {
+            auto val = nb::cast<ValType>(nbval);
+            self.set(val);
+        } catch (const std::exception& err) {
+            SGL_THROW(
+                "Failed to cast value to C++ scalar type '{}' from Python type '{}' (msg: {})",
+                typeid(ValType).name(),
+                nbval.ptr()->ob_type->tp_name,
+                err.what()
+            );
+        }
     }
 
     /// Default implementation of write vector from numpy array.
