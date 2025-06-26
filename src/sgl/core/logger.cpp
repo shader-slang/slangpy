@@ -269,6 +269,8 @@ Logger& Logger::get()
 void Logger::static_init()
 {
     s_logger = new Logger();
+    // Make sure the logger is not deallocated when passing to Python.
+    s_logger->inc_ref();
 }
 
 void Logger::static_shutdown()
