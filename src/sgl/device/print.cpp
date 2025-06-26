@@ -310,8 +310,10 @@ void DebugPrinter::bind(ShaderCursor cursor)
 {
     if (cursor.is_valid())
         cursor = cursor.find_field("g_debug_printer");
-    if (cursor.is_valid())
+    if (cursor.is_valid()) {
         cursor["buffer"] = m_buffer;
+        cursor["buffer_capacity"] = static_cast<uint32_t>(m_buffer->size());
+    }
 }
 
 void DebugPrinter::flush_device(bool wait)
