@@ -170,6 +170,9 @@ def make_grid_data(type: TextureType, array_length: int = 1):
 @pytest.mark.parametrize("mips", [ALL_MIPS, 1, 4])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, type: TextureType):
+    if device_type == DeviceType.cuda:
+        pytest.skip("Limited texture support in CUDA backend")
+
     m = load_test_module(device_type)
     assert m is not None
 
@@ -221,6 +224,9 @@ def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, typ
 def test_read_write_texture_with_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
 ):
+    if device_type == DeviceType.cuda:
+        pytest.skip("Limited texture support in CUDA backend")
+
     m = load_test_module(device_type)
     assert m is not None
 
@@ -440,6 +446,9 @@ def texture_return_value_impl(
     channels: int,
     return_type: Union[str, type],
 ):
+    if device_type == DeviceType.cuda and texel_name == "half":
+        pytest.skip("Issue with half type in CUDA backend")
+
     if texel_name in ("uint8_t", "int8_t") and device_type == DeviceType.d3d12:
         pytest.skip("8-bit types not supported by DXC")
 

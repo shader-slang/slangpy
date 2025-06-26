@@ -71,6 +71,9 @@ tr.PYTHON_TYPES[Foo] = create_test_impl
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_specialization(device_type: DeviceType):
+    if device_type == DeviceType.cuda:
+        pytest.skip("Slang CUDA backend generates invalid code")
+
     device = helpers.get_device(device_type)
     module = Module(device.load_module_from_source("test_specialization", TEST_MODULE))
 

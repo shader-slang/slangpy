@@ -30,7 +30,7 @@ SHADER_DIR = Path(__file__).parent
 if os.environ.get("SLANGPY_DEVICE", None) is not None:
     DEFAULT_DEVICE_TYPES = [DeviceType[os.environ["SLANGPY_DEVICE"]]]
 elif sys.platform == "win32":
-    DEFAULT_DEVICE_TYPES = [DeviceType.d3d12, DeviceType.vulkan]
+    DEFAULT_DEVICE_TYPES = [DeviceType.d3d12, DeviceType.vulkan, DeviceType.cuda]
 elif sys.platform == "linux" or sys.platform == "linux2":
     DEFAULT_DEVICE_TYPES = [DeviceType.vulkan]
 elif sys.platform == "darwin":

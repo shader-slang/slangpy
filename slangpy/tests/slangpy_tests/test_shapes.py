@@ -522,6 +522,8 @@ def test_readslice_function_map(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_copyatindex_both_buffers_defined(device_type: DeviceType):
+    if device_type == DeviceType.cuda:
+        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
 
     # Call copy-at-index passing 2 fully defined buffers
     shapes = copy_at_index(
@@ -543,6 +545,8 @@ def test_copyatindex_both_buffers_defined(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_copyatindex_undersized_output(device_type: DeviceType):
+    if device_type == DeviceType.cuda:
+        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
 
     # Situation we'd ideally detect in which output
     # buffer will overrun as its too small, but we
