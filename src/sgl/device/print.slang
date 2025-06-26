@@ -423,7 +423,7 @@ struct DebugPrinter : IPrintOutput {
 
 #if SGL_ENABLE_PRINT
 
-ParameterBlock<detail::DebugPrinter> g_debug_printer;
+detail::DebugPrinter g_debug_printer;
 
 // clang-format off
 [ForceInline] void print(String fmt) { detail::print(g_debug_printer, fmt); }
