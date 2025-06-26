@@ -44,6 +44,50 @@ SGL_DICT_TO_DESC_FIELD(add_default_include_paths, bool)
 SGL_DICT_TO_DESC_FIELD(cache_path, std::filesystem::path)
 SGL_DICT_TO_DESC_END()
 
+inline nb::dict convert_compilation_report(const rhi::CompilationReport* report)
+{
+    nb::dict dict;
+    if (report) {
+        dict["label"] = report->label;
+        dict["alive"] = report->alive;
+        dict["create_time"] = report->createTime;
+        dict["compile_time"] = report->compileTime;
+        dict["compile_slang_time"] = report->compileSlangTime;
+        dict["compile_downstream_time"] = report->compileDownstreamTime;
+        dict["create_pipeline_time"] = report->createPipelineTime;
+        nb::list entry_point_reports;
+        for (uint32_t i = 0; i < report->entryPointReportCount; ++i) {
+            const auto& entry = report->entryPointReports[i];
+            nb::dict entry_dict;
+            entry_dict["name"] = entry.name;
+            entry_dict["start_time"] = entry.startTime;
+            entry_dict["end_time"] = entry.endTime;
+            entry_dict["create_time"] = entry.createTime;
+            entry_dict["compile_time"] = entry.compileTime;
+            entry_dict["compile_slang_time"] = entry.compileSlangTime;
+            entry_dict["compile_downstream_time"] = entry.compileDownstreamTime;
+            entry_dict["is_cached"] = entry.isCached;
+            entry_dict["cache_size"] = entry.cacheSize;
+            entry_point_reports.append(entry_dict);
+        }
+        dict["entry_point_reports"] = entry_point_reports;
+        nb::list pipeline_reports;
+        for (uint32_t i = 0; i < report->pipelineReportCount; ++i) {
+            const auto& pipeline = report->pipelineReports[i];
+            nb::dict pipeline_dict;
+            pipeline_dict["type"] = static_cast<int>(pipeline.type);
+            pipeline_dict["start_time"] = pipeline.startTime;
+            pipeline_dict["end_time"] = pipeline.endTime;
+            pipeline_dict["create_time"] = pipeline.createTime;
+            pipeline_dict["is_cached"] = pipeline.isCached;
+            pipeline_dict["cache_size"] = pipeline.cacheSize;
+            pipeline_reports.append(pipeline_dict);
+        }
+        dict["pipeline_reports"] = pipeline_reports;
+    }
+    return dict;
+}
+
 } // namespace sgl
 
 NB_MAKE_OPAQUE(std::map<std::string, std::string, std::less<>>);
@@ -235,5 +279,15 @@ SGL_PY_EXPORT(device_shader)
 
     nb::class_<ShaderProgram, DeviceResource>(m, "ShaderProgram", D(ShaderProgram))
         .def_prop_ro("layout", &ShaderProgram::layout, D(ShaderProgram, layout))
-        .def_prop_ro("reflection", &ShaderProgram::reflection, D(ShaderProgram, reflection));
+        .def_prop_ro("reflection", &ShaderProgram::reflection, D(ShaderProgram, reflection))
+        .def_prop_ro(
+            "compilation_report",
+            [](ShaderProgram* self) -> nb::dict
+            {
+                return convert_compilation_report(
+                    reinterpret_cast<const rhi::CompilationReport*>(self->rhi_compilation_report()->getBufferPointer())
+                );
+            },
+            "Compilation report in a dictionary format"
+        );
 }

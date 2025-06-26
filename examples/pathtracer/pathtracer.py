@@ -7,6 +7,7 @@ import numpy.typing as npt
 from pathlib import Path
 from dataclasses import dataclass
 import struct
+import pprint
 
 EXAMPLE_DIR = Path(__file__).parent
 
@@ -794,6 +795,8 @@ class App:
             self.surface.present()
 
             frame += 1
+
+            # pprint.pp(self.path_tracer.program.compilation_report)
 
         self.device.wait()
 

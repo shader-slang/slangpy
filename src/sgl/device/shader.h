@@ -503,6 +503,13 @@ public:
 
     rhi::IShaderProgram* rhi_shader_program() const { return m_data->rhi_shader_program; }
 
+    Slang::ComPtr<ISlangBlob> rhi_compilation_report() const
+    {
+        Slang::ComPtr<ISlangBlob> blob;
+        m_data->rhi_shader_program->getCompilationReport(blob.writeRef());
+        return blob;
+    }
+
     virtual std::string to_string() const override;
 
     void _register_pipeline(Pipeline* pipeline);
