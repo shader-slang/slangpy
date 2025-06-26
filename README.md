@@ -41,6 +41,19 @@ cd slangpy
 pip install .
 ```
 
+## Build Options
+
+When building from source, you can customize the build using the following CMake options (passed with `-D<OPTION>=<VALUE>`):
+
+| Option                          | Description                                                                 | Default |
+| ------------------------------- | --------------------------------------------------------------------------- | ------- |
+| `SGL_BUILD_PYTHON`              | Build the Python extension module.                                          | `ON`    |
+| `SGL_BUILD_EXAMPLES`            | Build the example applications.                                             | `ON`    |
+| `SGL_BUILD_TESTS`               | Build the test suite.                                                       | `ON`    |
+| `SGL_BUILD_DOC`                 | Build the documentation.                                                    | `OFF`   |
+| `SGL_USE_DYNAMIC_CUDA`          | Load the CUDA driver API dynamically at runtime.                            | `ON`    |
+| `SGL_MSVC_TOOLSET_VERSION`      | Specify an exact MSVC toolset version to use (e.g., `14.38.33130`).         | Unset   |
+
 ## License
 
 SlangPy source code is licensed under the Apache-2.0 License - see the [LICENSE.txt](LICENSE.txt) file for details.
