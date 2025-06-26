@@ -527,10 +527,18 @@ ref<ShaderProgram> SlangSession::link_program(
     if (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12)
         modules.push_back(m_nvapi_module);
 
-    ShaderProgramDesc desc;
-    desc.modules = modules;
-    desc.entry_points = entry_points;
-    desc.link_options = link_options;
+    // Generate label
+    std::string label;
+    for (const auto& entry_point : entry_points) {
+        label += (label.empty() ? "" : ", ") + entry_point->module()->name() + ":" + entry_point->name();
+    }
+
+    ShaderProgramDesc desc{
+        .modules = modules,
+        .entry_points = entry_points,
+        .link_options = link_options,
+        .label = label,
+    };
 
     auto program = make_ref<ShaderProgram>(ref(device()), ref(this), desc);
 
@@ -1178,6 +1186,7 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
     {
         rhi::ShaderProgramDesc rhi_desc{
             .slangGlobalScope = linked_program,
+            .label = desc.label.empty() ? nullptr : desc.label.c_str(),
         };
 
         Slang::ComPtr<ISlangBlob> diagnostics;
@@ -1190,13 +1199,7 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
     }
 
     // Report link time.
-    std::string name;
-    for (const auto& entry_point : desc.entry_points) {
-        auto module_data = build_data.modules[entry_point->module()];
-        auto entry_point_data = build_data.entry_points[entry_point];
-        name += (name.empty() ? "" : ", ") + module_data->name + ":" + entry_point_data->name;
-    }
-    log_debug("Linking shader program \"{}\" took {}", name, string::format_duration(timer.elapsed_s()));
+    log_debug("Linking shader program \"{}\" took {}", desc.label, string::format_duration(timer.elapsed_s()));
 
     auto data = make_ref<ShaderProgramData>();
 
@@ -1233,10 +1236,12 @@ std::string ShaderProgram::to_string() const
     return fmt::format(
         "ShaderProgram(\n"
         "  modules = {},\n"
-        "  entry_points = {}\n"
+        "  entry_points = {},\n"
+        "  label = {}\n"
         ")",
         string::indent(string::list_to_string(m_desc.modules)),
-        string::indent(string::list_to_string(m_desc.entry_points))
+        string::indent(string::list_to_string(m_desc.entry_points)),
+        m_desc.label
     );
 }
 

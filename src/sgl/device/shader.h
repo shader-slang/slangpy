@@ -474,6 +474,7 @@ struct ShaderProgramDesc {
     std::vector<ref<SlangModule>> modules;
     std::vector<ref<SlangEntryPoint>> entry_points;
     std::optional<SlangLinkOptions> link_options;
+    std::string label;
 };
 struct ShaderProgramData : Object {
     Slang::ComPtr<slang::IComponentType> linked_program;
