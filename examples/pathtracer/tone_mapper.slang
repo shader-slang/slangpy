@@ -2,6 +2,7 @@
 
 float3 aces_film(float3 x)
 {
+    x *= 0.6;
     float a = 2.51;
     float b = 0.03;
     float c = 2.43;
