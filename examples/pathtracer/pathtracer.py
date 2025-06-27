@@ -690,17 +690,11 @@ class App:
             },
         )
         self.surface = self.device.create_surface(self.window)
-        self.surface_usage = (
-            spy.TextureUsage.unordered_access
-            if self.device.desc.type == spy.DeviceType.cuda
-            else spy.TextureUsage.render_target
-        )
         self.surface.configure(
             {
                 "width": self.window.width,
                 "height": self.window.height,
                 "vsync": False,
-                "usage": self.surface_usage,
             }
         )
 
@@ -749,7 +743,6 @@ class App:
                 "width": width,
                 "height": height,
                 "vsync": False,
-                "usage": self.surface_usage,
             }
         )
 

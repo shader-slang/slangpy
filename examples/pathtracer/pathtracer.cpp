@@ -740,7 +740,6 @@ struct App {
     ref<Window> window;
     ref<Device> device;
     ref<Surface> surface;
-    TextureUsage surface_usage;
     ref<Texture> render_texture;
     ref<Texture> accum_texture;
     ref<Texture> output_texture;
@@ -770,10 +769,7 @@ struct App {
             },
         });
         surface = device->create_surface(window);
-        surface_usage
-            = device->desc().type == DeviceType::cuda ? TextureUsage::unordered_access : TextureUsage::render_target;
         surface->configure({
-            .usage = surface_usage,
             .width = window->width(),
             .height = window->height(),
             .vsync = false,
@@ -818,7 +814,6 @@ struct App {
     {
         device->wait();
         surface->configure({
-            .usage = surface_usage,
             .width = width,
             .height = height,
             .vsync = false,
