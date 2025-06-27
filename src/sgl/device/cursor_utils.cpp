@@ -124,13 +124,24 @@ namespace cursor_utils {
             (TypeReflection::ScalarType)type->getScalarType(),
             scalar_type
         );
-        SGL_CHECK(
-            type_layout->getSize() >= size,
-            "Mismatched size, writing {} B into backend type ({}) of only {} B.",
-            size,
-            type_layout->getName(),
-            type_layout->getSize()
-        );
+        // This is currently happening a lot due to CUDA reflection issues discussed here:
+        // https://github.com/shader-slang/slang/issues/7441
+        // Until they are resolved we keep this as a warning instead of an error.
+        if (size > type_layout->getSize()) {
+            log_warn(
+                "Mismatched size, writing {} B into backend type ({}) of only {} B.",
+                size,
+                type_layout->getName(),
+                type_layout->getSize()
+            );
+        }
+        // SGL_CHECK(
+        //     type_layout->getSize() >= size,
+        //     "Mismatched size, writing {} B into backend type ({}) of only {} B.",
+        //     size,
+        //     type_layout->getName(),
+        //     type_layout->getSize()
+        // );
     }
 
     void check_vector(
