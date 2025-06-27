@@ -29,7 +29,8 @@ float[5] matrix_vector_tensorized(Tensor<float, 2> weights, Tensor<float, 1> bia
     return result;
 }
 
-float3 matrix_vector_matrices(float3x4 weights, float4 biases, float[8] x)
+[Differentiable]
+float3 matrix_vector_matrices(float3x4 weights, float4 biases, float[4] x)
 {
     float3 result;
     for (int r = 0; r < 3; ++r)
