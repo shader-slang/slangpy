@@ -396,20 +396,107 @@ def generate_code(
 
     # Generate the header
     cg.add_import("slangpy")
+
+    call_data_len = context.call_dimensionality
+
+    # Get the call group size so we can see about using it when generating the
+    # [numthreads(...)] attribute. We use 1 as the default size if a call
+    # group shape has not been set, as we can use that to make things "linear".
+    # Note that when size is 1, we will still launch a group of 32 threads,
+    # but each thread is conceptually in its own group of size 1. This then
+    # leads to a linearly calculated call_id based on threadID.x and the call
+    # shape's size and strides.
+    call_group_size = 1
+    call_group_shape = build_info.call_group_shape
+    if call_group_shape is not None:
+        call_group_shape_vector = call_group_shape.as_list()
+
+        # Validate call_group_shape dimensionality and values before using them
+        if len(call_group_shape_vector) > context.call_dimensionality:
+            raise KernelGenException(
+                f"call_group_shape dimensionality ({len(call_group_shape_vector)}) must be <= "
+                f"call_shape dimensionality ({context.call_dimensionality}). "
+                f"call_group_shape cannot have more dimensions than call_shape."
+            )
+        elif len(call_group_shape_vector) < context.call_dimensionality:
+            # Call group shape size is less than the call shape size so we need to
+            # pad the call group shape with 1's to account for the missing dimensions.
+            # However, inserting at the front of the list will be inefficient, so
+            # log a debug message, giving users a chance to correct their calls.
+
+            missing_dims = context.call_dimensionality - len(call_group_shape_vector)
+
+            # Pad with 1's at the beginning
+            call_group_shape_vector = [1] * missing_dims + call_group_shape_vector
+
+        # Validate that all call_group_shape values are >= 1
+        for i, dim in enumerate(call_group_shape_vector):
+            if dim < 1:
+                raise KernelGenException(
+                    f"call_group_shape[{i}] = {dim} is invalid. "
+                    f"All call_group_shape elements must be >= 1."
+                )
+
+        # Calculate call group size as product of all dimensions
+        # Also grab the group strides here as that will allow us
+        # to use the group shape as constants to improve perf
+        call_group_strides = []
+        for dim in call_group_shape_vector[::-1]:
+            call_group_strides.append(call_group_size)
+            call_group_size *= dim
+        call_group_strides.reverse()
+
+        # Check if call_group_size exceeds hardware limits
+        if call_group_size > 1024:
+            raise KernelGenException(
+                f"call_group_size ({call_group_size}) exceeds the typical 1024 maximum "
+                f"enforced by most APIs. Consider reducing your call_group_shape dimensions."
+            )
+
     cg.add_import(build_info.module.name)
 
     # Generate constants if specified
     generate_constants(build_info, cg)
 
-    # Generate call data inputs if vector call
-    call_data_len = context.call_dimensionality
-    if call_data_len > 0:
-        cg.call_data.append_statement(f"int[{call_data_len}] _call_stride")
-        cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
-    cg.call_data.append_statement(f"uint3 _thread_count")
+    # Generate additional link time constants definition code. These are declared in callshape.slang
+    # and used to generated call_ids that can be queried by user modules.
+    cg.constants.append_statement(f"export static const int call_data_len = {call_data_len}")
+    cg.constants.append_statement(f"export static const int call_group_size = {call_group_size}")
 
-    # Generate the context structure
-    cg.context.type_alias("Context", f"ContextND<{context.call_dimensionality}>")
+    # Also generate the call group shape and stride arrays as link time constants. Using constants
+    # should yield better performance than passing these in as uniforms.
+    cg.constants.append_line(f"export static const int[call_data_len] call_group_strides = {{")
+    cg.constants.inc_indent()
+    if call_group_size != 1:
+        for i in range(call_data_len):
+            cg.constants.append_line(f"{call_group_strides[i]},")
+    cg.constants.dec_indent()
+    cg.constants.append_statement("}")
+
+    cg.constants.append_line(f"export static const int[call_data_len] call_group_shape_vector = {{")
+    cg.constants.inc_indent()
+    if call_group_size != 1:
+        for i in range(call_data_len):
+            cg.constants.append_line(f"{call_group_shape_vector[i]},")
+    cg.constants.dec_indent()
+    cg.constants.append_statement("}")
+
+    # Generate call data inputs if vector call
+    if call_data_len > 0:
+        # A group can be thought of as a "window" looking at a
+        # portion of the entire call shape. Grid here refers to the
+        # N dimensional call shape being broken up into some number of N
+        # dimensional "window"s / groups.
+        cg.call_data.append_statement(f"int[{call_data_len}] _grid_stride")
+        cg.call_data.append_statement(f"int[{call_data_len}] _grid_dim")
+        # We use the call shape dimensions to detect cases when the call shape
+        # and the call group shape are not aligned. When a thread's call id
+        # falls outside the call shape, we need it to return early. This is
+        # similar to the default linear case when the call shape size is not
+        # 32 thread aligned.
+        cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
+
+    cg.call_data.append_statement(f"uint3 _thread_count")
 
     # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
@@ -483,23 +570,35 @@ def generate_code(
 
     # Generate the main function
     cg.kernel.append_line('[shader("compute")]')
-    cg.kernel.append_line("[numthreads(32, 1, 1)]")
-    cg.kernel.append_line("void compute_main(uint3 dispatchThreadID: SV_DispatchThreadID)")
+    if call_group_size != 1:
+        cg.kernel.append_line(f"[numthreads({call_group_size}, 1, 1)]")
+    else:
+        cg.kernel.append_line("[numthreads(32, 1, 1)]")
+
+    # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
+    #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
+    cg.kernel.append_line(
+        "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex)"
+    )
     cg.kernel.begin_block()
-    cg.kernel.append_statement("if (any(dispatchThreadID >= call_data._thread_count)) return")
+    cg.kernel.append_statement("if (any(flat_call_thread_id >= call_data._thread_count)) return")
 
     # Loads / initializes call id
-    context_args = "dispatchThreadID"
+    context_args = "flat_call_thread_id"
+
+    # Call init_thread_local_call_shape_info to initialize the call shape info. See
+    # definition in callshape.slang.
     if call_data_len > 0:
-        cg.kernel.append_line(f"int[{call_data_len}] call_id = {{")
-        cg.kernel.inc_indent()
-        for i in range(call_data_len):
-            cg.kernel.append_line(
-                f"(dispatchThreadID.x/call_data._call_stride[{i}]) % call_data._call_dim[{i}],"
-            )
-        cg.kernel.dec_indent()
-        cg.kernel.append_statement("}")
-        context_args += ", call_id"
+        cg.kernel.append_line(
+            f"""
+        if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
+            flat_call_group_id, flat_call_thread_id, call_data._grid_stride,
+            call_data._grid_dim, call_data._call_dim))
+            return;"""
+        )
+
+        context_args += ", CallShapeInfo::get_call_id().shape"
+
     cg.kernel.append_statement(f"Context context = {{{context_args}}}")
 
     # Call the trampoline function

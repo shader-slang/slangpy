@@ -11,6 +11,7 @@ from slangpy.core.native import (
 
 from slangpy.reflection import SlangFunction, SlangType
 from slangpy import CommandEncoder, TypeConformance, uint3, Logger
+from slangpy.slangpy import Shape
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
@@ -58,6 +59,7 @@ class FunctionBuildInfo:
         self.thread_group_size: Optional[uint3] = None
         self.return_type: Optional[Union[type, str]] = None
         self.logger: Optional[Logger] = None
+        self.call_group_shape: Optional[Shape] = None
 
 
 class FunctionNode(NativeFunctionNode):
@@ -292,6 +294,7 @@ class FunctionNode(NativeFunctionNode):
                 lines.append(str(build_info.return_type))
                 lines.append(str(build_info.constants))
                 lines.append(str(build_info.thread_group_size))
+                lines.append(str(build_info.call_group_shape))
                 self.slangpy_signature = "\n".join(lines)
 
             builder = SignatureBuilder()
@@ -348,6 +351,13 @@ class FunctionNode(NativeFunctionNode):
         from .calldata import CallData
 
         return CallData(self, *args, **kwargs)
+
+    def call_group_shape(self, call_group_shape: Shape):
+        """
+        Specify the call group shape for the function. This determines how the computation
+        is divided into call groups. The shape can be N-dimensional.
+        """
+        return FunctionNodeCallGroupShape(self, call_group_shape)
 
 
 class FunctionNodeBind(FunctionNode):
@@ -469,6 +479,19 @@ class FunctionNodeLogger(FunctionNode):
 
     def _populate_build_info(self, info: FunctionBuildInfo):
         info.logger = self.logger
+
+
+class FunctionNodeCallGroupShape(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, call_group_shape: Shape) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, call_group_shape)
+        self.slangpy_signature = str(call_group_shape)
+
+    @property
+    def call_group_shape(self):
+        return cast(Shape, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.call_group_shape = self.call_group_shape
 
 
 class Function(FunctionNode):

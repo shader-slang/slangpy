@@ -39,6 +39,9 @@ public typealias Context3D = ContextND<3>;
 public typealias Context4D = ContextND<4>;
 public typealias Context5D = ContextND<5>;
 
+// call_data_len is a link-time constant declared in callshape.slang
+public typealias Context = ContextND<call_data_len>;
+
 public struct Unknown {}
 
 int _idx<let N : int>(int[N] index, int[N] stride) {
