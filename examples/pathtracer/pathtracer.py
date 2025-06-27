@@ -682,6 +682,7 @@ class App:
         super().__init__()
         self.window = spy.Window(width=1920, height=1080, title="PathTracer", resizable=True)
         self.device = spy.Device(
+            # type=spy.DeviceType.cuda,
             enable_debug_layers=False,
             compiler_options={
                 "include_paths": [EXAMPLE_DIR],
@@ -689,8 +690,18 @@ class App:
             },
         )
         self.surface = self.device.create_surface(self.window)
+        self.surface_usage = (
+            spy.TextureUsage.unordered_access
+            if self.device.desc.type == spy.DeviceType.cuda
+            else spy.TextureUsage.render_target
+        )
         self.surface.configure(
-            {"width": self.window.width, "height": self.window.height, "vsync": False}
+            {
+                "width": self.window.width,
+                "height": self.window.height,
+                "vsync": False,
+                "usage": self.surface_usage,
+            }
         )
 
         self.render_texture: spy.Texture = None  # type: ignore (will be set immediately)
@@ -733,7 +744,14 @@ class App:
 
     def on_resize(self, width: int, height: int):
         self.device.wait()
-        self.surface.configure({"width": width, "height": height, "vsync": False})
+        self.surface.configure(
+            {
+                "width": width,
+                "height": height,
+                "vsync": False,
+                "usage": self.surface_usage,
+            }
+        )
 
     def main_loop(self):
         frame = 0
