@@ -691,11 +691,7 @@ class App:
         )
         self.surface = self.device.create_surface(self.window)
         self.surface.configure(
-            {
-                "width": self.window.width,
-                "height": self.window.height,
-                "vsync": False,
-            }
+            {"width": self.window.width, "height": self.window.height, "vsync": False}
         )
 
         self.render_texture: spy.Texture = None  # type: ignore (will be set immediately)
@@ -738,13 +734,7 @@ class App:
 
     def on_resize(self, width: int, height: int):
         self.device.wait()
-        self.surface.configure(
-            {
-                "width": width,
-                "height": height,
-                "vsync": False,
-            }
-        )
+        self.surface.configure({"width": width, "height": height, "vsync": False})
 
     def main_loop(self):
         frame = 0
