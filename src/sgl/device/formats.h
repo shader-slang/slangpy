@@ -288,6 +288,8 @@ struct SGL_API FormatInfo {
     uint32_t dxgi_format;
     /// Vulkan format.
     uint32_t vk_format;
+    /// Slang format.
+    const char* slang_format;
 
     /// True if format has a depth or stencil component.
     bool is_depth_stencil() const { return is_depth || is_stencil; }
