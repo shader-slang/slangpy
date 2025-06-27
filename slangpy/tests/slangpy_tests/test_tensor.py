@@ -56,6 +56,7 @@ def test_tensor_parameters(device_type: DeviceType):
     y = func(weights, biases, x)
     compare_tensors(y.to_numpy(), np_result)
 
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_matrix_parameters(device_type: DeviceType):
     device = helpers.get_device(device_type)
