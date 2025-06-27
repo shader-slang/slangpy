@@ -8,20 +8,20 @@ from typing import Any
 import os
 
 
-def get_test_tensors(device: Device, N: int = 4):
+def get_test_tensors(device: Device, din: int = 5, dout: int = 8, N: int = 4):
     np.random.seed(0)
 
-    np_weights = np.random.randn(5, 8).astype(np.float32)
-    np_biases = np.random.randn(5).astype(np.float32)
-    np_x = np.random.randn(8).astype(np.float32)
+    np_weights = np.random.randn(din, dout).astype(np.float32)
+    np_biases = np.random.randn(din).astype(np.float32)
+    np_x = np.random.randn(dout).astype(np.float32)
     np_result = np.tile(np_weights.dot(np_x) + np_biases, (N, 1))
 
-    biases = Tensor.from_numpy(device, np_biases).broadcast_to((N, 5))
-    x = Tensor.from_numpy(device, np_x).broadcast_to((N, 8))
+    biases = Tensor.from_numpy(device, np_biases).broadcast_to((N, din))
+    x = Tensor.from_numpy(device, np_x).broadcast_to((N, dout))
     weights = Tensor.from_numpy(
         device,
         np_weights,
-    ).broadcast_to((N, 5, 8))
+    ).broadcast_to((N, din, dout))
 
     return weights, biases, x, np_result
 
@@ -53,6 +53,16 @@ def test_tensor_parameters(device_type: DeviceType):
 
     func = get_func(device, "matrix_vector_tensorized").return_type(Tensor)
     weights, biases, x, np_result = get_test_tensors(device)
+    y = func(weights, biases, x)
+    compare_tensors(y.to_numpy(), np_result)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_matrix_parameters(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+
+    func = get_func(device, "matrix_vector_matrices").return_type(Tensor)
+    weights, biases, x, np_result = get_test_tensors(device, din=3, dout=4)
     y = func(weights, biases, x)
     compare_tensors(y.to_numpy(), np_result)
 
