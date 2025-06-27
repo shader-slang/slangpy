@@ -616,7 +616,7 @@ struct PathTracer {
         : device(device)
         , scene(scene)
     {
-        ref<ShaderProgram> program = device->load_program("pathtracer.slang", {"main"});
+        ref<ShaderProgram> program = device->load_program("pathtracer.slang", {"compute_main"});
         pipeline = device->create_compute_pipeline({.program = program});
     }
 
@@ -641,7 +641,7 @@ struct Accumulator {
     Accumulator(ref<Device> device)
         : device(device)
     {
-        ref<ShaderProgram> program = device->load_program("accumulator.slang", {"main"});
+        ref<ShaderProgram> program = device->load_program("accumulator.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
     }
 
@@ -678,7 +678,7 @@ struct ToneMapper {
     ToneMapper(ref<Device> device)
         : device(device)
     {
-        ref<ShaderProgram> program = device->load_program("tone_mapper.slang", {"main"});
+        ref<ShaderProgram> program = device->load_program("tone_mapper.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
     }
 

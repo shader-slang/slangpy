@@ -558,7 +558,7 @@ class PathTracer:
         self.device = device
         self.scene = scene
 
-        self.program = self.device.load_program("pathtracer.slang", ["main"])
+        self.program = self.device.load_program("pathtracer.slang", ["compute_main"])
         self.pipeline = self.device.create_compute_pipeline(self.program)
 
     def execute(self, command_encoder: spy.CommandEncoder, output: spy.Texture, frame: int):
@@ -582,7 +582,7 @@ class Accumulator:
     def __init__(self, device: spy.Device):
         super().__init__()
         self.device = device
-        self.program = self.device.load_program("accumulator.slang", ["main"])
+        self.program = self.device.load_program("accumulator.slang", ["compute_main"])
         self.kernel = self.device.create_compute_kernel(self.program)
         self.accumulator: Optional[spy.Texture] = None
 
@@ -623,7 +623,7 @@ class ToneMapper:
     def __init__(self, device: spy.Device):
         super().__init__()
         self.device = device
-        self.program = self.device.load_program("tone_mapper.slang", ["main"])
+        self.program = self.device.load_program("tone_mapper.slang", ["compute_main"])
         self.kernel = self.device.create_compute_kernel(self.program)
 
     def execute(

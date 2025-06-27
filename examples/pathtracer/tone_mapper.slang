@@ -26,7 +26,7 @@ ParameterBlock<ToneMapper> g_tone_mapper;
 
 [[shader("compute")]]
 [[numthreads(8, 8, 1)]]
-void main(uint3 tid: SV_DispatchThreadID)
+void compute_main(uint3 tid: SV_DispatchThreadID)
 {
     g_tone_mapper.execute(tid.xy);
 }
