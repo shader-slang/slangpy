@@ -29,7 +29,7 @@ struct SurfaceConfig {
     /// Surface texture format.
     Format format = Format::undefined;
     /// Surface texture usage.
-    TextureUsage usage = TextureUsage::render_target;
+    TextureUsage usage = TextureUsage::none;
     /// Surface texture width.
     uint32_t width = 0;
     /// Surface texture height.
