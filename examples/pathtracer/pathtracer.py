@@ -10,6 +10,8 @@ import struct
 
 EXAMPLE_DIR = Path(__file__).parent
 
+USE_RAYTRACING_PIPELINE = True
+
 
 class Camera:
     def __init__(self):
@@ -558,8 +560,30 @@ class PathTracer:
         self.device = device
         self.scene = scene
 
-        self.program = self.device.load_program("pathtracer.slang", ["main"])
-        self.pipeline = self.device.create_compute_pipeline(self.program)
+        if USE_RAYTRACING_PIPELINE:
+            self.program = self.device.load_program(
+                "pathtracer.slang", ["rt_ray_gen", "rt_closest_hit", "rt_miss"]
+            )
+            self.rt_pipeline = self.device.create_ray_tracing_pipeline(
+                program=self.program,
+                hit_groups=[
+                    {
+                        "hit_group_name": "default",
+                        "closest_hit_entry_point": "rt_closest_hit",
+                    }
+                ],
+                max_recursion=6,
+                max_ray_payload_size=128,
+            )
+            self.shader_table = self.device.create_shader_table(
+                program=self.program,
+                ray_gen_entry_points=["rt_ray_gen"],
+                miss_entry_points=["rt_miss"],
+                hit_group_names=["default"],
+            )
+        else:
+            self.program = self.device.load_program("pathtracer.slang", ["compute_main"])
+            self.pipeline = self.device.create_compute_pipeline(self.program)
 
     def execute(self, command_encoder: spy.CommandEncoder, output: spy.Texture, frame: int):
         w = output.width
@@ -569,20 +593,29 @@ class PathTracer:
         self.scene.camera.height = h
         self.scene.camera.recompute()
 
-        with command_encoder.begin_compute_pass() as pass_encoder:
-            shader_object = pass_encoder.bind_pipeline(self.pipeline)
-            cursor = spy.ShaderCursor(shader_object)
-            cursor.g_output = output
-            cursor.g_frame = frame
-            self.scene.bind(cursor.g_scene)
-            pass_encoder.dispatch(thread_count=[w, h, 1])
+        if USE_RAYTRACING_PIPELINE:
+            with command_encoder.begin_ray_tracing_pass() as pass_encoder:
+                shader_object = pass_encoder.bind_pipeline(self.rt_pipeline, self.shader_table)
+                cursor = spy.ShaderCursor(shader_object)
+                cursor.g_output = output
+                cursor.g_frame = frame
+                self.scene.bind(cursor.g_scene)
+                pass_encoder.dispatch_rays(0, [w, h, 1])
+        else:
+            with command_encoder.begin_compute_pass() as pass_encoder:
+                shader_object = pass_encoder.bind_pipeline(self.pipeline)
+                cursor = spy.ShaderCursor(shader_object)
+                cursor.g_output = output
+                cursor.g_frame = frame
+                self.scene.bind(cursor.g_scene)
+                pass_encoder.dispatch(thread_count=[w, h, 1])
 
 
 class Accumulator:
     def __init__(self, device: spy.Device):
         super().__init__()
         self.device = device
-        self.program = self.device.load_program("accumulator.slang", ["main"])
+        self.program = self.device.load_program("accumulator.slang", ["compute_main"])
         self.kernel = self.device.create_compute_kernel(self.program)
         self.accumulator: Optional[spy.Texture] = None
 
@@ -623,7 +656,7 @@ class ToneMapper:
     def __init__(self, device: spy.Device):
         super().__init__()
         self.device = device
-        self.program = self.device.load_program("tone_mapper.slang", ["main"])
+        self.program = self.device.load_program("tone_mapper.slang", ["compute_main"])
         self.kernel = self.device.create_compute_kernel(self.program)
 
     def execute(
@@ -649,8 +682,12 @@ class App:
         super().__init__()
         self.window = spy.Window(width=1920, height=1080, title="PathTracer", resizable=True)
         self.device = spy.Device(
+            # type=spy.DeviceType.cuda,
             enable_debug_layers=False,
-            compiler_options={"include_paths": [EXAMPLE_DIR]},
+            compiler_options={
+                "include_paths": [EXAMPLE_DIR],
+                "defines": {"USE_RAYTRACING_PIPELINE": "1" if USE_RAYTRACING_PIPELINE else "0"},
+            },
         )
         self.surface = self.device.create_surface(self.window)
         self.surface.configure(

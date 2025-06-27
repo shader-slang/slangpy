@@ -30,6 +30,8 @@ SGL_EXPORT_AGILITY_SDK
 
 static const std::filesystem::path EXAMPLE_DIR(SGL_EXAMPLE_DIR);
 
+static const bool USE_RAYTRACING_PIPELINE = true;
+
 using namespace sgl;
 
 inline float3 random_float3()
@@ -610,38 +612,74 @@ struct Scene {
 struct PathTracer {
     ref<Device> device;
     const Scene& scene;
+    ref<ShaderProgram> program;
     ref<ComputePipeline> pipeline;
+    ref<RayTracingPipeline> rt_pipeline;
+    ref<ShaderTable> shader_table;
 
     PathTracer(ref<Device> device, const Scene& scene)
         : device(device)
         , scene(scene)
     {
-        ref<ShaderProgram> program = device->load_program("pathtracer.slang", {"main"});
-        pipeline = device->create_compute_pipeline({.program = program});
+        if (USE_RAYTRACING_PIPELINE) {
+            program = device->load_program("pathtracer.slang", {"rt_ray_gen", "rt_closest_hit", "rt_miss"});
+            rt_pipeline = device->create_ray_tracing_pipeline({
+                .program = program,
+                .hit_groups = {
+                    {
+                        .hit_group_name = "default",
+                        .closest_hit_entry_point = "rt_closest_hit",
+                    },
+                },
+                .max_recursion = 6,
+                .max_ray_payload_size = 128,
+            });
+            shader_table = device->create_shader_table({
+                .program = program,
+                .ray_gen_entry_points = {"rt_ray_gen"},
+                .miss_entry_points = {"rt_miss"},
+                .hit_group_names = {"default"},
+            });
+        } else {
+            program = device->load_program("pathtracer.slang", {"compute_main"});
+            pipeline = device->create_compute_pipeline({.program = program});
+        }
     }
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> output, uint32_t frame)
     {
-        ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
-        ShaderObject* shader_object = pass_encoder->bind_pipeline(pipeline);
-        ShaderCursor cursor = ShaderCursor(shader_object);
-        cursor["g_output"] = output;
-        cursor["g_frame"] = frame;
-        scene.bind(cursor["g_scene"]);
-        pass_encoder->dispatch({output->width(), output->height(), 1});
-        pass_encoder->end();
+        if (USE_RAYTRACING_PIPELINE) {
+            ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
+            ShaderObject* shader_object = pass_encoder->bind_pipeline(rt_pipeline, shader_table);
+            ShaderCursor cursor = ShaderCursor(shader_object);
+            cursor["g_output"] = output;
+            cursor["g_frame"] = frame;
+            scene.bind(cursor["g_scene"]);
+            pass_encoder->dispatch_rays(0, {output->width(), output->height(), 1});
+            pass_encoder->end();
+        } else {
+            ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
+            ShaderObject* shader_object = pass_encoder->bind_pipeline(pipeline);
+            ShaderCursor cursor = ShaderCursor(shader_object);
+            cursor["g_output"] = output;
+            cursor["g_frame"] = frame;
+            scene.bind(cursor["g_scene"]);
+            pass_encoder->dispatch({output->width(), output->height(), 1});
+            pass_encoder->end();
+        }
     }
 };
 
 struct Accumulator {
     ref<Device> device;
+    ref<ShaderProgram> program;
     ref<ComputeKernel> kernel;
     ref<Texture> accumulator;
 
     Accumulator(ref<Device> device)
         : device(device)
     {
-        ref<ShaderProgram> program = device->load_program("accumulator.slang", {"main"});
+        program = device->load_program("accumulator.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
     }
 
@@ -673,12 +711,13 @@ struct Accumulator {
 
 struct ToneMapper {
     ref<Device> device;
+    ref<ShaderProgram> program;
     ref<ComputeKernel> kernel;
 
     ToneMapper(ref<Device> device)
         : device(device)
     {
-        ref<ShaderProgram> program = device->load_program("tone_mapper.slang", {"main"});
+        program = device->load_program("tone_mapper.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
     }
 
@@ -720,8 +759,14 @@ struct App {
             .resizable = true,
         });
         device = Device::create({
+            // .type = DeviceType::cuda,
             .enable_debug_layers = true,
-            .compiler_options = {.include_paths = {EXAMPLE_DIR}},
+            .compiler_options = {
+                .include_paths = {EXAMPLE_DIR},
+                .defines = {
+                    {"USE_RAYTRACING_PIPELINE", USE_RAYTRACING_PIPELINE ? "1" : "0"},
+                },
+            },
         });
         surface = device->create_surface(window);
         surface->configure({
