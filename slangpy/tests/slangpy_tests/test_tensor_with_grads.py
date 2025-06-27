@@ -70,7 +70,7 @@ def test_differentiable_interface_parameters(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_differentiable_interface_parameters(device_type: DeviceType):
+def test_differentiable_matrix_parameters(device_type: DeviceType):
     if device_type == DeviceType.cuda:
         pytest.skip("CUDA backend generates invalid results")
 
