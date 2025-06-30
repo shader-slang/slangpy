@@ -250,6 +250,9 @@ The following table lists the available configuration options:
     * - ``SGL_ENABLE_HEADER_VALIDATION``
       - ``OFF``
       - Enable header validation
+    * - ``SGL_MSVC_TOOLSET_VERSION``
+      - ``Unset``
+      - Specify an exact MSVC toolset version to use (e.g., `14.38.33130`)
 
 
 
