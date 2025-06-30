@@ -116,7 +116,7 @@ void RenderPipeline::recreate()
             },
             .enableBlend = target.enable_blend,
             .logicOp = static_cast<rhi::LogicOp>(target.logic_op),
-            .writeMask = static_cast<rhi::RenderTargetWriteMaskT>(target.write_mask),
+            .writeMask = static_cast<rhi::RenderTargetWriteMask>(target.write_mask),
         });
     }
 
