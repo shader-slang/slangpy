@@ -125,9 +125,9 @@ def run(
 if False:
     run(
         spy.DeviceType.vulkan,
-        10,
+        2,
         "INDEX_MODE_VECTOR",
-        "READ_PATTERN_PATTERN",
+        "READ_PATTERN_SINGLE",
         "READ_MODE_INDIRECT",
         (1024, 1024),
     )

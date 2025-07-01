@@ -152,9 +152,11 @@ struct Data {
 #define READ(i, x, y) data.fetch(i, int2(x, y))
 #endif
 
+ParameterBlock<Data> data;
+
 [shader("compute")]
 [numthreads(16, 16, 1)]
-void compute_main(uint3 tid: SV_DispatchThreadID, ParameterBlock<Data> data)
+void compute_main(uint3 tid: SV_DispatchThreadID)
 {
     float result = 0.0;
     // for (int i = 0; i < data.input_tensor_count; ++i) {

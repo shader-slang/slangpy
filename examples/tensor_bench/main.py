@@ -107,13 +107,13 @@ def run(
         command_encoder.write_timestamp(query_pool, 0)
         kernel.dispatch(
             thread_count=(shape[0], shape[1], 1),
-            data={
+            vars={"data":{
                 "input": [tensor.uniforms() for tensor in input_tensors],
                 "output": output_tensor.uniforms(),
                 "input_tensor_count": input_tensor_count,
                 "index_buffer": index_buffer,
                 "index_count": index_count,
-            },
+            }},
             command_encoder=command_encoder,
         )
         command_encoder.write_timestamp(query_pool, 1)
@@ -138,10 +138,10 @@ def run(
 
 if False:
     run(
-        spy.DeviceType.cuda,
+        spy.DeviceType.vulkan,
         10,
         "INDEX_MODE_VECTOR",
-        "READ_PATTERN_PATTERN",
+        "READ_PATTERN_SINGLE",
         "READ_MODE_INDIRECT",
         (1024, 1024),
     )
@@ -159,7 +159,7 @@ for name, device_type in BACKENDS.items():
             input_tensor_count,
             "INDEX_MODE_VECTOR",
             "READ_PATTERN_SINGLE",
-            "READ_MODE_DIRECT",
+            "READ_MODE_INDIRECT",
             (1024, 1024),
         )
         print(f"N={input_tensor_count}, Time: {time:.3f} ms")
