@@ -12,21 +12,31 @@
 #define READ_MODE READ_MODE_DIRECT
 #endif
 
+struct BufferWrapper {
+    StructuredBuffer<float> buffer;
+    int stride;
+    float get(int index) { return buffer[index * stride]; }
+};
+struct RWBufferWrapper {
+    RWStructuredBuffer<float> buffer;
+    int stride;
+};
+
 struct Data {
-    StructuredBuffer<float> input[INPUT_TENSOR_COUNT];
-    RWStructuredBuffer<float> output;
+    BufferWrapper input[INPUT_TENSOR_COUNT];
+    RWBufferWrapper output;
     uint input_tensor_count;
     StructuredBuffer<uint> index_buffer;
     uint index_count;
 
     float fetch(int buffer, int index)
     {
-        return input[buffer][index];
+        return input[buffer].get(index);
     }
 };
 
 #if READ_MODE == READ_MODE_DIRECT
-#define READ(buffer, index) data.input[buffer][index]
+#define READ(buffer, index) data.input[buffer].get(index)
 #elif READ_MODE == READ_MODE_INDIRECT
 #define READ(buffer, index) data.fetch(buffer, index)
 #endif
@@ -43,5 +53,5 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
         uint buffer = data.index_buffer[i];
         result += READ(buffer, tid.x * 1024 + tid.y);
     }
-    data.output[tid.x * 1024 + tid.y] = result;
+    data.output.buffer[tid.x * 1024 + tid.y] = result;
 }
