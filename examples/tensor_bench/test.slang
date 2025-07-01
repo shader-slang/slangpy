@@ -11,11 +11,18 @@
 #define INDEX_MODE INDEX_MODE_ARRAY
 #endif
 
-#define ACCESS_MODE_SINGLE 0
-#define ACCESS_MODE_REGION 1
+#define READ_PATTERN_SINGLE 0
+#define READ_PATTERN_REGION 1
 
-#ifndef ACCESS_MODE
-#define ACCESS_MODE ACCESS_MODE_SINGLE
+#ifndef READ_PATTERN
+#define READ_PATTERN READ_PATTERN_SINGLE
+#endif
+
+#define READ_MODE_DIRECT 0
+#define READ_MODE_INDIRECT 1
+
+#ifndef READ_MODE
+#define READ_MODE READ_MODE_DIRECT
 #endif
 
 interface ITensor<T, let D : int>
@@ -125,19 +132,17 @@ extension<T, let D : int, TensorType : ITensor<T, D>> TensorType
 }
 
 struct Data {
-    Tensor<float, 3> input[INPUT_TENSOR_COUNT];
-    RWTensor<float, 3> output;
+    Tensor<float, 2> input[INPUT_TENSOR_COUNT];
+    RWTensor<float, 2> output;
+    uint input_tensor_count;
 
-    float3 fetch(int index, int2 texel)
+    float fetch(int index, int2 texel)
     {
-        texel.x = clamp(texel.x, 0, input[index].shape[1] - 1);
-        texel.y = clamp(texel.y, 0, input[index].shape[0] - 1);
+        // texel.x = clamp(texel.x, 0, input[index].shape[1] - 1);
+        // texel.y = clamp(texel.y, 0, input[index].shape[0] - 1);
 
-        float3 val;
-        val.x = input[index][texel.y, texel.x, 0];
-        val.y = input[index][texel.y, texel.x, 1];
-        val.z = input[index][texel.y, texel.x, 2];
-        return val;
+        // return input[index][texel.y, texel.x];
+        return input[index].getv(int2(texel.x, texel.y));
     }
 };
 
@@ -146,65 +151,48 @@ struct Data {
 void compute_main(uint3 tid: SV_DispatchThreadID, ParameterBlock<Data> data)
 {
 #if INDEX_MODE == INDEX_MODE_ARRAY
-    float3 result = float3(0.0);
-    for (int i = 0; i < INPUT_TENSOR_COUNT; ++i) {
-#if ACCESS_MODE == ACCESS_MODE_SINGLE
-        result.x += data.input[i].get( { tid.x, tid.y, 0 });
-        result.y += data.input[i].get( { tid.x, tid.y, 1 });
-        result.z += data.input[i].get( { tid.x, tid.y, 2 });
-#elif ACCESS_MODE == ACCESS_MODE_REGION
+    float result = 0.0;
+    for (int i = 0; i < data.input_tensor_count; ++i) {
+#if READ_PATTERN == READ_PATTERN_SINGLE
+        result += data.input[i].get( { tid.x, tid.y });
+#elif READ_PATTERN == READ_PATTERN_REGION
         for (int j = 0; j < 8; ++j) {
             for (int k = 0; k < 8; ++k) {
-                result += data.fetch(i, int2(tid.x + j, tid.y + k));
-                // result.x += data.input[i].get( { (tid.x + j) % 1024, (tid.y + k) % 1024, 0 });
-                // result.y += data.input[i].get( { (tid.x + j) % 1024, (tid.y + k) % 1024, 1 });
-                // result.z += data.input[i].get( { (tid.x + j) % 1024, (tid.y + k) % 1024, 2 });
+                result += data.fetch(i, int2((tid.x + j) % 1024, (tid.y + k) % 1024));
+                // result += data.fetch(i, int2(tid.x + j, tid.y + k));
+                // result += data.input[i].get( { (tid.x + j) % 1024, (tid.y + k) % 1024 });
             }
         }
 #endif
     }
-    data.output.set( { tid.x, tid.y, 0 }, result.x);
-    data.output.set( { tid.x, tid.y, 1 }, result.y);
-    data.output.set( { tid.x, tid.y, 2 }, result.z);
+    data.output.set( { tid.x, tid.y }, result);
 #elif INDEX_MODE == INDEX_MODE_VECTOR
-    float3 result = float3(0.0);
-    for (int i = 0; i < INPUT_TENSOR_COUNT; ++i) {
-#if ACCESS_MODE == ACCESS_MODE_SINGLE
-        result.x += data.input[i].getv(int3(tid.x, tid.y, 0));
-        result.y += data.input[i].getv(int3(tid.x, tid.y, 1));
-        result.z += data.input[i].getv(int3(tid.x, tid.y, 2));
-#elif ACCESS_MODE == ACCESS_MODE_REGION
+    float result = 0.0;
+    for (int i = 0; i < data.input_tensor_count; ++i) {
+#if READ_PATTERN == READ_PATTERN_SINGLE
+        result += data.input[i].getv(int2(tid.x, tid.y));
+#elif READ_PATTERN == READ_PATTERN_REGION
         for (int j = 0; j < 8; ++j) {
             for (int k = 0; k < 8; ++k) {
-                result.x += data.input[i].getv(int3((tid.x + j) % 1024, (tid.y + k) % 1024, 0));
-                result.y += data.input[i].getv(int3((tid.x + j) % 1024, (tid.y + k) % 1024, 1));
-                result.z += data.input[i].getv(int3((tid.x + j) % 1024, (tid.y + k) % 1024, 2));
+                result += data.input[i].getv(int2((tid.x + j) % 1024, (tid.y + k) % 1024));
             }
         }
 #endif
     }
-    data.output.setv(int3(tid.x, tid.y, 0), result.x);
-    data.output.setv(int3(tid.x, tid.y, 1), result.y);
-    data.output.setv(int3(tid.x, tid.y, 2), result.z);
+    data.output.setv(int2(tid.x, tid.y), result);
 #elif INDEX_MODE == INDEX_MODE_SUBSCRIPT
-    float3 result = float3(0.0);
-    for (int i = 0; i < INPUT_TENSOR_COUNT; ++i) {
-#if ACCESS_MODE == ACCESS_MODE_SINGLE
-        result.x += data.input[i][tid.x, tid.y, 0];
-        result.y += data.input[i][tid.x, tid.y, 1];
-        result.z += data.input[i][tid.x, tid.y, 2];
-#elif ACCESS_MODE == ACCESS_MODE_REGION
+    float result = 0.0;
+    for (int i = 0; i < data.input_tensor_count; ++i) {
+#if READ_PATTERN == READ_PATTERN_SINGLE
+        result += data.input[i][tid.x, tid.y];
+#elif READ_PATTERN == READ_PATTERN_REGION
         for (int j = 0; j < 8; ++j) {
             for (int k = 0; k < 8; ++k) {
-                result.x += data.input[i][(tid.x + j) % 1024, (tid.y + k) % 1024, 0];
-                result.y += data.input[i][(tid.x + j) % 1024, (tid.y + k) % 1024, 1];
-                result.z += data.input[i][(tid.x + j) % 1024, (tid.y + k) % 1024, 2];
+                result += data.input[i][(tid.x + j) % 1024, (tid.y + k) % 1024];
             }
         }
 #endif
     }
-    data.output.setv(int3(tid.x, tid.y, 0), result.x);
-    data.output.setv(int3(tid.x, tid.y, 1), result.y);
-    data.output.setv(int3(tid.x, tid.y, 2), result.z);
+    data.output.setv(int3(tid.x, tid.y), result);
 #endif
 }
