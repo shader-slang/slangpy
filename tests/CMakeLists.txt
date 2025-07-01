@@ -14,6 +14,7 @@ if(SGL_BUILD_TESTS)
         sgl/core/test_maths.cpp
         sgl/core/test_memory_mapped_file.cpp
         sgl/core/test_object.cpp
+        sgl/core/test_persistent_cache.cpp
         sgl/core/test_platform.cpp
         sgl/core/test_plugin.cpp
         sgl/core/test_short_vector.cpp

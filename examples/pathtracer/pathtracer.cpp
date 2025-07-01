@@ -34,6 +34,8 @@ static const bool USE_RAYTRACING_PIPELINE = true;
 
 using namespace sgl;
 
+static Timer::TimePoint start_time;
+
 inline float3 random_float3()
 {
     return float3(std::rand(), std::rand(), std::rand()) * (1.f / float(RAND_MAX));
@@ -767,6 +769,7 @@ struct App {
                     {"USE_RAYTRACING_PIPELINE", USE_RAYTRACING_PIPELINE ? "1" : "0"},
                 },
             },
+            .shader_cache_path = EXAMPLE_DIR / "cache",
         });
         surface = device->create_surface(window);
         surface->configure({
@@ -878,6 +881,12 @@ struct App {
 
             surface->present();
 
+            if (frame == 0) {
+                Timer::TimePoint now = Timer::now();
+                auto elapsed = Timer::delta_ms(start_time, now);
+                fmt::print("Load time: {:.2f} ms\n", elapsed);
+            }
+
             frame++;
         }
 
@@ -888,6 +897,8 @@ struct App {
 int main()
 {
     sgl::static_init();
+
+    start_time = Timer::now();
 
     {
         App app;
