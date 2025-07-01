@@ -266,7 +266,6 @@ void print(
 {
     uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count()
         + arg3.printable_data_count() + arg4.printable_data_count();
-    ;
     uint offset;
     if (!output.write_msg(fmt, 5, total_data_count, offset))
         return;
@@ -291,7 +290,6 @@ void print(
 {
     uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count()
         + arg3.printable_data_count() + arg4.printable_data_count() + arg5.printable_data_count();
-    ;
     uint offset;
     if (!output.write_msg(fmt, 6, total_data_count, offset))
         return;
@@ -319,7 +317,6 @@ void print(
     uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count()
         + arg3.printable_data_count() + arg4.printable_data_count() + arg5.printable_data_count()
         + arg6.printable_data_count();
-    ;
     uint offset;
     if (!output.write_msg(fmt, 7, total_data_count, offset))
         return;
@@ -349,7 +346,6 @@ void print(
     uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count()
         + arg3.printable_data_count() + arg4.printable_data_count() + arg5.printable_data_count()
         + arg6.printable_data_count() + arg7.printable_data_count();
-    ;
     uint offset;
     if (!output.write_msg(fmt, 8, total_data_count, offset))
         return;
@@ -364,11 +360,11 @@ void print(
 }
 
 struct DebugPrinter : IPrintOutput {
-
-    /// Single buffer that contains the print messages.
-    /// The first 4 bytes of the buffer store the size of the data following.
     RWByteAddressBuffer buffer;
     uint buffer_capacity;
+    RWStructuredBuffer<Atomic<uint>> buffer_size;
+    /// Single buffer that contains the print messages.
+    /// The first 4 bytes of the buffer store the size of the data following.
 
     [ForceInline]
     bool write_msg(String fmt, uint arg_count, uint total_data_count, out uint offset)
@@ -377,15 +373,8 @@ struct DebugPrinter : IPrintOutput {
         uint size = (3 + arg_count + total_data_count) * sizeof(uint);
 
         // Reserve space for the message.
-#ifdef __TARGET_METAL__
-        // Workaround for Slang issue https://github.com/shader-slang/slang/issues/7536
-        offset = buffer.Load(0);
-        buffer.Store(0, offset + size);
-#else
-        offset = 0;
-        buffer.InterlockedAdd(0, size, offset);
-#endif
-        offset += 4;
+        uint offset = buffer_size[0].add(size);
+
         if (offset + size > buffer_capacity - 4) {
             // Write sentinel value indicating that we have a buffer overlow.
             buffer.Store(offset, 0xffffffff);
