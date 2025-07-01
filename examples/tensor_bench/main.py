@@ -1,7 +1,9 @@
+import sys
 from typing import Tuple
 import slangpy as spy
 import numpy as np
 from pathlib import Path
+import json
 
 DIR = Path(__file__).parent.resolve()
 
@@ -65,6 +67,7 @@ def run(
     input_tensor_count: int,
     index_mode: str,
     read_pattern: str,
+    read_mode: str,
     shape: Tuple[int, int] = (1024, 1024),
 ):
     device = spy.Device(
@@ -77,7 +80,9 @@ def run(
                 "INPUT_TENSOR_COUNT": str(input_tensor_count),
                 "INDEX_MODE": index_mode,
                 "READ_PATTERN": read_pattern,
+                "READ_MODE": read_mode,
             },
+            "dump_intermediates": True,
         },
     )
 
@@ -90,6 +95,9 @@ def run(
 
     input_tensors = [Tensor(device, shape) for _ in range(input_tensor_count)]
     output_tensor = RWTensor(device, shape)
+    index_count = 100
+    indices = np.linspace(0, index_count - 1, index_count, dtype=np.uint32) % input_tensor_count
+    index_buffer = device.create_buffer(usage=spy.BufferUsage.shader_resource, data=indices)
 
     deltas = np.zeros(ITERATIONS, dtype=np.float32)
     for i in range(ITERATIONS):
@@ -101,6 +109,8 @@ def run(
                 "input": [tensor.uniforms() for tensor in input_tensors],
                 "output": output_tensor.uniforms(),
                 "input_tensor_count": input_tensor_count,
+                "index_buffer": index_buffer,
+                "index_count": index_count,
             },
             command_encoder=command_encoder,
         )
@@ -111,17 +121,46 @@ def run(
         frequency = float(device.info.timestamp_frequency)
         deltas[i] = (queries[1] - queries[0]) / frequency * 1000.0
     # print(deltas)
+    # remove 50% of the highest and lowest values
+    deltas.sort()
+    deltas = deltas[int(ITERATIONS * 0.25) : int(ITERATIONS * 0.75)]
+    print(f"Min time: {np.min(deltas):.3f} ms")
+    print(f"Max time: {np.max(deltas):.3f} ms")
     avg_time = np.mean(deltas)
     print(f"Average time: {avg_time:.3f} ms")
 
-    device.wait()
     device.close()
 
+    return float(avg_time)
 
-run(spy.DeviceType.vulkan, 10, "INDEX_MODE_ARRAY", "READ_PATTERN_REGION", (1024, 1024))
 
-# for name, device_type in BACKENDS.items():
-#     for input_tensor_count in [1, 2, 4, 8]:
-#         print(f"Running on {name} backend")
-#         run(device_type)
-#         print(f"Finished running on {name} backend\n")
+if False:
+    run(
+        spy.DeviceType.cuda,
+        10,
+        "INDEX_MODE_VECTOR",
+        "READ_PATTERN_PATTERN",
+        "READ_MODE_INDIRECT",
+        (1024, 1024),
+    )
+    sys.exit(0)
+
+
+results = {}
+
+for name, device_type in BACKENDS.items():
+    print(f"Running on {name} backend")
+    results[name] = {}
+    for input_tensor_count in [1, 2, 4, 8, 16, 32]:
+        time = run(
+            device_type,
+            input_tensor_count,
+            "INDEX_MODE_VECTOR",
+            "READ_PATTERN_SINGLE",
+            "READ_MODE_DIRECT",
+            (1024, 1024),
+        )
+        print(f"N={input_tensor_count}, Time: {time:.3f} ms")
+        results[name][input_tensor_count] = time
+
+print(json.dumps(results, indent=4))
