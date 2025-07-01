@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import sys
 from typing import Tuple
 import slangpy as spy
@@ -38,7 +40,7 @@ class RWTensor:
         self.buffer = device.create_buffer(
             shape[1] * shape[0] * 4,
             usage=spy.BufferUsage.unordered_access,
-            default_state=spy.ResourceState.unordered_access
+            default_state=spy.ResourceState.unordered_access,
         )
 
     def uniforms(self):
@@ -88,13 +90,15 @@ def run(
         command_encoder.write_timestamp(query_pool, 0)
         kernel.dispatch(
             thread_count=(shape[0], shape[1], 1),
-            vars={"data":{
-                "input": [tensor.uniforms() for tensor in input_tensors],
-                "output": output_tensor.uniforms(),
-                "input_tensor_count": input_tensor_count,
-                "index_buffer": index_buffer,
-                "index_count": index_count,
-            }},
+            vars={
+                "data": {
+                    "input": [tensor.uniforms() for tensor in input_tensors],
+                    "output": output_tensor.uniforms(),
+                    "input_tensor_count": input_tensor_count,
+                    "index_buffer": index_buffer,
+                    "index_count": index_count,
+                }
+            },
             command_encoder=command_encoder,
         )
         command_encoder.write_timestamp(query_pool, 1)

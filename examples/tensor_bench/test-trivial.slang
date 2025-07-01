@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 
 #ifndef INPUT_TENSOR_COUNT
 #define INPUT_TENSOR_COUNT 1
