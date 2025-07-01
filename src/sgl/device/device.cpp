@@ -22,6 +22,7 @@
 #include "sgl/device/blit.h"
 #include "sgl/device/hot_reload.h"
 #include "sgl/device/debug_logger.h"
+// #include "sgl/device/rhi_persistent_cache.h"
 
 #include "sgl/core/file_system_watcher.h"
 #include "sgl/core/config.h"
@@ -88,6 +89,7 @@ Device::Device(const DeviceDesc& desc)
         if (m_shader_cache_path.is_relative())
             m_shader_cache_path = platform::app_data_directory() / m_shader_cache_path;
         std::filesystem::create_directories(m_shader_cache_path);
+        // m_rhi_persistent_cache = make_ref<RHIPersistentCache>(m_shader_cache_path / "rhi");
     }
 
     // Setup extensions.
@@ -106,6 +108,9 @@ Device::Device(const DeviceDesc& desc)
         .slang{
             .slangGlobalSession = m_global_session,
         },
+        // Shader and pipeline cache use the same persistent cache.
+        // .persistentShaderCache = m_rhi_persistent_cache.get(),
+        // .persistentPipelineCache = m_rhi_persistent_cache.get(),
         // This needs to match NV_SHADER_EXTN_SLOT set in shader.cpp
         .nvapiExtUavSlot = 999,
         // TODO(slang-rhi) make configurable but default to true

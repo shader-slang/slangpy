@@ -1,0 +1,29 @@
+pathtracer
+
+no cache:
+1304.56
+1323.64
+1321.56
+
+module cache:
+1441.89 (cold)
+1243.85
+1212.40
+1226.27
+
+shader cache:
+1250.73 (cold)
+1252.30
+1289.10
+1262.91
+
+pipeline cache:
+1332.57 (cold)
+1240.8
+1222.53
+1243.01
+
+all caches without writing:
+1224.82
+1218.85
+1268.8
