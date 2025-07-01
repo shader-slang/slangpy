@@ -94,12 +94,6 @@ struct Tensor<T, let D : int> : ITensor<T, D> {
 
     T get(int[D] idx) { return buffer[layout.at(idx)]; }
     T getv(vector<int, D> idx) { return buffer[layout.at_vec(idx)]; }
-
-    // int offset;
-    // int[D] strides;
-
-    // T get(int[D] idx) { return buffer[detail::at(idx, offset, strides)]; }
-    // T getv(vector<int, D> idx) { return buffer[detail::at_vec(idx, offset, strides)]; }
 }
 
 struct RWTensor<T, let D : int> : IRWTensor<T, D> {
@@ -111,14 +105,6 @@ struct RWTensor<T, let D : int> : IRWTensor<T, D> {
     T getv(vector<int, D> idx) { return buffer[layout.at_vec(idx)]; }
     void set(int[D] idx, T value) { buffer[layout.at(idx)] = value; }
     void setv(vector<int, D> idx, T value) { buffer[layout.at_vec(idx)] = value; }
-
-    // int offset;
-    // int[D] strides;
-
-    // T get(int[D] idx) { return buffer[detail::at(idx, offset, strides)]; }
-    // T getv(vector<int, D> idx) { return buffer[detail::at_vec(idx, offset, strides)]; }
-    // void set(int[D] idx, T value) { buffer[detail::at(idx, offset, strides)] = value; }
-    // void setv(vector<int, D> idx, T value) { buffer[detail::at_vec(idx, offset, strides)] = value; }
 }
 
 extension<T, let D : int, TensorType : ITensor<T, D>> TensorType
@@ -135,64 +121,52 @@ struct Data {
     Tensor<float, 2> input[INPUT_TENSOR_COUNT];
     RWTensor<float, 2> output;
     uint input_tensor_count;
+    StructuredBuffer<uint> index_buffer;
+    uint index_count;
 
     float fetch(int index, int2 texel)
     {
-        // texel.x = clamp(texel.x, 0, input[index].shape[1] - 1);
-        // texel.y = clamp(texel.y, 0, input[index].shape[0] - 1);
-
-        // return input[index][texel.y, texel.x];
+#if INDEX_MODE == INDEX_MODE_ARRAY
+        return input[index].get({ texel.x, texel.y });
+#elif INDEX_MODE == INDEX_MODE_VECTOR
         return input[index].getv(int2(texel.x, texel.y));
+#elif INDEX_MODE == INDEX_MODE_SUBSCRIPT
+        return input[index][texel.x, texel.y];
+#endif
     }
 };
+
+#if INDEX_MODE == INDEX_MODE_ARRAY
+#define READ_DIRECT(i, x, y) data.input[i].get({ x, y })
+#elif INDEX_MODE == INDEX_MODE_VECTOR
+#define READ_DIRECT(i, x, y) data.input[i].getv(int2(x, y))
+#elif INDEX_MODE == INDEX_MODE_SUBSCRIPT
+#define READ_DIRECT(i, x, y) data.input[i][x, y]
+#endif
+
+#if READ_MODE == READ_MODE_DIRECT
+#define READ(i, x, y) READ_DIRECT(i, x, y)
+#elif READ_MODE == READ_MODE_INDIRECT
+#define READ(i, x, y) data.fetch(i, int2(x, y))
+#endif
 
 [shader("compute")]
 [numthreads(16, 16, 1)]
 void compute_main(uint3 tid: SV_DispatchThreadID, ParameterBlock<Data> data)
 {
-#if INDEX_MODE == INDEX_MODE_ARRAY
     float result = 0.0;
-    for (int i = 0; i < data.input_tensor_count; ++i) {
+    // for (int i = 0; i < data.input_tensor_count; ++i) {
+    for (int i = 0; i < data.index_count; ++i) {
+        uint ti = data.index_buffer[i];
 #if READ_PATTERN == READ_PATTERN_SINGLE
-        result += data.input[i].get( { tid.x, tid.y });
+        result += READ(ti, tid.x, tid.y);
 #elif READ_PATTERN == READ_PATTERN_REGION
         for (int j = 0; j < 8; ++j) {
             for (int k = 0; k < 8; ++k) {
-                result += data.fetch(i, int2((tid.x + j) % 1024, (tid.y + k) % 1024));
-                // result += data.fetch(i, int2(tid.x + j, tid.y + k));
-                // result += data.input[i].get( { (tid.x + j) % 1024, (tid.y + k) % 1024 });
+                result += READ(ti, (tid.x + j) % 1024, (tid.y + k) % 1024);
             }
         }
 #endif
     }
     data.output.set( { tid.x, tid.y }, result);
-#elif INDEX_MODE == INDEX_MODE_VECTOR
-    float result = 0.0;
-    for (int i = 0; i < data.input_tensor_count; ++i) {
-#if READ_PATTERN == READ_PATTERN_SINGLE
-        result += data.input[i].getv(int2(tid.x, tid.y));
-#elif READ_PATTERN == READ_PATTERN_REGION
-        for (int j = 0; j < 8; ++j) {
-            for (int k = 0; k < 8; ++k) {
-                result += data.input[i].getv(int2((tid.x + j) % 1024, (tid.y + k) % 1024));
-            }
-        }
-#endif
-    }
-    data.output.setv(int2(tid.x, tid.y), result);
-#elif INDEX_MODE == INDEX_MODE_SUBSCRIPT
-    float result = 0.0;
-    for (int i = 0; i < data.input_tensor_count; ++i) {
-#if READ_PATTERN == READ_PATTERN_SINGLE
-        result += data.input[i][tid.x, tid.y];
-#elif READ_PATTERN == READ_PATTERN_REGION
-        for (int j = 0; j < 8; ++j) {
-            for (int k = 0; k < 8; ++k) {
-                result += data.input[i][(tid.x + j) % 1024, (tid.y + k) % 1024];
-            }
-        }
-#endif
-    }
-    data.output.setv(int3(tid.x, tid.y), result);
-#endif
 }
