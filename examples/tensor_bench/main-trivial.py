@@ -28,7 +28,7 @@ class Tensor:
         )
 
     def uniforms(self):
-        return self.buffer
+        return {"buffer": self.buffer, "stride": 1}
 
 
 class RWTensor:
@@ -44,7 +44,7 @@ class RWTensor:
         )
 
     def uniforms(self):
-        return self.buffer
+        return {"buffer": self.buffer, "stride": 1}
 
 
 def run(
