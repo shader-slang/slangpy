@@ -373,7 +373,7 @@ struct DebugPrinter : IPrintOutput {
         uint size = (3 + arg_count + total_data_count) * sizeof(uint);
 
         // Reserve space for the message.
-        uint offset = buffer_size[0].add(size);
+        offset = buffer_size[0].add(size);
 
         if (offset + size > buffer_capacity - 4) {
             // Write sentinel value indicating that we have a buffer overlow.
