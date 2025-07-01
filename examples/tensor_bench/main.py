@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import sys
 from typing import Tuple
 import slangpy as spy
