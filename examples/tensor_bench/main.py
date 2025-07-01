@@ -13,13 +13,13 @@ BACKENDS = {
 
 
 class Tensor:
-    def __init__(self, device: spy.Device, shape: Tuple[int, int, int]):
+    def __init__(self, device: spy.Device, shape: Tuple[int, int]):
         super().__init__()
         self.shape = shape
         self.offset = 0
-        self.strides = (shape[1] * shape[2], shape[2], 1)
+        self.strides = (shape[1], 1)
         self.buffer = device.create_buffer(
-            size=shape[2] * shape[1] * shape[0] * 4,
+            shape[1] * shape[0] * 4,
             usage=spy.BufferUsage.shader_resource,
         )
 
@@ -37,13 +37,13 @@ class Tensor:
 
 
 class RWTensor:
-    def __init__(self, device: spy.Device, shape: Tuple[int, int, int]):
+    def __init__(self, device: spy.Device, shape: Tuple[int, int]):
         super().__init__()
         self.shape = shape
         self.offset = 0
-        self.strides = (shape[1] * shape[2], shape[2], 1)
+        self.strides = (shape[1], 1)
         self.buffer = device.create_buffer(
-            size=shape[2] * shape[1] * shape[0] * 4,
+            shape[1] * shape[0] * 4,
             usage=spy.BufferUsage.unordered_access,
         )
 
@@ -64,8 +64,8 @@ def run(
     device_type: spy.DeviceType,
     input_tensor_count: int,
     index_mode: str,
-    access_mode: str,
-    shape: Tuple[int, int, int] = (1024, 1024, 3),
+    read_pattern: str,
+    shape: Tuple[int, int] = (1024, 1024),
 ):
     device = spy.Device(
         type=device_type,
@@ -76,7 +76,7 @@ def run(
             "defines": {
                 "INPUT_TENSOR_COUNT": str(input_tensor_count),
                 "INDEX_MODE": index_mode,
-                "ACCESS_MODE": access_mode,
+                "READ_PATTERN": read_pattern,
             },
         },
     )
@@ -100,6 +100,7 @@ def run(
             data={
                 "input": [tensor.uniforms() for tensor in input_tensors],
                 "output": output_tensor.uniforms(),
+                "input_tensor_count": input_tensor_count,
             },
             command_encoder=command_encoder,
         )
@@ -117,7 +118,7 @@ def run(
     device.close()
 
 
-run(spy.DeviceType.vulkan, 5, "INDEX_MODE_ARRAY", "ACCESS_MODE_REGION", (1024, 1024, 3))
+run(spy.DeviceType.vulkan, 10, "INDEX_MODE_ARRAY", "READ_PATTERN_REGION", (1024, 1024))
 
 # for name, device_type in BACKENDS.items():
 #     for input_tensor_count in [1, 2, 4, 8]:
