@@ -125,6 +125,14 @@ public struct RangeType
     public void store(Context1D context, in int value) {};
 }
 
+public struct DescriptorType<T : IOpaqueDescriptor>
+{
+    DescriptorHandle<T> value;
+
+    public void load(Context0D context, out DescriptorHandle<T> value) { value = this.value; }
+    public void store(Context0D context, in DescriptorHandle<T> value) {};
+}
+
 public struct StructuredBufferType<T>
 {
     StructuredBuffer<T> value;

@@ -8,6 +8,7 @@ from .diffpair import DiffPairMarshall
 from .ndbuffer import NDBufferMarshall, NDDifferentiableBufferMarshall
 from .struct import StructMarshall
 from .structuredbuffer import BufferMarshall
+from .descriptor import DescriptorMarshall
 from .texture import TextureMarshall
 from .array import ArrayMarshall
 from .resourceview import *
