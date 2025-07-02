@@ -321,6 +321,9 @@ public:
     /// and the device has CUDA interop enabled.
     void* cuda_memory() const;
 
+    DescriptorHandle descriptor_handle_ro() const;
+    DescriptorHandle descriptor_handle_rw() const;
+
     /**
      * Set buffer data from host memory.
      *

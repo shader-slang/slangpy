@@ -158,6 +158,25 @@ void* Buffer::cuda_memory() const
     return m_cuda_memory->mapped_data();
 }
 
+DescriptorHandle Buffer::descriptor_handle_ro() const
+{
+    auto format = static_cast<rhi::Format>(m_desc.format);
+    auto range = rhi::BufferRange{0ull, ~0ull};
+    rhi::DescriptorHandle rhi_handle = {};
+    //m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, format, range, &rhi_handle);
+    m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, rhi::Format::Undefined, range, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+
+}
+DescriptorHandle Buffer::descriptor_handle_rw() const
+{
+    auto format = static_cast<rhi::Format>(m_desc.format);
+    rhi::BufferRange range = {0, m_desc.size};
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, format, range, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
 void Buffer::set_data(const void* data, size_t size, DeviceOffset offset)
 {
     SGL_CHECK(
