@@ -29,6 +29,7 @@ SGL_DICT_TO_DESC_FIELD(enable_compilation_reports, bool)
 SGL_DICT_TO_DESC_FIELD(adapter_luid, AdapterLUID)
 SGL_DICT_TO_DESC_FIELD(compiler_options, SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD(shader_cache_path, std::filesystem::path)
+SGL_DICT_TO_DESC_FIELD(bindless_options, BindlessDesc)
 SGL_DICT_TO_DESC_END()
 
 // Utility functions for doing CoopVec conversions between ndarrays
@@ -126,6 +127,33 @@ SGL_PY_EXPORT(device_device)
         .def_ro("luid", &AdapterInfo::luid, D(AdapterInfo, luid))
         .def("__repr__", &AdapterInfo::to_string);
 
+    nb::class_<BindlessDesc>(m, "BindlessDesc", D_NA(BindlessDesc))
+        .def_rw("buffer_count", &BindlessDesc::buffer_count, D_NA(BindlessDesc, buffer_count))
+        .def_rw("texture_count", &BindlessDesc::texture_count, D_NA(BindlessDesc, texture_count))
+        .def_rw("sampler_count", &BindlessDesc::sampler_count, D_NA(BindlessDesc, sampler_count))
+        .def_rw("acceleration_structure_count", &BindlessDesc::acceleration_structure_count, D_NA(BindlessDesc, acceleration_structure_count))
+        .def(
+            "__init__",
+            [](BindlessDesc* self,
+               std::optional<uint32_t> buffer_count,
+               std::optional<uint32_t> texture_count,
+               std::optional<uint32_t> sampler_count,
+               std::optional<uint32_t> acceleration_structure_count)
+            {
+                new (self) BindlessDesc();
+                if (buffer_count) self->buffer_count = *buffer_count;
+                if (texture_count) self->texture_count = *texture_count;
+                if (sampler_count) self->sampler_count = *sampler_count;
+                if (acceleration_structure_count) self->acceleration_structure_count = *acceleration_structure_count;
+            },
+            "buffer_count"_a = nb::none(),
+            "texture_count"_a = nb::none(),
+            "sampler_count"_a = nb::none(),
+            "acceleration_structure_count"_a = nb::none(),
+            D_NA(BindlessDesc, BindlessDesc)
+        );
+
+
     nb::sgl_enum<DeviceType>(m, "DeviceType");
 
     nb::class_<DeviceDesc>(m, "DeviceDesc", D(DeviceDesc))
@@ -143,6 +171,7 @@ SGL_PY_EXPORT(device_device)
         )
         .def_rw("adapter_luid", &DeviceDesc::adapter_luid, D(DeviceDesc, adapter_luid))
         .def_rw("compiler_options", &DeviceDesc::compiler_options, D(DeviceDesc, compiler_options))
+        .def_rw("bindless_options", &DeviceDesc::bindless_options, D_NA(DeviceDesc, bindless_options))
         .def_rw("shader_cache_path", &DeviceDesc::shader_cache_path, D(DeviceDesc, shader_cache_path))
         .def_rw(
             "existing_device_handles",
@@ -248,7 +277,8 @@ SGL_PY_EXPORT(device_device)
            std::optional<AdapterLUID> adapter_luid,
            std::optional<SlangCompilerOptions> compiler_options,
            std::optional<std::filesystem::path> shader_cache_path,
-           std::optional<std::array<NativeHandle, 3>> existing_device_handles)
+           std::optional<std::array<NativeHandle, 3>> existing_device_handles,
+           std::optional<BindlessDesc> bindless_options)
         {
             new (self) Device(
                 {.type = type,
@@ -259,6 +289,7 @@ SGL_PY_EXPORT(device_device)
                  .enable_compilation_reports = enable_compilation_reports,
                  .adapter_luid = adapter_luid,
                  .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                 .bindless_options = bindless_options.value_or(BindlessDesc{}),
                  .shader_cache_path = shader_cache_path,
                  .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>())}
             );
@@ -273,6 +304,7 @@ SGL_PY_EXPORT(device_device)
         "compiler_options"_a.none() = nb::none(),
         "shader_cache_path"_a.none() = nb::none(),
         "existing_device_handles"_a.none() = nb::none(),
+        "bindless_options"_a.none() = nb::none(),
         D(Device, Device)
     );
     device.def(nb::init<DeviceDesc>(), "desc"_a, D(Device, Device));

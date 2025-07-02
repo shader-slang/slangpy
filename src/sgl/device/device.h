@@ -87,6 +87,13 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(DeviceType);
 
+struct BindlessDesc {
+    uint32_t buffer_count{1024};
+    uint32_t texture_count{1024};
+    uint32_t sampler_count{128};
+    uint32_t acceleration_structure_count{128};
+};
+
 struct DeviceDesc {
     /// The type of the device.
     DeviceType type{DeviceType::automatic};
@@ -112,6 +119,8 @@ struct DeviceDesc {
 
     /// Compiler options (used for default slang session).
     SlangCompilerOptions compiler_options;
+
+    BindlessDesc bindless_options;
 
     /// Path to the shader cache directory (optional).
     /// If a relative path is used, the cache is stored in the application data directory.
