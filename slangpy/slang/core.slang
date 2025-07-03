@@ -451,6 +451,20 @@ public struct RWNDBuffer<T, let N : int>
     }
 }
 
+// For common case that we create an NDBuffer of uint64_t pointers via a numpy array,
+// these extensions add the ability to load/store pointer types from/to the uint64_t buffer.
+public extension<let N:int> NDBuffer<uint64_t,N>
+{
+    public void load<T>(ContextND<N> context, out Ptr<T> value) { value = Ptr<T>(get(context.call_id)); }
+    public void store<T>(ContextND<N> context, in Ptr<T> value) {};
+}
+public extension<let N:int> RWNDBuffer<uint64_t,N>
+{
+    public void load<T>(ContextND<N> context, out Ptr<T> value) { value = Ptr<T>(get(context.call_id)); }
+    public void store<T>(ContextND<N> context, in Ptr<T> value) { set(context.call_id, uint64_t(value)); };
+}
+
+
 namespace impl
 {
 

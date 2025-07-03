@@ -198,7 +198,11 @@ class Tensor(NativeTensor):
         strides = tuple(stride // ndarray.itemsize for stride in ndarray.strides)
 
         buffer = device.create_buffer(
-            ndarray.nbytes, usage=usage, data=flattened, memory_type=memory_type
+            struct_size=ndarray.itemsize,
+            element_count=N,
+            usage=usage,
+            data=flattened,
+            memory_type=memory_type,
         )
 
         return Tensor(buffer, dtype, tuple(ndarray.shape), strides)

@@ -33,6 +33,7 @@ from slangpy.reflection import (
 )
 from slangpy.types import NDBuffer
 from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
+from slangpy.core.utils import is_type_castable_on_host
 
 
 class StopDebuggerException(Exception):
@@ -107,6 +108,10 @@ def ndbuffer_resolve_type(
             return bound_type
         if is_matching_array_type(bound_type, cast(SlangType, self.slang_element_type)):
             return self.slang_element_type
+        # This is such a common conversion with numpy 64 bit arrays to ptrs that we handle it explicitly
+        # TODO: Use host casting test instead?
+        if self.slang_element_type.full_name == "uint64_t" and isinstance(bound_type, PointerType):
+            return bound_type
 
     # if implicit tensor casts enabled, allow conversion from vector to element type
     if context.options["implicit_tensor_casts"]:

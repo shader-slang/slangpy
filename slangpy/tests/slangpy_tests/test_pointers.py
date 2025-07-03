@@ -4,9 +4,9 @@ from pathlib import Path
 import sys
 import numpy as np
 import pytest
-from slangpy import grid
+from slangpy import grid, float3
 from slangpy import DeviceType, BufferUsage
-from slangpy.types import NDBuffer
+from slangpy.types import NDBuffer, Tensor
 
 
 sys.path.append(str(Path(__file__).parent))
@@ -194,7 +194,8 @@ int test_pass_raw_buffers(int call_id, int* a_buffer, int* b_buffer) {
     assert np.array_equal(res, expected), f"Expected {expected}, got {res}"
 
 
-# Same as above but uses subscript to access the value
+# Creates a buffer of values, and a buffer of pointers into those values,
+# and returns the value pointed to by the pointer at the given index.
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
 def test_raw_buffer_of_pointers(device_type: DeviceType):
 
@@ -239,6 +240,356 @@ int test_raw_buffer_of_pointers(int idx, StructuredBuffer<int*> buffer) {
     res = function(grid(shape=(num_ptrs,)), pointers_buffer, _result="numpy")
 
     assert np.array_equal(res, expected_values), f"Expected {expected_values}, got {res}"
+
+
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+def test_vectorize_buffer_of_pointers(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_vectorize_buffer_of_pointers",
+        r"""
+int test_vectorize_buffer_of_pointers(int* buffer) {
+    return *buffer;
+}
+""",
+    )
+
+    # Setup a data buffer to hold 10000 integers
+    num_ints = 10000
+    rand_ints = np.random.randint(0, 100, size=(num_ints,), dtype=np.int32)
+    data_buffer = device.create_buffer(
+        size=4 * 10000,  # Size of int in bytes
+        usage=BufferUsage.shader_resource,
+        data=rand_ints,
+    )
+
+    # Now create another set of poitners to random locations in the data buffer
+    num_ptrs = 500
+    pointers = (
+        np.random.randint(0, num_ints, size=(num_ptrs,), dtype=np.uint64) * 4
+        + data_buffer.device_address
+    )
+    pointers_buffer = NDBuffer.from_numpy(device, pointers)
+
+    # read values cpu side to get expected data
+    indices = (pointers - data_buffer.device_address) // 4
+    expected_values = rand_ints[indices]
+
+    # Call the function with so it vectorizes across the pointers buffer
+    res = function(pointers_buffer, _result="numpy")
+
+    assert np.array_equal(res, expected_values), f"Expected {expected_values}, got {res}"
+
+
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+def test_write_raw_buffers(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_write_raw_buffers",
+        r"""
+void test_write_raw_buffers(int call_id, int* in_buffer, int* out_buffer) {
+    out_buffer[call_id] = in_buffer[call_id];
+}
+""",
+    )
+
+    num_ints = 10000
+    in_data = np.random.randint(0, 100, size=(num_ints,), dtype=np.int32)
+    in_buffer = NDBuffer.from_numpy(device, in_data)
+    out_buffer = NDBuffer.zeros_like(in_buffer)
+    function(grid(shape=(num_ints,)), in_buffer.storage, out_buffer.storage)
+    out_data = out_buffer.to_numpy()
+    assert np.array_equal(in_data, out_data), f"Expected {in_data}, got {out_data}"
+
+
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+def test_float_tensor_storage(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_float_tensor_storage",
+        r"""
+void test_float_tensor_storage(int call_id, float* in_buffer, float* out_buffer) {
+    out_buffer[call_id] = in_buffer[call_id];
+}
+""",
+    )
+
+    num_vals = 10000
+    in_data = np.random.random(num_vals).astype(np.float32)
+    in_buffer = Tensor.from_numpy(device, in_data)
+    assert np.array_equal(in_data, in_buffer.to_numpy())
+
+    out_buffer = Tensor.zeros_like(in_buffer)
+    function(grid(shape=(num_vals,)), in_buffer.storage, out_buffer.storage)
+    out_data = out_buffer.to_numpy()
+    assert np.array_equal(in_data, out_data), f"Expected {in_data}, got {out_data}"
+
+
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+def test_copy_whole_structs(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_copy_whole_structs",
+        r"""
+struct Test {
+    int value;
+    float value2;
+    int8_t value3;
+    float3 value4;
+}
+void test_copy_whole_structs(int call_id, Test* in_buffer, Test* out_buffer) {
+    out_buffer[call_id] = in_buffer[call_id];
+}
+""",
+    )
+
+    # Setup a load of data
+    count = 100
+    data = []
+    for i in range(count):
+        data.append(
+            {
+                "value": i,
+                "value2": float(i) / 100.0,
+                "value3": i % 2,
+                "value4": float3(i, i + 1, i + 2),
+            }
+        )
+
+    # Fill input buffer with it
+    in_buffer = NDBuffer.empty(device, (count,), dtype=function.module.Test)
+    cursor = in_buffer.cursor()
+    for i, item in enumerate(data):
+        cursor[i].write(item)
+    cursor.apply()
+
+    # Create and copy to output buffer
+    out_buffer = NDBuffer.empty_like(in_buffer)
+    function(grid(shape=(count,)), in_buffer.storage, out_buffer.storage)
+
+    # Sanity check: clear the input buffer to ensure there isn't some happy
+    # bug that means we're just checking the input against itself!
+    in_buffer.clear()
+
+    # Read back the output buffer and check values
+    out_cursor = out_buffer.cursor()
+    for i in range(count):
+        in_val = data[i]
+        out_val = out_cursor[i].read()
+        assert in_val["value"] == out_val["value"], f"Value mismatch at index {i}"
+        assert np.isclose(in_val["value2"], out_val["value2"]), f"Value2 mismatch at index {i}"
+        assert in_val["value3"] == out_val["value3"], f"Value3 mismatch at index {i}"
+        assert np.allclose(in_val["value4"], out_val["value4"]), f"Value4 mismatch at index {i}"
+
+
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+def test_copy_fields_from_structs(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_copy_fields_from_structs",
+        r"""
+struct Test {
+    int value;
+    float value2;
+    int8_t value3;
+    float3 value4;
+}
+void test_copy_fields_from_structs(int call_id, Test* in_buffer, int* out_value1, float* out_value2, int8_t* out_value3, float3* out_value4) {
+    out_value1[call_id] = in_buffer[call_id].value;
+    out_value2[call_id] = in_buffer[call_id].value2;
+    out_value3[call_id] = in_buffer[call_id].value3;
+    out_value4[call_id] = in_buffer[call_id].value4;
+}
+""",
+    )
+
+    # Setup a load of data
+    count = 100
+    data = []
+    for i in range(count):
+        data.append(
+            {
+                "value": i,
+                "value2": float(i) / 100.0,
+                "value3": i % 2,
+                "value4": float3(i, i + 1, i + 2),
+            }
+        )
+
+    # Fill input buffer with it
+    in_buffer = NDBuffer.empty(device, (count,), dtype=function.module.Test)
+    cursor = in_buffer.cursor()
+    for i, item in enumerate(data):
+        cursor[i].write(item)
+    cursor.apply()
+
+    # Create and copy to output buffer
+    out_buffer_value1 = NDBuffer.empty(device, (count,), dtype="int")
+    out_buffer_value2 = NDBuffer.empty(device, (count,), dtype="float")
+    out_buffer_value3 = NDBuffer.empty(device, (count,), dtype="int8_t")
+    out_buffer_value4 = NDBuffer.empty(device, (count,), dtype="float3")
+
+    function(
+        grid(shape=(count,)),
+        in_buffer.storage,
+        out_buffer_value1.storage,
+        out_buffer_value2.storage,
+        out_buffer_value3.storage,
+        out_buffer_value4.storage,
+    )
+
+    # Sanity check: clear the input buffer to ensure there isn't some happy
+    # bug that means we're just checking the input against itself!
+    in_buffer.clear()
+
+    # Read back the output buffers and check values
+    out_value1 = out_buffer_value1.to_numpy()
+    out_value2 = out_buffer_value2.to_numpy()
+    out_value3 = out_buffer_value3.to_numpy()
+    out_value4 = out_buffer_value4.to_numpy()
+
+    for i in range(count):
+        in_val = data[i]
+        assert in_val["value"] == out_value1[i], f"Value mismatch at index {i}"
+        assert np.isclose(in_val["value2"], out_value2[i]), f"Value2 mismatch at index {i}"
+        assert in_val["value3"] == out_value3[i], f"Value3 mismatch at index {i}"
+        assert np.allclose(in_val["value4"], out_value4[i]), f"Value4 mismatch at index {i}"
+
+
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+def test_copy_fields_by_pointer(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_copy_fields_by_pointer",
+        r"""
+struct Test {
+    int value;
+    float value2;
+    int8_t value3;
+    float3 value4;
+}
+void test_copy_fields_by_pointer(int call_id, Test* in_buffer, int* out_value1, float* out_value2, int8_t* out_value3, float3* out_value4) {
+    Test* ptr = in_buffer + call_id;
+    out_value1[call_id] = ptr.value;
+    out_value2[call_id] = ptr.value2;
+    out_value3[call_id] = ptr.value3;
+    out_value4[call_id] = ptr.value4;
+}
+""",
+    )
+
+    # Setup a load of data
+    count = 100
+    data = []
+    for i in range(count):
+        data.append(
+            {
+                "value": i,
+                "value2": float(i) / 100.0,
+                "value3": i % 2,
+                "value4": float3(i, i + 1, i + 2),
+            }
+        )
+
+    # Fill input buffer with it
+    in_buffer = NDBuffer.empty(device, (count,), dtype=function.module.Test)
+    cursor = in_buffer.cursor()
+    for i, item in enumerate(data):
+        cursor[i].write(item)
+    cursor.apply()
+
+    # Create and copy to output buffer
+    out_buffer_value1 = NDBuffer.empty(device, (count,), dtype="int")
+    out_buffer_value2 = NDBuffer.empty(device, (count,), dtype="float")
+    out_buffer_value3 = NDBuffer.empty(device, (count,), dtype="int8_t")
+    out_buffer_value4 = NDBuffer.empty(device, (count,), dtype="float3")
+
+    function(
+        grid(shape=(count,)),
+        in_buffer.storage,
+        out_buffer_value1.storage,
+        out_buffer_value2.storage,
+        out_buffer_value3.storage,
+        out_buffer_value4.storage,
+    )
+
+    # Sanity check: clear the input buffer to ensure there isn't some happy
+    # bug that means we're just checking the input against itself!
+    in_buffer.clear()
+
+    # Read back the output buffers and check values
+    out_value1 = out_buffer_value1.to_numpy()
+    out_value2 = out_buffer_value2.to_numpy()
+    out_value3 = out_buffer_value3.to_numpy()
+    out_value4 = out_buffer_value4.to_numpy()
+
+    for i in range(count):
+        in_val = data[i]
+        assert in_val["value"] == out_value1[i], f"Value mismatch at index {i}"
+        assert np.isclose(in_val["value2"], out_value2[i]), f"Value2 mismatch at index {i}"
+        assert in_val["value3"] == out_value3[i], f"Value3 mismatch at index {i}"
+        assert np.allclose(in_val["value4"], out_value4[i]), f"Value4 mismatch at index {i}"
+
+
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+def test_atomic_float_access(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_atomic_float_access",
+        r"""
+void test_atomic_float_access(int call_id, Atomic<float>* af) {
+    af[call_id % 10].add(1.0f);
+}
+""",
+    )
+
+    num_vals = 10
+    in_buffer = Tensor.zeros(device, shape=(num_vals,), dtype="float")
+
+    function(grid(shape=(num_vals * 100,)), in_buffer.storage)
+
+    out_data = in_buffer.to_numpy()
+    expected_data = np.ones(num_vals, dtype=np.float32) * 100
+    assert np.array_equal(out_data, expected_data), f"Expected {expected_data}, got {out_data}"
+
+
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+def test_atomic_float_ptr_access(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_atomic_float_ptr_access",
+        r"""
+void test_atomic_float_ptr_access(int call_id, Atomic<float>* af) {
+    Atomic<float>* cur = af + (call_id % 10);
+    cur.add(1.0f);
+}
+""",
+    )
+
+    num_vals = 10
+    in_buffer = Tensor.zeros(device, shape=(num_vals,), dtype="float")
+
+    function(grid(shape=(num_vals * 100,)), in_buffer.storage)
+
+    out_data = in_buffer.to_numpy()
+    expected_data = np.ones(num_vals, dtype=np.float32) * 100
+    assert np.array_equal(out_data, expected_data), f"Expected {expected_data}, got {out_data}"
 
 
 if __name__ == "__main__":
