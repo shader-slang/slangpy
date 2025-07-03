@@ -479,6 +479,22 @@ void ShaderCursor::set_cuda_tensor_view(const cuda::TensorView& tensor_view) con
     }
 }
 
+void ShaderCursor::set_pointer(uint64_t pointer_value) const
+{
+    size_t pointer_size = m_type_layout->getSize();
+    if (pointer_size == 4) {
+        // 32-bit pointer
+        uint32_t value = narrow_cast<uint32_t>(pointer_value);
+        set_data(&value, sizeof(value));
+    } else if (pointer_size == 8) {
+        // 64-bit pointer
+        uint64_t value = pointer_value;
+        set_data(&value, sizeof(value));
+    } else {
+        SGL_THROW("Unsupported pointer size: {}", pointer_size);
+    }
+}
+
 void ShaderCursor::_set_array(
     const void* data,
     size_t size,

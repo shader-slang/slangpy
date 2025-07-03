@@ -339,6 +339,18 @@ class VoidType(SlangType):
         super().__init__(program, refl)
 
 
+class PointerType(SlangType):
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        super().__init__(program, refl, element_type=self, local_shape=Shape())
+
+    @property
+    def slang_scalar_type(self) -> TR.ScalarType:
+        """
+        Pointers can map to 64bit uints
+        """
+        return TR.ScalarType.uint64
+
+
 class ScalarType(SlangType):
     """
     Represents any scalar type such as int/float/bool. See `sgl.TypeReflection.ScalarType`.
@@ -1229,6 +1241,8 @@ class SlangProgramLayout:
             return self._reflect_resource(refl)
         elif refl.kind == TR.Kind.sampler_state:
             return SamplerStateType(self, refl)
+        elif refl.kind == TR.Kind.pointer:
+            return PointerType(self, refl)
 
         # It's not any of the fundamental types. Check if a custom handler was defined,
         # giving precedence to handlers that match the fully specialized name

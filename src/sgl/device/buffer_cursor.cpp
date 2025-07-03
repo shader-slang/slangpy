@@ -101,6 +101,22 @@ BufferElementCursor BufferElementCursor::find_element(uint32_t index) const
     return {};
 }
 
+void BufferElementCursor::set_pointer(uint64_t pointer_value)
+{
+    size_t pointer_size = m_type_layout->size();
+    if (pointer_size == 4) {
+        // 32-bit pointer
+        uint32_t value = narrow_cast<uint32_t>(pointer_value);
+        set_data(&value, sizeof(value));
+    } else if (pointer_size == 8) {
+        // 64-bit pointer
+        uint64_t value = pointer_value;
+        set_data(&value, sizeof(value));
+    } else {
+        SGL_THROW("Unsupported pointer size: {}", pointer_size);
+    }
+}
+
 void BufferElementCursor::set_data(const void* data, size_t size)
 {
     if (m_type_layout->parameter_category() != TypeReflection::ParameterCategory::uniform)

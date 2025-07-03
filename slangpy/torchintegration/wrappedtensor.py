@@ -18,7 +18,7 @@ from slangpy.reflection.reflectiontypes import (
     ScalarType,
     VectorType,
 )
-from slangpy.types.tensor import innermost_type
+from slangpy.types.buffer import innermost_type
 
 ST = TypeReflection.ScalarType
 _torch_to_scalar_type = {

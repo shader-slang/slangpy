@@ -20,7 +20,7 @@ from slangpy import (
 )
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
-from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType
+from slangpy.reflection import ScalarType, SlangProgramLayout, SlangType, reflectiontypes
 
 import numpy as np
 
@@ -44,6 +44,22 @@ SLANG_TO_CUDA_TYPES = {
     TypeReflection.ScalarType.bool: DataType.bool,
 }
 
+ST = TypeReflection.ScalarType
+_numpy_to_sgl = {
+    "int8": ST.int8,
+    "int16": ST.int16,
+    "int32": ST.int32,
+    "int64": ST.int64,
+    "uint8": ST.uint8,
+    "uint16": ST.uint16,
+    "uint32": ST.uint32,
+    "uint64": ST.uint64,
+    "float16": ST.float16,
+    "float32": ST.float32,
+    "float64": ST.float64,
+}
+_sgl_to_numpy = {y: x for x, y in _numpy_to_sgl.items()}
+
 
 def _on_device_close(device: Device):
     del global_lookup_modules[device]
@@ -56,6 +72,37 @@ def get_lookup_module(device: Device) -> SlangProgramLayout:
         device.register_device_close_callback(_on_device_close)
 
     return global_lookup_modules[device]
+
+
+def innermost_type(slang_type: SlangType) -> SlangType:
+    while True:
+        if slang_type.element_type is not None and slang_type.element_type is not slang_type:
+            slang_type = slang_type.element_type
+        else:
+            return slang_type
+
+
+def _slang_to_numpy(slang_dtype: SlangType):
+    elem_type = innermost_type(slang_dtype)
+    if isinstance(elem_type, ScalarType) and elem_type.slang_scalar_type in _sgl_to_numpy:
+        return np.dtype(_sgl_to_numpy[elem_type.slang_scalar_type])
+    return None
+
+
+def _numpy_to_slang(
+    np_dtype: np.dtype[Any], device: Device, program_layout: Optional[SlangProgramLayout]
+) -> Optional[SlangType]:
+    name = np_dtype.base.name
+    if name not in _numpy_to_sgl:
+        return None
+    slang_dtype = reflectiontypes.scalar_names[_numpy_to_sgl[name]]
+    if np_dtype.ndim > 0:
+        for dim in reversed(np_dtype.shape):
+            slang_dtype += f"[{dim}]"
+
+    if program_layout is None:
+        program_layout = get_lookup_module(device)
+    return program_layout.find_type_by_name(slang_dtype)
 
 
 def resolve_program_layout(
@@ -274,6 +321,34 @@ class NDBuffer(NativeNDBuffer):
         but not automatically submitted.
         """
         super().clear()
+
+    @staticmethod
+    def from_numpy(
+        device: Device,
+        ndarray: np.ndarray[Any, Any],
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
+        memory_type: MemoryType = MemoryType.device_local,
+        program_layout: Optional[SlangProgramLayout] = None,
+    ) -> "NDBuffer":
+        """
+        Creates a new NDBuffer with the same contents, shape and strides as the given numpy array.
+        """
+
+        dtype = _numpy_to_slang(ndarray.dtype, device, program_layout)
+        if dtype is None:
+            raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
+        if not ndarray.flags["C_CONTIGUOUS"]:
+            raise ValueError(
+                "Currently NDBuffers can only be directly constructed from C-contiguous numpy arrays"
+            )
+
+        return NDBuffer(
+            device,
+            dtype=dtype,
+            shape=ndarray.shape,
+            usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
+            memory_type=memory_type,
+        )
 
     @staticmethod
     def empty(

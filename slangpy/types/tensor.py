@@ -8,19 +8,16 @@ from slangpy import (
     BufferUsage,
     TypeReflection,
     CommandBuffer,
-    Bitmap,
-    DataStruct,
     MemoryType,
 )
-from slangpy.reflection import SlangType, ScalarType, SlangProgramLayout
-from slangpy.reflection import reflectiontypes
+from slangpy.reflection import SlangType, SlangProgramLayout
 from slangpy.core.native import Shape
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.types.buffer import (
-    get_lookup_module,
     resolve_element_type,
     resolve_program_layout,
     load_buffer_data_from_image,
+    _numpy_to_slang,
 )
 from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
 
@@ -48,33 +45,6 @@ _numpy_to_sgl = {
     "float64": ST.float64,
 }
 _sgl_to_numpy = {y: x for x, y in _numpy_to_sgl.items()}
-
-
-def innermost_type(slang_type: SlangType) -> SlangType:
-    while True:
-        if slang_type.element_type is not None and slang_type.element_type is not slang_type:
-            slang_type = slang_type.element_type
-        else:
-            return slang_type
-
-
-def _slang_to_numpy(slang_dtype: SlangType):
-    elem_type = innermost_type(slang_dtype)
-    if isinstance(elem_type, ScalarType) and elem_type.slang_scalar_type in _sgl_to_numpy:
-        return np.dtype(_sgl_to_numpy[elem_type.slang_scalar_type])
-    return None
-
-
-def _numpy_to_slang(np_dtype: np.dtype[Any], device: Device) -> Optional[SlangType]:
-    name = np_dtype.base.name
-    if name not in _numpy_to_sgl:
-        return None
-    slang_dtype = reflectiontypes.scalar_names[_numpy_to_sgl[name]]
-    if np_dtype.ndim > 0:
-        for dim in reversed(np_dtype.shape):
-            slang_dtype += f"[{dim}]"
-
-    return get_lookup_module(device).find_type_by_name(slang_dtype)
 
 
 class Tensor(NativeTensor):
@@ -203,12 +173,18 @@ class Tensor(NativeTensor):
         return Tensor.from_numpy(device, ndarray)
 
     @staticmethod
-    def from_numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:
+    def from_numpy(
+        device: Device,
+        ndarray: np.ndarray[Any, Any],
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
+        memory_type: MemoryType = MemoryType.device_local,
+        program_layout: Optional[SlangProgramLayout] = None,
+    ) -> Tensor:
         """
         Creates a new tensor with the same contents, shape and strides as the given numpy array.
         """
 
-        dtype = _numpy_to_slang(ndarray.dtype, device)
+        dtype = _numpy_to_slang(ndarray.dtype, device, program_layout)
         if dtype is None:
             raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
         if (ndarray.nbytes % ndarray.itemsize) != 0:
@@ -221,8 +197,9 @@ class Tensor(NativeTensor):
         flattened = np.lib.stride_tricks.as_strided(ndarray, (N,), (ndarray.itemsize,))
         strides = tuple(stride // ndarray.itemsize for stride in ndarray.strides)
 
-        usage = BufferUsage.shader_resource | BufferUsage.unordered_access
-        buffer = device.create_buffer(ndarray.nbytes, usage=usage, data=flattened)
+        buffer = device.create_buffer(
+            ndarray.nbytes, usage=usage, data=flattened, memory_type=memory_type
+        )
 
         return Tensor(buffer, dtype, tuple(ndarray.shape), strides)
 

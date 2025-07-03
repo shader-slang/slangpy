@@ -27,7 +27,7 @@ from slangpy.core.module import Module
 from slangpy.core.function import Function
 from slangpy.core.utils import shape_to_contiguous_strides
 from slangpy.types import ValueRef, Tensor
-from slangpy.types.tensor import innermost_type
+from slangpy.types.buffer import innermost_type
 
 from typing import Any, Optional, cast
 

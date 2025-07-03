@@ -10,7 +10,7 @@ from slangpy import DeviceType, Format, TextureType, Texture, ALL_MIPS
 from slangpy.types import NDBuffer
 from slangpy.reflection import ScalarType
 from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
-from slangpy.types.tensor import _slang_to_numpy
+from slangpy.types.buffer import _slang_to_numpy
 import sys
 
 if sys.platform == "darwin":

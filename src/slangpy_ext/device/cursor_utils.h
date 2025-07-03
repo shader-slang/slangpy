@@ -516,6 +516,13 @@ private:
             SGL_ASSERT(type);
             return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](self, nbval);
         }
+        case TypeReflection::Kind::pointer: {
+            // Pointers are represented as uint64_t in slang.
+            // We can write a pointer value directly.
+            uint64_t pointer_val = nb::cast<uint64_t>(nbval);
+            self.set_pointer(pointer_val);
+            return;
+        }
         case TypeReflection::Kind::constant_buffer:
         case TypeReflection::Kind::parameter_block:
         case TypeReflection::Kind::struct_: {

@@ -13,6 +13,7 @@ from .reflectiontypes import (
     StructType,
     InterfaceType,
     TextureType,
+    PointerType,
     StructuredBufferType,
     ByteAddressBufferType,
     DifferentialPairType,

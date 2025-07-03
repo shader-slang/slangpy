@@ -72,6 +72,8 @@ public:
 
     void set_cuda_tensor_view(const cuda::TensorView& tensor_view) const;
 
+    void set_pointer(uint64_t pointer_value) const;
+
     template<typename T>
     const ShaderCursor& operator=(const T& value) const
     {

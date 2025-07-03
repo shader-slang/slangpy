@@ -6,7 +6,8 @@ from typing import Any, Optional, cast
 from slangpy.core.native import AccessType, Shape
 
 from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorType
-from slangpy.types.tensor import Tensor, innermost_type
+from slangpy.types.tensor import Tensor
+from slangpy.types.buffer import innermost_type
 from slangpy.core.native import NativeTensorMarshall, NativeTensor
 
 from slangpy import TypeReflection, ShaderObject, ShaderCursor

@@ -471,6 +471,9 @@ namespace impl
     // A python int can be passed to any slang integer scalar type
     extension<T : __BuiltinIntegerType> T : IConvertibleFrom<int> {}
 
+    // A python int (eg a buffer address) can be passed as a
+    extension<T> Ptr<T> : IConvertibleFrom<int> {}
+
     // A python float can be passed to any slang float scalar type
     extension<T : __BuiltinFloatingPointType> T : IConvertibleFrom<float> {}
 
