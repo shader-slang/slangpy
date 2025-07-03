@@ -106,7 +106,7 @@ int return_pointer_value(int* ptr) {
 
 # Same as above but uses subscript to access the value
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
-def test_copy_pointer_subscript(device_type: DeviceType):
+def test_copy_pointer_subscript_fullbuffer(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
