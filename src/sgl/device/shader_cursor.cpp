@@ -386,18 +386,24 @@ void ShaderCursor::set_buffer(const ref<Buffer>& buffer) const
 {
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
-    SGL_CHECK(is_buffer_resource_type(type), "\"{}\" cannot bind a buffer", m_type_layout->getName());
-
-    m_shader_object->set_buffer(m_offset, buffer);
+    if (type->getKind() == slang::TypeReflection::Kind::Pointer) {
+        set_pointer(buffer->device_address());
+    } else {
+        SGL_CHECK(is_buffer_resource_type(type), "\"{}\" cannot bind a buffer", m_type_layout->getName());
+        m_shader_object->set_buffer(m_offset, buffer);
+    }
 }
 
 void ShaderCursor::set_buffer_view(const ref<BufferView>& buffer_view) const
 {
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
-    SGL_CHECK(is_buffer_resource_type(type), "\"{}\" cannot bind a buffer view", m_type_layout->getName());
-
-    m_shader_object->set_buffer_view(m_offset, buffer_view);
+    if (type->getKind() == slang::TypeReflection::Kind::Pointer) {
+        set_pointer(buffer_view->buffer()->device_address() + buffer_view->range().offset);
+    } else {
+        SGL_CHECK(is_buffer_resource_type(type), "\"{}\" cannot bind a buffer view", m_type_layout->getName());
+        m_shader_object->set_buffer_view(m_offset, buffer_view);
+    }
 }
 
 void ShaderCursor::set_texture(const ref<Texture>& texture) const

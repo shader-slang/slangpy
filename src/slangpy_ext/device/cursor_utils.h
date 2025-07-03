@@ -519,8 +519,34 @@ private:
         case TypeReflection::Kind::pointer: {
             // Pointers are represented as uint64_t in slang.
             // We can write a pointer value directly.
-            uint64_t pointer_val = nb::cast<uint64_t>(nbval);
-            self.set_pointer(pointer_val);
+            uint64_t as_ptr;
+            if (nb::try_cast<uint64_t>(nbval, as_ptr)) {
+                self.set_pointer(as_ptr);
+                return;
+            }
+
+            Buffer* buffer;
+            if (nb::try_cast<Buffer*>(nbval, buffer)) {
+                // If we have a buffer, we can write its device address.
+                self.set_pointer(buffer->device_address());
+                return;
+            }
+
+            BufferView* buffer_view;
+            if (nb::try_cast<BufferView*>(nbval, buffer_view)) {
+                // If we have a view onto a buffer, write the buffer address plus the offset.
+                self.set_pointer(buffer_view->buffer()->device_address() + buffer_view->range().offset);
+                return;
+            }
+
+            sgl::slangpy::StridedBufferView* sbview;
+            if (nb::try_cast<sgl::slangpy::StridedBufferView*>(nbval, sbview)) {
+                // If we have a StridedBufferView, write address of storage plus offset.
+                self.set_pointer(sbview->storage()->device_address() + sbview->offset());
+                return;
+            }
+
+            SGL_THROW("Expected dict");
             return;
         }
         case TypeReflection::Kind::constant_buffer:

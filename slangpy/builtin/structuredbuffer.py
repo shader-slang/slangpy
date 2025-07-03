@@ -7,6 +7,7 @@ from slangpy.reflection import (
     SlangType,
     StructuredBufferType,
     ByteAddressBufferType,
+    PointerType,
 )
 from slangpy import Buffer, BufferUsage
 from slangpy.bindings import (
@@ -31,7 +32,7 @@ class BufferMarshall(NativeBufferMarshall):
         self.slang_type: SlangType
 
     def resolve_type(self, context: BindContext, bound_type: SlangType):
-        if isinstance(bound_type, (StructuredBufferType, ByteAddressBufferType)):
+        if isinstance(bound_type, (StructuredBufferType, ByteAddressBufferType, PointerType)):
             return bound_type
         else:
             raise ValueError(
@@ -45,7 +46,9 @@ class BufferMarshall(NativeBufferMarshall):
         vector_target_type: SlangType,
     ):
         # structured buffer can only ever be taken to another structured buffer,
-        if isinstance(vector_target_type, (StructuredBufferType, ByteAddressBufferType)):
+        if isinstance(
+            vector_target_type, (StructuredBufferType, ByteAddressBufferType, PointerType)
+        ):
             return 0
         else:
             raise ValueError(
@@ -75,6 +78,10 @@ class BufferMarshall(NativeBufferMarshall):
                 cgb.type_alias(f"_t_{name}", f"RWByteAddressBufferType")
             else:
                 cgb.type_alias(f"_t_{name}", f"ByteAddressBufferType")
+        elif isinstance(binding.vector_type, PointerType):
+            # To bind as a pointer, use the 'ValueType', which just like the buffer wrappers
+            # has a 'value' field that refers to the actual buffer (in this case as a pointer)
+            cgb.type_alias(f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
         else:
             raise ValueError(
                 "Raw buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type"

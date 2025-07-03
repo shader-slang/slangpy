@@ -28,6 +28,7 @@ from slangpy.reflection import (
     VectorType,
     MatrixType,
     StructuredBufferType,
+    PointerType,
     is_matching_array_type,
 )
 from slangpy.types import NDBuffer
@@ -97,9 +98,7 @@ def ndbuffer_resolve_type(
         if bound_type.element_type != self.slang_element_type:
             raise ValueError("Attempted to bind a buffer with a different element type")
         if isinstance(bound_type, StructuredBufferType) and self.dims != 1:
-            raise ValueError(
-                "Attempted to pass an NDBuffer that is not 1D" " to a StructuredBuffer"
-            )
+            raise ValueError("Attempted to pass an NDBuffer that is not 1D to a StructuredBuffer")
         return bound_type
 
     # if implicit element casts enabled, allow conversion from type to element type
