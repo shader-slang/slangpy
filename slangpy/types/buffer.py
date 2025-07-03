@@ -342,13 +342,15 @@ class NDBuffer(NativeNDBuffer):
                 "Currently NDBuffers can only be directly constructed from C-contiguous numpy arrays"
             )
 
-        return NDBuffer(
+        res = NDBuffer(
             device,
             dtype=dtype,
             shape=ndarray.shape,
             usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
             memory_type=memory_type,
         )
+        res.copy_from_numpy(ndarray)
+        return res
 
     @staticmethod
     def empty(
