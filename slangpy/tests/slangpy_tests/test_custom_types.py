@@ -445,7 +445,7 @@ int parameter_to_field_test(Uniform u) {{
 """,
     )
 
-    assert kernel_output_values({'x': 512}) == 512
+    assert kernel_output_values({"x": 512}) == 512
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_range(device_type: DeviceType):

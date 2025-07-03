@@ -497,10 +497,18 @@ namespace impl
 
     // A python array can be passed to any slang array of the same length, as
     // long as their element types can be safely passed
-    extension<S, T : IConvertibleFrom<S>, let N : int, ArrT : ISizedArray<T, N>> ArrT : IConvertibleFrom<Array<S, N>> {}
+    extension<From : __BuiltinIntegerType, To : IConvertibleFrom<From>, let N : int, ArrTo : ISizedArray<To, N>>
+    ArrTo : IConvertibleFrom<Array<From, N>> {};
+
+    extension<From : __BuiltinFloatingPointType, To : IConvertibleFrom<From>, let N : int, ArrTo : ISizedArray<To, N>>
+    ArrTo : IConvertibleFrom<Array<From, N>> {};
 
     // A vector is convertible to another vector of the same length who's element types are convertible
-    extension<S, T : IConvertibleFrom<S>, let N : int> vector<T,N> : IConvertibleFrom<vector<S, N>> {}
+    extension<From : __BuiltinIntegerType, To : IConvertibleFrom<From>, let N : int>
+    vector<To, N> : IConvertibleFrom<vector<From, N>> {}
+
+    extension<From : __BuiltinFloatingPointType, To : IConvertibleFrom<From>, let N : int>
+    vector<To, N> : IConvertibleFrom<vector<From, N>> {}
 
     // This function allows us to check if type A is convertible to type B.
     // We attempt to specialize allowedConversionWitness with types [A, B]
