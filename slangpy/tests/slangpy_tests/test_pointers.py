@@ -8,15 +8,14 @@ from slangpy import grid
 from slangpy import DeviceType, BufferUsage
 from slangpy.types import NDBuffer
 
-
 sys.path.append(str(Path(__file__).parent))
 import helpers
 
 # Filter default device types to only include those that support pointers
+# TODO: Metal does support pointers but the is a slang bug leading to incorrect Metal shader code
+# https://github.com/shader-slang/slang/issues/7605
 POINTER_DEVICE_TYPES = [
-    x
-    for x in helpers.DEFAULT_DEVICE_TYPES
-    if x in [DeviceType.vulkan, DeviceType.cuda, DeviceType.metal]
+    x for x in helpers.DEFAULT_DEVICE_TYPES if x in [DeviceType.vulkan, DeviceType.cuda]
 ]
 
 
