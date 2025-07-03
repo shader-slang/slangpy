@@ -190,7 +190,7 @@ def load_buffer_data_from_image(
     bitmap = bitmap.convert(pix_fmt, DataStruct.Type.float32, srgb_gamma)
 
     # Convert bitmap to numpy array.
-    data: np.ndarray[Any, Any] = np.asarray(bitmap, copy=False)
+    data: np.ndarray[Any, Any] = np.array(bitmap, copy=False)
 
     # Validate array shape.
     if data.ndim < 2 or data.ndim > 3:
