@@ -110,7 +110,7 @@ def create_module(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
     spy_module = slangpy.Module(module, link=link, options=options)
-    spy_module.logger = Logger(level=LogLevel.debug)
+    spy_module.logger = Logger(level=LogLevel.info)
     return spy_module
 
 
@@ -134,7 +134,7 @@ def create_function_from_module(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
     module = Module(slang_module, link=link, options=options)
-    module.logger = Logger(level=LogLevel.debug)
+    module.logger = Logger(level=LogLevel.info)
 
     names = func_name.split(".")
 
