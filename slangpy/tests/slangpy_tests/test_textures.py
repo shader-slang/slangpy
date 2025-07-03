@@ -13,12 +13,6 @@ from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
 from slangpy.types.buffer import _slang_to_numpy
 import sys
 
-if sys.platform == "darwin":
-    pytest.skip(
-        "Skipping on macOS: Waiting for slang-gfx fix for resource clear API https://github.com/shader-slang/slang/issues/6640",
-        allow_module_level=True,
-    )
-
 
 def load_test_module(device_type: DeviceType):
     device = helpers.get_device(device_type)
@@ -172,6 +166,8 @@ def make_grid_data(type: TextureType, array_length: int = 1):
 def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, type: TextureType):
     if device_type == DeviceType.cuda:
         pytest.skip("Limited texture support in CUDA backend")
+    if device_type == DeviceType.metal:
+        pytest.skip("Limited texture support in Metal backend")
 
     m = load_test_module(device_type)
     assert m is not None
@@ -223,6 +219,8 @@ def test_read_write_texture_with_resource_views(
 ):
     if device_type == DeviceType.cuda:
         pytest.skip("Limited texture support in CUDA backend")
+    if device_type == DeviceType.metal:
+        pytest.skip("Limited texture support in Metal backend")
 
     m = load_test_module(device_type)
     assert m is not None
@@ -276,6 +274,9 @@ def test_read_write_texture_with_resource_views(
 @pytest.mark.parametrize("mips", [ALL_MIPS, 1])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_copy_value(device_type: DeviceType, slices: int, mips: int, type: TextureType):
+    if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
+        pytest.skip("1D textures with mip maps are not supported on Metal")
+
     m = load_test_module(device_type)
     assert m is not None
 
@@ -311,6 +312,9 @@ def test_copy_value(device_type: DeviceType, slices: int, mips: int, type: Textu
 def test_copy_mip_values_with_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
 ):
+    if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
+        pytest.skip("1D textures with mip maps are not supported on Metal")
+
     m = load_test_module(device_type)
     assert m is not None
 
@@ -348,6 +352,9 @@ def test_copy_mip_values_with_resource_views(
 def test_copy_mip_values_with_all_uav_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
 ):
+    if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
+        pytest.skip("1D textures with mip maps are not supported on Metal")
+
     m = load_test_module(device_type)
     assert m is not None
 
@@ -483,6 +490,8 @@ def texture_return_value_impl(
 @pytest.mark.parametrize("channels", [1, 2, 4])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: int, channels: int):
+    if device_type == DeviceType.metal:
+        pytest.skip("Limited texture support in Metal backend")
     texture_return_value_impl(device_type, texel_name, dims, channels, Texture)
 
 
