@@ -15,7 +15,9 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
             "environment": {
-                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/external/vcpkg-triplets"
+                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/external/vcpkg-triplets",
+                "CMAKE_OSX_DEPLOYMENT_TARGET": "10.15",
+                "VCPKG_OSX_DEPLOYMENT_TARGET": "10.15"
             },
             "binaryDir": "${sourceDir}/build/${presetName}"
         },

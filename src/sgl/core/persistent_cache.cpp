@@ -29,7 +29,7 @@ inline int set_last_error(std::string& last_error, const char* expr, int err)
 struct MetaData {
     /// Size of the cache entry.
     uint64_t size;
-    /// Monotonically increasing ticket number. Used for LRU eviction.
+    /// Monotonically increasing ticket number. Used for LRU eviction policy.
     uint64_t ticket;
 };
 
@@ -42,7 +42,7 @@ PersistentCache::~PersistentCache()
 
 bool PersistentCache::open(const std::filesystem::path& path, const Options& options)
 {
-    SGL_UNUSED(options);
+    m_options = options;
 
     std::error_code ec;
     if (!std::filesystem::create_directories(path, ec) && ec) {
@@ -52,9 +52,10 @@ bool PersistentCache::open(const std::filesystem::path& path, const Options& opt
 
     MDB_env* env = nullptr;
     MDB_RETURN_ON_FAIL(mdb_env_create(&env));
+    mdb_env_set_flags(env, MDB_NOSYNC, true);
     MDB_RETURN_ON_FAIL(mdb_env_set_maxreaders(env, 126));
     MDB_RETURN_ON_FAIL(mdb_env_set_maxdbs(env, 2));
-    MDB_RETURN_ON_FAIL(mdb_env_set_mapsize(env, options.max_disk_size));
+    MDB_RETURN_ON_FAIL(mdb_env_set_mapsize(env, m_options.max_disk_size));
 
     m_max_key_size = mdb_env_get_maxkeysize(env);
 
@@ -83,13 +84,14 @@ bool PersistentCache::open(const std::filesystem::path& path, const Options& opt
     }
     MDB_val key, val;
     uint64_t ticket = 0;
+    size_t total_size = 0;
     while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
         if (val.mv_size == sizeof(MetaData)) {
             const MetaData* meta_data = static_cast<const MetaData*>(val.mv_data);
             ticket = std::max(ticket, meta_data->ticket);
+            total_size += meta_data->size;
         }
     }
-    m_ticket.store(ticket);
     mdb_cursor_close(cursor);
     if (MDB_CALL(mdb_txn_commit(txn)) != MDB_SUCCESS) {
         mdb_dbi_close(env, m_dbi);
@@ -98,7 +100,13 @@ bool PersistentCache::open(const std::filesystem::path& path, const Options& opt
         return false;
     }
 
+    // TODO trigger auto-eviction if the cache is too large
+    if (m_options.auto_evict) {
+    }
+
     m_env = env;
+    m_ticket.store(ticket);
+
     return true;
 }
 
@@ -134,10 +142,22 @@ bool PersistentCache::set(const void* key_data, size_t key_size, const void* val
         return false;
     }
 
-    return MDB_CALL(mdb_txn_commit(txn)) == MDB_SUCCESS;
+    if (MDB_CALL(mdb_txn_commit(txn)) != MDB_SUCCESS)
+        return false;
+
+    m_bytes_written.fetch_add(value_size, std::memory_order_relaxed);
+
+    if (m_options.auto_evict) {
+        size_t bytes_written = m_bytes_written.load(std::memory_order_relaxed);
+        while (bytes_written >= m_options.auto_evict_after_bytes) {
+
+        }
+    }
+
+    return true;
 }
 
-bool PersistentCache::get(const void* key_data, size_t key_size, WriteValueFunc write_value_func, void* user_data)
+bool PersistentCache::get(const void* key_data, size_t key_size, ValueCallback value_callback, void* user_data)
 {
     SGL_CHECK(m_env != nullptr, "Cache is not open");
     SGL_CHECK(key_size > 0, "Key size must be greater than 0");
@@ -162,7 +182,7 @@ bool PersistentCache::get(const void* key_data, size_t key_size, WriteValueFunc 
         return false;
     }
 
-    write_value_func(mdb_val.mv_data, mdb_val.mv_size, user_data);
+    value_callback(mdb_val.mv_data, mdb_val.mv_size, user_data);
 
     return MDB_CALL(mdb_txn_commit(txn)) == MDB_SUCCESS;
 }
@@ -206,31 +226,63 @@ bool PersistentCache::evict(size_t max_entries, size_t max_size)
         return false;
     }
 
-    MDB_val key, val;
-    size_t entries_evicted = 0;
-    size_t total_size_evicted = 0;
+    struct Entry {
+        MetaData meta_data;
+        char key[512];
+        size_t key_size;
+    };
+    std::vector<Entry> entries;
+    entries.reserve(1000);
 
+    size_t total_size = 0;
+
+    MDB_val key, val;
     while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
         if (val.mv_size == sizeof(MetaData)) {
-            const MetaData* meta_data = static_cast<const MetaData*>(val.mv_data);
-            if (entries_evicted >= max_entries || total_size_evicted + meta_data->size > max_size) {
-                break; // Stop if we reached the limits
-            }
-            if (mdb_del(txn, m_dbi_meta, &key, nullptr) != MDB_SUCCESS
-                || mdb_del(txn, m_dbi, &key, nullptr) != MDB_SUCCESS) {
-                mdb_cursor_close(cursor);
-                mdb_txn_abort(txn);
-                return;
-            }
-            entries_evicted++;
-            total_size_evicted += meta_data->size;
+            Entry& entry = entries.emplace_back();
+            entry.meta_data = *static_cast<const MetaData*>(val.mv_data);
+            std::memcpy(entry.key, key.mv_data, key.mv_size);
+            entry.key_size = key.mv_size;
+            total_size += entry.meta_data.size;
         }
     }
 
-    mdb_cursor_close(cursor);
-    mdb_txn_commit(txn);
-}
+    std::sort(
+        entries.begin(),
+        entries.end(),
+        [](const Entry& a, const Entry& b) { return a.meta_data.ticket < b.meta_data.ticket; }
+    );
 
+    size_t total_entries = entries.size();
+    size_t evicted_entries = 0;
+    size_t evicted_size = 0;
+
+    for (size_t i = 0; i < entries.size(); ++i) {
+        if (total_entries <= max_entries && total_size <= max_size)
+            break;
+
+        const Entry& entry = entries[i];
+        MDB_val mdb_key = {entry.key_size, (void*)entry.key};
+        if (MDB_CALL(mdb_del(txn, m_dbi, &mdb_key, nullptr) != MDB_SUCCESS)) {
+            mdb_cursor_close(cursor);
+            mdb_txn_abort(txn);
+            return false;
+        }
+        if (MDB_CALL(mdb_del(txn, m_dbi_meta, &mdb_key, nullptr) != MDB_SUCCESS)) {
+            mdb_cursor_close(cursor);
+            mdb_txn_abort(txn);
+            return false;
+        }
+
+        total_entries--;
+        total_size -= entry.meta_data.size;
+        evicted_entries++;
+        evicted_size += entry.meta_data.size;
+    }
+
+    mdb_cursor_close(cursor);
+    return MDB_CALL(mdb_txn_commit(txn)) == MDB_SUCCESS;
+}
 
 PersistentCache::Stats PersistentCache::stats() const
 {

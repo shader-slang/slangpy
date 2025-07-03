@@ -58,7 +58,7 @@ generate_random_entries(size_t count, size_t key_size = 32, size_t min_value_siz
 
 TEST_CASE("simple")
 {
-    auto cache_dir = testing::get_test_temp_directory() / "cache";
+    auto cache_dir = testing::get_case_temp_directory() / "cache";
     PersistentCache cache;
     CACHE_CHECK(cache.open(cache_dir));
 
@@ -131,16 +131,15 @@ TEST_CASE("simple")
 
 TEST_CASE("persistent")
 {
-    auto cache_dir = testing::get_test_temp_directory() / "cache";
+    auto cache_dir = testing::get_case_temp_directory() / "cache";
     PersistentCache cache;
     CACHE_CHECK(cache.open(cache_dir));
 
     std::vector<CacheEntry> entries = generate_random_entries(1000);
 
     // fill cache
-    for (const auto& entry : entries) {
+    for (const auto& entry : entries)
         CACHE_CHECK(cache.set(entry.key, entry.value));
-    }
 
     // verify cache
     size_t total_size = 0;
@@ -167,6 +166,100 @@ TEST_CASE("persistent")
 
     // check cache stats
     CACHE_CHECK_STATS(cache, entries.size(), total_size);
+}
+
+TEST_CASE("evict_max_entries")
+{
+    auto cache_dir = testing::get_case_temp_directory() / "cache";
+    PersistentCache cache;
+    CACHE_CHECK(cache.open(cache_dir));
+
+    std::vector<CacheEntry> entries = generate_random_entries(1000);
+
+    size_t before_size = 0;
+    for (size_t i = 0; i < entries.size(); ++i) {
+        before_size += entries[i].value.size();
+    }
+
+    // fill cache
+    for (const auto& entry : entries)
+        CACHE_CHECK(cache.set(entry.key, entry.value));
+
+    // check cache stats
+    CACHE_CHECK_STATS(cache, 1000, before_size);
+
+    // touch 500 entire entries to ensure they are not evicted
+    size_t after_size = 0;
+    for (size_t i = 0; i < 500; ++i) {
+        Blob value;
+        cache.get(entries[250 + i].key, value);
+        after_size += entries[250 + i].value.size();
+    }
+
+    // evict half of the entries
+    CACHE_CHECK(cache.evict(500, before_size));
+
+    // check cache stats
+    CACHE_CHECK_STATS(cache, 500, after_size);
+
+    // ensure the first 250 and last 250 entries are evicted
+    for (size_t i = 250; i < 750; ++i) {
+        Blob value;
+        CACHE_CHECK(cache.get(entries[i].key, value));
+        CACHE_CHECK(value == entries[i].value);
+    }
+    for (size_t i = 0; i < 250; ++i) {
+        Blob value;
+        CACHE_CHECK(cache.get(entries[i].key, value) == false);
+        CACHE_CHECK(cache.get(entries[750 + i].key, value) == false);
+    }
+}
+
+TEST_CASE("evict_max_size")
+{
+    auto cache_dir = testing::get_case_temp_directory() / "cache";
+    PersistentCache cache;
+    CACHE_CHECK(cache.open(cache_dir));
+
+    std::vector<CacheEntry> entries = generate_random_entries(1000);
+
+    size_t before_size = 0;
+    for (size_t i = 0; i < entries.size(); ++i) {
+        before_size += entries[i].value.size();
+    }
+
+    // fill cache
+    for (const auto& entry : entries)
+        CACHE_CHECK(cache.set(entry.key, entry.value));
+
+    // check cache stats
+    CACHE_CHECK_STATS(cache, 1000, before_size);
+
+    // touch 500 entire entries to ensure they are not evicted
+    size_t after_size = 0;
+    for (size_t i = 0; i < 500; ++i) {
+        Blob value;
+        cache.get(entries[250 + i].key, value);
+        after_size += entries[250 + i].value.size();
+    }
+
+    // evict entries until size is reached
+    CACHE_CHECK(cache.evict(1000, after_size));
+
+    // check cache stats
+    CACHE_CHECK_STATS(cache, 500, after_size);
+
+    // ensure the first 250 and last 250 entries are evicted
+    for (size_t i = 250; i < 750; ++i) {
+        Blob value;
+        CACHE_CHECK(cache.get(entries[i].key, value));
+        CACHE_CHECK(value == entries[i].value);
+    }
+    for (size_t i = 0; i < 250; ++i) {
+        Blob value;
+        CACHE_CHECK(cache.get(entries[i].key, value) == false);
+        CACHE_CHECK(cache.get(entries[750 + i].key, value) == false);
+    }
 }
 
 TEST_SUITE_END();
