@@ -426,6 +426,26 @@ Particle rand_float_soa(Particle input) {
     assert np.all(pos >= -100.0) and np.all(pos <= 100.0)
     assert np.all(dir >= 0) and np.all(dir <= np.pi * 2)
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_parameter_to_field_conversion(device_type: DeviceType):
+
+    # Create function that just dumps input to output
+    device = helpers.get_device(device_type)
+    kernel_output_values = helpers.create_function_from_module(
+        device,
+        "parameter_to_field_test",
+        f"""
+struct Uniform {{
+    float x;
+}}
+
+int parameter_to_field_test(Uniform u) {{
+    return int(u.x);
+}}
+""",
+    )
+
+    assert kernel_output_values({'x': 512}) == 512
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_range(device_type: DeviceType):
