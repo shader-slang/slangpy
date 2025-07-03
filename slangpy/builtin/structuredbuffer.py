@@ -45,7 +45,7 @@ class BufferMarshall(NativeBufferMarshall):
         binding: BoundVariable,
         vector_target_type: SlangType,
     ):
-        # structured buffer can only ever be taken to another structured buffer,
+        # structured buffer can only ever be taken to another structured buffer or a pointer
         if isinstance(
             vector_target_type, (StructuredBufferType, ByteAddressBufferType, PointerType)
         ):
