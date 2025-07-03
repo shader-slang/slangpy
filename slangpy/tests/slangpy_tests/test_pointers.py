@@ -592,5 +592,56 @@ void test_atomic_float_ptr_access(int call_id, Atomic<float>* af) {
     assert np.array_equal(out_data, expected_data), f"Expected {expected_data}, got {out_data}"
 
 
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+def test_atomic_float_in_struct_access(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_atomic_float_in_struct_access",
+        r"""
+struct Test {
+    int intvalue;
+    float value;
+    int intvalue2;
+}
+void test_atomic_float_in_struct_access(int call_id, Test* buffer) {
+    Atomic<float>* cur = (Atomic<float>*) &buffer[call_id%10].value;
+    cur.add(1.0f);
+}
+""",
+    )
+
+    # Setup a load of data
+    count = 10
+    data = []
+    for i in range(count):
+        data.append(
+            {
+                "intvalue": i,
+                "value": 0.0,
+                "intvalue2": i + 1,
+            }
+        )
+
+    # Fill input buffer with it
+    in_buffer = NDBuffer.empty(device, (count,), dtype=function.module.Test)
+    cursor = in_buffer.cursor()
+    for i, item in enumerate(data):
+        cursor[i].write(item)
+    cursor.apply()
+
+    function(grid(shape=(count * 100,)), in_buffer.storage)
+
+    # Read back the output buffer and check values
+    out_cursor = in_buffer.cursor()
+    for i in range(count):
+        in_val = data[i]
+        out_val = out_cursor[i].read()
+        assert in_val["intvalue"] == out_val["intvalue"], f"IntValue mismatch at index {i}"
+        assert np.isclose(in_val["value"] + 100, out_val["value"]), f"Value mismatch at index {i}"
+        assert in_val["intvalue2"] == out_val["intvalue2"], f"IntValue2 mismatch at index {i}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
