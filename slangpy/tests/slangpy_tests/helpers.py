@@ -4,7 +4,7 @@ import hashlib
 import os
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import pytest
 import numpy as np
@@ -35,17 +35,20 @@ elif sys.platform == "linux" or sys.platform == "linux2":
     DEFAULT_DEVICE_TYPES = [DeviceType.vulkan, DeviceType.cuda]
 elif sys.platform == "darwin":
     # TODO: we don't run any slangpy tests on metal due to slang bugs for now
-    DEFAULT_DEVICE_TYPES = []  # [DeviceType.metal]
+    DEFAULT_DEVICE_TYPES = [DeviceType.metal]
 else:
     raise RuntimeError("Unsupported platform")
 
 DEVICE_CACHE: dict[tuple[DeviceType, bool], Device] = {}
+
+METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
 # Enable this to make tests just run on d3d12 for faster testing
 # DEFAULT_DEVICE_TYPES = [DeviceType.d3d12]
 
 # Always dump stuff when testing
 slangpy.set_dump_generated_shaders(True)
+# slangpy.set_dump_slang_intermediates(True)
 
 # Returns a unique random 16 character string for every variant of every test.
 
@@ -59,6 +62,13 @@ def test_id(request: Any):
 
 
 def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = False) -> Device:
+    # Early out if we know we don't have support for parameter blocks
+    global METAL_PARAMETER_BLOCK_SUPPORT
+    if type == DeviceType.metal and METAL_PARAMETER_BLOCK_SUPPORT == False:
+        pytest.skip(
+            "Metal device does not support parameter blocks (requires argument buffer tier 2)"
+        )
+
     cache_key = (type, cuda_interop)
     if use_cache and cache_key in DEVICE_CACHE:
         return DEVICE_CACHE[cache_key]
@@ -73,6 +83,14 @@ def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = Fa
         ),
         enable_cuda_interop=cuda_interop,
     )
+
+    # slangpy dependens on parameter block support which is not available on all Metal devices
+    METAL_PARAMETER_BLOCK_SUPPORT = device.has_feature(slangpy.Feature.parameter_block)
+    if METAL_PARAMETER_BLOCK_SUPPORT == False:
+        pytest.skip(
+            "Metal device does not support parameter blocks (requires argument buffer tier 2)"
+        )
+
     if use_cache:
         DEVICE_CACHE[cache_key] = device
     return device
