@@ -43,6 +43,7 @@ int* return_pointer(int* ptr) {
 
 USAGES = [
     BufferUsage.shader_resource,
+    BufferUsage.unordered_access,
     BufferUsage.shader_resource | BufferUsage.unordered_access,
     BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shader_resource,
 ]
