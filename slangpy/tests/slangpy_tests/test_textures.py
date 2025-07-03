@@ -39,7 +39,7 @@ def make_rand_data(type: TextureType, array_length: int, mip_count: int):
         sz = 32
         mips = []
         for i in range(0, mip_count):
-            if type == TextureType.texture_1d:
+            if type in (TextureType.texture_1d, TextureType.texture_1d_array):
                 mips.append(np.random.rand(sz, 4).astype(np.float32))
             elif type in (TextureType.texture_2d, TextureType.texture_2d_array):
                 mips.append(np.random.rand(sz, sz, 4).astype(np.float32))
@@ -180,9 +180,6 @@ def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, typ
     if type == TextureType.texture_3d and slices > 1:
         return
 
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
-
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
     dims = len(grid_coords_data.shape) - 1
@@ -233,11 +230,6 @@ def test_read_write_texture_with_resource_views(
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
         return
-    if type == TextureType.texture_3d and mips != 1:
-        pytest.skip("Pending slang fix")
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
 
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
@@ -291,9 +283,6 @@ def test_copy_value(device_type: DeviceType, slices: int, mips: int, type: Textu
     if type == TextureType.texture_3d and slices > 1:
         return
 
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
-
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
     dest_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -328,12 +317,6 @@ def test_copy_mip_values_with_resource_views(
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
         return
-
-    if type == TextureType.texture_3d and mips != 1:
-        pytest.skip("Pending slang fix")
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -371,12 +354,6 @@ def test_copy_mip_values_with_all_uav_resource_views(
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
         return
-
-    if type == TextureType.texture_3d and mips != 1:
-        pytest.skip("Pending slang fix")
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
