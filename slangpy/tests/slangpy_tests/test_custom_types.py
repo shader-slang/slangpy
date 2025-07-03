@@ -86,9 +86,6 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: 
         elements = dimensions
         dims = dimensions
     elif dimensions == 0:
-        if array:
-            pytest.skip("Array not supported for 0D call_id")
-
         # If dimensions == 0, test passing 1D value into corresponding scalar type
         type_name = inttype
         elements = 1
