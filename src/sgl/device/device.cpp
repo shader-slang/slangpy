@@ -22,6 +22,7 @@
 #include "sgl/device/blit.h"
 #include "sgl/device/hot_reload.h"
 #include "sgl/device/debug_logger.h"
+#include "sgl/device/native_handle_traits.h"
 
 #include "sgl/core/file_system_watcher.h"
 #include "sgl/core/config.h"
@@ -101,6 +102,11 @@ Device::Device(const DeviceDesc& desc)
     rhi::DeviceDesc rhi_desc{
         .next = &d3d12_extended_desc,
         .deviceType = static_cast<rhi::DeviceType>(m_desc.type),
+        .existingDeviceHandles = {
+            m_desc.existing_device_handles[0].to_rhi(),
+            m_desc.existing_device_handles[1].to_rhi(),
+            m_desc.existing_device_handles[2].to_rhi(),
+        },
         .adapterLUID
         = m_desc.adapter_luid ? reinterpret_cast<const rhi::AdapterLUID*>(m_desc.adapter_luid->data()) : nullptr,
         .slang{
@@ -877,5 +883,24 @@ Blitter* Device::_blitter()
         m_blitter = ref(new Blitter(this));
     return m_blitter;
 }
+
+std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
+{
+    std::array<NativeHandle, 3> handles;
+
+    CUcontext cu_context;
+    SGL_CHECK(rhiCudaDriverApiInit(), "Failed to initialize CUDA driver API.");
+    SGL_CU_CHECK(cuCtxGetCurrent(&cu_context));
+    SGL_CHECK(cu_context, "No current CUDA context found.");
+
+    CUdevice cu_device;
+    SGL_CU_CHECK(cuCtxGetDevice(&cu_device));
+
+    handles[0] = NativeHandle(cu_device);
+    handles[1] = NativeHandle(cu_context);
+
+    return handles;
+}
+
 
 } // namespace sgl

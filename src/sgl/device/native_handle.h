@@ -55,6 +55,7 @@ enum class NativeHandleType {
     CUdeviceptr = static_cast<uint32_t>(rhi::NativeHandleType::CUdeviceptr),
     CUtexObject = static_cast<uint32_t>(rhi::NativeHandleType::CUtexObject),
     CUstream = static_cast<uint32_t>(rhi::NativeHandleType::CUstream),
+    CUcontext = static_cast<uint32_t>(rhi::NativeHandleType::CUcontext),
 
     OptixDeviceContext = static_cast<uint32_t>(rhi::NativeHandleType::OptixDeviceContext),
     OptixTraversableHandle = static_cast<uint32_t>(rhi::NativeHandleType::OptixTraversableHandle),
@@ -117,6 +118,7 @@ SGL_ENUM_INFO(
         {NativeHandleType::CUdeviceptr, "CUdeviceptr"},
         {NativeHandleType::CUtexObject, "CUtexObject"},
         {NativeHandleType::CUstream, "CUstream"},
+        {NativeHandleType::CUcontext, "CUcontext"},
 
         {NativeHandleType::OptixDeviceContext, "OptixDeviceContext"},
         {NativeHandleType::OptixTraversableHandle, "OptixTraversableHandle"},
@@ -177,6 +179,8 @@ public:
     }
 
     std::string to_string() const { return fmt::format("NativeHandle(type={}, value=0x{:08x})", m_type, m_value); }
+
+    rhi::NativeHandle to_rhi() const { return rhi::NativeHandle{(rhi::NativeHandleType)m_type, m_value}; }
 
 private:
     NativeHandleType m_type{NativeHandleType::undefined};

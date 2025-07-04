@@ -116,6 +116,10 @@ struct DeviceDesc {
     /// Path to the shader cache directory (optional).
     /// If a relative path is used, the cache is stored in the application data directory.
     std::optional<std::filesystem::path> shader_cache_path;
+
+    /// Native device handles for initializing with externally created device. Currenlty
+    /// only used for CUDA interoperability.
+    std::array<NativeHandle, 3> existing_device_handles;
 };
 
 struct DeviceLimits {
@@ -661,5 +665,10 @@ private:
     ref<cuda::ExternalSemaphore> m_cuda_semaphore;
     bool m_wait_global_fence{false};
 };
+
+/// Gets the device and context handles for the current CUDA context. Use
+/// to retrieve an existing context (eg from PyTorch) to pass as the existing_device_handles
+/// from which to create a device in the DeviceDesc.
+SGL_API std::array<NativeHandle, 3> get_cuda_current_context_native_handles();
 
 } // namespace sgl

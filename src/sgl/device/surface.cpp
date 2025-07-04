@@ -55,7 +55,7 @@ void Surface::configure(const SurfaceConfig& config)
 
     SLANG_RHI_CALL(m_rhi_surface->configure(rhi_config));
 
-    rhi_config = m_rhi_surface->getConfig();
+    rhi_config = *m_rhi_surface->getConfig();
     m_config = {
         .format = static_cast<Format>(rhi_config.format),
         .usage = static_cast<TextureUsage>(rhi_config.usage),

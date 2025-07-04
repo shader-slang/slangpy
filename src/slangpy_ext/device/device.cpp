@@ -143,7 +143,12 @@ SGL_PY_EXPORT(device_device)
         )
         .def_rw("adapter_luid", &DeviceDesc::adapter_luid, D(DeviceDesc, adapter_luid))
         .def_rw("compiler_options", &DeviceDesc::compiler_options, D(DeviceDesc, compiler_options))
-        .def_rw("shader_cache_path", &DeviceDesc::shader_cache_path, D(DeviceDesc, shader_cache_path));
+        .def_rw("shader_cache_path", &DeviceDesc::shader_cache_path, D(DeviceDesc, shader_cache_path))
+        .def_rw(
+            "existing_device_handles",
+            &DeviceDesc::existing_device_handles,
+            D_NA(DeviceDesc, existing_device_handles)
+        );
     nb::implicitly_convertible<nb::dict, DeviceDesc>();
 
     nb::class_<DeviceLimits>(m, "DeviceLimits", D(DeviceLimits))
@@ -242,7 +247,8 @@ SGL_PY_EXPORT(device_device)
            bool enable_compilation_reports,
            std::optional<AdapterLUID> adapter_luid,
            std::optional<SlangCompilerOptions> compiler_options,
-           std::optional<std::filesystem::path> shader_cache_path)
+           std::optional<std::filesystem::path> shader_cache_path,
+           std::optional<std::array<NativeHandle, 3>> existing_device_handles)
         {
             new (self) Device({
                 .type = type,
@@ -254,6 +260,7 @@ SGL_PY_EXPORT(device_device)
                 .adapter_luid = adapter_luid,
                 .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
                 .shader_cache_path = shader_cache_path,
+                .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
             });
         },
         "type"_a = DeviceDesc().type,
@@ -265,6 +272,7 @@ SGL_PY_EXPORT(device_device)
         "adapter_luid"_a.none() = nb::none(),
         "compiler_options"_a.none() = nb::none(),
         "shader_cache_path"_a.none() = nb::none(),
+        "existing_device_handles"_a.none() = nb::none(),
         D(Device, Device)
     );
     device.def(nb::init<DeviceDesc>(), "desc"_a, D(Device, Device));
@@ -856,4 +864,10 @@ SGL_PY_EXPORT(device_device)
         D(Device, enumerate_adapters)
     );
     device.def_static("report_live_objects", &Device::report_live_objects, D(Device, report_live_objects));
+
+    m.def(
+        "get_cuda_current_context_native_handles",
+        get_cuda_current_context_native_handles,
+        D_NA(get_cuda_current_context_native_handles, get_cuda_current_context_native_handles)
+    );
 }
