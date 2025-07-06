@@ -360,11 +360,11 @@ void print(
 }
 
 struct DebugPrinter : IPrintOutput {
-    RWByteAddressBuffer buffer;
-    uint buffer_capacity;
-    RWStructuredBuffer<Atomic<uint>> buffer_size;
     /// Single buffer that contains the print messages.
-    /// The first 4 bytes of the buffer store the size of the data following.
+    /// First 4 bytes store the capacity of the buffer (including the header).
+    /// Next 4 bytes store the current size of the buffer (excluding the header).
+    /// The rest of the buffer is used to store messages.
+    RWByteAddressBuffer buffer;
 
     [ForceInline]
     bool write_msg(String fmt, uint arg_count, uint total_data_count, out uint offset)
@@ -372,15 +372,22 @@ struct DebugPrinter : IPrintOutput {
         // Compute the size of the message.
         uint size = (3 + arg_count + total_data_count) * sizeof(uint);
 
-        // Reserve space for the message.
-        offset = buffer_size[0].add(size);
+        // Get the capacity of the buffer.
+        uint capacity = buffer.Load(0);
 
-        if (offset + size > buffer_capacity - 4) {
+        // Reserve space for the message.
+        buffer.InterlockedAdd(4, size, offset);
+
+        if (8 + offset + size > capacity - 4) {
             // Write sentinel value indicating that we have a buffer overlow.
             buffer.Store(offset, 0xffffffff);
             return false;
         }
 
+        // Skip the header.
+        offset += 8;
+
+        // Store the message header.
         buffer.Store(offset, size);
 #ifdef __TARGET_METAL__
         // Workaround for Slang issue https://github.com/shader-slang/slang/issues/7534
