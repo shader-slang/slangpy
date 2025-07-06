@@ -442,6 +442,12 @@ public:
      * \param signal_fences List of fences to signal after executing the command buffers.
      * \param signal_fence_values List of fence values to signal after executing the command buffers.
      * \param queue Command queue to submit to.
+     * \param cuda_stream On none-CUDA backends, when interop is enabled, this is the stream to sync with
+     * before/after submission (assuming any resources are shared with CUDA) and use for internal copies. If not
+     * specified, sync will happen with the NULL (default) CUDA stream.
+     * On CUDA backends, this is the CUDA stream to use for the submission. If not specified, the
+     * default stream of the command queue will be used, which for CommandQueueType::graphics is the NULL stream.
+     * It is an error to specify a stream for none-CUDA backends that have interop disabled.
      * \return Submission ID.
      */
     uint64_t submit_command_buffers(
@@ -450,7 +456,8 @@ public:
         std::span<uint64_t> wait_fence_values = {},
         std::span<Fence*> signal_fences = {},
         std::span<uint64_t> signal_fence_values = {},
-        CommandQueueType queue = CommandQueueType::graphics
+        CommandQueueType queue = CommandQueueType::graphics,
+        NativeHandle cuda_stream = NativeHandle()
     );
 
     /**

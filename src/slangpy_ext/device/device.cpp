@@ -250,18 +250,18 @@ SGL_PY_EXPORT(device_device)
            std::optional<std::filesystem::path> shader_cache_path,
            std::optional<std::array<NativeHandle, 3>> existing_device_handles)
         {
-            new (self) Device({
-                .type = type,
-                .enable_debug_layers = enable_debug_layers,
-                .enable_cuda_interop = enable_cuda_interop,
-                .enable_print = enable_print,
-                .enable_hot_reload = enable_hot_reload,
-                .enable_compilation_reports = enable_compilation_reports,
-                .adapter_luid = adapter_luid,
-                .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
-                .shader_cache_path = shader_cache_path,
-                .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
-            });
+            new (self) Device(
+                {.type = type,
+                 .enable_debug_layers = enable_debug_layers,
+                 .enable_cuda_interop = enable_cuda_interop,
+                 .enable_print = enable_print,
+                 .enable_hot_reload = enable_hot_reload,
+                 .enable_compilation_reports = enable_compilation_reports,
+                 .adapter_luid = adapter_luid,
+                 .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                 .shader_cache_path = shader_cache_path,
+                 .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>())}
+            );
         },
         "type"_a = DeviceDesc().type,
         "enable_debug_layers"_a = DeviceDesc().enable_debug_layers,
@@ -541,6 +541,7 @@ SGL_PY_EXPORT(device_device)
         "signal_fences"_a = std::span<Fence*>(),
         "signal_fence_values"_a = std::span<uint64_t>(),
         "queue"_a = CommandQueueType::graphics,
+        "cuda_stream"_a = NativeHandle(),
         D(Device, submit_command_buffers)
     );
     device.def(

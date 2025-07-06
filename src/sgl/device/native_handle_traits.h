@@ -78,6 +78,7 @@ SGL_NATIVE_HANDLE(VkSampler, NativeHandleType::VkSampler);
 
 SGL_NATIVE_HANDLE_32(CUdevice, NativeHandleType::CUdevice);
 SGL_NATIVE_HANDLE(CUcontext, NativeHandleType::CUcontext);
+SGL_NATIVE_HANDLE(CUstream, NativeHandleType::CUstream);
 
 #undef SGL_NATIVE_HANDLE
 #undef SGL_NATIVE_HANDLE_32
