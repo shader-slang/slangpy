@@ -21,7 +21,10 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
 
     // print supports all basic types
     print("bool: false={}, true={}", false, true);
+    // no int8 support on D3D12
+#if !defined(__TARGET_D3D12__)
     print("int8: min={}, max={}, -123={}, 123={}", int8_t.minValue, int8_t.maxValue, int8_t(-123), int8_t(123));
+#endif
     print(
         "int16: min={}, max={}, -12345={}, 12345={}",
         int16_t.minValue,
@@ -43,7 +46,10 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
         int64_t(-12345),
         int64_t(12345)
     );
+    // no uint8 support on D3D12
+#if !defined(__TARGET_D3D12__)
     print("uint8: min={}, max={}, 0={}, 123={}", uint8_t.minValue, uint8_t.maxValue, uint8_t(0), uint8_t(123));
+#endif
     print(
         "uint16: min={}, max={}, 12345={}, 23456={}",
         uint16_t.minValue,
@@ -79,7 +85,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
         float32_t(-123.45),
         float32_t(123.45)
     );
-    // no float64 support in Metal
+    // no float64 support on Metal
 #if !defined(__TARGET_METAL__)
     print(
         "float64: min={}, max={}, -123.45={:.5}, 123.45={:.5}",
@@ -91,7 +97,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
 #endif
 
     // print supports vectors
-    // no int8 support in D3D12 and Metal
+    // no int8 support on D3D12 and Metal
 #if !defined(__TARGET_D3D12__) && !defined(__TARGET_METAL__)
     print("int8_tX: {} {} {}", int8_t2(-4, -3), int8_t3(-2, -1, 0), int8_t4(1, 2, 3, 4));
 #endif
@@ -108,7 +114,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
         int64_t3(-2, -1, 0) * 10000000000000ll,
         int64_t4(1, 2, 3, 4) * 10000000000000ll
     );
-    // no uint8 support in D3D12 and Metal
+    // no uint8 support on D3D12 and Metal
 #if !defined(__TARGET_D3D12__) && !defined(__TARGET_METAL__)
     print("uint8_tX: {} {} {}", uint8_t2(1, 2), uint8_t3(3, 4, 5), uint8_t4(6, 7, 8, 9));
 #endif
@@ -137,7 +143,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
         float32_t3(-2.f, -1.f, 0.f) * 1e6f,
         float32_t4(1.f, 2.f, 3.f, 4.f) * 1e6f
     );
-    // no float64 support in Metal
+    // no float64 support on Metal
 #if !defined(__TARGET_METAL__)
     print(
         "float64_tX: {} {} {}",
@@ -148,7 +154,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
 #endif
 
     // print supports matrices
-    // no integer matrix in Vulkan and Metal
+    // no integer matrix support on Vulkan and Metal
 #if !defined(__TARGET_VULKAN__) && !defined(__TARGET_METAL__)
     print("uint3x4: {}", uint3x4(uint4(1, 2, 3, 4), uint4(5, 6, 7, 8), uint4(9, 10, 11, 12)));
     print("uint4x4: {}", uint4x4(uint4(1, 2, 3, 4), uint4(5, 6, 7, 8), uint4(9, 10, 11, 12), uint4(13, 14, 15, 16)));
