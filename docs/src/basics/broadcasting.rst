@@ -5,7 +5,7 @@ As we've seen so far in these tutorials, SlangPy's primary job is to take a func
 that is designed to run on a single unit of data, and convert it to a `vector` function that
 runs on batches of data in parallel.
 
-You can find the complete code for this example `here <https://github.com/shader-slang/slangpy/tree/main/examples/broadcasting/>`_.
+You can find the complete code for this example `here <https://github.com/shader-slang/slangpy-samples/tree/main/examples/broadcasting/>`_.
 
 So far, we've seen very simple examples of vectorizing in which all the parameters of a function
 are passed either equally sized buffers, or single values. For example:
@@ -162,7 +162,7 @@ Summary
 
 This tutorial gave an overview of how vectorizing and broadcasting work in SlangPy. If you're already familiar with NumPy, PyTorch or other ML frameworks it should be very familiar, with the only real extra complication being that of handling non-scalar types.
 
-If you're new to broadcasting, this first read might have made your head spin a little. Don't worry! It's a topic that is **way** easier to learn in practice than in theory. The best way to get a feel for it is to start writing some SlangPy functions and see how the broadcasting rules work (or don't!) in practice. The `examples <https://github.com/shader-slang/slangpy/tree/main/examples/broadcasting/>`_ for this tutorial are a good place to start.
+If you're new to broadcasting, this first read might have made your head spin a little. Don't worry! It's a topic that is **way** easier to learn in practice than in theory. The best way to get a feel for it is to start writing some SlangPy functions and see how the broadcasting rules work (or don't!) in practice. The `examples <https://github.com/shader-slang/slangpy-samples/tree/main/examples/broadcasting/>`_ for this tutorial are a good place to start.
 
 
 The next tutorial will cover use of the ``map`` function to be explicit about how arguments are mapped to the output allowing for more complex broadcasting rules.
