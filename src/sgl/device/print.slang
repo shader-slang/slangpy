@@ -236,18 +236,18 @@ struct DebugPrinter : IPrintOutput {
         // Reserve space for the message.
         buffer.InterlockedAdd(4, size, offset);
 
-        if (8 + offset + size > capacity - 4) {
+        // Skip the header.
+        offset += 8;
+
+        if (offset + size > capacity - 4) {
             // Write sentinel value indicating that we have a buffer overlow.
             buffer.Store(offset, 0xffffffff);
             return false;
         }
 
-        // Skip the header.
-        offset += 8;
-
         // Store the message header.
         buffer.Store(offset, size);
-        #ifdef __TARGET_METAL__
+#ifdef __TARGET_METAL__
         // Workaround for Slang issue https://github.com/shader-slang/slang/issues/7534
         buffer.Store(offset + 4, uint(getStringHash(fmt)));
 #else

@@ -259,6 +259,7 @@ DebugPrinter::DebugPrinter(Device* device, size_t buffer_size)
     m_buffer = m_device->create_buffer({
         .size = buffer_size,
         .usage = BufferUsage::unordered_access | BufferUsage::copy_source,
+        .default_state = ResourceState::unordered_access,
         .label = "debug_printer_buffer",
     });
 
@@ -269,8 +270,9 @@ DebugPrinter::DebugPrinter(Device* device, size_t buffer_size)
         .label = "debug_printer_readback_buffer",
     });
 
-    uint32_t header[2] = {uint32_t(buffer_size), 0};
+    // Write buffer header.
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
+    uint32_t header[2] = {uint32_t(buffer_size), 0};
     command_encoder->upload_buffer_data(m_buffer, 0, sizeof(header), header);
     m_device->submit_command_buffer(command_encoder->finish());
 }
