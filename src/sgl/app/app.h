@@ -103,6 +103,7 @@ private:
     Device* m_device;
     ref<Window> m_window;
     ref<Surface> m_surface;
+    SurfaceConfig m_surface_config;
     ref<ui::Context> m_ui_context;
 };
 
