@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from os import PathLike
+from os import PathLike, environ
 import pathlib
 from typing import Optional, Sequence, Union
 
@@ -33,6 +33,15 @@ def create_device(
     """
 
     shaderpath = str(pathlib.Path(__file__).parent.parent.absolute() / "slang")
+
+    # Allow overriding the device type via environment variable (for automatic testing).
+    if "SLANGPY_DEVICE_TYPE_OVERRIDE" in environ:
+        type = {
+            "d3d12": DeviceType.d3d12,
+            "vulkan": DeviceType.vulkan,
+            "cuda": DeviceType.cuda,
+            "metal": DeviceType.metal,
+        }.get(environ["SLANGPY_DEVICE_TYPE_OVERRIDE"].lower(), type)
 
     device = Device(
         type=type,
