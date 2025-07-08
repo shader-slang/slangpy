@@ -4,6 +4,7 @@ import pytest
 from slangpy import DeviceType
 from . import helpers
 
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_scalar_to_field_conversion(device_type: DeviceType):
 
@@ -43,6 +44,7 @@ int scalar_to_parameter_test(float x) {{
 
     assert kernel_output_values(512) == 512
 
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_array_conversion(device_type: DeviceType):
 
@@ -58,7 +60,8 @@ int array_test(Array<float, 5> x) {{
 """,
     )
 
-    assert kernel_output_values([1,2,3,4,5]) == 15
+    assert kernel_output_values([1, 2, 3, 4, 5]) == 15
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
