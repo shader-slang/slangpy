@@ -509,7 +509,7 @@ def generate_code(
     trampoline_fn = "_trampoline"
     if context.call_mode != CallMode.prim:
         cg.trampoline.append_line("[Differentiable]")
-    cg.trampoline.append_line(f"void {trampoline_fn}(Context context, CallData data)")
+    cg.trampoline.append_line(f"void {trampoline_fn}(Context context)")
     cg.trampoline.begin_block()
 
     # Declare parameters and load inputs
@@ -519,7 +519,7 @@ def generate_code(
     for x in root_params:
         if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
             data_name = (
-                f"_param_{x.variable_name}" if x.create_param_block else f"data.{x.variable_name}"
+                f"_param_{x.variable_name}" if x.create_param_block else f"call_data.{x.variable_name}"
             )
             cg.trampoline.append_statement(
                 f"{data_name}.load(context.map(_m_{x.variable_name}), {x.variable_name})"
@@ -559,7 +559,7 @@ def generate_code(
             if not x.python.is_writable:
                 raise BoundVariableException(f"Cannot read back value for non-writable type", x)
             data_name = (
-                f"_param_{x.variable_name}" if x.create_param_block else f"data.{x.variable_name}"
+                f"_param_{x.variable_name}" if x.create_param_block else f"call_data.{x.variable_name}"
             )
             cg.trampoline.append_statement(
                 f"{data_name}.store(context.map(_m_{x.variable_name}), {x.variable_name})"
@@ -605,6 +605,6 @@ def generate_code(
     fn = trampoline_fn
     if context.call_mode == CallMode.bwds:
         fn = f"bwd_diff({fn})"
-    cg.kernel.append_statement(f"{fn}(context, call_data)")
+    cg.kernel.append_statement(f"{fn}(context)")
 
     cg.kernel.end_block()
