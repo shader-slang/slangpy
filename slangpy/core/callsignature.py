@@ -519,7 +519,9 @@ def generate_code(
     for x in root_params:
         if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
             data_name = (
-                f"_param_{x.variable_name}" if x.create_param_block else f"call_data.{x.variable_name}"
+                f"_param_{x.variable_name}"
+                if x.create_param_block
+                else f"call_data.{x.variable_name}"
             )
             cg.trampoline.append_statement(
                 f"{data_name}.load(context.map(_m_{x.variable_name}), {x.variable_name})"
@@ -559,7 +561,9 @@ def generate_code(
             if not x.python.is_writable:
                 raise BoundVariableException(f"Cannot read back value for non-writable type", x)
             data_name = (
-                f"_param_{x.variable_name}" if x.create_param_block else f"call_data.{x.variable_name}"
+                f"_param_{x.variable_name}"
+                if x.create_param_block
+                else f"call_data.{x.variable_name}"
             )
             cg.trampoline.append_statement(
                 f"{data_name}.store(context.map(_m_{x.variable_name}), {x.variable_name})"
