@@ -24,6 +24,7 @@ from typing import Union
 
 TTupleOrList = Union[tuple[int, ...], list[int]]
 
+
 def make_int_buffer(device_type: DeviceType, shape: TTupleOrList):
     return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=int)
 
@@ -183,9 +184,7 @@ def test_dotproduct_scalar_floatref(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("data_shape", [(100, 3), [100, 3]])
-def test_dotproduct_broadcast_a(
-    device_type: DeviceType, data_shape: TTupleOrList
-):
+def test_dotproduct_broadcast_a(device_type: DeviceType, data_shape: TTupleOrList):
 
     # emulates the same case but being passed a buffer for b
     shapes = dot_product(device_type, float3(), make_float_buffer(device_type, data_shape), None)
@@ -202,9 +201,7 @@ def test_dotproduct_broadcast_a(
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("data_shape", [(100, 3), [100, 3]])
-def test_dotproduct_broadcast_b(
-    device_type: DeviceType, data_shape: TTupleOrList
-):
+def test_dotproduct_broadcast_b(device_type: DeviceType, data_shape: TTupleOrList):
 
     # emulates the same case but being passed a buffer for a
     shapes = dot_product(device_type, make_float_buffer(device_type, data_shape), float3(), None)
@@ -345,9 +342,7 @@ def test_dotproduct_broadcast_invalid_result(
         ("list", [[8, 1, 2, 3], [8, 4, 2, 3], [8, 4, 2]]),
     ],
 )
-def test_dotproduct_big_tensors(
-    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
-):
+def test_dotproduct_big_tensors(device_type: DeviceType, shape_type: str, data_shape: TTupleOrList):
 
     # Test some high dimensional tensors with some broadcasting
     shapes = dot_product(
