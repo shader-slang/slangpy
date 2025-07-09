@@ -14,7 +14,6 @@ TArgShapesResult = TypedDict(
 )
 
 TShapeOrTuple = Union[tuple[int, ...], "Shape"]
-TShapeOrTupleOrList = Union[tuple[int, ...], list[int], "Shape"]
 
 
 def check_concrete(shape: "Shape") -> "Shape":

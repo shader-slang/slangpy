@@ -1267,6 +1267,8 @@ SGL_PY_EXPORT(utils_slangpy)
                         new (&self) Shape(std::nullopt);
                     } else if (nb::isinstance<nb::tuple>(args[0])) {
                         new (&self) Shape(nb::cast<std::vector<int>>(args[0]));
+                    } else if (nb::isinstance<nb::list>(args[0])) {
+                        new (&self) Shape(nb::cast<std::vector<int>>(args[0]));
                     } else if (nb::isinstance<Shape>(args[0])) {
                         new (&self) Shape(nb::cast<Shape>(args[0]));
                     } else {
