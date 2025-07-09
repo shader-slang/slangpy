@@ -4,7 +4,7 @@ from os import PathLike
 from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 from slangpy.core.native import Shape, NativeNDBuffer, NativeNDBufferDesc
-from slangpy.core.shapes import TShapeOrTuple
+from slangpy.core.shapes import TShapeOrTuple, TShapeOrTupleOrList
 from slangpy.core.struct import Struct
 
 from slangpy import (
@@ -229,7 +229,7 @@ class NDBuffer(NativeNDBuffer):
         device: Device,
         dtype: Any,
         element_count: Optional[int] = None,
-        shape: Optional[TShapeOrTuple] = None,
+        shape: Optional[TShapeOrTupleOrList] = None,
         usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None,
@@ -251,6 +251,8 @@ class NDBuffer(NativeNDBuffer):
             element_count = 1
             for dim in shape:
                 element_count *= dim
+            if isinstance(shape, list):
+                shape = tuple(shape)
             shape = Shape(shape)
         elif shape is None:
             if element_count is None:
