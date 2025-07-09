@@ -22,16 +22,17 @@ from typing import Union
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
 
+TTupleOrList = Union[tuple[int, ...], list[int]]
 
-def make_int_buffer(device_type: DeviceType, shape: Union[tuple[int, ...], list[int]]):
+def make_int_buffer(device_type: DeviceType, shape: TTupleOrList):
     return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=int)
 
 
-def make_float_buffer(device_type: DeviceType, shape: Union[tuple[int, ...], list[int]]):
+def make_float_buffer(device_type: DeviceType, shape: TTupleOrList):
     return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float)
 
 
-def make_vec4_buffer(device_type: DeviceType, shape: Union[tuple[int, ...], list[int]]):
+def make_vec4_buffer(device_type: DeviceType, shape: TTupleOrList):
     return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float4)
 
 
@@ -183,7 +184,7 @@ def test_dotproduct_scalar_floatref(device_type: DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("data_shape", [(100, 3), [100, 3]])
 def test_dotproduct_broadcast_a(
-    device_type: DeviceType, data_shape: Union[tuple[int, ...], list[int]]
+    device_type: DeviceType, data_shape: TTupleOrList
 ):
 
     # emulates the same case but being passed a buffer for b
@@ -202,7 +203,7 @@ def test_dotproduct_broadcast_a(
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("data_shape", [(100, 3), [100, 3]])
 def test_dotproduct_broadcast_b(
-    device_type: DeviceType, data_shape: Union[tuple[int, ...], list[int]]
+    device_type: DeviceType, data_shape: TTupleOrList
 ):
 
     # emulates the same case but being passed a buffer for a
@@ -227,7 +228,7 @@ def test_dotproduct_broadcast_b(
     ],
 )
 def test_dotproduct_broadcast_b_from_buffer(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # similar, but broadcasting b out of a 1D buffer instead
@@ -271,7 +272,7 @@ def test_dotproduct_shape_error(device_type: DeviceType):
     ],
 )
 def test_dotproduct_broadcast_error(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # attempt to pass missmatching buffer sizes for a and b
@@ -293,7 +294,7 @@ def test_dotproduct_broadcast_error(
     ],
 )
 def test_dotproduct_broadcast_result(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # pass an output, which is also broadcast so would in practice be a race condition
@@ -323,7 +324,7 @@ def test_dotproduct_broadcast_result(
     ],
 )
 def test_dotproduct_broadcast_invalid_result(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # pass an output of the wrong shape resulting in error
@@ -345,7 +346,7 @@ def test_dotproduct_broadcast_invalid_result(
     ],
 )
 def test_dotproduct_big_tensors(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # Test some high dimensional tensors with some broadcasting
@@ -375,7 +376,7 @@ def test_dotproduct_big_tensors(
     ],
 )
 def test_dotproduct_input_transform(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # Remapping inputs from big buffers
@@ -406,7 +407,7 @@ def test_dotproduct_input_transform(
     ],
 )
 def test_dotproduct_output_transform(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # Remapping outputs so buffers of length [10] and [5] can output [10,5]
@@ -526,7 +527,7 @@ def test_readslice_vectorcall(device_type: DeviceType):
     ],
 )
 def test_readslice_invalid_shape(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # Fail trying to pass a float3 buffer into the float4 slice
@@ -548,7 +549,7 @@ def test_readslice_invalid_shape(
     ],
 )
 def test_readslice_invalid_broadcast(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # Fail trying to pass mismatched broadcast dimensions
@@ -618,7 +619,7 @@ def test_readslice_function_map(device_type: DeviceType):
     ],
 )
 def test_copyatindex_both_buffers_defined(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
     if device_type == DeviceType.cuda:
         pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
@@ -650,7 +651,7 @@ def test_copyatindex_both_buffers_defined(
     ],
 )
 def test_copyatindex_undersized_output(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
     if device_type == DeviceType.cuda:
         pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
@@ -684,7 +685,7 @@ def test_copyatindex_undersized_output(
     ],
 )
 def test_copyatindex_undefined_output_size(
-    device_type: DeviceType, shape_type: str, data_shape: list[Union[tuple[int, ...], list[int]]]
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
 
     # Output buffer size is undefined and can't be inferred.
