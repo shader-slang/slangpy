@@ -165,7 +165,18 @@ def typing_check_python(args: Any):
 def unit_test_python(args: Any):
     env = get_python_env(args)
     os.makedirs("reports", exist_ok=True)
-    run_command(f"pytest slangpy/tests -r a --junit-xml=reports/pytest-junit.xml", env=env)
+    cmd = "pytest slangpy/tests -ra --junit-xml=reports/pytest-junit.xml"
+    if args.parallel:
+        cmd += " -n auto --maxprocesses=8"
+    run_command(cmd, env=env)
+
+
+def test_examples(args: Any):
+    env = get_python_env(args)
+    cmd = "pytest samples/tests -vra"
+    if args.parallel:
+        cmd += " -n auto --maxprocesses=8"
+    run_command(cmd, env=env)
 
 
 def coverage_report(args: Any):
@@ -200,6 +211,14 @@ def main():
     )
 
     parser_test_python = commands.add_parser("unit-test-python", help="run unit tests (python)")
+    parser_test_python.add_argument(
+        "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+
+    parser_test_examples = commands.add_parser("test-examples", help="run examples tests")
+    parser_test_examples.add_argument(
+        "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
 
     parser_coverage_report = commands.add_parser("coverage-report", help="generate coverage report")
 
@@ -255,6 +274,7 @@ def main():
         "unit-test-cpp": unit_test_cpp,
         "typing-check-python": typing_check_python,
         "unit-test-python": unit_test_python,
+        "test-examples": test_examples,
         "coverage-report": coverage_report,
     }[args.command](args)
 
