@@ -10,7 +10,10 @@ import platform
 import argparse
 import subprocess
 import json
+from pathlib import Path
 from typing import Any, Optional
+
+PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
 def get_os():
@@ -118,11 +121,10 @@ def get_changed_env(command: str):
     return env_vars
 
 
-def get_python_env(args: Any):
-    if args.os == "windows":
-        return get_changed_env(f"{args.bin_dir}/setpath.bat")
-    else:
-        return get_changed_env(f"source {args.bin_dir}/setpath.sh")
+def get_python_env():
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(PROJECT_DIR)
+    return env
 
 
 def setup(args: Any):
@@ -158,12 +160,12 @@ def unit_test_cpp(args: Any):
 
 
 def typing_check_python(args: Any):
-    env = get_python_env(args)
+    env = get_python_env()
     run_command(f"pyright", env=env)
 
 
 def unit_test_python(args: Any):
-    env = get_python_env(args)
+    env = get_python_env()
     os.makedirs("reports", exist_ok=True)
     cmd = "pytest slangpy/tests -ra --junit-xml=reports/pytest-junit.xml"
     if args.parallel:
@@ -172,7 +174,7 @@ def unit_test_python(args: Any):
 
 
 def test_examples(args: Any):
-    env = get_python_env(args)
+    env = get_python_env()
     cmd = "pytest samples/tests -vra"
     if args.parallel:
         cmd += " -n auto --maxprocesses=8"
