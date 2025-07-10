@@ -53,9 +53,9 @@ jobs:
         include:
           # Builds running on self-hosted runners (build + tests + coverage)
           - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test,test-examples", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,header-validation,coverage", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test,test-examples", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
           # Additional builds running on GitHub hosted runners (build only)
           - { os: linux, platform: x86_64, compiler: clang, runs-on: ubuntu-latest }
           - { os: linux, platform: aarch64, compiler: gcc, runs-on: ubuntu-24.04-arm }
@@ -157,6 +157,11 @@ jobs:
         with:
           report_paths: 'reports/*-junit.xml'
           check_name: "Unit Test Report"
+
+      # Test Examples
+      - name: Test Examples
+        if: contains(matrix.flags, 'test-examples')
+        run: python tools/ci.py test-examples -p
 
       # Generate Coverage Report
       - name: Generate Coverage Report
