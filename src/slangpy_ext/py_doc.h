@@ -23,253 +23,9 @@
 #endif
 
 
-static const char *__doc_DXGI_FORMAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_420_OPAQUE = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_A8P8 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_A8_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_AI44 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_AYUV = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_B4G4R4A4_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_B5G5R5A1_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_B5G6R5_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_B8G8R8A8_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_B8G8R8A8_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_B8G8R8A8_UNORM_SRGB = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_B8G8R8X8_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_B8G8R8X8_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_B8G8R8X8_UNORM_SRGB = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC1_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC1_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC1_UNORM_SRGB = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC2_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC2_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC2_UNORM_SRGB = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC3_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC3_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC3_UNORM_SRGB = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC4_SNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC4_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC4_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC5_SNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC5_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC5_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC6H_SF16 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC6H_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC6H_UF16 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC7_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC7_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_BC7_UNORM_SRGB = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_D16_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_D24_UNORM_S8_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_D32_FLOAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_D32_FLOAT_S8X24_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_FORCE_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_G8R8_G8B8_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_IA44 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_NV11 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_NV12 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_P010 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_P016 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_P208 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_P8 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R10G10B10A2_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R10G10B10A2_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R10G10B10A2_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R11G11B10_FLOAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16B16A16_FLOAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16B16A16_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16B16A16_SNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16B16A16_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16B16A16_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16B16A16_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16_FLOAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16_SNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16G16_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16_FLOAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16_SNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R16_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R1_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R24G8_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R24_UNORM_X8_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32B32A32_FLOAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32B32A32_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32B32A32_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32B32A32_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32B32_FLOAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32B32_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32B32_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32B32_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32_FLOAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G32_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32G8X24_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32_FLOAT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R32_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8B8A8_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8B8A8_SNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8B8A8_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8B8A8_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8B8A8_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8_B8G8_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8_SNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8G8_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8_SINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8_SNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8_TYPELESS = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R8_UNORM = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_R9G9B9E5_SHAREDEXP = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_SAMPLER_FEEDBACK_MIN_MIP_OPAQUE = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_SAMPLER_FEEDBACK_MIP_REGION_USED_OPAQUE = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_UNKNOWN = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_V208 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_V408 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_X24_TYPELESS_G8_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_X32_TYPELESS_G8X24_UINT = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_Y210 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_Y216 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_Y410 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_Y416 = R"doc()doc";
-
-static const char *__doc_DXGI_FORMAT_DXGI_FORMAT_YUY2 = R"doc()doc";
-
 static const char *__doc_GLFWwindow = R"doc()doc";
+
+static const char *__doc_HWND = R"doc()doc";
 
 static const char *__doc_ImFont = R"doc()doc";
 
@@ -1650,6 +1406,14 @@ static const char *__doc_sgl_CommandEncoder_generate_mips = R"doc()doc";
 
 static const char *__doc_sgl_CommandEncoder_get_root_object = R"doc()doc";
 
+static const char *__doc_sgl_CommandEncoder_global_barrier =
+R"doc(Insert a global barrier that ensures all previous writes are visible
+to subsequent reads. Note: This is not necessary for typical bindings,
+as state management is automatic, however global barriers are useful
+for cross-api synchronization (eg 2 slangpy devices constructed from
+the same native handle), or as brute force tools for synchronizing
+pointer/bindless operations.)doc";
+
 static const char *__doc_sgl_CommandEncoder_insert_debug_marker =
 R"doc(Insert a debug marker.
 
@@ -2556,6 +2320,10 @@ Currently windows and linux only.)doc";
 
 static const char *__doc_sgl_DeviceDesc_enable_print = R"doc(Enable device side printing (adds performance overhead).)doc";
 
+static const char *__doc_sgl_DeviceDesc_existing_device_handles =
+R"doc(Native device handles for initializing with externally created device.
+Currenlty only used for CUDA interoperability.)doc";
+
 static const char *__doc_sgl_DeviceDesc_shader_cache_path =
 R"doc(Path to the shader cache directory (optional). If a relative path is
 used, the cache is stored in the application data directory.)doc";
@@ -3119,6 +2887,17 @@ Parameter ``signal_fence_values``:
 Parameter ``queue``:
     Command queue to submit to.
 
+Parameter ``cuda_stream``:
+    On none-CUDA backends, when interop is enabled, this is the stream
+    to sync with before/after submission (assuming any resources are
+    shared with CUDA) and use for internal copies. If not specified,
+    sync will happen with the NULL (default) CUDA stream. On CUDA
+    backends, this is the CUDA stream to use for the submission. If
+    not specified, the default stream of the command queue will be
+    used, which for CommandQueueType::graphics is the NULL stream. It
+    is an error to specify a stream for none-CUDA backends that have
+    interop disabled.
+
 Returns:
     Submission ID.)doc";
 
@@ -3564,8 +3343,6 @@ static const char *__doc_sgl_FileSystemWatcher_class_name = R"doc()doc";
 
 static const char *__doc_sgl_FileSystemWatcher_delay = R"doc(Delay period before queued events are output.)doc";
 
-static const char *__doc_sgl_FileSystemWatcher_m_inotify_file_descriptor = R"doc(File descriptor for linux inotify watcher.)doc";
-
 static const char *__doc_sgl_FileSystemWatcher_m_last_event = R"doc(Time last event was recorded.)doc";
 
 static const char *__doc_sgl_FileSystemWatcher_m_next_id = R"doc(Next unique id to be assigned to a given watch.)doc";
@@ -3576,7 +3353,15 @@ static const char *__doc_sgl_FileSystemWatcher_m_output_delay_ms = R"doc(Delay b
 
 static const char *__doc_sgl_FileSystemWatcher_m_queued_events = R"doc(Events reported since last call to watch event callback.)doc";
 
+static const char *__doc_sgl_FileSystemWatcher_m_queued_events_mutex = R"doc(Mutex to protect the queued events.)doc";
+
+static const char *__doc_sgl_FileSystemWatcher_m_stop_thread = R"doc()doc";
+
+static const char *__doc_sgl_FileSystemWatcher_m_thread = R"doc(Thread to poll for file system changes.)doc";
+
 static const char *__doc_sgl_FileSystemWatcher_m_watches = R"doc(Map of id->watch.)doc";
+
+static const char *__doc_sgl_FileSystemWatcher_m_watches_mutex = R"doc(Mutex to protect the watch map.)doc";
 
 static const char *__doc_sgl_FileSystemWatcher_notify_change = R"doc(Internal function called when OS reports an event.)doc";
 
@@ -3591,6 +3376,8 @@ static const char *__doc_sgl_FileSystemWatcher_set_delay = R"doc(Set delay perio
 static const char *__doc_sgl_FileSystemWatcher_set_on_change = R"doc(Set callback for file system events.)doc";
 
 static const char *__doc_sgl_FileSystemWatcher_stop_watch = R"doc(Releases OS monitoring for a given watch.)doc";
+
+static const char *__doc_sgl_FileSystemWatcher_thread_func = R"doc()doc";
 
 static const char *__doc_sgl_FileSystemWatcher_update = R"doc(Update function to poll the watcher + report events.)doc";
 
@@ -4726,6 +4513,8 @@ static const char *__doc_sgl_MemoryMappedFile_m_file = R"doc()doc";
 
 static const char *__doc_sgl_MemoryMappedFile_m_mapped_data = R"doc()doc";
 
+static const char *__doc_sgl_MemoryMappedFile_m_mapped_file = R"doc()doc";
+
 static const char *__doc_sgl_MemoryMappedFile_m_mapped_size = R"doc()doc";
 
 static const char *__doc_sgl_MemoryMappedFile_m_path = R"doc()doc";
@@ -4955,6 +4744,26 @@ static const char *__doc_sgl_NativeHandleTrait_11 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_12 = R"doc()doc";
 
+static const char *__doc_sgl_NativeHandleTrait_13 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_14 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_15 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_16 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_17 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_18 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_19 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_20 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_21 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_22 = R"doc()doc";
+
 static const char *__doc_sgl_NativeHandleTrait_pack = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_pack_2 = R"doc()doc";
@@ -4974,6 +4783,26 @@ static const char *__doc_sgl_NativeHandleTrait_pack_8 = R"doc()doc";
 static const char *__doc_sgl_NativeHandleTrait_pack_9 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_pack_10 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_11 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_12 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_13 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_14 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_15 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_16 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_17 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_18 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_19 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_pack_20 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_unpack = R"doc()doc";
 
@@ -4995,7 +4824,29 @@ static const char *__doc_sgl_NativeHandleTrait_unpack_9 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_unpack_10 = R"doc()doc";
 
+static const char *__doc_sgl_NativeHandleTrait_unpack_11 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_12 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_13 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_14 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_15 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_16 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_17 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_18 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_19 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_20 = R"doc()doc";
+
 static const char *__doc_sgl_NativeHandleType = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleType_CUcontext = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleType_CUdevice = R"doc()doc";
 
@@ -5105,6 +4956,8 @@ static const char *__doc_sgl_NativeHandle_NativeHandle_2 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandle_NativeHandle_3 = R"doc()doc";
 
+static const char *__doc_sgl_NativeHandle_NativeHandle_4 = R"doc()doc";
+
 static const char *__doc_sgl_NativeHandle_as = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandle_is_valid = R"doc()doc";
@@ -5114,6 +4967,8 @@ static const char *__doc_sgl_NativeHandle_m_type = R"doc()doc";
 static const char *__doc_sgl_NativeHandle_m_value = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandle_operator_bool = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandle_to_rhi = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandle_to_string = R"doc()doc";
 
@@ -7795,9 +7650,7 @@ static const char *__doc_sgl_WindowDesc_width = R"doc(Width of the window in pix
 
 static const char *__doc_sgl_WindowHandle = R"doc(Native window handle.)doc";
 
-static const char *__doc_sgl_WindowHandle_xdisplay = R"doc()doc";
-
-static const char *__doc_sgl_WindowHandle_xwindow = R"doc()doc";
+static const char *__doc_sgl_WindowHandle_hwnd = R"doc()doc";
 
 static const char *__doc_sgl_WindowMode = R"doc(Window modes.)doc";
 
@@ -8376,6 +8229,12 @@ static const char *__doc_sgl_flip_bit_11 = R"doc()doc";
 static const char *__doc_sgl_flip_bit_12 = R"doc()doc";
 
 static const char *__doc_sgl_flip_bit_13 = R"doc()doc";
+
+static const char *__doc_sgl_get_cuda_current_context_native_handles =
+R"doc(Gets the device and context handles for the current CUDA context. Use
+to retrieve an existing context (eg from PyTorch) to pass as the
+existing_device_handles from which to create a device in the
+DeviceDesc.)doc";
 
 static const char *__doc_sgl_get_dxgi_format = R"doc(Convert from sgl to DXGI format.)doc";
 
