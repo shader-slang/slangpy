@@ -80,7 +80,7 @@ SGL_PY_EXPORT(device_raytracing)
 {
     using namespace sgl;
 
-    nb::class_<AccelerationStructureHandle>(m, "AccelerationStructureHandle", D_NA(AccelerationStructureHandle))
+    nb::class_<AccelerationStructureHandle>(m, "AccelerationStructureHandle", "Acceleration structure handle.")
         .def(nb::init<>());
 
     nb::sgl_enum_flags<AccelerationStructureGeometryFlags>(m, "AccelerationStructureGeometryFlags");

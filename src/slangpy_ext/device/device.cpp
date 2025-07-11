@@ -139,7 +139,7 @@ SGL_PY_EXPORT(device_device)
         .def_rw(
             "enable_compilation_reports",
             &DeviceDesc::enable_compilation_reports,
-            D_NA(DeviceDesc, enable_compilation_reports)
+            D(DeviceDesc, enable_compilation_reports)
         )
         .def_rw("adapter_luid", &DeviceDesc::adapter_luid, D(DeviceDesc, adapter_luid))
         .def_rw("compiler_options", &DeviceDesc::compiler_options, D(DeviceDesc, compiler_options))
@@ -797,8 +797,7 @@ SGL_PY_EXPORT(device_device)
         "rows"_a,
         "cols"_a,
         "layout"_a,
-        "element_type"_a,
-        D_NA(Device, coopvec_query_matrix_size)
+        "element_type"_a
     );
     device.def(
         "coopvec_create_matrix_desc",
@@ -808,8 +807,7 @@ SGL_PY_EXPORT(device_device)
         "cols"_a,
         "layout"_a,
         "element_type"_a,
-        "offset"_a = 0,
-        D_NA(Device, coopvec_create_matrix_desc)
+        "offset"_a = 0
     );
     device.def(
         "coopvec_convert_matrix_host",
@@ -817,8 +815,7 @@ SGL_PY_EXPORT(device_device)
         "src"_a,
         "dst"_a,
         "src_layout"_a = nb::none(),
-        "dst_layout"_a = nb::none(),
-        D_NA(Device, coopvec_convert_matrix)
+        "dst_layout"_a = nb::none()
     );
     device.def(
         "coopvec_convert_matrix_device",
@@ -833,8 +830,7 @@ SGL_PY_EXPORT(device_device)
         "src_desc"_a,
         "dst"_a,
         "dst_desc"_a,
-        "encoder"_a = nullptr,
-        D_NA(Device, coopvec_convert_matrix_device)
+        "encoder"_a = nullptr
     );
     device.def(
         "coopvec_convert_matrix_device",
@@ -849,20 +845,17 @@ SGL_PY_EXPORT(device_device)
         "src_desc"_a,
         "dst"_a,
         "dst_desc"_a,
-        "encoder"_a = nullptr,
-        D_NA(Device, coopvec_convert_matrix_device)
+        "encoder"_a = nullptr
     );
     device.def(
         "coopvec_align_matrix_offset",
         [](Device* self, size_t offset) { return self->get_or_create_coop_vec()->align_matrix_offset(offset); },
-        "offset"_a,
-        D_NA(Device, coopvec_align_matrix_offset)
+        "offset"_a
     );
     device.def(
         "coopvec_align_vector_offset",
         [](Device* self, size_t offset) { return self->get_or_create_coop_vec()->align_vector_offset(offset); },
-        "offset"_a,
-        D_NA(Device, coopvec_align_vector_offset)
+        "offset"_a
     );
 
     device.def_static(

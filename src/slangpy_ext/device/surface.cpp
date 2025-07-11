@@ -73,7 +73,7 @@ SGL_PY_EXPORT(device_surface)
             D(Surface, configure)
         )
         .def("configure", &Surface::configure, "config"_a, D(Surface, configure))
-        .def("unconfigure", &Surface::unconfigure, D_NA(Surface, unconfigure))
+        .def("unconfigure", &Surface::unconfigure, D(Surface, unconfigure))
         .def("acquire_next_image", &Surface::acquire_next_image, D(Surface, acquire_next_image))
         .def("present", &Surface::present, D(Surface, present));
 }
