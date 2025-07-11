@@ -11,6 +11,7 @@ docs/_build/
 .vs/
 .temp/
 .cache/clangd/index
+.venv/
 
 # Python files installed into source tree
 slangpy/**/*.pyi
