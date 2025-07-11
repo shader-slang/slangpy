@@ -73,12 +73,15 @@ Buffer::Buffer(ref<Device> device, BufferDesc desc)
         m_desc.size = m_desc.data_size;
 
     // Derive struct size from struct type.
+    // 'struct_type' is a bit misleading as this needs to be a TypeLayoutReflection of the underlying structured buffer
+    // resource type. This is needed to correctly derive the stride of the buffer elements.
     if (m_desc.struct_type) {
-        ref<const TypeLayoutReflection> type = m_desc.struct_type->unwrap_array();
-        if (type->element_type_layout())
-            type = type->element_type_layout();
-        SGL_CHECK(type, "Invalid struct type.");
-        m_desc.struct_size = type->stride();
+        SGL_CHECK(
+            m_desc.struct_type->kind() == TypeReflection::Kind::resource
+                && m_desc.struct_type->type()->resource_shape() == TypeReflection::ResourceShape::structured_buffer,
+            "Struct type layout must describe a structured buffer."
+        );
+        m_desc.struct_size = m_desc.struct_type->element_type_layout()->stride();
         m_desc.struct_type = nullptr;
     }
 

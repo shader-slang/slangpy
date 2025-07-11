@@ -268,7 +268,7 @@ public:
      * \param size Buffer size in bytes.
      * \param element_count Buffer size in number of struct elements. Can be used instead of \c size.
      * \param struct_size Struct size in bytes.
-     * \param struct_type Struct type. Can be used instead of \c struct_size to specify the size of the struct.
+     * \param struct_type Type layout of the buffer. Can be used instead of \c struct_size to specify the size of the struct.
      * \param format Buffer format. Used when creating typed buffer views.
      * \param initial_state Initial resource state.
      * \param usage Resource usage flags.
