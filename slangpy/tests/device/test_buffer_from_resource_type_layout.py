@@ -11,10 +11,10 @@ import sglhelpers as helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_buffer_init_data(device_type: spy.DeviceType):
+def test_buffer_from_resource_type_layout(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
 
-    module = device.load_module("test_buffer_from_struct_type.slang")
+    module = device.load_module("test_buffer_from_resource_type_layout.slang")
     program = device.link_program(
         modules=[module], entry_points=[module.entry_point("compute_main")]
     )
