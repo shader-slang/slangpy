@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import time
-import threading
 import logging
 from pathlib import Path
 import pytest
@@ -15,9 +14,6 @@ try:
     import torch
 except ImportError:
     pytest.skip("Pytorch not installed", allow_module_level=True)
-
-
-torch.cuda.init()  # Ensure CUDA is initialized
 
 
 def setup_logging():
@@ -42,19 +38,28 @@ def setup_logging():
     return logger
 
 
-logger = setup_logging()
+logger = None
 
 
 def run_tensor_race_condition_tests(
     share_context: bool = False, custom_stream: bool = False, share_stream: bool = False
 ):
+    # Use global logger if nothing specified
+    global logger
+    if logger is None:
+        logger = logging.getLogger()
+
+    # Ensure CUDA is initialized
+    torch.cuda.init()
+    torch.cuda.current_device()
+    torch.cuda.current_stream()
+
+    initial_handles = spy.get_cuda_current_context_native_handles()
 
     if share_context:
         # Access torch device+stream once to ensure cuda context is initialized,
         # then request the current context handles from slangpy and init device with
         # those handles. This ensures we are using the same context as torch.
-        torch.cuda.current_device()
-        torch.cuda.current_stream()
         handles = spy.get_cuda_current_context_native_handles()
         device = helpers.get_device(
             spy.DeviceType.cuda, use_cache=False, existing_device_handles=handles
@@ -95,25 +100,34 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
     # Run torch either on a custom stream or the default stream
     if custom_stream:
         stream = torch.cuda.Stream()
-        with torch.cuda.stream(stream):
-            for i in range(0, 100):
-                torch_tensor.add_(ones)
-        stream_handle = spy.NativeHandle.from_cuda_stream(stream.cuda_stream)
-    else:
-        for i in range(0, 100):
-            torch_tensor.add_(ones)
-        stream_handle = spy.NativeHandle.from_cuda_stream(torch.cuda.current_stream().cuda_stream)
 
-    # Call the function
-    if share_stream:
-        # If sharing stream, build command encoder, populate it, then do
-        # device submit with the stream handle
-        enc = device.create_command_encoder()
-        copy_buffers(range(size), dp, out_buffer.storage, _append_to=enc)
-        device.submit_command_buffers([enc.finish()], cuda_stream=stream_handle)
-    else:
-        # If not sharing stream, we can just call the function directly
-        copy_buffers(range(size), dp, out_buffer.storage)
+    iterations = 3
+
+    for i in range(iterations):
+        if custom_stream:
+            with torch.cuda.stream(stream):
+                for i in range(0, 20):
+                    torch_tensor.add_(ones)
+            stream_handle = spy.NativeHandle.from_cuda_stream(stream.cuda_stream)
+        else:
+            for i in range(0, 20):
+                torch_tensor.add_(ones)
+            stream_handle = spy.NativeHandle.from_cuda_stream(
+                torch.cuda.current_stream().cuda_stream
+            )
+
+        # Call the function
+        if share_stream:
+            # If sharing stream, build command encoder, populate it, then do
+            # device submit with the stream handle
+            enc = device.create_command_encoder()
+            for j in range(0, 10):
+                copy_buffers(range(size), dp, out_buffer.storage, _append_to=enc)
+            device.submit_command_buffers([enc.finish()], cuda_stream=stream_handle)
+        else:
+            # If not sharing stream, we can just call the function directly
+            copy_buffers(range(size), dp, out_buffer.storage)
+        time.sleep(0.1)  # Sleep to simulate work
 
     # Ensure all operations complete before checking results
     torch.cuda.synchronize()
@@ -124,18 +138,67 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
 
     # Get outputs
     result = out_buffer.to_numpy()
-    expected_per_element = 100
+    expected_per_element = 20 * iterations
+
+    # Shut down device as its owned by torch
+    device.close()
+    device = None
+
+    final_handles = spy.get_cuda_current_context_native_handles()
+    assert initial_handles[1].type == spy.NativeHandleType.CUcontext
+    assert initial_handles[1].value == final_handles[1].value
 
     # Check for inconsistency (race condition detected)
     if not (result.min() == result.max() == expected_per_element):
-        logger.error(
+        logger.info(
             f"RACE CONDITION DETECTED! Expected {expected_per_element}, values range from {result.min()} to {result.max()}"
         )
+        return True
     else:
         logger.info(f"No race condition detected")
+        return False
 
 
+# Pytest for our most common default cuda-interop case, in which we've configured pytorch
+# and slangpy to share the same context and stream.
+def test_shared_context_and_stream():
+    assert (
+        run_tensor_race_condition_tests(share_context=True, custom_stream=False, share_stream=True)
+        == False
+    )
+
+
+# Pytest for none-shared context case, which appears to avoid race conditions through some level
+# of synchronization in the default streams of separate contexts. For now this has shown not
+# to cause race conditions, so testing for that behaviour.
+def test_non_shared_context():
+    assert run_tensor_race_condition_tests(share_context=False) == False
+
+
+# Pytest for known race condition case, where we use a custom stream in torch but not sharing it with slangpy.
+def test_custom_stream_no_share():
+    assert (
+        run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=False)
+        == True
+    )
+
+
+# Pytest that removes the race condition by sharing the custom stream
+def test_custom_stream_share():
+    assert (
+        run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=True)
+        == False
+    )
+
+
+# When running this file as main, trigger a sequence of race condition repros to prove
+# out expected behaviour
 if __name__ == "__main__":
+    logger = setup_logging()
+
+    pytest.main(["-v", "-s", __file__])
+    exit(0)
+
     try:
         # In theory, not sharing context is great race condition situation, however from NSight it appears
         # that the default streams of separate contexts on the same device have at least some form of
@@ -144,7 +207,7 @@ if __name__ == "__main__":
 
         # Expect no race condition when sharing context and not using custom stream, because
         # both torch and slangpy will choose the default stream.
-        run_tensor_race_condition_tests(share_context=True, custom_stream=False, share_stream=False)
+        run_tensor_race_condition_tests(share_context=True, custom_stream=False, share_stream=True)
 
         # Should be identical when sharing a stream, as we're just being explicit about sharing
         # the default stream.
