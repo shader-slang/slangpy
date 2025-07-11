@@ -22,7 +22,7 @@ def test_nested_structs(device_type: spy.DeviceType):
     kernel = device.create_compute_kernel(program)
 
     result_buffer = device.create_buffer(
-        struct_type=kernel.reflection.result,
+        resource_type_layout=kernel.reflection.result,
         element_count=32,
         usage=spy.BufferUsage.unordered_access,
     )

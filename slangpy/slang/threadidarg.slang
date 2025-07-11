@@ -2,6 +2,7 @@
 implementing slangpy;
 
 public struct ThreadIdArg {
+    int dummy;
 
     public void load(Context0D context, out uint3 value) {
         value = context.thread_id;

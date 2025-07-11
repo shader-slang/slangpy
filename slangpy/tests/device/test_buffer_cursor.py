@@ -313,10 +313,10 @@ def make_fill_in_module(device_type: spy.DeviceType, tests: list[Any]):
     device = helpers.get_device(type=device_type)
     module = device.load_module_from_source(mod_name, code)
     prog = device.link_program([module], [module.entry_point("compute_main")])
-    buffer_layout = module.layout.get_type_layout(
+    resource_type_layout = module.layout.get_type_layout(
         module.layout.find_type_by_name("StructuredBuffer<TestType>")
     )
-    return (device.create_compute_kernel(prog), buffer_layout)
+    return (device.create_compute_kernel(prog), resource_type_layout)
 
 
 def make_copy_module(device_type: spy.DeviceType, tests: list[Any]):
@@ -325,10 +325,10 @@ def make_copy_module(device_type: spy.DeviceType, tests: list[Any]):
     device = helpers.get_device(type=device_type)
     module = device.load_module_from_source(mod_name, code)
     prog = device.link_program([module], [module.entry_point("compute_main")])
-    buffer_layout = module.layout.get_type_layout(
+    resource_type_layout = module.layout.get_type_layout(
         module.layout.find_type_by_name("StructuredBuffer<TestType>")
     )
-    return (device.create_compute_kernel(prog), buffer_layout)
+    return (device.create_compute_kernel(prog), resource_type_layout)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -343,10 +343,10 @@ def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
     random.shuffle(tests)
 
     # Create the module and buffer layout
-    (kernel, buffer_layout) = make_fill_in_module(device_type, tests)
+    (kernel, resource_type_layout) = make_fill_in_module(device_type, tests)
 
     # Create a buffer cursor with its own data
-    cursor = spy.BufferCursor(buffer_layout.element_type_layout, 1)
+    cursor = spy.BufferCursor(resource_type_layout.element_type_layout, 1)
 
     # Populate the first element
     element = cursor[0]
@@ -355,7 +355,7 @@ def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
         element[name] = value
 
     # Create new cursor by copying the first, and read element
-    cursor2 = spy.BufferCursor(buffer_layout.element_type_layout, 1)
+    cursor2 = spy.BufferCursor(resource_type_layout.element_type_layout, 1)
     cursor2.copy_from_numpy(cursor.to_numpy())
     element2 = cursor2[0]
 
@@ -375,13 +375,13 @@ def test_fill_from_kernel(device_type: spy.DeviceType, seed: int):
     random.shuffle(tests)
 
     # Create the module and buffer layout
-    (kernel, buffer_layout) = make_fill_in_module(device_type, tests)
+    (kernel, resource_type_layout) = make_fill_in_module(device_type, tests)
 
     # Make a buffer with 128 elements
     count = 128
     buffer = kernel.device.create_buffer(
         element_count=count,
-        struct_type=buffer_layout,
+        resource_type_layout=resource_type_layout,
         usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
     )
 
@@ -389,7 +389,7 @@ def test_fill_from_kernel(device_type: spy.DeviceType, seed: int):
     kernel.dispatch([count, 1, 1], buffer=buffer)
 
     # Create a cursor and read the buffer by copying its data
-    cursor = spy.BufferCursor(buffer_layout.element_type_layout, count)
+    cursor = spy.BufferCursor(resource_type_layout.element_type_layout, count)
     cursor.copy_from_numpy(buffer.to_numpy())
 
     # Verify data matches
@@ -410,16 +410,16 @@ def test_wrap_buffer(device_type: spy.DeviceType, seed: int):
     random.shuffle(tests)
 
     # Create the module and buffer layout
-    (kernel, buffer_layout) = make_fill_in_module(device_type, tests)
+    (kernel, resource_type_layout) = make_fill_in_module(device_type, tests)
 
     # Make a buffer with 128 elements and a cursor to wrap it
     count = 128
     buffer = kernel.device.create_buffer(
         element_count=count,
-        struct_type=buffer_layout,
+        resource_type_layout=resource_type_layout,
         usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
     )
-    cursor = spy.BufferCursor(buffer_layout.element_type_layout, buffer)
+    cursor = spy.BufferCursor(resource_type_layout.element_type_layout, buffer)
 
     # Cursor shouldn't have read data from buffer yet
     assert not cursor.is_loaded
@@ -450,10 +450,10 @@ def test_wrap_buffer(device_type: spy.DeviceType, seed: int):
 def test_cursor_lifetime(device_type: spy.DeviceType):
 
     # Create the module and buffer layout
-    (kernel, buffer_layout) = make_fill_in_module(device_type, get_tests(device_type))
+    (kernel, resource_type_layout) = make_fill_in_module(device_type, get_tests(device_type))
 
     # Create a buffer cursor with its own data
-    cursor = spy.BufferCursor(buffer_layout.element_type_layout, 1)
+    cursor = spy.BufferCursor(resource_type_layout.element_type_layout, 1)
 
     # Get element
     element = cursor[0]
@@ -475,24 +475,24 @@ def test_apply_changes(device_type: spy.DeviceType, seed: int):
     random.shuffle(tests)
 
     # Create the module and buffer layout
-    (kernel, buffer_layout) = make_copy_module(device_type, tests)
+    (kernel, resource_type_layout) = make_copy_module(device_type, tests)
 
     # Make a buffer with 128 elements and a cursor to wrap it
     count = 128
     src = kernel.device.create_buffer(
         element_count=count,
-        struct_type=buffer_layout,
+        resource_type_layout=resource_type_layout,
         usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
-        data=np.zeros(buffer_layout.element_type_layout.stride * count, dtype=np.uint8),
+        data=np.zeros(resource_type_layout.element_type_layout.stride * count, dtype=np.uint8),
     )
     dest = kernel.device.create_buffer(
         element_count=count,
-        struct_type=buffer_layout,
+        resource_type_layout=resource_type_layout,
         usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
-        data=np.zeros(buffer_layout.element_type_layout.stride * count, dtype=np.uint8),
+        data=np.zeros(resource_type_layout.element_type_layout.stride * count, dtype=np.uint8),
     )
-    src_cursor = spy.BufferCursor(buffer_layout.element_type_layout, src)
-    dest_cursor = spy.BufferCursor(buffer_layout.element_type_layout, dest)
+    src_cursor = spy.BufferCursor(resource_type_layout.element_type_layout, src)
+    dest_cursor = spy.BufferCursor(resource_type_layout.element_type_layout, dest)
 
     # Populate source cursor
     for i in range(count):
@@ -547,24 +547,24 @@ def test_apply_changes_ndarray(device_type: spy.DeviceType, seed: int):
     random.shuffle(tests)
 
     # Create the module and buffer layout
-    (kernel, buffer_layout) = make_copy_module(device_type, tests)
+    (kernel, resource_type_layout) = make_copy_module(device_type, tests)
 
     # Make a buffer with 128 elements and a cursor to wrap it
     count = 128
     src = kernel.device.create_buffer(
         element_count=count,
-        struct_type=buffer_layout,
+        resource_type_layout=resource_type_layout,
         usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
-        data=np.zeros(buffer_layout.element_type_layout.stride * count, dtype=np.uint8),
+        data=np.zeros(resource_type_layout.element_type_layout.stride * count, dtype=np.uint8),
     )
     dest = kernel.device.create_buffer(
         element_count=count,
-        struct_type=buffer_layout,
+        resource_type_layout=resource_type_layout,
         usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
-        data=np.zeros(buffer_layout.element_type_layout.stride * count, dtype=np.uint8),
+        data=np.zeros(resource_type_layout.element_type_layout.stride * count, dtype=np.uint8),
     )
-    src_cursor = spy.BufferCursor(buffer_layout.element_type_layout, src)
-    dest_cursor = spy.BufferCursor(buffer_layout.element_type_layout, dest)
+    src_cursor = spy.BufferCursor(resource_type_layout.element_type_layout, src)
+    dest_cursor = spy.BufferCursor(resource_type_layout.element_type_layout, dest)
 
     # Populate source cursor
     source_data = {}

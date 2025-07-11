@@ -88,6 +88,7 @@ class CallData(NativeCallData):
             positional_mapping = build_info.map_args
             keyword_mapping = build_info.map_kwargs
             type_conformances = build_info.type_conformances
+            self.call_group_shape = build_info.call_group_shape
 
             # Store logger from either function or module
             if build_info.logger is not None:

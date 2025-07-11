@@ -813,11 +813,15 @@ struct App {
     void on_resize(uint32_t width, uint32_t height)
     {
         device->wait();
-        surface->configure({
-            .width = width,
-            .height = height,
-            .vsync = false,
-        });
+        if (width > 0 && height > 0) {
+            surface->configure({
+                .width = width,
+                .height = height,
+                .vsync = false,
+            });
+        } else {
+            surface->unconfigure();
+        }
     }
 
     void main_loop()
@@ -833,6 +837,8 @@ struct App {
             if (camera_controller->update(dt))
                 frame = 0;
 
+            if (!surface->config())
+                continue;
             ref<Texture> surface_texture = surface->acquire_next_image();
             if (!surface_texture)
                 continue;

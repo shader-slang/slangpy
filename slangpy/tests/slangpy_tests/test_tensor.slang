@@ -14,6 +14,7 @@ float[5] matrix_vector_direct(float weights[5][8], float biases[5], float[8] x)
     }
     return result;
 }
+
 float[5] matrix_vector_tensorized(Tensor<float, 2> weights, Tensor<float, 1> biases, float[8] x)
 {
     float[5] result;
@@ -22,6 +23,21 @@ float[5] matrix_vector_tensorized(Tensor<float, 2> weights, Tensor<float, 1> bia
         float y = biases[r];
         for (int c = 0; c < 8; ++c)
             y += weights[r, c] * x[c];
+
+        result[r] = y;
+    }
+    return result;
+}
+
+[Differentiable]
+float3 matrix_vector_matrices(float3x4 weights, float4 biases, float[4] x)
+{
+    float3 result;
+    for (int r = 0; r < 3; ++r)
+    {
+        float y = biases[r];
+        for (int c = 0; c < 4; ++c)
+            y += weights[r][c] * x[c];
 
         result[r] = y;
     }

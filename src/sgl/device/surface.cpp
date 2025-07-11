@@ -66,6 +66,13 @@ void Surface::configure(const SurfaceConfig& config)
     };
 }
 
+void Surface::unconfigure()
+{
+    SLANG_RHI_CALL(m_rhi_surface->unconfigure());
+
+    m_config.reset();
+}
+
 ref<Texture> Surface::acquire_next_image()
 {
     Slang::ComPtr<rhi::ITexture> texture;
@@ -78,7 +85,7 @@ ref<Texture> Surface::acquire_next_image()
             .width = narrow_cast<uint32_t>(texture_desc.size.width),
             .height = narrow_cast<uint32_t>(texture_desc.size.height),
             .mip_count = texture_desc.mipCount,
-            .usage = static_cast<TextureUsage>(m_config.usage),
+            .usage = static_cast<TextureUsage>(texture_desc.usage),
         },
         texture
     );

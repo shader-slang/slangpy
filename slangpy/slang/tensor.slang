@@ -114,6 +114,25 @@ public extension<T : IDifferentiable, let D : int, TensorType : ITensor<T, D>> T
             }
         }
     }
+
+    [Differentiable]
+    public void load<let M : int, let N : int>(ContextND<D - 2> context, out matrix <T, M, N> value)
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 2; ++i)
+            idx[i] = context.call_id[i];
+        [ForceUnroll]
+        for (int i = 0; i < M; i++) {
+            [ForceUnroll]
+            for (int j = 0; j < N; j++) {
+                idx[D - 2] = i;
+                idx[D - 1] = j;
+
+                value[i][j] = get(idx);
+            }
+        }
+    }
 }
 
 public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>> TensorType
@@ -154,6 +173,25 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>>
 
     [Differentiable]
     public void store<let M : int, let N : int>(ContextND<D - 2> context, in T value[M][N])
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 2; ++i)
+            idx[i] = context.call_id[i];
+        [ForceUnroll]
+        for (int i = 0; i < M; i++) {
+            [ForceUnroll]
+            for (int j = 0; j < N; j++) {
+                idx[D - 2] = i;
+                idx[D - 1] = j;
+
+                set(idx, value[i][j]);
+            }
+        }
+    }
+
+    [Differentiable]
+    public void store<let M : int, let N : int>(ContextND<D - 2> context, in matrix <T, M, N> value)
     {
         int idx[D];
         [ForceUnroll]

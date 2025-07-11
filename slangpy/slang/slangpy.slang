@@ -10,3 +10,4 @@ __include "atomics.slang";
 __include "staticarray.slang";
 __include "tensor.slang";
 __include "gridarg.slang";
+__include "callshape.slang";

@@ -18,6 +18,7 @@ from slangpy.reflection import (
     TypeReflection,
     ArrayType,
     ScalarType,
+    MatrixType,
 )
 from slangpy.bindings import (
     PYTHON_TYPES,
@@ -80,6 +81,8 @@ def types_equal(a: SlangType, b: SlangType):
 def is_nested_array(a: SlangType):
     while True:
         if isinstance(a, ScalarType):
+            return True
+        if isinstance(a, MatrixType):
             return True
         if not isinstance(a, ArrayType):
             return False

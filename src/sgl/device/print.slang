@@ -199,172 +199,30 @@ extension matrix<T, R, C, L> : IPrintable {
 };
 // clang-format on
 
-[ForceInline]
-void print(IPrintOutput output, String fmt)
+void process_arg<T : IPrintable>(T arg, inout uint arg_count, inout uint total_data_count)
 {
-    uint offset;
-    output.write_msg(fmt, 0, 0, offset);
+    arg_count++;
+    total_data_count += arg.printable_data_count();
 }
 
 [ForceInline]
-void print(IPrintOutput output, String fmt, IPrintable arg0)
+void print<each T : IPrintable>(IPrintOutput output, String fmt, expand each T args)
 {
-    uint total_data_count = arg0.printable_data_count();
+    uint arg_count = 0;
+    uint total_data_count = 0;
+    expand process_arg(each args, arg_count, total_data_count);
     uint offset;
-    if (!output.write_msg(fmt, 1, total_data_count, offset))
+    if (!output.write_msg(fmt, arg_count, total_data_count, offset))
         return;
-    output.write_arg(offset, arg0);
-}
-
-[ForceInline]
-void print(IPrintOutput output, String fmt, IPrintable arg0, IPrintable arg1)
-{
-    uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count();
-    uint offset;
-    if (!output.write_msg(fmt, 2, total_data_count, offset))
-        return;
-    output.write_arg(offset, arg0);
-    output.write_arg(offset, arg1);
-}
-
-[ForceInline]
-void print(IPrintOutput output, String fmt, IPrintable arg0, IPrintable arg1, IPrintable arg2)
-{
-    uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count();
-    uint offset;
-    if (!output.write_msg(fmt, 3, total_data_count, offset))
-        return;
-    output.write_arg(offset, arg0);
-    output.write_arg(offset, arg1);
-    output.write_arg(offset, arg2);
-}
-
-[ForceInline]
-void print(IPrintOutput output, String fmt, IPrintable arg0, IPrintable arg1, IPrintable arg2, IPrintable arg3)
-{
-    uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count()
-        + arg3.printable_data_count();
-    uint offset;
-    if (!output.write_msg(fmt, 4, total_data_count, offset))
-        return;
-    output.write_arg(offset, arg0);
-    output.write_arg(offset, arg1);
-    output.write_arg(offset, arg2);
-    output.write_arg(offset, arg3);
-}
-
-[ForceInline]
-void print(
-    IPrintOutput output,
-    String fmt,
-    IPrintable arg0,
-    IPrintable arg1,
-    IPrintable arg2,
-    IPrintable arg3,
-    IPrintable arg4
-)
-{
-    uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count()
-        + arg3.printable_data_count() + arg4.printable_data_count();
-    uint offset;
-    if (!output.write_msg(fmt, 5, total_data_count, offset))
-        return;
-    output.write_arg(offset, arg0);
-    output.write_arg(offset, arg1);
-    output.write_arg(offset, arg2);
-    output.write_arg(offset, arg3);
-    output.write_arg(offset, arg4);
-}
-
-[ForceInline]
-void print(
-    IPrintOutput output,
-    String fmt,
-    IPrintable arg0,
-    IPrintable arg1,
-    IPrintable arg2,
-    IPrintable arg3,
-    IPrintable arg4,
-    IPrintable arg5
-)
-{
-    uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count()
-        + arg3.printable_data_count() + arg4.printable_data_count() + arg5.printable_data_count();
-    uint offset;
-    if (!output.write_msg(fmt, 6, total_data_count, offset))
-        return;
-    output.write_arg(offset, arg0);
-    output.write_arg(offset, arg1);
-    output.write_arg(offset, arg2);
-    output.write_arg(offset, arg3);
-    output.write_arg(offset, arg4);
-    output.write_arg(offset, arg5);
-}
-
-[ForceInline]
-void print(
-    IPrintOutput output,
-    String fmt,
-    IPrintable arg0,
-    IPrintable arg1,
-    IPrintable arg2,
-    IPrintable arg3,
-    IPrintable arg4,
-    IPrintable arg5,
-    IPrintable arg6
-)
-{
-    uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count()
-        + arg3.printable_data_count() + arg4.printable_data_count() + arg5.printable_data_count()
-        + arg6.printable_data_count();
-    uint offset;
-    if (!output.write_msg(fmt, 7, total_data_count, offset))
-        return;
-    output.write_arg(offset, arg0);
-    output.write_arg(offset, arg1);
-    output.write_arg(offset, arg2);
-    output.write_arg(offset, arg3);
-    output.write_arg(offset, arg4);
-    output.write_arg(offset, arg5);
-    output.write_arg(offset, arg6);
-}
-
-[ForceInline]
-void print(
-    IPrintOutput output,
-    String fmt,
-    IPrintable arg0,
-    IPrintable arg1,
-    IPrintable arg2,
-    IPrintable arg3,
-    IPrintable arg4,
-    IPrintable arg5,
-    IPrintable arg6,
-    IPrintable arg7
-)
-{
-    uint total_data_count = arg0.printable_data_count() + arg1.printable_data_count() + arg2.printable_data_count()
-        + arg3.printable_data_count() + arg4.printable_data_count() + arg5.printable_data_count()
-        + arg6.printable_data_count() + arg7.printable_data_count();
-    uint offset;
-    if (!output.write_msg(fmt, 8, total_data_count, offset))
-        return;
-    output.write_arg(offset, arg0);
-    output.write_arg(offset, arg1);
-    output.write_arg(offset, arg2);
-    output.write_arg(offset, arg3);
-    output.write_arg(offset, arg4);
-    output.write_arg(offset, arg5);
-    output.write_arg(offset, arg6);
-    output.write_arg(offset, arg7);
+    expand output.write_arg(offset, each args);
 }
 
 struct DebugPrinter : IPrintOutput {
-    RWByteAddressBuffer buffer;
-    uint buffer_capacity;
-    RWStructuredBuffer<Atomic<uint>> buffer_size;
     /// Single buffer that contains the print messages.
-    /// The first 4 bytes of the buffer store the size of the data following.
+    /// First 4 bytes store the capacity of the buffer (including the header).
+    /// Next 4 bytes store the current size of the buffer (excluding the header).
+    /// The rest of the buffer is used to store messages.
+    RWByteAddressBuffer buffer;
 
     [ForceInline]
     bool write_msg(String fmt, uint arg_count, uint total_data_count, out uint offset)
@@ -372,15 +230,22 @@ struct DebugPrinter : IPrintOutput {
         // Compute the size of the message.
         uint size = (3 + arg_count + total_data_count) * sizeof(uint);
 
-        // Reserve space for the message.
-        offset = buffer_size[0].add(size);
+        // Get the capacity of the buffer.
+        uint capacity = buffer.Load(0);
 
-        if (offset + size > buffer_capacity - 4) {
+        // Reserve space for the message.
+        buffer.InterlockedAdd(4, size, offset);
+
+        // Skip the header.
+        offset += 8;
+
+        if (offset + size > capacity - 4) {
             // Write sentinel value indicating that we have a buffer overlow.
             buffer.Store(offset, 0xffffffff);
             return false;
         }
 
+        // Store the message header.
         buffer.Store(offset, size);
 #ifdef __TARGET_METAL__
         // Workaround for Slang issue https://github.com/shader-slang/slang/issues/7534
@@ -414,30 +279,15 @@ struct DebugPrinter : IPrintOutput {
 
 detail::DebugPrinter g_debug_printer;
 
-// clang-format off
-[ForceInline] void print(String fmt) { detail::print(g_debug_printer, fmt); }
-[ForceInline] void print(String fmt, detail::IPrintable arg0) { detail::print(g_debug_printer, fmt, arg0); }
-[ForceInline] void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1) { detail::print(g_debug_printer, fmt, arg0, arg1); }
-[ForceInline] void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2) { detail::print(g_debug_printer, fmt, arg0, arg1, arg2); }
-[ForceInline] void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3) { detail::print(g_debug_printer, fmt, arg0, arg1, arg2, arg3); }
-[ForceInline] void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3, detail::IPrintable arg4) { detail::print(g_debug_printer, fmt, arg0, arg1, arg2, arg3, arg4); }
-[ForceInline] void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3, detail::IPrintable arg4, detail::IPrintable arg5) { detail::print(g_debug_printer, fmt, arg0, arg1, arg2, arg3, arg4, arg5); }
-[ForceInline] void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3, detail::IPrintable arg4, detail::IPrintable arg5, detail::IPrintable arg6) { detail::print(g_debug_printer, fmt, arg0, arg1, arg2, arg3, arg4, arg5, arg6); }
-[ForceInline] void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3, detail::IPrintable arg4, detail::IPrintable arg5, detail::IPrintable arg6, detail::IPrintable arg7) { detail::print(g_debug_printer, fmt, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7); }
-// clang-format on
+[ForceInline]
+void print<each T : detail::IPrintable>(String fmt, expand each T args)
+{
+    detail::print(g_debug_printer, fmt, args);
+}
 
 #else // SGL_ENABLE_PRINT
 
-// clang-format off
-void print(String fmt) { }
-void print(String fmt, detail::IPrintable arg0) { }
-void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1) { }
-void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2) { }
-void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3) { }
-void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3, detail::IPrintable arg4) { }
-void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3, detail::IPrintable arg4, detail::IPrintable arg5) { }
-void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3, detail::IPrintable arg4, detail::IPrintable arg5, detail::IPrintable arg6) { }
-void print(String fmt, detail::IPrintable arg0, detail::IPrintable arg1, detail::IPrintable arg2, detail::IPrintable arg3, detail::IPrintable arg4, detail::IPrintable arg5, detail::IPrintable arg6, detail::IPrintable arg7) { }
-// clang-format on
+[ForceInline]
+void print<each T : detail::IPrintable>(String fmt, expand each T args) {}
 
 #endif // SGL_ENABLE_PRINT

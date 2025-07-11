@@ -51,10 +51,13 @@ public:
     const SurfaceInfo& info() const { return m_info; };
 
     /// Returns the surface config.
-    const SurfaceConfig& config() const { return m_config; };
+    const std::optional<SurfaceConfig>& config() const { return m_config; };
 
     /// Configure the surface.
     void configure(const SurfaceConfig& config);
+
+    /// Unconfigure the surface.
+    void unconfigure();
 
     /// Acquries the next surface image.
     ref<Texture> acquire_next_image();
@@ -66,7 +69,7 @@ private:
     void get_images();
 
     SurfaceInfo m_info;
-    SurfaceConfig m_config;
+    std::optional<SurfaceConfig> m_config;
     ref<Device> m_device;
     Slang::ComPtr<rhi::ISurface> m_rhi_surface;
 };

@@ -37,7 +37,6 @@ private:
     Device* m_device;
 
     ref<Buffer> m_buffer;
-    ref<Buffer> m_buffer_size;
     ref<Buffer> m_readback_buffer;
 
     std::map<uint32_t, std::string> m_hashed_strings;

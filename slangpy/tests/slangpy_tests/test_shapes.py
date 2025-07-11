@@ -16,20 +16,24 @@ from slangpy.types import floatRef
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
 
+from typing import Union
+
 # First set of tests emulate the shape of the following slang function
 # float test(float3 a, float3 b) { return dot(a,b); }
 # Note that the return value is simply treated as a final 'out' parameter
 
+TTupleOrList = Union[tuple[int, ...], list[int]]
 
-def make_int_buffer(device_type: DeviceType, shape: tuple[int, ...]):
+
+def make_int_buffer(device_type: DeviceType, shape: TTupleOrList):
     return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=int)
 
 
-def make_float_buffer(device_type: DeviceType, shape: tuple[int, ...]):
+def make_float_buffer(device_type: DeviceType, shape: TTupleOrList):
     return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float)
 
 
-def make_vec4_buffer(device_type: DeviceType, shape: tuple[int, ...]):
+def make_vec4_buffer(device_type: DeviceType, shape: TTupleOrList):
     return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float4)
 
 
@@ -179,10 +183,11 @@ def test_dotproduct_scalar_floatref(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_dotproduct_broadcast_a(device_type: DeviceType):
+@pytest.mark.parametrize("data_shape", [(100, 3), [100, 3]])
+def test_dotproduct_broadcast_a(device_type: DeviceType, data_shape: TTupleOrList):
 
     # emulates the same case but being passed a buffer for b
-    shapes = dot_product(device_type, float3(), make_float_buffer(device_type, (100, 3)), None)
+    shapes = dot_product(device_type, float3(), make_float_buffer(device_type, data_shape), None)
     diff = DeepDiff(
         shapes,
         {
@@ -195,10 +200,11 @@ def test_dotproduct_broadcast_a(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_dotproduct_broadcast_b(device_type: DeviceType):
+@pytest.mark.parametrize("data_shape", [(100, 3), [100, 3]])
+def test_dotproduct_broadcast_b(device_type: DeviceType, data_shape: TTupleOrList):
 
     # emulates the same case but being passed a buffer for a
-    shapes = dot_product(device_type, make_float_buffer(device_type, (100, 3)), float3(), None)
+    shapes = dot_product(device_type, make_float_buffer(device_type, data_shape), float3(), None)
     diff = DeepDiff(
         shapes,
         {
@@ -211,13 +217,22 @@ def test_dotproduct_broadcast_b(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_dotproduct_broadcast_b_from_buffer(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(100, 3), (1, 3)]),
+        ("list", [[100, 3], [1, 3]]),
+    ],
+)
+def test_dotproduct_broadcast_b_from_buffer(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
 
     # similar, but broadcasting b out of a 1D buffer instead
     shapes = dot_product(
         device_type,
-        make_float_buffer(device_type, (100, 3)),
-        make_float_buffer(device_type, (1, 3)),
+        make_float_buffer(device_type, data_shape[0]),
+        make_float_buffer(device_type, data_shape[1]),
         None,
     )
     diff = DeepDiff(
@@ -246,7 +261,16 @@ def test_dotproduct_shape_error(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_dotproduct_broadcast_error(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(100, 3), (1000, 3)]),
+        ("list", [[100, 3], [1000, 3]]),
+    ],
+)
+def test_dotproduct_broadcast_error(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
 
     # attempt to pass missmatching buffer sizes for a and b
     with pytest.raises(ValueError):
@@ -259,7 +283,16 @@ def test_dotproduct_broadcast_error(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_dotproduct_broadcast_result(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(100, 3), (3,)]),
+        ("list", [[100, 3], [3]]),
+    ],
+)
+def test_dotproduct_broadcast_result(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
 
     # pass an output, which is also broadcast so would in practice be a race condition
     shapes = dot_product(
@@ -280,27 +313,43 @@ def test_dotproduct_broadcast_result(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_dotproduct_broadcast_invalid_result(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(100, 3), (3,), (3,)]),
+        ("list", [[100, 3], [3], [3]]),
+    ],
+)
+def test_dotproduct_broadcast_invalid_result(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
 
     # pass an output of the wrong shape resulting in error
     with pytest.raises(ValueError):
         shapes = dot_product(
             device_type,
-            make_float_buffer(device_type, (100, 3)),
-            make_float_buffer(device_type, (3,)),
-            make_float_buffer(device_type, (3,)),
+            make_float_buffer(device_type, data_shape[0]),
+            make_float_buffer(device_type, data_shape[1]),
+            make_float_buffer(device_type, data_shape[2]),
         )
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_dotproduct_big_tensors(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(8, 1, 2, 3), (8, 4, 2, 3), (8, 4, 2)]),
+        ("list", [[8, 1, 2, 3], [8, 4, 2, 3], [8, 4, 2]]),
+    ],
+)
+def test_dotproduct_big_tensors(device_type: DeviceType, shape_type: str, data_shape: TTupleOrList):
 
     # Test some high dimensional tensors with some broadcasting
     shapes = dot_product(
         device_type,
-        make_float_buffer(device_type, (8, 1, 2, 3)),
-        make_float_buffer(device_type, (8, 4, 2, 3)),
-        make_float_buffer(device_type, (8, 4, 2)),
+        make_float_buffer(device_type, data_shape[0]),
+        make_float_buffer(device_type, data_shape[1]),
+        make_float_buffer(device_type, data_shape[2]),
     )
     diff = DeepDiff(
         shapes,
@@ -314,13 +363,22 @@ def test_dotproduct_big_tensors(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_dotproduct_input_transform(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(8, 1, 2, 3), (4, 8, 2, 3)]),
+        ("list", [[8, 1, 2, 3], [4, 8, 2, 3]]),
+    ],
+)
+def test_dotproduct_input_transform(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
 
     # Remapping inputs from big buffers
     shapes = dot_product(
         device_type,
-        make_float_buffer(device_type, (8, 1, 2, 3)),
-        make_float_buffer(device_type, (4, 8, 2, 3)),
+        make_float_buffer(device_type, data_shape[0]),
+        make_float_buffer(device_type, data_shape[1]),
         None,
         transforms={"b": (1, 0, 2)},
     )
@@ -336,13 +394,22 @@ def test_dotproduct_input_transform(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_dotproduct_output_transform(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(10, 3), (5, 3)]),
+        ("list", [[10, 3], [5, 3]]),
+    ],
+)
+def test_dotproduct_output_transform(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
 
     # Remapping outputs so buffers of length [10] and [5] can output [10,5]
     shapes = dot_product(
         device_type,
-        make_float_buffer(device_type, (10, 3)),
-        make_float_buffer(device_type, (5, 3)),
+        make_float_buffer(device_type, data_shape[0]),
+        make_float_buffer(device_type, data_shape[1]),
         None,
         transforms={"a": (0,), "b": (1,)},
     )
@@ -447,27 +514,45 @@ def test_readslice_vectorcall(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_readslice_invalid_shape(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(50, 2), (50, 256, 128, 3)]),
+        ("list", [[50, 2], [50, 256, 128, 3]]),
+    ],
+)
+def test_readslice_invalid_shape(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
 
     # Fail trying to pass a float3 buffer into the float4 slice
     with pytest.raises(ValueError):
         shapes = read_slice(
             device_type,
-            make_float_buffer(device_type, (50, 2)),
-            make_float_buffer(device_type, (50, 256, 128, 3)),
+            make_float_buffer(device_type, data_shape[0]),
+            make_float_buffer(device_type, data_shape[1]),
             None,
         )
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_readslice_invalid_broadcast(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(50, 2), (75, 256, 128, 4)]),
+        ("list", [[50, 2], [75, 256, 128, 4]]),
+    ],
+)
+def test_readslice_invalid_broadcast(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
 
     # Fail trying to pass mismatched broadcast dimensions
     with pytest.raises(ValueError):
         shapes = read_slice(
             device_type,
-            make_float_buffer(device_type, (50, 2)),
-            make_float_buffer(device_type, (75, 256, 128, 4)),
+            make_float_buffer(device_type, data_shape[0]),
+            make_float_buffer(device_type, data_shape[1]),
             None,
         )
 
@@ -521,14 +606,23 @@ def test_readslice_function_map(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_copyatindex_both_buffers_defined(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(50,)]),
+        ("list", [[50]]),
+    ],
+)
+def test_copyatindex_both_buffers_defined(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
     if device_type == DeviceType.cuda:
         pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
 
     # Call copy-at-index passing 2 fully defined buffers
     shapes = copy_at_index(
         device_type,
-        make_int_buffer(device_type, (50,)),
+        make_int_buffer(device_type, data_shape[0]),
         make_vec4_raw_buffer(device_type, 100),
         make_vec4_raw_buffer(device_type, 100),
     )
@@ -544,7 +638,16 @@ def test_copyatindex_both_buffers_defined(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_copyatindex_undersized_output(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(50,)]),
+        ("list", [[50]]),
+    ],
+)
+def test_copyatindex_undersized_output(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
     if device_type == DeviceType.cuda:
         pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
 
@@ -553,7 +656,7 @@ def test_copyatindex_undersized_output(device_type: DeviceType):
     # need generics/IBuffer to do so.
     shapes = copy_at_index(
         device_type,
-        make_int_buffer(device_type, (50,)),
+        make_int_buffer(device_type, data_shape[0]),
         make_vec4_raw_buffer(device_type, 100),
         make_vec4_raw_buffer(device_type, 10),
     )
@@ -569,14 +672,23 @@ def test_copyatindex_undersized_output(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_copyatindex_undefined_output_size(device_type: DeviceType):
+@pytest.mark.parametrize(
+    "shape_type, data_shape",
+    [
+        ("tupe", [(50,)]),
+        ("list", [[50]]),
+    ],
+)
+def test_copyatindex_undefined_output_size(
+    device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
+):
 
     # Output buffer size is undefined and can't be inferred.
     # This would ideally be solved with generics / IBuffer interface
     with pytest.raises(Exception):
         shapes = copy_at_index(
             device_type,
-            make_int_buffer(device_type, (50,)),
+            make_int_buffer(device_type, data_shape[0]),
             make_vec4_raw_buffer(device_type, 100),
             None,
         )

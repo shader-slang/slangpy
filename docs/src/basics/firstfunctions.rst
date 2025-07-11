@@ -3,7 +3,7 @@ Your First Function
 
 In this example, we'll initialize SGL, create a simple Slang function, and call it from Python.
 
-You can find the complete code for this example `here <https://github.com/shader-slang/slangpy/tree/main/examples/first_function/>`_.
+You can find the complete code for this example `here <https://github.com/shader-slang/slangpy-samples/tree/main/examples/first_function/>`_.
 
 First, let's define a simple Slang function to add two numbers together:
 

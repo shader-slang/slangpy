@@ -17,6 +17,7 @@ from slangpy.reflection.reflectiontypes import (
     SlangType,
     ScalarType,
     VectorType,
+    MatrixType,
 )
 from slangpy.types.buffer import innermost_type
 
@@ -128,8 +129,11 @@ class WrappedTensorMarshall(TensorMarshall):
     ):
 
         dtype = innermost_type(slang_dtype)
-        can_convert = is_nested_array(slang_dtype) or isinstance(
-            slang_dtype, (VectorType, ScalarType)
+        can_convert = (
+            is_nested_array(slang_dtype)
+            or isinstance(slang_dtype, ScalarType)
+            or isinstance(slang_dtype, VectorType)
+            or isinstance(slang_dtype, MatrixType)
         )
         if not can_convert or len(slang_dtype.shape) > 2:
             raise ValueError(f"Torch tensors do not support data type {slang_dtype.full_name}")

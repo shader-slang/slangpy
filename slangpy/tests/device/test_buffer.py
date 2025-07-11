@@ -147,6 +147,15 @@ def test_buffer(device_type: spy.DeviceType, type: str, size_MB: int):
         readback = read_buffer.to_numpy().view(np.uint32)
         assert np.all(data == readback)
 
+    # Set allocated resources to None and have the device wait
+    # to ensure resources are cleaned up. Running the tests on devices with lower
+    # amounts of available GPU memory can result in failures without clean up.
+    device_buffer = None
+    write_buffer = None
+    read_buffer = None
+    copy_kernel = None
+    device.wait_for_idle()
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_upload_buffer(device_type: spy.DeviceType):
