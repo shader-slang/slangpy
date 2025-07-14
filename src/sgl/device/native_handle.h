@@ -155,6 +155,12 @@ public:
         m_value = handle.value;
     }
 
+    explicit NativeHandle(NativeHandleType type, uint64_t value)
+    {
+        m_type = type;
+        m_value = value;
+    }
+
     template<typename T>
     explicit NativeHandle(T native)
     {
