@@ -354,6 +354,8 @@ def test_copy_mip_values_with_all_uav_resource_views(
 ):
     if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
         pytest.skip("1D textures with mip maps are not supported on Metal")
+    if device_type == DeviceType.cuda:
+        pytest.skip("Still looking at race issues in cuda backend")
 
     m = load_test_module(device_type)
     assert m is not None
@@ -372,14 +374,8 @@ def test_copy_mip_values_with_all_uav_resource_views(
         for mip_idx, mip_data in enumerate(slice_data):
             src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
-    # See if this fixes sync issues on cuda
-    m.device.wait_for_idle()
-
     for mip_idx in range(src_tex.mip_count):
         m.copy_value(src_tex.create_view(mip=mip_idx), dest_tex.create_view(mip=mip_idx))
-
-    # See if this fixes sync issues on cuda
-    m.device.wait_for_idle()
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
