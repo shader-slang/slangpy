@@ -84,10 +84,11 @@ If you use SlangPy in a research project leading to a publication, please cite t
 
 .. toctree::
     :maxdepth: 1
-    :caption: Tutorials
+    :caption: Graphics Tutorials
     :hidden:
 
-    src/basic_tutorials
+    src/tutorials/image_io_and_manipulation
+    src/tutorials/compute_shader
 
 .. toctree::
     :maxdepth: 1
@@ -102,6 +103,3 @@ If you use SlangPy in a research project leading to a publication, please cite t
     :hidden:
 
     src/api_reference
-    src/api/slangpy
-    src/api/reflection
-    src/api/bindings
