@@ -1,7 +1,7 @@
 Buffers
 =======
 
-SlangPy provides two key wrappers around classic structured buffers (represented in SGL as `Buffer` objects): ``NDBuffer`` and ``Tensor``.
+SlangPy provides two key wrappers around classic structured buffers (represented in SlangPy as `Buffer` objects): ``NDBuffer`` and ``Tensor``.
 
 The ``NDBuffer`` type takes a structured buffer with a defined stride and size and adds:
 
@@ -46,7 +46,7 @@ Initialization follows the same steps as in the previous example:
     import pathlib
     import numpy as np
 
-    # Create an SGL device with the local folder for slangpy includes
+    # Create a SlangPy device and use the local folder for Slang includes
     device = spy.create_device(include_paths=[
             pathlib.Path(__file__).parent.absolute(),
     ])

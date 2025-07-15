@@ -42,4 +42,4 @@ Here we use ``_result`` to specify that we want the result to be a texture.
 
 The ``_result`` can be ``'numpy'``, ``'texture'``, or ``'tensor'``. You can also use ``_result`` to specify the type directly, like ``numpy.ndarray``, ``slangpy.Texture``, or ``slangpy.Tensor``. Or you can reuse an existing variable of one of those types by passing it directly.
 
-You'll see more examples using ``_result`` in the rest of this documentation!
+You'll see more examples using ``_result`` as you continue through the documentation.

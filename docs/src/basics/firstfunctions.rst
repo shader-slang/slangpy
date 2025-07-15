@@ -26,7 +26,7 @@ Next, we'll create a Python script to initialize SlangPy, load the Slang module,
     import slangpy as spy
     import pathlib
 
-    # Create a device and use the local folder for Slang includes
+    # Create a SlangPy device; it will look in the local folder for any Slang includes
     device = spy.create_device(include_paths=[
             pathlib.Path(__file__).parent.absolute(),
     ])
