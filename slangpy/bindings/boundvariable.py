@@ -431,7 +431,7 @@ class BoundVariable:
                 and self.call_dimensionality != context.call_dimensionality
             ):
                 raise BoundVariableException(
-f"""
+                    f"""
 Strict broadcasting is enabled and the argument `{self.name}` at parameter index `{self.param_index}` has dimensionality of ({self.call_dimensionality})
 while the kernel's dimensionality is ({context.call_dimensionality}).
 Note: This error usually happens when the arguments in a call have different dimensionalities,
