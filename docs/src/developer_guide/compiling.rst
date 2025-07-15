@@ -3,7 +3,7 @@
 Compiling
 =========
 
-In order to compile ``sgl`` from source, the following prerequisites are
+In order to compile ``slangpy`` from source, the following prerequisites are
 required:
 
 * A C++20 compliant compiler (tested with Visual Studio 2022, GCC 11 and Clang 14)
