@@ -95,6 +95,8 @@ SGL_PY_EXPORT(device_reflection)
         D(TypeReflection, ParameterCategory)
     );
 
+    bind_list_type<TypeReflectionFieldList>(m, "TypeReflectionFieldList", D(TypeReflectionFieldList));
+
     type_reflection //
         .def_prop_ro("kind", &TypeReflection::kind, D(TypeReflection, kind))
         .def_prop_ro("name", &TypeReflection::name, D(TypeReflection, name))
@@ -115,9 +117,15 @@ SGL_PY_EXPORT(device_reflection)
         .def("unwrap_array", &TypeReflection::unwrap_array, D(TypeReflection, unwrap_array))
         .def("__repr__", &TypeReflection::to_string);
 
-    bind_list_type<TypeReflectionFieldList>(m, "TypeReflectionFieldList", D(TypeReflectionFieldList));
+    nb::class_<TypeLayoutReflection, BaseReflectionObject> type_layout_reflection(
+        m,
+        "TypeLayoutReflection",
+        D(TypeLayoutReflection)
+    );
 
-    nb::class_<TypeLayoutReflection, BaseReflectionObject>(m, "TypeLayoutReflection", D(TypeLayoutReflection))
+    bind_list_type<TypeLayoutReflectionFieldList>(m, "TypeLayoutReflectionFieldList", D(TypeLayoutReflectionFieldList));
+
+    type_layout_reflection //
         .def_prop_ro("kind", &TypeLayoutReflection::kind, D(TypeLayoutReflection, kind))
         .def_prop_ro("name", &TypeLayoutReflection::name, D(TypeLayoutReflection, name))
         .def_prop_ro("size", &TypeLayoutReflection::size, D(TypeLayoutReflection, size))
@@ -132,8 +140,6 @@ SGL_PY_EXPORT(device_reflection)
         )
         .def("unwrap_array", &TypeLayoutReflection::unwrap_array, D(TypeLayoutReflection, unwrap_array))
         .def("__repr__", &TypeLayoutReflection::to_string);
-
-    bind_list_type<TypeLayoutReflectionFieldList>(m, "TypeLayoutReflectionFieldList", D(TypeLayoutReflectionFieldList));
 
     nb::class_<FunctionReflection, BaseReflectionObject>(m, "FunctionReflection", D(FunctionReflection))
         .def_prop_ro("name", &FunctionReflection::name, D(FunctionReflection, name))
@@ -178,7 +184,11 @@ SGL_PY_EXPORT(device_reflection)
         .def_prop_ro("offset", &VariableLayoutReflection::offset, D(VariableLayoutReflection, offset))
         .def("__repr__", &VariableLayoutReflection::to_string);
 
-    nb::class_<EntryPointLayout, BaseReflectionObject>(m, "EntryPointLayout", D(EntryPointLayout))
+    nb::class_<EntryPointLayout, BaseReflectionObject> entry_point_layout(m, "EntryPointLayout", D(EntryPointLayout));
+
+    bind_list_type<EntryPointLayoutParameterList>(m, "EntryPointLayoutParameterList", D(EntryPointLayoutParameterList));
+
+    entry_point_layout //
         .def_prop_ro("name", &EntryPointLayout::name, D(EntryPointLayout, name))
         .def_prop_ro("name_override", &EntryPointLayout::name_override, D(EntryPointLayout, name_override))
         .def_prop_ro("stage", &EntryPointLayout::stage, D(EntryPointLayout, stage))
@@ -190,13 +200,14 @@ SGL_PY_EXPORT(device_reflection)
         .def_prop_ro("parameters", &EntryPointLayout::parameters, D(EntryPointLayout, parameters))
         .def("__repr__", &EntryPointLayout::to_string);
 
-    bind_list_type<EntryPointLayoutParameterList>(m, "EntryPointLayoutParameterList", D(EntryPointLayoutParameterList));
-
     nb::class_<ProgramLayout, BaseReflectionObject> program_layout(m, "ProgramLayout", D(ProgramLayout));
 
     nb::class_<ProgramLayout::HashedString>(program_layout, "HashedString", D(ProgramLayout, HashedString))
         .def_ro("string", &ProgramLayout::HashedString::string, D(ProgramLayout, HashedString, string))
         .def_ro("hash", &ProgramLayout::HashedString::hash, D(ProgramLayout, HashedString, hash));
+
+    bind_list_type<ProgramLayoutParameterList>(m, "ProgramLayoutParameterList", D(ProgramLayoutParameterList));
+    bind_list_type<ProgramLayoutEntryPointList>(m, "ProgramLayoutEntryPointList", D(ProgramLayoutEntryPointList));
 
     program_layout //
         .def_prop_ro("globals_type_layout", &ProgramLayout::globals_type_layout, D(ProgramLayout, globals_type_layout))
@@ -225,9 +236,6 @@ SGL_PY_EXPORT(device_reflection)
         .def("is_sub_type", &ProgramLayout::is_sub_type, "sub_type"_a, "super_type"_a, D(ProgramLayout, is_sub_type))
         .def_prop_ro("hashed_strings", &ProgramLayout::hashed_strings, D(ProgramLayout, hashed_strings))
         .def("__repr__", &ProgramLayout::to_string);
-
-    bind_list_type<ProgramLayoutParameterList>(m, "ProgramLayoutParameterList", D(ProgramLayoutParameterList));
-    bind_list_type<ProgramLayoutEntryPointList>(m, "ProgramLayoutEntryPointList", D(ProgramLayoutEntryPointList));
 
     nb::class_<ReflectionCursor>(m, "ReflectionCursor", D(ReflectionCursor))
         .def(nb::init<const ShaderProgram*>(), "shader_program"_a)
