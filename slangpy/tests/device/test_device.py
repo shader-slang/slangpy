@@ -133,5 +133,78 @@ def test_hot_reload_event(device_type: spy.DeviceType):
     assert count == 1
 
 
+@pytest.mark.parametrize(
+    "device_type", [spy.DeviceType.cuda, spy.DeviceType.vulkan, spy.DeviceType.d3d12]
+)
+def test_device_import(device_type: spy.DeviceType):
+    if not device_type in helpers.DEFAULT_DEVICE_TYPES:
+        pytest.skip(f"Device type {device_type} not supported.")
+
+    # Create new device
+    device1 = spy.Device(
+        type=device_type,
+        enable_debug_layers=True,
+        compiler_options={
+            "include_paths": [helpers.SHADER_DIR],
+            "debug_info": spy.SlangDebugInfoLevel.standard,
+        },
+    )
+
+    # Create another device sharing the same handles
+    device2 = spy.Device(
+        type=device_type,
+        enable_debug_layers=True,
+        compiler_options={
+            "include_paths": [helpers.SHADER_DIR],
+            "debug_info": spy.SlangDebugInfoLevel.standard,
+        },
+        existing_device_handles=device1.native_handles,
+    )
+
+    # Verify handles match
+    d1handles = device1.native_handles
+    d2handles = device2.native_handles
+    assert d1handles[0].type == d2handles[0].type
+    assert d1handles[0].value == d2handles[0].value
+    assert d1handles[1].type == d2handles[1].type
+    assert d1handles[1].value == d2handles[1].value
+    assert d1handles[2].type == d2handles[2].type
+    assert d1handles[2].value == d2handles[2].value
+
+    # In theory this little test verifies device2 can use the memory
+    # allocated by device1, but it seems to work well even when not
+    # sharing handles, presumably due to singletons at the driver level.
+    buffer_size = 4 * 1024 * 1024
+    data = (np.random.rand(buffer_size) * 255).astype(np.uint8)
+    src_buffer = device1.create_buffer(
+        usage=spy.BufferUsage.unordered_access | spy.BufferUsage.shader_resource,
+        size=buffer_size,
+        data=data,
+    )
+    dst_buffer = device2.create_buffer(
+        usage=spy.BufferUsage.unordered_access | spy.BufferUsage.shader_resource, size=buffer_size
+    )
+    module = device2.load_module_from_source(
+        module_name=f"copy_buffer_{device_type.name}",
+        source=r"""
+        [shader("compute")]
+        [numthreads(1, 1, 1)]
+        void copy_kernel(uint1 tid: SV_DispatchThreadID, StructuredBuffer<int> src, RWStructuredBuffer<int> dst) {
+            dst[tid.x] = src[tid.x];
+        }
+        """,
+    )
+    copy_kernel = device2.create_compute_kernel(
+        device2.link_program([module], [module.entry_point("copy_kernel")])
+    )
+    copy_kernel.dispatch([buffer_size // 4, 1, 1], src=src_buffer, dst=dst_buffer)
+    dst_data = dst_buffer.to_numpy()
+    assert np.array_equal(data, dst_data)
+
+    # Make sure device2 closes before device 1 is released.
+    device2.close()
+    device2 = None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
