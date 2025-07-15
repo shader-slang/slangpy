@@ -22,3 +22,7 @@ slangpy/*.ilk
 slangpy/*.so
 slangpy/.build_dir
 slangpy.egg-info/
+
+slangpy/tests/slangpy_tests/logs/
+
+*.nsys-rep

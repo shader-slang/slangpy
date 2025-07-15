@@ -116,6 +116,10 @@ struct DeviceDesc {
     /// Path to the shader cache directory (optional).
     /// If a relative path is used, the cache is stored in the application data directory.
     std::optional<std::filesystem::path> shader_cache_path;
+
+    /// Native device handles for initializing with externally created device. Currenlty
+    /// only used for CUDA interoperability.
+    std::array<NativeHandle, 3> existing_device_handles;
 };
 
 struct DeviceLimits {
@@ -438,6 +442,12 @@ public:
      * \param signal_fences List of fences to signal after executing the command buffers.
      * \param signal_fence_values List of fence values to signal after executing the command buffers.
      * \param queue Command queue to submit to.
+     * \param cuda_stream On none-CUDA backends, when interop is enabled, this is the stream to sync with
+     * before/after submission (assuming any resources are shared with CUDA) and use for internal copies. If not
+     * specified, sync will happen with the NULL (default) CUDA stream.
+     * On CUDA backends, this is the CUDA stream to use for the submission. If not specified, the
+     * default stream of the command queue will be used, which for CommandQueueType::graphics is the NULL stream.
+     * It is an error to specify a stream for none-CUDA backends that have interop disabled.
      * \return Submission ID.
      */
     uint64_t submit_command_buffers(
@@ -446,7 +456,8 @@ public:
         std::span<uint64_t> wait_fence_values = {},
         std::span<Fence*> signal_fences = {},
         std::span<uint64_t> signal_fence_values = {},
-        CommandQueueType queue = CommandQueueType::graphics
+        CommandQueueType queue = CommandQueueType::graphics,
+        NativeHandle cuda_stream = NativeHandle()
     );
 
     /**
@@ -661,5 +672,10 @@ private:
     ref<cuda::ExternalSemaphore> m_cuda_semaphore;
     bool m_wait_global_fence{false};
 };
+
+/// Gets the device and context handles for the current CUDA context. Use
+/// to retrieve an existing context (eg from PyTorch) to pass as the existing_device_handles
+/// from which to create a device in the DeviceDesc.
+SGL_API std::array<NativeHandle, 3> get_cuda_current_context_native_handles();
 
 } // namespace sgl

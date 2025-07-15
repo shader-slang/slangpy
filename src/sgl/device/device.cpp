@@ -22,6 +22,7 @@
 #include "sgl/device/blit.h"
 #include "sgl/device/hot_reload.h"
 #include "sgl/device/debug_logger.h"
+#include "sgl/device/native_handle_traits.h"
 
 #include "sgl/core/file_system_watcher.h"
 #include "sgl/core/config.h"
@@ -101,6 +102,11 @@ Device::Device(const DeviceDesc& desc)
     rhi::DeviceDesc rhi_desc{
         .next = &d3d12_extended_desc,
         .deviceType = static_cast<rhi::DeviceType>(m_desc.type),
+        .existingDeviceHandles = {
+            m_desc.existing_device_handles[0].to_rhi(),
+            m_desc.existing_device_handles[1].to_rhi(),
+            m_desc.existing_device_handles[2].to_rhi(),
+        },
         .adapterLUID
         = m_desc.adapter_luid ? reinterpret_cast<const rhi::AdapterLUID*>(m_desc.adapter_luid->data()) : nullptr,
         .slang{
@@ -509,7 +515,8 @@ uint64_t Device::submit_command_buffers(
     std::span<uint64_t> wait_fence_values,
     std::span<Fence*> signal_fences,
     std::span<uint64_t> signal_fence_values,
-    CommandQueueType queue
+    CommandQueueType queue,
+    NativeHandle cuda_stream
 )
 {
     SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
@@ -522,13 +529,32 @@ uint64_t Device::submit_command_buffers(
     if (has_signal_fence_values && signal_fence_values.size() != signal_fences.size())
         SGL_THROW("\"signal_fence_values\" size does not match \"signal_fences\" size.");
 
+    SGL_CHECK(
+        !cuda_stream.is_valid() || cuda_stream.type() == NativeHandleType::CUstream,
+        "Native handle supplied for cuda stream is not of type CUstream."
+    );
+
     // Update hot reload system if created.
     // TODO(slang-rhi) need to make sure this is not too expensive.
     if (m_hot_reload)
         m_hot_reload->update();
 
-    // TODO make parameter
-    void* cuda_stream = 0;
+    // Pointer to cuda stream
+    void* cuda_stream_ptr;
+    if (m_desc.type == DeviceType::cuda) {
+        // On CUDA backends, either take the stream specified or use 'invalid' to let the internal
+        // default stream be used (which for the main queue is the NULL stream).
+        cuda_stream_ptr
+            = cuda_stream.is_valid() ? reinterpret_cast<void*>(cuda_stream.value()) : rhi::kInvalidCUDAStream;
+    } else if (m_supports_cuda_interop) {
+        // On non-CUDA backends, if CUDA interop is enabled, we always need to choose a stream to
+        // sync with. We will eithe use the one specified, or the NULL stream.
+        cuda_stream_ptr = cuda_stream.is_valid() ? reinterpret_cast<void*>(cuda_stream.value()) : nullptr;
+    } else {
+        // On non-CUDA backends, with interop off, it is invalid to specify a CUDA stream.
+        SGL_CHECK(!cuda_stream.is_valid(), "CUDA stream is not supported on this device.");
+        cuda_stream_ptr = nullptr;
+    }
 
     short_vector<rhi::ICommandBuffer*, 8> rhi_command_buffers;
     short_vector<rhi::IFence*, 8> rhi_wait_fences;
@@ -547,13 +573,13 @@ uint64_t Device::submit_command_buffers(
     if (m_supports_cuda_interop) {
         for (CommandBuffer* command_buffer : command_buffers) {
             for (const auto& buffer : command_buffer->m_cuda_interop_buffers) {
-                buffer->copy_from_cuda(cuda_stream);
+                buffer->copy_from_cuda(cuda_stream_ptr);
                 needs_cuda_sync = true;
             }
         }
 
         if (needs_cuda_sync)
-            sync_to_cuda(cuda_stream);
+            sync_to_cuda(cuda_stream_ptr);
     }
 
     // Handle passed in wait fences.
@@ -600,18 +626,19 @@ uint64_t Device::submit_command_buffers(
         .signalFences = rhi_signal_fences.data(),
         .signalFenceValues = rhi_signal_fence_values.data(),
         .signalFenceCount = narrow_cast<uint32_t>(rhi_signal_fences.size()),
+        .cudaStream = cuda_stream_ptr,
     };
     SLANG_RHI_CALL(m_rhi_graphics_queue->submit(rhi_submit_desc));
     m_wait_global_fence = false;
 
     // Handle CUDA interop.
     if (m_supports_cuda_interop && needs_cuda_sync) {
-        sync_to_device(cuda_stream);
+        sync_to_device(cuda_stream_ptr);
 
         for (CommandBuffer* command_buffer : command_buffers) {
             for (const auto& buffer : command_buffer->m_cuda_interop_buffers) {
                 if (buffer->is_uav())
-                    buffer->copy_to_cuda(cuda_stream);
+                    buffer->copy_to_cuda(cuda_stream_ptr);
             }
         }
     }
@@ -877,5 +904,24 @@ Blitter* Device::_blitter()
         m_blitter = ref(new Blitter(this));
     return m_blitter;
 }
+
+std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
+{
+    std::array<NativeHandle, 3> handles;
+
+    CUcontext cu_context;
+    SGL_CHECK(rhiCudaDriverApiInit(), "Failed to initialize CUDA driver API.");
+    SGL_CU_CHECK(cuCtxGetCurrent(&cu_context));
+    SGL_CHECK(cu_context, "No current CUDA context found.");
+
+    CUdevice cu_device;
+    SGL_CU_CHECK(cuCtxGetDevice(&cu_device));
+
+    handles[0] = NativeHandle(cu_device);
+    handles[1] = NativeHandle(cu_context);
+
+    return handles;
+}
+
 
 } // namespace sgl
