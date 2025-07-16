@@ -95,26 +95,7 @@ Conceptually, broadcasting the same value to all dimensions is similar to adding
     B       (10,3,4)
     Out     (10,3,4)
 
-Where SlangPy differs from NumPy and certain other ML packages is that it will by design **not**
-by default automatically extend the dimensions of a value **unless** it is a single value. This is to prevent
-accidental broadcasting of values that should be treated as errors. For example, consider the following
-
-.. code-block:: python
-
-    NumPy would automatically extend A to (1,3,4), SlangPy does not
-    A      (3,4)
-    B      (10,3,4)
-    Out    Error
-
-However, SlangPy provides a way to disable this behavior by setting the `strict_broadcasting` option to `False` when
-loading the module, e.g.
-
-.. code-block:: python
-
-    module = spy.Module.load_from_source(..., options={{"strict_broadcasting": False}})
-
-In this case, SlangPy will automatically broadcast the dimensionality of the arguments that have the lower dimensionality
-match other arguments who have to match the higher dimensionality. For example, take the above example again:
+Similar to NumPy and certain other ML packages, SlangPy will by default automatically extend the dimensions of a value.
 
 .. code-block:: python
 
@@ -122,6 +103,22 @@ match other arguments who have to match the higher dimensionality. For example, 
     A      (3,4)
     B      (10,3,4)
     Out    (10,3,4)
+
+In order to prevent accidental broadcasting of values that should be treated as errors, SlangPy also provides a way to disable
+this behavior by setting the `strict_broadcasting` option to `False` when loading the module, e.g.
+
+.. code-block:: python
+
+    module = spy.Module.load_from_source(..., options={{"strict_broadcasting": False}})
+
+In this case, SlangPy will not automatically extend the dimensionality of a value **unless** it is a single value.
+
+.. code-block:: python
+
+    SlangPy would not automatically extend A to (1,3,4)
+    A      (3,4)
+    B      (10,3,4)
+    Out    Error
 
 Broadcasting with other types
 -----------------------------
