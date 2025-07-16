@@ -795,7 +795,7 @@ inline void bind_traversable_cursor(nanobind::class_<CursorType>& cursor)
             [](CursorType& self, Py_ssize_t index)
             {
                 index = detail::sanitize_getitem_index(index, len(self));
-                return self[index];
+                return self[uint32_t(index)];
             }
         )
         // note: __getattr__ should not except if field is not found

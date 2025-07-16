@@ -19,7 +19,7 @@ void bind_list_type(nanobind::module_& m, const char* type_name, Extra&&... extr
             [](ListT& self, Py_ssize_t index)
             {
                 index = detail::sanitize_getitem_index(index, self.size());
-                return self[index];
+                return self[uint32_t(index)];
             }
         );
 }
@@ -68,7 +68,7 @@ SGL_PY_EXPORT(device_reflection)
             [](DeclReflection& self, Py_ssize_t index)
             {
                 index = detail::sanitize_getitem_index(index, self.child_count());
-                return self.child(index);
+                return self.child(uint32_t(index));
             }
         )
         .def("__repr__", &DeclReflection::to_string);

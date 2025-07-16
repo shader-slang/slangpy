@@ -66,16 +66,16 @@ void bind_matrix_type(nb::module_& m, const char* name)
         [](const T& self, Py_ssize_t i)
         {
             i = detail::sanitize_getitem_index(i, rows);
-            return self[i];
+            return self[int(i)];
         }
     );
     mat.def(
         "__setitem__",
-        [](T& self, Py_ssize_t i, const row_type& v)
+        [](T& self, int i, const row_type& v)
         {
             if (i > rows)
                 throw nb::index_error();
-            self[i] = v;
+            self[int(i)] = v;
         }
     );
 
@@ -85,12 +85,12 @@ void bind_matrix_type(nb::module_& m, const char* name)
         {
             ij[0] = detail::sanitize_getitem_index(ij[0], rows);
             ij[1] = detail::sanitize_getitem_index(ij[1], cols);
-            return self[ij[0]][ij[1]];
+            return self[int(ij[0])][int(ij[1])];
         }
     );
     mat.def(
         "__setitem__",
-        [](T& self, std::array<Py_ssize_t, 2> ij, const value_type& v)
+        [](T& self, std::array<int, 2> ij, const value_type& v)
         {
             if (ij[0] > rows || ij[1] > cols)
                 throw nb::index_error();

@@ -60,7 +60,7 @@ void bind_vector_type(nb::module_& m, const char* name)
         [](const T& self, Py_ssize_t i)
         {
             i = detail::sanitize_getitem_index(i, dimension);
-            return self[i];
+            return self[int(i)];
         }
     );
     vec.def(

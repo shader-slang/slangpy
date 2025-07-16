@@ -109,7 +109,7 @@ SGL_PY_EXPORT(device_buffer_cursor)
             [](BufferCursor& self, Py_ssize_t index)
             {
                 index = detail::sanitize_getitem_index(index, self.element_count());
-                return self[index];
+                return self[uint32_t(index)];
             }
         )
         .def("__len__", [](BufferCursor& self) { return self.element_count(); })
