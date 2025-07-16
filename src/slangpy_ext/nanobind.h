@@ -449,7 +449,7 @@ inline Py_ssize_t sanitize_getitem_index(Py_ssize_t index, TLen len_)
 {
     Py_ssize_t len = Py_ssize_t(len_);
     // throwing index_error allows this to be used as a python iterator
-    if (index >= len || index < len)
+    if (index >= len || index < -len)
         throw nb::index_error();
 
     return (index >= 0) ? index : (index + len);
