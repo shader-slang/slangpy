@@ -10,7 +10,7 @@ from slangpy import (
     TypeReflection,
     DeviceType,
     Device,
-    NativeHandle
+    NativeHandle,
 )
 from slangpy.reflection import SlangType
 import builtins

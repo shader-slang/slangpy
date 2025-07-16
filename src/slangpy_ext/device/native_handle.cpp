@@ -13,7 +13,10 @@ SGL_PY_EXPORT(device_native_handle)
 
     nb::class_<NativeHandle>(m, "NativeHandle", D_NA(NativeHandle))
         .def(nb::init<>())
-        .def("__init__", [](NativeHandle* self, NativeHandleType type, uint64_t value) { new (self) NativeHandle(type,value); })
+        .def(
+            "__init__",
+            [](NativeHandle* self, NativeHandleType type, uint64_t value) { new (self) NativeHandle(type, value); }
+        )
         .def_prop_ro("type", &NativeHandle::type, D_NA(NativeHandle, type))
         .def_prop_ro("value", &NativeHandle::value, D_NA(NativeHandle, value))
         .def("__bool__", &NativeHandle::is_valid)
