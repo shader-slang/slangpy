@@ -57,10 +57,9 @@ void bind_vector_type(nb::module_& m, const char* name)
     vec.def("__len__", [](const T&) { return dimension; });
     vec.def(
         "__getitem__",
-        [](const T& self, int i)
+        [](const T& self, Py_ssize_t i)
         {
-            if (i >= dimension)
-                throw nb::index_error();
+            i = detail::sanitize_getitem_index(i, dimension);
             return self[i];
         }
     );

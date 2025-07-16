@@ -16,13 +16,11 @@ void bind_list_type(nanobind::module_& m, const char* type_name, Extra&&... extr
         .def("__len__", [](ListT& self) { return self.size(); })
         .def(
             "__getitem__",
-            [](ListT& self, uint32_t index)
+            [](ListT& self, Py_ssize_t index)
             {
-                if (index >= self.size())
-                    throw nb::index_error(); // throwing index_error allows this to be used as a python iterator
+                index = detail::sanitize_getitem_index(index, self.size());
                 return self[index];
             }
-
         );
 }
 
@@ -67,10 +65,9 @@ SGL_PY_EXPORT(device_reflection)
         .def("__len__", [](DeclReflection& self) { return self.child_count(); })
         .def(
             "__getitem__",
-            [](DeclReflection& self, uint32_t index)
+            [](DeclReflection& self, Py_ssize_t index)
             {
-                if (index >= self.child_count())
-                    throw nb::index_error();
+                index = detail::sanitize_getitem_index(index, self.child_count());
                 return self.child(index);
             }
         )
@@ -239,7 +236,16 @@ SGL_PY_EXPORT(device_reflection)
         .def_prop_ro("type_layout", &ReflectionCursor::type_layout, D(ReflectionCursor, type_layout))
         .def_prop_ro("type", &ReflectionCursor::type, D(ReflectionCursor, type))
         .def("__getitem__", [](ReflectionCursor& self, std::string_view name) { return self[name]; })
-        .def("__getitem__", [](ReflectionCursor& self, int index) { return self[index]; })
+        .def(
+            "__getitem__",
+            [](ReflectionCursor& self, int index)
+            {
+                SGL_UNUSED(self, index);
+                // The operator[] returns empty ReflectionCursor, so no index is ever valid.
+                throw nb::index_error();
+                // return self[index];
+            }
+        )
         .def("__getattr__", [](ReflectionCursor& self, std::string_view name) { return self[name]; })
         .def("__repr__", &ReflectionCursor::to_string);
 }

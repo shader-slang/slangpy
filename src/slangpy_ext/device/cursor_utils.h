@@ -16,6 +16,8 @@
 #include "utils/slangpystridedbufferview.h"
 #include "sgl/device/buffer_cursor.h"
 
+#include <slang.h>
+
 namespace sgl {
 
 /// Helper to convert from numpy type mask to slang scalar type.
@@ -752,6 +754,30 @@ private:
 #undef bool_vector_case
 #undef matrix_case
 
+namespace {
+
+    template<typename CursorType>
+        requires TraversableCursor<CursorType>
+    Py_ssize_t len(CursorType& cursor)
+    {
+        slang::TypeLayoutReflection* slang_type_layout = cursor.slang_type_layout();
+        slang::TypeReflection::Kind kind = slang_type_layout->getKind();
+        switch (kind) {
+        case slang::TypeReflection::Kind::Array:
+            return Py_ssize_t(slang_type_layout->getElementCount());
+            break;
+        case slang::TypeReflection::Kind::Matrix:
+            return Py_ssize_t(slang_type_layout->getRowCount() * slang_type_layout->getColumnCount());
+            break;
+        case slang::TypeReflection::Kind::Vector:
+            return Py_ssize_t(slang_type_layout->getColumnCount());
+            break;
+        }
+
+        return 0;
+    }
+
+} // namespace
 
 template<typename CursorType>
     requires TraversableCursor<CursorType>
@@ -764,7 +790,14 @@ inline void bind_traversable_cursor(nanobind::class_<CursorType>& cursor)
         .def("has_field", &CursorType::has_field, "name"_a, D_NA(CursorType, has_field))
         .def("has_element", &CursorType::has_element, "index"_a, D_NA(CursorType, has_element))
         .def("__getitem__", [](CursorType& self, std::string_view name) { return self[name]; })
-        .def("__getitem__", [](CursorType& self, int index) { return self[index]; })
+        .def(
+            "__getitem__",
+            [](CursorType& self, Py_ssize_t index)
+            {
+                index = detail::sanitize_getitem_index(index, len(self));
+                return self[index];
+            }
+        )
         // note: __getattr__ should not except if field is not found
         .def("__getattr__", [](CursorType& self, std::string_view name) { return self.find_field(name); });
 }

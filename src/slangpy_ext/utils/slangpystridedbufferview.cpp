@@ -221,6 +221,7 @@ void StridedBufferView::index_inplace(nb::args args)
             // Integer index
             int idx = nb::cast<int>(arg);
             // First, do bounds checking
+            /// TODO(@ccummingsNV): Should this fire nb::index_error instead of SGL_CHECK?
             SGL_CHECK(
                 idx < cur_shape[dim] && idx >= -cur_shape[dim],
                 "Index {} is out of bounds for dimension {} with size {}",

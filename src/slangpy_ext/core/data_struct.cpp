@@ -69,10 +69,9 @@ SGL_PY_EXPORT(core_data_struct)
         )
         .def(
             "__getitem__",
-            [](DataStruct& self, size_t i) -> DataStruct::Field&
+            [](DataStruct& self, Py_ssize_t i) -> DataStruct::Field&
             {
-                if (i >= self.field_count())
-                    throw nb::index_error();
+                i = detail::sanitize_getitem_index(i, self.field_count());
                 return self[i];
             },
             nb::rv_policy::reference_internal

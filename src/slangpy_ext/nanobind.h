@@ -443,6 +443,19 @@ inline std::optional<DataStruct::Type> dtype_to_data_struct_type(nb::dlpack::dty
 
 
 namespace sgl::detail {
+
+template<typename TLen>
+inline Py_ssize_t sanitize_getitem_index(Py_ssize_t index_, TLen len_)
+{
+    int64_t len = int64_t(len_);
+    int64_t index = int64_t(index_);
+    // throwing index_error allows this to be used as a python iterator
+    if (index >= len || index < len)
+        throw nb::index_error();
+
+    return Py_ssize_t((index >= 0) ? index : (index + len));
+}
+
 inline constexpr uint64_t const_hash(std::string_view str)
 {
     uint64_t hash = 0xcbf29ce484222325;
