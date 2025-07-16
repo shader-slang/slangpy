@@ -367,8 +367,8 @@ public:
     /**
      * \brief Insert a global barrier that ensures all previous writes are visible to subsequent reads.
      * Note: This is not necessary for typical bindings, as state management is automatic, however
-     * global barriers are useful for cross-api syncronization (eg 2 slangpy devices constructed from
-     * the same native handle), or as brute force tools for syncronizing pointer/bindless operations.
+     * global barriers are useful for cross-api synchronization (eg 2 slangpy devices constructed from
+     * the same native handle), or as brute force tools for synchronizing pointer/bindless operations.
      */
     void global_barrier();
 
