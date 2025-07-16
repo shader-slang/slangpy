@@ -314,13 +314,13 @@ class NDBuffer(NativeNDBuffer):
         """
         return cast("torch.Tensor", super().to_torch())
 
-    def clear(self, command_buffer: Optional[CommandEncoder] = None):
+    def clear(self, command_encoder: Optional[CommandEncoder] = None):
         """
         Fill the ndbuffer with zeros. If no command buffer is provided, a new one is created and
         immediately submitted. If a command buffer is provided the clear is simply appended to it
         but not automatically submitted.
         """
-        super().clear()
+        super().clear(command_encoder)
 
     @staticmethod
     def from_numpy(
