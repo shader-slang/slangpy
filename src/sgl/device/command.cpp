@@ -796,6 +796,12 @@ void CommandEncoder::set_texture_state(Texture* texture, SubresourceRange range,
     );
 }
 
+void CommandEncoder::global_barrier()
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    m_rhi_command_encoder->globalBarrier();
+}
+
 void CommandEncoder::push_debug_group(const char* name, float3 color)
 {
     SGL_CHECK(m_open, "Command encoder is finished");
