@@ -334,8 +334,7 @@ def test_none_strict_implicit_dimension_adding_vectorization(device_type: Device
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
-        device, "add", SIMPLE_FUNC, options={"strict_broadcasting": False}
-    )
+        device, "add", SIMPLE_FUNC)
 
     a = NDBuffer(device=device, dtype=float, shape=(10, 10))
     b = NDBuffer(device=device, dtype=float, shape=(10,))
