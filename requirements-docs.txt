@@ -1,2 +1,4 @@
 pybind11_mkdoc
-sphinx-build
+nbsphinx
+sphinx
+furo
