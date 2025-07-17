@@ -221,7 +221,7 @@ void StridedBufferView::index_inplace(nb::args args)
             // Integer index
             int idx = nb::cast<int>(arg);
             // First, do bounds checking
-            if (idx < cur_shape[dim] && idx >= -cur_shape[dim])
+            if (idx > -cur_shape[dim] || idx >= cur_shape[dim])
                 throw nb::index_error();
 
             // Next, wrap around negative indices
