@@ -60,8 +60,6 @@ def test_id(request: Any):
 
 
 # Helper to get device of a given type
-
-
 def get_device(
     type: DeviceType,
     use_cache: bool = True,
@@ -109,10 +107,28 @@ def get_device(
     return device
 
 
+TORCH_DEVICE: Optional[Device] = None
+
+
+# Helper that gets a device that wraps the current torch cuda context.
+# This is useful for testing the torch integration.
+def get_torch_device():
+    global TORCH_DEVICE
+    if TORCH_DEVICE is not None:
+        return TORCH_DEVICE
+    import torch
+
+    torch.cuda.init()
+    torch.cuda.current_device()
+    torch.cuda.current_stream()
+    handles = slangpy.get_cuda_current_context_native_handles()
+    device = get_device(DeviceType.cuda, use_cache=False, existing_device_handles=handles)
+    TORCH_DEVICE = device
+    return TORCH_DEVICE
+
+
 # Helper that creates a module from source (if not already loaded) and returns
 # the corresponding slangpy module.
-
-
 def create_module(
     device: Device,
     module_source: str,
