@@ -231,19 +231,16 @@ Device::Device(const sgl::Device* device)
 
     SGL_CU_CHECK(cuDeviceGet(&m_device, selected_device));
     SGL_CU_CHECK(cuDevicePrimaryCtxRetain(&m_context, m_device));
-    SGL_CU_CHECK(cuCtxSetCurrent(m_context));
-    SGL_CU_CHECK(cuStreamCreate(&m_stream, CU_STREAM_DEFAULT));
 
     char name[256];
-    SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), selected_device));
-    int major = get_device_attribute(selected_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
-    int minor = get_device_attribute(selected_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+    SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), m_device));
+    int major = get_device_attribute(m_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
+    int minor = get_device_attribute(m_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
     log_debug("Created CUDA device \"{}\" (architecture {}.{}).", name, major, minor);
 }
 
 Device::~Device()
 {
-    SGL_CU_CHECK(cuStreamDestroy(m_stream));
     SGL_CU_CHECK(cuDevicePrimaryCtxRelease(m_device));
 }
 

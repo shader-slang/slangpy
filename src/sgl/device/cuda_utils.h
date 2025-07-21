@@ -55,12 +55,10 @@ public:
 
     CUdevice device() const { return m_device; }
     CUcontext context() const { return m_context; }
-    CUstream stream() const { return m_stream; }
 
 private:
     CUdevice m_device;
     CUcontext m_context;
-    CUstream m_stream;
 };
 
 /// Wraps an external memory resource.
