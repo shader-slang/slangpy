@@ -691,16 +691,20 @@ void Device::wait_for_idle(CommandQueueType queue)
 void Device::sync_to_cuda(void* cuda_stream)
 {
     // Signal fence from CUDA, wait for it on graphics queue.
-    SGL_CU_SCOPE(this);
-    uint64_t signal_value = m_global_fence->update_signaled_value();
-    m_cuda_semaphore->signal(signal_value, CUstream(cuda_stream));
-    m_wait_global_fence = true;
+    if (m_supports_cuda_interop) {
+        SGL_CU_SCOPE(this);
+        uint64_t signal_value = m_global_fence->update_signaled_value();
+        m_cuda_semaphore->signal(signal_value, CUstream(cuda_stream));
+        m_wait_global_fence = true;
+    }
 }
 
 void Device::sync_to_device(void* cuda_stream)
 {
-    SGL_CU_SCOPE(this);
-    m_cuda_semaphore->wait(m_global_fence->signaled_value(), CUstream(cuda_stream));
+    if (m_supports_cuda_interop) {
+        SGL_CU_SCOPE(this);
+        m_cuda_semaphore->wait(m_global_fence->signaled_value(), CUstream(cuda_stream));
+    }
 }
 
 void Device::flush_print()
