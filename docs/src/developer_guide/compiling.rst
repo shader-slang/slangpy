@@ -3,12 +3,17 @@
 Compiling
 =========
 
-In order to compile ``sgl`` from source, the following prerequisites are
+In order to compile SlangPy from source, the following prerequisites are
 required:
 
 * A C++20 compliant compiler (tested with Visual Studio 2022, GCC 11 and Clang 14)
 * Python ``>= 3.8``
 * git
+
+.. tip::
+
+    You may want to consider setting up and using a Python virtual environment
+    (e.g., ``venv``) to isolate your development activities.
 
 
 Cloning the repository
@@ -176,7 +181,7 @@ can be specified on the command line when running CMake, for example:
 
 .. code-block:: bash
 
-    cmake --preset windows-msvc -DSGL_BUILD_DOCS=ON -DSGL_BUILD_EXAMPLES=OFF -DSGL_BUILD_TESTS=OFF
+    cmake --preset windows-msvc -DSGL_BUILD_DOC=ON -DSGL_BUILD_EXAMPLES=OFF -DSGL_BUILD_TESTS=OFF
 
 
 The following table lists the available configuration options:
@@ -198,7 +203,7 @@ The following table lists the available configuration options:
     * - ``SGL_BUILD_TESTS``
       - ``ON``
       - Build sgl tests
-    * - ``SGL_BUILD_DOCS``
+    * - ``SGL_BUILD_DOC``
       - ``OFF``
       - Build sgl documentation
     * - ``SGL_USE_DYNAMIC_CUDA``
@@ -216,6 +221,42 @@ The following table lists the available configuration options:
     * - ``SGL_ENABLE_HEADER_VALIDATION``
       - ``OFF``
       - Enable header validation
+
+
+
+Updating the API Reference
+--------------------------
+
+SlangPy uses ``pybind11_mkdoc`` to extract documentation strings from the C++
+source code. These comments are then used by ``nanobind`` to generate Python
+documentation comments. These comments are then used when building the API
+Reference document.
+
+To run ``pybind11_mkdoc``, specify the ``pydoc`` target when invoking cmake:
+
+.. code-block:: bash
+
+    # Install Python build prerequisites
+    pip install -r requirements-dev.txt
+
+    # Install Python documentation build prerequisites
+    pip install -r requirements-docs.txt
+
+    # Configure
+    cmake --preset windows-msvc
+
+    # Build with pydoc target
+    cmake --build --preset windows-msvc-release --target pydoc
+
+The generated API Reference page can then be updated by invoking the html build
+of the SlangPy docs. (It's regenerated as part of running ``sphinx-build``.)
+
+**Tested on:**
+
+* Windows 10 (build 19045)
+* Visual Studio 2022 (Version 17.13.6)
+* CMake 4.0.2
+* Ninja 1.12.1
 
 
 VS Code

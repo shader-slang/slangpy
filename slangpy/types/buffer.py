@@ -190,7 +190,7 @@ def load_buffer_data_from_image(
     bitmap = bitmap.convert(pix_fmt, DataStruct.Type.float32, srgb_gamma)
 
     # Convert bitmap to numpy array.
-    data: np.ndarray[Any, Any] = np.asarray(bitmap, copy=False)
+    data: np.ndarray[Any, Any] = np.array(bitmap, copy=False)
 
     # Validate array shape.
     if data.ndim < 2 or data.ndim > 3:
@@ -314,13 +314,13 @@ class NDBuffer(NativeNDBuffer):
         """
         return cast("torch.Tensor", super().to_torch())
 
-    def clear(self, command_buffer: Optional[CommandEncoder] = None):
+    def clear(self, command_encoder: Optional[CommandEncoder] = None):
         """
         Fill the ndbuffer with zeros. If no command buffer is provided, a new one is created and
         immediately submitted. If a command buffer is provided the clear is simply appended to it
         but not automatically submitted.
         """
-        super().clear()
+        super().clear(command_encoder)
 
     @staticmethod
     def from_numpy(

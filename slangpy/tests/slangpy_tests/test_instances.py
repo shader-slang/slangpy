@@ -9,7 +9,14 @@ from slangpy import Buffer, Device
 
 from slangpy.core.struct import Struct
 
-from . import helpers
+from pathlib import Path
+import sys
+import numpy as np
+import pytest
+
+sys.path.append(str(Path(__file__).parent))
+import helpers
+
 from slangpy import InstanceList, InstanceBuffer, Module
 from slangpy import DeviceType, float2, float3, math
 from slangpy.types import NDBuffer, Tensor

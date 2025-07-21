@@ -533,7 +533,7 @@ class Function(FunctionNode):
         if not "implicit_tensor_casts" in self._options:
             self._options["implicit_tensor_casts"] = True
         if not "strict_broadcasting" in self._options:
-            self._options["strict_broadcasting"] = True
+            self._options["strict_broadcasting"] = False
 
         # Generate signature for hashing
         lines = []

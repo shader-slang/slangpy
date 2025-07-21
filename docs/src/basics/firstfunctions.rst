@@ -1,7 +1,7 @@
 Your First Function
 ===================
 
-In this example, we'll initialize SGL, create a simple Slang function, and call it from Python.
+In this example, we'll initialize SlangPy, create a simple Slang function, and call it from Python.
 
 You can find the complete code for this example `here <https://github.com/shader-slang/slangpy-samples/tree/main/examples/first_function/>`_.
 
@@ -17,17 +17,16 @@ First, let's define a simple Slang function to add two numbers together:
         return a + b;
     }
 
-Next, we'll create a Python script to initialize SGL, load the Slang module, and call the function:
+Next, we'll create a Python script to initialize SlangPy, load the Slang module, and call the function:
 
 .. code-block:: python
 
-    ## main.py
+    ## main_scalar.py
 
     import slangpy as spy
     import pathlib
-    import numpy as np
 
-    # Create an SGL device with the local folder for slangpy includes
+    # Create a SlangPy device; it will look in the local folder for any Slang includes
     device = spy.create_device(include_paths=[
             pathlib.Path(__file__).parent.absolute(),
     ])
@@ -49,15 +48,15 @@ While this is a fun demonstration, dispatching a compute kernel just to add two 
 
 .. code-block:: python
 
-    ## main.py
+    ## main_numpy.py
 
     # ... initialization here ...
 
-    # Create a couple of buffers with 1,000,000 random floats
+    # Create a couple of buffers containing 1,000,000 random floats
     a = np.random.rand(1000000).astype(np.float32)
     b = np.random.rand(1000000).astype(np.float32)
 
-    # Call our function and request a numpy array as the result (default would be a buffer)
+    # Call our function and request a numpy array as the result (the default would be a buffer)
     result = module.add(a, b, _result='numpy')
 
     # Print the first 10 results

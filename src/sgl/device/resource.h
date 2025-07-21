@@ -262,8 +262,8 @@ struct BufferDesc {
     size_t element_count{0};
     /// Struct size in bytes.
     size_t struct_size{0};
-    /// Struct type. Can be used instead of \c struct_size to specify the size of the struct.
-    ref<const TypeLayoutReflection> struct_type;
+    /// Resource type layout of the buffer. Can be used instead of \c struct_size to specify the size of the struct.
+    ref<const TypeLayoutReflection> resource_type_layout;
 
     /// Buffer format. Used when creating typed buffer views.
     Format format{Format::undefined};

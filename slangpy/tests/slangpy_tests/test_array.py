@@ -24,10 +24,10 @@ def test_simple_array(device_type: DeviceType):
         device,
         "sum",
         r"""
-int sum(int[4] vals) {
+int sum(int[4] data) {
     int sum = 0;
     for (int i = 0; i < 4; i++) {
-        sum += vals[i];
+        sum += data[i];
     }
     return sum;
 }

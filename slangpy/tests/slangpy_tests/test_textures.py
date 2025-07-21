@@ -314,6 +314,10 @@ def test_copy_mip_values_with_resource_views(
 ):
     if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
         pytest.skip("1D textures with mip maps are not supported on Metal")
+    if device_type == DeviceType.cuda:
+        pytest.skip(
+            "Investigating with CUDA team whether its valid to write multiple mip levels without syncing"
+        )
 
     m = load_test_module(device_type)
     assert m is not None
@@ -333,13 +337,18 @@ def test_copy_mip_values_with_resource_views(
             src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
-        m.copy_value(src_tex.create_view(mip=mip_idx), dest_tex.create_view(mip=mip_idx))
+        m.copy_value(
+            src_tex.create_view(mip=mip_idx, mip_count=1),
+            dest_tex.create_view(mip=mip_idx, mip_count=1),
+        )
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
             data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
-            assert np.allclose(data, rand_data[slice_idx][mip_idx])
+            assert np.allclose(
+                data, rand_data[slice_idx][mip_idx]
+            ), f"Mismatch in slice {slice_idx}, mip {mip_idx}"
 
 
 @pytest.mark.parametrize(
@@ -354,6 +363,10 @@ def test_copy_mip_values_with_all_uav_resource_views(
 ):
     if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
         pytest.skip("1D textures with mip maps are not supported on Metal")
+    if device_type == DeviceType.cuda:
+        pytest.skip(
+            "Investigating with CUDA team whether its valid to write multiple mip levels without syncing"
+        )
 
     m = load_test_module(device_type)
     assert m is not None
@@ -373,13 +386,18 @@ def test_copy_mip_values_with_all_uav_resource_views(
             src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
-        m.copy_value(src_tex.create_view(mip=mip_idx), dest_tex.create_view(mip=mip_idx))
+        m.copy_value(
+            src_tex.create_view(mip=mip_idx, mip_count=1),
+            dest_tex.create_view(mip=mip_idx, mip_count=1),
+        )
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
             data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
-            assert np.allclose(data, rand_data[slice_idx][mip_idx])
+            assert np.allclose(
+                data, rand_data[slice_idx][mip_idx]
+            ), f"Mismatch in slice {slice_idx}, mip {mip_idx}"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

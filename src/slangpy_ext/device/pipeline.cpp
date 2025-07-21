@@ -55,7 +55,7 @@ SGL_PY_EXPORT(device_pipeline)
             { new (self) ComputePipelineDesc(dict_to_ComputePipelineDesc(dict)); }
         )
         .def_rw("program", &ComputePipelineDesc::program, D(ComputePipelineDesc, program))
-        .def_rw("label", &ComputePipelineDesc::label, D_NA(ComputePipelineDesc, label));
+        .def_rw("label", &ComputePipelineDesc::label, D(ComputePipelineDesc, label));
     nb::implicitly_convertible<nb::dict, ComputePipelineDesc>();
 
     nb::class_<ComputePipeline, Pipeline>(m, "ComputePipeline", D(ComputePipeline))
@@ -80,7 +80,7 @@ SGL_PY_EXPORT(device_pipeline)
         .def_rw("depth_stencil", &RenderPipelineDesc::depth_stencil, D(RenderPipelineDesc, depth_stencil))
         .def_rw("rasterizer", &RenderPipelineDesc::rasterizer, D(RenderPipelineDesc, rasterizer))
         .def_rw("multisample", &RenderPipelineDesc::multisample, D(RenderPipelineDesc, multisample))
-        .def_rw("label", &RenderPipelineDesc::label, D_NA(RenderPipelineDesc, label));
+        .def_rw("label", &RenderPipelineDesc::label, D(RenderPipelineDesc, label));
 
     nb::class_<RenderPipeline, Pipeline>(m, "RenderPipeline", D(RenderPipeline)) //
         .def_prop_ro("native_handle", &RenderPipeline::native_handle, D(RenderPipeline, native_handle));
@@ -135,7 +135,7 @@ SGL_PY_EXPORT(device_pipeline)
             D(RayTracingPipelineDesc, max_attribute_size)
         )
         .def_rw("flags", &RayTracingPipelineDesc::flags, D(RayTracingPipelineDesc, flags))
-        .def_rw("label", &RayTracingPipelineDesc::label, D_NA(RayTracingPipelineDesc, label));
+        .def_rw("label", &RayTracingPipelineDesc::label, D(RayTracingPipelineDesc, label));
     nb::implicitly_convertible<nb::dict, RayTracingPipelineDesc>();
 
     nb::class_<RayTracingPipeline, Pipeline>(m, "RayTracingPipeline", D(RayTracingPipeline)) //

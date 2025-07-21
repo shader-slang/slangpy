@@ -10,6 +10,7 @@ from slangpy import (
     TypeReflection,
     DeviceType,
     Device,
+    NativeHandle,
 )
 from slangpy.reflection import SlangType
 import builtins
@@ -25,6 +26,7 @@ def create_device(
     enable_print: bool = False,
     enable_hot_reload: bool = True,
     enable_compilation_reports: bool = False,
+    existing_device_handles: Optional[Sequence[NativeHandle]] = None,
 ):
     """
     Create a device with basic settings for SlangPy. For full control over device init,
@@ -57,6 +59,7 @@ def create_device(
         enable_print=enable_print,
         enable_hot_reload=enable_hot_reload,
         enable_compilation_reports=enable_compilation_reports,
+        existing_device_handles=existing_device_handles,
     )
 
     if is_running_in_jupyter():

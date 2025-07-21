@@ -200,8 +200,8 @@ class CallData(NativeCallData):
             sanitized = ""
             if _DUMP_GENERATED_SHADERS or _DUMP_SLANG_INTERMEDIATES:
                 os.makedirs(".temp", exist_ok=True)
-                santized_module = re.sub(r"[<>, ./]", "_", build_info.module.name)
-                sanitized = re.sub(r"[:<>, ./]", "_", build_info.name)
+                santized_module = re.sub(r"[<>, ./:]", "_", build_info.module.name)
+                sanitized = re.sub(r"[:<>, ./:]", "_", build_info.name)
                 santized_module = santized_module[:50]
                 sanitized = sanitized[:50]
                 fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}"
