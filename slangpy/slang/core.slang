@@ -323,8 +323,9 @@ public struct StridedLayout<let D : int>
 
 public struct NDBuffer<T, let N : int>
 {
-    public StorageTraits<T>.BufferType buffer;
+    typealias Storage = StorageTraits<T>.BufferType;
 
+    public Storage buffer;
     public StridedLayout<N> layout;
     private uint _shape[N];
 
@@ -344,10 +345,10 @@ public struct NDBuffer<T, let N : int>
     }
     public void store(Context0D context, in NDBuffer<T, N> value) {};
 
-    public void load(Context0D context, out StorageTraits<T>.BufferType value) {
+    public void load(Context0D context, out Storage value) {
         value = buffer;
     }
-    public void store(Context0D context, in StorageTraits<T>.BufferType value) {};
+    public void store(Context0D context, in Storage value) {};
 
     public void load<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
 
@@ -381,7 +382,9 @@ public struct NDBuffer<T, let N : int>
 
 public struct RWNDBuffer<T, let N : int>
 {
-    public StorageTraits<T>.RWBufferType buffer;
+    typealias Storage = StorageTraits<T>.RWBufferType;
+
+    public Storage buffer;
 
     public StridedLayout<N> layout;
     private uint _shape[N];
@@ -409,10 +412,10 @@ public struct RWNDBuffer<T, let N : int>
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
     public void store(ContextND<N> context, in T value) { set(context.call_id, value); }
 
-    public void load(Context0D context, out StorageTraits<T>.RWBufferType value) {
+    public void load(Context0D context, out Storage value) {
         value = buffer;
     }
-    public void store(Context0D context, in StorageTraits<T>.RWBufferType value) {
+    public void store(Context0D context, in Storage value) {
     }
 
 

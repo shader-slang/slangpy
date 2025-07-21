@@ -170,7 +170,7 @@ void ShaderObject::set_cuda_tensor_view_pointer(const ShaderOffset& offset, cons
         set_data(offset, &address, sizeof(address));
         m_cuda_interop_buffers.push_back(cuda_interop_buffer);
     } else {
-        m_shader_object->setData(rhi_shader_offset(offset), &tensor_view.data, sizeof(tensor_view.data));
+        set_data(offset, &tensor_view.data, sizeof(tensor_view.data));
     }
 }
 

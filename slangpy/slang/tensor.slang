@@ -228,7 +228,9 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>>
 
 public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
-    public StorageTraits<T>.BufferType buffer;
+    typealias Storage = StorageTraits<T>.BufferType;
+
+    public Storage buffer;
     public StridedLayout<D> layout;
     private uint _shape[D];
 
@@ -251,7 +253,9 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 
 public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
 {
-    public StorageTraits<T>.RWBufferType buffer;
+    typealias Storage = StorageTraits<T>.RWBufferType;
+
+    public Storage buffer;
     public StridedLayout<D> layout;
     private uint _shape[D];
 
@@ -280,7 +284,9 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
 
 public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferentiable, IAtomicAddable
 {
-    public StorageTraits<T>.AtomicBufferType buffer;
+    typealias Storage = StorageTraits<T>.AtomicBufferType;
+
+    public Storage buffer;
     public StridedLayout<D> layout;
     private uint _shape[D];
 

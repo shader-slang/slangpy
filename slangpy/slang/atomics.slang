@@ -14,6 +14,7 @@ public interface IAtomicAddable
     public static void atomicAdd(This* buf, uint element, This value);
 }
 
+// Automatically implement the ptr version of atomicAdd for types that implement IArithmeticAtomicable.
 public extension<T: IArithmeticAtomicable> T
 {
     public static void atomicAdd(This* buf, uint element, This value)
@@ -67,8 +68,10 @@ public extension half : IAtomicAddable
     }
 }
 
+// Add atomic support for per element operations on arrays or vectors of atomics.
 public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAtomicAddable
 {
+    // Byte address buffer version increments each element by stepping through the buffer
     public static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
     {
         [ForceUnroll]
@@ -77,6 +80,9 @@ public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAt
             S::atomicAdd(buf, addr + i * sizeof(S), value[i]);
         }
     }
+
+    // Ptr version casts the T* (eg float3*) to the element type, S* (eg float*) and then
+    // increments each sub element individually.
     public static void atomicAdd(T* buf, uint element, This value)
     {
         S* buf2 = (S*)buf;
