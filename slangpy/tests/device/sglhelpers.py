@@ -127,7 +127,7 @@ def dispatch_compute(
                 args["size"] = desc["size"]
             if "element_count" in desc:
                 args["element_count"] = desc["element_count"]
-                args["struct_type"] = (
+                args["resource_type_layout"] = (
                     kernel.reflection[name] if is_global else kernel.reflection[entry_point][name]
                 )
             if "data" in desc:

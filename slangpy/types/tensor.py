@@ -7,7 +7,7 @@ from slangpy import (
     Buffer,
     BufferUsage,
     TypeReflection,
-    CommandBuffer,
+    CommandEncoder,
     MemoryType,
 )
 from slangpy.reflection import SlangType, SlangProgramLayout
@@ -155,13 +155,13 @@ class Tensor(NativeTensor):
         """
         return cast(Tensor, super().detach())
 
-    def clear(self, command_buffer: Optional[CommandBuffer] = None):
+    def clear(self, command_encoder: Optional[CommandEncoder] = None):
         """
         Fill the tensor with zeros. If no command buffer is provided, a new one is created and
         immediately submitted. If a command buffer is provided the clear is simply appended to it
         but not automatically submitted.
         """
-        super().clear()
+        super().clear(command_encoder)
 
     @staticmethod
     def numpy(device: Device, ndarray: np.ndarray[Any, Any]) -> Tensor:

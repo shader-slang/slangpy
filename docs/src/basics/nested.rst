@@ -15,12 +15,11 @@ Let's start with a straightforward function that copies the value of one `float4
         dest = src;
     }
 
-We could directly use the ``copy`` function to copy a NumPy array into a texture, though this is
-relatively pointless since we can manually set the texture's data using SGL's ``from_numpy`` function.
+We could directly use the ``copy`` function to copy a NumPy array into a texture. (This is for demonstration purposes only; normally we would initialize the texture's data using SlangPy's ``from_numpy`` function.)
 
 .. code-block:: python
 
-    # Create a texture to store results
+    # Create a texture to store the results
     tex = device.create_texture(
         width=128,
         height=128,

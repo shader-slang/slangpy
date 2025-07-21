@@ -4,7 +4,7 @@ import hashlib
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, Optional, Sequence, cast
 
 import pytest
 import numpy as np
@@ -21,6 +21,7 @@ from slangpy import (
     TypeReflection,
     Logger,
     LogLevel,
+    NativeHandle,
 )
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
@@ -61,12 +62,23 @@ def test_id(request: Any):
 # Helper to get device of a given type
 
 
-def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = False) -> Device:
+def get_device(
+    type: DeviceType,
+    use_cache: bool = True,
+    cuda_interop: bool = False,
+    existing_device_handles: Optional[Sequence[NativeHandle]] = None,
+) -> Device:
     # Early out if we know we don't have support for parameter blocks
     global METAL_PARAMETER_BLOCK_SUPPORT
     if type == DeviceType.metal and METAL_PARAMETER_BLOCK_SUPPORT == False:
         pytest.skip(
             "Metal device does not support parameter blocks (requires argument buffer tier 2)"
+        )
+
+    if existing_device_handles is not None and use_cache:
+        raise ValueError(
+            "Cannot use existing_device_handles with caching enabled. "
+            "Please set use_cache=False if you want to use existing_device_handles."
         )
 
     cache_key = (type, cuda_interop)
@@ -82,6 +94,7 @@ def get_device(type: DeviceType, use_cache: bool = True, cuda_interop: bool = Fa
             }
         ),
         enable_cuda_interop=cuda_interop,
+        existing_device_handles=existing_device_handles,
     )
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
@@ -110,7 +123,7 @@ def create_module(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
     spy_module = slangpy.Module(module, link=link, options=options)
-    spy_module.logger = Logger(level=LogLevel.debug)
+    spy_module.logger = Logger(level=LogLevel.info)
     return spy_module
 
 
@@ -134,7 +147,7 @@ def create_function_from_module(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
     module = Module(slang_module, link=link, options=options)
-    module.logger = Logger(level=LogLevel.debug)
+    module.logger = Logger(level=LogLevel.info)
 
     names = func_name.split(".")
 

@@ -123,7 +123,9 @@ def test_bad_implicit_buffer_cast(device_type: DeviceType):
 def test_invalid_broadcast(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
-    function = helpers.create_function_from_module(device, "foo2", MODULE)
+    function = helpers.create_function_from_module(
+        device, "foo2", MODULE, options={"strict_broadcasting": True}
+    )
 
     buffer = NDBuffer(device, dtype=float, shape=(10,))
     buffer2 = NDBuffer(device, dtype=float, shape=(10, 10))

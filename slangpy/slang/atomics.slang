@@ -11,7 +11,18 @@ implementing slangpy;
 public interface IAtomicAddable
 {
     public static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value);
+    public static void atomicAdd(This* buf, uint element, This value);
 }
+
+// Automatically implement the ptr version of atomicAdd for types that implement IArithmeticAtomicable.
+public extension<T: IArithmeticAtomicable> T
+{
+    public static void atomicAdd(This* buf, uint element, This value)
+    {
+        InterlockedAdd(buf[element], value);
+    }
+}
+
 public extension uint : IAtomicAddable
 {
     public static void atomicAdd(RWByteAddressBuffer buf, uint addr, uint value) { buf.InterlockedAdd(addr, value); }
@@ -41,6 +52,7 @@ public extension float : IAtomicAddable
         //     buf.InterlockedAddF32(addr, value);
         // }
     }
+
 }
 [__requiresNVAPI]
 public extension half2 : IAtomicAddable
@@ -56,8 +68,10 @@ public extension half : IAtomicAddable
     }
 }
 
+// Add atomic support for per element operations on arrays or vectors of atomics.
 public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAtomicAddable
 {
+    // Byte address buffer version increments each element by stepping through the buffer
     public static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
     {
         [ForceUnroll]
@@ -66,6 +80,40 @@ public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAt
             S::atomicAdd(buf, addr + i * sizeof(S), value[i]);
         }
     }
+
+    // Ptr version casts the T* (eg float3*) to the element type, S* (eg float*) and then
+    // increments each sub element individually.
+    public static void atomicAdd(T* buf, uint element, This value)
+    {
+        S* buf2 = (S*)buf;
+        [ForceUnroll]
+        for (int i = 0; i < D; ++i)
+        {
+            S::atomicAdd(buf2, element*D+i, value[i]);
+        }
+    }
+}
+
+// Extension of the storage traits object in slangpy/slang/core.slang that defines how to
+// store a buffer of atomics, and where appropriate uses IAtomicAddable to define the atomic add operation.
+public extension<T: IAtomicAddable> StorageTraits<T>
+{
+#ifdef __TARGET_CUDA__
+    public typealias AtomicBufferType = T*;
+    public static void atomicAdd(AtomicBufferType buffer, uint idx, T value) { T::atomicAdd(buffer, idx, value); }
+    public static T atomicLoad(AtomicBufferType buffer, uint idx) { return buffer[idx]; }
+#else
+    public typealias AtomicBufferType = RWByteAddressBuffer;
+    public static void atomicAdd(AtomicBufferType buffer, uint idx, T value) { T::atomicAdd(buffer, idx*sizeof(T), value); }
+    public static T atomicLoad(AtomicBufferType buffer, uint idx) { return buffer.Load<T>(idx*sizeof(T));}
+#endif
+}
+
+void test()
+{
+    float3* floats;
+
+    float3::atomicAdd(floats, 0, 1.0f);
 }
 
 // 2xfloat16 -> uint tricks

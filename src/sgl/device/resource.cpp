@@ -64,28 +64,30 @@ Buffer::Buffer(ref<Device> device, BufferDesc desc)
 {
     SGL_CHECK(m_desc.size == 0 || m_desc.element_count == 0, "Only one of 'size' or 'element_count' must be set.");
     SGL_CHECK(
-        m_desc.struct_size == 0 || m_desc.struct_type == nullptr,
-        "Only one of 'struct_size' or 'struct_type' must be set."
+        m_desc.struct_size == 0 || m_desc.resource_type_layout == nullptr,
+        "Only one of 'struct_size' or 'resource_type_layout' must be set."
     );
 
     // Derive buffer size from initial data.
     if (m_desc.size == 0 && m_desc.element_count == 0 && m_desc.data && m_desc.data_size > 0)
         m_desc.size = m_desc.data_size;
 
-    // Derive struct size from struct type.
-    if (m_desc.struct_type) {
-        ref<const TypeLayoutReflection> type = m_desc.struct_type->unwrap_array();
-        if (type->element_type_layout())
-            type = type->element_type_layout();
-        SGL_CHECK(type, "Invalid struct type.");
-        m_desc.struct_size = type->stride();
-        m_desc.struct_type = nullptr;
+    // Derive struct size from the resource type layout.
+    if (m_desc.resource_type_layout) {
+        SGL_CHECK(
+            m_desc.resource_type_layout->kind() == TypeReflection::Kind::resource
+                && m_desc.resource_type_layout->type()->resource_shape()
+                    == TypeReflection::ResourceShape::structured_buffer,
+            "Struct type layout must describe a structured buffer."
+        );
+        m_desc.struct_size = m_desc.resource_type_layout->element_type_layout()->stride();
+        m_desc.resource_type_layout = nullptr;
     }
 
     // Derive buffer size from element count and struct size.
     SGL_CHECK(
         m_desc.element_count == 0 || m_desc.struct_size > 0,
-        "'element_count' can only be used with 'struct_size' or 'struct_type' set."
+        "'element_count' can only be used with 'struct_size' or 'resource_type_layout' set."
     );
     if (m_desc.element_count > 0) {
         m_desc.size = m_desc.element_count * m_desc.struct_size;

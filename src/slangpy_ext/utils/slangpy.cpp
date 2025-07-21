@@ -1289,10 +1289,9 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "__getitem__",
-            [](const Shape& self, size_t i) -> int
+            [](const Shape& self, Py_ssize_t i) -> int
             {
-                if (i >= self.size())
-                    throw nb::index_error(); // throwing index_error allows this to be used as a python iterator
+                i = detail::sanitize_getitem_index(i, self.size());
                 return self[i];
             },
             nb::arg("index"),

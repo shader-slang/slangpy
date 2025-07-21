@@ -139,11 +139,16 @@ SGL_PY_EXPORT(device_device)
         .def_rw(
             "enable_compilation_reports",
             &DeviceDesc::enable_compilation_reports,
-            D_NA(DeviceDesc, enable_compilation_reports)
+            D(DeviceDesc, enable_compilation_reports)
         )
         .def_rw("adapter_luid", &DeviceDesc::adapter_luid, D(DeviceDesc, adapter_luid))
         .def_rw("compiler_options", &DeviceDesc::compiler_options, D(DeviceDesc, compiler_options))
-        .def_rw("shader_cache_path", &DeviceDesc::shader_cache_path, D(DeviceDesc, shader_cache_path));
+        .def_rw("shader_cache_path", &DeviceDesc::shader_cache_path, D(DeviceDesc, shader_cache_path))
+        .def_rw(
+            "existing_device_handles",
+            &DeviceDesc::existing_device_handles,
+            D_NA(DeviceDesc, existing_device_handles)
+        );
     nb::implicitly_convertible<nb::dict, DeviceDesc>();
 
     nb::class_<DeviceLimits>(m, "DeviceLimits", D(DeviceLimits))
@@ -242,19 +247,21 @@ SGL_PY_EXPORT(device_device)
            bool enable_compilation_reports,
            std::optional<AdapterLUID> adapter_luid,
            std::optional<SlangCompilerOptions> compiler_options,
-           std::optional<std::filesystem::path> shader_cache_path)
+           std::optional<std::filesystem::path> shader_cache_path,
+           std::optional<std::array<NativeHandle, 3>> existing_device_handles)
         {
-            new (self) Device({
-                .type = type,
-                .enable_debug_layers = enable_debug_layers,
-                .enable_cuda_interop = enable_cuda_interop,
-                .enable_print = enable_print,
-                .enable_hot_reload = enable_hot_reload,
-                .enable_compilation_reports = enable_compilation_reports,
-                .adapter_luid = adapter_luid,
-                .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
-                .shader_cache_path = shader_cache_path,
-            });
+            new (self) Device(
+                {.type = type,
+                 .enable_debug_layers = enable_debug_layers,
+                 .enable_cuda_interop = enable_cuda_interop,
+                 .enable_print = enable_print,
+                 .enable_hot_reload = enable_hot_reload,
+                 .enable_compilation_reports = enable_compilation_reports,
+                 .adapter_luid = adapter_luid,
+                 .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                 .shader_cache_path = shader_cache_path,
+                 .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>())}
+            );
         },
         "type"_a = DeviceDesc().type,
         "enable_debug_layers"_a = DeviceDesc().enable_debug_layers,
@@ -265,6 +272,7 @@ SGL_PY_EXPORT(device_device)
         "adapter_luid"_a.none() = nb::none(),
         "compiler_options"_a.none() = nb::none(),
         "shader_cache_path"_a.none() = nb::none(),
+        "existing_device_handles"_a.none() = nb::none(),
         D(Device, Device)
     );
     device.def(nb::init<DeviceDesc>(), "desc"_a, D(Device, Device));
@@ -298,7 +306,7 @@ SGL_PY_EXPORT(device_device)
            size_t size,
            size_t element_count,
            size_t struct_size,
-           nb::object struct_type,
+           nb::object resource_type_layout,
            Format format,
            MemoryType memory_type,
            BufferUsage usage,
@@ -310,25 +318,41 @@ SGL_PY_EXPORT(device_device)
                 SGL_CHECK(is_ndarray_contiguous(*data), "Data is not contiguous.");
             }
 
-            // Note: nanobind can't try cast to a ref counted pointer, however the reflection
-            // cursor code below needs to ensure it maintains a reference to the type layout if
-            // returned, so we attempt to convert to the raw ptr here, and then immediately
-            // store it in a local ref counted ptr.
-            const TypeLayoutReflection* resolved_struct_type_ptr = nullptr;
-            nb::try_cast(struct_type, resolved_struct_type_ptr);
-            ref<const TypeLayoutReflection> resolved_struct_type(resolved_struct_type_ptr);
+            ref<const TypeLayoutReflection> resolved_resource_type_layout;
+            if (!resource_type_layout.is_none()) {
+                // Note: nanobind can't try cast to a ref counted pointer, however the reflection
+                // cursor code below needs to ensure it maintains a reference to the type layout if
+                // returned, so we attempt to convert to the raw ptr here, and then immediately
+                // store it in a local ref counted ptr.
+                if (const TypeLayoutReflection * resolved_struct_type_ptr;
+                    nb::try_cast(resource_type_layout, resolved_struct_type_ptr)) {
+                    resolved_resource_type_layout = ref<const TypeLayoutReflection>(resolved_struct_type_ptr);
+                }
+                // If this is a reflection cursor, get type layout from it
+                else if (ReflectionCursor reflection_cursor; nb::try_cast(resource_type_layout, reflection_cursor)) {
 
-            // If this is a reflection cursor, get type layout from it
-            ReflectionCursor reflection_cursor;
-            if (nb::try_cast(struct_type, reflection_cursor)) {
-                resolved_struct_type = reflection_cursor.type_layout();
+                    resolved_resource_type_layout = reflection_cursor.type_layout();
+                }
+                // Otherwise we got an invalid type
+                else {
+                    throw nb::type_error(
+                        "Expected a TypeLayoutReflection or ReflectionCursor for 'resource_type_layout'"
+                    );
+                }
+                if (resolved_resource_type_layout->kind() != TypeReflection::Kind::resource
+                    || resolved_resource_type_layout->type()->resource_shape()
+                        != TypeReflection::ResourceShape::structured_buffer) {
+                    throw nb::type_error(
+                        "Expected a TypeLayoutReflection of a structured buffer for 'resource_type_layout'"
+                    );
+                }
             }
 
             return self->create_buffer({
                 .size = size,
                 .element_count = element_count,
                 .struct_size = struct_size,
-                .struct_type = resolved_struct_type,
+                .resource_type_layout = resolved_resource_type_layout,
                 .format = format,
                 .memory_type = memory_type,
                 .usage = usage,
@@ -341,7 +365,7 @@ SGL_PY_EXPORT(device_device)
         "size"_a = BufferDesc().size,
         "element_count"_a = BufferDesc().element_count,
         "struct_size"_a = BufferDesc().struct_size,
-        "struct_type"_a.none() = nb::none(),
+        "resource_type_layout"_a.none() = nb::none(),
         "format"_a = BufferDesc().format,
         "memory_type"_a = BufferDesc().memory_type,
         "usage"_a = BufferDesc().usage,
@@ -533,6 +557,7 @@ SGL_PY_EXPORT(device_device)
         "signal_fences"_a = std::span<Fence*>(),
         "signal_fence_values"_a = std::span<uint64_t>(),
         "queue"_a = CommandQueueType::graphics,
+        "cuda_stream"_a = NativeHandle(),
         D(Device, submit_command_buffers)
     );
     device.def(
@@ -781,8 +806,7 @@ SGL_PY_EXPORT(device_device)
         "rows"_a,
         "cols"_a,
         "layout"_a,
-        "element_type"_a,
-        D_NA(Device, coopvec_query_matrix_size)
+        "element_type"_a
     );
     device.def(
         "coopvec_create_matrix_desc",
@@ -792,8 +816,7 @@ SGL_PY_EXPORT(device_device)
         "cols"_a,
         "layout"_a,
         "element_type"_a,
-        "offset"_a = 0,
-        D_NA(Device, coopvec_create_matrix_desc)
+        "offset"_a = 0
     );
     device.def(
         "coopvec_convert_matrix_host",
@@ -801,8 +824,7 @@ SGL_PY_EXPORT(device_device)
         "src"_a,
         "dst"_a,
         "src_layout"_a = nb::none(),
-        "dst_layout"_a = nb::none(),
-        D_NA(Device, coopvec_convert_matrix)
+        "dst_layout"_a = nb::none()
     );
     device.def(
         "coopvec_convert_matrix_device",
@@ -817,8 +839,7 @@ SGL_PY_EXPORT(device_device)
         "src_desc"_a,
         "dst"_a,
         "dst_desc"_a,
-        "encoder"_a = nullptr,
-        D_NA(Device, coopvec_convert_matrix_device)
+        "encoder"_a = nullptr
     );
     device.def(
         "coopvec_convert_matrix_device",
@@ -833,20 +854,17 @@ SGL_PY_EXPORT(device_device)
         "src_desc"_a,
         "dst"_a,
         "dst_desc"_a,
-        "encoder"_a = nullptr,
-        D_NA(Device, coopvec_convert_matrix_device)
+        "encoder"_a = nullptr
     );
     device.def(
         "coopvec_align_matrix_offset",
         [](Device* self, size_t offset) { return self->get_or_create_coop_vec()->align_matrix_offset(offset); },
-        "offset"_a,
-        D_NA(Device, coopvec_align_matrix_offset)
+        "offset"_a
     );
     device.def(
         "coopvec_align_vector_offset",
         [](Device* self, size_t offset) { return self->get_or_create_coop_vec()->align_vector_offset(offset); },
-        "offset"_a,
-        D_NA(Device, coopvec_align_vector_offset)
+        "offset"_a
     );
 
     device.def_static(
@@ -856,4 +874,10 @@ SGL_PY_EXPORT(device_device)
         D(Device, enumerate_adapters)
     );
     device.def_static("report_live_objects", &Device::report_live_objects, D(Device, report_live_objects));
+
+    m.def(
+        "get_cuda_current_context_native_handles",
+        get_cuda_current_context_native_handles,
+        D_NA(get_cuda_current_context_native_handles, get_cuda_current_context_native_handles)
+    );
 }

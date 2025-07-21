@@ -65,6 +65,17 @@ int _idx_vec<let N : int>(vector<int,N> index, int[N] stride) {
     return idx;
 }
 
+public struct StorageTraits<T>
+{
+#ifdef __TARGET_CUDA__
+    public typealias BufferType = T*;
+    public typealias RWBufferType = T*;
+#else
+    public typealias BufferType = StructuredBuffer<T>;
+    public typealias RWBufferType = RWStructuredBuffer<T>;
+#endif
+}
+
 public struct ImplicitCast<N>
 {
 
@@ -312,7 +323,9 @@ public struct StridedLayout<let D : int>
 
 public struct NDBuffer<T, let N : int>
 {
-    public StructuredBuffer<T> buffer;
+    typealias Storage = StorageTraits<T>.BufferType;
+
+    public Storage buffer;
     public StridedLayout<N> layout;
     private uint _shape[N];
 
@@ -332,10 +345,10 @@ public struct NDBuffer<T, let N : int>
     }
     public void store(Context0D context, in NDBuffer<T, N> value) {};
 
-    public void load(Context0D context, out StructuredBuffer<T> value) {
+    public void load(Context0D context, out Storage value) {
         value = buffer;
     }
-    public void store(Context0D context, in StructuredBuffer<T> value) {};
+    public void store(Context0D context, in Storage value) {};
 
     public void load<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
 
@@ -369,7 +382,10 @@ public struct NDBuffer<T, let N : int>
 
 public struct RWNDBuffer<T, let N : int>
 {
-    public RWStructuredBuffer<T> buffer;
+    typealias Storage = StorageTraits<T>.RWBufferType;
+
+    public Storage buffer;
+
     public StridedLayout<N> layout;
     private uint _shape[N];
 
@@ -396,9 +412,12 @@ public struct RWNDBuffer<T, let N : int>
     public void load(ContextND<N> context, out T value) { value = get(context.call_id); }
     public void store(ContextND<N> context, in T value) { set(context.call_id, value); }
 
-    public void load(Context0D context, out RWStructuredBuffer<T> value) {
+    public void load(Context0D context, out Storage value) {
         value = buffer;
     }
+    public void store(Context0D context, in Storage value) {
+    }
+
 
     public void load(Context0D context, out RWNDBuffer<T, N> value) {
         value = this;
@@ -485,8 +504,9 @@ namespace impl
     // If type B implements IConvertibleFrom<A>, then we can safely convert from A to B
     interface IConvertibleFrom<From> {}
 
-    // A python int can be passed to any slang integer scalar type
+    // A python int can be passed to any slang int/float scalar type
     extension<T : __BuiltinIntegerType> T : IConvertibleFrom<int> {}
+    extension<T : __BuiltinFloatingPointType> T : IConvertibleFrom<int> {}
 
     // A python int (e.g. a buffer address) can be passed to any slang pointer type
     extension<T> Ptr<T> : IConvertibleFrom<int> {}
@@ -496,10 +516,18 @@ namespace impl
 
     // A python array can be passed to any slang array of the same length, as
     // long as their element types can be safely passed
-    extension<S, T : IConvertibleFrom<S>, let N : int, ArrT : ISizedArray<T, N>> ArrT : IConvertibleFrom<Array<S, N>> {}
+    extension<From : __BuiltinIntegerType, To : IConvertibleFrom<From>, let N : int, ArrTo : ISizedArray<To, N>>
+    ArrTo : IConvertibleFrom<Array<From, N>> {};
+
+    extension<From : __BuiltinFloatingPointType, To : IConvertibleFrom<From>, let N : int, ArrTo : ISizedArray<To, N>>
+    ArrTo : IConvertibleFrom<Array<From, N>> {};
 
     // A vector is convertible to another vector of the same length who's element types are convertible
-    extension<S, T : IConvertibleFrom<S>, let N : int> vector<T,N> : IConvertibleFrom<vector<S, N>> {}
+    extension<From : __BuiltinIntegerType, To : IConvertibleFrom<From>, let N : int>
+    vector<To, N> : IConvertibleFrom<vector<From, N>> {}
+
+    extension<From : __BuiltinFloatingPointType, To : IConvertibleFrom<From>, let N : int>
+    vector<To, N> : IConvertibleFrom<vector<From, N>> {}
 
     // This function allows us to check if type A is convertible to type B.
     // We attempt to specialize allowedConversionWitness with types [A, B]

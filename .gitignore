@@ -11,6 +11,7 @@ docs/_build/
 .vs/
 .temp/
 .cache/clangd/index
+.venv/
 
 # Python files installed into source tree
 slangpy/**/*.pyi
@@ -21,3 +22,7 @@ slangpy/*.ilk
 slangpy/*.so
 slangpy/.build_dir
 slangpy.egg-info/
+
+slangpy/tests/slangpy_tests/logs/
+
+*.nsys-rep

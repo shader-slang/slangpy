@@ -46,9 +46,16 @@ class BufferMarshall(NativeBufferMarshall):
         vector_target_type: SlangType,
     ):
         # structured buffer can only ever be taken to another structured buffer or a pointer
-        if isinstance(
-            vector_target_type, (StructuredBufferType, ByteAddressBufferType, PointerType)
-        ):
+        if isinstance(vector_target_type, PointerType):
+            return 0
+        elif isinstance(vector_target_type, (StructuredBufferType, ByteAddressBufferType)):
+            # For buffers, check for RW / ua mismatch
+            has_ua = (self.usage & BufferUsage.unordered_access) != BufferUsage.none
+            if vector_target_type.writable and not has_ua:
+                raise ValueError(
+                    f"Buffers bound to {vector_target_type.name} must have "
+                    "the BufferUsage.unordered_access flag"
+                )
             return 0
         else:
             raise ValueError(
