@@ -474,12 +474,18 @@ void ShaderCursor::set_cuda_tensor_view(const cuda::TensorView& tensor_view) con
 {
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
-    SGL_CHECK(is_buffer_resource_type(type), "\"{}\" cannot bind a CUDA tensor view", m_type_layout->getName());
+    SGL_CHECK(
+        is_buffer_resource_type(type) || type->getKind() == slang::TypeReflection::Kind::Pointer,
+        "\"{}\" cannot bind a CUDA tensor view",
+        m_type_layout->getName()
+    );
 
-    if (is_shader_resource_type(type)) {
-        m_shader_object->set_cuda_tensor_view(m_offset, tensor_view, false);
+    if (type->getKind() == slang::TypeReflection::Kind::Pointer) {
+        m_shader_object->set_cuda_tensor_view_pointer(m_offset, tensor_view);
+    } else if (is_shader_resource_type(type)) {
+        m_shader_object->set_cuda_tensor_view_buffer(m_offset, tensor_view, false);
     } else if (is_unordered_access_type(type)) {
-        m_shader_object->set_cuda_tensor_view(m_offset, tensor_view, true);
+        m_shader_object->set_cuda_tensor_view_buffer(m_offset, tensor_view, true);
     } else {
         SGL_THROW("\"{}\" expects a valid buffer", m_type_layout->getName());
     }

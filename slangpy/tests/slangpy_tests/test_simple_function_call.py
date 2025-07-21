@@ -507,6 +507,8 @@ struct Foo {{ {scalar_type} x; }}
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_pass_buffer_to_structured_buffer(device_type: DeviceType):
+    if device_type == DeviceType.cuda:
+        pytest.skip("CUDA uses pointers to represent NDBuffer data")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
