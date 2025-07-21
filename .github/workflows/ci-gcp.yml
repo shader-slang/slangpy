@@ -104,6 +104,7 @@ jobs:
         if: matrix.runs-on.group != 'gcp'
         run: |
           python --version
+          python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
           python -m pip install -r requirements-dev.txt pytest-github-actions-annotate-failures
 
       # Setup MSVC.
