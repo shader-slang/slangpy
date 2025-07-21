@@ -278,7 +278,7 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     }
 }
 
-public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferentiable, IArithmeticAtomicable
+public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferentiable, IAtomicAddable
 {
     public StorageTraits<T>.AtomicBufferType buffer;
     public StridedLayout<D> layout;
@@ -287,22 +287,19 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     public property shape : uint[D] { get { return _shape; } }
 
     [TreatAsDifferentiable]
-    public T get(int[D] idx) { return buffer[layout.at(idx)].load(); }
+    public T get(int[D] idx) { return StorageTraits<T>::atomicLoad(buffer, layout.at(idx)); }
 
     [TreatAsDifferentiable]
-    public T getv(vector<int,D> idx) { return buffer[layout.at_vec(idx)].load(); }
+    public T getv(vector<int,D> idx) { return StorageTraits<T>::atomicLoad(buffer, layout.at_vec(idx)); }
 
     [TreatAsDifferentiable]
     public void set(int idx[D], T value) {
-        // TODO: Atomic adds are conservative and not always needed. If we inspect the layout
-        // during load() and determine each call id sees a unique slice, we could do the Store below instead:
-        //buffer.Store<T>(layout.at(idx) * sizeof(T), value, sizeof(T));
-        buffer[layout.at(idx)].add(value);
+        StorageTraits<T>::atomicAdd(buffer, layout.at(idx), value);
     }
 
     [TreatAsDifferentiable]
     public void setv(vector<int,D> idx, T value) {
-        buffer[layout.at_vec(idx)].add(value);
+        StorageTraits<T>::atomicAdd(buffer, layout.at_vec(idx), value);
     }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out AtomicTensor<T, SliceD> value)
@@ -314,7 +311,7 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     }
 }
 
-public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D> where T.Differential : IArithmeticAtomicable
+public struct GradOutTensor<T : IDifferentiable, let D : int> : ITensor<T, D> where T.Differential : IAtomicAddable
 {
     public Tensor<T, D> primal;
     public AtomicTensor<T.Differential, D> d_out;
@@ -378,7 +375,7 @@ public struct GradInTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     }
 }
 
-public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D> where T.Differential : IArithmeticAtomicable
+public struct GradInOutTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D> where T.Differential : IAtomicAddable
 {
     public RWTensor<T, D> primal;
     public AtomicTensor<T.Differential, D> d_out;

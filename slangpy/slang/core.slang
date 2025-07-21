@@ -68,20 +68,11 @@ int _idx_vec<let N : int>(vector<int,N> index, int[N] stride) {
 public struct StorageTraits<T>
 {
 #ifdef __TARGET_CUDA__
-    typealias BufferType = T*;
-    typealias RWBufferType = T*;
+    public typealias BufferType = T*;
+    public typealias RWBufferType = T*;
 #else
-    typealias BufferType = StructuredBuffer<T>;
-    typealias RWBufferType = RWStructuredBuffer<T>;
-#endif
-}
-
-extension<T: IAtomicable> StorageTraits<T>
-{
-#ifdef __TARGET_CUDA__
-    typealias AtomicBufferType = Atomic<T>*;
-#else
-    typealias AtomicBufferType = RWStructuredBuffer<Atomic<T>>;
+    public typealias BufferType = StructuredBuffer<T>;
+    public typealias RWBufferType = RWStructuredBuffer<T>;
 #endif
 }
 
