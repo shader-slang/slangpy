@@ -5,7 +5,7 @@ Mapping provides a way to explicitly control the relationship between argument d
 
 .. note::
    **Mapping Uses ML Convention For Dimensions**
-   
+
    Mapping dimension indices like ``(0, 1, 2)`` refer to numpy array dimensions using the ML convention, where the leftmost dimension (index 0 in this case) has the largest stride, and the rightmost dimension (index 2 in this case) has the smallest stride.
    See :ref:`index_representation` for details on SlangPy's different index representation conventions.
 

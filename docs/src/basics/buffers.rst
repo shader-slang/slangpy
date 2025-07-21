@@ -10,7 +10,7 @@ The ``NDBuffer`` type takes a structured buffer with a defined stride and size a
 
 .. warning::
    **Buffer Indexing Conventions**
-   
+
    Multi-dimensional buffers store data using the convention where the right-most dimension has the smallest stride.
    However, buffers can be indexed using either array coordinates, which follow the same convention, or vector coordinates, which follow a different convention where the x component has the smallest stride.
    This means the same buffer position requires different coordinate values: e.g. for a 2D buffer, array indexing uses `[row, col]` while vector indexing uses `(col, row)` for the same location.

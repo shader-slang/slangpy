@@ -29,7 +29,7 @@ The ``grid`` generator provides the grid coordinate of the current thread, and t
 .. warning::
    **Vector vs Array Dimension Ordering**
 
-   As with the ``call_id`` generator, the convention used for grid coordinates depends on the parameter type that the ``grid`` generator is passed to. 
+   As with the ``call_id`` generator, the convention used for grid coordinates depends on the parameter type that the ``grid`` generator is passed to.
    When passed to a vector parameter, the x component represents the smallest stride, the y component the next smallest stride, and so on.
    When passed to an array parameter, the right-most dimension has the smallest stride, the next dimension to the left has the next smallest stride, and so on.
    The x component of the vector is equivalent to the right-most dimension of the array, the y component the next dimension to the left, and so on.

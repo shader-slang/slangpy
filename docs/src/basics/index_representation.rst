@@ -25,7 +25,7 @@ Vector Coordinates (Graphics Convention)
 Vector coordinates follow the convention used in shader development and computer graphics:
 
 - **x component has smallest stride** (transposed from array convention)
-- **Indexing**: ``vector(x, y, z, ...)`` where the x component varies fastest  
+- **Indexing**: ``vector(x, y, z, ...)`` where the x component varies fastest
 - **Coordinate mapping**: Designed to align with how graphics APIs and textures naturally work
 
 This convention ensures that ``vector.x`` represents the fastest-varying dimension (like horizontal position in textures), matching how graphics developers often intuitively think about coordinates.
@@ -42,7 +42,7 @@ But ML conventions would represent a 512×128 texture as shape ``[128, 512]`` wi
 **Graphics Developer Expectations**
 Graphics developers expect vector coordinates where x represents the smallest stride. This mental model comes from working with spatial coordinates where x represents horizontal position (the fastest-varying dimension in typical memory layouts).
 
-**ML Developer Expectations**  
+**ML Developer Expectations**
 Machine learning developers are accustomed to NumPy-style indexing where the rightmost dimension has the smallest stride. Forcing them to use transposed coordinates would create unnecessary confusion and errors in ML workflows.
 
 **Solution: Support Both**
@@ -73,8 +73,8 @@ When we dispatch the same ``call_id`` generator to both functions over a 4×4 gr
     # Vector version: x component represents rightmost dimension
     res_vector = np.zeros((4, 4, 2), dtype=np.int32)
     module.myfunc_vector(spy.call_id(), _result=res_vector)
-    
-    # Array version: rightmost dimension has smallest stride  
+
+    # Array version: rightmost dimension has smallest stride
     res_array = np.zeros((4, 4, 2), dtype=np.int32)
     module.myfunc_array(spy.call_id(), _result=res_array)
 
@@ -83,17 +83,17 @@ The outputs will demonstrate the coordinate convention difference:
 .. code-block:: python
 
     # Vector result (graphics convention):
-    # [ [ [0,0], [1,0], [2,0], [3,0] ], 
+    # [ [ [0,0], [1,0], [2,0], [3,0] ],
     #   [ [0,1], [1,1], [2,1], [3,1] ], ... ]
-    
-    # Array result (ML convention):  
+
+    # Array result (ML convention):
     # [ [ [0,0], [0,1], [0,2], [0,3] ],
     #   [ [1,0], [1,1], [1,2], [1,3] ], ... ]
 
 Notice how the vector version fills the x component (first element) fastest, while the array version fills the rightmost index (second element) fastest.
 For position [row=0, col=1], the vector gets ``[1,0]`` but the array gets ``[0,1]`` - the coordinates are transposed.
 
-Example: Texture2D Sampling  
+Example: Texture2D Sampling
 ---------------------------
 
 The graphics convention is more intuitive when working with textures. Consider this Slang function that samples a texture:
@@ -106,7 +106,7 @@ The graphics convention is more intuitive when working with textures. Consider t
 
 When graphics developers work with textures, they naturally think in terms of (x, y) coordinates where:
 
-- **x represents horizontal position** (column, width dimension)  
+- **x represents horizontal position** (column, width dimension)
 - **y represents vertical position** (row, height dimension)
 - **x should be the fastest-varying dimension** for memory efficiency
 
@@ -117,10 +117,10 @@ For a 512×128 texture (512 wide, 128 tall), the vector convention aligns perfec
     # Vector coordinates: (x, y) = (column, row)
     uv_coords = np.array([
         [0.0, 0.0],    # Top-left: column 0, row 0
-        [1.0, 0.0],    # Top-right: column 511, row 0  
+        [1.0, 0.0],    # Top-right: column 511, row 0
         [0.5, 0.5]     # Center: column 255, row 64
     ], dtype=np.float32)
-    
+
     # This feels natural to graphics developers
     result = module.sample_texture(texture, sampler, uv_coords, _result='numpy')
 

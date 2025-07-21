@@ -63,7 +63,7 @@ Note that we explicitly created the numpy array ``res``. This is necessary becau
    **Vector vs Array Dimension Ordering**
 
    See :ref:`index_representation` for complete details on the differing index representation conventions between vectors and arrays.
-   
+
 .. _generators_threadid:
 
 Thread Id
@@ -93,7 +93,7 @@ The ``thread_id`` generator can be used with 1D, 2D, or 3D vectors.
 .. warning::
    **Vector vs Array Dimension Ordering**
 
-   As with the ``call_id`` generator, the convention used for thread coordinates depends on the parameter type that the ``thread_id`` generator is passed to. 
+   As with the ``call_id`` generator, the convention used for thread coordinates depends on the parameter type that the ``thread_id`` generator is passed to.
    See :ref:`index_representation` for complete details on these differing index representation conventions.
 
 Currently, SlangPy maps kernels to a 1D grid on the hardware, meaning that thread IDs will always have the form ``[X,0,0]``. This behavior may be subject to future modifications and user control.

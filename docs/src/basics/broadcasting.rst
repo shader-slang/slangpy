@@ -37,7 +37,7 @@ a `dimensionality` of 3! Instead, it has a `dimensionality` of 1, and its `shape
 
 .. note::
    **Index Representation Conventions**
-   
+
    SlangPy uses different index representation conventions for arrays and buffers than for vectors. When working with multi-dimensional data, be aware that these conventions may affect how your data is interpreted.
    See :ref:`index_representation` for complete details on the differing conventions.
 
