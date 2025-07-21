@@ -3,7 +3,7 @@
 
 from typing import Any, Optional, cast
 from numpy import ScalarType
-from slangpy import DataType, Device, BufferUsage, TypeReflection
+from slangpy import DataType, Device, BufferUsage, TypeReflection, DeviceType
 import torch
 
 from slangpy.core.native import AccessType, CallContext, CallMode, Shape
@@ -169,54 +169,75 @@ class WrappedTensorMarshall(TensorMarshall):
             raise ValueError(
                 f"Tensor shape {shape} does not match expected shape {binding.vector_type.shape}"
             )
-
         assert data.primal.is_cuda
 
-        data_type = _torch_to_data_type[self.torch_dtype]
-        temp_storage = get_or_create_storage(
-            context, data.primal.numel(), data.primal.element_size()
-        )
-        temp_storage_tensor = cast(
-            torch.Tensor,
-            temp_storage.to_torch(type=data_type, shape=shape, strides=strides),
-        )
-        temp_storage_tensor.copy_(data.primal)
+        if context.device.info.type != DeviceType.cuda:
 
-        data.temp_storage_buffer = temp_storage
-        data.temp_storage_tensor = temp_storage_tensor
+            data_type = _torch_to_data_type[self.torch_dtype]
+            temp_storage = get_or_create_storage(
+                context, data.primal.numel(), data.primal.element_size()
+            )
+            temp_storage_tensor = cast(
+                torch.Tensor,
+                temp_storage.to_torch(type=data_type, shape=shape, strides=strides),
+            )
+            temp_storage_tensor.copy_(data.primal)
 
-        temp_storage_tensor.untyped_storage().copy_(
-            data.primal.untyped_storage(), non_blocking=False
-        )
+            data.temp_storage_buffer = temp_storage
+            data.temp_storage_tensor = temp_storage_tensor
 
-        primal_calldata = {
-            "buffer": temp_storage,
-            "layout": {"offset": offset, "strides": strides},
-            "_shape": shape,
-        }
+            temp_storage_tensor.untyped_storage().copy_(
+                data.primal.untyped_storage(), non_blocking=False
+            )
+            context.device.sync_to_cuda()
 
-        if not self.d_in and not self.d_out:
-            return primal_calldata
+            primal_calldata = {
+                "buffer": temp_storage,
+                "layout": {"offset": 0, "strides": strides},
+                "_shape": shape,
+            }
 
-        result = {"primal": primal_calldata}
-        if self.d_in is not None:
-            if data.grad_in is None:
-                raise ValueError("Missing required input gradients")
-            result["d_in"] = self.d_in.create_calldata(context, binding, data.grad_in)
-        if self.d_out is not None:
-            if data.grad_out is None:
-                raise ValueError("Missing tensor to hold output gradients")
-            result["d_out"] = self.d_out.create_calldata(context, binding, data.grad_out)
+            if not self.d_in and not self.d_out:
+                return primal_calldata
 
-        if (
-            context.call_mode != CallMode.prim
-            and data.grad_in is not None
-            and data.grad_in is data.grad_out
-        ):
-            if binding.access[1] == AccessType.readwrite:
-                raise ValueError(
-                    "inout parameter gradients need separate buffers for inputs and outputs (see Tensor.with_grads)"
-                )
+            result = {"primal": primal_calldata}
+            if self.d_in is not None:
+                if data.grad_in is None:
+                    raise ValueError("Missing required input gradients")
+                result["d_in"] = self.d_in.create_calldata(context, binding, data.grad_in)
+            if self.d_out is not None:
+                if data.grad_out is None:
+                    raise ValueError("Missing tensor to hold output gradients")
+                result["d_out"] = self.d_out.create_calldata(context, binding, data.grad_out)
+
+            if (
+                context.call_mode != CallMode.prim
+                and data.grad_in is not None
+                and data.grad_in is data.grad_out
+            ):
+                if binding.access[1] == AccessType.readwrite:
+                    raise ValueError(
+                        "inout parameter gradients need separate buffers for inputs and outputs (see Tensor.with_grads)"
+                    )
+        else:
+            primal_calldata = {
+                "buffer": data.primal.data_ptr(),
+                "layout": {"offset": 0, "strides": strides},
+                "_shape": shape,
+            }
+
+            if not self.d_in and not self.d_out:
+                return primal_calldata
+
+            result = {"primal": primal_calldata}
+            if self.d_in is not None:
+                if data.grad_in is None:
+                    raise ValueError("Missing required input gradients")
+                result["d_in"] = self.d_in.create_calldata(context, binding, data.grad_in)
+            if self.d_out is not None:
+                if data.grad_out is None:
+                    raise ValueError("Missing tensor to hold output gradients")
+                result["d_out"] = self.d_out.create_calldata(context, binding, data.grad_out)
 
         return result
 
@@ -227,19 +248,21 @@ class WrappedTensorMarshall(TensorMarshall):
         data: WrappedTensor,
         result: Any,
     ):
-        assert data.primal is not None
-        assert data.temp_storage_tensor is not None
-        assert data.temp_storage_buffer is not None
-        data.primal.untyped_storage().copy_(data.temp_storage_tensor.untyped_storage())
-        return_storage(context, data.temp_storage_buffer)
-        data.temp_storage_buffer = None
-        data.temp_storage_tensor = None
-        if self.d_in is not None:
-            assert data.grad_in is not None
-            self.d_in.read_calldata(context, binding, data.grad_in, result["d_in"])
-        if self.d_out is not None:
-            assert data.grad_out is not None
-            self.d_out.read_calldata(context, binding, data.grad_out, result["d_out"])
+        if context.device.info.type != DeviceType.cuda:
+            assert data.primal is not None
+            assert data.temp_storage_tensor is not None
+            assert data.temp_storage_buffer is not None
+            context.device.sync_to_device()
+            data.primal.untyped_storage().copy_(data.temp_storage_tensor.untyped_storage())
+            return_storage(context, data.temp_storage_buffer)
+            data.temp_storage_buffer = None
+            data.temp_storage_tensor = None
+            if self.d_in is not None:
+                assert data.grad_in is not None
+                self.d_in.read_calldata(context, binding, data.grad_in, result["d_in"])
+            if self.d_out is not None:
+                assert data.grad_out is not None
+                self.d_out.read_calldata(context, binding, data.grad_out, result["d_out"])
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         # Overall shape of tensor must contain the call, plus the shape of the slang datatype
