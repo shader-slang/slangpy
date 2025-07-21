@@ -184,7 +184,7 @@ def read_ndbuffer_from_numpy(buffer: NDBuffer) -> np.ndarray:
     for i in range(shape):
         element = cursor[i].read()
         if cursor.element_type_layout.kind == TypeReflection.Kind.matrix:
-            element = element.to_numpy()
+            element = element.to_numpy()  # type: ignore
         data = np.append(data, element)
 
     return data

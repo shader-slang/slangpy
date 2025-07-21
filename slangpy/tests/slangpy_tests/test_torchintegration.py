@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from pathlib import Path
 import pytest
-from slangpy import DeviceType, Device, get_cuda_current_context_native_handles
+from slangpy import DeviceType, Device
 import sys
 
 sys.path.append(str(Path(__file__).parent))

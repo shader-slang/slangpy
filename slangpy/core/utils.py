@@ -15,7 +15,6 @@ from slangpy import (
 )
 from slangpy.reflection import SlangType
 import builtins
-import sys
 
 
 def create_device(
