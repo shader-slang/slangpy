@@ -317,6 +317,24 @@ def test_full_numpy_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
+def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]):
+    if device_type == DeviceType.cuda:
+        pytest.skip("Torch interop not supported on CUDA yet")
+
+    device = helpers.get_device(device_type, cuda_interop=True)
+    shape = (5, 4)
+
+    torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
+    usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
+    buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+
+    buffer.copy_from_torch(torch_ref)
+    buffer_to_torch = buffer.to_torch()
+    assert torch.allclose(buffer_to_torch, torch_ref)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
 def test_partial_numpy_copy(
     device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
 ):
@@ -332,6 +350,28 @@ def test_partial_numpy_copy(
 
     buffer_to_np = buffer.to_numpy()
     assert (buffer_to_np == numpy_ref).all()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
+def test_partial_torch_copy(
+    device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
+):
+    if device_type == DeviceType.cuda:
+        pytest.skip("Torch interop not supported on CUDA yet")
+
+    device = helpers.get_device(device_type, cuda_interop=True)
+    shape = (5, 4)
+
+    torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
+    usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
+    buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+
+    for i in range(shape[0]):
+        buffer[i].copy_from_torch(torch_ref[i])
+
+    buffer_to_torch = buffer.to_torch()
+    assert torch.allclose(buffer_to_torch, torch_ref)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -353,3 +393,27 @@ def test_numpy_copy_errors(
     with pytest.raises(Exception, match=r"Destination buffer view must be contiguous"):
         ndarray = np.zeros(shape, dtype=np.float32)
         buffer_view.copy_from_numpy(ndarray)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
+def test_torch_copy_errors(
+    device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
+):
+    if device_type == DeviceType.cuda:
+        pytest.skip("Torch interop not supported on CUDA yet")
+
+    device = helpers.get_device(device_type, cuda_interop=True)
+    shape = (5, 4)
+
+    usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
+    buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+
+    with pytest.raises(Exception, match=r"Numpy array is larger"):
+        tensor = torch.zeros((shape[0], shape[1] + 1), dtype=torch.float32)
+        buffer.copy_from_torch(tensor)
+
+    buffer_view = buffer.view(shape, (1, shape[0]))
+    with pytest.raises(Exception, match=r"Destination buffer view must be contiguous"):
+        tensor = torch.zeros(shape, dtype=torch.float32)
+        buffer_view.copy_from_torch(tensor)
