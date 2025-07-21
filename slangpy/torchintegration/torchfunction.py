@@ -6,14 +6,14 @@ import torch
 from slangpy.core.native import AccessType
 from slangpy.torchintegration.wrappedtensor import WrappedTensor
 from slangpy.core.function import Function, FunctionNode, IThis
-from slangpy import TypeConformance, Device
+from slangpy import TypeConformance, Device, DeviceType
 
 if TYPE_CHECKING:
     from slangpy.torchintegration.torchstruct import TorchStruct
 
 
 def check_cuda_enabled(device: Device):
-    if not device.supports_cuda_interop:
+    if not device.supports_cuda_interop and device.info.type != DeviceType.cuda:
         raise RuntimeError(
             "Cuda interop must be enabled for torch support "
             "create SGL device with Device..., enable_cuda_interop=True"
