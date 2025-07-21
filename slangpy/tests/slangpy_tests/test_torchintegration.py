@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+from pathlib import Path
 import pytest
-from slangpy import DeviceType, Device
-from . import helpers
+from slangpy import DeviceType, Device, get_cuda_current_context_native_handles
 import sys
+
+sys.path.append(str(Path(__file__).parent))
+import helpers
 
 try:
     import torch
@@ -13,8 +16,6 @@ except ImportError:
 if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 
-pytest.skip("Skipped due to sync issues / race condition with CUDA", allow_module_level=True)
-
 TEST_CODE = """
 import tensor;
 [Differentiable]
@@ -23,7 +24,7 @@ float square(float x) {
 }
 """
 
-DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES
+DEVICE_TYPES = [DeviceType.cuda]
 # Metal does not support torch integration
 if DeviceType.metal in DEVICE_TYPES:
     DEVICE_TYPES.remove(DeviceType.metal)
@@ -42,7 +43,13 @@ def get_test_tensors(device: Device, N: int = 4):
 def load_test_module(device_type: DeviceType):
     from slangpy.torchintegration import TorchModule
 
-    device = helpers.get_device(device_type, cuda_interop=True)
+    if device_type == DeviceType.cuda:
+        device = helpers.get_torch_device()
+    else:
+        torch.cuda.init()
+        torch.cuda.current_device()
+        torch.cuda.current_stream()
+        device = helpers.get_device(device_type, cuda_interop=True)
     return TorchModule.load_from_file(device, "test_torchintegration.slang")
 
 
