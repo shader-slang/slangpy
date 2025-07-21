@@ -201,26 +201,40 @@ Device::Device(const DeviceDesc& desc)
     // Create graphics queue.
     SLANG_RHI_CALL(m_rhi_device->getQueue(rhi::QueueType::Graphics, m_rhi_graphics_queue.writeRef()));
 
+    // Create global fence to synchronize command submission.
+    m_global_fence = create_fence({.shared = m_desc.enable_cuda_interop});
+
+    // Setup CUDA interop.
+    if (m_desc.enable_cuda_interop) {
+        if (m_desc.type == DeviceType::cuda) {
+            close();
+            SGL_THROW(
+                "Device type is set to CUDA, but CUDA interop is enabled. To share context with cuda (eg from PyTorch)"
+                ", pass an existing CUDA context as an existing device handle in the DeviceDesc. The current primary "
+                " CUDA context handles can be acquired with slangpy.get_cuda_current_context_native_handles."
+            );
+        }
+        if (!rhiCudaDriverApiInit()) {
+            close();
+            SGL_THROW("Failed to initialize CUDA driver API.");
+        }
+        m_cuda_device = make_ref<cuda::Device>(this);
+        {
+            SGL_CU_SCOPE(this);
+            m_cuda_semaphore = make_ref<cuda::ExternalSemaphore>(m_global_fence);
+        }
+        m_supports_cuda_interop = true;
+    }
+
+    if (m_desc.enable_print)
+        m_debug_printer = std::make_unique<DebugPrinter>(this);
+
     // Create default slang session.
     m_slang_session = create_slang_session({
         .compiler_options = m_desc.compiler_options,
         .add_default_include_paths = true,
         .cache_path = m_shader_cache_enabled ? std::optional(m_shader_cache_path) : std::nullopt,
     });
-
-    // Create global fence to synchronize command submission.
-    m_global_fence = create_fence({.shared = m_desc.enable_cuda_interop});
-
-    // Setup CUDA interop.
-    if (m_desc.enable_cuda_interop) {
-        SGL_CHECK(rhiCudaDriverApiInit(), "Failed to initialize CUDA driver API.");
-        m_cuda_device = make_ref<cuda::Device>(this);
-        m_cuda_semaphore = make_ref<cuda::ExternalSemaphore>(m_global_fence);
-        m_supports_cuda_interop = true;
-    }
-
-    if (m_desc.enable_print)
-        m_debug_printer = std::make_unique<DebugPrinter>(this);
 
     // Add device to global device list.
     {
@@ -294,6 +308,12 @@ void Device::close()
     m_slang_session.reset();
     m_hot_reload.reset();
     m_coop_vec.reset();
+
+    if (m_cuda_device) {
+        SGL_CU_SCOPE(this);
+        m_cuda_semaphore.reset();
+    }
+    m_cuda_device.reset();
 
     dec_ref();
 }
