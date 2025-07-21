@@ -24,7 +24,7 @@ float square(float x) {
 }
 """
 
-DEVICE_TYPES = [DeviceType.cuda, DeviceType.vulkan, DeviceType.d3d12]
+DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES
 # Metal does not support torch integration
 if DeviceType.metal in DEVICE_TYPES:
     DEVICE_TYPES.remove(DeviceType.metal)
