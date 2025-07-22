@@ -469,7 +469,11 @@ public:
      * \param queue Command queue to submit to.
      * \return Submission ID.
      */
-    uint64_t submit_command_buffer(CommandBuffer* command_buffer, CommandQueueType queue = CommandQueueType::graphics);
+    uint64_t submit_command_buffer(
+        CommandBuffer* command_buffer,
+        CommandQueueType queue = CommandQueueType::graphics,
+        NativeHandle cuda_stream = {}
+    );
 
     /**
      * \brief Check if a submission is finished executing.

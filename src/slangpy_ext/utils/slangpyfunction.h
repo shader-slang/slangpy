@@ -69,6 +69,9 @@ public:
         case sgl::slangpy::FunctionNodeType::uniforms:
             options->get_uniforms().append(m_data);
             break;
+        case sgl::slangpy::FunctionNodeType::cuda_stream:
+            options->set_cuda_stream(nb::cast<NativeHandle>(m_data));
+            break;
         default:
             break;
         }

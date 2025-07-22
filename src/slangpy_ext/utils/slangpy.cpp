@@ -566,14 +566,36 @@ nb::object NativeCallData::exec(
         log_debug("  Call group strides: [{}]", fmt::join(call_group_strides, ", "));
         if (is_call_shape_unaligned) {
             log_debug("  Call shape was not aligned to the given call group shape");
-            log_debug("  and has been padded up as a reult. Note that this will");
+            log_debug("  and has been padded up as a result. Note that this will");
             log_debug("  result in wasted threads.");
             log_debug("  Aligned call shape: [{}]", fmt::join(aligned_call_shape, ", "));
         }
         log_debug("  Threads: {}", total_threads);
     }
 
-    m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, command_encoder);
+    // If CUDA stream is provided, check for valid use and sync device to the cuda stream
+    NativeHandle cuda_stream = opts->get_cuda_stream();
+    if (cuda_stream.is_valid()) {
+        SGL_CHECK(command_encoder == nullptr, "Cannot specify a CUDA stream when appending to a command encoder.");
+        SGL_CHECK(
+            m_device->supports_cuda_interop() || m_device->type() == DeviceType::cuda,
+            "To specify a CUDA stream, device must be either using CUDA backend or have CUDA interop enabled."
+        );
+        m_device->sync_to_cuda(reinterpret_cast<void*>(cuda_stream.value()));
+    }
+
+    if (command_encoder == nullptr) {
+        // If we are not appending to a command encoder, we can dispatch directly.
+        m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, CommandQueueType::graphics, cuda_stream);
+    } else {
+        // If we are appending to a command encoder, we need to use the command encoder.
+        m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, command_encoder);
+    }
+
+    // If CUDA stream is provided, sync cuda stream to to the device
+    if (cuda_stream.is_valid()) {
+        m_device->sync_to_device(reinterpret_cast<void*>(cuda_stream.value()));
+    }
 
     // If command_buffer is not null, return early.
     if (command_encoder != nullptr) {

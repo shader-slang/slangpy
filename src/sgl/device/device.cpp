@@ -666,10 +666,10 @@ uint64_t Device::submit_command_buffers(
     return m_global_fence->signaled_value();
 }
 
-uint64_t Device::submit_command_buffer(CommandBuffer* command_buffer, CommandQueueType queue)
+uint64_t Device::submit_command_buffer(CommandBuffer* command_buffer, CommandQueueType queue, NativeHandle cuda_stream)
 {
     CommandBuffer* command_buffers[] = {command_buffer};
-    return submit_command_buffers(command_buffers, {}, {}, {}, {}, queue);
+    return submit_command_buffers(command_buffers, {}, {}, {}, {}, queue, cuda_stream);
 }
 
 bool Device::is_submit_finished(uint64_t id)
