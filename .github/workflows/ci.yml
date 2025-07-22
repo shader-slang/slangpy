@@ -1,6 +1,7 @@
 name: ci
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths-ignore:
@@ -21,7 +22,9 @@ on:
       - .github/workflows/wheels.yml
       - .github/workflows/ci-gcp.yml
       - .github/workflows/ci-latest-slang.yml
-  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
