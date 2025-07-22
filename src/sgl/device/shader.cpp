@@ -805,11 +805,6 @@ void SlangModule::load(SlangSessionBuild& build_data) const
     report_diagnostics(diagnostics);
     log_debug("Loading slang module \"{}\" took {}", desc.module_name, string::format_duration(timer.elapsed_s()));
 
-    // Register with debug printer.
-    if (m_session->device()->debug_printer()) {
-        ref<const ProgramLayout> layout = ProgramLayout::from_slang(ref(this), slang_module->getLayout());
-        m_session->device()->debug_printer()->add_hashed_strings(layout->hashed_strings_map());
-    }
 
     auto data = make_ref<SlangModuleData>();
 
@@ -1219,6 +1214,11 @@ void ShaderProgram::store_built_data(SlangSessionBuild& build_data)
     // Notify all registered pipelines that this program has rebuilt.
     for (auto pipeline : m_registered_pipelines)
         pipeline->notify_program_reloaded();
+
+    // Add all hashed strings from this program to debug printer.
+    if (m_device->debug_printer()) {
+        m_device->debug_printer()->add_hashed_strings(layout()->hashed_strings_map());
+    }
 }
 
 void ShaderProgram::_register_pipeline(Pipeline* pipeline)
