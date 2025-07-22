@@ -581,9 +581,16 @@ public:
     /// Set this
     void set_this(const nb::object& this_) { m_this = this_; }
 
+    /// Get the CUDA stream.
+    NativeHandle get_cuda_stream() const { return m_cuda_stream; }
+
+    /// Set the CUDA stream.
+    void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
+
 private:
     nb::list m_uniforms;
     nb::object m_this{nb::none()};
+    NativeHandle m_cuda_stream;
 };
 
 /// Defines the common logging functions for a given log level.
@@ -758,9 +765,49 @@ public:
     std::optional<std::string> lookup_value_signature(nb::handle o) override { NB_OVERRIDE(lookup_value_signature, o); }
 };
 
-nb::list unpack_args(nb::args args);
-nb::dict unpack_kwargs(nb::kwargs kwargs);
-nb::object unpack_arg(nanobind::object arg);
+class TensorRef : public Object {
+public:
+    TensorRef() = default;
+
+    TensorRef(int32_t id, const nb::ndarray<nb::pytorch>& tensor)
+        : m_id(id)
+        , m_tensor(tensor)
+    {
+    }
+
+    std::optional<nb::ndarray<nb::pytorch>> tensor() const { return m_tensor; }
+
+    void set_tensor(const std::optional<nb::ndarray<nb::pytorch>> tensor) { m_tensor = tensor; }
+
+    ref<Buffer> interop_buffer() const { return m_interop_buffer; }
+
+    void set_interop_buffer(const ref<Buffer>& interop_buffer) { m_interop_buffer = interop_buffer; }
+
+    int32_t id() const { return m_id; }
+
+    void set_id(int32_t id) { m_id = id; }
+
+    ref<TensorRef> grad_in() const { return m_grad_in; }
+    void set_grad_in(const ref<TensorRef>& grad_in) { m_grad_in = grad_in; }
+
+    ref<TensorRef> grad_out() const { return m_grad_out; }
+    void set_grad_out(const ref<TensorRef>& grad_out) { m_grad_out = grad_out; }
+
+    std::pair<AccessType, AccessType> last_access() const { return m_last_access; }
+    void set_last_access(const std::pair<AccessType, AccessType>& last_access) { m_last_access = last_access; }
+
+private:
+    int32_t m_id{-1};
+    std::optional<nb::ndarray<nb::pytorch>> m_tensor;
+    ref<Buffer> m_interop_buffer;
+    ref<TensorRef> m_grad_in;
+    ref<TensorRef> m_grad_out;
+    std::pair<AccessType, AccessType> m_last_access{AccessType::none, AccessType::none};
+};
+
+nb::list unpack_args(nb::args args, std::optional<nb::list> refs = std::optional<nb::list>());
+nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs = std::optional<nb::list>());
+nb::object unpack_arg(nanobind::object arg, std::optional<nb::list> refs = std::optional<nb::list>());
 void pack_arg(nb::object arg, nb::object unpacked_arg);
 
 void hash_signature(

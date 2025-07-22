@@ -114,6 +114,8 @@ def test_add_values(
         module[func_name](a, b, res)
     assert isinstance(res, torch.Tensor)
 
+    test = a + b
+
     compare_tensors(a + b, res)
 
     # Not much to check for backwards pass of an 'add', but call it

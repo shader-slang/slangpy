@@ -776,25 +776,25 @@ void NativeCallDataCache::get_args_signature(const ref<SignatureBuilder> builder
     }
 }
 
-nb::list unpack_args(nb::args args)
+nb::list unpack_args(nb::args args, std::optional<nb::list> refs)
 {
     nb::list unpacked;
     for (auto arg : args) {
-        unpacked.append(unpack_arg(nb::cast<nb::object>(arg)));
+        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), refs));
     }
     return unpacked;
 }
 
-nb::dict unpack_kwargs(nb::kwargs kwargs)
+nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs)
 {
     nb::dict unpacked;
     for (const auto& [k, v] : kwargs) {
-        unpacked[k] = unpack_arg(nb::cast<nb::object>(v));
+        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), refs);
     }
     return unpacked;
 }
 
-nb::object unpack_arg(nb::object arg)
+nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
 {
     auto obj = arg;
 
@@ -803,12 +803,23 @@ nb::object unpack_arg(nb::object arg)
         obj = nb::getattr(obj, "get_this")();
     }
 
+    // If object is a pytorch tensor, wrap it in a ref and export
+    if (refs.has_value()) {
+        nb::ndarray<nb::pytorch> pytorch_tensor;
+        if (nb::try_cast<nb::ndarray<nb::pytorch>>(arg, pytorch_tensor)) {
+            ref<TensorRef> tensorref = make_ref<TensorRef>((int32_t)refs->size(), pytorch_tensor);
+            auto asobj = nb::cast(tensorref);
+            refs->append(asobj);
+            return asobj;
+        }
+    }
+
     // Recursively unpack dictionaries.
     nb::dict d;
     if (nb::try_cast(obj, d)) {
         nb::dict res;
         for (auto [k, v] : d) {
-            res[k] = unpack_arg(nb::cast<nb::object>(v));
+            res[k] = unpack_arg(nb::cast<nb::object>(v), refs);
         }
         obj = res;
     }
@@ -818,7 +829,7 @@ nb::object unpack_arg(nb::object arg)
     if (nb::try_cast(obj, l)) {
         nb::list res;
         for (auto v : l) {
-            res.append(unpack_arg(nb::cast<nb::object>(v)));
+            res.append(unpack_arg(nb::cast<nb::object>(v), refs));
         }
         obj = res;
     }
@@ -879,8 +890,22 @@ SGL_PY_EXPORT(utils_slangpy)
         D_NA(slangpy, unpack_args)
     );
     slangpy.def(
+        "unpack_refs_and_args",
+        [](nb::list refs, nb::args args) { return unpack_args(args, refs); },
+        "refs"_a,
+        "args"_a,
+        D_NA(slangpy, unpack_args)
+    );
+    slangpy.def(
         "unpack_kwargs",
         [](nb::kwargs kwargs) { return unpack_kwargs(kwargs); },
+        "kwargs"_a,
+        D_NA(slangpy, unpack_kwargs)
+    );
+    slangpy.def(
+        "unpack_refs_and_kwargs",
+        [](nb::list refs, nb::kwargs kwargs) { return unpack_kwargs(kwargs, refs); },
+        "refs"_a,
         "kwargs"_a,
         D_NA(slangpy, unpack_kwargs)
     );
@@ -1360,4 +1385,43 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(CallContext, call_shape)
         )
         .def_prop_ro("call_mode", &CallContext::call_mode, D_NA(CallContext, call_mode));
+
+    nb::class_<TensorRef, Object>(slangpy, "TensorRef") //
+        .def(
+            "__init__",
+            [](TensorRef& self, int id, nb::ndarray<nb::pytorch> tensor) { new (&self) TensorRef(id, tensor); },
+            "id"_a,
+            "tensor"_a,
+            D_NA(TensorRef, TensorRef)
+        )
+        .def_prop_rw("id", &TensorRef::id, &TensorRef::set_id, nb::arg(), D_NA(TensorRef, index))
+        .def_prop_rw("tensor", &TensorRef::tensor, &TensorRef::set_tensor, nb::arg().none(), D_NA(TensorRef, tensor))
+        .def_prop_rw(
+            "interop_buffer",
+            &TensorRef::interop_buffer,
+            &TensorRef::set_interop_buffer,
+            nb::arg().none(),
+            D_NA(TensorRef, interop_buffer)
+        )
+        .def_prop_rw(
+            "grad_in",
+            &TensorRef::grad_in,
+            &TensorRef::set_grad_in,
+            nb::arg().none(),
+            D_NA(TensorRef, grad_in)
+        )
+        .def_prop_rw(
+            "grad_out",
+            &TensorRef::grad_out,
+            &TensorRef::set_grad_out,
+            nb::arg().none(),
+            D_NA(TensorRef, grad_out)
+        )
+        .def_prop_rw(
+            "last_access",
+            &TensorRef::last_access,
+            &TensorRef::set_last_access,
+            nb::arg(),
+            D_NA(TensorRef, last_access)
+        );
 }

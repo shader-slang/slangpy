@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 import torch
 
-from slangpy.core.native import AccessType
+from slangpy.core.native import AccessType, unpack_refs_and_args, unpack_refs_and_kwargs
 from slangpy.torchintegration.wrappedtensor import WrappedTensor
+from slangpy.torchintegration.torchtensormarshall import TensorRef
 from slangpy.core.function import Function, FunctionNode, IThis
-from slangpy import TypeConformance, Device, DeviceType
+from slangpy import TypeConformance, Device, DeviceType, NativeHandle
 
 if TYPE_CHECKING:
     from slangpy.torchintegration.torchstruct import TorchStruct
@@ -20,112 +21,64 @@ def check_cuda_enabled(device: Device):
         )
 
 
-def unpack_arg(arg: Any, tensors: list[torch.Tensor]) -> Any:
-    if hasattr(arg, "get_this"):
-        arg = arg.get_this()
-    if isinstance(arg, dict):
-        arg = {k: unpack_arg(v, tensors) for k, v in arg.items()}
-    if isinstance(arg, (list, tuple)):
-        arg = [unpack_arg(v, tensors) for v in arg]
-    if isinstance(arg, torch.Tensor):
-        id = len(tensors)
-        tensor = arg.contiguous()
-        tensors.append(tensor)
-        arg = WrappedTensor(id=id, primal=tensor)
-    return arg
+def populate_tensor_refs(args: list[TensorRef], tensors: tuple[torch.Tensor, ...]) -> Any:
+    for arg in args:
+        if arg.id >= 0:
+            arg.tensor = tensors[arg.id]
+        if arg.grad_in is not None and arg.grad_in.id >= 0:
+            arg.grad_in.tensor = tensors[arg.grad_in.id]
+        if arg.grad_out is not None and arg.grad_out.id >= 0:
+            arg.grad_out.tensor = tensors[arg.grad_out.id]
 
 
-def populate_tensor_refs(arg: Any, tensors: tuple[torch.Tensor, ...]) -> Any:
-    if isinstance(arg, dict):
-        arg = {k: populate_tensor_refs(v, tensors) for k, v in arg.items()}
-    if isinstance(arg, (list, tuple)):
-        arg = [populate_tensor_refs(v, tensors) for v in arg]
-    if isinstance(arg, WrappedTensor) and arg.id >= 0:
-        arg.primal = tensors[arg.id]
+def clear_tensor_refs(args: list[TensorRef]) -> Any:
+    for arg in args:
+        arg.tensor = None
         if arg.grad_in is not None:
-            arg.grad_in = populate_tensor_refs(arg.grad_in, tensors)
+            arg.grad_in.tensor = None
         if arg.grad_out is not None:
-            arg.grad_out = populate_tensor_refs(arg.grad_out, tensors)
-
-
-def clear_tensor_refs(arg: Any) -> Any:
-    if isinstance(arg, dict):
-        arg = {k: clear_tensor_refs(v) for k, v in arg.items()}
-    if isinstance(arg, (list, tuple)):
-        arg = [clear_tensor_refs(v) for v in arg]
-    if isinstance(arg, WrappedTensor) and arg.id >= 0:
-        arg.primal = None
-        if arg.grad_in is not None:
-            arg.grad_in = clear_tensor_refs(arg.grad_in)
-        if arg.grad_out is not None:
-            arg.grad_out = clear_tensor_refs(arg.grad_out)
+            arg.grad_out.tensor = None
     return arg
 
 
 def gather_and_clear_primal_tensors(
-    arg: Any,
+    args: list[TensorRef],
     primal_in_tensors: list[torch.Tensor],
     primal_out_tensors: list[torch.Tensor],
 ) -> Any:
-
-    if isinstance(arg, dict):
-        arg = {
-            k: gather_and_clear_primal_tensors(v, primal_in_tensors, primal_out_tensors)
-            for k, v in arg.items()
-        }
-    if isinstance(arg, (list, tuple)):
-        arg = [
-            gather_and_clear_primal_tensors(v, primal_in_tensors, primal_out_tensors) for v in arg
-        ]
-    if isinstance(arg, WrappedTensor) and arg.id >= 0:
-        if arg.last_access_type[0] in (AccessType.read, AccessType.readwrite):
-            assert arg.primal is not None
-            primal_in_tensors.append(arg.primal)
-        if arg.last_access_type[0] in (AccessType.write, AccessType.readwrite):
-            assert arg.primal is not None
-            primal_out_tensors.append(arg.primal)
-    return arg
+    for arg in args:
+        if arg.last_access[0] in (AccessType.read, AccessType.readwrite):
+            assert arg.tensor is not None
+            primal_in_tensors.append(arg.tensor)
+        if arg.last_access[0] in (AccessType.write, AccessType.readwrite):
+            assert arg.tensor is not None
+            primal_out_tensors.append(arg.tensor)
 
 
 def assign_primal_and_grad_tensors(
-    arg: Any,
+    args: list[TensorRef],
     all_tensors: list[torch.Tensor],
     grad_in_tensors: list[torch.Tensor],
     grad_out_tensors: list[torch.Tensor],
 ) -> Any:
-    if isinstance(arg, dict):
-        arg = {
-            k: assign_primal_and_grad_tensors(v, all_tensors, grad_in_tensors, grad_out_tensors)
-            for k, v in arg.items()
-        }
-    if isinstance(arg, (list, tuple)):
-        arg = [
-            assign_primal_and_grad_tensors(v, all_tensors, grad_in_tensors, grad_out_tensors)
-            for v in arg
-        ]
-    if isinstance(arg, WrappedTensor) and arg.id >= 0:
-        arg.primal = all_tensors[arg.id]
-        if arg.last_access_type[0] in (AccessType.read, AccessType.readwrite):
-            arg.grad_out = WrappedTensor(primal=torch.zeros_like(arg.primal))
-            grad_out_tensors.append(arg.grad_out.primal)  # type: ignore
-        if arg.last_access_type[0] in (AccessType.write, AccessType.readwrite):
-            arg.grad_in = WrappedTensor(primal=grad_in_tensors.pop(0).contiguous())
-    return arg
+    for arg in args:
+        if arg.id >= 0:
+            arg.tensor = all_tensors[arg.id]
+            if arg.last_access[0] in (AccessType.read, AccessType.readwrite):
+                arg.grad_out = TensorRef(-1, torch.zeros_like(arg.tensor))
+                grad_out_tensors.append(arg.grad_out.tensor)  # type: ignore
+            if arg.last_access[0] in (AccessType.write, AccessType.readwrite):
+                arg.grad_in = TensorRef(-1, grad_in_tensors.pop(0).contiguous())
 
 
-def alloc_gradients(arg: Any, tensors: list[Optional[torch.Tensor]]) -> Any:
-    if isinstance(arg, dict):
-        arg = {k: alloc_gradients(v, tensors) for k, v in arg.items()}
-    if isinstance(arg, (list, tuple)):
-        arg = [alloc_gradients(v, tensors) for v in arg]
-    if isinstance(arg, WrappedTensor):
-        if arg.primal is not None and arg.primal.requires_grad:
-            grad = torch.zeros_like(arg.primal)
-            arg.grad_out = WrappedTensor(grad)
+def alloc_gradients(args: list[TensorRef], tensors: list[Optional[torch.Tensor]]) -> Any:
+    for arg in args:
+        if arg.tensor is not None and arg.tensor.requires_grad:
+            grad = torch.zeros_like(arg.tensor)
+            arg.grad_out = TensorRef(-1, grad)
             tensors.append(grad)
         else:
             tensors.append(None)
-    return arg
 
 
 class TorchAutoGradFunction(torch.autograd.Function):
@@ -135,33 +88,55 @@ class TorchAutoGradFunction(torch.autograd.Function):
         spy_function: Function,
         unpacked_args: tuple[Any, ...],
         unpacked_kwargs: dict[str, Any],
-        primal_in_tensors: tuple[torch.Tensor],
-        primal_out_tensors: tuple[torch.Tensor],
-        all_tensors: tuple[torch.Tensor],
-        *tensors: torch.Tensor,
+        tensor_refs: list[TensorRef],
+        *input_tensors: torch.Tensor,
     ):
-        # Store inputs
+        # Store data
         ctx.spy_function = spy_function
         ctx.unpacked_args = unpacked_args
         ctx.unpacked_kwargs = unpacked_kwargs
+        ctx.tensor_refs = tensor_refs
 
-        # Save inputs and outputs for backwards pass then return result
+        # Save all tensors.
+        all_tensors = [x.tensor for x in tensor_refs if x.tensor is not None]
         ctx.save_for_backward(*all_tensors)
+
+        # Extract any tensors that were written to, and so should be treated as outputs
+        primal_out_tensors = [
+            cast(torch.Tensor, x.tensor)
+            for x in tensor_refs
+            if x.last_access[0] in (AccessType.write, AccessType.readwrite)
+        ]
+
+        for pt in primal_out_tensors:
+            pt.requires_grad_()
+
+        # Clear all torch tensor references (PyTorch takes over at this point, and may
+        # want to allocate new ones, so holding on to them can just cause excess memory usage)
+        clear_tensor_refs(tensor_refs)
+
+        # Return the outputs, so they get hooked into the torch auto-grad graph
         return primal_out_tensors
 
     @staticmethod
     def backward(ctx: Any, *args: torch.Tensor):
+        import pdb
+
+        pdb.set_trace()
+
         # Load parameters from context
         spy_function: Function = ctx.spy_function
         unpacked_args: tuple[Any, ...] = ctx.unpacked_args
         unpacked_kwargs: dict[str, Any] = ctx.unpacked_kwargs
+        tensor_refs: list[TensorRef] = ctx.tensor_refs
         result_out_provided = "_result" in unpacked_kwargs
-
         all_tensors = list(ctx.saved_tensors)
+
+        # Re-populate the primal tensor references and create/assign the gradient tensors
         grad_in_tensors: list[torch.Tensor] = list(args)
         grad_out_tensors: list[torch.Tensor] = []
         assign_primal_and_grad_tensors(
-            (unpacked_args, unpacked_kwargs),
+            tensor_refs,
             all_tensors,
             grad_in_tensors,
             grad_out_tensors,
@@ -172,46 +147,28 @@ class TorchAutoGradFunction(torch.autograd.Function):
         # assign_primal_and_grad_tensors function will have already set it up correctly).
         if not result_out_provided and len(grad_in_tensors) > 0:
             assert len(grad_in_tensors) == 1
-            result_grad_tensor = args[0].contiguous()
-
-            # Setup the result input tensor
-            result = WrappedTensor(ctx.saved_tensors[-1])
-            result.grad_in = WrappedTensor(result_grad_tensor)
+            result_grad_tensor = grad_in_tensors[0].contiguous()
+            result = TensorRef(-1, ctx.saved_tensors[-1])
+            result.grad_in = TensorRef(-1, result_grad_tensor)
         else:
             result_grad_tensor = None
             result = None
 
-        # Gather streams from tensors (both saved tensors + args)
-        streams: set[int] = set()
-        for tensor in all_tensors:
-            if tensor.is_cuda:
-                streams.add(torch.cuda.current_stream(tensor.device).cuda_stream)
-        for gout in grad_out_tensors:
-            if gout.is_cuda:
-                streams.add(torch.cuda.current_stream(gout.device).cuda_stream)
-        for arg in args:
-            if arg.is_cuda:
-                streams.add(torch.cuda.current_stream(arg.device).cuda_stream)
-
-        # Sync device with cuda
-        for stream in streams:
-            spy_function.module.device.sync_to_cuda(stream)
+        cuda_stream_handle = NativeHandle.from_cuda_stream(torch.cuda.current_stream().cuda_stream)
 
         # Run backwards pass
         if result is not None:
-            spy_function.bwds(*unpacked_args, **unpacked_kwargs, _result=result)
+            spy_function.cuda_stream(cuda_stream_handle).bwds(
+                *unpacked_args, **unpacked_kwargs, _result=result
+            )
         else:
-            spy_function.bwds(*unpacked_args, **unpacked_kwargs)
-
-        # Sync cuda with device
-        for stream in streams:
-            spy_function.module.device.sync_to_device(stream)
+            spy_function.cuda_stream(cuda_stream_handle).bwds(*unpacked_args, **unpacked_kwargs)
 
         # Clear the tensors after passing to the function
-        clear_tensor_refs((unpacked_args, unpacked_kwargs))
+        clear_tensor_refs(tensor_refs)
 
         # Return the gradients
-        res = (None, None, None, None, None, None) + tuple(grad_out_tensors)
+        res = (None, None, None, None) + tuple(grad_out_tensors)
         return res
 
 
@@ -220,50 +177,39 @@ class TorchFunction(torch.nn.Module):
     def __init__(self, function: FunctionNode):
         super().__init__()
         check_cuda_enabled(function.module.device)
-        self.function: FunctionNode = function.return_type(WrappedTensor)
+        self.function: FunctionNode = function.return_type(TensorRef)
 
     def forward(self, *args: Any, **kwargs: Any):
-        # Build 'unpacked' args (that handle IThis)
-        all_tensors: list[torch.Tensor] = []
-        unpacked_args = tuple([unpack_arg(x, all_tensors) for x in args])
-        unpacked_kwargs = {k: unpack_arg(v, all_tensors) for k, v in kwargs.items()}
+
+        tensor_refs = []
+        unpacked_args = unpack_refs_and_args(tensor_refs, *args)
+        unpacked_kwargs = unpack_refs_and_kwargs(tensor_refs, **kwargs)
         result_out_provided = "_result" in unpacked_kwargs
 
-        # Gather streams from tensors
-        streams: set[int] = set()
-        for tensor in all_tensors:
-            if tensor.is_cuda:
-                streams.add(torch.cuda.current_stream(tensor.device).cuda_stream)
+        cuda_stream_handle = NativeHandle.from_cuda_stream(torch.cuda.current_stream().cuda_stream)
 
-        # Sync device with cuda
-        for stream in streams:
-            self.function.module.device.sync_to_cuda(stream)
-
-        # Get the result
-        result = self.function(*unpacked_args, **unpacked_kwargs)
-
-        if isinstance(result, WrappedTensor):
-            assert result.primal is not None
-            result = result.primal
-            if result.is_cuda:
-                streams.add(torch.cuda.current_stream(result.device).cuda_stream)
-
-        # Sync cuda with device
-        for stream in streams:
-            self.function.module.device.sync_to_device(stream)
-
-        # Gather up all tensors in the arguments into in/out lists and clear references so
-        # garbage collect works properly
-        primal_in_tensors: list[torch.Tensor] = []
-        primal_out_tensors: list[torch.Tensor] = []
-        gather_and_clear_primal_tensors(
-            (unpacked_args, unpacked_kwargs), primal_in_tensors, primal_out_tensors
+        # Call the function with the unpacked args and kwargs on the current CUDA stream
+        result = self.function.cuda_stream(cuda_stream_handle).call(
+            *unpacked_args, **unpacked_kwargs
         )
 
-        # If result is a tensor, add it to the list of all and result tensors
-        if not result_out_provided and isinstance(result, torch.Tensor):
-            all_tensors.append(result)
-            primal_out_tensors.append(result)
+        # Read back torch tensor if result is TensorRef
+        if isinstance(result, TensorRef):
+            assert result.tensor is not None
+            if not result_out_provided:
+                result.id = len(tensor_refs)
+                tensor_refs.append(result)
+            result = cast(torch.Tensor, result.tensor)
+
+        # Extract all tensors that should be treated as inputs to the auto-grad function
+        # i.e. ones that SlangPy marked as 'read' or 'readwrite' during the primal call.
+        # These can then be passed as arguments to the auto-grad function so they get hooked
+        # into the torch auto-grad graph.
+        primal_in_tensors = [
+            x.tensor
+            for x in tensor_refs
+            if x.last_access[0] in (AccessType.read, AccessType.readwrite)
+        ]
 
         # Call the dummy auto-grad apply function, which critically takes the primal input list
         # as arguments and returns the primal output list as results
@@ -271,9 +217,7 @@ class TorchFunction(torch.nn.Module):
             self.function,
             unpacked_args,
             unpacked_kwargs,
-            tuple(primal_in_tensors),
-            tuple(primal_out_tensors),
-            tuple(all_tensors),
+            tensor_refs,
             *primal_in_tensors,
         )
 
