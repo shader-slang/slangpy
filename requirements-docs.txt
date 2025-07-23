@@ -1,4 +1,0 @@
-pybind11_mkdoc
-nbsphinx
-sphinx
-furo

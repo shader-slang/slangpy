@@ -12,8 +12,8 @@ required:
 
 .. tip::
 
-    You may want to consider setting up and using a Python virtual environment
-    (e.g., ``venv``) to isolate your development activities.
+    We strongly recommend using a Python virtual environment (anaconda on
+    Windows, venv on Linux)
 
 
 Cloning the repository
@@ -229,8 +229,8 @@ Updating the API Reference
 
 SlangPy uses ``pybind11_mkdoc`` to extract documentation strings from the C++
 source code. These comments are then used by ``nanobind`` to generate Python
-documentation comments. These comments are then used when building the API
-Reference document.
+documentation comments, which are in turn used when building the API Reference
+document.
 
 To run ``pybind11_mkdoc``, specify the ``pydoc`` target when invoking cmake:
 
@@ -240,7 +240,10 @@ To run ``pybind11_mkdoc``, specify the ``pydoc`` target when invoking cmake:
     pip install -r requirements-dev.txt
 
     # Install Python documentation build prerequisites
-    pip install -r requirements-docs.txt
+    pip install -r docs/requirements.txt
+
+    # Install pybind11_mkdoc
+    pip install pybind11_mkdoc
 
     # Configure
     cmake --preset windows-msvc
