@@ -160,11 +160,12 @@ command:
 
 Some additional command line build tools are also required. An easy way to
 install these is to install `brew <https://brew.sh>`_, and then use the
-following command:
+following commands:
 
 .. code-block:: bash
 
     brew install cmake ninja pkg-config git-lfs
+    git lfs install
 
 If ``git-lfs`` wasn't installed before you cloned SlangPy, you will need to use
 the following commands to retrieve and check out the files stored in LFS:
