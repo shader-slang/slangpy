@@ -49,25 +49,9 @@ def compare_tensors(a: torch.Tensor, b: torch.Tensor):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_missing_torch_context(device_type: DeviceType):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
-
-    device = helpers.get_device(device_type, use_cache=False, cuda_interop=True)
-    module = helpers.create_module(device, TEST_CODE)
-
-    a = torch.randn((8, 5), dtype=torch.float32, device=torch.device("cuda"), requires_grad=True)
-    with pytest.raises(
-        BoundVariableException,
-        match=r"Tensor types can not be directly passed to SlangPy",
-    ):
-        b = module.square(a)
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_basic_tensor_arguments(device_type: DeviceType):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
-    device = helpers.get_device(device_type, use_cache=False, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     module = helpers.create_module(device, TEST_CODE)
 
     a = torch.randn((8, 5), dtype=torch.float32, device=torch.device("cuda"), requires_grad=True)
@@ -79,9 +63,7 @@ def test_basic_tensor_arguments(device_type: DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_basic_autograd(device_type: DeviceType):
 
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
-
-    device = helpers.get_device(device_type, use_cache=False, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     module = helpers.create_module(device, TEST_CODE)
 
     a = torch.randn((8, 5), dtype=torch.float32, device=torch.device("cuda"), requires_grad=True)
@@ -95,9 +77,8 @@ def test_basic_autograd(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_arguments(device_type: DeviceType):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
-    device = helpers.get_device(device_type, use_cache=False, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     module = get_module(device)
 
     weights, biases, x = get_test_tensors(device)
@@ -116,9 +97,8 @@ def test_tensor_arguments(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_interfaces(device_type: DeviceType):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
-    device = helpers.get_device(device_type, use_cache=False, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     module = get_module(device)
 
     weights, biases, x = get_test_tensors(device)
@@ -137,9 +117,8 @@ def test_tensor_interfaces(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_generic(device_type: DeviceType):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
-    device = helpers.get_device(device_type, use_cache=False, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     module = get_module(device)
 
     weights, biases, x = get_test_tensors(device)

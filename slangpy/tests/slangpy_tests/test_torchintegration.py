@@ -61,12 +61,12 @@ def compare_tensors(a: torch.Tensor, b: torch.Tensor):
 @pytest.mark.parametrize(
     "pair",
     [
-        (torch.empty((1,), dtype=torch.float32), "D1,C2,B32,L1,G0"),
-        (torch.empty((1,), dtype=torch.float32, requires_grad=True), "D1,C2,B32,L1,G1"),
-        (torch.empty((1,), dtype=torch.float16), "D1,C2,B16,L1,G0"),
-        (torch.empty((1,), dtype=torch.int32), "D1,C0,B32,L1,G0"),
-        (torch.empty((1,), dtype=torch.uint8), "D1,C1,B8,L1,G0"),
-        (torch.empty((1, 1, 1), dtype=torch.uint8), "D3,C1,B8,L1,G0"),
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,C2,B32,L1,G0"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,C2,B32,L1,G1"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,C2,B16,L1,G0"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,C0,B32,L1,G0"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,C1,B8,L1,G0"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,C1,B8,L1,G0"),
     ],
 )
 def test_torch_signature(pair: tuple[torch.Tensor, str]):
@@ -96,7 +96,6 @@ def test_add_values(
     func_and_shape: tuple[str, tuple[int]],
     result_mode: str,
 ):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -146,7 +145,6 @@ def test_add_values(
 def test_add_values_fail(
     device_type: DeviceType, extra_dims: int, func_and_shape: tuple[str, tuple[int]]
 ):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -171,8 +169,6 @@ def test_add_values_fail(
 def test_add_vectors_generic_explicit(device_type: DeviceType, extra_dims: int):
     pytest.skip("Crashes due to slang bug")
 
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
-
     module = load_test_module(device_type)
 
     extra_shape = (5,) * extra_dims
@@ -189,7 +185,6 @@ def test_add_vectors_generic_explicit(device_type: DeviceType, extra_dims: int):
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_polynomial(device_type: DeviceType):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -210,7 +205,6 @@ def test_polynomial(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_polynomial_outparam(device_type: DeviceType):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -251,7 +245,6 @@ def test_polynomials(
     func_and_shape: tuple[str, tuple[int]],
     result_mode: str,
 ):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -296,7 +289,6 @@ def test_polynomials(
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("extra_dims", [0, 1, 3])
 def test_add_tensors(device_type: DeviceType, extra_dims: int):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 

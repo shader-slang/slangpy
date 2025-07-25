@@ -55,19 +55,22 @@ def run_tensor_race_condition_tests(
     torch.cuda.current_stream()
 
     initial_handles = spy.get_cuda_current_context_native_handles()
+    handles = spy.get_cuda_current_context_native_handles()
 
     if share_context:
         # Access torch device+stream once to ensure cuda context is initialized,
         # then request the current context handles from slangpy and init device with
         # those handles. This ensures we are using the same context as torch.
-        handles = spy.get_cuda_current_context_native_handles()
         device = helpers.get_device(
             spy.DeviceType.cuda, use_cache=False, existing_device_handles=handles
         )
         logger.info(f"Using device '{device.info.adapter_name}' with shared context")
     else:
         # Create a new device without sharing context
-        device = helpers.get_device(spy.DeviceType.cuda, use_cache=False)
+        handles[1] = spy.NativeHandle()  # clear context so only device handle is shared
+        device = helpers.get_device(
+            spy.DeviceType.cuda, use_cache=False, existing_device_handles=handles
+        )
         logger.info(f"Using device '{device.info.adapter_name}' with new context")
 
     # Create a nice big tensor to make gpu jobs take long enough to see race conditions.
