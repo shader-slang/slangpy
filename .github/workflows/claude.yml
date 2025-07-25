@@ -1,0 +1,369 @@
+name: ClaudeCode - SlangPy Assistant
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+  id-token: write
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ vars.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  claude:
+    name: Claude Code Assistant
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude')))
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    # Cancel previous runs on new pushes
+    concurrency:
+      group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: true
+
+    steps:
+      # Setup and environment preparation
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 2 # fetch minimal history for git context
+
+      - name: Cleanup submodules # Fix for https://github.com/actions/checkout/issues/358
+        run: |
+          git submodule foreach --recursive git clean -ffdx
+          git submodule foreach --recursive git reset --hard
+
+      - name: Setup Linux Dependencies
+        run: |
+          set -euo pipefail
+          echo "🏗️ Setting up Linux dependencies..."
+          sudo apt-get update
+          sudo apt-get install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+
+      - name: Setup Python Environment
+        run: |
+          set -euo pipefail
+          echo "🐍 Setting up Python environment..."
+          python -m pip install -r requirements-dev.txt
+          python -m pip install pytest-github-actions-annotate-failures
+
+      - name: Setup CMake/Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Setup and Configure SlangPy
+        run: |
+          set -euo pipefail
+          echo "🏗️ Setting up and configuring SlangPy..."
+
+          # Setup
+          python tools/ci.py setup
+
+          # Configure
+          python tools/ci.py configure
+
+          # Build
+          python tools/ci.py build
+
+          echo "✅ SlangPy setup completed"
+
+      # Validate environment and dependencies
+      - name: Validate Environment
+        run: |
+          set -euo pipefail
+
+          # Check required secrets
+          if [ -z "${{ secrets.LLMGW_ID }}" ] || [ -z "${{ secrets.LLMGW_SECRET }}" ] || [ -z "${{ secrets.LLMGW_TOKEN_URL }}" ]; then
+            echo "::error::Missing required secrets: LLMGW_ID or LLMGW_SECRET or LLMGW_TOKEN_URL"
+            exit 1
+          fi
+
+          # Install required tools
+          command -v jq >/dev/null 2>&1 || { echo "::error::jq is required but not installed"; exit 1; }
+          command -v curl >/dev/null 2>&1 || { echo "::error::curl is required but not installed"; exit 1; }
+
+          echo "✅ Environment validation passed"
+
+      # Generate custom auth token and set as environment variable
+      - name: Generate Custom Auth Token
+        id: auth-token
+        env:
+          LLMGW_TOKEN_URL: ${{ secrets.LLMGW_TOKEN_URL }}
+        run: |
+          set -euo pipefail
+
+          echo "🔐 Generating authentication token..."
+
+          # Set up error handling
+          cleanup() {
+            local exit_code=$?
+            echo "🧹 Cleaning up temporary files..."
+            rm -f /tmp/token_response.json 2>/dev/null || true
+            if [ $exit_code -ne 0 ]; then
+              echo "::error::Authentication failed - check your credentials and endpoint"
+            fi
+            exit $exit_code
+          }
+          trap cleanup EXIT
+
+          # Generate token with comprehensive error handling
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/token_response.json --fail-with-body \
+            --max-time 30 \
+            --retry 3 \
+            --retry-delay 2 \
+            --location "${{ env.LLMGW_TOKEN_URL }}" \
+            --header 'Content-Type: application/x-www-form-urlencoded' \
+            --header "Authorization: Basic $(echo -n ${{ secrets.LLMGW_ID }}:${{ secrets.LLMGW_SECRET }} | base64 -w0)" \
+            --data-urlencode 'grant_type=client_credentials' \
+            --data-urlencode 'scope=awsanthropic-readwrite azureopenai-readwrite' \
+            2>/dev/null)
+
+          # Check HTTP response code
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Authentication failed with HTTP code: $HTTP_CODE"
+            if [ -f /tmp/token_response.json ]; then
+              echo "::error::Response: $(cat /tmp/token_response.json | head -c 200)"
+            fi
+            exit 1
+          fi
+
+          # Extract and validate token
+          if [ ! -f /tmp/token_response.json ]; then
+            echo "::error::No response file generated"
+            exit 1
+          fi
+
+          ANTHROPIC_AUTH_TOKEN=$(jq -r '.access_token // empty' /tmp/token_response.json 2>/dev/null)
+
+          # Validate token format and length
+          if [ -z "$ANTHROPIC_AUTH_TOKEN" ] || [ "$ANTHROPIC_AUTH_TOKEN" = "null" ]; then
+            echo "::error::Failed to extract access token from response"
+            exit 1
+          fi
+
+          # Basic token validation
+          if [ ${#ANTHROPIC_AUTH_TOKEN} -lt 10 ]; then
+            echo "::error::Token appears to be too short (${#ANTHROPIC_AUTH_TOKEN} characters)"
+            exit 1
+          fi
+
+          # CRITICAL: Mask the token BEFORE any output
+          echo "::add-mask::$ANTHROPIC_AUTH_TOKEN"
+
+          # Set as environment variable for subsequent steps
+          echo "ANTHROPIC_AUTH_TOKEN=$ANTHROPIC_AUTH_TOKEN" >> $GITHUB_ENV
+
+          # Set token expiry if available
+          TOKEN_EXPIRES=$(jq -r '.expires_in // empty' /tmp/token_response.json 2>/dev/null)
+          if [ -n "$TOKEN_EXPIRES" ]; then
+            echo "::add-mask::$TOKEN_EXPIRES"
+            echo "token-expires=$TOKEN_EXPIRES" >> $GITHUB_OUTPUT
+          fi
+
+          echo "✅ Authentication token generated and masked successfully"
+
+          # Clean up response file
+          rm -f /tmp/token_response.json
+
+      # Generate GitHub App token for better GitHub API access
+      - name: Generate GitHub App Token
+        id: github-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+        continue-on-error: true
+
+      # Set up fallback authentication
+      - name: Configure Authentication
+        id: auth-config
+        run: |
+          set -euo pipefail
+
+          # Use GitHub App token if available, otherwise use GITHUB_TOKEN
+          if [ -n "${{ steps.github-token.outputs.token }}" ]; then
+            echo "github-token=${{ steps.github-token.outputs.token }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GitHub App authentication"
+          else
+            echo "github-token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️  Using fallback GITHUB_TOKEN authentication"
+          fi
+
+      # Run Claude Code Action with optimized environment variables
+      - name: Execute Claude Code Action # Right now direct prompt to automatic PR Review
+        id: claude-action
+        uses: anthropics/claude-code-action@v0.0.31
+        with:
+          # Direct Prompt is for testing. We shall use the triggers (on) which shall trigger this part on runtime
+          custom_instructions: |
+            # SlangPy Build System Information:
+            - OS: Ubuntu Linux
+            - Build commands (use tools/ci.py for all tasks):
+              * Setup: `python tools/ci.py setup`
+              * Configure: `python tools/ci.py configure`
+              * Build: `python tools/ci.py build`
+              * Python Tests: `python tools/ci.py unit-test-python -p` or `pytest slangpy/tests -ra`
+              * C++ Tests: `python tools/ci.py unit-test-cpp`
+              * Example Tests: `python tools/ci.py test-examples -p` or `pytest samples/tests -vra`
+              * Type Checking: `python tools/ci.py typing-check-python` or `pyright`
+              * Format code: `pre-commit run --all-files` or `black . --line-length 100`
+            - Project is pre-built and ready for development tasks
+            - Use pre-commit hooks for code formatting before committing changes
+
+            # SlangPy Architecture Overview:
+            SlangPy is a cross-platform Python library enabling GPU shader execution with three layers:
+            1. **Python Layer** (`slangpy/`): High-level Module, Function, Device classes
+            2. **C++ Binding Layer** (`src/slangpy_ext/`): Nanobind-based Python-C++ interface
+            3. **Core SGL Layer** (`src/sgl/`): Low-level GPU abstraction and shader compilation
+
+            Key components:
+            - **Module**: Container for Slang shader code (.slang files)
+            - **Function**: Callable GPU functions with automatic marshalling
+            - **Device**: GPU context managing resources and compute dispatch
+            - **Buffer/Texture**: GPU memory with Python array interface
+
+            # CRITICAL: You have access to the mcp__deepwiki__ask_question tool for deep repository knowledge.
+
+              **How to use this tool effectively:**
+              - Use repoName: "shader-slang/slangpy" for all queries about SlangPy
+              - Use repoName: "shader-slang/slang" for queries about the underlying Slang compiler
+              - Ask specific technical questions about architecture, patterns, or implementation approaches
+              - Examples: "How does SlangPy handle PyTorch tensor integration?" or "What's the pattern for adding new GPU backends?"
+              - Use responses to understand existing patterns before implementing changes
+
+              **Implementation Guidelines:**
+              - Always follow existing code patterns and architectural decisions discovered through deepwiki
+              - Consult the tool when you need context about unfamiliar parts of the codebase
+              - Use CMake presets for platform-specific builds (windows-msvc, linux-gcc, macos-arm64-clang)
+
+            # Development Best Practices:
+              - Use `python tools/ci.py` for all build/test operations
+              - PyTorch integration is automatic when available
+              - Hot-reload is supported for shader development
+              - Pre-commit hooks enforce formatting (Black for Python, clang-format for C++)
+
+          mcp_config: |
+            {
+              "mcpServers": {
+                "deepwiki": {
+                  "type": "sse",
+                  "url": "https://mcp.deepwiki.com/sse"
+                }
+              }
+            }
+          allowed_tools: "Bash,View,GlobTool,GrepTool,BatchTool,Write,mcp__deepwiki__ask_question"
+          trigger_phrase: "@claude"
+          assignee_trigger: "claude"
+          timeout_minutes: "600"
+          github_token: ${{ steps.auth-config.outputs.github-token }}
+          use_bedrock: "true"
+          model: ${{ vars.ANTHROPIC_MODEL }}
+          max_turns: "50000"
+          # Use claude_env for custom environment variables
+          claude_env: |
+            ANTHROPIC_BEDROCK_BASE_URL: ${{ vars.ANTHROPIC_BEDROCK_BASE_URL }}
+            ANTHROPIC_SMALL_FAST_MODEL: ${{ vars.ANTHROPIC_SMALL_FAST_MODEL }}
+            AWS_REGION: ${{ vars.AWS_REGION }}
+            GITHUB_REPOSITORY: ${{ github.repository }}
+            GITHUB_EVENT_NAME: ${{ github.event_name }}
+            GITHUB_ACTOR: ${{ github.actor }}
+            ANTHROPIC_AUTH_TOKEN: ${{ env.ANTHROPIC_AUTH_TOKEN }}
+            DISABLE_TELEMETRY: 1
+
+        # The ANTHROPIC_API_KEY environment variable is automatically picked up
+        continue-on-error: true
+
+      # Handle action results and errors
+      - name: Handle Action Results
+        if: always()
+        run: |
+          set -euo pipefail
+
+          # Check if Claude action succeeded
+          if [ "${{ steps.claude-action.outcome }}" = "success" ]; then
+            echo "✅ Claude Code action completed successfully"
+
+            # Optional: Add success comment to PR/issue
+            if [ -n "${{ github.event.issue.number || github.event.pull_request.number }}" ]; then
+              echo "Claude has successfully processed your request! 🎉" >> /tmp/comment.md
+              echo "<!-- Claude-success -->" >> /tmp/comment.md
+            fi
+
+          elif [ "${{ steps.claude-action.outcome }}" = "failure" ]; then
+            echo "❌ Claude Code action failed"
+
+            # Create error comment for debugging
+            cat > /tmp/error_comment.md << 'EOF'
+          ## Claude Code Action Failed ❌
+
+          The Claude Code action encountered an error. This could be due to:
+          - Network connectivity issues
+          - Authentication problems
+          - Model availability issues
+          - Rate limiting
+
+          Please check the workflow logs for more details and try again.
+
+          <!-- Claude-error -->
+          EOF
+
+          else
+            echo "⚠️  Claude Code action was cancelled or skipped"
+          fi
+
+      # Security cleanup
+      - name: Security Cleanup
+        if: always()
+        run: |
+          set -euo pipefail
+
+          echo "🧹 Performing security cleanup..."
+
+          # Clear any temporary files that might contain sensitive data
+          find /tmp -name "*token*" -type f -delete 2>/dev/null || true
+          find /tmp -name "*auth*" -type f -delete 2>/dev/null || true
+          find /tmp -name "*response*" -type f -delete 2>/dev/null || true
+
+          # Clear environment variables (belt and suspenders approach)
+          unset ANTHROPIC_API_KEY 2>/dev/null || true
+          unset ANTHROPIC_AUTH_TOKEN 2>/dev/null || true
+
+          echo "✅ Security cleanup completed"
+
+      # Workflow summary
+      - name: Workflow Summary
+        if: always()
+        run: |
+          echo "## Claude Code Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Actor**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Auth Token**: ✅ Generated" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Token**: ${{ steps.github-token.outcome == 'success' && '✅ GitHub App' || '⚠️ Fallback' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Claude Action**: ${{ steps.claude-action.outcome == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Model Used**: ${{ vars.ANTHROPIC_MODEL || 'default' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
