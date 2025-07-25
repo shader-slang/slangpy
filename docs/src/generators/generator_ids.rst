@@ -33,7 +33,7 @@ We can invoke this function and pass it the ``call_id`` generator as follows:
 
 The ``call_id`` generator provides the grid coordinate of the current thread. As a result, each entry in the numpy array is populated with its corresponding grid coordinate.
 
-In this case, where the call id was passed to a vector type (``int2``), the x component represents the right-most dimension, the y component the next dimension to the left, and so on. As a result, the pixel on row 0, column 1 has been passed the vector value ``int2(1,0)``. This behaviour is consistent throughout SlangPy, and is designed to make
+In this case, where the call id was passed to a vector type (``int2``), the x component represents the right-most dimension, the y component the next dimension to the left, and so on. As a result, the pixel on row 0, column 1 has been passed the vector value ``int2(1,0)``. This behaviour for vectors is consistent throughout SlangPy, and is designed to make
 vector based indices map intuitively to how we think about coordinates within an image.
 
 Alternatively, we could invoke the following function with the same arguments:
@@ -44,7 +44,7 @@ Alternatively, we could invoke the following function with the same arguments:
         return int2(value[0],value[1]);
     }
 
-Now that the coordinates are represented as an array, they fall back to the standard ordering in which the last dimension (in this case, D1) is the right most dimension. This means that the pixel on row 0, column 1 would be passed the array value ``[0,1]``. Consequentially, the output is transposed:
+Now that the coordinates are represented as an array, they fall back to the standard (for ML) ordering in which the last dimension (in this case, D1) is the right most dimension. This means that the pixel on row 0, column 1 would be passed the array value ``[0,1]``. Consequentially, the output is transposed:
 
 .. code-block:: python
 
@@ -58,6 +58,11 @@ Now that the coordinates are represented as an array, they fall back to the stan
 When using ``call_id``, ensure that the parameter type matches the dimensionality of the dispatch. In this example, since the dispatch was a 2D kernel, the parameter was an ``int2``.
 
 Note that we explicitly created the numpy array ``res``. This is necessary because the ``call_id`` generator does not define any inherent shape. Without a predefined 4x4 container, SlangPy would have no way to infer the intended dispatch size.
+
+.. note::
+   **Vector vs Array Dimension Ordering**
+
+   See :ref:`index_representation` for complete details on the differing index representation conventions between vectors and arrays.
 
 .. _generators_threadid:
 
@@ -84,5 +89,11 @@ Passing ``thread_id`` returns the 3D dispatch thread ID for each call:
     print(res)
 
 The ``thread_id`` generator can be used with 1D, 2D, or 3D vectors.
+
+.. warning::
+   **Vector vs Array Dimension Ordering**
+
+   As with the ``call_id`` generator, the convention used for thread coordinates depends on the parameter type that the ``thread_id`` generator is passed to.
+   See :ref:`index_representation` for complete details on these differing index representation conventions.
 
 Currently, SlangPy maps kernels to a 1D grid on the hardware, meaning that thread IDs will always have the form ``[X,0,0]``. This behavior may be subject to future modifications and user control.
