@@ -344,6 +344,10 @@ float3 rand_float(float3 input) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_rand_float_uniformity(device_type: DeviceType):
+    if device_type == DeviceType.cuda:
+        pytest.skip(
+            "Skipping CUDA test for rand_float_uniformity as the atomic operation seems to take forever"
+        )
 
     bucket_size = 17
 

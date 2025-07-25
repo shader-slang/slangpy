@@ -60,8 +60,6 @@ def test_id(request: Any):
 
 
 # Helper to get device of a given type
-
-
 def get_device(
     type: DeviceType,
     use_cache: bool = True,
@@ -81,11 +79,21 @@ def get_device(
             "Please set use_cache=False if you want to use existing_device_handles."
         )
 
+    selected_adaptor_luid = None
+    if existing_device_handles is None:
+        adaptors = Device.enumerate_adapters(type)
+        selected_adaptor_luid = adaptors[0].luid
+        for adapter in adaptors:
+            if "5090" in adapter.name:
+                selected_adaptor_luid = adapter.luid
+                break
+
     cache_key = (type, cuda_interop)
     if use_cache and cache_key in DEVICE_CACHE:
         return DEVICE_CACHE[cache_key]
     device = Device(
         type=type,
+        adapter_luid=selected_adaptor_luid,
         enable_debug_layers=True,
         compiler_options=SlangCompilerOptions(
             {
@@ -109,10 +117,30 @@ def get_device(
     return device
 
 
+TORCH_DEVICES: dict[str, Device] = {}
+
+
+# Helper that gets a device that wraps the current torch cuda context.
+# This is useful for testing the torch integration.
+def get_torch_device(type: DeviceType = DeviceType.cuda) -> Device:
+    import torch
+
+    torch.cuda.init()
+    torch.cuda.current_device()
+    torch.cuda.current_stream()
+
+    id = f"torch-{torch.cuda.current_device()}-{type}"
+    if id in TORCH_DEVICES:
+        return TORCH_DEVICES[id]
+
+    handles = slangpy.get_cuda_current_context_native_handles()
+    device = get_device(type, use_cache=False, existing_device_handles=handles, cuda_interop=True)
+    TORCH_DEVICES[id] = device
+    return device
+
+
 # Helper that creates a module from source (if not already loaded) and returns
 # the corresponding slangpy module.
-
-
 def create_module(
     device: Device,
     module_source: str,
@@ -168,7 +196,7 @@ def read_ndbuffer_from_numpy(buffer: NDBuffer) -> np.ndarray:
     for i in range(shape):
         element = cursor[i].read()
         if cursor.element_type_layout.kind == TypeReflection.Kind.matrix:
-            element = element.to_numpy()
+            element = element.to_numpy()  # type: ignore
         data = np.append(data, element)
 
     return data

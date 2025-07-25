@@ -152,10 +152,14 @@ void Buffer::unmap() const
 
 void* Buffer::cuda_memory() const
 {
-    SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
-    if (!m_cuda_memory)
-        m_cuda_memory = make_ref<cuda::ExternalMemory>(this);
-    return m_cuda_memory->mapped_data();
+    if (m_device->type() == DeviceType::cuda) {
+        return reinterpret_cast<void*>(device_address());
+    } else {
+        SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
+        if (!m_cuda_memory)
+            m_cuda_memory = make_ref<cuda::ExternalMemory>(this);
+        return m_cuda_memory->mapped_data();
+    }
 }
 
 void Buffer::set_data(const void* data, size_t size, DeviceOffset offset)

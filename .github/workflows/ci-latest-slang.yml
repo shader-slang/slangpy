@@ -65,6 +65,12 @@ jobs:
           python -m pip install -r requirements-dev.txt
           python -m pip install pytest-github-actions-annotate-failures
 
+      # Setup PyTorch environment
+      - name: Setup PyTorch environment
+        if: runner.os != 'macos' && contains(matrix.flags, 'unit-test')
+        run: |
+          python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
       # Setup MSVC.
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
