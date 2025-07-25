@@ -22,6 +22,7 @@ def test_print(device_type: spy.DeviceType):
     # print("result:", result)
     expected = {
         spy.DeviceType.d3d12: """Hello World!
+This is Print from Another Module: 7
 0
 01
 012
@@ -55,6 +56,7 @@ uint4x3: {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}}
 float3x3: {{-4.00, -3.00, -1.00}, {+0.00, +1.00, +2.00}, {+3.00, +4.00, +5.00}}
 """,
         spy.DeviceType.vulkan: """Hello World!
+This is Print from Another Module: 7
 0
 01
 012
@@ -89,6 +91,7 @@ float64_tX: {999999995904, 1999999991808} {2999999987712, 3999999983616, 4999999
 float3x3: {{-4.00, -3.00, -1.00}, {+0.00, +1.00, +2.00}, {+3.00, +4.00, +5.00}}
 """,
         spy.DeviceType.metal: """Hello World!
+This is Print from Another Module: 7
 0
 01
 012
@@ -119,6 +122,7 @@ float32_tX: {-4000000, -3000000} {-2000000, -1000000, 0} {1000000, 2000000, 3000
 float3x3: {{-4.00, -3.00, -1.00}, {+0.00, +1.00, +2.00}, {+3.00, +4.00, +5.00}}
 """,
         spy.DeviceType.cuda: """Hello World!
+This is Print from Another Module: 7
 0
 01
 012

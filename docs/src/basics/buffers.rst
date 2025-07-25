@@ -8,6 +8,14 @@ The ``NDBuffer`` type takes a structured buffer with a defined stride and size a
 - **Data type**: A ``SlangType``, which can be a primitive type (e.g., float, vector) or a user-defined Slang struct.
 - **Shape**: A tuple of integers describing the size of each dimension, similar to the shape of a NumPy array or Torch tensor.
 
+.. warning::
+   **Buffer Indexing Conventions**
+
+   Multi-dimensional buffers store data using the convention where the right-most dimension has the smallest stride.
+   However, buffers can be indexed using either array coordinates, which follow the same convention, or vector coordinates, which follow a different convention where the x component has the smallest stride.
+   This means the same buffer position requires different coordinate values: e.g. for a 2D buffer, array indexing uses `[row, col]` while vector indexing uses `(col, row)` for the same location.
+   See :ref:`index_representation` for complete details on these differing index representation conventions.
+
 Let's start with a simple Slang program that uses a custom type:
 
 .. code-block::

@@ -35,6 +35,12 @@ In effect, `dimensionality` is equal to the length of the `shape` tuple.
 Note: For those new to broadcasting, a common point of confusion is that a `3D vector` does **not** have
 a `dimensionality` of 3! Instead, it has a `dimensionality` of 1, and its `shape` is (3,).
 
+.. note::
+   **Index Representation Conventions**
+
+   SlangPy uses different index representation conventions for arrays and buffers than for vectors. When working with multi-dimensional data, be aware that these conventions may affect how your data is interpreted.
+   See :ref:`index_representation` for complete details on the differing conventions.
+
 Broadcasting with single floats
 -------------------------------
 

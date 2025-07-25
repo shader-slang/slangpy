@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import sgl.device.print;
+import test_print_module2;
 
 [shader("compute")]
 [numthreads(1, 1, 1)]
@@ -8,6 +9,9 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
 {
     // print supports strings only
     print("Hello World!");
+
+    // Test check if strings from modules linked via `import` are handled correctly.
+    print_from_another_module(7);
 
     // print supports up to 8 arguments
     print("{}", 0);
