@@ -77,12 +77,13 @@ def get_or_create_storage(context: CallContext, element_count: int, struct_size:
 
 
 def return_storage(context: CallContext, buffer: Buffer):
-    value = (
-        context.device,
-        buffer.desc.size // buffer.desc.struct_size,
-        buffer.struct_size,
-    )
-    GLOBAL_STORAGE[value].append(buffer)
+    # value = (
+    #    context.device,
+    #    buffer.desc.size // buffer.desc.struct_size,
+    #    buffer.struct_size,
+    # )
+    # GLOBAL_STORAGE[value].append(buffer)
+    pass
 
 
 class TensorRefMarshall(TensorMarshall):

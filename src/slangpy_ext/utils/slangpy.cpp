@@ -11,6 +11,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/kernel.h"
 #include "sgl/device/command.h"
+#include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
 #include "utils/slangpy.h"
 #include "utils/slangpyvalue.h"
@@ -28,6 +29,9 @@ buffer_to_torch(Buffer* self, DataType type, std::vector<size_t> shape, std::vec
 
 namespace sgl::slangpy {
 
+static constexpr std::array<char, 16> HEX_CHARS
+    = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
 void SignatureBuilder::add(const std::string& value)
 {
     add_bytes((const uint8_t*)value.data(), (int)value.length());
@@ -36,6 +40,23 @@ void SignatureBuilder::add(const char* value)
 {
     add_bytes((const uint8_t*)value, (int)strlen(value));
 }
+void SignatureBuilder::add(const uint32_t value)
+{
+    uint8_t buffer[8];
+    for (int i = 0; i < 8; ++i) {
+        buffer[7 - i] = HEX_CHARS[(value >> (i * 4)) & 0xF];
+    }
+    add_bytes(buffer, 8);
+}
+void SignatureBuilder::add(const uint64_t value)
+{
+    uint8_t buffer[16];
+    for (int i = 0; i < 16; ++i) {
+        buffer[15 - i] = HEX_CHARS[(value >> (i * 4)) & 0xF];
+    }
+    add_bytes(buffer, 8);
+}
+
 
 nb::bytes SignatureBuilder::bytes() const
 {
@@ -754,6 +775,22 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         return;
     }
 
+    // Signature for pytorch tensors
+    {
+        nb::ndarray<nb::pytorch> pytorch_tensor;
+        if (nb::try_cast<nb::ndarray<nb::pytorch>>(o, pytorch_tensor)) {
+            *builder << fmt::format(
+                "[torch,D{},C{},B{},L{},G{}]",
+                pytorch_tensor.ndim(),
+                pytorch_tensor.dtype().code,
+                pytorch_tensor.dtype().bits,
+                pytorch_tensor.dtype().lanes,
+                nb::cast<bool>(nb::getattr(o, "requires_grad")) ? 1 : 0
+            );
+            return;
+        }
+    }
+
     // If x is a dictionary get signature of its children.
     nb::dict dict;
     if (nb::try_cast(o, dict)) {
@@ -1185,14 +1222,24 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallRuntimeOptions::get_uniforms,
             &NativeCallRuntimeOptions::set_uniforms,
             D_NA(NativeCallRuntimeOptions, uniforms)
+        )
+        .def_prop_rw(
+            "cuda_stream",
+            &NativeCallRuntimeOptions::get_cuda_stream,
+            &NativeCallRuntimeOptions::set_cuda_stream,
+            D_NA(NativeCallRuntimeOptions, cuda_stream)
         );
 
     // clang-format off
 #define DEF_LOG_METHOD(name) def(#name, [](NativeCallData& self, const std::string_view msg) { self.name(msg); }, "msg"_a)
     // clang-format on
 
-    nb::class_<NativeCallData, Object>(slangpy, "NativeCallData") //
-        .def(nb::init<>(), D_NA(NativeCallData, NativeCallData))
+    nb::class_<NativeCallData, PyNativeCallData, Object>(slangpy, "NativeCallData") //
+        .def(
+            "__init__",
+            [](NativeCallData& self) { new (&self) PyNativeCallData(); },
+            D_NA(NativeCallData, NativeCallData)
+        )
         .def_prop_rw("device", &NativeCallData::get_device, &NativeCallData::set_device, D_NA(NativeCallData, device))
         .def_prop_rw("kernel", &NativeCallData::get_kernel, &NativeCallData::set_kernel, D_NA(NativeCallData, kernel))
         .def_prop_rw(
@@ -1244,6 +1291,14 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg("kwargs"),
             D_NA(NativeCallData, append_to)
         )
+        .def(
+            "_py_torch_call",
+            &NativeCallData::_py_torch_call,
+            nb::arg("opts"),
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            D_NA(NativeCallData, _py_torch_call)
+        )
         .def_prop_rw(
             "call_group_shape",
             &NativeCallData::get_call_group_shape,
@@ -1251,6 +1306,21 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg().none(),
             D_NA(NativeCallData, call_group_shape)
         )
+        .def_prop_rw(
+            "torch_integration",
+            &NativeCallData::is_torch_integration,
+            &NativeCallData::set_torch_integration,
+            nb::arg(),
+            D_NA(NativeCallData, torch_integration)
+        )
+        .def_prop_rw(
+            "torch_autograd",
+            &NativeCallData::is_torch_autograd,
+            &NativeCallData::set_torch_autograd,
+            nb::arg(),
+            D_NA(NativeCallData, torch_autograd)
+        )
+
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))
         .DEF_LOG_METHOD(log_debug)
         .DEF_LOG_METHOD(log_info)

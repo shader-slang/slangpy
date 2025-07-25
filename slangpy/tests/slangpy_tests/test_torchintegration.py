@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from pathlib import Path
 import pytest
-from slangpy import DeviceType, Device
+from slangpy import DeviceType, Device, Module
+from slangpy.core.native import NativeCallDataCache, SignatureBuilder
 import sys
 
 sys.path.append(str(Path(__file__).parent))
@@ -41,8 +42,6 @@ def get_test_tensors(device: Device, N: int = 4):
 
 
 def load_test_module(device_type: DeviceType):
-    from slangpy.torchintegration import TorchModule
-
     if device_type == DeviceType.cuda:
         device = helpers.get_torch_device()
     else:
@@ -50,13 +49,31 @@ def load_test_module(device_type: DeviceType):
         torch.cuda.current_device()
         torch.cuda.current_stream()
         device = helpers.get_device(device_type, cuda_interop=True)
-    return TorchModule.load_from_file(device, "test_torchintegration.slang")
+    return Module.load_from_file(device, "test_torchintegration.slang")
 
 
 def compare_tensors(a: torch.Tensor, b: torch.Tensor):
     assert a.shape == b.shape, f"Tensor shape {a.shape} does not match expected shape {b.shape}"
     err = torch.max(torch.abs(a - b)).item()
     assert err < 1e-4, f"Tensor deviates by {err} from reference"
+
+
+@pytest.mark.parametrize(
+    "pair",
+    [
+        (torch.empty((1,), dtype=torch.float32), "D1,C2,B32,L1,G0"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True), "D1,C2,B32,L1,G1"),
+        (torch.empty((1,), dtype=torch.float16), "D1,C2,B16,L1,G0"),
+        (torch.empty((1,), dtype=torch.int32), "D1,C0,B32,L1,G0"),
+        (torch.empty((1,), dtype=torch.uint8), "D1,C1,B8,L1,G0"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8), "D3,C1,B8,L1,G0"),
+    ],
+)
+def test_torch_signature(pair: tuple[torch.Tensor, str]):
+    cd = NativeCallDataCache()
+    sig = SignatureBuilder()
+    cd.get_value_signature(sig, pair[0])
+    assert sig.str == f"Tensor\n[torch,{pair[1]}]"
 
 
 ADD_TESTS = [

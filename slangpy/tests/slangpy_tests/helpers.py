@@ -79,11 +79,19 @@ def get_device(
             "Please set use_cache=False if you want to use existing_device_handles."
         )
 
+    adaptors = Device.enumerate_adapters(type)
+    selected_adaptor = adaptors[0]
+    for adapter in adaptors:
+        if "5090" in adapter.name:
+            selected_adaptor = adapter
+            break
+
     cache_key = (type, cuda_interop)
     if use_cache and cache_key in DEVICE_CACHE:
         return DEVICE_CACHE[cache_key]
     device = Device(
         type=type,
+        adapter_luid=selected_adaptor.luid,
         enable_debug_layers=True,
         compiler_options=SlangCompilerOptions(
             {
