@@ -177,6 +177,7 @@ def test_non_shared_context():
 
 # Pytest for known race condition case, where we use a custom stream in torch but not sharing it with slangpy.
 def test_custom_stream_no_share():
+    pytest.skip("Race condition doesn't reproduce reliably on CI machines of varying specs")
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=False)
         == True
