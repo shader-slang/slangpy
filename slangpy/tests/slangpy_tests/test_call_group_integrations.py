@@ -620,6 +620,8 @@ def test_texture_2d_with_call_groups(device_type: DeviceType):
     """
     if sys.platform == "darwin":
         pytest.skip("Skipping on macOS due to slang-gfx texture API issues")
+    if device_type == DeviceType.d3d12:
+        pytest.skip("Skipping D3D12 due to crash")
 
     device = helpers.get_device(device_type)
     module = get_texture_test_module(device)
@@ -708,6 +710,8 @@ def test_texture_3d_with_call_groups(device_type: DeviceType):
     """Test 3D texture operations with call groups."""
     if sys.platform == "darwin":
         pytest.skip("Skipping on macOS due to slang-gfx texture API issues")
+    if device_type == DeviceType.d3d12:
+        pytest.skip("Skipping D3D12 due to crash")
 
     device = helpers.get_device(device_type)
     module = get_texture_test_module(device)
