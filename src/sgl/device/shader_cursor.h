@@ -10,6 +10,8 @@
 #include "sgl/core/config.h"
 #include "sgl/core/macros.h"
 
+#include "sgl/device/cursor_access_wrappers.h"
+
 #include <string_view>
 
 namespace sgl {
@@ -19,7 +21,7 @@ namespace sgl {
 /// allocating/freeing them repeatedly. This is far faster, however does introduce
 /// a risk of mem access problems if the shader cursor is kept alive longer than
 /// the shader object it was created from.
-class SGL_API ShaderCursor {
+class SGL_API ShaderCursor : public CursorWriteWrappers<ShaderCursor, ShaderOffset> {
 public:
     ShaderCursor() = default;
 
@@ -84,12 +86,17 @@ public:
     template<typename T>
     void set(const T& value) const;
 
-    void _set_array(const void* data, size_t size, TypeReflection::ScalarType scalar_type, size_t element_count) const;
     void _set_array_unsafe(const void* data, size_t size, size_t element_count) const;
 
-    void _set_scalar(const void* data, size_t size, TypeReflection::ScalarType scalar_type) const;
-    void _set_vector(const void* data, size_t size, TypeReflection::ScalarType scalar_type, int dimension) const;
-    void _set_matrix(const void* data, size_t size, TypeReflection::ScalarType scalar_type, int rows, int cols) const;
+    /// CursorWriteWrappers, CursorReadWrappers
+    void _set_data(ShaderOffset offset, const void* data, size_t size) const;
+    ShaderOffset _get_offset() const { return m_offset; }
+    static ShaderOffset _increment_offset(ShaderOffset offset, size_t diff)
+    {
+        offset.uniform_offset += narrow_cast<uint32_t>(diff);
+        return offset;
+    }
+    DeviceType _get_device_type() const;
 
 private:
     slang::TypeLayoutReflection* m_type_layout;
