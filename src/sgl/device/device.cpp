@@ -91,6 +91,97 @@ Device::Device(const DeviceDesc& desc)
         std::filesystem::create_directories(m_shader_cache_path);
     }
 
+    // Invalidate cuda interop if using cuda
+    if (m_desc.type == DeviceType::cuda && m_desc.enable_cuda_interop) {
+        m_desc.enable_cuda_interop = false;
+        log_warn("Device type is set to CUDA, but CUDA interop is requested. enable_cuda_interop will be ignored.");
+    }
+
+    // Invalidate use of adapter LUID if existing handles provided.
+    if (m_desc.adapter_luid.has_value()) {
+        for (const auto& handle : m_desc.existing_device_handles) {
+            if (handle.is_valid()) {
+                m_desc.adapter_luid.reset();
+                log_warn("Both adapter luid and existing handles have been provided, which are both ways to "
+                         "specify the device. Adapter luid will be ignored in favor of provided existing handles");
+                break;
+            }
+        }
+    }
+
+    // If CUDA interop is enabled on non-cuda backend, check if existing CUDA context or device
+    // is provided. If so, we will attempt to identify the same device for use with SlangPy.
+    if (m_desc.enable_cuda_interop) {
+        if (!rhiCudaDriverApiInit()) {
+            close();
+            SGL_THROW("Failed to initialize CUDA driver API.");
+        }
+
+        CUdevice cuda_device = -1;
+        CUcontext cuda_context = nullptr;
+        for (auto& handle : m_desc.existing_device_handles) {
+            if (handle.type() == NativeHandleType::CUdevice) {
+                cuda_device = handle.as<CUdevice>();
+                handle = {};
+            } else if (handle.type() == NativeHandleType::CUcontext) {
+                cuda_context = handle.as<CUcontext>();
+                handle = {};
+            }
+        }
+        if (cuda_context) {
+            m_cuda_device = make_ref<cuda::Device>(cuda_context);
+        } else if (cuda_device != -1) {
+            m_cuda_device = make_ref<cuda::Device>(cuda_device);
+        } else {
+            log_warn(
+                "CUDA interop is enabled, but no existing CUDA device or context is provided. To ensure the correct "
+                "device is selected, pass the CUDA device or context in as an existing device handle in the "
+                "DeviceDesc. "
+                "The current primary CUDA context handles can be acquired with "
+                "slangpy.get_cuda_current_context_native_handles."
+            );
+        }
+    }
+
+    // If we now have a valid cuda device, use it to determine the adapter LUID.
+    if (m_cuda_device) {
+
+        std::vector<AdapterInfo> adapaters = enumerate_adapters(m_desc.type);
+
+        AdapterLUID luid = m_cuda_device->get_adapter_luid();
+        bool found = false;
+        for (const AdapterInfo& adapter : adapaters) {
+            if (adapter.luid == luid) {
+                m_desc.adapter_luid = std::make_optional(luid);
+                log_debug("Using adapter LUID {} from CUDA device.", m_desc.adapter_luid.value());
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            std::string adapter_name = m_cuda_device->get_adapter_name();
+            log_warn("Unable to find matching adapter LUID, searching by name {}", adapter_name);
+            for (const AdapterInfo& adapter : adapaters) {
+                if (adapter.name == adapter_name) {
+                    m_desc.adapter_luid = std::make_optional(adapter.luid);
+                    log_warn(
+                        "Selected adapter LUID {} by matching device name {}.",
+                        m_desc.adapter_luid.value(),
+                        adapter.name
+                    );
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found) {
+            close();
+            SGL_THROW("Unable to find matching adapter LUID or name for the provided CUDA device. ");
+        }
+    }
+
     // Setup extensions.
     rhi::D3D12DeviceExtendedDesc d3d12_extended_desc{
         .structType = rhi::StructType::D3D12DeviceExtendedDesc,
@@ -204,25 +295,21 @@ Device::Device(const DeviceDesc& desc)
     // Create global fence to synchronize command submission.
     m_global_fence = create_fence({.shared = m_desc.enable_cuda_interop});
 
-    // Setup CUDA interop.
+    // Finalize CUDA interop.
     if (m_desc.enable_cuda_interop) {
-        if (m_desc.type == DeviceType::cuda) {
-            close();
-            SGL_THROW(
-                "Device type is set to CUDA, but CUDA interop is enabled. To share context with cuda (eg from PyTorch)"
-                ", pass an existing CUDA context as an existing device handle in the DeviceDesc. The current primary "
-                " CUDA context handles can be acquired with slangpy.get_cuda_current_context_native_handles."
-            );
+
+        // If didn't create cuda device from existing handles, make it now that we
+        // have a chosen device.
+        if (!m_cuda_device) {
+            m_cuda_device = make_ref<cuda::Device>(this);
         }
-        if (!rhiCudaDriverApiInit()) {
-            close();
-            SGL_THROW("Failed to initialize CUDA driver API.");
-        }
-        m_cuda_device = make_ref<cuda::Device>(this);
+
+        // Create the semaphore for interop
         {
             SGL_CU_SCOPE(this);
             m_cuda_semaphore = make_ref<cuda::ExternalSemaphore>(m_global_fence);
         }
+
         m_supports_cuda_interop = true;
     }
 

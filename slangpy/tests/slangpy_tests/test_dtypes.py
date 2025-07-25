@@ -102,10 +102,7 @@ def test_to_torch(
     buffer_type: Union[Type[Tensor], Type[NDBuffer]],
     test_dtype: tuple[str, Optional[torch.dtype], Type[Any], tuple[int, ...]],
 ):
-    if device_type == DeviceType.cuda:
-        pytest.skip("Torch interop not supported on CUDA yet")
-
-    device = helpers.get_device(device_type, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     module = helpers.create_module(device, MODULE)
 
     slang_dtype, torch_dtype, _, dtype_shape = test_dtype

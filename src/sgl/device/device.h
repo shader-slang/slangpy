@@ -30,8 +30,6 @@ namespace sgl {
 
 class DebugPrinter;
 
-/// Adapter LUID (locally unique identifier).
-using AdapterLUID = std::array<uint8_t, 16>;
 
 struct AdapterInfo {
     /// Descriptive name of the adapter.
