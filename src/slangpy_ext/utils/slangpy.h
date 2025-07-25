@@ -803,15 +803,15 @@ class TensorRef : public Object {
 public:
     TensorRef() = default;
 
-    TensorRef(int32_t id, const nb::ndarray<nb::pytorch>& tensor)
+    TensorRef(int32_t id, const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
         : m_id(id)
         , m_tensor(tensor)
     {
     }
 
-    std::optional<nb::ndarray<nb::pytorch>> tensor() const { return m_tensor; }
+    std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor() const { return m_tensor; }
 
-    void set_tensor(const std::optional<nb::ndarray<nb::pytorch>> tensor) { m_tensor = tensor; }
+    void set_tensor(const std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor) { m_tensor = tensor; }
 
     ref<Buffer> interop_buffer() const { return m_interop_buffer; }
 
@@ -832,7 +832,7 @@ public:
 
 private:
     int32_t m_id{-1};
-    std::optional<nb::ndarray<nb::pytorch>> m_tensor;
+    std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> m_tensor;
     ref<Buffer> m_interop_buffer;
     ref<TensorRef> m_grad_in;
     ref<TensorRef> m_grad_out;

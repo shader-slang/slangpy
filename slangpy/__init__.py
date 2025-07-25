@@ -47,10 +47,6 @@ from . import bindings
 # Trigger import of built in bindings so they get setup
 from . import builtin as internal_marshalls
 
-# Torch integration
-# Only import things that load torch lazily here!
-from .torchintegration import TorchModule
-
 # Debug options for call data gen
 from .core.calldata import set_dump_generated_shaders, set_dump_slang_intermediates
 

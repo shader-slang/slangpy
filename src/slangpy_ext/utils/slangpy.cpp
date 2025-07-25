@@ -777,8 +777,8 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
 
     // Signature for pytorch tensors
     {
-        nb::ndarray<nb::pytorch> pytorch_tensor;
-        if (nb::try_cast<nb::ndarray<nb::pytorch>>(o, pytorch_tensor)) {
+        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
+        if (nb::try_cast(o, pytorch_tensor)) {
             *builder << fmt::format(
                 "[torch,D{},C{},B{},L{},G{}]",
                 pytorch_tensor.ndim(),
@@ -864,8 +864,8 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
 
     // If object is a pytorch tensor, wrap it in a ref and export
     if (refs.has_value()) {
-        nb::ndarray<nb::pytorch> pytorch_tensor;
-        if (nb::try_cast<nb::ndarray<nb::pytorch>>(arg, pytorch_tensor)) {
+        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
+        if (nb::try_cast(arg, pytorch_tensor)) {
             ref<TensorRef> tensorref = make_ref<TensorRef>((int32_t)refs->size(), pytorch_tensor);
             auto asobj = nb::cast(tensorref);
             refs->append(asobj);
@@ -1481,7 +1481,8 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::class_<TensorRef, Object>(slangpy, "TensorRef") //
         .def(
             "__init__",
-            [](TensorRef& self, int id, nb::ndarray<nb::pytorch> tensor) { new (&self) TensorRef(id, tensor); },
+            [](TensorRef& self, int id, nb::ndarray<nb::pytorch, nb::device::cuda> tensor)
+            { new (&self) TensorRef(id, tensor); },
             "id"_a,
             "tensor"_a,
             D_NA(TensorRef, TensorRef)

@@ -302,14 +302,3 @@ def hash_tensor(value: Any) -> str:
 
 PYTHON_TYPES[TensorRef] = create_tensor_marshall
 PYTHON_SIGNATURES[TensorRef] = hash_tensor
-
-
-def error_tensor_marshall(layout: SlangProgramLayout, value: Any):
-    raise ValueError(
-        f"torch.Tensor types can not be directly passed to SlangPy. Either use the \
-                     pytorch integration (via TorchModule/TorchStruct/TorchFunction) or use a SlangPy \
-                     tensor type."
-    )
-
-
-PYTHON_TYPES[torch.Tensor] = error_tensor_marshall
