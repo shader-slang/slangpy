@@ -109,13 +109,6 @@ public extension<T: IAtomicAddable> StorageTraits<T>
 #endif
 }
 
-void test()
-{
-    float3* floats;
-
-    float3::atomicAdd(floats, 0, 1.0f);
-}
-
 // 2xfloat16 -> uint tricks
 // This is lifted from Utils.Neural.TIN.TinCommon, where it was important for performance
 // in half precision MLP training.
