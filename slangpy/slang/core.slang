@@ -486,10 +486,11 @@ public extension<let N:int> RWNDBuffer<uint64_t,N>
     public void store<T>(ContextND<N> context, in Ptr<T> value) { set(context.call_id, uint64_t(value)); };
 }
 
+#pragma warning(push)
+#pragma warning(disable: 30856)
 
 namespace impl
 {
-
     // Utility interface to check if a python type is safe to replace by the target
     // slang type. This works around mismatches between the type systems: Python e.g.
     // only knows float or int, but slang has a much wider array of scalar types;
@@ -533,5 +534,6 @@ namespace impl
     // We attempt to specialize allowedConversionWitness with types [A, B]
     // If it succeeds, the interface requirements are satisfied.
     struct AllowedConversionWitness<From, To : IConvertibleFrom<From>> {}
-
 }
+
+#pragma warning(pop)

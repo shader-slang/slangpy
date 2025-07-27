@@ -42,6 +42,9 @@ namespace impl
     }
 }
 
+#pragma warning(push)
+#pragma warning(disable: 30856)
+
 public extension<T : IDifferentiable, let D : int, TensorType : ITensor<T, D>> TensorType
 {
     __generic<each Is : IInteger>
@@ -225,6 +228,8 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>>
     }
 #endif
 }
+
+#pragma warning(pop)
 
 public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
