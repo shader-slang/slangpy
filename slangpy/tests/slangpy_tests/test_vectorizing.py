@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import pytest
 
-from slangpy import DeviceType, int3, float3
+from slangpy import DeviceType, int3, float3, Tensor, Device
+from slangpy.core.native import Shape
+from slangpy.core.shapes import TShapeOrTuple
 from . import helpers
 from slangpy.types.buffer import NDBuffer
 import numpy as np
@@ -367,6 +369,90 @@ def test_broadcast_vector(device_type: DeviceType):
     res_buffer = NDBuffer(device=device, dtype=float, shape=(3,))
     function(float3(1, 2, 3), float3(4, 5, 6), _result=res_buffer)
     assert np.allclose(res_buffer.to_numpy().view(dtype=np.float32), [5, 7, 9])
+
+
+TENSOR_ARRAY = """
+half[NumChannels] tensor_test_channels<int NumChannels>(half[NumChannels] data)
+{
+    [ForceUnroll]
+    for (int i = 0; i < NumChannels; ++i)
+    {
+        data[i] = 2.h * data[i];
+    }
+    return data;
+}
+"""
+
+
+def tensor_from_shape(device: Device, shape: TShapeOrTuple):
+    tensor = Tensor.empty(device, shape, "half")
+    rand_data = np.random.randn(*tensor.shape).astype(np.float16)
+    tensor.storage.copy_from_numpy(rand_data)
+    tensor = tensor.with_grads(zero=True)
+    return tensor
+
+
+# ValueError: Slang type Object(0x24af9b43bb8) has no associated python value type
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_to_array_error_wrong_shape(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, TENSOR_ARRAY)
+    shape = (4096 * 4096 * 8,)
+    tensor = tensor_from_shape(device, shape)
+    module["tensor_test_channels<8>"](tensor)
+
+
+# Works.
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_to_array(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, TENSOR_ARRAY)
+    shape = (4096, 4096, 8)
+    tensor = tensor_from_shape(device, shape)
+    res = module["tensor_test_channels<8>"](tensor, _result="numpy")
+    assert res.shape == (4096, 4096, 8)
+    assert res.dtype == np.float16
+    assert np.allclose(res, 2 * tensor.to_numpy().reshape(shape), atol=1e-3)
+
+
+# Works.
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_reshaped_to_array(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, TENSOR_ARRAY)
+    shape = (4096 * 4096 * 8,)
+    tensor = tensor_from_shape(device, shape)
+    tensor_view = tensor.view(shape=Shape(4096, 4096, 8))
+    module["tensor_test_channels<8>"](tensor_view)
+
+
+# TypeError: view(): incompatible function arguments.
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_reshape_tuple(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, TENSOR_ARRAY)
+    shape = (4096 * 4096 * 8,)
+    tensor = tensor_from_shape(device, shape)
+    tensor_view = tensor.view(shape=(4096, 4096, 8))
+    module["tensor_test_channels<8>"](tensor_view)
+
+
+# Works.
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_ndbuffer_with_array_type(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, TENSOR_ARRAY)
+    buffer = NDBuffer(module.device, "half[8]", shape=(128, 128))
+    module["tensor_test_channels<8>"](buffer)
+
+
+# ValueError: Exception in kernel generation: After implicit casting, no Slang overload found that matches the provided Python argument types.
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_ndbuffer_to_array(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, TENSOR_ARRAY)
+    buffer = NDBuffer(module.device, "half", shape=(128, 128, 8))
+    module["tensor_test_channels<8>"](buffer)
 
 
 if __name__ == "__main__":

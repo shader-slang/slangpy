@@ -63,7 +63,9 @@ def slang_type_to_return_type(slang_type: kfr.SlangType) -> Any:
         # Pointers are represented as uint64_t in slang, so we return int
         return int
     else:
-        raise ValueError(f"Slang type {slang_type} has no associated python value type")
+        raise ValueError(
+            f"Slang type {slang_type.full_name} can not be converted to a Python return type."
+        )
 
 
 class ValueMarshall(NativeValueMarshall):
