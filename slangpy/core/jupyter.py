@@ -270,4 +270,4 @@ def setup_in_jupyter(device: Device):
         # Set delay to 0 to avoid evaluating cells with stale kernels
         device.set_hot_reload_delay(0)
         # Trigger a hot-reload check before a cell gets executed to make sure we have the latest changes
-        ipython.events.register("pre_execute", lambda: device.hot_reload())
+        ipython.events.register("pre_execute", lambda: device.hot_reload_check())
