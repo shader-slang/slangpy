@@ -10,15 +10,6 @@ from typing import Any, Union, Type
 import numpy as np
 import sys
 
-try:
-    import torch
-except ImportError:
-    pytest.skip("Pytorch not installed", allow_module_level=True)
-
-# Skip all tests in this file if running on MacOS
-if sys.platform == "darwin":
-    pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
-
 MODULE = r"""
 struct RGB {
     float x;
@@ -195,6 +186,14 @@ def test_full_numpy_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
 def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]):
+    try:
+        import torch
+    except ImportError:
+        pytest.skip("Pytorch not installed", allow_module_level=True)
+
+    if sys.platform == "darwin":
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
+
     if device_type == DeviceType.cuda:
         pytest.skip("Torch interop not supported on CUDA yet")
 
@@ -235,6 +234,14 @@ def test_partial_numpy_copy(
 def test_partial_torch_copy(
     device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
 ):
+    try:
+        import torch
+    except ImportError:
+        pytest.skip("Pytorch not installed", allow_module_level=True)
+
+    if sys.platform == "darwin":
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
+
     if device_type == DeviceType.cuda:
         pytest.skip("Torch interop not supported on CUDA yet")
 
@@ -279,6 +286,14 @@ def test_numpy_copy_errors(
 def test_torch_copy_errors(
     device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
 ):
+    try:
+        import torch
+    except ImportError:
+        pytest.skip("Pytorch not installed", allow_module_level=True)
+
+    if sys.platform == "darwin":
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
+
     if device_type == DeviceType.cuda:
         pytest.skip("Torch interop not supported on CUDA yet")
 
