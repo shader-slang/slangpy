@@ -104,9 +104,16 @@ class TorchAutoGradHook(torch.autograd.Function):
             if x.last_access[0] in (AccessType.write, AccessType.readwrite)
         ]
 
+        # Extract read-write tensors (i.e. will be inputs+outputs that must be marked dirty)
+        primal_inout_tensors = [
+            cast(torch.Tensor, x.tensor)
+            for x in tensor_refs
+            if x.last_access[0] == AccessType.readwrite
+        ]
+
         # Mark all the outputs as dirty, so torch knows they may have changed
         # as a result of the forward pass
-        ctx.mark_dirty(*primal_out_tensors)
+        ctx.mark_dirty(*primal_inout_tensors)
 
         # Save all tensors.
         all_tensors = [x.tensor for x in tensor_refs if x.tensor is not None]
