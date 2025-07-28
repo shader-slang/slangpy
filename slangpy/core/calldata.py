@@ -239,6 +239,7 @@ class CallData(NativeCallData):
                 length_limit = 200
                 if len(fn) > length_limit:
                     fn = fn[:length_limit]
+                fn += "-" + hashlib.sha256(code.encode()).hexdigest()[0:8]
                 fn = fn + ".slang"
 
                 # with open(fn,"r") as f:
