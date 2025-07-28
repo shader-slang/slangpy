@@ -165,7 +165,7 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
 # Pytest for our most common default cuda-interop case, in which we've configured pytorch
 # and slangpy to share the same context and stream.
 def test_shared_context_and_stream():
-    if sys.platform == "nt":
+    if sys.platform == "win32":
         pytest.skip(
             "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
         )
@@ -180,7 +180,7 @@ def test_shared_context_and_stream():
 # of synchronization in the default streams of separate contexts. For now this has shown not
 # to cause race conditions, so testing for that behaviour.
 def test_non_shared_context():
-    if sys.platform == "nt":
+    if sys.platform == "win32":
         pytest.skip(
             "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
         )
@@ -199,7 +199,7 @@ def test_custom_stream_no_share():
 
 # Pytest that removes the race condition by sharing the custom stream
 def test_custom_stream_share():
-    if sys.platform == "nt":
+    if sys.platform == "win32":
         pytest.skip(
             "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
         )
