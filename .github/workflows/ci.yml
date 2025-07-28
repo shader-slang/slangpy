@@ -100,7 +100,7 @@ jobs:
 
       # Setup Python (with pip cache on all other runners).
       - name: Setup Python ${{ matrix.python }} (Pip cache)
-        if: runner.os != 'windows' || contains(matrix.flags, 'unit-test')
+        if: runner.os != 'windows' || !contains(matrix.flags, 'unit-test')
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
