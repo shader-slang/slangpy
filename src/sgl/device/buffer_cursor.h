@@ -6,9 +6,12 @@
 #include "sgl/device/shader_offset.h"
 #include "sgl/device/reflection.h"
 #include "sgl/device/cursor_utils.h"
+#include "sgl/device/device.h"
 
 #include "sgl/core/config.h"
 #include "sgl/core/macros.h"
+
+#include "sgl/device/cursor_access_wrappers.h"
 
 #include <string_view>
 
@@ -16,7 +19,8 @@ namespace sgl {
 
 /// Represents a single element of a given type in a block of memory, and
 /// provides read/write tools to access its members via reflection.
-class SGL_API BufferElementCursor {
+class SGL_API BufferElementCursor : public CursorWriteWrappers<BufferElementCursor, size_t>,
+                                    public CursorReadWrappers<BufferElementCursor, size_t> {
 public:
     BufferElementCursor() = default;
 
@@ -68,20 +72,17 @@ public:
     template<typename T>
     void set(const T& value);
 
-    void _set_array(const void* data, size_t size, TypeReflection::ScalarType scalar_type, size_t element_count);
-    void _set_scalar(const void* data, size_t size, TypeReflection::ScalarType scalar_type);
-    void _set_vector(const void* data, size_t size, TypeReflection::ScalarType scalar_type, int dimension);
-    void _set_matrix(const void* data, size_t size, TypeReflection::ScalarType scalar_type, int rows, int cols);
-
-    void _get_array(void* data, size_t size, TypeReflection::ScalarType scalar_type, size_t element_count) const;
-    void _get_scalar(void* data, size_t size, TypeReflection::ScalarType scalar_type) const;
-    void _get_vector(void* data, size_t size, TypeReflection::ScalarType scalar_type, int dimension) const;
-    void _get_matrix(void* data, size_t size, TypeReflection::ScalarType scalar_type, int rows, int cols) const;
-
     void _set_offset(size_t new_offset) { m_offset = new_offset; }
 
+    /// CursorWriteWrappers, CursorReadWrappers
+    void _set_data(size_t offset, const void* data, size_t size) const { write_data(offset, data, size); }
+    void _get_data(size_t offset, void* data, size_t size) const { return read_data(offset, data, size); }
+    size_t _get_offset() const { return m_offset; }
+    static size_t _increment_offset(size_t offset, size_t diff) { return offset + diff; }
+    DeviceType _get_device_type() const;
+
 private:
-    void write_data(size_t offset, const void* data, size_t size);
+    void write_data(size_t offset, const void* data, size_t size) const;
     void read_data(size_t offset, void* data, size_t size) const;
 
     ref<const TypeLayoutReflection> m_type_layout;
@@ -101,10 +102,10 @@ public:
 
     /// Create with none-owning view of specific block of memory. Number of
     /// elements is inferred from the size of the block and the type layout.
-    BufferCursor(ref<TypeLayoutReflection> element_layout, void* data, size_t size);
+    BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, void* data, size_t size);
 
     /// Create buffer + allocate space internally for a given number of elements.
-    BufferCursor(ref<TypeLayoutReflection> element_layout, size_t element_count);
+    BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, size_t element_count);
 
     /// Create as a view onto a buffer resource. Disable load_before_write to
     /// prevent automatic loading of current buffer state before writing data to it.
@@ -164,9 +165,13 @@ public:
     /// Get the resource this cursor represents (if any).
     ref<Buffer> resource() const { return m_resource; }
 
+    /// Get device type that determines the data layout rules.
+    DeviceType get_device_type() const { return m_device_type; }
+
 private:
     ref<const TypeLayoutReflection> m_element_type_layout;
     ref<Buffer> m_resource;
+    DeviceType m_device_type;
     uint8_t* m_buffer{nullptr};
     size_t m_size{0};
     bool m_owner{false};

@@ -5,30 +5,33 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/reflection.h"
 
+#include "sgl/core/macros.h"
+
 namespace sgl {
 
 namespace cursor_utils {
-    size_t get_scalar_type_size(TypeReflection::ScalarType type);
+    SGL_API size_t get_scalar_type_size(TypeReflection::ScalarType type);
 
-    slang::TypeLayoutReflection* unwrap_array(slang::TypeLayoutReflection* layout);
+    SGL_API slang::TypeLayoutReflection* unwrap_array(slang::TypeLayoutReflection* layout);
 
-    void check_array(
+    SGL_API void check_array(
         slang::TypeLayoutReflection* type_layout,
         size_t size,
         TypeReflection::ScalarType scalar_type,
         size_t element_count
     );
 
-    void check_scalar(slang::TypeLayoutReflection* type_layout, size_t size, TypeReflection::ScalarType scalar_type);
+    SGL_API void
+    check_scalar(slang::TypeLayoutReflection* type_layout, size_t size, TypeReflection::ScalarType scalar_type);
 
-    void check_vector(
+    SGL_API void check_vector(
         slang::TypeLayoutReflection* type_layout,
         size_t size,
         TypeReflection::ScalarType scalar_type,
         int dimension
     );
 
-    void check_matrix(
+    SGL_API void check_matrix(
         slang::TypeLayoutReflection* type_layout,
         size_t size,
         TypeReflection::ScalarType scalar_type,

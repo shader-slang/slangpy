@@ -76,7 +76,13 @@ SGL_PY_EXPORT(device_buffer_cursor)
 
     // Interface to simpler root cursor object that maps to the larger buffer.
     nb::class_<BufferCursor, Object>(m, "BufferCursor", D(BufferCursor)) //
-        .def(nb::init<ref<TypeLayoutReflection>, size_t>(), "element_layout"_a, "size"_a, D(BufferCursor, BufferCursor))
+        .def(
+            nb::init<DeviceType, ref<TypeLayoutReflection>, size_t>(),
+            "device_type"_a,
+            "element_layout"_a,
+            "size"_a,
+            D(BufferCursor, BufferCursor)
+        )
         .def(
             nb::init<ref<TypeLayoutReflection>, ref<Buffer>, bool>(),
             "element_layout"_a,
