@@ -669,7 +669,10 @@ uint64_t Device::submit_command_buffers(
     short_vector<rhi::IFence*, 8> rhi_signal_fences;
     short_vector<uint64_t, 8> rhi_signal_fence_values;
 
-    bool needs_cuda_sync = false;
+    // Will always enable cuda sync if explicit stream provided.
+    // If not, this will only be enabled if buffers were bound that have associated
+    // cuda interop allocations.
+    bool needs_cuda_sync = cuda_stream.is_valid();
 
     for (CommandBuffer* command_buffer : command_buffers) {
         SGL_CHECK_NOT_NULL(command_buffer);

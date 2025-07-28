@@ -602,8 +602,6 @@ nb::object NativeCallData::exec(
             m_device->supports_cuda_interop() || m_device->type() == DeviceType::cuda,
             "To specify a CUDA stream, device must be either using CUDA backend or have CUDA interop enabled."
         );
-        log_debug("Device wait for cuda stream: {}", cuda_stream.value());
-        m_device->sync_to_cuda(reinterpret_cast<void*>(cuda_stream.value()));
     }
 
     if (command_encoder == nullptr) {
@@ -612,12 +610,6 @@ nb::object NativeCallData::exec(
     } else {
         // If we are appending to a command encoder, we need to use the command encoder.
         m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, command_encoder);
-    }
-
-    // If CUDA stream is provided, sync cuda stream to to the device
-    if (cuda_stream.is_valid()) {
-        log_debug("CUDA stream wait for device: {}", cuda_stream.value());
-        m_device->sync_to_device(reinterpret_cast<void*>(cuda_stream.value()));
     }
 
     // If command_buffer is not null, return early.
