@@ -42,13 +42,7 @@ def get_test_tensors(device: Device, N: int = 4):
 
 
 def load_test_module(device_type: DeviceType):
-    if device_type == DeviceType.cuda:
-        device = helpers.get_torch_device()
-    else:
-        torch.cuda.init()
-        torch.cuda.current_device()
-        torch.cuda.current_stream()
-        device = helpers.get_device(device_type, cuda_interop=True)
+    device = helpers.get_torch_device()
     return Module.load_from_file(device, "test_torchintegration.slang")
 
 
