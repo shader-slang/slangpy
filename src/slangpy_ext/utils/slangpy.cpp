@@ -602,6 +602,7 @@ nb::object NativeCallData::exec(
             m_device->supports_cuda_interop() || m_device->type() == DeviceType::cuda,
             "To specify a CUDA stream, device must be either using CUDA backend or have CUDA interop enabled."
         );
+        log_debug("Device wait for cuda stream: {}", cuda_stream.value());
         m_device->sync_to_cuda(reinterpret_cast<void*>(cuda_stream.value()));
     }
 
@@ -615,6 +616,7 @@ nb::object NativeCallData::exec(
 
     // If CUDA stream is provided, sync cuda stream to to the device
     if (cuda_stream.is_valid()) {
+        log_debug("CUDA stream wait for device: {}", cuda_stream.value());
         m_device->sync_to_device(reinterpret_cast<void*>(cuda_stream.value()));
     }
 
