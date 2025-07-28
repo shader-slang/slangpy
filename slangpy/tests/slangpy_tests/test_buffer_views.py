@@ -192,7 +192,9 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
         pytest.skip("Pytorch not installed", allow_module_level=True)
 
     if sys.platform == "darwin":
-        pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
+        pytest.skip(
+            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
+        )
 
     if device_type == DeviceType.cuda:
         pytest.skip("Torch interop not supported on CUDA yet")
@@ -240,7 +242,9 @@ def test_partial_torch_copy(
         pytest.skip("Pytorch not installed", allow_module_level=True)
 
     if sys.platform == "darwin":
-        pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
+        pytest.skip(
+            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
+        )
 
     if device_type == DeviceType.cuda:
         pytest.skip("Torch interop not supported on CUDA yet")
@@ -292,7 +296,9 @@ def test_torch_copy_errors(
         pytest.skip("Pytorch not installed", allow_module_level=True)
 
     if sys.platform == "darwin":
-        pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
+        pytest.skip(
+            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
+        )
 
     if device_type == DeviceType.cuda:
         pytest.skip("Torch interop not supported on CUDA yet")
