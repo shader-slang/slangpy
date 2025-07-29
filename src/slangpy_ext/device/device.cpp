@@ -29,6 +29,7 @@ SGL_DICT_TO_DESC_FIELD(enable_compilation_reports, bool)
 SGL_DICT_TO_DESC_FIELD(adapter_luid, AdapterLUID)
 SGL_DICT_TO_DESC_FIELD(compiler_options, SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD(shader_cache_path, std::filesystem::path)
+SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
 
 // Utility functions for doing CoopVec conversions between ndarrays
@@ -148,7 +149,9 @@ SGL_PY_EXPORT(device_device)
             "existing_device_handles",
             &DeviceDesc::existing_device_handles,
             D_NA(DeviceDesc, existing_device_handles)
-        );
+        )
+        .def_rw("label", &DeviceDesc::label, D_NA(DeviceDesc, label));
+
     nb::implicitly_convertible<nb::dict, DeviceDesc>();
 
     nb::class_<DeviceLimits>(m, "DeviceLimits", D(DeviceLimits))
@@ -248,7 +251,8 @@ SGL_PY_EXPORT(device_device)
            std::optional<AdapterLUID> adapter_luid,
            std::optional<SlangCompilerOptions> compiler_options,
            std::optional<std::filesystem::path> shader_cache_path,
-           std::optional<std::array<NativeHandle, 3>> existing_device_handles)
+           std::optional<std::array<NativeHandle, 3>> existing_device_handles,
+           std::string label = "")
         {
             new (self) Device(
                 {.type = type,
@@ -260,7 +264,8 @@ SGL_PY_EXPORT(device_device)
                  .adapter_luid = adapter_luid,
                  .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
                  .shader_cache_path = shader_cache_path,
-                 .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>())}
+                 .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
+                 .label = label}
             );
         },
         "type"_a = DeviceDesc().type,
@@ -273,6 +278,7 @@ SGL_PY_EXPORT(device_device)
         "compiler_options"_a.none() = nb::none(),
         "shader_cache_path"_a.none() = nb::none(),
         "existing_device_handles"_a.none() = nb::none(),
+        "label"_a = DeviceDesc().label,
         D(Device, Device)
     );
     device.def(nb::init<DeviceDesc>(), "desc"_a, D(Device, Device));
@@ -873,6 +879,9 @@ SGL_PY_EXPORT(device_device)
         "type"_a = DeviceType::automatic,
         D(Device, enumerate_adapters)
     );
+
+    device.def_static("get_created_devices", &Device::get_created_devices, D_NA(Device, get_created_devices));
+
     device.def_static("report_live_objects", &Device::report_live_objects, D(Device, report_live_objects));
 
     m.def(
