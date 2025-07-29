@@ -208,6 +208,7 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
 
     buffer.copy_from_torch(torch_ref)
     device.sync_to_cuda()
+    device.sync_to_device()
     buffer_to_torch = buffer.to_torch()
     assert torch.allclose(buffer_to_torch, torch_ref)
 
@@ -260,6 +261,7 @@ def test_partial_torch_copy(
         buffer[i].copy_from_torch(torch_ref[i])
 
     device.sync_to_cuda()
+    device.sync_to_device()
     buffer_to_torch = buffer.to_torch()
     assert torch.allclose(buffer_to_torch, torch_ref)
 
