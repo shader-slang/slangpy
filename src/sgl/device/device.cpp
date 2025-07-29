@@ -815,7 +815,7 @@ std::vector<ref<Device>> Device::get_created_devices()
     for (Device* device : s_devices) {
         res.push_back(ref<Device>(device));
     }
-    return std::move(res);
+    return res;
 }
 
 void Device::report_live_objects()
