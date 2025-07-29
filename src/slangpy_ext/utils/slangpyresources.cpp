@@ -51,6 +51,7 @@ void NativeBufferMarshall::write_shader_cursor_pre_dispatch(
 
 Shape NativeDescriptorMarshall::get_shape(nb::object data) const
 {
+    SGL_UNUSED(data);
     return Shape({-1});
 }
 

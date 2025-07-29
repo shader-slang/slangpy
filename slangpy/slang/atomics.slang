@@ -111,7 +111,7 @@ public extension<T: IAtomicAddable> StorageTraits<T>
 
 void test()
 {
-    float3* floats;
+    float3* floats = nullptr;
 
     float3::atomicAdd(floats, 0, 1.0f);
 }
