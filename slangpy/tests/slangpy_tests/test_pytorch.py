@@ -49,7 +49,7 @@ def get_module(device: Device):
 def compare_tensors(a: torch.Tensor, b: torch.Tensor):
     assert a.shape == b.shape, f"Tensor shape {a.shape} does not match expected shape {b.shape}"
     err = torch.max(torch.abs(a - b)).item()
-    assert err < 1e-4, f"Tensor deviates by {err} from reference"
+    assert err < 1e-4, f"Tensor deviates by {err} from reference\n\nA:\n{a}\n\nB:\n{b}"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
