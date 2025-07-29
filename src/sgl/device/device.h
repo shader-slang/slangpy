@@ -120,6 +120,9 @@ struct DeviceDesc {
     /// Native device handles for initializing with externally created device. Currenlty
     /// only used for CUDA interoperability.
     std::array<NativeHandle, 3> existing_device_handles;
+
+    /// Debug label
+    std::string label;
 };
 
 struct DeviceLimits {
@@ -587,6 +590,9 @@ public:
 
     /// Enumerates all available adapters of a given device type.
     static std::vector<AdapterInfo> enumerate_adapters(DeviceType type = DeviceType::automatic);
+
+    /// Lists all created devices
+    static std::vector<ref<Device>> get_created_devices();
 
     /// Report live objects in the rhi layer.
     /// This is useful for checking clean shutdown with all resources released properly.

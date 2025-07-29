@@ -67,6 +67,7 @@ def get_device(
     use_cache: bool = True,
     cuda_interop: bool = False,
     existing_device_handles: Optional[Sequence[NativeHandle]] = None,
+    label: Optional[str] = None,
 ) -> Device:
     # Early out if we know we don't have support for parameter blocks
     global METAL_PARAMETER_BLOCK_SUPPORT
@@ -80,6 +81,16 @@ def get_device(
             "Cannot use existing_device_handles with caching enabled. "
             "Please set use_cache=False if you want to use existing_device_handles."
         )
+
+    if label is None:
+        label = ""
+        if use_cache:
+            label = "cached-slangpy"
+        else:
+            label = "uncached-slangpy"
+        label += f"-{type.name}"
+        if cuda_interop:
+            label += "-cuda-interop"
 
     cache_key = (type, cuda_interop)
     if use_cache and cache_key in DEVICE_CACHE:
@@ -95,6 +106,7 @@ def get_device(
         ),
         enable_cuda_interop=cuda_interop,
         existing_device_handles=existing_device_handles,
+        label=label,
     )
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
