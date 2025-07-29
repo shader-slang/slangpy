@@ -138,7 +138,7 @@ def get_torch_device(type: DeviceType = DeviceType.cuda) -> Device:
     import torch
 
     # For testing, comment this in to disable backwards passes running on other threads
-    # torch.autograd.grad_mode.set_multithreading_enabled(False)
+    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     torch.cuda.init()
     torch.cuda.current_device()
