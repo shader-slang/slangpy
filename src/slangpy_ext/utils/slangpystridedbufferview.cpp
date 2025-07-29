@@ -404,33 +404,33 @@ void StridedBufferView::copy_from_torch(nb::object tensor)
     // Check if tensor is on CUDA and buffer supports CUDA interop
     bool is_cuda = nb::cast<bool>(tensor.attr("is_cuda"));
     bool has_cuda_memory = m_storage->cuda_memory() != nullptr;
-    
+
     if (is_cuda && has_cuda_memory) {
+        // Add the same error checks as copy_from_numpy for consistency
+        SGL_CHECK(is_contiguous(), "Destination buffer view must be contiguous");
+
         // Establish proper CUDA context scope
         SGL_CU_SCOPE(m_storage->device());
-        
+
         // Extract tensor data
         nb::object contiguous_tensor = tensor.attr("contiguous")();
         nb::object data_ptr = contiguous_tensor.attr("data_ptr")();
         void* src_data = reinterpret_cast<void*>(nb::cast<uintptr_t>(data_ptr));
-        
-        size_t tensor_bytes = nb::cast<size_t>(contiguous_tensor.attr("numel")()) * 
-                            nb::cast<size_t>(contiguous_tensor.attr("element_size")());
-        
+
+        size_t tensor_bytes = nb::cast<size_t>(contiguous_tensor.attr("numel")())
+            * nb::cast<size_t>(contiguous_tensor.attr("element_size")());
+
         // Access buffer descriptor and calculate offsets
         const auto& buffer_desc = desc();
         size_t dtype_size = buffer_desc.element_layout->stride();
         size_t byte_offset = buffer_desc.offset * dtype_size;
-        
+
         void* dst_data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;
-        
-        // Validate memory bounds
-        size_t buffer_size = m_storage->size();
-        if (byte_offset + tensor_bytes > buffer_size) {
-            SGL_THROW("Copy would exceed buffer bounds: offset({}) + size({}) > buffer_size({})", 
-                     byte_offset, tensor_bytes, buffer_size);
-        }
-        
+
+        // Validate memory bounds - use accurate error message for direct tensor operations
+        size_t buffer_size = m_storage->size() - byte_offset;
+        SGL_CHECK(tensor_bytes <= buffer_size, "Tensor is larger than the buffer ({} > {})", tensor_bytes, buffer_size);
+
         // Use proper CUDA device-to-device memory copy
         sgl::cuda::memcpy_device_to_device(dst_data, src_data, tensor_bytes);
     } else {
