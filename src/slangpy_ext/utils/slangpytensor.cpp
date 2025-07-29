@@ -277,16 +277,6 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
         .def("view", &NativeTensor::view, "shape"_a, "strides"_a = Shape(), "offset"_a = 0)
         .def("__getitem__", &NativeTensor::index)
         .def(
-            "copy_from_torch",
-            [](NativeTensor& self, nb::object tensor)
-            {
-                nb::object numpy_array = tensor.attr("cpu")().attr("numpy")();
-                nb::ndarray<nb::numpy> numpy_data = nb::cast<nb::ndarray<nb::numpy>>(numpy_array);
-                self.copy_from_numpy(numpy_data);
-            },
-            "tensor"_a
-        )
-        .def(
             "with_grads",
             &NativeTensor::with_grads,
             "grad_in"_a.none() = nullptr,

@@ -6,6 +6,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/command.h"
 #include "sgl/device/buffer_cursor.h"
+#include "sgl/device/cuda_utils.h"
 
 #include "utils/slangpybuffer.h"
 
@@ -398,6 +399,48 @@ void StridedBufferView::copy_from_numpy(nb::ndarray<nb::numpy> data)
     m_storage->set_data(data.data(), data_size, byte_offset);
 }
 
+void StridedBufferView::copy_from_torch(nb::object tensor)
+{
+    // Check if tensor is on CUDA and buffer supports CUDA interop
+    bool is_cuda = nb::cast<bool>(tensor.attr("is_cuda"));
+    bool has_cuda_memory = m_storage->cuda_memory() != nullptr;
+    
+    if (is_cuda && has_cuda_memory) {
+        // Establish proper CUDA context scope
+        SGL_CU_SCOPE(m_storage->device());
+        
+        // Extract tensor data
+        nb::object contiguous_tensor = tensor.attr("contiguous")();
+        nb::object data_ptr = contiguous_tensor.attr("data_ptr")();
+        void* src_data = reinterpret_cast<void*>(nb::cast<uintptr_t>(data_ptr));
+        
+        size_t tensor_bytes = nb::cast<size_t>(contiguous_tensor.attr("numel")()) * 
+                            nb::cast<size_t>(contiguous_tensor.attr("element_size")());
+        
+        // Access buffer descriptor and calculate offsets
+        const auto& buffer_desc = desc();
+        size_t dtype_size = buffer_desc.element_layout->stride();
+        size_t byte_offset = buffer_desc.offset * dtype_size;
+        
+        void* dst_data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;
+        
+        // Validate memory bounds
+        size_t buffer_size = m_storage->size();
+        if (byte_offset + tensor_bytes > buffer_size) {
+            SGL_THROW("Copy would exceed buffer bounds: offset({}) + size({}) > buffer_size({})", 
+                     byte_offset, tensor_bytes, buffer_size);
+        }
+        
+        // Use proper CUDA device-to-device memory copy
+        sgl::cuda::memcpy_device_to_device(dst_data, src_data, tensor_bytes);
+    } else {
+        // CPU fallback for non-CUDA tensors or non-CUDA buffers
+        nb::object numpy_array = tensor.attr("cpu")().attr("numpy")();
+        nb::ndarray<nb::numpy> numpy_data = nb::cast<nb::ndarray<nb::numpy>>(numpy_array);
+        copy_from_numpy(numpy_data);
+    }
+}
+
 void StridedBufferView::point_to(ref<StridedBufferView> target)
 {
     SGL_CHECK(shape() == target->shape(), "Shape of existing and new view must match");
@@ -446,6 +489,7 @@ SGL_PY_EXPORT(utils_slangpy_strided_buffer_view)
         .def("to_numpy", &StridedBufferView::to_numpy, D_NA(StridedBufferView, to_numpy))
         .def("to_torch", &StridedBufferView::to_torch, D_NA(StridedBufferView, to_torch))
         .def("copy_from_numpy", &StridedBufferView::copy_from_numpy, "data"_a, D_NA(StridedBufferView, copy_from_numpy))
+        .def("copy_from_torch", &StridedBufferView::copy_from_torch, "tensor"_a)
         .def("is_contiguous", &StridedBufferView::is_contiguous, D_NA(&StridedBufferView, is_contiguous))
         .def("point_to", &StridedBufferView::point_to, "target"_a, D_NA(&StridedBufferView, point_to));
 }
