@@ -2,6 +2,11 @@
 
 implementing slangpy;
 
+#pragma warning(push)
+// disable warning about the `public extern static const int[call_data_len]` being
+// a WIP feature
+#pragma warning(disable: 31000)
+
 // Those are link-time constants, this constant can be generated during run-time
 public extern static const int call_data_len;
 public extern static const int call_group_size;
@@ -11,6 +16,8 @@ public extern static const int[call_data_len] call_group_shape_vector;
 static int[call_data_len] call_id;
 static int[call_data_len] call_group_id;
 static int[call_data_len] call_group_thread_id;
+
+#pragma warning(pop)
 
 // The reason we design the struct this way is because user will have no idea
 // about the value of the `call_data_len` when they are writing the code. Therefore,

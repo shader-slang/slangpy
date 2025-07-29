@@ -664,8 +664,10 @@ void Device::wait_for_submit(uint64_t id)
 
 void Device::wait_for_idle(CommandQueueType queue)
 {
-    SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
-    m_rhi_graphics_queue->waitOnHost();
+    if (m_rhi_graphics_queue) {
+        SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
+        m_rhi_graphics_queue->waitOnHost();
+    }
 }
 
 void Device::sync_to_cuda(void* cuda_stream)
@@ -802,6 +804,18 @@ std::vector<AdapterInfo> Device::enumerate_adapters(DeviceType type)
     }
 
     return adapters;
+}
+
+std::vector<ref<Device>> Device::get_created_devices()
+{
+    std::lock_guard lock(s_devices_mutex);
+
+    std::vector<ref<Device>> res;
+    res.reserve(s_devices.size());
+    for (Device* device : s_devices) {
+        res.push_back(ref<Device>(device));
+    }
+    return res;
 }
 
 void Device::report_live_objects()

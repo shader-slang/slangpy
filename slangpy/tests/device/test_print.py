@@ -11,7 +11,7 @@ import sglhelpers as helpers
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_print(device_type: spy.DeviceType):
-    device = spy.Device(type=device_type, enable_print=True)
+    device = spy.Device(type=device_type, enable_print=True, label=f"print-{device_type.name}")
     helpers.dispatch_compute(
         device=device,
         path=Path(__file__).parent / "test_print.slang",

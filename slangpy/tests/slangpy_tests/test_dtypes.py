@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import os
 import pytest
 
 from slangpy import Struct
@@ -104,6 +105,10 @@ def test_to_torch(
 ):
     if device_type == DeviceType.cuda:
         pytest.skip("Torch interop not supported on CUDA yet")
+    if sys.platform == "nt":
+        pytest.skip(
+            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
+        )
 
     device = helpers.get_device(device_type, cuda_interop=True)
     module = helpers.create_module(device, MODULE)

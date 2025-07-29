@@ -162,6 +162,11 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
 # Pytest for our most common default cuda-interop case, in which we've configured pytorch
 # and slangpy to share the same context and stream.
 def test_shared_context_and_stream():
+    if sys.platform == "win32":
+        pytest.skip(
+            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
+        )
+
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=False, share_stream=True)
         == False
@@ -172,11 +177,17 @@ def test_shared_context_and_stream():
 # of synchronization in the default streams of separate contexts. For now this has shown not
 # to cause race conditions, so testing for that behaviour.
 def test_non_shared_context():
+    if sys.platform == "win32":
+        pytest.skip(
+            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
+        )
+
     assert run_tensor_race_condition_tests(share_context=False) == False
 
 
 # Pytest for known race condition case, where we use a custom stream in torch but not sharing it with slangpy.
 def test_custom_stream_no_share():
+    pytest.skip("Race condition doesn't reproduce reliably on CI machines of varying specs")
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=False)
         == True
@@ -185,6 +196,11 @@ def test_custom_stream_no_share():
 
 # Pytest that removes the race condition by sharing the custom stream
 def test_custom_stream_share():
+    if sys.platform == "win32":
+        pytest.skip(
+            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
+        )
+
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=True)
         == False

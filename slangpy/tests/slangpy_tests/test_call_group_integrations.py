@@ -249,6 +249,7 @@ import "slangpy";
 float4 texture_sample_with_groups(
     Texture2D<float4> input_tex,
     RWTexture2D<float4> output_tex,
+    SamplerState samp,
     uint2 grid_cell
 ) {
     CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
@@ -259,7 +260,6 @@ float4 texture_sample_with_groups(
     float2 uv = float2(float(call_id.shape[0]), float(call_id.shape[1])) / float2(32.0f, 32.0f);
     float2 group_offset = float2(float(call_group_id.shape[0]), float(call_group_id.shape[1])) * 0.01f;
 
-    SamplerState samp;
     float4 sampled = input_tex.SampleLevel(samp, uv + group_offset, 0);
 
     // Modulate color based on call group thread position
@@ -298,6 +298,7 @@ float texture_reduce_with_groups(
 
 float3 texture_3d_with_groups(
     Texture3D<float4> tex3d,
+    SamplerState samp,
     uint3 grid_cell
 ) {
     CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
@@ -309,7 +310,6 @@ float3 texture_3d_with_groups(
     // Offset based on call group
     float3 group_offset = float3(float(call_group_id.shape[0]), float(call_group_id.shape[1]), float(call_group_id.shape[2])) * 0.02f;
 
-    SamplerState samp;
     float4 sampled = tex3d.SampleLevel(samp, uvw + group_offset, 0);
 
     return sampled.rgb;
@@ -620,6 +620,8 @@ def test_texture_2d_with_call_groups(device_type: DeviceType):
     """
     if sys.platform == "darwin":
         pytest.skip("Skipping on macOS due to slang-gfx texture API issues")
+    if device_type == DeviceType.cuda:
+        pytest.skip("Skipping CUDA device as samplers are not available.")
 
     device = helpers.get_device(device_type)
     module = get_texture_test_module(device)
@@ -642,6 +644,7 @@ def test_texture_2d_with_call_groups(device_type: DeviceType):
 
     input_tex = device.create_texture(input_desc)
     output_tex = device.create_texture(output_desc)
+    sampler = device.create_sampler()
 
     # Fill input texture with test data
     test_data = np.random.rand(tex_size, tex_size, 4).astype(np.float32)
@@ -652,7 +655,7 @@ def test_texture_2d_with_call_groups(device_type: DeviceType):
     call_group_shape = (8, 8)
 
     func = module.texture_sample_with_groups.call_group_shape(Shape(call_group_shape))
-    result = func(input_tex, output_tex, spy.grid(call_shape), _result="numpy")
+    result = func(input_tex, output_tex, sampler, spy.grid(call_shape), _result="numpy")
 
     # Verify results
     assert result.shape == (tex_size, tex_size, 4)
@@ -708,6 +711,8 @@ def test_texture_3d_with_call_groups(device_type: DeviceType):
     """Test 3D texture operations with call groups."""
     if sys.platform == "darwin":
         pytest.skip("Skipping on macOS due to slang-gfx texture API issues")
+    if device_type == DeviceType.cuda:
+        pytest.skip("Skipping CUDA device as samplers are not available.")
 
     device = helpers.get_device(device_type)
     module = get_texture_test_module(device)
@@ -723,6 +728,7 @@ def test_texture_3d_with_call_groups(device_type: DeviceType):
     desc.usage = TextureUsage.shader_resource
 
     input_tex = device.create_texture(desc)
+    sampler = device.create_sampler()
 
     # Fill with test data (3D texture needs 4D numpy array: depth, height, width, channels)
     test_data = np.random.rand(tex_size, tex_size, tex_size, 4).astype(np.float32)
@@ -733,7 +739,7 @@ def test_texture_3d_with_call_groups(device_type: DeviceType):
     call_group_shape = (4, 4, 4)
 
     func = module.texture_3d_with_groups.call_group_shape(Shape(call_group_shape))
-    result = func(input_tex, spy.grid(call_shape), _result="numpy")
+    result = func(input_tex, sampler, spy.grid(call_shape), _result="numpy")
 
     # Verify results
     assert result.shape == (tex_size, tex_size, tex_size, 3)  # Returns float3 (rgb)

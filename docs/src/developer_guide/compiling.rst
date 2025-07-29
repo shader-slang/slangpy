@@ -7,13 +7,25 @@ In order to compile SlangPy from source, the following prerequisites are
 required:
 
 * A C++20 compliant compiler (tested with Visual Studio 2022, GCC 11 and Clang 14)
-* Python ``>= 3.8``
+
+* Xcode >= 16, 16.4 recommended (on macOS)
+
+* Python >= 3.9
+
 * git
+
+Optionally:
+
+* CUDA Toolkit >= 11.8; 12.8 recommended (on Windows/Linux, for cuda
+  acceleration)
+
+* `PyTorch <https://pytorch.org/get-started/>`_ >= 2.7.1 (for optional
+  integration)
 
 .. tip::
 
-    You may want to consider setting up and using a Python virtual environment
-    (e.g., ``venv``) to isolate your development activities.
+    We strongly recommend using a Python virtual environment (anaconda on
+    Windows, venv on Linux/macOS)
 
 
 Cloning the repository
@@ -138,16 +150,32 @@ compiler.
 macOS
 -----
 
-To build on macOS, make sure you have a recent version of XCode installed.
-You also need to install the XCode command line tools by running the following
+To build on macOS, make sure you have a recent version of XCode installed. You
+also need to install the XCode command line tools by running the following
 command:
 
 .. code-block:: bash
 
     xcode-select --install
 
+Some additional command line build tools are also required. An easy way to
+install these is to install `brew <https://brew.sh>`_, and then use the
+following commands:
 
-Then use the following commands to build the project:
+.. code-block:: bash
+
+    brew install cmake ninja pkg-config git-lfs
+    git lfs install
+
+If ``git-lfs`` wasn't installed before you cloned SlangPy, you will need to use
+the following commands to retrieve and check out the files stored in LFS:
+
+.. code-block:: bash
+
+    git submodule foreach --recursive git lfs fetch
+    git submodule foreach --recursive git lfs checkout
+
+Then open a new shell and use the following commands to build the project:
 
 .. code-block:: bash
 
@@ -160,17 +188,18 @@ Then use the following commands to build the project:
     # Build "Release" configuration
     cmake --build --preset macos-arm64-clang-release
 
-The build artifacts are placed in ``build\macos-arm64-clang\bin\Debug`` or
-``build\macos-arm64-clang\bin\Release``.
+The build artifacts are placed in ``build\macos-arm64-clang\Debug`` or
+``build\macos-arm64-clang\Release``.
 
 To build for the x64 architecture, use the ``macos-x64-clang`` preset.
 
 **Tested on:**
 
-* macOS TBD
-* clang TBD
-* CMake 3.27.7
-* Ninja 1.11.1
+* macOS 15.5
+* Xcode 16.4 (clang 17.0.0)
+* CMake 4.0.3
+* Ninja 1.13.1
+* pkg-config 2.5.1
 
 
 Configuration options
@@ -229,8 +258,8 @@ Updating the API Reference
 
 SlangPy uses ``pybind11_mkdoc`` to extract documentation strings from the C++
 source code. These comments are then used by ``nanobind`` to generate Python
-documentation comments. These comments are then used when building the API
-Reference document.
+documentation comments, which are in turn used when building the API Reference
+document.
 
 To run ``pybind11_mkdoc``, specify the ``pydoc`` target when invoking cmake:
 
@@ -240,7 +269,10 @@ To run ``pybind11_mkdoc``, specify the ``pydoc`` target when invoking cmake:
     pip install -r requirements-dev.txt
 
     # Install Python documentation build prerequisites
-    pip install -r requirements-docs.txt
+    pip install -r docs/requirements.txt
+
+    # Install pybind11_mkdoc
+    pip install pybind11_mkdoc
 
     # Configure
     cmake --preset windows-msvc

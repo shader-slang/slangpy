@@ -68,6 +68,9 @@ public extension half : IAtomicAddable
     }
 }
 
+#pragma warning(push)
+#pragma warning(disable: 30856)
+
 // Add atomic support for per element operations on arrays or vectors of atomics.
 public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAtomicAddable
 {
@@ -94,6 +97,8 @@ public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAt
     }
 }
 
+#pragma warning(pop)
+
 // Extension of the storage traits object in slangpy/slang/core.slang that defines how to
 // store a buffer of atomics, and where appropriate uses IAtomicAddable to define the atomic add operation.
 public extension<T: IAtomicAddable> StorageTraits<T>
@@ -107,13 +112,6 @@ public extension<T: IAtomicAddable> StorageTraits<T>
     public static void atomicAdd(AtomicBufferType buffer, uint idx, T value) { T::atomicAdd(buffer, idx*sizeof(T), value); }
     public static T atomicLoad(AtomicBufferType buffer, uint idx) { return buffer.Load<T>(idx*sizeof(T));}
 #endif
-}
-
-void test()
-{
-    float3* floats;
-
-    float3::atomicAdd(floats, 0, 1.0f);
 }
 
 // 2xfloat16 -> uint tricks
