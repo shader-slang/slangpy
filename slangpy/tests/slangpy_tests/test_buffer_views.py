@@ -259,9 +259,9 @@ def test_partial_torch_copy(
 
     for i in range(shape[0]):
         buffer[i].copy_from_torch(torch_ref[i])
+        device.sync_to_cuda()
+        device.sync_to_device()
 
-    device.sync_to_cuda()
-    device.sync_to_device()
     buffer_to_torch = buffer.to_torch()
     assert torch.allclose(buffer_to_torch, torch_ref)
 
