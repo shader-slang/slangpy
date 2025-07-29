@@ -226,7 +226,6 @@ Device::Device(const DeviceDesc& desc)
     {
         std::lock_guard lock(s_devices_mutex);
         s_devices.push_back(this);
-        log_info("Total devices: {}", s_devices.size());
     }
 }
 
