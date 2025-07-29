@@ -144,12 +144,18 @@ def get_torch_device(type: DeviceType = DeviceType.cuda) -> Device:
     torch.cuda.current_device()
     torch.cuda.current_stream()
 
-    id = f"torch-{torch.cuda.current_device()}-{type}"
+    id = f"cached-torch-{torch.cuda.current_device()}-{type}"
     if id in TORCH_DEVICES:
         return TORCH_DEVICES[id]
 
     handles = slangpy.get_cuda_current_context_native_handles()
-    device = get_device(type, use_cache=False, existing_device_handles=handles, cuda_interop=True)
+    device = get_device(
+        type,
+        use_cache=False,
+        existing_device_handles=handles,
+        cuda_interop=True,
+        label=id + f"-{handles[1]}",
+    )
     TORCH_DEVICES[id] = device
     return device
 
