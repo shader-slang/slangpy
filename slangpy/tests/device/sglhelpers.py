@@ -59,6 +59,13 @@ def get_device(type: spy.DeviceType, use_cache: bool = True) -> spy.Device:
             selected_adaptor = adapter
             break
 
+    label = ""
+    if use_cache:
+        label = "cached-sgl"
+    else:
+        label = "uncached-sgl"
+    label += f"-{type.name}"
+
     device = spy.Device(
         type=type,
         adapter_luid=selected_adaptor.luid,
@@ -67,6 +74,7 @@ def get_device(type: spy.DeviceType, use_cache: bool = True) -> spy.Device:
             "include_paths": [SHADER_DIR],
             "debug_info": spy.SlangDebugInfoLevel.standard,
         },
+        label=label,
     )
     if use_cache:
         DEVICE_CACHE[type] = device

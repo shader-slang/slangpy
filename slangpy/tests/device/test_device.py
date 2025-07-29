@@ -148,6 +148,7 @@ def test_device_import(device_type: spy.DeviceType):
             "include_paths": [helpers.SHADER_DIR],
             "debug_info": spy.SlangDebugInfoLevel.standard,
         },
+        label=f"deviceimport-{device_type.name}-1",
     )
 
     # Create another device sharing the same handles
@@ -159,6 +160,7 @@ def test_device_import(device_type: spy.DeviceType):
             "debug_info": spy.SlangDebugInfoLevel.standard,
         },
         existing_device_handles=device1.native_handles,
+        label=f"deviceimport-{device_type.name}-2",
     )
 
     # Verify handles match
