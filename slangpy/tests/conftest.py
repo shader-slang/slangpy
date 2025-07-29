@@ -1,16 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Any
-import pytest
 import slangpy as spy
 
 
-# Fixture called after every test to ensure any devices that aren't part of the
+# Called after every test to ensure any devices that aren't part of the
 # device cache are cleaned up.
-@pytest.fixture(autouse=True)
-def clean_up():
-    yield
-
+def pytest_runtest_teardown(item: Any, nextitem: Any):
     for device in spy.Device.get_created_devices():
         if device.desc.label.startswith("cached-"):
             continue
