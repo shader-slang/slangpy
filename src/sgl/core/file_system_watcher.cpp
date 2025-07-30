@@ -129,7 +129,11 @@ uint32_t FileSystemWatcher::add_watch(const FileSystemWatchDesc& desc)
         // This is bad, but issues with hot reload shouldn't stop a user being
         // able to render things. Currently tests start to struggle when creating
         // lots of monitors due to having lots of devices.
-        log_error("Failed to add watch for directory {}: {}. Hot reload may fail.", state->desc.directory, strerror(errno));
+        log_error(
+            "Failed to add watch for directory {}: {}. Hot reload may fail.",
+            state->desc.directory,
+            strerror(errno)
+        );
         return 0;
     }
 #endif
@@ -144,7 +148,7 @@ uint32_t FileSystemWatcher::add_watch(const FileSystemWatchDesc& desc)
 
 void FileSystemWatcher::remove_watch(uint32_t id)
 {
-    if(id > 0) {
+    if (id > 0) {
 #if !SGL_LINUX
         std::lock_guard<std::mutex> lock(m_watches_mutex);
 #endif

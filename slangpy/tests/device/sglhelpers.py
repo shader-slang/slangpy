@@ -54,10 +54,12 @@ def get_device(type: spy.DeviceType, use_cache: bool = True) -> spy.Device:
 
     adaptors = spy.Device.enumerate_adapters(type)
     selected_adaptor = adaptors[0]
-    for adapter in adaptors:
-        if "5090" in adapter.name:
-            selected_adaptor = adapter
-            break
+
+    # This lets you force tests to use a specific GPU locally.
+    # for adapter in adaptors:
+    #     if "5090" in adapter.name:
+    #         selected_adaptor = adapter
+    #         break
 
     label = ""
     if use_cache:

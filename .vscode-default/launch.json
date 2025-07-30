@@ -39,7 +39,13 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/.venv/bin/python",
-            "args": ["-m", "pytest", "-v", "-s", "${workspaceFolder}/slangpy/tests"],
+            "args": [
+                "-m",
+                "pytest",
+                "-v",
+                "-s",
+                "${workspaceFolder}/slangpy/tests"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [

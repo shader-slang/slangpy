@@ -59,12 +59,14 @@ def _torch_dtype_to_slang(
         return None
     return layout.scalar_type(scalar_type)
 
+
 def get_storage(context: CallContext, element_count: int, struct_size: int) -> Buffer:
     return context.device.create_buffer(
         size=element_count * struct_size,
         struct_size=struct_size,
         usage=BufferUsage.shared | BufferUsage.unordered_access | BufferUsage.shader_resource,
     )
+
 
 class TensorRefMarshall(TensorMarshall):
     def __init__(
@@ -123,9 +125,7 @@ class TensorRefMarshall(TensorMarshall):
         if context.device.info.type != DeviceType.cuda:
 
             data_type = _torch_to_data_type[self.torch_dtype]
-            data.interop_buffer = get_storage(
-                context, primal.numel(), primal.element_size()
-            )
+            data.interop_buffer = get_storage(context, primal.numel(), primal.element_size())
 
             interop_tensor = cast(
                 torch.Tensor,
