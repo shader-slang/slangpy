@@ -146,11 +146,11 @@ Device::Device(const DeviceDesc& desc)
     // If we now have a valid cuda device, use it to determine the adapter LUID.
     if (m_cuda_device) {
 
-        std::vector<AdapterInfo> adapaters = enumerate_adapters(m_desc.type);
+        std::vector<AdapterInfo> adapters = enumerate_adapters(m_desc.type);
 
         AdapterLUID luid = m_cuda_device->get_adapter_luid();
         bool found = false;
-        for (const AdapterInfo& adapter : adapaters) {
+        for (const AdapterInfo& adapter : adapters) {
             if (adapter.luid == luid) {
                 m_desc.adapter_luid = std::make_optional(luid);
                 log_debug("Using adapter LUID {} from CUDA device.", m_desc.adapter_luid.value());
@@ -162,7 +162,7 @@ Device::Device(const DeviceDesc& desc)
         if (!found) {
             std::string adapter_name = m_cuda_device->get_adapter_name();
             log_warn("Unable to find matching adapter LUID, searching by name {}", adapter_name);
-            for (const AdapterInfo& adapter : adapaters) {
+            for (const AdapterInfo& adapter : adapters) {
                 if (adapter.name == adapter_name) {
                     m_desc.adapter_luid = std::make_optional(adapter.luid);
                     log_warn(

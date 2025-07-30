@@ -265,18 +265,7 @@ def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
 
 
 def hash_tensor(value: Any) -> str:
-    if isinstance(value, TensorRef):
-        sig = f"TorchTensorWithGrad[hash_tensor(value.primal)"
-        if value.grad_in is not None:
-            sig += hash_tensor(value.grad_in)
-        sig += ","
-        if value.grad_out is not None:
-            sig += hash_tensor(value.grad_out)
-        sig += "]"
-
-        return sig
-    else:
-        raise ValueError(f"Unexpected type {type(value).__name__} for tensor hashing")
+    raise ValueError(f"TensorRef should not need a hash key as it is native object")
 
 
 PYTHON_TYPES[TensorRef] = create_tensor_marshall

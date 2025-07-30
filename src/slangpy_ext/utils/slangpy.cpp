@@ -774,12 +774,11 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
         if (nb::try_cast(o, pytorch_tensor)) {
             *builder << fmt::format(
-                "[torch,D{},C{},B{},L{},G{}]",
+                "[torch,D{},C{},B{},L{}]",
                 pytorch_tensor.ndim(),
                 pytorch_tensor.dtype().code,
                 pytorch_tensor.dtype().bits,
-                pytorch_tensor.dtype().lanes,
-                nb::cast<bool>(nb::getattr(o, "requires_grad")) ? 1 : 0
+                pytorch_tensor.dtype().lanes
             );
             return;
         }
@@ -1472,7 +1471,7 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def_prop_ro("call_mode", &CallContext::call_mode, D_NA(CallContext, call_mode));
 
-    nb::class_<TensorRef, Object>(slangpy, "TensorRef") //
+    nb::class_<TensorRef, NativeObject>(slangpy, "TensorRef") //
         .def(
             "__init__",
             [](TensorRef& self, int id, nb::ndarray<nb::pytorch, nb::device::cuda> tensor)

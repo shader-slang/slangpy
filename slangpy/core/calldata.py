@@ -117,7 +117,7 @@ class CallData(NativeCallData):
             unpacked_args = unpack_refs_and_args(tensor_refs, *args)
             unpacked_kwargs = unpack_refs_and_kwargs(tensor_refs, **kwargs)
 
-            # If we have tensor references, store whether we a call to this function
+            # If we have tensor references, store whether a call to this function
             # will require injection into the autograd graph by checking if any of
             # the tensors require gradients.
             if len(tensor_refs) > 0:

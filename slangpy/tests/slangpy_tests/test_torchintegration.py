@@ -2,7 +2,7 @@
 from pathlib import Path
 import pytest
 from slangpy import DeviceType, Device, Module
-from slangpy.core.native import NativeCallDataCache, SignatureBuilder
+from slangpy.core.native import NativeCallDataCache, SignatureBuilder, TensorRef
 import sys
 
 sys.path.append(str(Path(__file__).parent))
@@ -55,12 +55,12 @@ def compare_tensors(a: torch.Tensor, b: torch.Tensor):
 @pytest.mark.parametrize(
     "pair",
     [
-        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,C2,B32,L1,G0"),
-        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,C2,B32,L1,G1"),
-        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,C2,B16,L1,G0"),
-        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,C0,B32,L1,G0"),
-        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,C1,B8,L1,G0"),
-        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,C1,B8,L1,G0"),
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,C2,B32,L1"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,C2,B32,L1"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,C2,B16,L1"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,C0,B32,L1"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,C1,B8,L1"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,C1,B8,L1"),
     ],
 )
 def test_torch_signature(pair: tuple[torch.Tensor, str]):
@@ -68,6 +68,11 @@ def test_torch_signature(pair: tuple[torch.Tensor, str]):
     sig = SignatureBuilder()
     cd.get_value_signature(sig, pair[0])
     assert sig.str == f"Tensor\n[torch,{pair[1]}]"
+
+    ref = TensorRef(0, pair[0])
+    sig = SignatureBuilder()
+    cd.get_value_signature(sig, ref)
+    assert sig.str == f"class sgl::slangpy::TensorRef\n[torch,{pair[1]}]"
 
 
 ADD_TESTS = [

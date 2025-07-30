@@ -799,7 +799,7 @@ public:
     std::optional<std::string> lookup_value_signature(nb::handle o) override { NB_OVERRIDE(lookup_value_signature, o); }
 };
 
-class TensorRef : public Object {
+class TensorRef : public NativeObject {
 public:
     TensorRef() = default;
 
@@ -807,6 +807,13 @@ public:
         : m_id(id)
         , m_tensor(tensor)
     {
+        set_slangpy_signature(fmt::format(
+            "[torch,D{},C{},B{},L{}]",
+            tensor.ndim(),
+            tensor.dtype().code,
+            tensor.dtype().bits,
+            tensor.dtype().lanes
+        ));
     }
 
     std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor() const { return m_tensor; }
