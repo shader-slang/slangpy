@@ -134,7 +134,7 @@ TORCH_DEVICES: dict[str, Device] = {}
 
 # Helper that gets a device that wraps the current torch cuda context.
 # This is useful for testing the torch integration.
-def get_torch_device(type: DeviceType = DeviceType.cuda) -> Device:
+def get_torch_device(type: DeviceType) -> Device:
     import torch
 
     # For testing, comment this in to disable backwards passes running on other threads

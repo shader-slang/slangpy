@@ -362,6 +362,11 @@ class CallData(NativeCallData):
         unpacked_args = unpack_refs_and_args(refs, *args)
         unpacked_kwargs = unpack_refs_and_kwargs(refs, **kwargs)
 
+        # HACK: Clear the function reference to avoid circular references
+        # that delay cleanup and crash linux.
+        func = self.function
+        self.function = None
+
         # Set the cuda stream to use (CUDA backend) or sync to (Vulkan/Metal/D3D12 backend) for the call
         options.cuda_stream = NativeHandle.from_cuda_stream(torch.cuda.current_stream().cuda_stream)
 
@@ -388,7 +393,7 @@ class CallData(NativeCallData):
             # Call the dummy auto-grad apply function, which critically takes the primal input list
             # as arguments and returns the primal output list as results
             TorchAutoGradHook.apply(
-                self.function,
+                func,
                 unpacked_args,
                 unpacked_kwargs,
                 refs,

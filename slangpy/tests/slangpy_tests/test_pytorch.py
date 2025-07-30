@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+from pathlib import Path
 import pytest
 from slangpy import DeviceType, Device, Module
 from slangpy.bindings.boundvariable import BoundVariableException
-from . import helpers
 import hashlib
 import os
 import sys
+
+sys.path.append(str(Path(__file__).parent))
+import helpers
 
 try:
     import torch

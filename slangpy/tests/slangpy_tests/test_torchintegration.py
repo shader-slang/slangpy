@@ -42,7 +42,7 @@ def get_test_tensors(device: Device, N: int = 4):
 
 
 def load_test_module(device_type: DeviceType):
-    device = helpers.get_torch_device()
+    device = helpers.get_torch_device(device_type)
     return Module.load_from_file(device, "test_torchintegration.slang")
 
 
