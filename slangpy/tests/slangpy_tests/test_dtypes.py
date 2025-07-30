@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import os
+from pathlib import Path
 import pytest
 
 from slangpy import Struct
 from slangpy.core.native import Shape
 from slangpy import DeviceType, BufferUsage
-from . import helpers
 from slangpy.types import NDBuffer, Tensor
 
 from typing import Any, Optional, Union, Type, cast
@@ -13,6 +13,9 @@ from typing import Any, Optional, Union, Type, cast
 import numpy as np
 import math
 import sys
+
+sys.path.append(str(Path(__file__).parent))
+import helpers
 
 try:
     import torch
@@ -148,3 +151,6 @@ def test_to_torch(
     assert tensor.stride() == strides.as_tuple()
     assert tensor.dtype == torch_dtype
     assert (tensor == torch_ref).all().item()
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])
