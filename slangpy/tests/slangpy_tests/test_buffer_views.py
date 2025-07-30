@@ -205,6 +205,8 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
     torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+    device.sync_to_cuda()
+    device.sync_to_device()
 
     buffer.copy_from_torch(torch_ref)
     device.sync_to_cuda()
@@ -256,6 +258,8 @@ def test_partial_torch_copy(
     torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+    device.sync_to_cuda()
+    device.sync_to_device()
 
     for i in range(shape[0]):
         buffer[i].copy_from_torch(torch_ref[i])
@@ -310,6 +314,8 @@ def test_torch_copy_errors(
 
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+    device.sync_to_cuda()
+    device.sync_to_device()
 
     with pytest.raises(Exception, match=r"Tensor is larger"):
         tensor = torch.zeros((shape[0], shape[1] + 1), dtype=torch.float32)
