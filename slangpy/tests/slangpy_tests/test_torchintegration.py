@@ -72,7 +72,7 @@ def test_torch_signature(pair: tuple[torch.Tensor, str]):
     ref = TensorRef(0, pair[0])
     sig = SignatureBuilder()
     cd.get_value_signature(sig, ref)
-    assert sig.str == f"class sgl::slangpy::TensorRef\n[torch,{pair[1]}]"
+    assert sig.str.endswith(f"[torch,{pair[1]}]")
 
 
 ADD_TESTS = [

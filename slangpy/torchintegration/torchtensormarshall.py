@@ -24,7 +24,7 @@ from slangpy.types.buffer import innermost_type
 ST = TypeReflection.ScalarType
 _torch_to_scalar_type = {
     torch.int8: ST.int8,
-    torch.int32: ST.int16,
+    torch.int16: ST.int16,
     torch.int32: ST.int32,
     torch.int64: ST.int64,
     torch.uint8: ST.uint8,
@@ -35,7 +35,7 @@ _torch_to_scalar_type = {
 _scalar_type_to_torch = {y: x for x, y in _torch_to_scalar_type.items()}
 _torch_to_data_type = {
     torch.int8: DataType.int8,
-    torch.int32: DataType.int16,
+    torch.int16: DataType.int16,
     torch.int32: DataType.int32,
     torch.int64: DataType.int64,
     torch.uint8: DataType.uint8,
