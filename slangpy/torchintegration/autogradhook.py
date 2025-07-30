@@ -90,7 +90,6 @@ class TorchAutoGradHook(torch.autograd.Function):
         tensor_refs: list[TensorRef],
         *tensors: torch.Tensor,
     ):
-        print("fwds called")
         # Store data
         ctx.spy_function = spy_function
         ctx.unpacked_args = unpacked_args

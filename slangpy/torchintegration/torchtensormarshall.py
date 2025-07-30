@@ -59,32 +59,12 @@ def _torch_dtype_to_slang(
         return None
     return layout.scalar_type(scalar_type)
 
-
-GLOBAL_STORAGE: dict[tuple[Device, int, int], list[Buffer]] = {}
-
-
-def get_or_create_storage(context: CallContext, element_count: int, struct_size: int) -> Buffer:
-    value = (context.device, element_count, struct_size)
-    if value not in GLOBAL_STORAGE:
-        GLOBAL_STORAGE[value] = []
-    if len(GLOBAL_STORAGE[value]) == 0:
-        return context.device.create_buffer(
-            size=element_count * struct_size,
-            struct_size=struct_size,
-            usage=BufferUsage.shared | BufferUsage.unordered_access | BufferUsage.shader_resource,
-        )
-    return GLOBAL_STORAGE[value].pop()
-
-
-def return_storage(context: CallContext, buffer: Buffer):
-    # value = (
-    #    context.device,
-    #    buffer.desc.size // buffer.desc.struct_size,
-    #    buffer.struct_size,
-    # )
-    # GLOBAL_STORAGE[value].append(buffer)
-    pass
-
+def get_storage(context: CallContext, element_count: int, struct_size: int) -> Buffer:
+    return context.device.create_buffer(
+        size=element_count * struct_size,
+        struct_size=struct_size,
+        usage=BufferUsage.shared | BufferUsage.unordered_access | BufferUsage.shader_resource,
+    )
 
 class TensorRefMarshall(TensorMarshall):
     def __init__(
@@ -143,7 +123,7 @@ class TensorRefMarshall(TensorMarshall):
         if context.device.info.type != DeviceType.cuda:
 
             data_type = _torch_to_data_type[self.torch_dtype]
-            data.interop_buffer = get_or_create_storage(
+            data.interop_buffer = get_storage(
                 context, primal.numel(), primal.element_size()
             )
 
@@ -224,7 +204,6 @@ class TensorRefMarshall(TensorMarshall):
             )
 
             primal.untyped_storage().copy_(interop_tensor.untyped_storage())
-            return_storage(context, data.interop_buffer)
             data.interop_buffer = None
 
             if self.d_in is not None:

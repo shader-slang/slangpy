@@ -54,7 +54,7 @@ void SignatureBuilder::add(const uint64_t value)
     for (int i = 0; i < 16; ++i) {
         buffer[15 - i] = HEX_CHARS[(value >> (i * 4)) & 0xF];
     }
-    add_bytes(buffer, 8);
+    add_bytes(buffer, 16);
 }
 
 
