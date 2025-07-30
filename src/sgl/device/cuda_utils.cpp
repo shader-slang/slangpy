@@ -271,7 +271,9 @@ Device::Device(CUdevice device)
 
 Device::~Device()
 {
-    SGL_CU_CHECK(cuDevicePrimaryCtxRelease(m_device));
+    if (m_owns_context) {
+        SGL_CU_CHECK(cuDevicePrimaryCtxRelease(m_device));
+    }
 }
 
 AdapterLUID Device::get_adapter_luid()

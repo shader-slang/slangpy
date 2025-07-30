@@ -8,6 +8,9 @@ from slangpy.core.native import Shape
 from slangpy import DeviceType, BufferUsage
 from slangpy.types import NDBuffer, Tensor
 
+sys.path.append(str(Path(__file__).parent))
+import helpers
+
 from typing import Any, Optional, Union, Type, cast
 
 import numpy as np
