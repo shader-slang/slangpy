@@ -21,6 +21,7 @@ namespace sgl::slangpy {
 
 class NativeBoundVariableRuntime;
 class NativeCallData;
+class NativeFunctionNode;
 
 /// General exception that includes a message and the bound variable from which the error
 /// originated.
@@ -721,8 +722,10 @@ public:
     SGL_LOG_FUNC_FAMILY(log_fatal, LogLevel::fatal)
 
     // Virtual for python to override for wrapping torch calls
-    virtual nb::object _py_torch_call(ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs)
+    virtual nb::object
+    _py_torch_call(NativeFunctionNode* func, ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs)
     {
+        SGL_UNUSED(func);
         SGL_UNUSED(opts);
         SGL_UNUSED(args);
         SGL_UNUSED(kwargs);
@@ -751,10 +754,9 @@ class PyNativeCallData : public NativeCallData {
 public:
     NB_TRAMPOLINE(NativeCallData, 1);
 
-    nb::object _py_torch_call(ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs) override
-    {
-        NB_OVERRIDE(_py_torch_call, opts, args, kwargs);
-    }
+    nb::object
+    _py_torch_call(NativeFunctionNode* func, ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs)
+        override;
 };
 
 typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> BuildSignatureFunc;

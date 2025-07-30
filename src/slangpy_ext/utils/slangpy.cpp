@@ -17,6 +17,7 @@
 #include "utils/slangpyvalue.h"
 #include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
+#include "utils/slangpyfunction.h"
 
 namespace sgl {
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
@@ -643,6 +644,16 @@ nb::object NativeCallData::exec(
         }
     }
     return nb::none();
+}
+
+nb::object PyNativeCallData::_py_torch_call(
+    NativeFunctionNode* func,
+    ref<NativeCallRuntimeOptions> opts,
+    nb::tuple args,
+    nb::dict kwargs
+)
+{
+    NB_OVERRIDE(_py_torch_call, func, opts, args, kwargs);
 }
 
 NativeCallDataCache::NativeCallDataCache()
@@ -1287,6 +1298,7 @@ SGL_PY_EXPORT(utils_slangpy)
         .def(
             "_py_torch_call",
             &NativeCallData::_py_torch_call,
+            nb::arg("function"),
             nb::arg("opts"),
             nb::arg("args"),
             nb::arg("kwargs"),

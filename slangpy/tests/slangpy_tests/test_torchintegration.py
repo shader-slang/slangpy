@@ -202,6 +202,34 @@ def test_polynomial(device_type: DeviceType):
     compare_tensors(2 * a * x + b, x.grad)  # type: ignore
 
 
+# This test ensures that the PyTorch integration doesn't fail if re-using the
+# same cached call data.
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_polynomial_multiple_calls(device_type: DeviceType):
+
+    module = load_test_module(device_type)
+
+    a = 2.0
+    b = 4.0
+    c = 1.0
+    x = torch.randn((10,), dtype=torch.float32, device=torch.device("cuda"), requires_grad=True)
+
+    res = module.polynomial(a, b, c, x)
+    assert isinstance(res, torch.Tensor)
+
+    compare_tensors(a * x * x + b * x + c, res)
+
+    res.backward(torch.ones_like(res))
+    compare_tensors(2 * a * x + b, x.grad)  # type: ignore
+
+    res2 = module.polynomial(a, b, c, x)
+    assert isinstance(res2, torch.Tensor)
+
+    x.grad.zero_()  # Reset gradients before the second call
+    res2.backward(torch.ones_like(res2))
+    compare_tensors(2 * a * x + b, x.grad)  # type: ignore
+
+
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_polynomial_outparam(device_type: DeviceType):
 

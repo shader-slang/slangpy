@@ -133,7 +133,6 @@ class CallData(NativeCallData):
                     autograd = autograd or ref.tensor.requires_grad
                 self.torch_integration = True
                 self.torch_autograd = autograd
-                self.function = function
                 if return_type is None:
                     return_type = TensorRef
 
@@ -349,7 +348,11 @@ class CallData(NativeCallData):
                 raise
 
     def _py_torch_call(
-        self, options: NativeCallRuntimeOptions, args: tuple[Any], kwargs: dict[str, Any]
+        self,
+        function: "FunctionNode",
+        options: NativeCallRuntimeOptions,
+        args: tuple[Any],
+        kwargs: dict[str, Any],
     ) -> Any:
         """
         Call the kernel with the given arguments and options.
@@ -361,11 +364,6 @@ class CallData(NativeCallData):
         refs: list[TensorRef] = []
         unpacked_args = unpack_refs_and_args(refs, *args)
         unpacked_kwargs = unpack_refs_and_kwargs(refs, **kwargs)
-
-        # HACK: Clear the function reference to avoid circular references
-        # that delay cleanup and crash linux.
-        func = self.function
-        self.function = None
 
         # Set the cuda stream to use (CUDA backend) or sync to (Vulkan/Metal/D3D12 backend) for the call
         options.cuda_stream = NativeHandle.from_cuda_stream(torch.cuda.current_stream().cuda_stream)
@@ -393,7 +391,7 @@ class CallData(NativeCallData):
             # Call the dummy auto-grad apply function, which critically takes the primal input list
             # as arguments and returns the primal output list as results
             TorchAutoGradHook.apply(
-                func,
+                function,
                 unpacked_args,
                 unpacked_kwargs,
                 refs,
