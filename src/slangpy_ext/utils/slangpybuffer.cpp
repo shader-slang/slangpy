@@ -35,10 +35,10 @@ ref<NativeNDBuffer> NativeNDBuffer::broadcast_to(const Shape& shape) const
     result->broadcast_to_inplace(shape);
     return result;
 }
-ref<NativeNDBuffer> NativeNDBuffer::index(nb::args args) const
+ref<NativeNDBuffer> NativeNDBuffer::index(nb::object index_arg) const
 {
     auto result = make_ref<NativeNDBuffer>(device(), desc(), storage());
-    result->index_inplace(args);
+    result->index_inplace(index_arg);
     return result;
 }
 
