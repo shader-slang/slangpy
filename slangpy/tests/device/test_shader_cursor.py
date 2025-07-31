@@ -368,8 +368,5 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         assert named_typed_result == named_typed_reference
 
 
-# if __name__ == "__main__":
-#     pytest.main([__file__, "-vvvs"])
-
 if __name__ == "__main__":
-    test_shader_cursor(spy.DeviceType.cuda, use_numpy=True)
+    pytest.main([__file__, "-vvvs"])
