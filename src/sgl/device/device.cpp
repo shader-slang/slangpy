@@ -91,7 +91,7 @@ Device::Device(const DeviceDesc& desc)
         std::filesystem::create_directories(m_shader_cache_path);
     }
 
-    // Invalidate cuda interop if using cuda
+    // Invalidate CUDA interop if using CUDA
     if (m_desc.type == DeviceType::cuda && m_desc.enable_cuda_interop) {
         m_desc.enable_cuda_interop = false;
         log_warn("Device type is set to CUDA, but CUDA interop is requested. enable_cuda_interop will be ignored.");
@@ -102,8 +102,8 @@ Device::Device(const DeviceDesc& desc)
         for (const auto& handle : m_desc.existing_device_handles) {
             if (handle.is_valid()) {
                 m_desc.adapter_luid.reset();
-                log_warn("Both adapter luid and existing handles have been provided, which are both ways to "
-                         "specify the device. Adapter luid will be ignored in favor of provided existing handles");
+                log_warn("Both adapter LUID and existing handles have been provided, which are both ways to "
+                         "specify the device. Adapter LUID will be ignored in favor of provided existing handles");
                 break;
             }
         }
@@ -143,12 +143,11 @@ Device::Device(const DeviceDesc& desc)
         }
     }
 
-    // If we now have a valid cuda device, use it to determine the adapter LUID.
+    // If we now have a valid CUDA device, use it to determine the adapter LUID.
     if (m_cuda_device) {
-
         std::vector<AdapterInfo> adapters = enumerate_adapters(m_desc.type);
 
-        AdapterLUID luid = m_cuda_device->get_adapter_luid();
+        AdapterLUID luid = m_cuda_device->adapter_luid();
         bool found = false;
         for (const AdapterInfo& adapter : adapters) {
             if (adapter.luid == luid) {
@@ -160,7 +159,7 @@ Device::Device(const DeviceDesc& desc)
         }
 
         if (!found) {
-            std::string adapter_name = m_cuda_device->get_adapter_name();
+            std::string adapter_name = m_cuda_device->adapter_name();
             log_warn("Unable to find matching adapter LUID, searching by name {}", adapter_name);
             for (const AdapterInfo& adapter : adapters) {
                 if (adapter.name == adapter_name) {
@@ -178,7 +177,7 @@ Device::Device(const DeviceDesc& desc)
 
         if (!found) {
             close();
-            SGL_THROW("Unable to find matching adapter LUID or name for the provided CUDA device. ");
+            SGL_THROW("Unable to find matching adapter LUID or name for the provided CUDA device.");
         }
     }
 
@@ -211,7 +210,7 @@ Device::Device(const DeviceDesc& desc)
         .enableCompilationReports = m_desc.enable_compilation_reports,
     };
     log_debug(
-        "Creating graphics device (type: {}, luid: {}, shader_cache_path: {}).",
+        "Creating graphics device (type: {}, LUID: {}, shader_cache_path: {}).",
         m_desc.type,
         m_desc.adapter_luid,
         m_shader_cache_path
@@ -298,7 +297,7 @@ Device::Device(const DeviceDesc& desc)
     // Finalize CUDA interop.
     if (m_desc.enable_cuda_interop) {
 
-        // If didn't create cuda device from existing handles, make it now that we
+        // If didn't create CUDA device from existing handles, make it now that we
         // have a chosen device.
         if (!m_cuda_device) {
             m_cuda_device = make_ref<cuda::Device>(this);
@@ -638,7 +637,7 @@ uint64_t Device::submit_command_buffers(
 
     SGL_CHECK(
         !cuda_stream.is_valid() || cuda_stream.type() == NativeHandleType::CUstream,
-        "Native handle supplied for cuda stream is not of type CUstream."
+        "Native handle supplied for CUDA stream is not of type CUstream."
     );
 
     // Update hot reload system if created.
@@ -646,7 +645,7 @@ uint64_t Device::submit_command_buffers(
     if (m_hot_reload)
         m_hot_reload->update();
 
-    // Pointer to cuda stream
+    // Pointer to CUDA stream
     void* cuda_stream_ptr;
     if (m_desc.type == DeviceType::cuda) {
         // On CUDA backends, either take the stream specified or use 'invalid' to let the internal
@@ -669,9 +668,9 @@ uint64_t Device::submit_command_buffers(
     short_vector<rhi::IFence*, 8> rhi_signal_fences;
     short_vector<uint64_t, 8> rhi_signal_fence_values;
 
-    // Will always enable cuda sync if explicit stream provided.
+    // Will always enable CUDA sync if explicit stream provided.
     // If not, this will only be enabled if buffers were bound that have associated
-    // cuda interop allocations.
+    // CUDA interop allocations.
     bool needs_cuda_sync = cuda_stream.is_valid();
 
     for (CommandBuffer* command_buffer : command_buffers) {

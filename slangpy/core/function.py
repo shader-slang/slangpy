@@ -137,8 +137,6 @@ class FunctionNode(NativeFunctionNode):
         Specify a CUDA stream to use for the function. This is useful for synchronizing with other
         CUDA operations or ensuring that the function runs on a specific stream.
         """
-        if stream.type != NativeHandleType.CUstream:
-            raise ValueError("Expected a CUDA stream handle")
         return FunctionNodeCUDAStream(self, stream)
 
     def constants(self, constants: dict[str, Any]):

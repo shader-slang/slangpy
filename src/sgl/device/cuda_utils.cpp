@@ -276,7 +276,7 @@ Device::~Device()
     }
 }
 
-AdapterLUID Device::get_adapter_luid()
+AdapterLUID Device::adapter_luid() const
 {
     AdapterLUID luid;
     memset(luid.data(), 0, luid.size());
@@ -300,7 +300,7 @@ AdapterLUID Device::get_adapter_luid()
     return luid;
 }
 
-std::string Device::get_adapter_name()
+std::string Device::adapter_name() const
 {
     char name[256];
     SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), m_device));

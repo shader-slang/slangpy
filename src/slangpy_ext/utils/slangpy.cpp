@@ -595,7 +595,7 @@ nb::object NativeCallData::exec(
         log_debug("  Threads: {}", total_threads);
     }
 
-    // If CUDA stream is provided, check for valid use and sync device to the cuda stream
+    // If CUDA stream is provided, check for valid use and sync device to the CUDA stream
     NativeHandle cuda_stream = opts->get_cuda_stream();
     if (cuda_stream.is_valid()) {
         SGL_CHECK(command_encoder == nullptr, "Cannot specify a CUDA stream when appending to a command encoder.");
@@ -1306,7 +1306,7 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def_prop_rw(
             "call_group_shape",
-            &NativeCallData::get_call_group_shape,
+            &NativeCallData::call_group_shape,
             &NativeCallData::set_call_group_shape,
             nb::arg().none(),
             D_NA(NativeCallData, call_group_shape)

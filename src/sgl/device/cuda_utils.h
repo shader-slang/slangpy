@@ -60,8 +60,8 @@ public:
     CUdevice device() const { return m_device; }
     CUcontext context() const { return m_context; }
 
-    AdapterLUID get_adapter_luid();
-    std::string get_adapter_name();
+    AdapterLUID adapter_luid() const;
+    std::string adapter_name() const;
 
 private:
     CUdevice m_device{-1};

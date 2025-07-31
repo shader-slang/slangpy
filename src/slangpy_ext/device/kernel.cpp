@@ -55,7 +55,7 @@ SGL_PY_EXPORT(device_kernel)
                 if (command_encoder) {
                     SGL_CHECK(
                         !cuda_stream.is_valid(),
-                        "Can not specify cuda stream if appending to a command encoder."
+                        "Can not specify CUDA stream if appending to a command encoder."
                     );
                     self->dispatch(thread_count, bind_vars, command_encoder);
                 } else {

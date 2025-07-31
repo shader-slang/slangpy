@@ -685,7 +685,7 @@ public:
     }
 
     /// Get the shape of call groups when a dispatch is made.
-    const Shape& get_call_group_shape() const { return m_call_group_shape; }
+    const Shape& call_group_shape() const { return m_call_group_shape; }
 
     /// Call the compute kernel with the provided arguments and keyword arguments.
     nb::object call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs);
