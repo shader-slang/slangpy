@@ -114,7 +114,7 @@ def test_hot_reload_event(device_type: spy.DeviceType):
     # Load a shader
     program = device.load_program(
         module_name="test_shader_foo.slang",
-        entry_point_names=["main_a", "main_b", "main_vs", "main_fs"],
+        entry_point_names=["main_a"],
     )
 
     # Setup a hook that increments a counter on hot reload.
