@@ -593,12 +593,6 @@ uint64_t Device::submit_command_buffers(
         rhi_wait_fence_values.push_back(fence_value);
     }
 
-    // Handle wait for global fence if needed.
-    if (m_wait_global_fence) {
-        rhi_wait_fences.push_back(m_global_fence->rhi_fence());
-        rhi_wait_fence_values.push_back(m_global_fence->signaled_value());
-    }
-
     // Handle passed in signal fences.
     for (size_t i = 0; i < signal_fences.size(); ++i) {
         Fence* fence = signal_fences[i];
@@ -629,7 +623,6 @@ uint64_t Device::submit_command_buffers(
         .cudaStream = cuda_stream_ptr,
     };
     SLANG_RHI_CALL(m_rhi_graphics_queue->submit(rhi_submit_desc));
-    m_wait_global_fence = false;
 
     // Handle CUDA interop.
     if (m_supports_cuda_interop && needs_cuda_sync) {
@@ -673,16 +666,60 @@ void Device::wait_for_idle(CommandQueueType queue)
 void Device::sync_to_cuda(void* cuda_stream)
 {
     // Signal fence from CUDA, wait for it on graphics queue.
-    SGL_CU_SCOPE(this);
-    uint64_t signal_value = m_global_fence->update_signaled_value();
-    m_cuda_semaphore->signal(signal_value, CUstream(cuda_stream));
-    m_wait_global_fence = true;
+    if (m_supports_cuda_interop) {
+        SGL_CU_SCOPE(this);
+
+        // Increment fence signal.
+        uint64_t signal_value = m_global_fence->update_signaled_value();
+
+        // Signal it from CUDA.
+        m_cuda_semaphore->signal(signal_value, CUstream(cuda_stream));
+
+        // Wait for it on device.
+        rhi::IFence* fences[] = {m_global_fence->rhi_fence()};
+        uint64_t fence_values[] = {signal_value};
+        rhi::SubmitDesc submit_desc{
+            .commandBuffers = nullptr,
+            .commandBufferCount = 0,
+            .waitFences = fences,
+            .waitFenceValues = fence_values,
+            .waitFenceCount = 1,
+            .signalFences = nullptr,
+            .signalFenceValues = nullptr,
+            .signalFenceCount = 0,
+            .cudaStream = cuda_stream,
+        };
+        SLANG_RHI_CALL(m_rhi_graphics_queue->submit(submit_desc));
+    }
 }
 
 void Device::sync_to_device(void* cuda_stream)
 {
-    SGL_CU_SCOPE(this);
-    m_cuda_semaphore->wait(m_global_fence->signaled_value(), CUstream(cuda_stream));
+    if (m_supports_cuda_interop) {
+        SGL_CU_SCOPE(this);
+
+        // Increment fence signal.
+        uint64_t signal_value = m_global_fence->update_signaled_value();
+
+        // Signal it from device.
+        rhi::IFence* fences[] = {m_global_fence->rhi_fence()};
+        uint64_t fence_values[] = {signal_value};
+        rhi::SubmitDesc submit_desc{
+            .commandBuffers = nullptr,
+            .commandBufferCount = 0,
+            .waitFences = nullptr,
+            .waitFenceValues = nullptr,
+            .waitFenceCount = 0,
+            .signalFences = fences,
+            .signalFenceValues = fence_values,
+            .signalFenceCount = 1,
+            .cudaStream = cuda_stream,
+        };
+        SLANG_RHI_CALL(m_rhi_graphics_queue->submit(submit_desc));
+
+        // Wait for it on CUDA.
+        m_cuda_semaphore->wait(m_global_fence->signaled_value(), CUstream(cuda_stream));
+    }
 }
 
 void Device::flush_print()
