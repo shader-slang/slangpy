@@ -54,6 +54,14 @@ class SGL_API CursorWriteWrappers {
         size_t element_stride = _get_slang_type_layout()->getStride() / element_count;
         size_t element_size = _get_slang_type_layout()->getElementTypeLayout()->getSize();
 
+        SGL_CHECK(
+            element_size <= element_stride,
+            "Type `{}` is trying to write stride {} and size {}",
+            cpu_scalar_type,
+            element_stride,
+            element_size
+        );
+
         // The layout matches (both strides are the same), we can just write the data.
         if (element_stride == cpu_element_size) {
             _set_data_internal(_get_offset_internal(), data, size);
@@ -217,6 +225,14 @@ class SGL_API CursorReadWrappers {
         // We will pretend that element stride is equal to the total stride divided by number of elements.
         size_t element_stride = _get_slang_type_layout()->getStride() / element_count;
         size_t element_size = _get_slang_type_layout()->getElementTypeLayout()->getSize();
+
+        SGL_CHECK(
+            element_size <= element_stride,
+            "Type `{}` is trying to write stride {} and size {}",
+            cpu_scalar_type,
+            element_stride,
+            element_size
+        );
 
         // The layout matches (both strides are the same), we can just write the data.
         if (element_stride == cpu_element_size) {
