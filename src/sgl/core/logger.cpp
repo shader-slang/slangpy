@@ -38,6 +38,8 @@ static const std::array<fmt::terminal_color, 6> s_level_color{
     fmt::terminal_color::bright_red,
 };
 
+bool ConsoleLoggerOutput::IGNORE_PRINT_EXCEPTION = false;
+
 ConsoleLoggerOutput::ConsoleLoggerOutput(bool colored)
 {
     m_colored = colored && enable_ansi_control_sequences();
@@ -48,32 +50,43 @@ void ConsoleLoggerOutput::write(LogLevel level, const std::string_view module, c
     std::string_view level_str = s_level_str[static_cast<int>(level)];
     fmt::terminal_color color = s_level_color[static_cast<int>(level)];
 
-    ::FILE* stream = level >= LogLevel::error ? stderr : stdout;
+    auto write_impl = [&]()
+    {
+        ::FILE* stream = level >= LogLevel::error ? stderr : stdout;
 
-    if (level == LogLevel::none) {
-        fmt::print(stream, "{}\n", msg);
-        return;
-    }
+        if (level == LogLevel::none) {
+            fmt::print(stream, "{}\n", msg);
+            return;
+        }
 
-    if (m_colored) {
-        if (module.empty())
-            fmt::print(stream, "[{}] {}\n", fmt::styled(level_str, fmt::fg(color)), msg);
-        else
-            fmt::print(
-                stream,
-                "[{}] ({}) {}\n",
-                fmt::styled(level_str, fmt::fg(color)),
-                fmt::styled(module, fmt::fg(fmt::terminal_color::bright_black)),
-                msg
-            );
+        if (m_colored) {
+            if (module.empty())
+                fmt::print(stream, "[{}] {}\n", fmt::styled(level_str, fmt::fg(color)), msg);
+            else
+                fmt::print(
+                    stream,
+                    "[{}] ({}) {}\n",
+                    fmt::styled(level_str, fmt::fg(color)),
+                    fmt::styled(module, fmt::fg(fmt::terminal_color::bright_black)),
+                    msg
+                );
+        } else {
+            if (module.empty())
+                fmt::print(stream, "[{}] {}\n", level_str, msg);
+            else
+                fmt::print(stream, "[{}] ({}) {}\n", level_str, module, msg);
+        }
+        ::fflush(stream);
+    };
+
+    if (IGNORE_PRINT_EXCEPTION) {
+        try {
+            write_impl();
+        } catch (const std::runtime_error&) {
+        }
     } else {
-        if (module.empty())
-            fmt::print(stream, "[{}] {}\n", level_str, msg);
-        else
-            fmt::print(stream, "[{}] ({}) {}\n", level_str, module, msg);
+        write_impl();
     }
-
-    ::fflush(stream);
 }
 
 std::string ConsoleLoggerOutput::to_string() const

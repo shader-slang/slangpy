@@ -56,6 +56,10 @@ public:
 
     std::string to_string() const override;
 
+    // pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
+    // when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
+    static bool IGNORE_PRINT_EXCEPTION;
+
 private:
     static bool enable_ansi_control_sequences();
 
