@@ -14,6 +14,12 @@ def pytest_runtest_teardown(item: Any, nextitem: Any):
         device.close()
 
 
+def pytest_sessionstart(session: Any):
+    # pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
+    # when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
+    spy.ConsoleLoggerOutput.IGNORE_PRINT_EXCEPTION = True
+
+
 # After all tests finished, close remaining devices. This ensures they're
 # cleaned up before pytorch, avoiding crashes for devices that share context.
 def pytest_sessionfinish(session: Any, exitstatus: Any):
