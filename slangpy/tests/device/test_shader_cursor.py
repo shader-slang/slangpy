@@ -35,7 +35,7 @@ class TypeInfo:
 
 
 TYPE_INFOS = {
-    "bool": TypeInfo(size=4, struct="I", dtype=np.uint32),  # np.bool is 8 bits
+    "bool": TypeInfo(size=4, struct="I", dtype=np.bool_),
     "int": TypeInfo(size=4, struct="i", dtype=np.int32),
     "uint": TypeInfo(size=4, struct="I", dtype=np.uint32),
     "float": TypeInfo(size=4, struct="f", dtype=np.float32),
@@ -381,5 +381,8 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         assert named_typed_result == named_typed_reference
 
 
+# if __name__ == "__main__":
+#     pytest.main([__file__, "-vvvs"])
+
 if __name__ == "__main__":
-    pytest.main([__file__, "-vvvs"])
+    test_shader_cursor(spy.DeviceType.d3d12, use_numpy=True)
