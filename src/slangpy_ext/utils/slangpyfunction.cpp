@@ -54,11 +54,17 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     ref<NativeCallData> call_data = cache->find_call_data(sig);
 
     if (call_data) {
-        return call_data->call(options, args, kwargs);
+        if (call_data->is_torch_integration())
+            return call_data->_py_torch_call(this, options, args, kwargs);
+        else
+            return call_data->call(options, args, kwargs);
     } else {
         ref<NativeCallData> new_call_data = generate_call_data(args, kwargs);
         cache->add_call_data(sig, new_call_data);
-        return new_call_data->call(options, args, kwargs);
+        if (new_call_data->is_torch_integration())
+            return new_call_data->_py_torch_call(this, options, args, kwargs);
+        else
+            return new_call_data->call(options, args, kwargs);
     }
 }
 

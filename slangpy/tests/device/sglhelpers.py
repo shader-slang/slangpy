@@ -52,6 +52,15 @@ def get_device(type: spy.DeviceType, use_cache: bool = True) -> spy.Device:
     if use_cache and type in DEVICE_CACHE:
         return DEVICE_CACHE[type]
 
+    adaptors = spy.Device.enumerate_adapters(type)
+    selected_adaptor = adaptors[0]
+
+    # This lets you force tests to use a specific GPU locally.
+    # for adapter in adaptors:
+    #     if "5090" in adapter.name:
+    #         selected_adaptor = adapter
+    #         break
+
     label = ""
     if use_cache:
         label = "cached-sgl"
@@ -61,6 +70,7 @@ def get_device(type: spy.DeviceType, use_cache: bool = True) -> spy.Device:
 
     device = spy.Device(
         type=type,
+        adapter_luid=selected_adaptor.luid,
         enable_debug_layers=True,
         compiler_options={
             "include_paths": [SHADER_DIR],

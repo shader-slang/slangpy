@@ -370,7 +370,7 @@ nb::ndarray<nb::numpy> StridedBufferView::to_numpy() const
 
 nb::ndarray<nb::pytorch> StridedBufferView::to_torch() const
 {
-    // Map cuda memory and pass to nanobind ndarray
+    // Map CUDA memory and pass to nanobind ndarray
     size_t dtype_size = desc().element_layout->stride();
     size_t byte_offset = desc().offset * dtype_size;
     void* data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;

@@ -11,11 +11,13 @@
 #include "sgl/device/device.h"
 #include "sgl/device/kernel.h"
 #include "sgl/device/command.h"
+#include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
 #include "utils/slangpy.h"
 #include "utils/slangpyvalue.h"
 #include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
+#include "utils/slangpyfunction.h"
 
 namespace sgl {
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
@@ -28,6 +30,9 @@ buffer_to_torch(Buffer* self, DataType type, std::vector<size_t> shape, std::vec
 
 namespace sgl::slangpy {
 
+static constexpr std::array<char, 16> HEX_CHARS
+    = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
 void SignatureBuilder::add(const std::string& value)
 {
     add_bytes((const uint8_t*)value.data(), (int)value.length());
@@ -36,6 +41,23 @@ void SignatureBuilder::add(const char* value)
 {
     add_bytes((const uint8_t*)value, (int)strlen(value));
 }
+void SignatureBuilder::add(const uint32_t value)
+{
+    uint8_t buffer[8];
+    for (int i = 0; i < 8; ++i) {
+        buffer[7 - i] = HEX_CHARS[(value >> (i * 4)) & 0xF];
+    }
+    add_bytes(buffer, 8);
+}
+void SignatureBuilder::add(const uint64_t value)
+{
+    uint8_t buffer[16];
+    for (int i = 0; i < 16; ++i) {
+        buffer[15 - i] = HEX_CHARS[(value >> (i * 4)) & 0xF];
+    }
+    add_bytes(buffer, 16);
+}
+
 
 nb::bytes SignatureBuilder::bytes() const
 {
@@ -566,14 +588,30 @@ nb::object NativeCallData::exec(
         log_debug("  Call group strides: [{}]", fmt::join(call_group_strides, ", "));
         if (is_call_shape_unaligned) {
             log_debug("  Call shape was not aligned to the given call group shape");
-            log_debug("  and has been padded up as a reult. Note that this will");
+            log_debug("  and has been padded up as a result. Note that this will");
             log_debug("  result in wasted threads.");
             log_debug("  Aligned call shape: [{}]", fmt::join(aligned_call_shape, ", "));
         }
         log_debug("  Threads: {}", total_threads);
     }
 
-    m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, command_encoder);
+    // If CUDA stream is provided, check for valid use and sync device to the CUDA stream
+    NativeHandle cuda_stream = opts->get_cuda_stream();
+    if (cuda_stream.is_valid()) {
+        SGL_CHECK(command_encoder == nullptr, "Cannot specify a CUDA stream when appending to a command encoder.");
+        SGL_CHECK(
+            m_device->supports_cuda_interop() || m_device->type() == DeviceType::cuda,
+            "To specify a CUDA stream, device must be either using CUDA backend or have CUDA interop enabled."
+        );
+    }
+
+    if (command_encoder == nullptr) {
+        // If we are not appending to a command encoder, we can dispatch directly.
+        m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, CommandQueueType::graphics, cuda_stream);
+    } else {
+        // If we are appending to a command encoder, we need to use the command encoder.
+        m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, command_encoder);
+    }
 
     // If command_buffer is not null, return early.
     if (command_encoder != nullptr) {
@@ -606,6 +644,16 @@ nb::object NativeCallData::exec(
         }
     }
     return nb::none();
+}
+
+nb::object PyNativeCallData::_py_torch_call(
+    NativeFunctionNode* func,
+    ref<NativeCallRuntimeOptions> opts,
+    nb::tuple args,
+    nb::dict kwargs
+)
+{
+    NB_OVERRIDE(_py_torch_call, func, opts, args, kwargs);
 }
 
 NativeCallDataCache::NativeCallDataCache()
@@ -732,6 +780,21 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         return;
     }
 
+    // Signature for pytorch tensors
+    {
+        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
+        if (nb::try_cast(o, pytorch_tensor)) {
+            *builder << fmt::format(
+                "[torch,D{},C{},B{},L{}]",
+                pytorch_tensor.ndim(),
+                pytorch_tensor.dtype().code,
+                pytorch_tensor.dtype().bits,
+                pytorch_tensor.dtype().lanes
+            );
+            return;
+        }
+    }
+
     // If x is a dictionary get signature of its children.
     nb::dict dict;
     if (nb::try_cast(o, dict)) {
@@ -776,25 +839,25 @@ void NativeCallDataCache::get_args_signature(const ref<SignatureBuilder> builder
     }
 }
 
-nb::list unpack_args(nb::args args)
+nb::list unpack_args(nb::args args, std::optional<nb::list> refs)
 {
     nb::list unpacked;
     for (auto arg : args) {
-        unpacked.append(unpack_arg(nb::cast<nb::object>(arg)));
+        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), refs));
     }
     return unpacked;
 }
 
-nb::dict unpack_kwargs(nb::kwargs kwargs)
+nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs)
 {
     nb::dict unpacked;
     for (const auto& [k, v] : kwargs) {
-        unpacked[k] = unpack_arg(nb::cast<nb::object>(v));
+        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), refs);
     }
     return unpacked;
 }
 
-nb::object unpack_arg(nb::object arg)
+nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
 {
     auto obj = arg;
 
@@ -803,12 +866,23 @@ nb::object unpack_arg(nb::object arg)
         obj = nb::getattr(obj, "get_this")();
     }
 
+    // If object is a pytorch tensor, wrap it in a ref and export
+    if (refs.has_value()) {
+        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
+        if (nb::try_cast(arg, pytorch_tensor)) {
+            ref<TensorRef> tensorref = make_ref<TensorRef>((int32_t)refs->size(), pytorch_tensor);
+            auto asobj = nb::cast(tensorref);
+            refs->append(asobj);
+            return asobj;
+        }
+    }
+
     // Recursively unpack dictionaries.
     nb::dict d;
     if (nb::try_cast(obj, d)) {
         nb::dict res;
         for (auto [k, v] : d) {
-            res[k] = unpack_arg(nb::cast<nb::object>(v));
+            res[k] = unpack_arg(nb::cast<nb::object>(v), refs);
         }
         obj = res;
     }
@@ -818,7 +892,7 @@ nb::object unpack_arg(nb::object arg)
     if (nb::try_cast(obj, l)) {
         nb::list res;
         for (auto v : l) {
-            res.append(unpack_arg(nb::cast<nb::object>(v)));
+            res.append(unpack_arg(nb::cast<nb::object>(v), refs));
         }
         obj = res;
     }
@@ -879,8 +953,22 @@ SGL_PY_EXPORT(utils_slangpy)
         D_NA(slangpy, unpack_args)
     );
     slangpy.def(
+        "unpack_refs_and_args",
+        [](nb::list refs, nb::args args) { return unpack_args(args, refs); },
+        "refs"_a,
+        "args"_a,
+        D_NA(slangpy, unpack_args)
+    );
+    slangpy.def(
         "unpack_kwargs",
         [](nb::kwargs kwargs) { return unpack_kwargs(kwargs); },
+        "kwargs"_a,
+        D_NA(slangpy, unpack_kwargs)
+    );
+    slangpy.def(
+        "unpack_refs_and_kwargs",
+        [](nb::list refs, nb::kwargs kwargs) { return unpack_kwargs(kwargs, refs); },
+        "refs"_a,
         "kwargs"_a,
         D_NA(slangpy, unpack_kwargs)
     );
@@ -1138,14 +1226,24 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallRuntimeOptions::get_uniforms,
             &NativeCallRuntimeOptions::set_uniforms,
             D_NA(NativeCallRuntimeOptions, uniforms)
+        )
+        .def_prop_rw(
+            "cuda_stream",
+            &NativeCallRuntimeOptions::get_cuda_stream,
+            &NativeCallRuntimeOptions::set_cuda_stream,
+            D_NA(NativeCallRuntimeOptions, cuda_stream)
         );
 
     // clang-format off
 #define DEF_LOG_METHOD(name) def(#name, [](NativeCallData& self, const std::string_view msg) { self.name(msg); }, "msg"_a)
     // clang-format on
 
-    nb::class_<NativeCallData, Object>(slangpy, "NativeCallData") //
-        .def(nb::init<>(), D_NA(NativeCallData, NativeCallData))
+    nb::class_<NativeCallData, PyNativeCallData, Object>(slangpy, "NativeCallData") //
+        .def(
+            "__init__",
+            [](NativeCallData& self) { new (&self) PyNativeCallData(); },
+            D_NA(NativeCallData, NativeCallData)
+        )
         .def_prop_rw("device", &NativeCallData::get_device, &NativeCallData::set_device, D_NA(NativeCallData, device))
         .def_prop_rw("kernel", &NativeCallData::get_kernel, &NativeCallData::set_kernel, D_NA(NativeCallData, kernel))
         .def_prop_rw(
@@ -1197,13 +1295,37 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg("kwargs"),
             D_NA(NativeCallData, append_to)
         )
+        .def(
+            "_py_torch_call",
+            &NativeCallData::_py_torch_call,
+            nb::arg("function"),
+            nb::arg("opts"),
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            D_NA(NativeCallData, _py_torch_call)
+        )
         .def_prop_rw(
             "call_group_shape",
-            &NativeCallData::get_call_group_shape,
+            &NativeCallData::call_group_shape,
             &NativeCallData::set_call_group_shape,
             nb::arg().none(),
             D_NA(NativeCallData, call_group_shape)
         )
+        .def_prop_rw(
+            "torch_integration",
+            &NativeCallData::is_torch_integration,
+            &NativeCallData::set_torch_integration,
+            nb::arg(),
+            D_NA(NativeCallData, torch_integration)
+        )
+        .def_prop_rw(
+            "torch_autograd",
+            &NativeCallData::is_torch_autograd,
+            &NativeCallData::set_torch_autograd,
+            nb::arg(),
+            D_NA(NativeCallData, torch_autograd)
+        )
+
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))
         .DEF_LOG_METHOD(log_debug)
         .DEF_LOG_METHOD(log_info)
@@ -1360,4 +1482,44 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(CallContext, call_shape)
         )
         .def_prop_ro("call_mode", &CallContext::call_mode, D_NA(CallContext, call_mode));
+
+    nb::class_<TensorRef, NativeObject>(slangpy, "TensorRef") //
+        .def(
+            "__init__",
+            [](TensorRef& self, int id, nb::ndarray<nb::pytorch, nb::device::cuda> tensor)
+            { new (&self) TensorRef(id, tensor); },
+            "id"_a,
+            "tensor"_a,
+            D_NA(TensorRef, TensorRef)
+        )
+        .def_prop_rw("id", &TensorRef::id, &TensorRef::set_id, nb::arg(), D_NA(TensorRef, index))
+        .def_prop_rw("tensor", &TensorRef::tensor, &TensorRef::set_tensor, nb::arg().none(), D_NA(TensorRef, tensor))
+        .def_prop_rw(
+            "interop_buffer",
+            &TensorRef::interop_buffer,
+            &TensorRef::set_interop_buffer,
+            nb::arg().none(),
+            D_NA(TensorRef, interop_buffer)
+        )
+        .def_prop_rw(
+            "grad_in",
+            &TensorRef::grad_in,
+            &TensorRef::set_grad_in,
+            nb::arg().none(),
+            D_NA(TensorRef, grad_in)
+        )
+        .def_prop_rw(
+            "grad_out",
+            &TensorRef::grad_out,
+            &TensorRef::set_grad_out,
+            nb::arg().none(),
+            D_NA(TensorRef, grad_out)
+        )
+        .def_prop_rw(
+            "last_access",
+            &TensorRef::last_access,
+            &TensorRef::set_last_access,
+            nb::arg(),
+            D_NA(TensorRef, last_access)
+        );
 }

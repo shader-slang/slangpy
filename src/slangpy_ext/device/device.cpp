@@ -571,6 +571,7 @@ SGL_PY_EXPORT(device_device)
         &Device::submit_command_buffer,
         "command_buffer"_a,
         "queue"_a = CommandQueueType::graphics,
+        "cuda_stream"_a = NativeHandle(),
         D(Device, submit_command_buffer)
     );
     device.def("is_submit_finished", &Device::is_submit_finished, "id"_a, D(Device, is_submit_finished));
