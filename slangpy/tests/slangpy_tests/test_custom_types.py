@@ -363,8 +363,11 @@ void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
     # Make buffer for bucket of counts
     buckets = NDBuffer(element_count=bucket_size, device=device, dtype=int)
 
-    # Run bucketer with 1B random floats
-    count = 1 * 1000 * 1000 * 1000
+    # Run bucketer with 1B random floats [This causes CUDA to be immensely slower than other platforms]
+    # count = 1 * 1000 * 1000 * 1000
+
+    # Use 1 million instead to keep test reasonable
+    count = 1 * 1000 * 1000
     bucket_values(grid((count,)), buckets.storage, rand_float())
 
     # Verify the distribution of values in range [0,1) is roughly even
@@ -373,7 +376,7 @@ void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
     for i in range(bucket_size - 1):
         bucket = float(res[i])
         rel_diff = abs(bucket - expected_count_per_bucket) / expected_count_per_bucket
-        assert rel_diff < 0.0001
+        assert rel_diff < 0.01
 
     # Verify 1 never turns up
     assert res[bucket_size - 1] == 0
