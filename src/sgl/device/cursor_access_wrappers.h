@@ -149,6 +149,23 @@ public:
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
         cursor_utils::check_vector(_get_slang_type_layout(), size, cpu_scalar_type, dimension);
 #endif
+        if (_get_device_type_internal() == DeviceType::metal) {
+            if (cpu_scalar_type == TypeReflection::ScalarType::int32 && dimension == 3) {
+                std::string need_to_see;
+#define PRINT(x) need_to_see += fmt::format(#x ": {}\n", x);
+                auto type_name = sgl::TypeReflection({}, _get_slang_type_layout()->getType()).full_name();
+                PRINT(type_name);
+                PRINT(cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type));
+                PRINT(dimension);
+                PRINT(_get_slang_type_layout()->getSize());
+                PRINT(_get_slang_type_layout()->getStride());
+                PRINT(_get_slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM));
+                PRINT(_get_slang_type_layout()->getElementTypeLayout()->getSize());
+                PRINT(_get_slang_type_layout()->getElementTypeLayout()->getStride());
+                SGL_THROW(need_to_see);
+            }
+        }
+
         _set_array_or_vector(data, size, cpu_scalar_type, dimension);
     }
 
