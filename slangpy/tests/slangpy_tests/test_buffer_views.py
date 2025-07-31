@@ -20,7 +20,7 @@ struct RGB {
 
 TEST_INDICES = [
     # Partial indexing
-    (3,),
+    3,
     (3, 4, 2, 1),
     # Ellipses
     (3, 4, ...),
@@ -56,7 +56,7 @@ def test_indexing(
     buffer = buffer_type.zeros(device, dtype="float", shape=shape)
     buffer.copy_from_numpy(numpy_ref)
 
-    indexed_buffer = buffer.__getitem__(*index)
+    indexed_buffer = buffer.__getitem__(index)
     indexed_ndarray = numpy_ref.__getitem__(index)
 
     if isinstance(indexed_ndarray, np.number):
