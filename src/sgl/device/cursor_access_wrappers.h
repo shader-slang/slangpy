@@ -48,10 +48,17 @@ class SGL_API CursorWriteWrappers {
         // CPU is assumed tightly packed, i.e., stride and size are the same value.
         size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
         size_t element_stride = _get_slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-
         // CUDA misreports the actual element stride, see https://github.com/shader-slang/slang/issues/7441
-        // We will pretend that element stride is equal to the total stride divided by number of elements.
-        // size_t element_stride = _get_slang_type_layout()->getStride() / element_count;
+        // In the old implementation, bool2-4 are implemented as int2-4, and even though bool1 is implemented as int1,
+        // the actual emitted code is bool. So for bool2-4, the element stride is 4, for bool1 it remains at 1.
+        // The check for the total size == sizeof(int) * element_count is to disable this on newer Slang implementation,
+        // where bool1-4 is implemented as an actual struct of 1-4 bools.
+        if (cpu_scalar_type == TypeReflection::ScalarType::bool_ && _get_device_type_internal() == DeviceType::cuda
+            && _get_slang_type_layout()->getKind() == slang::TypeReflection::Kind::Vector
+            && _get_slang_type_layout()->getSize() == sizeof(int) * element_count) {
+            if (element_count > 1)
+                element_stride = 4;
+        }
         size_t element_size = _get_slang_type_layout()->getElementTypeLayout()->getSize();
 
         SGL_CHECK(
@@ -237,10 +244,17 @@ class SGL_API CursorReadWrappers {
         // CPU is assumed tightly packed, i.e., stride and size are the same value.
         size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
         size_t element_stride = _get_slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-
         // CUDA misreports the actual element stride, see https://github.com/shader-slang/slang/issues/7441
-        // We will pretend that element stride is equal to the total stride divided by number of elements.
-        // size_t element_stride = _get_slang_type_layout()->getStride() / element_count;
+        // In the old implementation, bool2-4 are implemented as int2-4, and even though bool1 is implemented as int1,
+        // the actual emitted code is bool. So for bool2-4, the element stride is 4, for bool1 it remains at 1.
+        // The check for the total size == sizeof(int) * element_count is to disable this on newer Slang implementation,
+        // where bool1-4 is implemented as an actual struct of 1-4 bools.
+        if (cpu_scalar_type == TypeReflection::ScalarType::bool_ && _get_device_type_internal() == DeviceType::cuda
+            && _get_slang_type_layout()->getKind() == slang::TypeReflection::Kind::Vector
+            && _get_slang_type_layout()->getSize() == sizeof(int) * element_count) {
+            if (element_count > 1)
+                element_stride = 4;
+        }
         size_t element_size = _get_slang_type_layout()->getElementTypeLayout()->getSize();
 
         SGL_CHECK(
