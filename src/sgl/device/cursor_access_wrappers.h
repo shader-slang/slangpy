@@ -47,11 +47,11 @@ class SGL_API CursorWriteWrappers {
     {
         // CPU is assumed tightly packed, i.e., stride and size are the same value.
         size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
-        // size_t element_stride = _get_slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+        size_t element_stride = _get_slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
 
         // CUDA misreports the actual element stride, see https://github.com/shader-slang/slang/issues/7441
         // We will pretend that element stride is equal to the total stride divided by number of elements.
-        size_t element_stride = _get_slang_type_layout()->getStride() / element_count;
+        // size_t element_stride = _get_slang_type_layout()->getStride() / element_count;
         size_t element_size = _get_slang_type_layout()->getElementTypeLayout()->getSize();
 
         SGL_CHECK(
@@ -219,11 +219,11 @@ class SGL_API CursorReadWrappers {
     {
         // CPU is assumed tightly packed, i.e., stride and size are the same value.
         size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
-        // size_t element_stride = _get_slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+        size_t element_stride = _get_slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
 
         // CUDA misreports the actual element stride, see https://github.com/shader-slang/slang/issues/7441
         // We will pretend that element stride is equal to the total stride divided by number of elements.
-        size_t element_stride = _get_slang_type_layout()->getStride() / element_count;
+        // size_t element_stride = _get_slang_type_layout()->getStride() / element_count;
         size_t element_size = _get_slang_type_layout()->getElementTypeLayout()->getSize();
 
         SGL_CHECK(
