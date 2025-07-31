@@ -283,7 +283,12 @@ void StridedBufferView::index_inplace(nb::object index_arg)
             shape.push_back(1);
             strides.push_back(0);
         } else {
-            SGL_THROW("Illegal argument at dimension {}", i);
+            auto type_name = nb::str(arg.type());
+            SGL_THROW(
+                "Illegal argument at dimension {}: Allowed are int, slice, ..., or None; found {} instead",
+                i,
+                type_name.c_str()
+            );
         }
     }
 
