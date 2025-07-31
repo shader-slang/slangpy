@@ -169,13 +169,13 @@ CursorWriteWrappers<BufferElementCursor, size_t>::_set_vector(const void*, size_
         _get_matrix(&value, sizeof(value), TypeReflection::ScalarType::scalar_type, type::rows, type::cols);           \
     }
 
-// GETSET_SCALAR(bool, bool_);
-// // bool1 case specifically cannot be handled due to:
-// // https://github.com/shader-slang/slang/issues/7441
-// //GETSET_VECTOR(bool1, bool_);
-// GETSET_VECTOR(bool2, bool_);
-// GETSET_VECTOR(bool3, bool_);
-// GETSET_VECTOR(bool4, bool_);
+GETSET_SCALAR(bool, bool_);
+// bool1 case specifically cannot be handled due to:
+// https://github.com/shader-slang/slang/issues/7441
+// GETSET_VECTOR(bool1, bool_);
+GETSET_VECTOR(bool2, bool_);
+GETSET_VECTOR(bool3, bool_);
+GETSET_VECTOR(bool4, bool_);
 
 
 GETSET_SCALAR(int8_t, int8);
@@ -240,17 +240,6 @@ GETSET_SCALAR(double, float64);
 // Note that this applies to our boolN vectors as well, which are currently 1B per element.
 
 template<>
-SGL_API void BufferElementCursor::set(const bool& v)
-{
-    _set_scalar(&v, sizeof(v), TypeReflection::ScalarType::bool_);
-}
-template<>
-SGL_API void BufferElementCursor::get(bool& v) const
-{
-    _get_scalar(&v, sizeof(v), TypeReflection::ScalarType::bool_);
-}
-
-template<>
 SGL_API void BufferElementCursor::set(const bool1& v)
 {
     SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
@@ -262,37 +251,6 @@ SGL_API void BufferElementCursor::get(bool1& v) const
     SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
     _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
 }
-template<>
-SGL_API void BufferElementCursor::set(const bool2& v)
-{
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 2);
-}
-template<>
-SGL_API void BufferElementCursor::get(bool2& v) const
-{
-    _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 2);
-}
-template<>
-SGL_API void BufferElementCursor::set(const bool3& v)
-{
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 3);
-}
-template<>
-SGL_API void BufferElementCursor::get(bool3& v) const
-{
-    _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 3);
-}
-template<>
-SGL_API void BufferElementCursor::set(const bool4& v)
-{
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 4);
-}
-template<>
-SGL_API void BufferElementCursor::get(bool4& v) const
-{
-    _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 4);
-}
-
 
 template<>
 SGL_API void BufferElementCursor::set(const DescriptorHandle& value)
