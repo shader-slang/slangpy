@@ -206,7 +206,7 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
     device.sync_to_cuda()
-    
+
     buffer.copy_from_torch(torch_ref)
 
     device.sync_to_device()
