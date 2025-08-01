@@ -5,6 +5,7 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/device_resource.h"
 #include "sgl/device/shader_cursor.h"
+#include "sgl/device/native_handle.h"
 
 #include "sgl/core/macros.h"
 #include "sgl/core/object.h"
@@ -41,7 +42,14 @@ public:
 
     ComputePipeline* pipeline() const;
 
-    void dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandEncoder* command_encoder = nullptr);
+    void dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandEncoder* command_encoder);
+
+    void dispatch(
+        uint3 thread_count,
+        BindVarsCallback bind_vars,
+        CommandQueueType queue = CommandQueueType::graphics,
+        NativeHandle cuda_stream = {}
+    );
 
 private:
     uint3 m_thread_group_size;

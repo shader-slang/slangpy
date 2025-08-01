@@ -21,6 +21,7 @@ namespace sgl::slangpy {
 
 class NativeBoundVariableRuntime;
 class NativeCallData;
+class NativeFunctionNode;
 
 /// General exception that includes a message and the bound variable from which the error
 /// originated.
@@ -66,6 +67,8 @@ public:
 
     void add(const std::string& value);
     void add(const char* value);
+    void add(const uint32_t value);
+    void add(const uint64_t value);
 
     template<typename T>
     SignatureBuilder& operator<<(const T& value)
@@ -581,9 +584,16 @@ public:
     /// Set this
     void set_this(const nb::object& this_) { m_this = this_; }
 
+    /// Get the CUDA stream.
+    NativeHandle get_cuda_stream() const { return m_cuda_stream; }
+
+    /// Set the CUDA stream.
+    void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
+
 private:
     nb::list m_uniforms;
     nb::object m_this{nb::none()};
+    NativeHandle m_cuda_stream;
 };
 
 /// Defines the common logging functions for a given log level.
@@ -652,6 +662,18 @@ public:
     /// Set the logger
     void set_logger(ref<Logger> logger) { m_logger = logger; }
 
+    /// Get torch integration status.
+    bool is_torch_integration() const { return m_torch_integration; }
+
+    /// Set torch integration status.
+    void set_torch_integration(bool torch_integration) { m_torch_integration = torch_integration; }
+
+    /// Get torch autograd status.
+    bool is_torch_autograd() const { return m_torch_autograd; }
+
+    /// Set torch autograd status.
+    void set_torch_autograd(bool torch_autograd) { m_torch_autograd = torch_autograd; }
+
     /// Set the shape of call groups when a dispatch is made.
     void set_call_group_shape(std::optional<Shape> call_group_shape)
     {
@@ -663,7 +685,7 @@ public:
     }
 
     /// Get the shape of call groups when a dispatch is made.
-    const Shape& get_call_group_shape() const { return m_call_group_shape; }
+    const Shape& call_group_shape() const { return m_call_group_shape; }
 
     /// Call the compute kernel with the provided arguments and keyword arguments.
     nb::object call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs);
@@ -699,6 +721,16 @@ public:
     SGL_LOG_FUNC_FAMILY(log_error, LogLevel::error)
     SGL_LOG_FUNC_FAMILY(log_fatal, LogLevel::fatal)
 
+    // Virtual for python to override for wrapping torch calls
+    virtual nb::object
+    _py_torch_call(NativeFunctionNode* func, ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs)
+    {
+        SGL_UNUSED(func);
+        SGL_UNUSED(opts);
+        SGL_UNUSED(args);
+        SGL_UNUSED(kwargs);
+        SGL_THROW("Not implemented");
+    }
 
 private:
     ref<Device> m_device;
@@ -710,11 +742,22 @@ private:
     std::string m_debug_name;
     ref<Logger> m_logger;
     Shape m_call_group_shape;
+    bool m_torch_integration{false};
+    bool m_torch_autograd{false};
 
     nb::object
     exec(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 };
 #undef SGL_LOG_FUNC_FAMILY
+
+class PyNativeCallData : public NativeCallData {
+public:
+    NB_TRAMPOLINE(NativeCallData, 1);
+
+    nb::object
+    _py_torch_call(NativeFunctionNode* func, ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs)
+        override;
+};
 
 typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> BuildSignatureFunc;
 
@@ -758,9 +801,56 @@ public:
     std::optional<std::string> lookup_value_signature(nb::handle o) override { NB_OVERRIDE(lookup_value_signature, o); }
 };
 
-nb::list unpack_args(nb::args args);
-nb::dict unpack_kwargs(nb::kwargs kwargs);
-nb::object unpack_arg(nanobind::object arg);
+class TensorRef : public NativeObject {
+public:
+    TensorRef() = default;
+
+    TensorRef(int32_t id, const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
+        : m_id(id)
+        , m_tensor(tensor)
+    {
+        set_slangpy_signature(fmt::format(
+            "[torch,D{},C{},B{},L{}]",
+            tensor.ndim(),
+            tensor.dtype().code,
+            tensor.dtype().bits,
+            tensor.dtype().lanes
+        ));
+    }
+
+    std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor() const { return m_tensor; }
+
+    void set_tensor(const std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor) { m_tensor = tensor; }
+
+    ref<Buffer> interop_buffer() const { return m_interop_buffer; }
+
+    void set_interop_buffer(const ref<Buffer>& interop_buffer) { m_interop_buffer = interop_buffer; }
+
+    int32_t id() const { return m_id; }
+
+    void set_id(int32_t id) { m_id = id; }
+
+    ref<TensorRef> grad_in() const { return m_grad_in; }
+    void set_grad_in(const ref<TensorRef>& grad_in) { m_grad_in = grad_in; }
+
+    ref<TensorRef> grad_out() const { return m_grad_out; }
+    void set_grad_out(const ref<TensorRef>& grad_out) { m_grad_out = grad_out; }
+
+    std::pair<AccessType, AccessType> last_access() const { return m_last_access; }
+    void set_last_access(const std::pair<AccessType, AccessType>& last_access) { m_last_access = last_access; }
+
+private:
+    int32_t m_id{-1};
+    std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> m_tensor;
+    ref<Buffer> m_interop_buffer;
+    ref<TensorRef> m_grad_in;
+    ref<TensorRef> m_grad_out;
+    std::pair<AccessType, AccessType> m_last_access{AccessType::none, AccessType::none};
+};
+
+nb::list unpack_args(nb::args args, std::optional<nb::list> refs = std::optional<nb::list>());
+nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs = std::optional<nb::list>());
+nb::object unpack_arg(nanobind::object arg, std::optional<nb::list> refs = std::optional<nb::list>());
 void pack_arg(nb::object arg, nb::object unpacked_arg);
 
 void hash_signature(

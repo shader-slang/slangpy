@@ -64,6 +64,8 @@ public:
     nb::ndarray<nb::pytorch> to_torch() const;
     /// Copy from CPU memory (as a numpy array) into GPU buffer
     void copy_from_numpy(nb::ndarray<nb::numpy> data);
+    /// Copy from torch tensor into GPU buffer
+    void copy_from_torch(nb::object tensor);
 
     void point_to(ref<StridedBufferView> target);
 

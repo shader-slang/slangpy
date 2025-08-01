@@ -41,12 +41,6 @@ ComputePipeline* ComputeKernel::pipeline() const
 
 void ComputeKernel::dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandEncoder* command_encoder)
 {
-    ref<CommandEncoder> temp_command_encoder;
-    if (command_encoder == nullptr) {
-        temp_command_encoder = m_device->create_command_encoder();
-        command_encoder = temp_command_encoder;
-    }
-
     {
         auto pass_encoder = command_encoder->begin_compute_pass();
         ShaderObject* shader_object = pass_encoder->bind_pipeline(pipeline());
@@ -55,10 +49,20 @@ void ComputeKernel::dispatch(uint3 thread_count, BindVarsCallback bind_vars, Com
         pass_encoder->dispatch(thread_count);
         pass_encoder->end();
     }
+}
 
-    if (temp_command_encoder) {
-        m_device->submit_command_buffer(temp_command_encoder->finish());
-    }
+void ComputeKernel::dispatch(
+    uint3 thread_count,
+    BindVarsCallback bind_vars,
+    CommandQueueType queue,
+    NativeHandle cuda_stream
+)
+{
+    ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
+
+    dispatch(thread_count, bind_vars, command_encoder);
+
+    m_device->submit_command_buffer(command_encoder->finish(), queue, cuda_stream);
 }
 
 // ----------------------------------------------------------------------------

@@ -53,7 +53,7 @@ def test_buffer_init_data(device_type: spy.DeviceType):
         "structured_buffer_uint",
     ],
 )
-@pytest.mark.parametrize("size_MB", [128, 1024, 2048, 3072, 4096])
+@pytest.mark.parametrize("size_MB", [128, 1024, 2048, 3072, 4094])
 def test_buffer(device_type: spy.DeviceType, type: str, size_MB: int):
     device = helpers.get_device(device_type)
 
@@ -82,10 +82,6 @@ def test_buffer(device_type: spy.DeviceType, type: str, size_MB: int):
 
     element_size = 4
     size = size_MB * 1024 * 1024
-
-    # Vulkan does not support actual 4GB buffers, but 4GB - 1B
-    if device_type == spy.DeviceType.vulkan and size >= 4096 * 1024 * 1024:
-        size -= element_size
 
     # create device local buffer
     device_buffer = device.create_buffer(

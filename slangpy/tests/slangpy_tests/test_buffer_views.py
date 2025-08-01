@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import pytest
 
-from slangpy import DeviceType
+from slangpy import DeviceType, BufferUsage
 from . import helpers
 from slangpy.types import NDBuffer, Tensor
 
 from typing import Any, Union, Type
 
 import numpy as np
-
+import sys
 
 MODULE = r"""
 struct RGB {
@@ -185,6 +185,36 @@ def test_full_numpy_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
+def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]):
+    try:
+        import torch
+    except ImportError:
+        pytest.skip("Pytorch not installed", allow_module_level=True)
+
+    if sys.platform == "darwin":
+        pytest.skip(
+            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
+        )
+
+    if device_type == DeviceType.cuda:
+        pytest.skip("Torch interop not supported on CUDA yet")
+
+    device = helpers.get_device(device_type, cuda_interop=True)
+    shape = (5, 4)
+
+    torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
+    usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
+    buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+
+    buffer.copy_from_torch(torch_ref)
+    device.sync_to_cuda()
+    device.sync_to_device()
+    buffer_to_torch = buffer.to_torch()
+    assert torch.allclose(buffer_to_torch, torch_ref)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
 def test_partial_numpy_copy(
     device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
 ):
@@ -200,6 +230,40 @@ def test_partial_numpy_copy(
 
     buffer_to_np = buffer.to_numpy()
     assert (buffer_to_np == numpy_ref).all()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
+def test_partial_torch_copy(
+    device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
+):
+    try:
+        import torch
+    except ImportError:
+        pytest.skip("Pytorch not installed", allow_module_level=True)
+
+    if sys.platform == "darwin":
+        pytest.skip(
+            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
+        )
+
+    if device_type == DeviceType.cuda:
+        pytest.skip("Torch interop not supported on CUDA yet")
+
+    device = helpers.get_device(device_type, cuda_interop=True)
+    shape = (5, 4)
+
+    torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
+    usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
+    buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+
+    for i in range(shape[0]):
+        buffer[i].copy_from_torch(torch_ref[i])
+        device.sync_to_cuda()
+        device.sync_to_device()
+
+    buffer_to_torch = buffer.to_torch()
+    assert torch.allclose(buffer_to_torch, torch_ref)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -221,3 +285,41 @@ def test_numpy_copy_errors(
     with pytest.raises(Exception, match=r"Destination buffer view must be contiguous"):
         ndarray = np.zeros(shape, dtype=np.float32)
         buffer_view.copy_from_numpy(ndarray)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
+def test_torch_copy_errors(
+    device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
+):
+    try:
+        import torch
+    except ImportError:
+        pytest.skip("Pytorch not installed", allow_module_level=True)
+
+    if sys.platform == "darwin":
+        pytest.skip(
+            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
+        )
+
+    if device_type == DeviceType.cuda:
+        pytest.skip("Torch interop not supported on CUDA yet")
+
+    device = helpers.get_device(device_type, cuda_interop=True)
+    shape = (5, 4)
+
+    usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
+    buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+
+    with pytest.raises(Exception, match=r"Tensor is larger"):
+        tensor = torch.zeros((shape[0], shape[1] + 1), dtype=torch.float32)
+        if torch.cuda.is_available():
+            tensor = tensor.cuda()
+        buffer.copy_from_torch(tensor)
+
+    buffer_view = buffer.view(shape, (1, shape[0]))
+    with pytest.raises(Exception, match=r"Destination buffer view must be contiguous"):
+        tensor = torch.zeros(shape, dtype=torch.float32)
+        if torch.cuda.is_available():
+            tensor = tensor.cuda()
+        buffer_view.copy_from_torch(tensor)

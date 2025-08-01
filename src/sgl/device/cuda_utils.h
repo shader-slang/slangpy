@@ -6,6 +6,7 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/fence.h"
+#include "sgl/device/types.h"
 
 #include <slang-rhi/cuda-driver-api.h>
 
@@ -44,6 +45,7 @@ SGL_API void destroy_external_semaphore(CUexternalSemaphore ext_sem);
 SGL_API void signal_external_semaphore(CUexternalSemaphore ext_sem, uint64_t value, CUstream stream = 0);
 SGL_API void wait_external_semaphore(CUexternalSemaphore ext_sem, uint64_t value, CUstream stream = 0);
 
+
 /// Wraps a CUDA device, context and stream.
 class SGL_API Device : public Object {
     SGL_OBJECT(cuda::Device)
@@ -51,16 +53,20 @@ public:
     /// Constructor.
     /// Creates a CUDA device on the same adapter as the sgl device.
     explicit Device(const sgl::Device* device);
+    explicit Device(CUcontext context);
+    explicit Device(CUdevice device);
     ~Device();
 
     CUdevice device() const { return m_device; }
     CUcontext context() const { return m_context; }
-    CUstream stream() const { return m_stream; }
+
+    AdapterLUID adapter_luid() const;
+    std::string adapter_name() const;
 
 private:
-    CUdevice m_device;
-    CUcontext m_context;
-    CUstream m_stream;
+    CUdevice m_device{-1};
+    CUcontext m_context{nullptr};
+    bool m_owns_context{false};
 };
 
 /// Wraps an external memory resource.

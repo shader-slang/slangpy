@@ -10,7 +10,34 @@
 namespace sgl {
 
 namespace cursor_utils {
-    SGL_API size_t get_scalar_type_size(TypeReflection::ScalarType type);
+    // Get the CPU size of the scalar types
+    inline size_t get_scalar_type_cpu_size(TypeReflection::ScalarType type)
+    {
+        switch (type) {
+        case TypeReflection::ScalarType::bool_:
+        case TypeReflection::ScalarType::int8:
+        case TypeReflection::ScalarType::uint8:
+            static_assert(sizeof(bool) == 1 && sizeof(int8_t) == 1 && sizeof(uint8_t) == 1);
+            return 1;
+        case TypeReflection::ScalarType::int16:
+        case TypeReflection::ScalarType::uint16:
+        case TypeReflection::ScalarType::float16:
+            static_assert(sizeof(int16_t) == 2 && sizeof(uint16_t) == 2 && sizeof(float16_t) == 2);
+            return 2;
+        case TypeReflection::ScalarType::int32:
+        case TypeReflection::ScalarType::uint32:
+        case TypeReflection::ScalarType::float32:
+            static_assert(sizeof(int32_t) == 4 && sizeof(uint32_t) == 4 && sizeof(float) == 4);
+            return 4;
+        case TypeReflection::ScalarType::int64:
+        case TypeReflection::ScalarType::uint64:
+        case TypeReflection::ScalarType::float64:
+            static_assert(sizeof(int64_t) == 8 && sizeof(uint64_t) == 8 && sizeof(double) == 8);
+            return 8;
+        default:
+            SGL_THROW("Unexpected ScalarType \"{}\"", type);
+        }
+    }
 
     SGL_API slang::TypeLayoutReflection* unwrap_array(slang::TypeLayoutReflection* layout);
 

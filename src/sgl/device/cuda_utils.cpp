@@ -153,6 +153,7 @@ void wait_external_semaphore(CUexternalSemaphore ext_sem, uint64_t value, CUstre
     SGL_CU_CHECK(cuWaitExternalSemaphoresAsync(&ext_sem, &params, 1, stream));
 }
 
+
 inline int find_device_by_luid(int device_count, const AdapterLUID& luid)
 {
     for (int i = 0; i < device_count; ++i) {
@@ -231,20 +232,79 @@ Device::Device(const sgl::Device* device)
 
     SGL_CU_CHECK(cuDeviceGet(&m_device, selected_device));
     SGL_CU_CHECK(cuDevicePrimaryCtxRetain(&m_context, m_device));
-    SGL_CU_CHECK(cuCtxSetCurrent(m_context));
-    SGL_CU_CHECK(cuStreamCreate(&m_stream, CU_STREAM_DEFAULT));
+    m_owns_context = true;
 
     char name[256];
-    SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), selected_device));
-    int major = get_device_attribute(selected_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
-    int minor = get_device_attribute(selected_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
-    log_debug("Created CUDA device \"{}\" (architecture {}.{}).", name, major, minor);
+    SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), m_device));
+    int major = get_device_attribute(m_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
+    int minor = get_device_attribute(m_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+    log_debug("Created CUDA context on device \"{}\" (architecture {}.{}).", name, major, minor);
+}
+
+Device::Device(CUcontext context)
+{
+    m_context = context;
+    SGL_CU_SCOPE(this);
+    SGL_CU_CHECK(cuCtxGetDevice(&m_device));
+    m_owns_context = false;
+
+    char name[256];
+    SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), m_device));
+    int major = get_device_attribute(m_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
+    int minor = get_device_attribute(m_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+    log_debug("Sharing CUDA context on device \"{}\" (architecture {}.{}).", name, major, minor);
+}
+
+Device::Device(CUdevice device)
+{
+    m_device = device;
+
+    SGL_CU_CHECK(cuDevicePrimaryCtxRetain(&m_context, m_device));
+    m_owns_context = true;
+    char name[256];
+
+    SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), m_device));
+    int major = get_device_attribute(m_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
+    int minor = get_device_attribute(m_device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+    log_debug("Created CUDA context on device \"{}\" (architecture {}.{}).", name, major, minor);
 }
 
 Device::~Device()
 {
-    SGL_CU_CHECK(cuStreamDestroy(m_stream));
-    SGL_CU_CHECK(cuDevicePrimaryCtxRelease(m_device));
+    if (m_owns_context) {
+        SGL_CU_CHECK(cuDevicePrimaryCtxRelease(m_device));
+    }
+}
+
+AdapterLUID Device::adapter_luid() const
+{
+    AdapterLUID luid;
+    memset(luid.data(), 0, luid.size());
+
+#if SGL_WINDOWS
+    // On Windows, we compare the 8-byte LUID. The LUID is the same for
+    // D3D12, Vulkan and CUDA.
+    std::array<char, 8> device_luid;
+    unsigned int device_node_mask;
+    SGL_CU_CHECK(cuDeviceGetLuid(device_luid.data(), &device_node_mask, m_device));
+    static_assert(device_luid.size() <= sizeof(AdapterLUID));
+    std::memcpy(luid.data(), device_luid.data(), device_luid.size());
+#elif SGL_LINUX
+    // On Linux, the LUID is not supported. Instead we compare the 16-byte
+    // UUID which GFX conveniently returns in-place of the LUID.
+    CUuuid device_uuid;
+    SGL_CU_CHECK(cuDeviceGetUuid(&device_uuid, m_device));
+    static_assert(sizeof(device_uuid) <= sizeof(AdapterLUID));
+    std::memcpy(luid.data(), &device_uuid, sizeof(CUuuid));
+#endif
+    return luid;
+}
+
+std::string Device::adapter_name() const
+{
+    char name[256];
+    SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), m_device));
+    return std::string(name);
 }
 
 ExternalMemory::ExternalMemory(const Buffer* buffer)
