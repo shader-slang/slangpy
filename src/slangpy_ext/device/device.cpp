@@ -15,6 +15,7 @@
 #include "sgl/device/surface.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/command.h"
+#include "sgl/device/hot_reload.h"
 
 #include "sgl/core/window.h"
 
@@ -872,6 +873,17 @@ SGL_PY_EXPORT(device_device)
         "coopvec_align_vector_offset",
         [](Device* self, size_t offset) { return self->get_or_create_coop_vec()->align_vector_offset(offset); },
         "offset"_a
+    );
+    device.def(
+        "set_hot_reload_delay",
+        [](Device* self, uint32_t delay_ms) { self->_hot_reload()->set_auto_detect_delay(delay_ms); },
+        "timeout_ms"_a,
+        D_NA(Device, set_hot_reload_delay)
+    );
+    device.def(
+        "hot_reload_check",
+        [](Device* self) { self->_hot_reload()->update(); },
+        D_NA(Device, hot_reload_check)
     );
 
     device.def_static(

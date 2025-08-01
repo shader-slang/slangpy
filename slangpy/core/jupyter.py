@@ -265,3 +265,9 @@ def setup_in_jupyter(device: Device):
     pretty_formatter.for_type(Tensor, format_tensor)
     pretty_formatter.for_type(NativeTensor, format_tensor)
     pretty_formatter.for_type(Texture, format_texture)
+
+    if device.desc.enable_hot_reload:
+        # Set delay to 0 to avoid evaluating cells with stale kernels
+        device.set_hot_reload_delay(0)
+        # Trigger a hot-reload check before a cell gets executed to make sure we have the latest changes
+        ipython.events.register("pre_execute", lambda: device.hot_reload_check())
