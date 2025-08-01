@@ -91,8 +91,16 @@ jobs:
         run: |
           sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
 
-      # Setup Python.
-      - name: Setup Python ${{ matrix.python }}
+      # Setup Python (no pip cache on unit test windows runners - massive slow down).
+      - name: Setup Python ${{ matrix.python }} (No cache)
+        if: runner.os == 'windows' && contains(matrix.flags, 'unit-test')
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Setup Python (with pip cache on all other runners).
+      - name: Setup Python ${{ matrix.python }} (Pip cache)
+        if: runner.os != 'windows' || !contains(matrix.flags, 'unit-test')
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -103,6 +111,12 @@ jobs:
         run: |
           python -m pip install -r requirements-dev.txt
           python -m pip install pytest-github-actions-annotate-failures
+
+      # Setup PyTorch environment
+      - name: Setup PyTorch environment
+        if: runner.os != 'macos' && contains(matrix.flags, 'unit-test')
+        run: |
+          python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
       # Setup MSVC.
       - name: Setup MSVC

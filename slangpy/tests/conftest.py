@@ -23,6 +23,16 @@ def pytest_sessionstart(session: Any):
 # After all tests finished, close remaining devices. This ensures they're
 # cleaned up before pytorch, avoiding crashes for devices that share context.
 def pytest_sessionfinish(session: Any, exitstatus: Any):
+
+    # If torch enabled, sync all devices to ensure all operations are finished.
+    try:
+        import torch
+
+        torch.cuda.synchronize()
+    except ImportError:  # @IgnoreException
+        pass
+
+    # Close all devices that were created during the tests.
     for device in spy.Device.get_created_devices():
         print(f"Closing device on shutdown {device.desc.label}")
         device.close()

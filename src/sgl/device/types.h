@@ -20,6 +20,8 @@ using DeviceAddress = uint64_t;
 using DeviceOffset = uint64_t;
 /// Represents a size in device memory (in bytes).
 using DeviceSize = uint64_t;
+/// Adapter LUID (locally unique identifier).
+using AdapterLUID = std::array<uint8_t, 16>;
 
 enum CommandQueueType : uint32_t {
     graphics = static_cast<uint32_t>(rhi::QueueType::Graphics),
