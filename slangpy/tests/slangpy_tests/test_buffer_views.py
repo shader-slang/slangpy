@@ -196,18 +196,22 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
             "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
         )
 
-    if device_type == DeviceType.cuda:
-        pytest.skip("Torch interop not supported on CUDA yet")
-
-    device = helpers.get_device(device_type, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     shape = (5, 4)
 
     torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
 
-    buffer.copy_from_torch(torch_ref)
+    # Ensure that the buffer is finished being zeroed
+    device.sync_to_device()
+
+    # Ensure that the torch tensors are ready to be copied to the buffer
     device.sync_to_cuda()
+
+    buffer.copy_from_torch(torch_ref)
+
+    # Ensure that the buffer is finished being copied before converting to torch
     device.sync_to_device()
     buffer_to_torch = buffer.to_torch()
     assert torch.allclose(buffer_to_torch, torch_ref)
@@ -247,21 +251,24 @@ def test_partial_torch_copy(
             "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
         )
 
-    if device_type == DeviceType.cuda:
-        pytest.skip("Torch interop not supported on CUDA yet")
-
-    device = helpers.get_device(device_type, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     shape = (5, 4)
 
     torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
 
+    # Ensure that the buffer is finished being zeroed
+    device.sync_to_device()
+
+    # Ensure that the torch tensors are ready to be copied to the buffer
+    device.sync_to_cuda()
+
     for i in range(shape[0]):
         buffer[i].copy_from_torch(torch_ref[i])
-        device.sync_to_cuda()
-        device.sync_to_device()
 
+    # Ensure that the buffer is finished being copied before converting to torch
+    device.sync_to_device()
     buffer_to_torch = buffer.to_torch()
     assert torch.allclose(buffer_to_torch, torch_ref)
 
@@ -302,19 +309,20 @@ def test_torch_copy_errors(
             "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
         )
 
-    if device_type == DeviceType.cuda:
-        pytest.skip("Torch interop not supported on CUDA yet")
-
-    device = helpers.get_device(device_type, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     shape = (5, 4)
 
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
 
+    # Ensure that the buffer is finished being zeroed
+    device.sync_to_device()
+
     with pytest.raises(Exception, match=r"Tensor is larger"):
         tensor = torch.zeros((shape[0], shape[1] + 1), dtype=torch.float32)
         if torch.cuda.is_available():
             tensor = tensor.cuda()
+        device.sync_to_cuda()
         buffer.copy_from_torch(tensor)
 
     buffer_view = buffer.view(shape, (1, shape[0]))
@@ -322,4 +330,5 @@ def test_torch_copy_errors(
         tensor = torch.zeros(shape, dtype=torch.float32)
         if torch.cuda.is_available():
             tensor = tensor.cuda()
+        device.sync_to_cuda()
         buffer_view.copy_from_torch(tensor)
