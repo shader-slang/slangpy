@@ -409,10 +409,7 @@ void StridedBufferView::copy_from_torch(nb::object tensor)
         // Add the same error checks as copy_from_numpy for consistency
         SGL_CHECK(is_contiguous(), "Destination buffer view must be contiguous");
 
-        // Establish proper CUDA context scope
-        SGL_CU_SCOPE(m_storage->device());
-
-        // Extract tensor data
+        // Extract tensor data while in PyTorch's CUDA context
         nb::object contiguous_tensor = tensor.attr("contiguous")();
         nb::object data_ptr = contiguous_tensor.attr("data_ptr")();
         void* src_data = reinterpret_cast<void*>(nb::cast<uintptr_t>(data_ptr));
@@ -425,11 +422,14 @@ void StridedBufferView::copy_from_torch(nb::object tensor)
         size_t dtype_size = buffer_desc.element_layout->stride();
         size_t byte_offset = buffer_desc.offset * dtype_size;
 
-        void* dst_data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;
-
         // Validate memory bounds - use accurate error message for direct tensor operations
         size_t buffer_size = m_storage->size() - byte_offset;
         SGL_CHECK(tensor_bytes <= buffer_size, "Tensor is larger than the buffer ({} > {})", tensor_bytes, buffer_size);
+
+        // Switch to SlangPy's CUDA context for accessing destination buffer
+        SGL_CU_SCOPE(m_storage->device());
+
+        void* dst_data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;
 
         // Use proper CUDA device-to-device memory copy
         sgl::cuda::memcpy_device_to_device(dst_data, src_data, tensor_bytes);
