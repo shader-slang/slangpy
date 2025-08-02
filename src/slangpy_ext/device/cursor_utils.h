@@ -58,6 +58,12 @@ inline std::optional<TypeReflection::ScalarType> dtype_to_scalar_type(nb::dlpack
             return TypeReflection::ScalarType::float64;
         }
         break;
+    case uint8_t(nb::dlpack::dtype_code::Bool):
+        switch (dtype.bits) {
+        case 8:
+            return TypeReflection::ScalarType::bool_;
+        }
+        break;
     }
     return {};
 }
@@ -594,13 +600,10 @@ private:
                 auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
                 SGL_CHECK(nbarray.ndim() == 1, "numpy array must have 1 dimension.");
                 SGL_CHECK(nbarray.shape(0) == type_layout->getElementCount(), "numpy array is the wrong length.");
+                auto src_scalar_type = dtype_to_scalar_type(nbarray.dtype());
                 SGL_CHECK(is_ndarray_contiguous(nbarray), "data is not contiguous");
-                self._set_array(
-                    nbarray.data(),
-                    nbarray.nbytes(),
-                    (TypeReflection::ScalarType)type_layout->getElementTypeLayout()->getType()->getScalarType(),
-                    narrow_cast<int>(nbarray.shape(0))
-                );
+                SGL_CHECK(src_scalar_type.has_value(), "unknown CPU type in numpy.");
+                self._set_array(nbarray.data(), nbarray.nbytes(), *src_scalar_type, narrow_cast<int>(nbarray.shape(0)));
                 return;
             } else if (nb::isinstance<nb::sequence>(nbval)) {
                 auto seq = nb::cast<nb::sequence>(nbval);
@@ -660,11 +663,12 @@ private:
     }
 
     /// Version of vector write specifically for bool vectors (which are stored as uint32_t)
+    /// TODO: This is only special case to avoid the size check in _write_vector_from_numpy,
+    /// but that already duplicates work of the checks in cursor_utils
     template<typename ValType>
         requires IsSpecializationOfVector<ValType>
     inline static void _write_bool_vector_from_numpy(CursorType& self, nb::ndarray<nb::numpy> nbarray)
     {
-        SGL_CHECK(nbarray.nbytes() == ValType::dimension * 4, "numpy array has wrong size.");
         self._set_vector(nbarray.data(), nbarray.nbytes(), TypeReflection::ScalarType::bool_, ValType::dimension);
     }
 

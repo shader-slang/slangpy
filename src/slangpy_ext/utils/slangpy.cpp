@@ -546,11 +546,20 @@ nb::object NativeCallData::exec(
             call_data_cursor = call_data_cursor.dereference();
 
         if (!cs.empty()) {
-            call_data_cursor["_call_dim"]._set_array_unsafe(&cs[0], cs.size() * 4, cs.size());
-            call_data_cursor["_grid_stride"]
-                ._set_array_unsafe(&call_grid_strides[0], call_grid_strides.size() * 4, call_grid_strides.size());
-            call_data_cursor["_grid_dim"]
-                ._set_array_unsafe(&call_grid_shape[0], call_grid_shape.size() * 4, call_grid_shape.size());
+            call_data_cursor["_call_dim"]
+                ._set_array_unsafe(&cs[0], cs.size() * 4, cs.size(), TypeReflection::ScalarType::int32);
+            call_data_cursor["_grid_stride"]._set_array_unsafe(
+                &call_grid_strides[0],
+                call_grid_strides.size() * 4,
+                call_grid_strides.size(),
+                TypeReflection::ScalarType::int32
+            );
+            call_data_cursor["_grid_dim"]._set_array_unsafe(
+                &call_grid_shape[0],
+                call_grid_shape.size() * 4,
+                call_grid_shape.size(),
+                TypeReflection::ScalarType::int32
+            );
         }
 
         call_data_cursor["_thread_count"] = uint3(total_threads, 1, 1);
