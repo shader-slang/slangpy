@@ -39,7 +39,7 @@ public:
 
     ref<NativeTensor> view(Shape shape, Shape strides = Shape(), int offset = 0) const;
     ref<NativeTensor> broadcast_to(const Shape& shape) const;
-    ref<NativeTensor> index(nb::args args) const;
+    ref<NativeTensor> index(nb::object index_arg) const;
 
     const ref<NativeTensor>& grad_in() const { return m_grad_in; }
     void set_grad_in(const ref<NativeTensor>& grad_in) { m_grad_in = grad_in; }

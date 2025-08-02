@@ -181,19 +181,30 @@ void StridedBufferView::broadcast_to_inplace(const Shape& new_shape)
     view_inplace(new_shape, Shape(new_strides));
 }
 
-void StridedBufferView::index_inplace(nb::args args)
+void StridedBufferView::index_inplace(nb::object index_arg)
 {
     // This implements python indexing (i.e. __getitem__)
     // Like numpy or torch, this supports a number of different ways of indexing:
     // - Indexing with a positive index (e.g. buffer[3, 2])
     // - Indexing with a negative index, for 'from the end' indexing (e.g. buffer[-1])
-    // - Indexing with a slize (e.g. buffer[3:], buffer[:-3], buffer[::2])
+    // - Indexing with a slice (e.g. buffer[3:], buffer[:-3], buffer[::2])
     // - Inserting singleton dimensions (e.g. buffer[3, None, 2])
     // - Skipping dimensions with ellipsis (e.g. buffer[..., 3])
     //
     // A buffer may be partially indexed. E.g. for a 2D buffer of shape (64, 32),
     // doing buffer[5] is valid and will return a 1D buffer of shape (32, ) that is
     // the 1D slice of the full 2D buffer at index 5
+
+    // We might receive a single argument (e.g. tensor[4]) or a tuple (e.g. tensor[3, 4])
+    // in case of multiple indices. Unpack into a consistent argument vector.
+    std::vector<nb::handle> args;
+    if (nb::isinstance<nb::tuple>(index_arg)) {
+        nb::tuple t = nb::cast<nb::tuple>(index_arg);
+        args.insert(args.end(), t.begin(), t.end());
+    } else {
+        args.push_back(index_arg);
+    }
+
 
     // Step 1: Figure out the number of 'real' indices, i.e. indices that
     // access an existing dimension, as opposed to inserting/skipping them
@@ -272,7 +283,12 @@ void StridedBufferView::index_inplace(nb::args args)
             shape.push_back(1);
             strides.push_back(0);
         } else {
-            SGL_THROW("Illegal argument at dimension {}", i);
+            auto type_name = nb::str(arg.type());
+            SGL_THROW(
+                "Illegal argument at dimension {}: Allowed are int, slice, ..., or None; found {} instead",
+                i,
+                type_name.c_str()
+            );
         }
     }
 

@@ -41,10 +41,10 @@ ref<NativeTensor> NativeTensor::broadcast_to(const Shape& shape) const
     result->broadcast_to_inplace(shape);
     return result;
 }
-ref<NativeTensor> NativeTensor::index(nb::args args) const
+ref<NativeTensor> NativeTensor::index(nb::object index_arg) const
 {
     auto result = make_ref<NativeTensor>(desc(), storage(), m_grad_in, m_grad_out);
-    result->index_inplace(args);
+    result->index_inplace(index_arg);
     return result;
 }
 

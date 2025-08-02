@@ -32,7 +32,7 @@ public:
 
     ref<NativeNDBuffer> view(Shape shape, Shape strides = Shape(), int offset = 0) const;
     ref<NativeNDBuffer> broadcast_to(const Shape& shape) const;
-    ref<NativeNDBuffer> index(nb::args args) const;
+    ref<NativeNDBuffer> index(nb::object index_arg) const;
 
 private:
     NativeNDBufferDesc m_desc;
