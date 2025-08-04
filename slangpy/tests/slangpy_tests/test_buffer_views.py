@@ -307,14 +307,13 @@ def test_torch_copy_errors(
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
 
-    # Ensure that the buffer is finished being zeroed
+    # Wait for buffer_type.zeros() to complete
     device.sync_to_device()
 
     with pytest.raises(Exception, match=r"Tensor is larger"):
         tensor = torch.zeros((shape[0], shape[1] + 1), dtype=torch.float32)
         if torch.cuda.is_available():
             tensor = tensor.cuda()
-        device.sync_to_cuda()
         buffer.copy_from_torch(tensor)
 
     buffer_view = buffer.view(shape, (1, shape[0]))
@@ -322,5 +321,4 @@ def test_torch_copy_errors(
         tensor = torch.zeros(shape, dtype=torch.float32)
         if torch.cuda.is_available():
             tensor = tensor.cuda()
-        device.sync_to_cuda()
         buffer_view.copy_from_torch(tensor)
