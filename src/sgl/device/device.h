@@ -678,7 +678,6 @@ private:
     bool m_supports_cuda_interop{false};
     ref<cuda::Device> m_cuda_device;
     ref<cuda::ExternalSemaphore> m_cuda_semaphore;
-    bool m_wait_global_fence{false};
 };
 
 /// Gets the device and context handles for the current CUDA context. Use

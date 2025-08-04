@@ -316,7 +316,6 @@ ExternalMemory::ExternalMemory(const Buffer* buffer)
 
 ExternalMemory::~ExternalMemory()
 {
-    free_device(m_mapped_data);
     destroy_external_memory(m_external_memory);
 }
 

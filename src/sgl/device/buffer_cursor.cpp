@@ -14,7 +14,7 @@
 
 namespace sgl {
 
-BufferElementCursor::BufferElementCursor(ref<TypeLayoutReflection> layout, ref<BufferCursor> owner)
+BufferElementCursor::BufferElementCursor(ref<const TypeLayoutReflection> layout, ref<BufferCursor> owner)
     : m_type_layout(std::move(layout))
     , m_buffer(std::move(owner))
     , m_offset(0)
@@ -274,7 +274,12 @@ void BufferElementCursor::read_data(size_t offset, void* data, size_t size) cons
     m_buffer->read_data(offset, data, size);
 }
 
-BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, void* data, size_t size)
+BufferCursor::BufferCursor(
+    DeviceType device_type,
+    ref<const TypeLayoutReflection> element_layout,
+    void* data,
+    size_t size
+)
     : m_element_type_layout(std::move(element_layout))
     , m_device_type(device_type)
     , m_buffer((uint8_t*)data)
@@ -283,7 +288,7 @@ BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> ele
 {
 }
 
-BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, size_t element_count)
+BufferCursor::BufferCursor(DeviceType device_type, ref<const TypeLayoutReflection> element_layout, size_t element_count)
     : m_element_type_layout(std::move(element_layout))
     , m_device_type(device_type)
 {
@@ -292,7 +297,7 @@ BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> ele
     m_owner = true;
 }
 
-BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, ref<Buffer> resource, bool load_before_write)
+BufferCursor::BufferCursor(ref<const TypeLayoutReflection> element_layout, ref<Buffer> resource, bool load_before_write)
     : m_element_type_layout(std::move(element_layout))
     , m_device_type(resource->device()->type())
 {
@@ -305,7 +310,7 @@ BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, ref<Buffer>
 }
 
 BufferCursor::BufferCursor(
-    ref<TypeLayoutReflection> element_layout,
+    ref<const TypeLayoutReflection> element_layout,
     ref<Buffer> resource,
     size_t size,
     size_t offset,

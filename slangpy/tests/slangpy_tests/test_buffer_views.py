@@ -20,7 +20,7 @@ struct RGB {
 
 TEST_INDICES = [
     # Partial indexing
-    (3,),
+    3,
     (3, 4, 2, 1),
     # Ellipses
     (3, 4, ...),
@@ -56,7 +56,7 @@ def test_indexing(
     buffer = buffer_type.zeros(device, dtype="float", shape=shape)
     buffer.copy_from_numpy(numpy_ref)
 
-    indexed_buffer = buffer.__getitem__(*index)
+    indexed_buffer = buffer.__getitem__(index)
     indexed_ndarray = numpy_ref.__getitem__(index)
 
     if isinstance(indexed_ndarray, np.number):
@@ -203,16 +203,11 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
 
-    # Ensure that the buffer is finished being zeroed
+    # Wait for buffer_type.zeros() to complete
     device.sync_to_device()
-
-    # Ensure that the torch tensors are ready to be copied to the buffer
-    device.sync_to_cuda()
 
     buffer.copy_from_torch(torch_ref)
 
-    # Ensure that the buffer is finished being copied before converting to torch
-    device.sync_to_device()
     buffer_to_torch = buffer.to_torch()
     assert torch.allclose(buffer_to_torch, torch_ref)
 
@@ -258,11 +253,8 @@ def test_partial_torch_copy(
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
 
-    # Ensure that the buffer is finished being zeroed
+    # Wait for buffer_type.zeros() to complete
     device.sync_to_device()
-
-    # Ensure that the torch tensors are ready to be copied to the buffer
-    device.sync_to_cuda()
 
     for i in range(shape[0]):
         buffer[i].copy_from_torch(torch_ref[i])
