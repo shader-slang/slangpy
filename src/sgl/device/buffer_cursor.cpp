@@ -14,7 +14,7 @@
 
 namespace sgl {
 
-BufferElementCursor::BufferElementCursor(ref<TypeLayoutReflection> layout, ref<BufferCursor> owner)
+BufferElementCursor::BufferElementCursor(ref<const TypeLayoutReflection> layout, ref<BufferCursor> owner)
     : m_type_layout(std::move(layout))
     , m_buffer(std::move(owner))
     , m_offset(0)
@@ -169,6 +169,15 @@ CursorWriteWrappers<BufferElementCursor, size_t>::_set_vector(const void*, size_
         _get_matrix(&value, sizeof(value), TypeReflection::ScalarType::scalar_type, type::rows, type::cols);           \
     }
 
+GETSET_SCALAR(bool, bool_);
+// bool1 case specifically cannot be handled due to:
+// https://github.com/shader-slang/slang/issues/7441
+// GETSET_VECTOR(bool1, bool_);
+GETSET_VECTOR(bool2, bool_);
+GETSET_VECTOR(bool3, bool_);
+GETSET_VECTOR(bool4, bool_);
+
+
 GETSET_SCALAR(int8_t, int8);
 GETSET_SCALAR(uint8_t, uint8);
 GETSET_SCALAR(int16_t, int16);
@@ -231,61 +240,16 @@ GETSET_SCALAR(double, float64);
 // Note that this applies to our boolN vectors as well, which are currently 1B per element.
 
 template<>
-SGL_API void BufferElementCursor::set(const bool& value)
+SGL_API void BufferElementCursor::set(const bool1& v)
 {
-    _set_bool(value);
+    SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
+    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
 }
 template<>
-SGL_API void BufferElementCursor::get(bool& value) const
+SGL_API void BufferElementCursor::get(bool1& v) const
 {
-    _get_bool(value);
-}
-
-template<>
-SGL_API void BufferElementCursor::set(const bool1& value)
-{
-    _set_boolN(value);
-}
-template<>
-SGL_API void BufferElementCursor::get(bool1& value) const
-{
-    _get_boolN(value);
-}
-
-template<>
-SGL_API void BufferElementCursor::set(const bool2& value)
-{
-    _set_boolN(value);
-}
-
-template<>
-SGL_API void BufferElementCursor::get(bool2& value) const
-{
-    _get_boolN(value);
-}
-
-template<>
-SGL_API void BufferElementCursor::set(const bool3& value)
-{
-    _set_boolN(value);
-}
-
-template<>
-SGL_API void BufferElementCursor::get(bool3& value) const
-{
-    _get_boolN(value);
-}
-
-template<>
-SGL_API void BufferElementCursor::set(const bool4& value)
-{
-    _set_boolN(value);
-}
-
-template<>
-SGL_API void BufferElementCursor::get(bool4& value) const
-{
-    _get_boolN(value);
+    SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
+    _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
 }
 
 template<>
@@ -310,7 +274,12 @@ void BufferElementCursor::read_data(size_t offset, void* data, size_t size) cons
     m_buffer->read_data(offset, data, size);
 }
 
-BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, void* data, size_t size)
+BufferCursor::BufferCursor(
+    DeviceType device_type,
+    ref<const TypeLayoutReflection> element_layout,
+    void* data,
+    size_t size
+)
     : m_element_type_layout(std::move(element_layout))
     , m_device_type(device_type)
     , m_buffer((uint8_t*)data)
@@ -319,7 +288,7 @@ BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> ele
 {
 }
 
-BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, size_t element_count)
+BufferCursor::BufferCursor(DeviceType device_type, ref<const TypeLayoutReflection> element_layout, size_t element_count)
     : m_element_type_layout(std::move(element_layout))
     , m_device_type(device_type)
 {
@@ -328,7 +297,7 @@ BufferCursor::BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> ele
     m_owner = true;
 }
 
-BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, ref<Buffer> resource, bool load_before_write)
+BufferCursor::BufferCursor(ref<const TypeLayoutReflection> element_layout, ref<Buffer> resource, bool load_before_write)
     : m_element_type_layout(std::move(element_layout))
     , m_device_type(resource->device()->type())
 {
@@ -341,7 +310,7 @@ BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, ref<Buffer>
 }
 
 BufferCursor::BufferCursor(
-    ref<TypeLayoutReflection> element_layout,
+    ref<const TypeLayoutReflection> element_layout,
     ref<Buffer> resource,
     size_t size,
     size_t offset,

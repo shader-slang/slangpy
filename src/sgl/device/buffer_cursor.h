@@ -25,7 +25,7 @@ public:
     BufferElementCursor() = default;
 
     /// Create with none-owning view of specific block of memory
-    BufferElementCursor(ref<TypeLayoutReflection> layout, ref<BufferCursor> owner);
+    BufferElementCursor(ref<const TypeLayoutReflection> layout, ref<BufferCursor> owner);
 
     ref<const TypeLayoutReflection> type_layout() const { return m_type_layout; }
     ref<const TypeReflection> type() const { return m_type_layout->type(); }
@@ -102,19 +102,19 @@ public:
 
     /// Create with none-owning view of specific block of memory. Number of
     /// elements is inferred from the size of the block and the type layout.
-    BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, void* data, size_t size);
+    BufferCursor(DeviceType device_type, ref<const TypeLayoutReflection> element_layout, void* data, size_t size);
 
     /// Create buffer + allocate space internally for a given number of elements.
-    BufferCursor(DeviceType device_type, ref<TypeLayoutReflection> element_layout, size_t element_count);
+    BufferCursor(DeviceType device_type, ref<const TypeLayoutReflection> element_layout, size_t element_count);
 
     /// Create as a view onto a buffer resource. Disable load_before_write to
     /// prevent automatic loading of current buffer state before writing data to it.
-    BufferCursor(ref<TypeLayoutReflection> element_layout, ref<Buffer> resource, bool load_before_write = true);
+    BufferCursor(ref<const TypeLayoutReflection> element_layout, ref<Buffer> resource, bool load_before_write = true);
 
     /// Create as a view onto a section of a buffer resource. Disable load_before_write to
     /// prevent automatic loading of current buffer state before writing data to it.
     BufferCursor(
-        ref<TypeLayoutReflection> element_layout,
+        ref<const TypeLayoutReflection> element_layout,
         ref<Buffer> resource,
         size_t size,
         size_t offset,

@@ -498,19 +498,25 @@ void ShaderCursor::set_pointer(uint64_t pointer_value) const
     set_data(&pointer_value, 8);
 }
 
-void ShaderCursor::_set_array_unsafe(const void* data, size_t size, size_t element_count) const
+void ShaderCursor::_set_array_unsafe(
+    const void* data,
+    size_t size,
+    size_t element_count,
+    TypeReflection::ScalarType cpu_scalar_type
+) const
 {
     slang::TypeReflection* element_type = cursor_utils::unwrap_array(m_type_layout)->getType();
-    size_t element_size = cursor_utils::get_scalar_type_size((TypeReflection::ScalarType)element_type->getScalarType());
+    size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
 
-    size_t stride = m_type_layout->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-    if (element_size == stride) {
+    size_t element_stride = m_type_layout->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+    if (element_stride == cpu_element_size) {
         m_shader_object->set_data(m_offset, data, size);
     } else {
         ShaderOffset offset = m_offset;
         for (size_t i = 0; i < element_count; ++i) {
-            m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + i * element_size, element_size);
-            offset.uniform_offset += narrow_cast<uint32_t>(stride);
+            m_shader_object
+                ->set_data(offset, reinterpret_cast<const uint8_t*>(data) + i * cpu_element_size, cpu_element_size);
+            offset.uniform_offset += narrow_cast<uint32_t>(element_stride);
         }
     }
 }
@@ -607,6 +613,14 @@ SGL_API void ShaderCursor::set(const DescriptorHandle& value) const
         _set_matrix(&value, sizeof(value), TypeReflection::ScalarType::scalar_type, type::rows, type::cols);           \
     }
 
+SET_SCALAR(bool, bool_);
+// bool1 case specifically cannot be handled due to:
+// https://github.com/shader-slang/slang/issues/7441
+// SET_VECTOR(bool1, bool_);
+SET_VECTOR(bool2, bool_);
+SET_VECTOR(bool3, bool_);
+SET_VECTOR(bool4, bool_);
+
 SET_SCALAR(int8_t, int8);
 SET_SCALAR(uint8_t, uint8);
 SET_SCALAR(int16_t, int16);
@@ -664,38 +678,11 @@ SET_SCALAR(double, float64);
 #undef SET_VECTOR
 #undef SET_MATRIX
 
-// Template specialization to allow setting booleans on a parameter block.
-// On the host side a bool is 1B and the device 4B. We cast bools to 32-bit integers here.
-// Note that this applies to our boolN vectors as well, which are currently 1B per element.
-
 template<>
-SGL_API void ShaderCursor::set(const bool& value) const
+SGL_API void ShaderCursor::set(const bool1& v) const
 {
-    _set_bool(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const bool1& value) const
-{
-    _set_boolN(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const bool2& value) const
-{
-    _set_boolN(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const bool3& value) const
-{
-    _set_boolN(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const bool4& value) const
-{
-    _set_boolN(value);
+    SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
+    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
 }
 
 } // namespace sgl
