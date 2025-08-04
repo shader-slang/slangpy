@@ -206,8 +206,8 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
 
-    buffer.copy_from_torch(torch_ref)
     device.sync_to_cuda()
+    buffer.copy_from_torch(torch_ref)
     device.sync_to_device()
     buffer_to_torch = buffer.to_torch()
     assert torch.allclose(buffer_to_torch, torch_ref)
@@ -257,10 +257,10 @@ def test_partial_torch_copy(
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
     buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
 
+    device.sync_to_cuda()
     for i in range(shape[0]):
         buffer[i].copy_from_torch(torch_ref[i])
-        device.sync_to_cuda()
-        device.sync_to_device()
+    device.sync_to_device()
 
     buffer_to_torch = buffer.to_torch()
     assert torch.allclose(buffer_to_torch, torch_ref)
