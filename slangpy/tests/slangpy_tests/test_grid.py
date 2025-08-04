@@ -86,8 +86,6 @@ def grid_test(
 @pytest.mark.parametrize("dims", [1, 2, 3, 4])
 @pytest.mark.parametrize("stride", [1, 3])
 def test_grid_vectors(device_type: DeviceType, dims: int, stride: int):
-    if dims > 4:
-        pytest.skip("Vector types only supported up to 4 dimensions")
     grid_test(device_type, dims=dims, datatype="vector", stride=stride)
 
 

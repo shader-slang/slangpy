@@ -64,28 +64,30 @@ Buffer::Buffer(ref<Device> device, BufferDesc desc)
 {
     SGL_CHECK(m_desc.size == 0 || m_desc.element_count == 0, "Only one of 'size' or 'element_count' must be set.");
     SGL_CHECK(
-        m_desc.struct_size == 0 || m_desc.struct_type == nullptr,
-        "Only one of 'struct_size' or 'struct_type' must be set."
+        m_desc.struct_size == 0 || m_desc.resource_type_layout == nullptr,
+        "Only one of 'struct_size' or 'resource_type_layout' must be set."
     );
 
     // Derive buffer size from initial data.
     if (m_desc.size == 0 && m_desc.element_count == 0 && m_desc.data && m_desc.data_size > 0)
         m_desc.size = m_desc.data_size;
 
-    // Derive struct size from struct type.
-    if (m_desc.struct_type) {
-        ref<const TypeLayoutReflection> type = m_desc.struct_type->unwrap_array();
-        if (type->element_type_layout())
-            type = type->element_type_layout();
-        SGL_CHECK(type, "Invalid struct type.");
-        m_desc.struct_size = type->stride();
-        m_desc.struct_type = nullptr;
+    // Derive struct size from the resource type layout.
+    if (m_desc.resource_type_layout) {
+        SGL_CHECK(
+            m_desc.resource_type_layout->kind() == TypeReflection::Kind::resource
+                && m_desc.resource_type_layout->type()->resource_shape()
+                    == TypeReflection::ResourceShape::structured_buffer,
+            "Struct type layout must describe a structured buffer."
+        );
+        m_desc.struct_size = m_desc.resource_type_layout->element_type_layout()->stride();
+        m_desc.resource_type_layout = nullptr;
     }
 
     // Derive buffer size from element count and struct size.
     SGL_CHECK(
         m_desc.element_count == 0 || m_desc.struct_size > 0,
-        "'element_count' can only be used with 'struct_size' or 'struct_type' set."
+        "'element_count' can only be used with 'struct_size' or 'resource_type_layout' set."
     );
     if (m_desc.element_count > 0) {
         m_desc.size = m_desc.element_count * m_desc.struct_size;
@@ -150,10 +152,14 @@ void Buffer::unmap() const
 
 void* Buffer::cuda_memory() const
 {
-    SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
-    if (!m_cuda_memory)
-        m_cuda_memory = make_ref<cuda::ExternalMemory>(this);
-    return m_cuda_memory->mapped_data();
+    if (m_device->type() == DeviceType::cuda) {
+        return reinterpret_cast<void*>(device_address());
+    } else {
+        SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
+        if (!m_cuda_memory)
+            m_cuda_memory = make_ref<cuda::ExternalMemory>(this);
+        return m_cuda_memory->mapped_data();
+    }
 }
 
 void Buffer::set_data(const void* data, size_t size, DeviceOffset offset)
@@ -575,8 +581,20 @@ ref<Bitmap> Texture::to_bitmap(uint32_t layer, uint32_t mip) const
     bitmap->set_srgb_gamma(info.is_srgb_format());
 
     // TODO would be better to avoid this extra copy
-    SGL_ASSERT(bitmap->buffer_size() == subresource_data.size);
-    std::memcpy(bitmap->data(), subresource_data.data, subresource_data.size);
+    size_t bitmap_row_pitch = bitmap->width() * bitmap->bytes_per_pixel();
+    if (subresource_data.row_pitch == bitmap_row_pitch) {
+        // If the row pitch matches the bitmap's row pitch, we can copy the entire data in one go.
+        std::memcpy(bitmap->data(), subresource_data.data, subresource_data.size);
+    } else {
+        // Otherwise copy each row separately to handle different row pitches.
+        uint8_t* dst = reinterpret_cast<uint8_t*>(bitmap->data());
+        const uint8_t* src = reinterpret_cast<const uint8_t*>(subresource_data.data);
+        for (uint32_t y = 0; y < height; ++y) {
+            std::memcpy(dst, src, bitmap_row_pitch);
+            dst += bitmap_row_pitch;
+            src += subresource_data.row_pitch;
+        }
+    }
 
     return bitmap;
 }

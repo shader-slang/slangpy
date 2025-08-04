@@ -12,9 +12,9 @@ import sglhelpers as helpers
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_nested_structs(device_type: spy.DeviceType):
-    if device_type in [spy.DeviceType.cuda, spy.DeviceType.metal]:
+    if device_type in [spy.DeviceType.metal]:
         pytest.skip(
-            "bool is currently not handled correctly on CUDA/Metal, see issue: https://github.com/shader-slang/slangpy/issues/274"
+            "bool is currently not handled correctly on Metal, see issue: https://github.com/shader-slang/slangpy/issues/274"
         )
     device = helpers.get_device(device_type)
 
@@ -22,7 +22,7 @@ def test_nested_structs(device_type: spy.DeviceType):
     kernel = device.create_compute_kernel(program)
 
     result_buffer = device.create_buffer(
-        struct_type=kernel.reflection.result,
+        resource_type_layout=kernel.reflection.result,
         element_count=32,
         usage=spy.BufferUsage.unordered_access,
     )

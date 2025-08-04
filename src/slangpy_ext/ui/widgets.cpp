@@ -156,7 +156,15 @@ SGL_PY_EXPORT(ui_widgets)
             },
             nb::keep_alive<0, 1>()
         )
-        .def("__getitem__", &Widget::child_at, D(Widget, child_at))
+        .def(
+            "__getitem__",
+            [](const Widget& self, Py_ssize_t i)
+            {
+                i = detail::sanitize_getitem_index(i, self.child_count());
+                return self.child_at(i);
+            },
+            D(Widget, child_at)
+        )
         .def("__delitem__", &Widget::remove_child_at, D(Widget, remove_child_at));
 
     nb::class_<Screen, Widget>(ui, "Screen", D(Screen))

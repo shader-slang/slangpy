@@ -9,6 +9,7 @@
 namespace sgl::cuda {
 
 struct TensorView {
+    int device_id;
     void* data;
     size_t size;
     size_t stride;

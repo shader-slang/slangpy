@@ -23,7 +23,7 @@ ParameterBlock<Accumulator> g_accumulator;
 
 [[shader("compute")]]
 [[numthreads(8, 8, 1)]]
-void main(uint3 tid: SV_DispatchThreadID)
+void compute_main(uint3 tid: SV_DispatchThreadID)
 {
     g_accumulator.execute(tid.xy);
 }

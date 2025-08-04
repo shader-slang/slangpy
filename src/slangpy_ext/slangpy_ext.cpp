@@ -115,8 +115,8 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(math_quaternion);
 
     SGL_PY_IMPORT(device_native_handle);
-    SGL_PY_IMPORT(device_types);
     SGL_PY_IMPORT(device_formats);
+    SGL_PY_IMPORT(device_types);
     SGL_PY_IMPORT(device_device_resource);
     SGL_PY_IMPORT(device_resource);
     SGL_PY_IMPORT(device_sampler);
@@ -124,9 +124,9 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(device_query);
     SGL_PY_IMPORT(device_input_layout);
     SGL_PY_IMPORT(device_pipeline);
-    SGL_PY_IMPORT(device_raytracing);
     SGL_PY_IMPORT(device_reflection);
     SGL_PY_IMPORT(device_shader);
+    SGL_PY_IMPORT(device_raytracing);
     SGL_PY_IMPORT(device_buffer_cursor);
     SGL_PY_IMPORT(device_shader_object);
     SGL_PY_IMPORT(device_shader_cursor);

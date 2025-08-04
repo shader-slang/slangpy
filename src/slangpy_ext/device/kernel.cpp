@@ -40,6 +40,8 @@ SGL_PY_EXPORT(device_kernel)
                uint3 thread_count,
                nb::dict vars,
                CommandEncoder* command_encoder,
+               CommandQueueType queue,
+               NativeHandle cuda_stream,
                nb::kwargs kwargs)
             {
                 auto bind_vars = [&](ShaderCursor cursor)
@@ -50,11 +52,21 @@ SGL_PY_EXPORT(device_kernel)
                     // bind globals
                     bind_python_var(cursor, vars);
                 };
-                self->dispatch(thread_count, bind_vars, command_encoder);
+                if (command_encoder) {
+                    SGL_CHECK(
+                        !cuda_stream.is_valid(),
+                        "Can not specify CUDA stream if appending to a command encoder."
+                    );
+                    self->dispatch(thread_count, bind_vars, command_encoder);
+                } else {
+                    self->dispatch(thread_count, bind_vars, queue, cuda_stream);
+                }
             },
             "thread_count"_a,
             "vars"_a = nb::dict(),
             "command_encoder"_a = nullptr,
+            "queue"_a = CommandQueueType::graphics,
+            "cuda_stream"_a = NativeHandle(),
             "kwargs"_a,
             D(ComputeKernel, dispatch)
         );

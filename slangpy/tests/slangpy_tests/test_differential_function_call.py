@@ -2,7 +2,14 @@
 import numpy as np
 import pytest
 
-from . import helpers
+from pathlib import Path
+import sys
+import numpy as np
+import pytest
+
+sys.path.append(str(Path(__file__).parent))
+import helpers
+
 from slangpy import DeviceType, float3
 from slangpy.types import Tensor, diffPair
 from slangpy.types.tensor import Tensor
@@ -306,4 +313,4 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

@@ -14,6 +14,8 @@
 #include <vulkan/vulkan.h>
 #endif
 
+#include <slang-rhi/cuda-driver-api.h>
+
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
 namespace sgl {
@@ -32,6 +34,20 @@ struct NativeHandleTrait { };
         static T unpack(uint64_t value)                                                                                \
         {                                                                                                              \
             return stdx::bit_cast<T>(value);                                                                           \
+        }                                                                                                              \
+    };
+
+#define SGL_NATIVE_HANDLE_32(T, TYPE)                                                                                  \
+    template<>                                                                                                         \
+    struct NativeHandleTrait<T> {                                                                                      \
+        static const NativeHandleType type = TYPE;                                                                     \
+        static uint64_t pack(T native)                                                                                 \
+        {                                                                                                              \
+            return stdx::bit_cast<uint32_t>(native);                                                                   \
+        }                                                                                                              \
+        static T unpack(uint64_t value)                                                                                \
+        {                                                                                                              \
+            return stdx::bit_cast<T>(narrow_cast<uint32_t>(value));                                                    \
         }                                                                                                              \
     };
 
@@ -60,6 +76,11 @@ SGL_NATIVE_HANDLE(VkCommandBuffer, NativeHandleType::VkCommandBuffer);
 SGL_NATIVE_HANDLE(VkSampler, NativeHandleType::VkSampler);
 #endif // SGL_HAS_VULKAN
 
+SGL_NATIVE_HANDLE_32(CUdevice, NativeHandleType::CUdevice);
+SGL_NATIVE_HANDLE(CUcontext, NativeHandleType::CUcontext);
+SGL_NATIVE_HANDLE(CUstream, NativeHandleType::CUstream);
+
 #undef SGL_NATIVE_HANDLE
+#undef SGL_NATIVE_HANDLE_32
 
 } // namespace sgl

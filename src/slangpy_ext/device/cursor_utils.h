@@ -16,6 +16,8 @@
 #include "utils/slangpystridedbufferview.h"
 #include "sgl/device/buffer_cursor.h"
 
+#include <slang.h>
+
 namespace sgl {
 
 /// Helper to convert from numpy type mask to slang scalar type.
@@ -54,6 +56,12 @@ inline std::optional<TypeReflection::ScalarType> dtype_to_scalar_type(nb::dlpack
             return TypeReflection::ScalarType::float32;
         case 64:
             return TypeReflection::ScalarType::float64;
+        }
+        break;
+    case uint8_t(nb::dlpack::dtype_code::Bool):
+        switch (dtype.bits) {
+        case 8:
+            return TypeReflection::ScalarType::bool_;
         }
         break;
     }
@@ -420,6 +428,8 @@ private:
             } else {
                 SGL_THROW("Expected dict");
             }
+        default:
+            break;
         }
         }
 
@@ -516,6 +526,39 @@ private:
             SGL_ASSERT(type);
             return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](self, nbval);
         }
+        case TypeReflection::Kind::pointer: {
+            // Pointers are represented as uint64_t in slang.
+            // We can write a pointer value directly.
+            uint64_t as_ptr;
+            if (nb::try_cast<uint64_t>(nbval, as_ptr)) {
+                self.set_pointer(as_ptr);
+                return;
+            }
+
+            Buffer* buffer;
+            if (nb::try_cast<Buffer*>(nbval, buffer)) {
+                // If we have a buffer, we can write its device address.
+                self.set_pointer(buffer->device_address());
+                return;
+            }
+
+            BufferView* buffer_view;
+            if (nb::try_cast<BufferView*>(nbval, buffer_view)) {
+                // If we have a view onto a buffer, write the buffer address plus the offset.
+                self.set_pointer(buffer_view->buffer()->device_address() + buffer_view->range().offset);
+                return;
+            }
+
+            sgl::slangpy::StridedBufferView* sbview;
+            if (nb::try_cast<sgl::slangpy::StridedBufferView*>(nbval, sbview)) {
+                // If we have a StridedBufferView, write address of storage plus offset.
+                self.set_pointer(sbview->storage()->device_address() + sbview->offset());
+                return;
+            }
+
+            SGL_THROW("Expected dict");
+            return;
+        }
         case TypeReflection::Kind::constant_buffer:
         case TypeReflection::Kind::parameter_block:
             if constexpr (requires { self.dereference(); }) {
@@ -563,13 +606,10 @@ private:
                 auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
                 SGL_CHECK(nbarray.ndim() == 1, "numpy array must have 1 dimension.");
                 SGL_CHECK(nbarray.shape(0) == type_layout->getElementCount(), "numpy array is the wrong length.");
+                auto src_scalar_type = dtype_to_scalar_type(nbarray.dtype());
                 SGL_CHECK(is_ndarray_contiguous(nbarray), "data is not contiguous");
-                self._set_array(
-                    nbarray.data(),
-                    nbarray.nbytes(),
-                    (TypeReflection::ScalarType)type_layout->getElementTypeLayout()->getType()->getScalarType(),
-                    narrow_cast<int>(nbarray.shape(0))
-                );
+                SGL_CHECK(src_scalar_type.has_value(), "unknown CPU type in numpy.");
+                self._set_array(nbarray.data(), nbarray.nbytes(), *src_scalar_type, narrow_cast<int>(nbarray.shape(0)));
                 return;
             } else if (nb::isinstance<nb::sequence>(nbval)) {
                 auto seq = nb::cast<nb::sequence>(nbval);
@@ -607,6 +647,13 @@ private:
     template<typename ValType>
     inline static void _write_scalar(CursorType& self, nb::object nbval)
     {
+        // Avoid warning about converting from numpy array to scalar
+        if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+            auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
+            auto val = *reinterpret_cast<ValType*>(nbarray.data());
+            self.set(val);
+            return;
+        }
         auto val = nb::cast<ValType>(nbval);
         self.set(val);
     }
@@ -622,11 +669,12 @@ private:
     }
 
     /// Version of vector write specifically for bool vectors (which are stored as uint32_t)
+    /// TODO: This is only special case to avoid the size check in _write_vector_from_numpy,
+    /// but that already duplicates work of the checks in cursor_utils
     template<typename ValType>
         requires IsSpecializationOfVector<ValType>
     inline static void _write_bool_vector_from_numpy(CursorType& self, nb::ndarray<nb::numpy> nbarray)
     {
-        SGL_CHECK(nbarray.nbytes() == ValType::dimension * 4, "numpy array has wrong size.");
         self._set_vector(nbarray.data(), nbarray.nbytes(), TypeReflection::ScalarType::bool_, ValType::dimension);
     }
 
@@ -716,6 +764,30 @@ private:
 #undef bool_vector_case
 #undef matrix_case
 
+namespace {
+
+    template<typename CursorType>
+        requires TraversableCursor<CursorType>
+    Py_ssize_t len(CursorType& cursor)
+    {
+        slang::TypeLayoutReflection* slang_type_layout = cursor.slang_type_layout();
+        slang::TypeReflection::Kind kind = slang_type_layout->getKind();
+        switch (kind) {
+        case slang::TypeReflection::Kind::Array:
+            return Py_ssize_t(slang_type_layout->getElementCount());
+            break;
+        case slang::TypeReflection::Kind::Matrix:
+            return Py_ssize_t(slang_type_layout->getRowCount() * slang_type_layout->getColumnCount());
+            break;
+        case slang::TypeReflection::Kind::Vector:
+            return Py_ssize_t(slang_type_layout->getColumnCount());
+            break;
+        }
+
+        return 0;
+    }
+
+} // namespace
 
 template<typename CursorType>
     requires TraversableCursor<CursorType>
@@ -728,7 +800,14 @@ inline void bind_traversable_cursor(nanobind::class_<CursorType>& cursor)
         .def("has_field", &CursorType::has_field, "name"_a, D_NA(CursorType, has_field))
         .def("has_element", &CursorType::has_element, "index"_a, D_NA(CursorType, has_element))
         .def("__getitem__", [](CursorType& self, std::string_view name) { return self[name]; })
-        .def("__getitem__", [](CursorType& self, int index) { return self[index]; })
+        .def(
+            "__getitem__",
+            [](CursorType& self, Py_ssize_t index)
+            {
+                index = detail::sanitize_getitem_index(index, len(self));
+                return self[uint32_t(index)];
+            }
+        )
         // note: __getattr__ should not except if field is not found
         .def("__getattr__", [](CursorType& self, std::string_view name) { return self.find_field(name); });
 }

@@ -189,23 +189,35 @@ if(SGL_MASTER_PROJECT)
         endforeach()
     endif()
 
-    # Note: The current version of pybind11_mkdoc does not support C++20.
-    # Running this will result in the following error:
-    # ValueError: Unknown template argument kind 604
-    # To fix this, we need to manually change the cindex.py file in the
-    # clang package and add the following lines:
+    set(SGL_HEADER_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/app"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/core"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/device"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/math"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/ui"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/utils"
+    )
+    set(SGL_HEADER_FILES "")
+    foreach(sgl_dir IN ITEMS ${SGL_HEADER_DIRS})
+        file(GLOB FOUND_HEADERS "${sgl_dir}/*.h")
+        list(APPEND SGL_HEADER_FILES ${FOUND_HEADERS})
+    endforeach()
+
+    # Note: Older versions of python packages pybind11_mkdoc and clang
+    # may not support C++20. If you see the following error:
+    #   ValueError: Unknown template argument kind 604
+    # Upgrade to:
+    #   pybind_mkdoc >= 2.6.2
+    #   clang >= 20.1.5
+    # Or manually change the cindex.py file in your
+    # clang python package to add the following lines:
     # > # A concept declaration
     # > CursorKind.CONCEPT_DECL = CursorKind(604)
     add_custom_target(pydoc USES_TERMINAL COMMAND
         COMMAND ${Python_EXECUTABLE} -m pybind11_mkdoc -std=c++20 -stdlib=libc++
         ${MKDOC_ARGS}
         -I${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../sgl/app/*.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/../sgl/core/*.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/../sgl/device/*.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/../sgl/math/*.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/../sgl/ui/*.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/../sgl/utils/*.h
+        ${SGL_HEADER_FILES}
         -o ${CMAKE_CURRENT_SOURCE_DIR}/py_doc.h
     )
 endif()

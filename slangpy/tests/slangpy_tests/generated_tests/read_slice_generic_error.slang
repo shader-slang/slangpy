@@ -62,7 +62,7 @@ void compute_main(uint3 dispatchThreadID: SV_DispatchThreadID)
     int[1] call_id = {
         (dispatchThreadID.x / call_data._call_stride[0]) % call_data._call_dim[0],
     };
-    Context context = { dispatchThreadID, call_id };
+    Context1D context = { dispatchThreadID, call_id };
     vector<int,2> index;
     call_data.index.load(context.map(0),index);
     NDBuffer<float,2> texture;

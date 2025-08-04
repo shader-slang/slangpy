@@ -10,7 +10,8 @@ from slangpy.core.native import (
 )
 
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy import CommandEncoder, TypeConformance, uint3, Logger
+from slangpy import CommandEncoder, TypeConformance, uint3, Logger, NativeHandle, NativeHandleType
+from slangpy.slangpy import Shape
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
@@ -58,6 +59,7 @@ class FunctionBuildInfo:
         self.thread_group_size: Optional[uint3] = None
         self.return_type: Optional[Union[type, str]] = None
         self.logger: Optional[Logger] = None
+        self.call_group_shape: Optional[Shape] = None
 
 
 class FunctionNode(NativeFunctionNode):
@@ -130,6 +132,13 @@ class FunctionNode(NativeFunctionNode):
                 "Set requires either keyword arguments or 1 dictionary / hook argument"
             )
 
+    def cuda_stream(self, stream: NativeHandle) -> "FunctionNode":
+        """
+        Specify a CUDA stream to use for the function. This is useful for synchronizing with other
+        CUDA operations or ensuring that the function runs on a specific stream.
+        """
+        return FunctionNodeCUDAStream(self, stream)
+
     def constants(self, constants: dict[str, Any]):
         """
         Specify link time constants that should be set when the function is compiled. These are
@@ -164,6 +173,10 @@ class FunctionNode(NativeFunctionNode):
                 from slangpy.types import Tensor
 
                 return_type = Tensor
+            elif return_type == "texture":
+                from slangpy import Texture
+
+                return_type = Texture
             else:
                 raise ValueError(f"Unknown return type '{return_type}'")
         return FunctionNodeReturnType(self, return_type)
@@ -208,37 +221,49 @@ class FunctionNode(NativeFunctionNode):
         if isinstance(resval, (type, str)):
             del kwargs["_result"]
             return self.return_type(resval).call(*args, **kwargs)
-        else:
-            try:
-                return self._native_call(self.module.call_data_cache, *args, **kwargs)
-            except ValueError as e:
-                # If runtime returned useful information, reformat it and raise a new exception
-                # Otherwise just throw the original.
-                if (
-                    len(e.args) != 1
-                    or not isinstance(e.args[0], dict)
-                    or not "message" in e.args[0]
-                    or not "source" in e.args[0]
-                    or not "context" in e.args[0]
-                ):
-                    raise
-                from slangpy.bindings.boundvariableruntime import (
-                    BoundCallRuntime,
-                    BoundVariableRuntime,
-                )
-                from slangpy.core.native import NativeCallData
-                from slangpy.core.logging import bound_runtime_call_table
 
-                msg: str = e.args[0]["message"]
-                source: BoundVariableRuntime = e.args[0]["source"]
-                context: NativeCallData = e.args[0]["context"]
-                runtime = cast(BoundCallRuntime, context.runtime)
-                msg += (
-                    "\n\n"
-                    + bound_runtime_call_table(runtime, source)
-                    + "\n\nFor help and support: https://khr.io/slangdiscord"
-                )
-                raise ValueError(msg) from e
+        # Handle specifying a command encoder to append to, rather than using the func.append_to
+        # syntax.
+        if "_append_to" in kwargs:
+            app_to = kwargs["_append_to"]
+            del kwargs["_append_to"]
+            if app_to is not None:
+                if not isinstance(app_to, CommandEncoder):
+                    raise ValueError(
+                        f"Expected _append_to to be a CommandEncoder, got {type(app_to)}"
+                    )
+                return self.append_to(app_to, *args, **kwargs)
+
+        try:
+            return self._native_call(self.module.call_data_cache, *args, **kwargs)
+        except ValueError as e:
+            # If runtime returned useful information, reformat it and raise a new exception
+            # Otherwise just throw the original.
+            if (
+                len(e.args) != 1
+                or not isinstance(e.args[0], dict)
+                or not "message" in e.args[0]
+                or not "source" in e.args[0]
+                or not "context" in e.args[0]
+            ):
+                raise
+            from slangpy.bindings.boundvariableruntime import (
+                BoundCallRuntime,
+                BoundVariableRuntime,
+            )
+            from slangpy.core.native import NativeCallData
+            from slangpy.core.logging import bound_runtime_call_table
+
+            msg: str = e.args[0]["message"]
+            source: BoundVariableRuntime = e.args[0]["source"]
+            context: NativeCallData = e.args[0]["context"]
+            runtime = cast(BoundCallRuntime, context.runtime)
+            msg += (
+                "\n\n"
+                + bound_runtime_call_table(runtime, source)
+                + "\n\nFor help and support: https://khr.io/slangdiscord"
+            )
+            raise ValueError(msg) from e
 
     def append_to(self, command_buffer: CommandEncoder, *args: Any, **kwargs: Any):
         """
@@ -276,6 +301,7 @@ class FunctionNode(NativeFunctionNode):
                 lines.append(str(build_info.return_type))
                 lines.append(str(build_info.constants))
                 lines.append(str(build_info.thread_group_size))
+                lines.append(str(build_info.call_group_shape))
                 self.slangpy_signature = "\n".join(lines)
 
             builder = SignatureBuilder()
@@ -333,6 +359,13 @@ class FunctionNode(NativeFunctionNode):
 
         return CallData(self, *args, **kwargs)
 
+    def call_group_shape(self, call_group_shape: Shape):
+        """
+        Specify the call group shape for the function. This determines how the computation
+        is divided into call groups. The shape can be N-dimensional.
+        """
+        return FunctionNodeCallGroupShape(self, call_group_shape)
+
 
 class FunctionNodeBind(FunctionNode):
     def __init__(self, parent: NativeFunctionNode, this: IThis) -> None:
@@ -377,6 +410,21 @@ class FunctionNodeSet(FunctionNode):
     @property
     def uniforms(self):
         return self._native_data
+
+
+class FunctionNodeCUDAStream(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, stream: NativeHandle) -> None:
+        if stream.type != NativeHandleType.CUstream:
+            raise ValueError("Expected a CUDA stream handle")
+        super().__init__(parent, FunctionNodeType.cuda_stream, stream)
+        self.slangpy_signature = str(stream)
+
+    @property
+    def stream(self):
+        return cast(NativeHandle, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.options["cuda_stream"] = self.stream
 
 
 class FunctionNodeConstants(FunctionNode):
@@ -455,6 +503,19 @@ class FunctionNodeLogger(FunctionNode):
         info.logger = self.logger
 
 
+class FunctionNodeCallGroupShape(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, call_group_shape: Shape) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, call_group_shape)
+        self.slangpy_signature = str(call_group_shape)
+
+    @property
+    def call_group_shape(self):
+        return cast(Shape, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.call_group_shape = self.call_group_shape
+
+
 class Function(FunctionNode):
     def __init__(
         self,
@@ -494,7 +555,7 @@ class Function(FunctionNode):
         if not "implicit_tensor_casts" in self._options:
             self._options["implicit_tensor_casts"] = True
         if not "strict_broadcasting" in self._options:
-            self._options["strict_broadcasting"] = True
+            self._options["strict_broadcasting"] = False
 
         # Generate signature for hashing
         lines = []

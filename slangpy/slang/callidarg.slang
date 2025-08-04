@@ -3,6 +3,8 @@ implementing slangpy;
 
 public struct CallIdArg {
 
+    int dummy;
+
     // Array load
     public void load<let N : int, T: __BuiltinIntegerType>(ContextND<N> context, out Array<T, N> value) {
         var t = context.call_id;

@@ -17,7 +17,7 @@ class DebugLogger : public rhi::IDebugCallback {
 public:
     DebugLogger()
     {
-        m_logger = Logger::create(LogLevel::debug, "rhi", false);
+        m_logger = Logger::create(Logger::get().level(), "rhi", false);
         m_logger->use_same_outputs(Logger::get());
     }
 

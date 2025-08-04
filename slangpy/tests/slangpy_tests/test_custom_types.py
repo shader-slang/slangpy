@@ -86,9 +86,6 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: 
         elements = dimensions
         dims = dimensions
     elif dimensions == 0:
-        if array:
-            pytest.skip("Array not supported for 0D call_id")
-
         # If dimensions == 0, test passing 1D value into corresponding scalar type
         type_name = inttype
         elements = 1
@@ -347,7 +344,6 @@ float3 rand_float(float3 input) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_rand_float_uniformity(device_type: DeviceType):
-
     bucket_size = 17
 
     # Create function that atomically increments counts

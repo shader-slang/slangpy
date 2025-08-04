@@ -450,6 +450,13 @@ SGL_PY_EXPORT(device_command)
             D(CommandEncoder, blit, 2)
         )
         .def(
+            "generate_mips",
+            &CommandEncoder::generate_mips,
+            "texture"_a,
+            "layer"_a = 0,
+            D(CommandEncoder, generate_mips)
+        )
+        .def(
             "resolve_query",
             &CommandEncoder::resolve_query,
             "query_pool"_a,
@@ -520,6 +527,7 @@ SGL_PY_EXPORT(device_command)
             "state"_a,
             D(CommandEncoder, set_texture_state)
         )
+        .def("global_barrier", &CommandEncoder::global_barrier, D_NA(CommandEncoder, global_barrier))
         .def(
             "push_debug_group",
             &CommandEncoder::push_debug_group,

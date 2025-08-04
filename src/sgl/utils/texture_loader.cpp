@@ -365,8 +365,6 @@ inline ref<Texture> create_texture_array(
     return texture;
 }
 
-TextureLoader::Options::Options() { }
-
 TextureLoader::TextureLoader(ref<Device> device)
     : m_device(std::move(device))
 {

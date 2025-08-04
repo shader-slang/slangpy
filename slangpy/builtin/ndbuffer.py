@@ -28,10 +28,12 @@ from slangpy.reflection import (
     VectorType,
     MatrixType,
     StructuredBufferType,
+    PointerType,
     is_matching_array_type,
 )
 from slangpy.types import NDBuffer
 from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
+from slangpy.core.utils import is_type_castable_on_host
 
 
 class StopDebuggerException(Exception):
@@ -97,9 +99,7 @@ def ndbuffer_resolve_type(
         if bound_type.element_type != self.slang_element_type:
             raise ValueError("Attempted to bind a buffer with a different element type")
         if isinstance(bound_type, StructuredBufferType) and self.dims != 1:
-            raise ValueError(
-                "Attempted to pass an NDBuffer that is not 1D" " to a StructuredBuffer"
-            )
+            raise ValueError("Attempted to pass an NDBuffer that is not 1D to a StructuredBuffer")
         return bound_type
 
     # if implicit element casts enabled, allow conversion from type to element type
@@ -108,6 +108,10 @@ def ndbuffer_resolve_type(
             return bound_type
         if is_matching_array_type(bound_type, cast(SlangType, self.slang_element_type)):
             return self.slang_element_type
+        # This is such a common conversion with numpy 64 bit arrays to ptrs that we handle it explicitly
+        # TODO: Use host casting test instead?
+        if self.slang_element_type.full_name == "uint64_t" and isinstance(bound_type, PointerType):
+            return bound_type
 
     # if implicit tensor casts enabled, allow conversion from vector to element type
     if context.options["implicit_tensor_casts"]:

@@ -3,7 +3,7 @@ Generators
 
 SlangPy provides a way to generate data dynamically within kernels, eliminating the need to supply it in a buffer or tensor. This is achieved using generators.
 
-Code for all generator examples can be found `here <https://github.com/shader-slang/slangpy/tree/main/examples/generators>`_
+Code for all generator examples can be found `here <https://github.com/shader-slang/slangpy-samples/tree/main/examples/generators>`_
 
 Generators can be passed to a Slang function in Python just like any other argument. When the kernel runs, the correct values are automatically passed to the corresponding parameter. For example, the following code demonstrates how to pass the `call_id` generator to a kernel:
 

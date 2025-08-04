@@ -77,6 +77,10 @@ def slang_value_to_numpy(slang_type: kfr.SlangType, value: Any) -> npt.NDArray[A
     elif isinstance(slang_type, kfr.MatrixType):
         # value should be an SGL matrix type, which has a to_numpy function
         return slang_matrix_to_numpy_with_padding(slang_type, value)
+    elif isinstance(slang_type, kfr.PointerType):
+        return np.array(
+            [value], dtype=kfr.SCALAR_TYPE_TO_NUMPY_TYPE[kfr.TypeReflection.ScalarType.uint64]
+        )
     else:
         raise ValueError(f"Can not convert slang type {slang_type} to numpy array")
 
@@ -94,6 +98,10 @@ def numpy_to_slang_value(slang_type: kfr.SlangType, value: npt.NDArray[Any]) -> 
     elif isinstance(slang_type, kfr.MatrixType):
         # convert to one of the SGL matrix types (can be constructed from numpy array)
         return numpy_to_slang_matrix_remove_padding(slang_type, value, python_type)
+    elif isinstance(slang_type, kfr.PointerType):
+        # Pointers are represented as uint64_t in slang, so we return int
+        np_data = value.view(dtype=np.uint64)
+        return python_type(np_data[0])
     else:
         raise ValueError(f"Can not convert numpy array to slang type {slang_type}")
 

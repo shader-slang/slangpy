@@ -326,7 +326,9 @@ inline bool decompose(
     // an easy way to test for singularity of the upper 3x3 component.
     matrix<T, 4, 4> perspective_matrix(local_matrix);
     perspective_matrix[3] = vector<T, 4>(0, 0, 0, 1);
-    if (abs(determinant(perspective_matrix)) < eps)
+    // Determinant contains scale in each axis. Comparing with eps like GLM would reject scale
+    // less than 0.0049 (which is convert from cm to m, and then scale down 2x)
+    if (abs(determinant(perspective_matrix)) < eps * eps * eps)
         return false;
 
     // First, isolate perspective. This is the messiest.

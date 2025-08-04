@@ -644,6 +644,14 @@ void CommandEncoder::blit(Texture* dst, Texture* src, TextureFilteringMode filte
     m_device->_blitter()->blit(this, dst, src, filter);
 }
 
+void CommandEncoder::generate_mips(Texture* texture, uint32_t layer)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    SGL_CHECK_NOT_NULL(texture);
+    SGL_CHECK(layer < texture->layer_count(), "Layer index out of bounds");
+    m_device->_blitter()->generate_mips(this, texture, layer);
+}
+
 void CommandEncoder::resolve_query(
     QueryPool* query_pool,
     uint32_t index,
@@ -786,6 +794,12 @@ void CommandEncoder::set_texture_state(Texture* texture, SubresourceRange range,
         },
         static_cast<rhi::ResourceState>(state)
     );
+}
+
+void CommandEncoder::global_barrier()
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    m_rhi_command_encoder->globalBarrier();
 }
 
 void CommandEncoder::push_debug_group(const char* name, float3 color)

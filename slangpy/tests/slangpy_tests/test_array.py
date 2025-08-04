@@ -24,10 +24,10 @@ def test_simple_array(device_type: DeviceType):
         device,
         "sum",
         r"""
-int sum(int[4] vals) {
+int sum(int[4] data) {
     int sum = 0;
     for (int i = 0; i < 4; i++) {
-        sum += vals[i];
+        sum += data[i];
     }
     return sum;
 }
@@ -161,6 +161,9 @@ int inc(Val val) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_with_resource_array(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        # https://github.com/shader-slang/slang/issues/7606
+        pytest.skip("Crash in the slang compiler")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -196,6 +199,9 @@ int inc(Val val) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_with_ndbuffer_array(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        # https://github.com/shader-slang/slang/issues/7606
+        pytest.skip("Crash in the slang compiler")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -232,6 +238,9 @@ int inc(Val val) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_with_tensor_array(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        # https://github.com/shader-slang/slang/issues/7606
+        pytest.skip("Crash in the slang compiler")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -263,6 +272,9 @@ float inc(Val val) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_2d_mapped_vectorize_struct_with_tensor_array(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        # https://github.com/shader-slang/slang/issues/7606
+        pytest.skip("Crash in the slang compiler")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(

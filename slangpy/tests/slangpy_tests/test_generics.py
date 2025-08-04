@@ -96,7 +96,6 @@ def test_generic_matrix(device_type: DeviceType, container_type: str, dim: int):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("explicit", [True, False])
 def test_arithmetic_generic_arguments_bug(device_type: DeviceType, explicit: bool):
-
     # This test reproduces a Slang issue: https://github.com/shader-slang/slang/issues/6463
     # Attempting to resolve a generic with arithmetic arguments fails. When the test is
     # run with 'explicit' specialization, we generate and succesfully find the function.

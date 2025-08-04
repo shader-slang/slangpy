@@ -10,7 +10,10 @@ import platform
 import argparse
 import subprocess
 import json
+from pathlib import Path
 from typing import Any, Optional
+
+PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
 def get_os():
@@ -118,11 +121,10 @@ def get_changed_env(command: str):
     return env_vars
 
 
-def get_python_env(args: Any):
-    if args.os == "windows":
-        return get_changed_env(f"{args.bin_dir}/setpath.bat")
-    else:
-        return get_changed_env(f"source {args.bin_dir}/setpath.sh")
+def get_python_env():
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(PROJECT_DIR)
+    return env
 
 
 def setup(args: Any):
@@ -138,6 +140,8 @@ def configure(args: Any):
         cmd += " -DSGL_ENABLE_HEADER_VALIDATION=ON"
     if "coverage" in args.flags:
         cmd += " -DSGL_ENABLE_COVERAGE=ON"
+    if args.cmake_args != "":
+        cmd += " " + args.cmake_args
     run_command(cmd)
 
 
@@ -156,14 +160,25 @@ def unit_test_cpp(args: Any):
 
 
 def typing_check_python(args: Any):
-    env = get_python_env(args)
+    env = get_python_env()
     run_command(f"pyright", env=env)
 
 
 def unit_test_python(args: Any):
-    env = get_python_env(args)
+    env = get_python_env()
     os.makedirs("reports", exist_ok=True)
-    run_command(f"pytest slangpy/tests -r a --junit-xml=reports/pytest-junit.xml", env=env)
+    cmd = "pytest slangpy/tests -ra --junit-xml=reports/pytest-junit.xml"
+    if args.parallel:
+        cmd += " -n auto --maxprocesses=4"
+    run_command(cmd, env=env)
+
+
+def test_examples(args: Any):
+    env = get_python_env()
+    cmd = "pytest samples/tests -vra"
+    if args.parallel:
+        cmd += " -n auto --maxprocesses=4"
+    run_command(cmd, env=env)
 
 
 def coverage_report(args: Any):
@@ -181,6 +196,7 @@ def main():
     parser.add_argument("--config", type=str, action="store", help="Config (Release, Debug)")
     parser.add_argument("--python", type=str, action="store", help="Python version")
     parser.add_argument("--flags", type=str, action="store", help="Additional flags")
+    parser.add_argument("--cmake-args", type=str, action="store", help="Additional CMake arguments")
 
     commands = parser.add_subparsers(dest="command", required=True, help="sub-command help")
 
@@ -197,6 +213,14 @@ def main():
     )
 
     parser_test_python = commands.add_parser("unit-test-python", help="run unit tests (python)")
+    parser_test_python.add_argument(
+        "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+
+    parser_test_examples = commands.add_parser("test-examples", help="run examples tests")
+    parser_test_examples.add_argument(
+        "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
 
     parser_coverage_report = commands.add_parser("coverage-report", help="generate coverage report")
 
@@ -210,6 +234,7 @@ def main():
         ("config", "CI_CONFIG", "Debug"),
         ("python", "CI_PYTHON", "3.9"),
         ("flags", "CI_FLAGS", ""),
+        ("cmake_args", "CI_CMAKE_ARGS", ""),
     ]
 
     for var, env_var, default_value in VARS:
@@ -251,6 +276,7 @@ def main():
         "unit-test-cpp": unit_test_cpp,
         "typing-check-python": typing_check_python,
         "unit-test-python": unit_test_python,
+        "test-examples": test_examples,
         "coverage-report": coverage_report,
     }[args.command](args)
 

@@ -55,7 +55,22 @@ void Surface::configure(const SurfaceConfig& config)
 
     SLANG_RHI_CALL(m_rhi_surface->configure(rhi_config));
 
-    m_config = config;
+    rhi_config = *m_rhi_surface->getConfig();
+    m_config = {
+        .format = static_cast<Format>(rhi_config.format),
+        .usage = static_cast<TextureUsage>(rhi_config.usage),
+        .width = rhi_config.width,
+        .height = rhi_config.height,
+        .desired_image_count = rhi_config.desiredImageCount,
+        .vsync = rhi_config.vsync,
+    };
+}
+
+void Surface::unconfigure()
+{
+    SLANG_RHI_CALL(m_rhi_surface->unconfigure());
+
+    m_config.reset();
 }
 
 ref<Texture> Surface::acquire_next_image()
@@ -70,7 +85,7 @@ ref<Texture> Surface::acquire_next_image()
             .width = narrow_cast<uint32_t>(texture_desc.size.width),
             .height = narrow_cast<uint32_t>(texture_desc.size.height),
             .mip_count = texture_desc.mipCount,
-            .usage = static_cast<TextureUsage>(m_config.usage),
+            .usage = static_cast<TextureUsage>(texture_desc.usage),
         },
         texture
     );

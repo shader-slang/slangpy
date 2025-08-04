@@ -35,7 +35,14 @@ void bind_quaternion_type(nb::module_& m, const char* name)
     quat.def_rw("z", &T::z);
     quat.def_rw("w", &T::w);
 
-    quat.def("__getitem__", [](const T& self, int i) { return self[i]; });
+    quat.def(
+        "__getitem__",
+        [](const T& self, Py_ssize_t i)
+        {
+            i = detail::sanitize_getitem_index(i, 4);
+            return self[i];
+        }
+    );
     quat.def("__setitem__", [](T& self, int i, value_type v) { self[i] = v; });
 
     quat.def_prop_ro(

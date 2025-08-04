@@ -30,8 +30,6 @@ namespace sgl {
 
 class DebugPrinter;
 
-/// Adapter LUID (locally unique identifier).
-using AdapterLUID = std::array<uint8_t, 16>;
 
 struct AdapterInfo {
     /// Descriptive name of the adapter.
@@ -104,6 +102,9 @@ struct DeviceDesc {
     /// Note: Currently windows and linux only.
     bool enable_hot_reload{true};
 
+    /// Enable compilation reports.
+    bool enable_compilation_reports{false};
+
     /// Adapter LUID to select adapter on which the device will be created.
     std::optional<AdapterLUID> adapter_luid;
 
@@ -113,6 +114,13 @@ struct DeviceDesc {
     /// Path to the shader cache directory (optional).
     /// If a relative path is used, the cache is stored in the application data directory.
     std::optional<std::filesystem::path> shader_cache_path;
+
+    /// Native device handles for initializing with externally created device. Currenlty
+    /// only used for CUDA interoperability.
+    std::array<NativeHandle, 3> existing_device_handles;
+
+    /// Debug label
+    std::string label;
 };
 
 struct DeviceLimits {
@@ -265,7 +273,7 @@ public:
      * \param size Buffer size in bytes.
      * \param element_count Buffer size in number of struct elements. Can be used instead of \c size.
      * \param struct_size Struct size in bytes.
-     * \param struct_type Struct type. Can be used instead of \c struct_size to specify the size of the struct.
+     * \param resource_type_layout Resource type layout of the buffer. Can be used instead of \c struct_size to specify the size of the struct.
      * \param format Buffer format. Used when creating typed buffer views.
      * \param initial_state Initial resource state.
      * \param usage Resource usage flags.
@@ -435,6 +443,12 @@ public:
      * \param signal_fences List of fences to signal after executing the command buffers.
      * \param signal_fence_values List of fence values to signal after executing the command buffers.
      * \param queue Command queue to submit to.
+     * \param cuda_stream On none-CUDA backends, when interop is enabled, this is the stream to sync with
+     * before/after submission (assuming any resources are shared with CUDA) and use for internal copies. If not
+     * specified, sync will happen with the NULL (default) CUDA stream.
+     * On CUDA backends, this is the CUDA stream to use for the submission. If not specified, the
+     * default stream of the command queue will be used, which for CommandQueueType::graphics is the NULL stream.
+     * It is an error to specify a stream for none-CUDA backends that have interop disabled.
      * \return Submission ID.
      */
     uint64_t submit_command_buffers(
@@ -443,7 +457,8 @@ public:
         std::span<uint64_t> wait_fence_values = {},
         std::span<Fence*> signal_fences = {},
         std::span<uint64_t> signal_fence_values = {},
-        CommandQueueType queue = CommandQueueType::graphics
+        CommandQueueType queue = CommandQueueType::graphics,
+        NativeHandle cuda_stream = NativeHandle()
     );
 
     /**
@@ -455,7 +470,11 @@ public:
      * \param queue Command queue to submit to.
      * \return Submission ID.
      */
-    uint64_t submit_command_buffer(CommandBuffer* command_buffer, CommandQueueType queue = CommandQueueType::graphics);
+    uint64_t submit_command_buffer(
+        CommandBuffer* command_buffer,
+        CommandQueueType queue = CommandQueueType::graphics,
+        NativeHandle cuda_stream = {}
+    );
 
     /**
      * \brief Check if a submission is finished executing.
@@ -574,6 +593,9 @@ public:
     /// Enumerates all available adapters of a given device type.
     static std::vector<AdapterInfo> enumerate_adapters(DeviceType type = DeviceType::automatic);
 
+    /// Lists all created devices
+    static std::vector<ref<Device>> get_created_devices();
+
     /// Report live objects in the rhi layer.
     /// This is useful for checking clean shutdown with all resources released properly.
     static void report_live_objects();
@@ -656,7 +678,11 @@ private:
     bool m_supports_cuda_interop{false};
     ref<cuda::Device> m_cuda_device;
     ref<cuda::ExternalSemaphore> m_cuda_semaphore;
-    bool m_wait_global_fence{false};
 };
+
+/// Gets the device and context handles for the current CUDA context. Use
+/// to retrieve an existing context (eg from PyTorch) to pass as the existing_device_handles
+/// from which to create a device in the DeviceDesc.
+SGL_API std::array<NativeHandle, 3> get_cuda_current_context_native_handles();
 
 } // namespace sgl

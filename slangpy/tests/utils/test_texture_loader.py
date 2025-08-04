@@ -229,9 +229,6 @@ def test_load_texture_from_bitmap(device_type: spy.DeviceType, format: FormatEnt
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("filename", TEST_BITMAP_FILES)
 def test_load_texture_from_bitmap_file(device_type: spy.DeviceType, filename: str):
-    if device_type == spy.DeviceType.cuda:
-        pytest.skip("CUDA does not support SRGB formats yet")
-
     device = helpers.get_device(type=device_type)
 
     path = TEST_IMAGE_DIR / filename
@@ -248,9 +245,6 @@ def test_load_texture_from_bitmap_file(device_type: spy.DeviceType, filename: st
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("filename", TEST_DDS_FILES)
 def test_load_texture_from_dds_file(device_type: spy.DeviceType, filename: str):
-    if device_type == spy.DeviceType.cuda:
-        pytest.skip("CUDA does not support BC compressed formats yet")
-
     device: spy.Device = helpers.get_device(type=device_type)
 
     path = TEST_DDS_DIR / filename
@@ -292,4 +286,4 @@ def test_load_texture_array(device_type: spy.DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-vvs", "-k", "test_load_texture_from_bitmap_file"])
+    pytest.main([__file__, "-v"])

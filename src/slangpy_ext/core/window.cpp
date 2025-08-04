@@ -46,7 +46,7 @@ SGL_PY_EXPORT(core_window)
         },
         "width"_a = 1024,
         "height"_a = 1024,
-        "title"_a = "sgl",
+        "title"_a = "slangpy",
         "mode"_a = WindowMode::normal,
         "resizable"_a = true,
         D(Window, Window)

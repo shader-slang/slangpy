@@ -35,8 +35,6 @@ public:
         /// Resource usage flags for the texture.
         /// \c TextureUsage::render_target will be added automatically if \c generate_mips is true.
         TextureUsage usage{TextureUsage::shader_resource};
-
-        Options();
     };
 
     /**

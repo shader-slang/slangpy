@@ -1,12 +1,20 @@
 Buffers
 =======
 
-SlangPy provides two key wrappers around classic structured buffers (represented in SGL as `Buffer` objects): ``NDBuffer`` and ``Tensor``.
+SlangPy provides two key wrappers around classic structured buffers (represented in SlangPy as `Buffer` objects): ``NDBuffer`` and ``Tensor``.
 
 The ``NDBuffer`` type takes a structured buffer with a defined stride and size and adds:
 
 - **Data type**: A ``SlangType``, which can be a primitive type (e.g., float, vector) or a user-defined Slang struct.
 - **Shape**: A tuple of integers describing the size of each dimension, similar to the shape of a NumPy array or Torch tensor.
+
+.. warning::
+   **Buffer Indexing Conventions**
+
+   Multi-dimensional buffers store data using the convention where the right-most dimension has the smallest stride.
+   However, buffers can be indexed using either array coordinates, which follow the same convention, or vector coordinates, which follow a different convention where the x component has the smallest stride.
+   This means the same buffer position requires different coordinate values: e.g. for a 2D buffer, array indexing uses `[row, col]` while vector indexing uses `(col, row)` for the same location.
+   See :ref:`index_representation` for complete details on these differing index representation conventions.
 
 Let's start with a simple Slang program that uses a custom type:
 
@@ -46,7 +54,7 @@ Initialization follows the same steps as in the previous example:
     import pathlib
     import numpy as np
 
-    # Create an SGL device with the local folder for slangpy includes
+    # Create a SlangPy device and use the local folder for Slang includes
     device = spy.create_device(include_paths=[
             pathlib.Path(__file__).parent.absolute(),
     ])

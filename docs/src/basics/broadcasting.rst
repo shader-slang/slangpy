@@ -5,7 +5,7 @@ As we've seen so far in these tutorials, SlangPy's primary job is to take a func
 that is designed to run on a single unit of data, and convert it to a `vector` function that
 runs on batches of data in parallel.
 
-You can find the complete code for this example `here <https://github.com/shader-slang/slangpy/tree/main/examples/broadcasting/>`_.
+You can find the complete code for this example `here <https://github.com/shader-slang/slangpy-samples/tree/main/examples/broadcasting/>`_.
 
 So far, we've seen very simple examples of vectorizing in which all the parameters of a function
 are passed either equally sized buffers, or single values. For example:
@@ -34,6 +34,12 @@ In effect, `dimensionality` is equal to the length of the `shape` tuple.
 
 Note: For those new to broadcasting, a common point of confusion is that a `3D vector` does **not** have
 a `dimensionality` of 3! Instead, it has a `dimensionality` of 1, and its `shape` is (3,).
+
+.. note::
+   **Index Representation Conventions**
+
+   SlangPy uses different index representation conventions for arrays and buffers than for vectors. When working with multi-dimensional data, be aware that these conventions may affect how your data is interpreted.
+   See :ref:`index_representation` for complete details on the differing conventions.
 
 Broadcasting with single floats
 -------------------------------
@@ -95,13 +101,27 @@ Conceptually, broadcasting the same value to all dimensions is similar to adding
     B       (10,3,4)
     Out     (10,3,4)
 
-Where SlangPy differs from NumPy and certain other ML packages is that it will by design **not**
-automatically extend the dimensions of a value **unless** it is a single value. This is to prevent
-accidental broadcasting of values that should be treated as errors. For example, consider the following
+Similar to NumPy and certain other ML packages, SlangPy will by default automatically extend the dimensions of a value.
 
 .. code-block:: python
 
-    NumPy would automatically extend A to (1,3,4), SlangPy does not
+    SlangPy would automatically extend A to (1,3,4)
+    A      (3,4)
+    B      (10,3,4)
+    Out    (10,3,4)
+
+In order to prevent accidental broadcasting of values that should be treated as errors, SlangPy also provides a way to disable
+this behavior by setting the `strict_broadcasting` option to `False` when loading the module, e.g.
+
+.. code-block:: python
+
+    module = spy.Module.load_from_source(..., options={{"strict_broadcasting": False}})
+
+In this case, SlangPy will not automatically extend the dimensionality of a value **unless** it is a single value.
+
+.. code-block:: python
+
+    SlangPy would not automatically extend A to (1,3,4)
     A      (3,4)
     B      (10,3,4)
     Out    Error
@@ -162,7 +182,7 @@ Summary
 
 This tutorial gave an overview of how vectorizing and broadcasting work in SlangPy. If you're already familiar with NumPy, PyTorch or other ML frameworks it should be very familiar, with the only real extra complication being that of handling non-scalar types.
 
-If you're new to broadcasting, this first read might have made your head spin a little. Don't worry! It's a topic that is **way** easier to learn in practice than in theory. The best way to get a feel for it is to start writing some SlangPy functions and see how the broadcasting rules work (or don't!) in practice. The `examples <https://github.com/shader-slang/slangpy/tree/main/examples/broadcasting/>`_ for this tutorial are a good place to start.
+If you're new to broadcasting, this first read might have made your head spin a little. Don't worry! It's a topic that is **way** easier to learn in practice than in theory. The best way to get a feel for it is to start writing some SlangPy functions and see how the broadcasting rules work (or don't!) in practice. The `examples <https://github.com/shader-slang/slangpy-samples/tree/main/examples/broadcasting/>`_ for this tutorial are a good place to start.
 
 
 The next tutorial will cover use of the ``map`` function to be explicit about how arguments are mapped to the output allowing for more complex broadcasting rules.

@@ -68,10 +68,10 @@ $ git checkout -b feature/your-feature-name
 ```
 
 ### Build SlangPy from Source
-Please follow the instructions on how to [Develop with SlangPy](DEVELOP.md).
+Please follow the instructions in the ["Compiling" page of the Developer Guide](https://slangpy.shader-slang.org/en/latest/src/developer_guide/compiling.html).
 
 ### Making and Testing Changes
-After making your changes, test your changes thoroughly to ensure they do not introduce new issues. This is done by running unit tests via `pytest` from the repository root directory. For more details about running `pytest`, please refer to the "Tests" section of [Developing with SlangPy](DEVELOP.md#tests).
+After making your changes, test your changes thoroughly to ensure they do not introduce new issues. This is done by running unit tests via `pytest` from the repository root directory. For more details about running `pytest`, please refer to the ["Testing" page of the Developer Guide](https://slangpy.shader-slang.org/en/latest/src/developer_guide/testing.html).
 
 If you are familiar with Workflows/Actions in GitHub, you can check [Our Workflows](.github/workflows). The "Run tests" sections in [ci.yml](.github/workflows/ci.yml) is where `pytest` is run by [ci.py](.build_agent/ci.py).
 

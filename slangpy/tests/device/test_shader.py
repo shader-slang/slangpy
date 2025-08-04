@@ -108,9 +108,11 @@ def test_load_program(device_type: spy.DeviceType):
             entry_point_names=["main"],
         )
 
-    program = device.load_program(
-        module_name="test_shader_foo.slang",
-        entry_point_names=["main_a", "main_b", "main_vs", "main_fs"],
+    # Loading valid programs must succeed
+    device.load_program(module_name="test_shader_foo.slang", entry_point_names=["main_a"])
+    device.load_program(module_name="test_shader_foo.slang", entry_point_names=["main_b"])
+    device.load_program(
+        module_name="test_shader_foo.slang", entry_point_names=["main_vs", "main_fs"]
     )
 
 

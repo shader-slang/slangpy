@@ -431,7 +431,16 @@ class BoundVariable:
                 and self.call_dimensionality != context.call_dimensionality
             ):
                 raise BoundVariableException(
-                    f"Strict broadcasting is enabled and {self.path} dimensionality ({self.call_dimensionality}) is neither 0 or the kernel dimensionality ({context.call_dimensionality})",
+                    f"""
+Strict broadcasting is enabled and the argument `{self.name}` at parameter index `{self.param_index}` has dimensionality of ({self.call_dimensionality})
+while the kernel's dimensionality is ({context.call_dimensionality}).
+Note: This error usually happens when the arguments in a call have different dimensionalities. By default SlangPy will automatically broadcast
+the dimentionality of arguments, however if 'strict_broadcasting' option is enabled when loading the module, SlangPy will not perform the broadcasting.
+(See: https://slangpy.shader-slang.org/en/latest/src/basics/broadcasting.html for details).
+You can disable strict broadcasting by not setting the `strict_broadcasting` option when loading the module.
+More Advancedly, SlangPy provides a `mapping` functionality to finer control the argument's dimensionality,
+you can find more information in the Mapping section of the documentation (https://slangpy.shader-slang.org/en/latest/src/basics/mapping.html).
+""",
                     self,
                 )
 

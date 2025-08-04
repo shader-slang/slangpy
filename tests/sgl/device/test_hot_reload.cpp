@@ -449,7 +449,7 @@ TEST_CASE_GPU("change program and auto detect changes")
 
     // Tell the hot reload system to auto detect changes for 500ms.
     ctx.device->_hot_reload()->_reset_reloaded();
-    for (int i = 0; i < 20 && !ctx.device->_hot_reload()->_has_reloaded(); i++) {
+    for (int i = 0; i < 400 && !ctx.device->_hot_reload()->_has_reloaded(); i++) {
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
         ctx.device->_hot_reload()->update();
     }
@@ -516,7 +516,7 @@ TEST_CASE_GPU("create multi directory session and monitor for changes" * doctest
         .imports = {"mod0", "mod1"},
     });
     ctx.device->_hot_reload()->_reset_reloaded();
-    for (int i = 0; i < 20 && !ctx.device->_hot_reload()->_has_reloaded(); i++) {
+    for (int i = 0; i < 400 && !ctx.device->_hot_reload()->_has_reloaded(); i++) {
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
         ctx.device->_hot_reload()->update();
     }
@@ -529,7 +529,7 @@ TEST_CASE_GPU("create multi directory session and monitor for changes" * doctest
         .set_to = "10",
     });
     ctx.device->_hot_reload()->_reset_reloaded();
-    for (int i = 0; i < 20 && !ctx.device->_hot_reload()->_has_reloaded(); i++) {
+    for (int i = 0; i < 400 && !ctx.device->_hot_reload()->_has_reloaded(); i++) {
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
         ctx.device->_hot_reload()->update();
     }
@@ -547,7 +547,7 @@ TEST_CASE_GPU("create multi directory session and monitor for changes" * doctest
         .set_to = "20",
     });
     ctx.device->_hot_reload()->_reset_reloaded();
-    for (int i = 0; i < 20 && !ctx.device->_hot_reload()->_has_reloaded(); i++) {
+    for (int i = 0; i < 400 && !ctx.device->_hot_reload()->_has_reloaded(); i++) {
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
         ctx.device->_hot_reload()->update();
     }

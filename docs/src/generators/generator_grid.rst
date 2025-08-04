@@ -24,7 +24,16 @@ We can invoke this function and pass it the ``grid`` generator as follows:
     # [ [ [0,0], [1,0], [2,0], [3,0] ], [ [0,1], [1,1], [2,1], [3,1] ], ...
     print(res)
 
-The ``grid`` generator provides the grid coordinate of the current thread, and the resulting numpy array is populated accordingly. Since we specified a shape of ``(4,4)``, the resulting kernel and output conform to this 4x4 structure. As with the ``call_id`` generator, when passed to a vector parameter, the x component represents the right-most dimension, the y component the next dimension to the left, and so on.
+The ``grid`` generator provides the grid coordinate of the current thread, and the resulting numpy array is populated accordingly. Since we specified a shape of ``(4,4)``, the resulting kernel and output conform to this 4x4 structure.
+
+.. warning::
+   **Vector vs Array Dimension Ordering**
+
+   As with the ``call_id`` generator, the convention used for grid coordinates depends on the parameter type that the ``grid`` generator is passed to.
+   When passed to a vector parameter, the x component represents the smallest stride, the y component the next smallest stride, and so on.
+   When passed to an array parameter, the right-most dimension has the smallest stride, the next dimension to the left has the next smallest stride, and so on.
+   The x component of the vector is equivalent to the right-most dimension of the array, the y component the next dimension to the left, and so on.
+   See :ref:`index_representation` for complete details on these differing index representation conventions.
 
 Strides
 -------

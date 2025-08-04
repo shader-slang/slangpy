@@ -27,7 +27,18 @@ See :ref:`developer guide <sec-compiling>` for more detailed information on how 
 Requirements
 ------------
 
-- **python >= 3.9**
+* **python >= 3.9**
+
+Optionally:
+
+* CUDA Toolkit >= 11.8; 12.8 recommended (on Windows/Linux, for cuda
+  acceleration)
+
+* Xcode >= 16; 16.4 recommended (on macOS, the metal compiler is required for
+  acceleration on a Metal 3.1+ capable device)
+
+* `PyTorch <https://pytorch.org/get-started/>`_ >= 2.7.1 (for optional
+  integration)
 
 Citation
 --------
@@ -56,12 +67,14 @@ If you use SlangPy in a research project leading to a publication, please cite t
     :caption: Basics
 
     src/basics/firstfunctions
+    src/basics/returntype
     src/basics/buffers
     src/basics/textures
     src/basics/nested
     src/basics/typemethods
     src/basics/broadcasting
     src/basics/mapping
+    src/basics/index_representation
 
 .. toctree::
     :hidden:
@@ -83,10 +96,11 @@ If you use SlangPy in a research project leading to a publication, please cite t
 
 .. toctree::
     :maxdepth: 1
-    :caption: Tutorials
+    :caption: Graphics Tutorials
     :hidden:
 
-    src/basic_tutorials
+    src/tutorials/image_io_and_manipulation
+    src/tutorials/compute_shader
 
 .. toctree::
     :maxdepth: 1
@@ -101,6 +115,3 @@ If you use SlangPy in a research project leading to a publication, please cite t
     :hidden:
 
     src/api_reference
-    src/api/slangpy
-    src/api/reflection
-    src/api/bindings

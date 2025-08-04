@@ -1,8 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+from pathlib import Path
 import pytest
-from slangpy import DeviceType, Device
-from . import helpers
+from slangpy import DeviceType, Device, Module
+from slangpy.core.native import NativeCallDataCache, SignatureBuilder, TensorRef
 import sys
+
+sys.path.append(str(Path(__file__).parent))
+import helpers
 
 try:
     import torch
@@ -12,8 +16,6 @@ except ImportError:
 # Skip all tests in this file if running on MacOS
 if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
-
-pytest.skip("Skipped due to sync issues / race condition with CUDA", allow_module_level=True)
 
 TEST_CODE = """
 import tensor;
@@ -40,16 +42,37 @@ def get_test_tensors(device: Device, N: int = 4):
 
 
 def load_test_module(device_type: DeviceType):
-    from slangpy.torchintegration import TorchModule
-
-    device = helpers.get_device(device_type, cuda_interop=True)
-    return TorchModule.load_from_file(device, "test_torchintegration.slang")
+    device = helpers.get_torch_device(device_type)
+    return Module.load_from_file(device, "test_torchintegration.slang")
 
 
 def compare_tensors(a: torch.Tensor, b: torch.Tensor):
     assert a.shape == b.shape, f"Tensor shape {a.shape} does not match expected shape {b.shape}"
     err = torch.max(torch.abs(a - b)).item()
     assert err < 1e-4, f"Tensor deviates by {err} from reference"
+
+
+@pytest.mark.parametrize(
+    "pair",
+    [
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,C2,B32,L1"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,C2,B32,L1"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,C2,B16,L1"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,C0,B32,L1"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,C1,B8,L1"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,C1,B8,L1"),
+    ],
+)
+def test_torch_signature(pair: tuple[torch.Tensor, str]):
+    cd = NativeCallDataCache()
+    sig = SignatureBuilder()
+    cd.get_value_signature(sig, pair[0])
+    assert sig.str == f"Tensor\n[torch,{pair[1]}]"
+
+    ref = TensorRef(0, pair[0])
+    sig = SignatureBuilder()
+    cd.get_value_signature(sig, ref)
+    assert sig.str.endswith(f"[torch,{pair[1]}]")
 
 
 ADD_TESTS = [
@@ -72,7 +95,6 @@ def test_add_values(
     func_and_shape: tuple[str, tuple[int]],
     result_mode: str,
 ):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -107,6 +129,8 @@ def test_add_values(
         module[func_name](a, b, res)
     assert isinstance(res, torch.Tensor)
 
+    test = a + b
+
     compare_tensors(a + b, res)
 
     # Not much to check for backwards pass of an 'add', but call it
@@ -120,7 +144,6 @@ def test_add_values(
 def test_add_values_fail(
     device_type: DeviceType, extra_dims: int, func_and_shape: tuple[str, tuple[int]]
 ):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -145,8 +168,6 @@ def test_add_values_fail(
 def test_add_vectors_generic_explicit(device_type: DeviceType, extra_dims: int):
     pytest.skip("Crashes due to slang bug")
 
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
-
     module = load_test_module(device_type)
 
     extra_shape = (5,) * extra_dims
@@ -163,7 +184,6 @@ def test_add_vectors_generic_explicit(device_type: DeviceType, extra_dims: int):
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_polynomial(device_type: DeviceType):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -182,9 +202,36 @@ def test_polynomial(device_type: DeviceType):
     compare_tensors(2 * a * x + b, x.grad)  # type: ignore
 
 
+# This test ensures that the PyTorch integration doesn't fail if re-using the
+# same cached call data.
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_polynomial_multiple_calls(device_type: DeviceType):
+
+    module = load_test_module(device_type)
+
+    a = 2.0
+    b = 4.0
+    c = 1.0
+    x = torch.randn((10,), dtype=torch.float32, device=torch.device("cuda"), requires_grad=True)
+
+    res = module.polynomial(a, b, c, x)
+    assert isinstance(res, torch.Tensor)
+
+    compare_tensors(a * x * x + b * x + c, res)
+
+    res.backward(torch.ones_like(res))
+    compare_tensors(2 * a * x + b, x.grad)  # type: ignore
+
+    res2 = module.polynomial(a, b, c, x)
+    assert isinstance(res2, torch.Tensor)
+
+    x.grad.zero_()  # Reset gradients before the second call
+    res2.backward(torch.ones_like(res2))
+    compare_tensors(2 * a * x + b, x.grad)  # type: ignore
+
+
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_polynomial_outparam(device_type: DeviceType):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -225,7 +272,6 @@ def test_polynomials(
     func_and_shape: tuple[str, tuple[int]],
     result_mode: str,
 ):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 
@@ -270,7 +316,6 @@ def test_polynomials(
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("extra_dims", [0, 1, 3])
 def test_add_tensors(device_type: DeviceType, extra_dims: int):
-    torch.autograd.grad_mode.set_multithreading_enabled(False)
 
     module = load_test_module(device_type)
 

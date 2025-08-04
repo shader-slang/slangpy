@@ -1,8 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+from pathlib import Path
+import sys
 import numpy as np
 import pytest
 
-from . import helpers
+sys.path.append(str(Path(__file__).parent))
+import helpers
+
 from slangpy import DeviceType, float2
 from slangpy.types import NDBuffer, Tensor
 

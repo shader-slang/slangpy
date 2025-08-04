@@ -58,9 +58,9 @@ public:
      *
      * \param command_encoder Command encoder.
      * \param texture Texture to generate mipmaps for.
-     * \param array_layer Array layer to generate mipmaps for.
+     * \param layer Array layer to generate mipmaps for.
      */
-    void generate_mips(CommandEncoder* command_encoder, Texture* texture, uint32_t array_layer = 0);
+    void generate_mips(CommandEncoder* command_encoder, Texture* texture, uint32_t layer = 0);
 
 private:
     enum class TextureDataType {
@@ -81,15 +81,20 @@ private:
         auto operator<=>(const ProgramKey&) const = default;
     };
 
-    ref<ShaderProgram> get_program(ProgramKey key);
-    ref<RenderPipeline> get_pipeline(ProgramKey key, Format dst_format);
+    ref<ShaderProgram> get_render_program(ProgramKey key);
+    ref<RenderPipeline> get_render_pipeline(ProgramKey key, Format dst_format);
+    ref<ShaderProgram> get_compute_program(ProgramKey key, Format dst_format);
+    ref<ComputePipeline> get_compute_pipeline(ProgramKey key, Format dst_format);
 
     Device* m_device;
     ref<Sampler> m_linear_sampler;
     ref<Sampler> m_point_sampler;
 
-    std::map<ProgramKey, ref<ShaderProgram>> m_program_cache;
-    std::map<std::pair<ProgramKey, Format>, ref<RenderPipeline>> m_pipeline_cache;
+    std::map<ProgramKey, ref<ShaderProgram>> m_render_program_cache;
+    std::map<std::pair<ProgramKey, Format>, ref<RenderPipeline>> m_render_pipeline_cache;
+
+    std::map<std::pair<ProgramKey, Format>, ref<ShaderProgram>> m_compute_program_cache;
+    std::map<std::pair<ProgramKey, Format>, ref<ComputePipeline>> m_compute_pipeline_cache;
 };
 
 } // namespace sgl

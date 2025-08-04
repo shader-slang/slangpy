@@ -70,7 +70,8 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
 
     // Write shape vector as an array of ints.
     const std::vector<int>& shape_vec = buffer->shape().as_vector();
-    field["_shape"]._set_array_unsafe(&shape_vec[0], shape_vec.size() * 4, shape_vec.size());
+    field["_shape"]
+        ._set_array_unsafe(&shape_vec[0], shape_vec.size() * 4, shape_vec.size(), TypeReflection::ScalarType::int32);
 
     // Write layout info to layout field.
     auto layout_field = field["layout"];
@@ -91,7 +92,12 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
     }
 
     // Write the strides vector as an array of ints.
-    layout_field["strides"]._set_array_unsafe(&strides_vec[0], strides_vec.size() * 4, strides_vec.size());
+    layout_field["strides"]._set_array_unsafe(
+        &strides_vec[0],
+        strides_vec.size() * 4,
+        strides_vec.size(),
+        TypeReflection::ScalarType::int32
+    );
 }
 
 void NativeNDBufferMarshall::read_calldata(

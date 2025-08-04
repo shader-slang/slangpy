@@ -16,10 +16,6 @@ ELEMENT_COUNT = 1024
 def test_cast_float16(device_type: spy.DeviceType):
     if device_type == spy.DeviceType.metal:
         pytest.skip("float16 cast not supported on Metal")
-    if device_type == spy.DeviceType.cuda and (sys.platform == "linux" or sys.platform == "linux2"):
-        pytest.skip(
-            "Slang fails to find cuda_fp16.h header https://github.com/shader-slang/slang/issues/7037"
-        )
 
     device = helpers.get_device(device_type)
 

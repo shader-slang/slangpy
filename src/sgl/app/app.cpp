@@ -76,13 +76,11 @@ AppWindow::AppWindow(AppWindowDesc desc)
         .resizable = desc.resizable,
     });
     m_surface = m_device->create_surface(m_window);
-    m_surface->configure({
-        .format = desc.surface_format,
-        .usage = TextureUsage::render_target | TextureUsage::present,
-        .width = desc.width,
-        .height = desc.height,
-        .vsync = desc.enable_vsync,
-    });
+    m_surface_config.format = desc.surface_format;
+    m_surface_config.width = desc.width;
+    m_surface_config.height = desc.height;
+    m_surface_config.vsync = desc.enable_vsync;
+    m_surface->configure(m_surface_config);
 
     m_ui_context = make_ref<ui::Context>(ref(m_device));
 
@@ -118,6 +116,8 @@ void AppWindow::_run_frame()
     m_window->process_events();
     m_ui_context->process_events();
 
+    if (!m_surface->config())
+        return;
     ref<Texture> texture = m_surface->acquire_next_image();
     if (!texture)
         return;
@@ -155,10 +155,13 @@ bool AppWindow::_should_close()
 void AppWindow::handle_resize(uint32_t width, uint32_t height)
 {
     m_device->wait();
-    SurfaceConfig config = m_surface->config();
-    config.width = width;
-    config.height = height;
-    m_surface->configure(config);
+    if (width > 0 && height > 0) {
+        m_surface_config.width = width;
+        m_surface_config.height = height;
+        m_surface->configure(m_surface_config);
+    } else {
+        m_surface->unconfigure();
+    }
     on_resize(width, height);
 }
 

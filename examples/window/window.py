@@ -90,7 +90,10 @@ class App:
 
     def on_resize(self, width: int, height: int):
         self.device.wait()
-        self.surface.configure(width=width, height=height)
+        if width > 0 and height > 0:
+            self.surface.configure(width=width, height=height)
+        else:
+            self.surface.unconfigure()
 
     def run(self):
         frame = 0
@@ -110,6 +113,8 @@ class App:
             self.fps_avg = 0.95 * self.fps_avg + 0.05 * (1.0 / elapsed)
             self.fps_text.text = f"FPS: {self.fps_avg:.2f}"
 
+            if not self.surface.config:
+                continue
             surface_texture = self.surface.acquire_next_image()
             if not surface_texture:
                 continue

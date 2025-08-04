@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import "slangpy";
 
-typealias Context = ContextND<1>;
-
 typealias _a__x = NDBuffer<float, 1>;
 typealias _a__y = NDBuffer<float, 1>;
 typealias _a__z = NDBuffer<float, 1>;
@@ -58,7 +56,7 @@ void compute_main(uint3 dispatchThreadID: SV_DispatchThreadID)
     int[1] call_id = {
         (dispatchThreadID.x / call_data._call_stride[0]) % call_data._call_dim[0],
     };
-    Context context = { dispatchThreadID, call_id };
+    Context1D context = { dispatchThreadID, call_id };
     float3 a;
     call_data.a.load(context, a);
     float3 b;

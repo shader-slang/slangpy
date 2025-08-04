@@ -752,7 +752,6 @@ def test_type_method_overloads(test_id: str, device_type: spy.DeviceType):
     assert l0 == 1 or l1 == 1
 
 
-@pytest.mark.skip("Pending slang fix for __init function finding")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_type_constructor_overloads(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)

@@ -3,9 +3,10 @@
 Testing
 =======
 
-Because ``sgl`` strives to expose all of its API to Python, most unit tests
-should be written in Python. However, some C++ unit tests are still needed for
-parts that are not exposed to Python.
+Because SlangPy aims to expose the entire API of its internal C++ library
+(``sgl``) to Python, most unit tests should be written in Python. However,
+some C++ unit tests are still needed for parts of ``sgl`` that are not exposed
+to Python.
 
 Python Unit Tests
 -----------------
