@@ -65,11 +65,16 @@ def _on_device_close(device: Device):
     del global_lookup_modules[device]
 
 
+def _load_lookup_module(device: Device):
+    dummy_module = device.load_module_from_source("slangpy_layout", 'import "slangpy";')
+    global_lookup_modules[device] = SlangProgramLayout(dummy_module.layout)
+
+
 def get_lookup_module(device: Device) -> SlangProgramLayout:
     if device not in global_lookup_modules:
-        dummy_module = device.load_module_from_source("slangpy_layout", 'import "slangpy";')
-        global_lookup_modules[device] = SlangProgramLayout(dummy_module.layout)
+        _load_lookup_module(device)
         device.register_device_close_callback(_on_device_close)
+        device.register_shader_hot_reload_callback(lambda _: _load_lookup_module(device))
 
     return global_lookup_modules[device]
 
