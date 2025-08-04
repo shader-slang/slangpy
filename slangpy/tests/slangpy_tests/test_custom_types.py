@@ -344,7 +344,6 @@ float3 rand_float(float3 input) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_rand_float_uniformity(device_type: DeviceType):
-
     bucket_size = 17
 
     # Create function that atomically increments counts

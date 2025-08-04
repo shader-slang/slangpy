@@ -31,6 +31,44 @@
             "args": [],
             "stopAtEntry": false,
             "cwd": "${command:cmake.launchTargetDirectory}"
-        }
+        },
+        // Useful config for natively debugging the PyTest suite on linux box
+        // Clears LD_LIBRARY_PATH so the system slang in Vulkan doesn't get picked up
+        {
+            "name": "PyTest C++ Debugger GDB",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "-m",
+                "pytest",
+                "-v",
+                "-s",
+                "${workspaceFolder}/slangpy/tests"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": ""
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+
     ]
 }

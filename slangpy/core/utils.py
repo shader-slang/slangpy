@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from os import PathLike, environ
 import pathlib
-from typing import Optional, Sequence, Union
+from typing import Any, Optional, Sequence, Union
 
 from slangpy import (
     DeclReflection,
@@ -11,10 +11,10 @@ from slangpy import (
     DeviceType,
     Device,
     NativeHandle,
+    get_cuda_current_context_native_handles,
 )
 from slangpy.reflection import SlangType
 import builtins
-import sys
 
 
 def create_device(
@@ -69,6 +69,51 @@ def create_device(
         setup_in_jupyter(device)
 
     return device
+
+
+def create_torch_device(
+    type: DeviceType = DeviceType.automatic,
+    torch_device: Any = None,
+    enable_debug_layers: bool = False,
+    include_paths: Sequence[Union[str, PathLike[str]]] = [],
+    enable_print: bool = False,
+    enable_hot_reload: bool = True,
+    enable_compilation_reports: bool = False,
+):
+    """
+    Helper to create a device configured properly for PyTorch integration. If device type is CUDA,
+    slangpy will attempt to directly share the CUDA context with PyTorch. This is the recommended
+    way of using SlangPy with PyTorch.
+
+    If device type is not CUDA (eg d3d12, vulkan), this will create a device with cuda interop enabled,
+    and rely on shared memory + semaphores to syncronize between SlangPy and PyTorch. This approach
+    works, and is valuable if access to graphics features (such as a rasterizer) is critical, but hardware
+    context switching and memcpys are expensive, resulting in substantially worse performance.
+    """
+
+    # Import and init torch
+    import torch
+
+    torch.cuda.init()
+
+    # Use current device if not specified
+    if torch_device is None:
+        torch_device = torch.cuda.current_device()
+
+    # Switch to the correct device then read cuda context
+    with torch.device(torch_device):
+        handles = get_cuda_current_context_native_handles()
+
+    return create_device(
+        type=type,
+        enable_debug_layers=enable_debug_layers,
+        include_paths=include_paths,
+        enable_cuda_interop=type != DeviceType.cuda,
+        enable_print=enable_print,
+        enable_hot_reload=enable_hot_reload,
+        enable_compilation_reports=enable_compilation_reports,
+        existing_device_handles=handles,
+    )
 
 
 def find_type_layout_for_buffer(

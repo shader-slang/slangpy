@@ -1,18 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import os
+import sys
+from pathlib import Path
 import pytest
 
 from slangpy import Struct
 from slangpy.core.native import Shape
 from slangpy import DeviceType, BufferUsage
-from . import helpers
 from slangpy.types import NDBuffer, Tensor
 
 from typing import Any, Optional, Union, Type, cast
 
 import numpy as np
 import math
-import sys
+
+sys.path.append(str(Path(__file__).parent))
+import helpers
 
 try:
     import torch
@@ -103,14 +106,7 @@ def test_to_torch(
     buffer_type: Union[Type[Tensor], Type[NDBuffer]],
     test_dtype: tuple[str, Optional[torch.dtype], Type[Any], tuple[int, ...]],
 ):
-    if device_type == DeviceType.cuda:
-        pytest.skip("Torch interop not supported on CUDA yet")
-    if sys.platform == "nt":
-        pytest.skip(
-            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
-        )
-
-    device = helpers.get_device(device_type, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     module = helpers.create_module(device, MODULE)
 
     slang_dtype, torch_dtype, _, dtype_shape = test_dtype
@@ -155,3 +151,7 @@ def test_to_torch(
     assert tensor.stride() == strides.as_tuple()
     assert tensor.dtype == torch_dtype
     assert (tensor == torch_ref).all().item()
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

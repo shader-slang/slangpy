@@ -10,7 +10,7 @@ from slangpy.core.native import (
 )
 
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy import CommandEncoder, TypeConformance, uint3, Logger
+from slangpy import CommandEncoder, TypeConformance, uint3, Logger, NativeHandle, NativeHandleType
 from slangpy.slangpy import Shape
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
@@ -131,6 +131,13 @@ class FunctionNode(NativeFunctionNode):
             raise ValueError(
                 "Set requires either keyword arguments or 1 dictionary / hook argument"
             )
+
+    def cuda_stream(self, stream: NativeHandle) -> "FunctionNode":
+        """
+        Specify a CUDA stream to use for the function. This is useful for synchronizing with other
+        CUDA operations or ensuring that the function runs on a specific stream.
+        """
+        return FunctionNodeCUDAStream(self, stream)
 
     def constants(self, constants: dict[str, Any]):
         """
@@ -403,6 +410,21 @@ class FunctionNodeSet(FunctionNode):
     @property
     def uniforms(self):
         return self._native_data
+
+
+class FunctionNodeCUDAStream(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, stream: NativeHandle) -> None:
+        if stream.type != NativeHandleType.CUstream:
+            raise ValueError("Expected a CUDA stream handle")
+        super().__init__(parent, FunctionNodeType.cuda_stream, stream)
+        self.slangpy_signature = str(stream)
+
+    @property
+    def stream(self):
+        return cast(NativeHandle, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.options["cuda_stream"] = self.stream
 
 
 class FunctionNodeConstants(FunctionNode):

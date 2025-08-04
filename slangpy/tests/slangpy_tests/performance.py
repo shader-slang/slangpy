@@ -366,7 +366,6 @@ def run_torch_comparison():
     add_with_shapes_kernel = device.create_compute_kernel(sgl_inc_with_shapes_program)
 
     spy_module = spy.Module.load_from_module(device, sgl_module)
-    spy_torch_module = spy.TorchModule.load_from_module(device, sgl_module)
 
     buffer_size = 1000000
     iterations = 10000
@@ -410,7 +409,7 @@ def run_torch_comparison():
 
     start = time()
     for i in range(0, iterations):
-        spy_torch_module.increment(val=val_tensor, total=total_tensor)
+        spy_module.increment(val=val_tensor, total=total_tensor)
     spy_torch_append = time() - start
 
     sleep(1)
