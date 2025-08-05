@@ -16,6 +16,7 @@ struct TensorView {
 };
 
 class InteropBuffer : public Object {
+    SGL_OBJECT(cuda::InteropBuffer)
 public:
     InteropBuffer(sgl::Device* device, const TensorView tensor_view, bool is_uav);
     ~InteropBuffer();

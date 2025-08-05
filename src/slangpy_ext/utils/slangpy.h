@@ -52,6 +52,7 @@ private:
 
 /// Used during calculation of slangpy signature
 class SignatureBuilder : public Object {
+    SGL_OBJECT(SignatureBuilder)
 public:
     SignatureBuilder()
     {
@@ -110,6 +111,7 @@ private:
 /// signature on a NativeObject on construction, or override the
 /// read_signature function to generate a signature dynamically.
 class NativeObject : public Object {
+    SGL_OBJECT(NativeObject)
 public:
     NativeObject() = default;
 
@@ -133,6 +135,7 @@ public:
 
 /// Base class for a slang reflection type
 class NativeSlangType : public Object {
+    SGL_OBJECT(NativeSlangType)
 public:
     NativeSlangType() = default;
 
@@ -191,6 +194,7 @@ struct PyNativeSlangType : public NativeSlangType {
 
 /// Base class for a marshal to a slangpy supported type.
 class NativeMarshall : public Object {
+    SGL_OBJECT(NativeMarshall)
 public:
     NativeMarshall() = default;
 
@@ -429,6 +433,7 @@ struct PyNativeMarshall : public NativeMarshall {
 /// the case of structs, this can be nested, mapping python dictionary fields to
 /// slang struct fields.
 class NativeBoundVariableRuntime : public Object {
+    SGL_OBJECT(NativeBoundVariableRuntime)
 public:
     NativeBoundVariableRuntime() = default;
 
