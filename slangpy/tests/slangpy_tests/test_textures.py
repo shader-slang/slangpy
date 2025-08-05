@@ -314,10 +314,6 @@ def test_copy_mip_values_with_resource_views(
 ):
     if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
         pytest.skip("1D textures with mip maps are not supported on Metal")
-    if device_type == DeviceType.cuda and mips > 1:
-        pytest.skip(
-            "Investigating with CUDA team whether its valid to write multiple mip levels without syncing"
-        )
 
     m = load_test_module(device_type)
     assert m is not None
@@ -363,10 +359,6 @@ def test_copy_mip_values_with_all_uav_resource_views(
 ):
     if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
         pytest.skip("1D textures with mip maps are not supported on Metal")
-    if device_type == DeviceType.cuda and mips > 1:
-        pytest.skip(
-            "Investigating with CUDA team whether its valid to write multiple mip levels without syncing"
-        )
 
     m = load_test_module(device_type)
     assert m is not None
