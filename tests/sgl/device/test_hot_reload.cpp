@@ -439,11 +439,13 @@ TEST_CASE_GPU("change program and auto detect changes")
     write_shader({.path = path, .set_to = "1"});
 
     // Load program + kernel, and verify returns 1.
+    INFO("Stage: Initial load");
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
     run_and_verify(ctx, kernel, 1);
 
     // Re-write the shader, and verify it still returns 1, as hasn't reloaded yet.
+    INFO("Stage: Check after write but before reload");
     write_shader({.path = path, .set_to = "2"});
     run_and_verify(ctx, kernel, 1);
 
@@ -455,6 +457,9 @@ TEST_CASE_GPU("change program and auto detect changes")
     }
 
     // Verify the result is now 2.
+    INFO("Stage: Check after auto detect loop");
+    INFO("Has reloaded: " << ctx.device->_hot_reload()->_has_reloaded());
+    INFO("Has error: " << ctx.device->_hot_reload()->last_build_failed());
     run_and_verify(ctx, kernel, 2);
 
     // Hot reload should not report error.
