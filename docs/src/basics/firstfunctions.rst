@@ -57,7 +57,8 @@ This eliminates common, error-prone tasks:
 - Manually managing thread IDs and memory access for input and output buffers.
 - Calculating and setting the correct number of threads for kernel launch.
 
-This capability is a core feature of modern numerical computing libraries like SlangPy, NumPy, and PyTorch, allowing you to focus on the logic of your function rather than the low-level details of GPU kernel management. For example, to add two buffers element-wise, you simply call the function with the buffers as arguments, and SlangPy handles the rest. This also extends to more complex scenarios, like adding a scalar value to every element of a multi-dimensional tensor, significantly reducing the chances of bugs and amount of boilerplate.
+This capability is a core feature of modern numerical computing libraries like SlangPy, NumPy, and PyTorch, allowing you to focus on the logic of your function rather than the low-level details of GPU kernel management.
+For example, to add two buffers element-wise, you simply call the function with the buffers as arguments, and SlangPy handles the rest. This also extends to more complex scenarios, like adding a scalar value to every element of a multi-dimensional tensor, significantly reducing the chances of bugs and amount of boilerplate.
 
 A simple example
 -----------------
