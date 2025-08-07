@@ -21,8 +21,8 @@ def get_test_tensors(device: Device, din: int = 5, dout: int = 8, N: int = 4):
     x = Tensor.from_numpy(device, np_x).broadcast_to((N, dout))
     weights = Tensor.from_numpy(device, np_weights).broadcast_to((N, din, dout))
 
-    weights = weights.with_grads()
-    biases = biases.with_grads()
+    weights = weights.with_grads(zero=True)
+    biases = biases.with_grads(zero=True)
 
     return weights, biases, x, np_result
 
@@ -40,9 +40,6 @@ def compare_tensors(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_differentiable_interface_parameters(device_type: DeviceType):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend generates invalid results")
-
     device = helpers.get_device(device_type)
 
     func_base = get_func(device, "matrix_vector_interfaces")
@@ -71,9 +68,6 @@ def test_differentiable_interface_parameters(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_differentiable_matrix_parameters(device_type: DeviceType):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend generates invalid results")
-
     device = helpers.get_device(device_type)
 
     func_base = get_func(device, "matrix_vector_matrices")

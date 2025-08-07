@@ -361,6 +361,7 @@ void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
 
     # Make buffer for bucket of counts
     buckets = NDBuffer(element_count=bucket_size, device=device, dtype=int)
+    buckets.clear()
 
     # Run bucketer with 1B random floats
     count = 1 * 1000 * 1000 * 1000

@@ -156,10 +156,10 @@ def test_call_with_buffers(device_type: DeviceType):
         device, "polynomial", POLYNOMIAL_WITH_RETURN_VALUE_DOT_SLANG
     ).return_type(Tensor)
 
-    a = Tensor.empty(shape=(32,), device=device, dtype=float).with_grads()
+    a = Tensor.empty(shape=(32,), device=device, dtype=float).with_grads(zero=True)
     a.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
-    b = Tensor.empty(shape=(32,), device=device, dtype=float).with_grads()
+    b = Tensor.empty(shape=(32,), device=device, dtype=float).with_grads(zero=True)
     b.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     res: Tensor = kernel_eval_polynomial(a, b)
@@ -199,14 +199,14 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
         shape=(32,),
         device=device,
         dtype=float3,
-    ).with_grads()
+    ).with_grads(zero=True)
     helpers.write_ndbuffer_from_numpy(a, np.random.rand(32 * 3).astype(np.float32), 3)
 
     b = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float3,
-    ).with_grads()
+    ).with_grads(zero=True)
     helpers.write_ndbuffer_from_numpy(b, np.random.rand(32 * 3).astype(np.float32), 3)
 
     res: Tensor = kernel_eval_polynomial(a, b)
@@ -251,28 +251,28 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
         shape=(32,),
         device=device,
         dtype=float,
-    ).with_grads()
+    ).with_grads(zero=True)
     a_x.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_y = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float,
-    ).with_grads()
+    ).with_grads(zero=True)
     a_y.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     a_z = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float,
-    ).with_grads()
+    ).with_grads(zero=True)
     a_z.storage.copy_from_numpy(np.random.rand(32).astype(np.float32))
 
     b = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float3,
-    ).with_grads()
+    ).with_grads(zero=True)
     b.storage.copy_from_numpy(np.random.rand(32 * 3).astype(np.float32))
 
     res: Tensor = kernel_eval_polynomial({"x": a_x, "y": a_y, "z": a_z}, b)
