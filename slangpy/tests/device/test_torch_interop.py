@@ -37,6 +37,10 @@ def test_buffer_to_torch(device_type: spy.DeviceType):
         usage=spy.BufferUsage.shared,
         data=data,
     )
+
+    # Sync cuda with device
+    device.sync_to_device()
+
     tensor1 = buffer.to_torch(type=spy.DataType.float32)
     assert tensor1.shape == (16,)
     assert torch.all(tensor1 == torch.tensor(data, dtype=torch.float32, device="cuda:0"))
