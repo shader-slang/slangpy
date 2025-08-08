@@ -363,8 +363,8 @@ void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
     buckets = NDBuffer(element_count=bucket_size, device=device, dtype=int)
     buckets.clear()
 
-    # Run bucketer with 1B random floats (takes ages on CUDA so making it just 1M)
-    # count = 1 * 1000 * 1000 * 1000
+    # Run bucketer with 1M random floats
+    # TODO: Find out why this took insanely long to run on CUDA with 1B floats
     count = 1 * 1000 * 1000
     bucket_values(grid((count,)), buckets.storage, rand_float())
 
