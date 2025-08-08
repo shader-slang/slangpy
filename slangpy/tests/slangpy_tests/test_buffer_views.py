@@ -199,7 +199,7 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
     if device_type == DeviceType.cuda:
         pytest.skip("Torch interop not supported on CUDA yet")
 
-    device = helpers.get_device(device_type, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     shape = (5, 4)
 
     torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
@@ -252,7 +252,7 @@ def test_partial_torch_copy(
     if device_type == DeviceType.cuda:
         pytest.skip("Torch interop not supported on CUDA yet")
 
-    device = helpers.get_device(device_type, cuda_interop=True)
+    device = helpers.get_torch_device(device_type)
     shape = (5, 4)
 
     torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
