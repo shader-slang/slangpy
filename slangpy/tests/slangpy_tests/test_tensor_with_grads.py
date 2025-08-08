@@ -21,8 +21,8 @@ def get_test_tensors(device: Device, din: int = 5, dout: int = 8, N: int = 4):
     x = Tensor.from_numpy(device, np_x).broadcast_to((N, dout))
     weights = Tensor.from_numpy(device, np_weights).broadcast_to((N, din, dout))
 
-    weights = weights.with_grads(zero=True)
-    biases = biases.with_grads(zero=True)
+    weights = weights.with_grads()
+    biases = biases.with_grads()
 
     return weights, biases, x, np_result
 

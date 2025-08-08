@@ -58,7 +58,7 @@ public:
     /// both input and output grads to refer to the same tensor. If neither grad_in
     /// or grad_out are provided, a single new tensor is created and used for both grads.
     ref<NativeTensor>
-    with_grads(ref<NativeTensor> grad_in = nullptr, ref<NativeTensor> grad_out = nullptr, bool zero = false) const;
+    with_grads(ref<NativeTensor> grad_in = nullptr, ref<NativeTensor> grad_out = nullptr, bool zero = true) const;
 
     /// Create a new version of this tensor without grads that refers to the same storage.
     ref<NativeTensor> detach() const;
