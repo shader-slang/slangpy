@@ -288,6 +288,9 @@ void SlangSession::create_session(SlangSessionBuild& build)
     for (const auto& warning : options.warnings_as_errors)
         session_options.add(slang::CompilerOptionName::WarningsAsErrors, warning);
 
+    std::string warning = "30856";
+    session_options.add(slang::CompilerOptionName::DisableWarning, warning);
+
     // Set diagnostic options.
     session_options.add(slang::CompilerOptionName::ReportDownstreamTime, options.report_downstream_time);
     session_options.add(slang::CompilerOptionName::ReportPerfBenchmark, options.report_perf_benchmark);
@@ -352,7 +355,7 @@ void SlangSession::create_session(SlangSessionBuild& build)
     std::string profile_str = fmt::format("sm_{}_{}", shader_model_major, shader_model_minor);
 
     // TODO: CUDA doesn't support shader model profiles like Vulkan or D3D12.
-    if (device_type == DeviceType::d3d12 || device_type == DeviceType::vulkan) {
+    if (device_type == DeviceType::d3d12 || device_type == DeviceType::vulkan || device_type == DeviceType::cuda) {
         target_desc.profile = m_device->global_session()->findProfile(profile_str.c_str());
         SGL_CHECK(target_desc.profile != SLANG_PROFILE_UNKNOWN, "Unsupported target profile: {}", profile_str);
     }

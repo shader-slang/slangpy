@@ -225,13 +225,13 @@ class Module:
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function(module=self, func=slang_function, struct=None, options=self.options)
-            self._attr_cache[name] = res
+            # self._attr_cache[name] = res
             return res
 
         # Search for name as a fully qualified child struct
         slang_struct = self.find_struct(name)
         if slang_struct is not None:
-            self._attr_cache[name] = slang_struct
+            # self._attr_cache[name] = slang_struct
             return slang_struct
 
         raise AttributeError(

@@ -164,8 +164,8 @@ def make_grid_data(type: TextureType, array_length: int = 1):
 @pytest.mark.parametrize("mips", [ALL_MIPS, 1, 4])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, type: TextureType):
-    if device_type == DeviceType.cuda:
-        pytest.skip("Limited texture support in CUDA backend")
+    # if device_type == DeviceType.cuda and type == TextureType.texture_1d:
+    #     pytest.skip("Limited 1D texture support in CUDA backend")
     if device_type == DeviceType.metal:
         pytest.skip("Limited texture support in Metal backend")
 
@@ -217,8 +217,8 @@ def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, typ
 def test_read_write_texture_with_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
 ):
-    if device_type == DeviceType.cuda:
-        pytest.skip("Limited texture support in CUDA backend")
+    if device_type == DeviceType.cuda and type == TextureType.texture_1d:
+        pytest.skip("Limited 1D texture support in CUDA backend")
     if device_type == DeviceType.metal:
         pytest.skip("Limited texture support in Metal backend")
 

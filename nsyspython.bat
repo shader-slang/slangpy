@@ -1,1 +1,1 @@
-nsys profile --trace=cuda,nvtx python %*
+"C:\Program Files\NVIDIA Corporation\Nsight Systems 2024.4.2\target-windows-x64\nsys" profile --trace=cuda,nvtx python -m pytest slangpy/tests/slangpy_tests/test_command_buffer.py -sv -k "test_command_buffer and cuda"

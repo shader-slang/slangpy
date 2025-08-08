@@ -317,7 +317,6 @@ def test_texture_layout(
         h = max(1, h // 2)
         d = max(1, d // 2)
 
-
 @pytest.mark.parametrize(
     "type",
     [
@@ -332,8 +331,8 @@ def test_texture_layout(
 def test_shader_read_write_texture(
     device_type: spy.DeviceType, array_length: int, mips: int, type: spy.TextureType
 ):
-    if device_type == spy.DeviceType.cuda:
-        pytest.skip("CUDA needs texture format attributes")
+    if device_type == spy.DeviceType.cuda and type == spy.TextureType.texture_1d:
+        pytest.skip("Slang issue: Emitting invalid surf1DWrite")
 
     device = helpers.get_device(device_type)
     assert device is not None
