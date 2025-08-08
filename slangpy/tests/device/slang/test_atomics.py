@@ -36,7 +36,7 @@ def test_buffer_add_f16(device_type: spy.DeviceType):
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
             "data": {"data": data},
-            "result": {"size": 4},
+            "result": {"data": np.zeros(shape=(2,), dtype=np.float16)},
         },
     )
 
@@ -66,7 +66,7 @@ def test_buffer_add_f16x2(device_type: spy.DeviceType):
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
             "data": {"data": data},
-            "result": {"size": 8},
+            "result": {"data": np.zeros(shape=(4,), dtype=np.float16)},
         },
     )
 
@@ -92,7 +92,7 @@ def test_buffer_add_f32(device_type: spy.DeviceType):
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
             "data": {"data": data},
-            "result": {"size": 8},
+            "result": {"data": np.zeros(shape=(2,), dtype=np.float32)},
         },
     )
 
@@ -118,7 +118,7 @@ def test_buffer_add_u64(device_type: spy.DeviceType):
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
             "data": {"data": data},
-            "result": {"size": 16},
+            "result": {"data": np.zeros(shape=(2,), dtype=np.uint64)},
         },
     )
 
@@ -144,7 +144,7 @@ def test_buffer_add_i64(device_type: spy.DeviceType):
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
             "data": {"data": data},
-            "result": {"size": 16},
+            "result": {"data": np.zeros(shape=(2,), dtype=np.int64)},
         },
     )
 

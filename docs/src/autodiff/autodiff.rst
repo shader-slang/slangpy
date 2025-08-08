@@ -26,7 +26,7 @@ To store simple differentiable data, SlangPy utilizes the ``Tensor`` type. Here 
 
     # Create a tensor with attached grads from a numpy array
     # Note: We pass zero=True to initialize the grads to zero on allocation
-    x = spy.Tensor.numpy(device, np.array([1, 2, 3, 4], dtype=np.float32)).with_grads(zero=True)
+    x = spy.Tensor.numpy(device, np.array([1, 2, 3, 4], dtype=np.float32)).with_grads()
 
     # Evaluate the polynomial and ask for a tensor back
     # Expecting result = 2x^2 + 8x - 1

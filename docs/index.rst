@@ -1,6 +1,24 @@
 Getting Started
 ===============
 
+Why SlangPy?
+------------
+
+With a wide variety of Python libraries for GPU research already available, why create another? SlangPy aims to be the library of choice for real-time graphics and machine learning research by exposing GPUs in a highly efficient and developer-friendly way.
+
+SlangPy achieves this through:
+
+* **The Slang Shading Language:** At its core, SlangPy sits on top of the `Slang <https://shader-slang.org>`_ shading language. This allows you to write compute code using a modern, flexible language designed specifically for GPU computation.
+* **Comprehensive Graphics API:** It provides a full-featured graphics API, giving you direct access to a lot of the hardware's underlying capabilities, which is crucial for advanced research.
+* **Cross-Platform Support:** SlangPy is built for portability, with support for D3D12, Vulkan, Metal, and CUDA, ensuring your work can run across different platforms without significant changes.
+* **A Functional, Boilerplate-Free API:** The library uses a functional API that dramatically reduces the boilerplate code typically involved in lower-level GPU programming, such as setting up compute kernels and managing binding logic.
+* **Research-to-Production Workflow:** It creates a solid platform for combining Python and Slang, where the optimized Slang code from your research can be taken directly into production, streamlining your development process.
+
+Getting Started
+---------------
+
+To begin using SlangPy, please install the library as instructed below. We then recommend moving to the basics section, starting with the tutorial at ``<src/basics/firstfunctions>``. This will guide you through using the higher-level functional API to write and call your first functions in Slang from Python.
+
 Installation
 ------------
 

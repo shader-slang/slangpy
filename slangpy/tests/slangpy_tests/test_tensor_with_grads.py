@@ -40,9 +40,6 @@ def compare_tensors(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_differentiable_interface_parameters(device_type: DeviceType):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend generates invalid results")
-
     device = helpers.get_device(device_type)
 
     func_base = get_func(device, "matrix_vector_interfaces")
@@ -71,9 +68,6 @@ def test_differentiable_interface_parameters(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_differentiable_matrix_parameters(device_type: DeviceType):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend generates invalid results")
-
     device = helpers.get_device(device_type)
 
     func_base = get_func(device, "matrix_vector_matrices")

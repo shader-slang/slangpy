@@ -83,7 +83,7 @@ int {1}()
     shader.close();
 }
 
-static void run_and_verify(
+static bool run_and_verify(
     testing::GpuTestContext& ctx,
     ref<ComputeKernel> kernel,
     uint32_t expected_value,
@@ -113,7 +113,7 @@ static void run_and_verify(
         else
             all_correct = all_correct && x != (int)expected_value;
     }
-    CHECK(all_correct);
+    return all_correct;
 }
 
 TEST_SUITE_BEGIN("hot_reload");
@@ -124,8 +124,8 @@ TEST_CASE_GPU("verify test case works")
     write_shader({.path = path, .set_to = "1"});
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
-    run_and_verify(ctx, kernel, 2, false);
+    CHECK(run_and_verify(ctx, kernel, 1));
+    CHECK(run_and_verify(ctx, kernel, 2, false));
 }
 
 TEST_CASE_GPU("change program and recreate")
@@ -140,15 +140,15 @@ TEST_CASE_GPU("change program and recreate")
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Re-write the shader, and verify it still returns 1, as hasn't reloaded yet.
     write_shader({.path = path, .set_to = "2"});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Force a reload, and verify the result is now 2.
     ctx.device->_hot_reload()->recreate_all_sessions();
-    run_and_verify(ctx, kernel, 2);
+    CHECK(run_and_verify(ctx, kernel, 2));
 
     // Hot reload should not report error
     CHECK(!ctx.device->_hot_reload()->last_build_failed());
@@ -166,11 +166,11 @@ TEST_CASE_GPU("change program with error and recreate")
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Re-write the shader, and verify it still returns 1, as hasn't reloaded yet.
     write_shader({.path = path, .set_to = "1adsda"});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Force a reload
     ctx.device->_hot_reload()->recreate_all_sessions();
@@ -179,7 +179,7 @@ TEST_CASE_GPU("change program with error and recreate")
     CHECK(ctx.device->_hot_reload()->last_build_failed());
 
     // Program should still be valid and return 1
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 }
 
 TEST_CASE_GPU("change kernel name and recreate")
@@ -194,7 +194,7 @@ TEST_CASE_GPU("change kernel name and recreate")
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Re-write the shader, and verify it still returns 1, as hasn't reloaded yet.
     write_shader({.path = path, .set_to = "1", .kernel_name = "main2"});
@@ -206,7 +206,7 @@ TEST_CASE_GPU("change kernel name and recreate")
     CHECK(ctx.device->_hot_reload()->last_build_failed());
 
     // Program should still be valid and return 1.
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 }
 
 TEST_CASE_GPU("change buffer name and fail to use recreated program")
@@ -221,7 +221,7 @@ TEST_CASE_GPU("change buffer name and fail to use recreated program")
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Re-write the shader, and verify it still returns 1, as hasn't reloaded yet.
     write_shader({.path = path, .set_to = "2", .param_name = "outbuffer2"});
@@ -246,7 +246,7 @@ TEST_CASE_GPU("change program with invalid imports and recreate")
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Re-write shader with an import that doesn't exist and check build fails.
     write_shader({.path = path, .set_to = "1", .imports = {"blabla"}});
@@ -254,7 +254,7 @@ TEST_CASE_GPU("change program with invalid imports and recreate")
     CHECK(ctx.device->_hot_reload()->last_build_failed());
 
     // Program should still be valid and return 1
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 }
 
 TEST_CASE_GPU("change program with correct module import and recreate")
@@ -269,7 +269,7 @@ TEST_CASE_GPU("change program with correct module import and recreate")
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Create a module with a function that returns 2.
     std::filesystem::path abs_module_path = testing::get_case_temp_directory() / "goodimportmodule.slang";
@@ -281,7 +281,7 @@ TEST_CASE_GPU("change program with correct module import and recreate")
     CHECK(!ctx.device->_hot_reload()->last_build_failed());
 
     // Program should now be valid and return 2.
-    run_and_verify(ctx, kernel, 2);
+    CHECK(run_and_verify(ctx, kernel, 2));
 }
 
 TEST_CASE_GPU("leave program but change the module it imports")
@@ -298,7 +298,7 @@ TEST_CASE_GPU("leave program but change the module it imports")
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Recreate the module with a new value and recompile
     write_module({.path = abs_module_path, .set_to = "2"});
@@ -306,7 +306,7 @@ TEST_CASE_GPU("leave program but change the module it imports")
     CHECK(!ctx.device->_hot_reload()->last_build_failed());
 
     // Program should now be valid and return 2.
-    run_and_verify(ctx, kernel, 2);
+    CHECK(run_and_verify(ctx, kernel, 2));
 }
 
 TEST_CASE_GPU("leave program then break the module it imports")
@@ -323,7 +323,7 @@ TEST_CASE_GPU("leave program then break the module it imports")
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Recreate the module with a new value and expect failed recompile.
     write_module({.path = abs_module_path, .set_to = "blabla"});
@@ -331,7 +331,7 @@ TEST_CASE_GPU("leave program then break the module it imports")
     CHECK(ctx.device->_hot_reload()->last_build_failed());
 
     // Program should still be valid and return 1.
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 }
 
 TEST_CASE_GPU("change program with basic additional source")
@@ -366,7 +366,7 @@ TEST_CASE_GPU("change program with basic additional source")
     // Load program + kernel with the extra source, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"}, addsource);
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Modify the shader to add one to the returned number and verify returns 2
     write_shader({
@@ -376,7 +376,7 @@ TEST_CASE_GPU("change program with basic additional source")
     });
     ctx.device->_hot_reload()->recreate_all_sessions();
     CHECK(!ctx.device->_hot_reload()->last_build_failed());
-    run_and_verify(ctx, kernel, 2);
+    CHECK(run_and_verify(ctx, kernel, 2));
 }
 
 TEST_CASE_GPU("load module separately from program")
@@ -414,7 +414,7 @@ TEST_CASE_GPU("load module separately from program")
     ref<SlangModule> module = session->load_module(mod_path.string());
     ref<ShaderProgram> program = session->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Modify the module to return 2 and verify the result.
     write_module({
@@ -423,7 +423,7 @@ TEST_CASE_GPU("load module separately from program")
     });
     ctx.device->_hot_reload()->recreate_all_sessions();
     CHECK(!ctx.device->_hot_reload()->last_build_failed());
-    run_and_verify(ctx, kernel, 2);
+    CHECK(run_and_verify(ctx, kernel, 2));
 }
 
 
@@ -441,11 +441,11 @@ TEST_CASE_GPU("change program and auto detect changes")
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = ctx.device->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Re-write the shader, and verify it still returns 1, as hasn't reloaded yet.
     write_shader({.path = path, .set_to = "2"});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Tell the hot reload system to auto detect changes for 500ms.
     ctx.device->_hot_reload()->_reset_reloaded();
@@ -455,7 +455,9 @@ TEST_CASE_GPU("change program and auto detect changes")
     }
 
     // Verify the result is now 2.
-    run_and_verify(ctx, kernel, 2);
+    INFO("Has reloaded: " << ctx.device->_hot_reload()->_has_reloaded());
+    INFO("Has error: " << ctx.device->_hot_reload()->last_build_failed());
+    CHECK(run_and_verify(ctx, kernel, 2));
 
     // Hot reload should not report error.
     CHECK(!ctx.device->_hot_reload()->last_build_failed());
@@ -507,7 +509,7 @@ TEST_CASE_GPU("create multi directory session and monitor for changes" * doctest
     // Load program + kernel, and verify returns 1.
     ref<ShaderProgram> program = session->load_program(path.string(), {"compute_main"});
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
-    run_and_verify(ctx, kernel, 1);
+    CHECK(run_and_verify(ctx, kernel, 1));
 
     // Re-write the shader to call mod0 and check changes are detected.
     write_shader({
@@ -520,7 +522,7 @@ TEST_CASE_GPU("create multi directory session and monitor for changes" * doctest
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
         ctx.device->_hot_reload()->update();
     }
-    run_and_verify(ctx, kernel, 2);
+    CHECK(run_and_verify(ctx, kernel, 2));
 
     // Modify module 0 to return a different number and check.
     write_module({
@@ -533,7 +535,7 @@ TEST_CASE_GPU("create multi directory session and monitor for changes" * doctest
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
         ctx.device->_hot_reload()->update();
     }
-    run_and_verify(ctx, kernel, 10);
+    CHECK(run_and_verify(ctx, kernel, 10));
 
     // Modify shader to use mod1, AND modify mod1, and check.
     write_shader({
@@ -551,7 +553,7 @@ TEST_CASE_GPU("create multi directory session and monitor for changes" * doctest
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
         ctx.device->_hot_reload()->update();
     }
-    run_and_verify(ctx, kernel, 20);
+    CHECK(run_and_verify(ctx, kernel, 20));
 }
 
 TEST_SUITE_END();

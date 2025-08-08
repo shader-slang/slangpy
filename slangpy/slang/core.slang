@@ -83,6 +83,11 @@ public struct ImplicitCast<N>
 
 public struct NoneType
 {
+    // TODO: This is a workaround for slang issue
+    // https://github.com/shader-slang/slang/issues/8125
+#ifdef __TARGET_CUDA__
+    int dummy;
+#endif
     public void load<T, let N : int>(ContextND<N> context, out T value) { value = T();}
     public void store<T, let N : int>(ContextND<N> context, in T value) {};
 }

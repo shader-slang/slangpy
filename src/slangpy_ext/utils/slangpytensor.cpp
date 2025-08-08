@@ -287,7 +287,7 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
             &NativeTensor::with_grads,
             "grad_in"_a.none() = nullptr,
             "grad_out"_a.none() = nullptr,
-            "zero"_a = false
+            "zero"_a = true
         )
         .def("detach", &NativeTensor::detach);
 
