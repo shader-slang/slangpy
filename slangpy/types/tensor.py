@@ -131,7 +131,7 @@ class Tensor(NativeTensor):
         self,
         grad_in: Optional[Tensor] = None,
         grad_out: Optional[Tensor] = None,
-        zero: bool = False,
+        zero: bool = True,
     ):
         """
         Returns a new tensor view with gradients attached. If called with no arguments, the

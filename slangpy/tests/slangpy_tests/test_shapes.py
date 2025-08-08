@@ -26,15 +26,15 @@ TTupleOrList = Union[tuple[int, ...], list[int]]
 
 
 def make_int_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=int)
+    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=int)
 
 
 def make_float_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float)
+    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float)
 
 
 def make_vec4_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float4)
+    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float4)
 
 
 def make_vec4_raw_buffer(device_type: DeviceType, count: int):
