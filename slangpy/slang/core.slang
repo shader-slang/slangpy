@@ -84,7 +84,7 @@ public struct ImplicitCast<N>
 public struct NoneType
 {
     // TODO: This is a workaround for slang issue
-    //
+    // https://github.com/shader-slang/slang/issues/8125
 #ifdef __TARGET_CUDA__
     int dummy;
 #endif
