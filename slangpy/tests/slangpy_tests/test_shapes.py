@@ -616,9 +616,6 @@ def test_readslice_function_map(device_type: DeviceType):
 def test_copyatindex_both_buffers_defined(
     device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
-
     # Call copy-at-index passing 2 fully defined buffers
     shapes = copy_at_index(
         device_type,
@@ -648,9 +645,6 @@ def test_copyatindex_both_buffers_defined(
 def test_copyatindex_undersized_output(
     device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
-
     # Situation we'd ideally detect in which output
     # buffer will overrun as its too small, but we
     # need generics/IBuffer to do so.
