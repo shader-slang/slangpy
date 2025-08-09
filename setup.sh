@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # This script is fetching all dependencies.
+# just to trigger CI
 
 BASE_DIR=$(dirname "$0")
 
