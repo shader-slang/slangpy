@@ -7,9 +7,16 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Version 0.32.0 (TBA)
+Version 0.32.0 (August 8, 2025)
 ----------------------------
 
+- Update to slang version 2025.14.
+- Improve CUDA support.
+- Improve Metal support.
+- Improve PyTorch support.
+  (PR `#362 <https://github.com/shader-slang/slangpy/pull/362>`__).
+- Add support for pointers.
+  (PR `#323 <https://github.com/shader-slang/slangpy/pull/323>`__, PR `#326 <https://github.com/shader-slang/slangpy/pull/326>`__).
 - Add ``SGL_SLANG_DEBUG_INFO`` cmake variable to enable downloading Slang debug info (enabled by default).
   (PR `#296 <https://github.com/shader-slang/slangpy/pull/296>`__).
 - Add ``sgl::CommandEncoder::generate_mips()`` (``slangpy.CommandEncoder.generate_mips()``) to generate mipmaps for textures.
