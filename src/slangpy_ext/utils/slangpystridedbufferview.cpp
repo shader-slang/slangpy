@@ -405,8 +405,7 @@ bool StridedBufferView::maybe_pad_data(nb::ndarray<nb::numpy> data, size_t dtype
 {
     // for vector types, we need special handling, because if the stride is not the same as the GPU requirement,
     // we will need the padding for each element.
-    if (desc().element_layout->kind() == TypeReflection::Kind::vector)
-    {
+    if (desc().element_layout->kind() == TypeReflection::Kind::vector) {
         // scalar_size is the size of the element of the vector type
         // dtype_size is the size of the aligned vector type
         size_t scalar_size = desc().element_layout->element_type_layout()->size();
