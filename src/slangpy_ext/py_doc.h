@@ -1103,6 +1103,10 @@ R"doc(Returns a pointer to the CUDA memory. This is only supported if the
 buffer was created with ResourceUsage::shared and the device has CUDA
 interop enabled.)doc";
 
+static const char *__doc_sgl_Buffer_descriptor_handle_ro = R"doc(Get bindless descriptor handle for read access.)doc";
+
+static const char *__doc_sgl_Buffer_descriptor_handle_rw = R"doc(Get bindless descriptor handle for read-write access.)doc";
+
 static const char *__doc_sgl_Buffer_desc = R"doc()doc";
 
 static const char *__doc_sgl_Buffer_device_address = R"doc()doc";
