@@ -443,7 +443,9 @@ void StridedBufferView::copy_from_torch(nb::object tensor)
         SGL_CHECK(tensor_bytes <= buffer_size, "Tensor is larger than the buffer ({} > {})", tensor_bytes, buffer_size);
 
         // If we're not using a CUDA device, switch to the device's CUDA context
-        SGL_CU_SCOPE(m_storage->device());
+        if (m_storage->device()->type() != DeviceType::cuda) {
+            SGL_CU_SCOPE(m_storage->device());
+        }
 
         void* dst_data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;
         sgl::cuda::memcpy_device_to_device(dst_data, src_data, tensor_bytes);
