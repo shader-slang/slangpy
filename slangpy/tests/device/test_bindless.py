@@ -130,8 +130,8 @@ def test_bindless_buffer(device_type: spy.DeviceType):
     # fill buffer infos for accessing bindless buffers
     c = spy.BufferCursor(buffer_info_layout, buffer_infos_buffer, load_before_write=False)
     for i in range(BUFFER_COUNT):
-        c[i].ro_buffer = ro_buffers[i].descriptor_handle_ro()
-        c[i].rw_buffer = rw_buffers[i].descriptor_handle_rw()
+        c[i].ro_buffer = ro_buffers[i].descriptor_handle_ro
+        c[i].rw_buffer = rw_buffers[i].descriptor_handle_rw
         c[i].offset = i % 4  # access different elements in each buffer
     c.apply()
 
