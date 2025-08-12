@@ -401,6 +401,45 @@ nb::ndarray<nb::pytorch> StridedBufferView::to_torch() const
     return to_ndarray<nb::pytorch>(data, owner, desc());
 }
 
+bool StridedBufferView::maybe_pad_data(nb::ndarray<nb::numpy> data, size_t dtype_size, size_t byte_offset)
+{
+    // for vector types, we need special handling, because if the stride is not the same as the GPU requirement,
+    // we will need the padding for each element.
+    if (desc().element_layout->kind() == TypeReflection::Kind::vector) {
+        // scalar_size is the size of the element of the vector type
+        // dtype_size is the size of the aligned vector type
+        size_t scalar_size = desc().element_layout->element_type_layout()->size();
+        size_t required_element_num = dtype_size / scalar_size;
+        size_t actual_element_num = data.shape(data.ndim() - 1);
+        // If the actual element number is less than the required element number, then we need to pad the data
+        // with zeros.
+        // For simplicity, we use nanobind API to pad the data instead of writing our own padding logic.
+        if (actual_element_num < required_element_num) {
+            nb::object np = nb::module_::import_("numpy");
+            size_t padding_element_num = required_element_num - actual_element_num;
+            nb::list pad_width;
+            // construct the pad_width list to specify the padding for each dimension, we only need to pad the
+            // last dimension.
+            for (size_t i = 0; i < data.ndim() - 1; i++) {
+                pad_width.append(nb::make_tuple(0, 0)); // no padding for non-last dimension
+            }
+            // padding for last dimension
+            pad_width.append(nb::make_tuple(0, padding_element_num));
+
+            // pad the data with zeros
+            nb::object arr_obj = nb::cast(data);
+            nb::object padding_data = np.attr("pad")(arr_obj, pad_width, "constant_values"_a = 0);
+
+            nb::ndarray<nb::numpy> out = nb::cast<nb::ndarray<nb::numpy>>(padding_data);
+            size_t data_size = out.nbytes();
+            m_storage->set_data(out.data(), data_size, byte_offset);
+            return true;
+        }
+    }
+    // TODO: handle the matrix case
+    return false;
+}
+
 void StridedBufferView::copy_from_numpy(nb::ndarray<nb::numpy> data)
 {
     SGL_CHECK(is_ndarray_contiguous(data), "Source Numpy array must be contiguous");
@@ -411,6 +450,10 @@ void StridedBufferView::copy_from_numpy(nb::ndarray<nb::numpy> data)
     size_t data_size = data.nbytes();
     size_t buffer_size = m_storage->size() - byte_offset;
     SGL_CHECK(data_size <= buffer_size, "Numpy array is larger than the buffer ({} > {})", data_size, buffer_size);
+
+    if (maybe_pad_data(data, dtype_size, byte_offset)) {
+        return;
+    }
 
     m_storage->set_data(data.data(), data_size, byte_offset);
 }

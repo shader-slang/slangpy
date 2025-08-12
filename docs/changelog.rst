@@ -7,6 +7,17 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.33.0 (August 12, 2025)
+----------------------------
+
+- Update to slang version 2025.14.3.
+  (PR `#409 <https://github.com/shader-slang/slangpy/pull/409>`__).
+- Fix tensor alignment issue when copying data to GPU tensors with vector element types.
+  Metal platform now handles vector alignment correctly to match other platforms.
+  (PR `#418 <https://github.com/shader-slang/slangpy/pull/418>`__).
+- Update samples.
+  (PR `#413 <https://github.com/shader-slang/slangpy/pull/413>`__).
+
 Version 0.32.0 (August 8, 2025)
 ----------------------------
 
