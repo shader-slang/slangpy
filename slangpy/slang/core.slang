@@ -491,8 +491,8 @@ public extension<let N:int> RWNDBuffer<uint64_t,N>
     public void store<T>(ContextND<N> context, in Ptr<T> value) { set(context.call_id, uint64_t(value)); };
 }
 
-#pragma warning(push)
-#pragma warning(disable: 30856)
+// #pragma warning(push)
+// #pragma warning(disable: 30856)
 
 namespace impl
 {
@@ -541,4 +541,4 @@ namespace impl
     struct AllowedConversionWitness<From, To : IConvertibleFrom<From>> {}
 }
 
-#pragma warning(pop)
+// #pragma warning(pop)
