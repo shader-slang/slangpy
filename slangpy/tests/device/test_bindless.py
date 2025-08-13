@@ -143,14 +143,17 @@ def test_bindless_buffer(device_type: spy.DeviceType):
 
     # read back results from the results buffer
     results = results_buffer.to_numpy().view(np.float32)
-    expected_results = np.array([
-        0,      # buffer 0, offset 0: 0 * 10 + 0 = 0
-        11,     # buffer 1, offset 1: 1 * 10 + 1 = 11
-        22,     # buffer 2, offset 2: 2 * 10 + 2 = 22
-        33,     # buffer 3, offset 3: 3 * 10 + 3 = 33
-        40,     # buffer 4, offset 0: 4 * 10 + 0 = 40
-        51,     # buffer 5, offset 1: 5 * 10 + 1 = 51
-    ], dtype=np.float32)
+    expected_results = np.array(
+        [
+            0,  # buffer 0, offset 0: 0 * 10 + 0 = 0
+            11,  # buffer 1, offset 1: 1 * 10 + 1 = 11
+            22,  # buffer 2, offset 2: 2 * 10 + 2 = 22
+            33,  # buffer 3, offset 3: 3 * 10 + 3 = 33
+            40,  # buffer 4, offset 0: 4 * 10 + 0 = 40
+            51,  # buffer 5, offset 1: 5 * 10 + 1 = 51
+        ],
+        dtype=np.float32,
+    )
     assert np.allclose(results, expected_results)
 
     # read back and verify the RW buffers were written to correctly
@@ -158,11 +161,15 @@ def test_bindless_buffer(device_type: spy.DeviceType):
         rw_data = rw_buffers[i].to_numpy().view(np.float32)
         offset = i % 4
         expected_value = (i * 10 + offset) + 100.0  # original value + 100
-        assert np.isclose(rw_data[offset], expected_value), f"RW buffer {i} at offset {offset}: expected {expected_value}, got {rw_data[offset]}"
+        assert np.isclose(
+            rw_data[offset], expected_value
+        ), f"RW buffer {i} at offset {offset}: expected {expected_value}, got {rw_data[offset]}"
         # Other elements should still be zero
         for j in range(4):
             if j != offset:
-                assert np.isclose(rw_data[j], 0.0), f"RW buffer {i} at offset {j}: expected 0.0, got {rw_data[j]}"
+                assert np.isclose(
+                    rw_data[j], 0.0
+                ), f"RW buffer {i} at offset {j}: expected 0.0, got {rw_data[j]}"
 
 
 if __name__ == "__main__":

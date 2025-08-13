@@ -13,13 +13,13 @@ void compute_main(uint3 tid : SV_DispatchThreadID, StructuredBuffer<BufferInfo> 
 {
     uint index = tid.x;
     BufferInfo info = buffer_infos[index];
-    
+
     // Read from read-only buffer
     float value = info.ro_buffer[info.offset];
-    
+
     // Write to read-write buffer (add 100 to distinguish from read-only)
     info.rw_buffer[info.offset] = value + 100.0;
-    
+
     // Store result for verification
     results[index] = value;
 }
