@@ -8,6 +8,7 @@
 #include "sgl/device/resource.h"
 #include "sgl/device/fence.h"
 #include "sgl/device/command.h"
+#include "sgl/device/helpers.h"
 
 #include <span>
 
@@ -354,7 +355,18 @@ ContextScope::ContextScope(const Device* device)
 
 ContextScope::ContextScope(const sgl::Device* device)
 {
-    SGL_CU_CHECK(cuCtxPushCurrent(device->cuda_device()->context()));
+    if (device->type() == DeviceType::cuda) {
+        // If this is a CUDA device, set it's context.
+        // TODO: We could cache the CUcontext instead of fetching it each time!
+        rhi::DeviceNativeHandles handles;
+        SLANG_RHI_CALL(device->rhi_device()->getNativeDeviceHandles(&handles));
+        SGL_ASSERT(handles.handles[2].type == rhi::NativeHandleType::CUcontext);
+        SGL_CU_CHECK(cuCtxPushCurrent(reinterpret_cast<CUcontext>(handles.handles[2].value)));
+    } else {
+        // If this is a non-CUDA device, set the context of the interop CUDA device.
+        SGL_ASSERT(device->cuda_device());
+        SGL_CU_CHECK(cuCtxPushCurrent(device->cuda_device()->context()));
+    }
 }
 
 ContextScope::~ContextScope()
