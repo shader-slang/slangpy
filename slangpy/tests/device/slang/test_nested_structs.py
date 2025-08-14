@@ -12,10 +12,6 @@ import sglhelpers as helpers
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_nested_structs(device_type: spy.DeviceType):
-    if device_type in [spy.DeviceType.metal]:
-        pytest.skip(
-            "bool is currently not handled correctly on Metal, see issue: https://github.com/shader-slang/slangpy/issues/274"
-        )
     device = helpers.get_device(device_type)
 
     program = device.load_program("slang/test_nested_structs.slang", ["compute_main"])

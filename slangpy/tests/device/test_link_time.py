@@ -10,11 +10,6 @@ sys.path.append(str(Path(__file__).parent))
 import sglhelpers as helpers
 from sglhelpers import test_id  # type: ignore (pytest fixture)
 
-# @pytest.fixture(autouse=True)
-# def skip_metal(device_type: spy.DeviceType):
-#     if device_type == spy.DeviceType.metal:
-#         pytest.skip("Skipping test for Metal device, trace by https://github.com/shader-slang/slang/issues/6385")
-
 
 # Before running more in depth link time tests below, this test simply
 # verifies that the basic linking of 2 modules together with exported

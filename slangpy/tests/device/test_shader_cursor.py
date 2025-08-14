@@ -239,8 +239,6 @@ def convert_matrix(type: str, rows: int, cols: int, values: Any):
 def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
     if device_type == spy.DeviceType.vulkan and sys.platform == "darwin":
         pytest.skip("Test shader doesn't currently compile on MoltenVK")
-    if device_type == spy.DeviceType.metal and use_numpy:
-        pytest.skip("Need to fix numpy bool handling")
 
     device = helpers.get_device(type=device_type)
 
