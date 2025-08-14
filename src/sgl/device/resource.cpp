@@ -229,6 +229,28 @@ NativeHandle Buffer::shared_handle() const
     return NativeHandle(rhi_handle);
 }
 
+DescriptorHandle Buffer::descriptor_handle_ro() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    rhi::Format rhi_format = static_cast<rhi::Format>(m_desc.format);
+    rhi::BufferRange rhi_range = {0, m_desc.size};
+    SLANG_RHI_CALL(
+        m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, rhi_format, rhi_range, &rhi_handle)
+    );
+    return DescriptorHandle(rhi_handle);
+}
+
+DescriptorHandle Buffer::descriptor_handle_rw() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    rhi::Format rhi_format = static_cast<rhi::Format>(m_desc.format);
+    rhi::BufferRange rhi_range = {0, m_desc.size};
+    SLANG_RHI_CALL(
+        m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, rhi_format, rhi_range, &rhi_handle)
+    );
+    return DescriptorHandle(rhi_handle);
+}
+
 DeviceResource::MemoryUsage Buffer::memory_usage() const
 {
     return {.device = m_desc.size};

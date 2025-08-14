@@ -378,6 +378,11 @@ public:
     /// Note: Buffer must be created with the \c BufferUsage::shared usage flag.
     NativeHandle shared_handle() const;
 
+    /// Get bindless descriptor handle for read access.
+    DescriptorHandle descriptor_handle_ro() const;
+    /// Get bindless descriptor handle for read-write access.
+    DescriptorHandle descriptor_handle_rw() const;
+
     virtual rhi::IResource* rhi_resource() const override { return m_rhi_buffer; }
     rhi::IBuffer* rhi_buffer() const { return m_rhi_buffer; }
 
