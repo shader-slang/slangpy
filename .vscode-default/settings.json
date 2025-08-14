@@ -7,6 +7,7 @@
     "cmake.configureOnOpen": false,
     "python.testing.pytestEnabled": true,
     "python.testing.pytestArgs": [
-        "./slangpy/tests"
+        "./slangpy/tests",
+        "./samples/tests"
     ]
 }
