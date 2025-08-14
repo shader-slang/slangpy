@@ -35,7 +35,6 @@ elif sys.platform == "win32":
 elif sys.platform == "linux" or sys.platform == "linux2":
     DEFAULT_DEVICE_TYPES = [DeviceType.vulkan, DeviceType.cuda]
 elif sys.platform == "darwin":
-    # TODO: we don't run any slangpy tests on metal due to slang bugs for now
     DEFAULT_DEVICE_TYPES = [DeviceType.metal]
 else:
     raise RuntimeError("Unsupported platform")
@@ -43,9 +42,6 @@ else:
 DEVICE_CACHE: dict[tuple[DeviceType, bool], Device] = {}
 
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
-
-# Enable this to make tests just run on d3d12 for faster testing
-# DEFAULT_DEVICE_TYPES = [DeviceType.d3d12]
 
 # Always dump stuff when testing
 slangpy.set_dump_generated_shaders(True)
@@ -120,11 +116,12 @@ def get_device(
     )
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
-    METAL_PARAMETER_BLOCK_SUPPORT = device.has_feature(slangpy.Feature.parameter_block)
-    if METAL_PARAMETER_BLOCK_SUPPORT == False:
-        pytest.skip(
-            "Metal device does not support parameter blocks (requires argument buffer tier 2)"
-        )
+    if type == DeviceType.metal:
+        METAL_PARAMETER_BLOCK_SUPPORT = device.has_feature(slangpy.Feature.parameter_block)
+        if METAL_PARAMETER_BLOCK_SUPPORT == False:
+            pytest.skip(
+                "Metal device does not support parameter blocks (requires argument buffer tier 2)"
+            )
 
     if use_cache:
         DEVICE_CACHE[cache_key] = device
