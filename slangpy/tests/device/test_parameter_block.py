@@ -16,9 +16,10 @@ import sglhelpers as helpers
 # to test the ParameterBlock binding.
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_parameter_block(device_type: spy.DeviceType):
-    # Create device
-    print(f"Testing {device_type}")
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Crash in slang-rhi due to invalid reflection data")
 
+    # Create device
     device = helpers.get_device(type=device_type)
 
     if not device.has_feature(spy.Feature.parameter_block):
