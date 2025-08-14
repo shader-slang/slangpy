@@ -390,6 +390,8 @@ SGL_PY_EXPORT(device_resource)
         .def_prop_ro("struct_size", &Buffer::struct_size, D(Buffer, struct_size))
         .def_prop_ro("device_address", &Buffer::device_address, D(Buffer, device_address))
         .def_prop_ro("shared_handle", &Buffer::shared_handle, D(Buffer, shared_handle))
+        .def_prop_ro("descriptor_handle_ro", &Buffer::descriptor_handle_ro, D(Buffer, descriptor_handle_ro))
+        .def_prop_ro("descriptor_handle_rw", &Buffer::descriptor_handle_rw, D(Buffer, descriptor_handle_rw))
         .def("to_numpy", &buffer_to_numpy, D(buffer_to_numpy))
         .def("copy_from_numpy", &buffer_copy_from_numpy, "data"_a, D(buffer_from_numpy))
         .def(
