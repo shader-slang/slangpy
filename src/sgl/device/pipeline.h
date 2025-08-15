@@ -3,7 +3,7 @@
 #pragma once
 
 #include "sgl/device/fwd.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/types.h"
 #include "sgl/device/native_handle.h"
 
@@ -22,7 +22,7 @@ namespace sgl {
 
 
 /// Pipeline base class.
-class SGL_API Pipeline : public DeviceResource {
+class SGL_API Pipeline : public DeviceChild {
     SGL_OBJECT(Pipeline)
 public:
     Pipeline(ref<Device> device, ref<ShaderProgram> program);

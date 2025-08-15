@@ -24,9 +24,10 @@ SGL_PY_DECLARE(core_timer);
 SGL_PY_DECLARE(core_window);
 
 SGL_PY_DECLARE(device_buffer_cursor);
+SGL_PY_DECLARE(device_child);
 SGL_PY_DECLARE(device_command);
 SGL_PY_DECLARE(device_coopvec);
-SGL_PY_DECLARE(device_device_resource);
+SGL_PY_DECLARE(device_device_child);
 SGL_PY_DECLARE(device_device);
 SGL_PY_DECLARE(device_fence);
 SGL_PY_DECLARE(device_formats);
@@ -117,7 +118,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(device_native_handle);
     SGL_PY_IMPORT(device_formats);
     SGL_PY_IMPORT(device_types);
-    SGL_PY_IMPORT(device_device_resource);
+    SGL_PY_IMPORT(device_device_child);
     SGL_PY_IMPORT(device_resource);
     SGL_PY_IMPORT(device_sampler);
     SGL_PY_IMPORT(device_fence);

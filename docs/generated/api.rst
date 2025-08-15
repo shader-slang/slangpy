@@ -2194,7 +2194,7 @@ Device
 
 .. py:class:: slangpy.AccelerationStructure
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -2520,7 +2520,7 @@ Device
 
 .. py:class:: slangpy.AccelerationStructureInstanceList
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -3090,7 +3090,7 @@ Device
 
 .. py:class:: slangpy.CommandBuffer
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -3100,7 +3100,7 @@ Device
 
 .. py:class:: slangpy.CommandEncoder
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -4485,13 +4485,13 @@ Device
 
 ----
 
-.. py:class:: slangpy.DeviceResource
+.. py:class:: slangpy.DeviceChild
 
     Base class: :py:class:`slangpy.Object`
     
     
     
-    .. py:class:: slangpy.DeviceResource.MemoryUsage
+    .. py:class:: slangpy.DeviceChild.MemoryUsage
     
         
         
@@ -4509,7 +4509,7 @@ Device
         :type: slangpy.Device
     
     .. py:property:: memory_usage
-        :type: slangpy.DeviceResource.MemoryUsage
+        :type: slangpy.DeviceChild.MemoryUsage
     
         The memory usage by this resource.
         
@@ -4836,7 +4836,7 @@ Device
 
 .. py:class:: slangpy.Fence
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     Fence.
     
@@ -5661,7 +5661,7 @@ Device
 
 .. py:class:: slangpy.InputLayout
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -5709,7 +5709,7 @@ Device
 
 .. py:class:: slangpy.Kernel
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -6125,7 +6125,7 @@ Device
 
 .. py:class:: slangpy.Pipeline
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -6242,7 +6242,7 @@ Device
 
 .. py:class:: slangpy.QueryPool
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -6702,7 +6702,7 @@ Device
 
 .. py:class:: slangpy.Resource
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -6801,7 +6801,7 @@ Device
 
 .. py:class:: slangpy.Sampler
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -7058,7 +7058,7 @@ Device
 
 .. py:class:: slangpy.ShaderProgram
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -7142,7 +7142,7 @@ Device
 
 .. py:class:: slangpy.ShaderTable
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     
@@ -8128,7 +8128,7 @@ Device
 
 .. py:class:: slangpy.TextureView
 
-    Base class: :py:class:`slangpy.DeviceResource`
+    Base class: :py:class:`slangpy.DeviceChild`
     
     
     

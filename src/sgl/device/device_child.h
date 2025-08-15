@@ -8,15 +8,15 @@
 
 namespace sgl {
 
-class SGL_API DeviceResource : public Object {
-    SGL_OBJECT(DeviceResource)
+class SGL_API DeviceChild : public Object {
+    SGL_OBJECT(DeviceChild)
 public:
-    DeviceResource(ref<Device> device)
+    DeviceChild(ref<Device> device)
         : m_device(std::move(device))
     {
     }
 
-    virtual ~DeviceResource() = default;
+    virtual ~DeviceChild() = default;
 
     Device* device() const { return m_device; }
 

@@ -138,7 +138,7 @@ private:
     friend class CommandEncoder;
 };
 
-class SGL_API CommandEncoder : public DeviceResource {
+class SGL_API CommandEncoder : public DeviceChild {
     SGL_OBJECT(CommandEncoder)
 public:
     CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder);
@@ -415,7 +415,7 @@ private:
     ref<ShaderObject> m_root_object;
 };
 
-class SGL_API CommandBuffer : public DeviceResource {
+class SGL_API CommandBuffer : public DeviceChild {
     SGL_OBJECT(CommandBuffer)
 public:
     CommandBuffer(ref<Device> device, Slang::ComPtr<rhi::ICommandBuffer> rhi_command_buffer);

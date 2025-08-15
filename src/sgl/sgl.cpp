@@ -10,6 +10,8 @@
 
 #include "git_version.h"
 
+#include <slang-rhi.h>
+
 #include <atomic>
 
 static inline const char* git_version()
@@ -48,6 +50,11 @@ void static_shutdown()
     platform::static_shutdown();
     Logger::static_shutdown();
     thread::static_shutdown();
+
+#if SGL_ENABLE_OBJECT_TRACKING
+    Object::report_live_objects();
+    rhi::getRHI()->reportLiveObjects();
+#endif
 }
 
 } // namespace sgl

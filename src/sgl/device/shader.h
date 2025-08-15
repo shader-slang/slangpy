@@ -5,7 +5,7 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
 #include "sgl/device/reflection.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
@@ -480,7 +480,7 @@ struct ShaderProgramData : Object {
     Slang::ComPtr<slang::IComponentType> linked_program;
     Slang::ComPtr<rhi::IShaderProgram> rhi_shader_program;
 };
-class SGL_API ShaderProgram : public DeviceResource {
+class SGL_API ShaderProgram : public DeviceChild {
     SGL_OBJECT(ShaderProgram)
 public:
     ShaderProgram(ref<Device> device, ref<SlangSession> session, const ShaderProgramDesc& desc);

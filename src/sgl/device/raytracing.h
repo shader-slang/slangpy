@@ -4,7 +4,7 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/resource.h"
 
 #include "sgl/math/vector_types.h"
@@ -205,7 +205,7 @@ struct AccelerationStructureDesc {
     std::string label;
 };
 
-class SGL_API AccelerationStructure : public DeviceResource {
+class SGL_API AccelerationStructure : public DeviceChild {
     SGL_OBJECT(AccelerationStructure)
 public:
     AccelerationStructure(ref<Device> device, AccelerationStructureDesc desc);
@@ -224,7 +224,7 @@ private:
     Slang::ComPtr<rhi::IAccelerationStructure> m_rhi_acceleration_structure;
 };
 
-class SGL_API AccelerationStructureInstanceList : public DeviceResource {
+class SGL_API AccelerationStructureInstanceList : public DeviceChild {
     SGL_OBJECT(AccelerationStructureInstanceList)
 public:
     AccelerationStructureInstanceList(ref<Device> device, size_t size = 0);
@@ -261,7 +261,7 @@ struct ShaderTableDesc {
     std::vector<std::string> callable_entry_points;
 };
 
-class SGL_API ShaderTable : public DeviceResource {
+class SGL_API ShaderTable : public DeviceChild {
     SGL_OBJECT(ShaderTable)
 public:
     ShaderTable(ref<Device> device, ShaderTableDesc desc);

@@ -25,7 +25,7 @@ SGL_PY_EXPORT(device_query)
         .def_rw("count", &QueryPoolDesc::count, D(QueryPoolDesc, count));
     nb::implicitly_convertible<nb::dict, QueryPoolDesc>();
 
-    nb::class_<QueryPool, DeviceResource>(m, "QueryPool", D(QueryPool))
+    nb::class_<QueryPool, DeviceChild>(m, "QueryPool", D(QueryPool))
         .def_prop_ro("desc", &QueryPool::desc, D(QueryPool, desc))
         .def("reset", &QueryPool::reset, D(QueryPool, reset))
         .def("get_result", &QueryPool::get_result, "index"_a, D(QueryPool, get_result))

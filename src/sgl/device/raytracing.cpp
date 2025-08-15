@@ -80,7 +80,7 @@ AccelerationStructureBuildDescConverter::AccelerationStructureBuildDescConverter
 }
 
 AccelerationStructure::AccelerationStructure(ref<Device> device, AccelerationStructureDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_desc(std::move(desc))
 {
     rhi::AccelerationStructureDesc rhi_desc{
@@ -114,7 +114,7 @@ std::string AccelerationStructure::to_string() const
 }
 
 AccelerationStructureInstanceList::AccelerationStructureInstanceList(ref<Device> device, size_t size)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
 {
     m_instance_type = rhi::getAccelerationStructureInstanceDescType(static_cast<rhi::DeviceType>(m_device->type()));
     m_instance_stride = rhi::getAccelerationStructureInstanceDescSize(m_instance_type);
@@ -191,7 +191,7 @@ std::string AccelerationStructureInstanceList::to_string() const
 }
 
 ShaderTable::ShaderTable(ref<Device> device, ShaderTableDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
 {
     short_vector<const char*, 16> rhi_ray_gen_entry_points;
     rhi_ray_gen_entry_points.reserve(desc.ray_gen_entry_points.size());

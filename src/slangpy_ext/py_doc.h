@@ -2384,23 +2384,23 @@ static const char *__doc_sgl_DeviceLimits_max_viewport_dimensions = R"doc(Maximu
 
 static const char *__doc_sgl_DeviceLimits_max_viewports = R"doc(Maximum number of viewports per pipeline.)doc";
 
-static const char *__doc_sgl_DeviceResource = R"doc()doc";
+static const char *__doc_sgl_DeviceChild = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_DeviceResource = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_DeviceChild = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_MemoryUsage = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_MemoryUsage = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_MemoryUsage_device = R"doc(The amount of memory in bytes used on the device.)doc";
+static const char *__doc_sgl_DeviceChild_MemoryUsage_device = R"doc(The amount of memory in bytes used on the device.)doc";
 
-static const char *__doc_sgl_DeviceResource_MemoryUsage_host = R"doc(The amount of memory in bytes used on the host.)doc";
+static const char *__doc_sgl_DeviceChild_MemoryUsage_host = R"doc(The amount of memory in bytes used on the host.)doc";
 
-static const char *__doc_sgl_DeviceResource_class_name = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_class_name = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_device = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_device = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_m_device = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_m_device = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_memory_usage = R"doc(The memory usage by this resource.)doc";
+static const char *__doc_sgl_DeviceChild_memory_usage = R"doc(The memory usage by this resource.)doc";
 
 static const char *__doc_sgl_DeviceType = R"doc()doc";
 

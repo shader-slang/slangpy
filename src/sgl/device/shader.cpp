@@ -1080,7 +1080,7 @@ std::string SlangEntryPoint::to_string() const
 }
 
 ShaderProgram::ShaderProgram(ref<Device> device, ref<SlangSession> session, const ShaderProgramDesc& desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_session(std::move(session))
     , m_desc(desc)
 {

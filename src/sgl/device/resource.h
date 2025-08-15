@@ -4,7 +4,7 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/formats.h"
 #include "sgl/device/native_handle.h"
 
@@ -238,7 +238,7 @@ struct SubresourceRange {
     }
 };
 
-class SGL_API Resource : public DeviceResource {
+class SGL_API Resource : public DeviceChild {
     SGL_OBJECT(Resource)
 public:
     virtual ~Resource();
@@ -403,7 +403,7 @@ struct BufferViewDesc {
     std::string label;
 };
 
-class SGL_API BufferView : public DeviceResource {
+class SGL_API BufferView : public DeviceChild {
     SGL_OBJECT(BufferView)
 public:
     BufferView(ref<Device> device, ref<Buffer> buffer, BufferViewDesc desc);
@@ -612,7 +612,7 @@ struct TextureViewDesc {
     std::string label;
 };
 
-class SGL_API TextureView : public DeviceResource {
+class SGL_API TextureView : public DeviceChild {
     SGL_OBJECT(TextureView)
 public:
     TextureView(ref<Device> device, ref<Texture> texture, TextureViewDesc desc);

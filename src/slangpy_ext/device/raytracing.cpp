@@ -301,11 +301,11 @@ SGL_PY_EXPORT(device_raytracing)
         .def_rw("label", &AccelerationStructureDesc::label, D(AccelerationStructureDesc, label));
     nb::implicitly_convertible<nb::dict, AccelerationStructureDesc>();
 
-    nb::class_<AccelerationStructure, DeviceResource>(m, "AccelerationStructure", D(AccelerationStructure))
+    nb::class_<AccelerationStructure, DeviceChild>(m, "AccelerationStructure", D(AccelerationStructure))
         .def_prop_ro("desc", &AccelerationStructure::desc, D(AccelerationStructure, desc))
         .def_prop_ro("handle", &AccelerationStructure::handle, D(AccelerationStructure, handle));
 
-    nb::class_<AccelerationStructureInstanceList, DeviceResource>(
+    nb::class_<AccelerationStructureInstanceList, DeviceChild>(
         m,
         "AccelerationStructureInstanceList",
         D(AccelerationStructureInstanceList)
@@ -368,5 +368,5 @@ SGL_PY_EXPORT(device_raytracing)
         );
     nb::implicitly_convertible<nb::dict, ShaderTableDesc>();
 
-    nb::class_<ShaderTable, DeviceResource>(m, "ShaderTable", D(ShaderTable));
+    nb::class_<ShaderTable, DeviceChild>(m, "ShaderTable", D(ShaderTable));
 }
