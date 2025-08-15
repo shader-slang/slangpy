@@ -426,12 +426,7 @@ void Device::close_all_devices()
 
 void Device::_release_all_rhi_resources()
 {
-    std::vector<Device*> devices;
-    {
-        std::lock_guard lock(s_devices_mutex);
-        devices = s_devices;
-    }
-    for (Device* device : devices)
+    for (Device* device : s_devices)
         device->_release_rhi_resources();
 }
 
