@@ -14,7 +14,7 @@
 
 namespace sgl {
 
-class SGL_API Kernel : public DeviceResource {
+class SGL_API Kernel : public DeviceChild {
     SGL_OBJECT(Kernel)
 public:
     using BindVarsCallback = std::function<void(ShaderCursor)>;

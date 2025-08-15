@@ -41,7 +41,7 @@ SubresourceLayout layout_from_rhilayout(const rhi::SubresourceLayout& rhi_layout
 // ----------------------------------------------------------------------------
 
 Resource::Resource(ref<Device> device)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
 {
 }
 
@@ -251,7 +251,7 @@ DescriptorHandle Buffer::descriptor_handle_rw() const
     return DescriptorHandle(rhi_handle);
 }
 
-DeviceResource::MemoryUsage Buffer::memory_usage() const
+DeviceChild::MemoryUsage Buffer::memory_usage() const
 {
     return {.device = m_desc.size};
 }
@@ -285,7 +285,7 @@ std::string Buffer::to_string() const
 // ----------------------------------------------------------------------------
 
 BufferView::BufferView(ref<Device> device, ref<Buffer> buffer, BufferViewDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_buffer(std::move(buffer))
     , m_desc(std::move(desc))
 {
@@ -503,7 +503,7 @@ NativeHandle Texture::shared_handle() const
     return NativeHandle(rhi_handle);
 }
 
-DeviceResource::MemoryUsage Texture::memory_usage() const
+DeviceChild::MemoryUsage Texture::memory_usage() const
 {
     rhi::Size size = 0, alignment = 0;
     SLANG_RHI_CALL(m_device->rhi_device()->getTextureAllocationInfo(m_rhi_texture->getDesc(), &size, &alignment));
@@ -660,7 +660,7 @@ std::string Texture::to_string() const
 // ----------------------------------------------------------------------------
 
 TextureView::TextureView(ref<Device> device, ref<Texture> texture, TextureViewDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_texture(std::move(texture))
     , m_desc(std::move(desc))
 {

@@ -270,7 +270,7 @@ void RayTracingPassEncoder::end()
 // ----------------------------------------------------------------------------
 
 CommandEncoder::CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_rhi_command_encoder(std::move(rhi_command_encoder))
     , m_open(true)
 {
@@ -864,7 +864,7 @@ std::string CommandEncoder::to_string() const
 // ----------------------------------------------------------------------------
 
 CommandBuffer::CommandBuffer(ref<Device> device, Slang::ComPtr<rhi::ICommandBuffer> command_buffer)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_rhi_command_buffer(std::move(command_buffer))
 {
 }

@@ -233,7 +233,7 @@ SGL_PY_EXPORT(device_shader)
         .def("rename", &SlangEntryPoint::rename, "new_name"_a, D(SlangEntryPoint, rename))
         .def("with_name", &SlangEntryPoint::with_name, "new_name"_a, D(SlangEntryPoint, with_name));
 
-    nb::class_<ShaderProgram, DeviceResource>(m, "ShaderProgram", D(ShaderProgram))
+    nb::class_<ShaderProgram, DeviceChild>(m, "ShaderProgram", D(ShaderProgram))
         .def_prop_ro("layout", &ShaderProgram::layout, D(ShaderProgram, layout))
         .def_prop_ro("reflection", &ShaderProgram::reflection, D(ShaderProgram, reflection));
 }

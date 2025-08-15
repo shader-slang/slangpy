@@ -4,7 +4,7 @@
 
 namespace sgl {
 
-DeviceResource::MemoryUsage DeviceResource::memory_usage() const
+DeviceChild::MemoryUsage DeviceChild::memory_usage() const
 {
     return {};
 }

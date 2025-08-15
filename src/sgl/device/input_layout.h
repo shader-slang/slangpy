@@ -55,7 +55,7 @@ struct InputLayoutDesc {
     std::vector<VertexStreamDesc> vertex_streams;
 };
 
-class SGL_API InputLayout : public DeviceResource {
+class SGL_API InputLayout : public DeviceChild {
     SGL_OBJECT(InputLayout)
 public:
     InputLayout(ref<Device> device, InputLayoutDesc desc);

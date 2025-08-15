@@ -33,7 +33,7 @@ struct SamplerDesc {
     std::string label;
 };
 
-class SGL_API Sampler : public DeviceResource {
+class SGL_API Sampler : public DeviceChild {
     SGL_OBJECT(Sampler)
 public:
     Sampler(ref<Device> device, SamplerDesc desc);

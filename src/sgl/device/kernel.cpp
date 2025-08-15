@@ -17,7 +17,7 @@ namespace sgl {
 // ----------------------------------------------------------------------------
 
 Kernel::Kernel(ref<Device> device, ref<ShaderProgram> program)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_program(std::move(program))
 {
 }

@@ -22,7 +22,7 @@ namespace sgl {
 
 
 /// Pipeline base class.
-class SGL_API Pipeline : public DeviceResource {
+class SGL_API Pipeline : public DeviceChild {
     SGL_OBJECT(Pipeline)
 public:
     Pipeline(ref<Device> device, ref<ShaderProgram> program);

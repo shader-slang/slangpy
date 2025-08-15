@@ -349,7 +349,7 @@ SGL_PY_EXPORT(device_resource)
     nb::sgl_enum<TextureType>(m, "TextureType");
     nb::sgl_enum<MemoryType>(m, "MemoryType");
 
-    nb::class_<Resource, DeviceResource>(m, "Resource", D(Resource)) //
+    nb::class_<Resource, DeviceChild>(m, "Resource", D(Resource)) //
         .def_prop_ro("native_handle", &Resource::native_handle, D(Resource, native_handle));
 
     nb::sgl_enum<TextureAspect>(m, "TextureAspect");
@@ -524,7 +524,7 @@ SGL_PY_EXPORT(device_resource)
         .def("to_numpy", &texture_to_numpy, "layer"_a = 0, "mip"_a = 0, D(texture_to_numpy))
         .def("copy_from_numpy", &texture_from_numpy, "data"_a, "layer"_a = 0, "mip"_a = 0, D(texture_from_numpy));
 
-    nb::class_<TextureView, DeviceResource>(m, "TextureView", D(TextureView))
+    nb::class_<TextureView, DeviceChild>(m, "TextureView", D(TextureView))
         .def_prop_ro("texture", &TextureView::texture, D(TextureView, texture))
         .def_prop_ro("desc", &TextureView::desc, D(TextureView, desc))
         .def_prop_ro("format", &TextureView::format, D(TextureView, format))

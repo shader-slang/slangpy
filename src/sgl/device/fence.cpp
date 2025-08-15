@@ -12,7 +12,7 @@
 namespace sgl {
 
 Fence::Fence(ref<Device> device, FenceDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_desc(std::move(desc))
 {
     SGL_ASSERT(m_device);

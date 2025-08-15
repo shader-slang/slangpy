@@ -22,7 +22,7 @@ struct FenceDesc {
 };
 
 /// Fence.
-class SGL_API Fence : public DeviceResource {
+class SGL_API Fence : public DeviceChild {
     SGL_OBJECT(Fence)
 public:
     static constexpr uint64_t AUTO = uint64_t(-1);

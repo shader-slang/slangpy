@@ -480,7 +480,7 @@ struct ShaderProgramData : Object {
     Slang::ComPtr<slang::IComponentType> linked_program;
     Slang::ComPtr<rhi::IShaderProgram> rhi_shader_program;
 };
-class SGL_API ShaderProgram : public DeviceResource {
+class SGL_API ShaderProgram : public DeviceChild {
     SGL_OBJECT(ShaderProgram)
 public:
     ShaderProgram(ref<Device> device, ref<SlangSession> session, const ShaderProgramDesc& desc);
