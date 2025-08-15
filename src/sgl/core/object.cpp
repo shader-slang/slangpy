@@ -120,14 +120,28 @@ PyObject* Object::self_py() const noexcept
 void Object::report_live_objects()
 {
     std::lock_guard<std::mutex> lock(s_tracked_objects_mutex);
-    fmt::println("Alive objects:");
-    for (const Object* object : s_tracked_objects)
-        object->report_refs();
+    if (!s_tracked_objects.empty()) {
+        fmt::println("Found {} live objects!", s_tracked_objects.size());
+        for (const Object* object : s_tracked_objects) {
+            uint64_t ref_count = object->ref_count();
+            PyObject* self_py = object->self_py();
+            if (self_py) {
+                ref_count = object_ref_cnt_py(self_py);
+            }
+            fmt::println(
+                "Live object: {} self_py={} ref_count={} class_name=\"{}\"",
+                fmt::ptr(object),
+                self_py ? fmt::ptr(self_py) : "null",
+                ref_count,
+                object->class_name()
+            );
+            object->report_refs();
+        }
+    }
 }
 
 void Object::report_refs() const
 {
-    fmt::println("Object (class={} address={}) has {} reference(s)", class_name(), fmt::ptr(this), ref_count());
 #if SGL_ENABLE_REF_TRACKING
     std::lock_guard<std::mutex> lock(m_ref_trackers_mutex);
     for (const auto& it : m_ref_trackers) {
