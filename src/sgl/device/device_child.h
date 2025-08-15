@@ -11,14 +11,15 @@ namespace sgl {
 class SGL_API DeviceChild : public Object {
     SGL_OBJECT(DeviceChild)
 public:
-    DeviceChild(ref<Device> device)
-        : m_device(std::move(device))
-    {
-    }
-
-    virtual ~DeviceChild() = default;
+    DeviceChild(ref<Device> device);
+    virtual ~DeviceChild();
 
     Device* device() const { return m_device; }
+
+    /// Release all underlying slang-rhi resources.
+    /// This is used as a workaround during shutdown, to ensure all resources are released
+    /// when slangpy fails to clean up properly due to reference cycles introduced in Python.
+    virtual void _release_rhi_resources() = 0;
 
     struct MemoryUsage {
         /// The amount of memory in bytes used on the device.

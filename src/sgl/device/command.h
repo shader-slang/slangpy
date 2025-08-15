@@ -143,6 +143,8 @@ class SGL_API CommandEncoder : public DeviceChild {
 public:
     CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder);
 
+    virtual void _release_rhi_resources() override { m_rhi_command_encoder.setNull(); }
+
     ref<RenderPassEncoder> begin_render_pass(const RenderPassDesc& desc);
     ref<ComputePassEncoder> begin_compute_pass();
     ref<RayTracingPassEncoder> begin_ray_tracing_pass();
@@ -420,6 +422,8 @@ class SGL_API CommandBuffer : public DeviceChild {
 public:
     CommandBuffer(ref<Device> device, Slang::ComPtr<rhi::ICommandBuffer> rhi_command_buffer);
     ~CommandBuffer();
+
+    virtual void _release_rhi_resources() override { m_rhi_command_buffer.setNull(); }
 
     rhi::ICommandBuffer* rhi_command_buffer() const { return m_rhi_command_buffer; }
 

@@ -486,6 +486,12 @@ public:
     ShaderProgram(ref<Device> device, ref<SlangSession> session, const ShaderProgramDesc& desc);
     ~ShaderProgram();
 
+    virtual void _release_rhi_resources() override
+    {
+        if (m_data)
+            m_data->rhi_shader_program.setNull();
+    }
+
     /// Links program and outputs the resulting ShaderProgramData to current build info.
     void link(SlangSessionBuild& build) const;
 

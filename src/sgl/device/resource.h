@@ -293,6 +293,8 @@ public:
 
     ~Buffer();
 
+    virtual void _release_rhi_resources() override { m_rhi_buffer.setNull(); }
+
     const BufferDesc& desc() const { return m_desc; }
 
     size_t size() const { return m_desc.size; }
@@ -407,6 +409,8 @@ class SGL_API BufferView : public DeviceChild {
     SGL_OBJECT(BufferView)
 public:
     BufferView(ref<Device> device, ref<Buffer> buffer, BufferViewDesc desc);
+
+    virtual void _release_rhi_resources() override { }
 
     Buffer* buffer() const { return m_buffer; }
 
@@ -532,6 +536,8 @@ public:
 
     ~Texture();
 
+    virtual void _release_rhi_resources() override { m_rhi_texture.setNull(); }
+
     const TextureDesc& desc() const { return m_desc; }
 
     TextureType type() const { return m_desc.type; }
@@ -616,6 +622,8 @@ class SGL_API TextureView : public DeviceChild {
     SGL_OBJECT(TextureView)
 public:
     TextureView(ref<Device> device, ref<Texture> texture, TextureViewDesc desc);
+
+    virtual void _release_rhi_resources() override { m_rhi_texture_view.setNull(); }
 
     Texture* texture() const { return m_texture.get(); }
 

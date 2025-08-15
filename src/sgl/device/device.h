@@ -25,6 +25,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 namespace sgl {
 
@@ -200,6 +201,11 @@ public:
     Device(const DeviceDesc& desc = DeviceDesc{});
     ~Device();
 
+    /// Release all underlying slang-rhi resources.
+    /// This is used as a workaround during shutdown, to ensure all resources are released
+    /// when slangpy fails to clean up properly due to reference cycles introduced in Python.
+    void _release_rhi_resources();
+
     static ref<Device> create(const DeviceDesc& desc = DeviceDesc{}) { return make_ref<Device>(desc); }
 
     const DeviceDesc& desc() const { return m_desc; }
@@ -248,6 +254,12 @@ public:
 
     /// Close all open devices.
     static void close_all_devices();
+
+    /// Release all slang-rhi resources from all devices.
+    /// This is used as a workaround during shutdown, to ensure all resources are released
+    /// when slangpy fails to clean up properly due to reference cycles introduced in Python.
+    /// This MUST NOT be called by the user!
+    static void _release_all_rhi_resources();
 
     // Resource creation
 
@@ -643,6 +655,9 @@ public:
             hook({});
     }
 
+    void _register_device_child(DeviceChild* device_child);
+    void _unregister_device_child(DeviceChild* device_child);
+
 private:
     DeviceDesc m_desc;
     DeviceInfo m_info;
@@ -678,6 +693,9 @@ private:
     bool m_supports_cuda_interop{false};
     ref<cuda::Device> m_cuda_device;
     ref<cuda::ExternalSemaphore> m_cuda_semaphore;
+
+    std::mutex m_device_children_mutex;
+    std::unordered_set<DeviceChild*> m_device_children;
 };
 
 /// Gets the device and context handles for the current CUDA context. Use

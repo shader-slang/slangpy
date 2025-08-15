@@ -28,6 +28,8 @@ class SGL_API QueryPool : public DeviceChild {
 public:
     QueryPool(ref<Device> device, QueryPoolDesc desc);
 
+    virtual void _release_rhi_resources() override { m_rhi_query_pool.setNull(); }
+
     const QueryPoolDesc& desc() const { return m_desc; }
 
     void reset();

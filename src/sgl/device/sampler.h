@@ -39,6 +39,8 @@ public:
     Sampler(ref<Device> device, SamplerDesc desc);
     ~Sampler();
 
+    virtual void _release_rhi_resources() override { m_rhi_sampler.setNull(); }
+
     const SamplerDesc& desc() const { return m_desc; }
 
     DescriptorHandle descriptor_handle() const;

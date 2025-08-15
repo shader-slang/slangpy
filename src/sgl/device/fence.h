@@ -32,6 +32,8 @@ public:
     /// Do not use directly, instead use \c Device::create_fence.
     Fence(ref<Device> device, FenceDesc desc);
 
+    virtual void _release_rhi_resources() override { m_rhi_fence.setNull(); }
+
     const FenceDesc& desc() const { return m_desc; }
 
     /**

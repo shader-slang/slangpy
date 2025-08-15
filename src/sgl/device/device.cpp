@@ -343,6 +343,15 @@ Device::~Device()
     m_rhi_device.setNull();
 }
 
+void Device::_release_rhi_resources()
+{
+    for (DeviceChild* resource : m_device_children)
+        resource->_release_rhi_resources();
+    m_device_children.clear();
+    m_rhi_graphics_queue.setNull();
+    m_rhi_device.setNull();
+}
+
 ShaderCacheStats Device::shader_cache_stats() const
 {
     // TODO: revisit when we add a shader cache.
@@ -413,6 +422,17 @@ void Device::close_all_devices()
     }
     for (Device* device : devices)
         device->close();
+}
+
+void Device::_release_all_rhi_resources()
+{
+    std::vector<Device*> devices;
+    {
+        std::lock_guard lock(s_devices_mutex);
+        devices = s_devices;
+    }
+    for (Device* device : devices)
+        device->_release_rhi_resources();
 }
 
 ref<Surface> Device::create_surface(Window* window)
@@ -1053,6 +1073,18 @@ Blitter* Device::_blitter()
     if (!m_blitter)
         m_blitter = ref(new Blitter(this));
     return m_blitter;
+}
+
+void Device::_register_device_child(DeviceChild* device_child)
+{
+    std::lock_guard lock(m_device_children_mutex);
+    m_device_children.insert(device_child);
+}
+
+void Device::_unregister_device_child(DeviceChild* device_child)
+{
+    std::lock_guard lock(m_device_children_mutex);
+    m_device_children.erase(device_child);
 }
 
 std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
