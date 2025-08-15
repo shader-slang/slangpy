@@ -17,6 +17,11 @@ SGL_PY_EXPORT(core_object)
         {
             nb::gil_scoped_acquire guard;
             Py_DECREF(o);
+        },
+        [](PyObject* o) noexcept -> Py_ssize_t_
+        {
+            nb::gil_scoped_acquire guard;
+            return Py_REFCNT(o);
         }
     );
 

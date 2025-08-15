@@ -13,6 +13,7 @@ namespace sgl {
 
 static void (*object_inc_ref_py)(PyObject*) noexcept = nullptr;
 static void (*object_dec_ref_py)(PyObject*) noexcept = nullptr;
+static Py_ssize_t_ (*object_ref_cnt_py)(PyObject*) noexcept = nullptr;
 
 #if SGL_ENABLE_OBJECT_TRACKING
 static std::mutex s_tracked_objects_mutex;
@@ -180,10 +181,15 @@ void Object::set_enable_ref_tracking(bool enable)
 
 #endif // SGL_ENABLE_REF_TRACKING
 
-void object_init_py(void (*object_inc_ref_py_)(PyObject*) noexcept, void (*object_dec_ref_py_)(PyObject*) noexcept)
+void object_init_py(
+    void (*object_inc_ref_py_)(PyObject*) noexcept,
+    void (*object_dec_ref_py_)(PyObject*) noexcept,
+    Py_ssize_t_ (*object_ref_cnt_py_)(PyObject*) noexcept
+)
 {
     object_inc_ref_py = object_inc_ref_py_;
     object_dec_ref_py = object_dec_ref_py_;
+    object_ref_cnt_py = object_ref_cnt_py_;
 }
 
 } // namespace sgl
