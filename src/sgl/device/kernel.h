@@ -21,6 +21,8 @@ public:
 
     virtual ~Kernel() = default;
 
+    virtual void _release_rhi_resources() override { }
+
     ShaderProgram* program() const { return m_program; }
     ReflectionCursor reflection() const { return ReflectionCursor(program()); }
 

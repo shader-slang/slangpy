@@ -51,6 +51,8 @@ class SGL_API ComputePipeline : public Pipeline {
 public:
     ComputePipeline(ref<Device> device, ComputePipelineDesc desc);
 
+    virtual void _release_rhi_resources() override { m_rhi_pipeline.setNull(); }
+
     const ComputePipelineDesc& desc() const { return m_desc; }
 
     /// Thread group size.
@@ -88,6 +90,8 @@ struct RenderPipelineDesc {
 class SGL_API RenderPipeline : public Pipeline {
 public:
     RenderPipeline(ref<Device> device, RenderPipelineDesc desc);
+
+    virtual void _release_rhi_resources() override { m_rhi_pipeline.setNull(); }
 
     const RenderPipelineDesc& desc() const { return m_desc; }
 
@@ -132,6 +136,8 @@ struct RayTracingPipelineDesc {
 class SGL_API RayTracingPipeline : public Pipeline {
 public:
     RayTracingPipeline(ref<Device> device, RayTracingPipelineDesc desc);
+
+    virtual void _release_rhi_resources() override { m_rhi_pipeline.setNull(); }
 
     const RayTracingPipelineDesc& desc() const { return m_desc; }
 

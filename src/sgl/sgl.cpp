@@ -7,6 +7,7 @@
 #include "sgl/core/bitmap.h"
 #include "sgl/core/format.h"
 #include "sgl/core/thread.h"
+#include "sgl/device/device.h"
 
 #include "git_version.h"
 
@@ -45,6 +46,13 @@ void static_shutdown()
         return;
 
     thread::wait_for_tasks();
+
+    // For various reasons, we might end up with reference cycles in Python,
+    // including instances of slangpy objects. This can lead to slang-rhi
+    // resources not being released properly, which in turn can lead to a crash
+    // in Vulkan validation layers during process termination.
+    // We release all slang-rhi resources here to work around this issue.
+    Device::_release_all_rhi_resources();
 
     Bitmap::static_shutdown();
     platform::static_shutdown();

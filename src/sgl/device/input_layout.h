@@ -60,6 +60,8 @@ class SGL_API InputLayout : public DeviceChild {
 public:
     InputLayout(ref<Device> device, InputLayoutDesc desc);
 
+    virtual void _release_rhi_resources() override { m_rhi_input_layout.setNull(); }
+
     const InputLayoutDesc& desc() const { return m_desc; }
 
     rhi::IInputLayout* rhi_input_layout() const { return m_rhi_input_layout.get(); }

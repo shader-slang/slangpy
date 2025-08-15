@@ -211,6 +211,8 @@ public:
     AccelerationStructure(ref<Device> device, AccelerationStructureDesc desc);
     ~AccelerationStructure();
 
+    virtual void _release_rhi_resources() override { m_rhi_acceleration_structure.setNull(); }
+
     const AccelerationStructureDesc& desc() const { return m_desc; }
 
     AccelerationStructureHandle handle() const;
@@ -229,6 +231,8 @@ class SGL_API AccelerationStructureInstanceList : public DeviceChild {
 public:
     AccelerationStructureInstanceList(ref<Device> device, size_t size = 0);
     ~AccelerationStructureInstanceList();
+
+    virtual void _release_rhi_resources() override { }
 
     size_t size() const { return m_instances.size(); }
 
@@ -266,6 +270,8 @@ class SGL_API ShaderTable : public DeviceChild {
 public:
     ShaderTable(ref<Device> device, ShaderTableDesc desc);
     ~ShaderTable();
+
+    virtual void _release_rhi_resources() override { m_rhi_shader_table.setNull(); }
 
     rhi::IShaderTable* rhi_shader_table() const { return m_rhi_shader_table; }
 
