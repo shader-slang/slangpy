@@ -138,8 +138,8 @@ public:
     virtual std::string to_string() const;
 
 #if SGL_ENABLE_OBJECT_TRACKING
-    /// Report all objects that are currently alive.
-    static void report_alive_objects();
+    /// Reports current set of live objects.
+    static void report_live_objects();
 
     /// Report references of this object.
     void report_refs() const;

@@ -61,7 +61,7 @@ int main(int argc, char** argv)
 
 #if SGL_ENABLE_OBJECT_TRACKING
     sgl::Logger::get().add_console_output();
-    sgl::Object::report_alive_objects();
+    sgl::Object::report_live_objects();
 #endif
 
     sgl::static_shutdown();

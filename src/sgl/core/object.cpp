@@ -117,7 +117,7 @@ PyObject* Object::self_py() const noexcept
 
 #if SGL_ENABLE_OBJECT_TRACKING
 
-void Object::report_alive_objects()
+void Object::report_live_objects()
 {
     std::lock_guard<std::mutex> lock(s_tracked_objects_mutex);
     fmt::println("Alive objects:");

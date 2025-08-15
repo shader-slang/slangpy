@@ -32,7 +32,7 @@ SGL_PY_EXPORT(core_object)
         "Base class for all reference counted objects."
     )
 #if SGL_ENABLE_OBJECT_TRACKING
-        .def_static("report_alive_objects", &Object::report_alive_objects)
+        .def_static("report_live_objects", &Object::report_live_objects)
 #endif
         .def("__repr__", &Object::to_string);
 }
