@@ -4,7 +4,7 @@
 
 #include "sgl/core/enum.h"
 
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/formats.h"
 
 #include <slang-rhi.h>

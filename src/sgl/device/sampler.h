@@ -3,7 +3,7 @@
 #pragma once
 
 #include "sgl/device/fwd.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/types.h"
 #include "sgl/device/native_handle.h"
 

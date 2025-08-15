@@ -82,8 +82,8 @@ target_sources(sgl PRIVATE
     device/cursor_utils.cpp
     device/cursor_utils.h
     device/debug_logger.h
-    device/device_resource.cpp
-    device/device_resource.h
+    device/device_child.cpp
+    device/device_child.h
     device/device.cpp
     device/device.h
     device/fence.cpp

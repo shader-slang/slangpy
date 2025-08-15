@@ -2,7 +2,7 @@
 
 #include "nanobind.h"
 
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/device.h"
 
 SGL_PY_EXPORT(device_device_child)
