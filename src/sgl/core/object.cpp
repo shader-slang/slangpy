@@ -125,9 +125,8 @@ void Object::report_live_objects()
         for (const Object* object : s_tracked_objects) {
             uint64_t ref_count = object->ref_count();
             PyObject* self_py = object->self_py();
-            if (self_py) {
+            if (self_py)
                 ref_count = object_ref_cnt_py(self_py);
-            }
             fmt::println(
                 "Live object: {} self_py={} ref_count={} class_name=\"{}\"",
                 fmt::ptr(object),
