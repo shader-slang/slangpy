@@ -24,6 +24,13 @@ static inline const char* git_version()
 
 const char* SGL_GIT_VERSION = git_version();
 
+static inline const char* slang_build_tag()
+{
+    return spGetBuildTagString();
+}
+
+const char* SLANG_BUILD_TAG = slang_build_tag();
+
 namespace sgl {
 
 static std::atomic<uint32_t> s_sgl_ref_count{0};

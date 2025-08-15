@@ -97,6 +97,7 @@ NB_MODULE(slangpy_ext, m_)
     m.attr("__version__") = SGL_VERSION;
     m.attr("SGL_GIT_VERSION") = SGL_GIT_VERSION;
     m.attr("SGL_BUILD_TYPE") = SGL_BUILD_TYPE;
+    m.attr("SLANG_BUILD_TAG") = SLANG_BUILD_TAG;
 
     SGL_PY_IMPORT(core_object);
     SGL_PY_IMPORT(core_platform);
