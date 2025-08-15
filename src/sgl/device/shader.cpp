@@ -102,14 +102,16 @@ public:
     void insert_cache_include(const std::filesystem::path& path, size_t index)
     {
         SGL_ASSERT(index <= m_entries.size());
-        m_entries.insert(m_entries.begin() + index,
+        m_entries.insert(
+            m_entries.begin() + index,
             {
-            .name = slang::CompilerOptionName::Include,
-            .value = {
-                .kind = slang::CompilerOptionValueKind::String,
-                .string0 = path.string(),
-            },
-        });
+                .name = slang::CompilerOptionName::Include,
+                .value = {
+                    .kind = slang::CompilerOptionValueKind::String,
+                    .string0 = path.string(),
+                },
+            }
+        );
     }
 
     std::vector<slang::CompilerOptionEntry> slang_entries() const
@@ -462,7 +464,10 @@ void SlangSession::create_session(SlangSessionBuild& build)
         session_desc.compilerOptionEntryCount = narrow_cast<uint32_t>(slang_session_option_entries.size());
     }
 
+    SlangRepro& repro = build.repro;
+    SlangRepro::SessionHandle repro_session = repro.create_session(session_desc);
     SLANG_CALL(m_device->global_session()->createSession(session_desc, data->slang_session.writeRef()));
+    repro.assign(repro_session, data->slang_session);
 
     // Store session.
     build.session = std::move(data);
@@ -765,16 +770,20 @@ void SlangModule::load(SlangSessionBuild& build_data) const
     Timer timer;
     Slang::ComPtr<ISlangBlob> diagnostics;
     slang::IModule* slang_module;
+    SlangRepro::ModuleHandle repro_module;
 
     const SlangModuleDesc& desc = m_desc;
     const SlangSessionData* session_data = build_data.session.get();
+    SlangRepro& repro = build_data.repro;
 
     // Load module either from resolved name or source depending on whether source specified
     if (!desc.source.has_value()) {
         std::string resolved_name = session_data->resolve_module_name(desc.module_name);
+        repro_module = repro.load_module(session_data->repro_session, resolved_name.c_str());
         SGL_CATCH_INTERNAL_SLANG_ERROR(
             slang_module = session_data->slang_session->loadModule(resolved_name.c_str(), diagnostics.writeRef());
         );
+        repro.assign(repro_module, slang_module);
         if (!slang_module) {
             std::string msg
                 = append_diagnostics(fmt::format("Failed to load slang module \"{}\"", desc.module_name), diagnostics);
@@ -785,6 +794,11 @@ void SlangModule::load(SlangSessionBuild& build_data) const
         static uint32_t id = 0;
         std::string source_str = fmt::format("// {}\n{}", id++, desc.source);
 
+        repro_module = repro.load_module_from_source_string(session_data->repro_session,
+            std::string{desc.module_name}.c_str(),
+            desc.path ? desc.path->string().c_str() : nullptr,
+            source_str.c_str()
+        );
         SGL_CATCH_INTERNAL_SLANG_ERROR(
             slang_module = session_data->slang_session->loadModuleFromSourceString(
                 std::string{desc.module_name}.c_str(),
@@ -793,6 +807,7 @@ void SlangModule::load(SlangSessionBuild& build_data) const
                 diagnostics.writeRef()
             )
         );
+        repro.assign(repro_module, slang_module);
         if (!slang_module) {
             std::string msg = append_diagnostics(
                 fmt::format("Failed to load slang module \"{}\" from source", desc.module_name),

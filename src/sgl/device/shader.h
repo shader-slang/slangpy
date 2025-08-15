@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "shader_repro.h"
+
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
 #include "sgl/device/reflection.h"
@@ -225,6 +227,7 @@ struct SlangSessionBuild {
     std::map<const SlangModule*, ref<SlangModuleData>> modules;
     std::map<const ShaderProgram*, ref<ShaderProgramData>> programs;
     std::map<const SlangEntryPoint*, ref<SlangEntryPointData>> entry_points;
+    SlangRepro repro;
 };
 
 /// Descriptor for slang session initialization.
@@ -238,6 +241,8 @@ struct SlangSessionDesc {
 struct SlangSessionData : Object {
     /// Pointer to internal slang session.
     Slang::ComPtr<slang::ISession> slang_session;
+
+    SlangRepro::SessionHandle repro_session;
 
     /// Set of all currently loaded slang modules.
     std::set<slang::IModule*> loaded_modules;
@@ -354,6 +359,7 @@ struct SlangModuleDesc {
 
 struct SlangModuleData : Object {
     slang::IModule* slang_module = nullptr;
+    SlangRepro::ModuleHandle repro_module;
     std::string name;
     std::filesystem::path path;
 };

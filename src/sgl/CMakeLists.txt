@@ -122,6 +122,8 @@ target_sources(sgl PRIVATE
     device/shader_object.cpp
     device/shader_object.h
     device/shader_offset.h
+    device/shader_repro.cpp
+    device/shader_repro.h
     device/shader.cpp
     device/shader.h
     device/slang_utils.h
