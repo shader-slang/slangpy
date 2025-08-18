@@ -406,9 +406,6 @@ def test_tensor_autodiff_with_call_groups(device_type: DeviceType):
     Args:
         device_type: Backend device type (D3D12/Vulkan) for parameterized testing
     """
-    if sys.platform == "darwin":
-        pytest.skip("Skipping on macOS due to slang-gfx resource clear API issue")
-
     device = helpers.get_device(device_type)
     module = get_tensor_test_module(device)
 
@@ -448,9 +445,6 @@ def test_tensor_autodiff_with_call_groups(device_type: DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_matrix_ops_with_call_groups(device_type: DeviceType):
     """Test tensor matrix operations with call groups."""
-    if sys.platform == "darwin":
-        pytest.skip("Skipping on macOS due to slang-gfx resource clear API issue")
-
     device = helpers.get_device(device_type)
     module = get_tensor_test_module(device)
 
@@ -618,9 +612,6 @@ def test_texture_2d_with_call_groups(device_type: DeviceType):
     Args:
         device_type: Backend device type (D3D12/Vulkan) for parameterized testing
     """
-    if sys.platform == "darwin":
-        pytest.skip("Skipping on macOS due to slang-gfx texture API issues")
-
     device = helpers.get_device(device_type)
     module = get_texture_test_module(device)
 
@@ -667,9 +658,6 @@ def test_texture_2d_with_call_groups(device_type: DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_texture_reduce_with_call_groups(device_type: DeviceType):
     """Test texture reduction operations with call groups."""
-    if sys.platform == "darwin":
-        pytest.skip("Skipping on macOS due to slang-gfx texture API issues")
-
     device = helpers.get_device(device_type)
     module = get_texture_test_module(device)
 
@@ -707,9 +695,6 @@ def test_texture_reduce_with_call_groups(device_type: DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_texture_3d_with_call_groups(device_type: DeviceType):
     """Test 3D texture operations with call groups."""
-    if sys.platform == "darwin":
-        pytest.skip("Skipping on macOS due to slang-gfx texture API issues")
-
     device = helpers.get_device(device_type)
     module = get_texture_test_module(device)
 
