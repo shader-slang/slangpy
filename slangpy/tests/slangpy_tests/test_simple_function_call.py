@@ -18,11 +18,6 @@ import helpers
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_call_function(device_type: DeviceType):
-    if device_type == DeviceType.cuda:
-        pytest.skip(
-            "CUDA has issues with bool type: Mismatched size, writing 4 B into backend type (bool) of only 1 B."
-        )
-
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
         device,
