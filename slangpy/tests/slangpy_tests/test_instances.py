@@ -24,13 +24,6 @@ from slangpy.types.randfloatarg import RandFloatArg
 from slangpy.types.valueref import ValueRef, floatRef
 from slangpy.experimental.diffinstancelist import InstanceDifferentiableBuffer
 
-# TODO(testing)
-if sys.platform == "linux" or sys.platform == "linux2":
-    pytest.skip(
-        "These tests leak nanobind objects and segfault on linux",
-        allow_module_level=True,
-    )
-
 
 def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Module:
     device = helpers.get_device(device_type)
