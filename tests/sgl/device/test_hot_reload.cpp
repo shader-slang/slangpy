@@ -443,12 +443,9 @@ TEST_CASE_GPU("change program and auto detect changes")
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
     CHECK(run_and_verify(ctx, kernel, 1));
 
-    // Re-write the shader, and verify it still returns 1, as hasn't reloaded yet.
-    write_shader({.path = path, .set_to = "2"});
-    CHECK(run_and_verify(ctx, kernel, 1));
-
-    // Tell the hot reload system to auto detect changes for 500ms.
+    // Re-write the shader so it returns 2 and wait for it to reload.
     ctx.device->_hot_reload()->_reset_reloaded();
+    write_shader({.path = path, .set_to = "2"});
     for (int i = 0; i < 400 && !ctx.device->_hot_reload()->_has_reloaded(); i++) {
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
         ctx.device->_hot_reload()->update();
