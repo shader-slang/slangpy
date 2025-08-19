@@ -118,7 +118,7 @@ static bool run_and_verify(
 
 TEST_SUITE_BEGIN("hot_reload");
 
-TEST_CASE_GPU("verify test case works")
+TEST_CASE_GPU("check_run_and_verify")
 {
     auto path = testing::get_case_temp_directory() / "verify.slang";
     write_shader({.path = path, .set_to = "1"});
@@ -128,7 +128,7 @@ TEST_CASE_GPU("verify test case works")
     CHECK(run_and_verify(ctx, kernel, 2, false));
 }
 
-TEST_CASE_GPU("change program and recreate")
+TEST_CASE_GPU("change_program_and_recreate")
 {
     // Disable auto detect changes so can test explicit reload.
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -154,7 +154,7 @@ TEST_CASE_GPU("change program and recreate")
     CHECK(!ctx.device->_hot_reload()->last_build_failed());
 }
 
-TEST_CASE_GPU("change program with error and recreate")
+TEST_CASE_GPU("change_program_with_error_and_recreate")
 {
     // Disable auto detect changes so can test explicit reload.
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -182,7 +182,7 @@ TEST_CASE_GPU("change program with error and recreate")
     CHECK(run_and_verify(ctx, kernel, 1));
 }
 
-TEST_CASE_GPU("change kernel name and recreate")
+TEST_CASE_GPU("change_kernel_name_and_recreate")
 {
     // Disable auto detect changes so can test explicit reload.
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -209,7 +209,7 @@ TEST_CASE_GPU("change kernel name and recreate")
     CHECK(run_and_verify(ctx, kernel, 1));
 }
 
-TEST_CASE_GPU("change buffer name and fail to use recreated program")
+TEST_CASE_GPU("change_buffer_name_and_fail_to_use_recreated_program")
 {
     // Disable auto detect changes so can test explicit reload.
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -234,7 +234,7 @@ TEST_CASE_GPU("change buffer name and fail to use recreated program")
     CHECK_THROWS(run_and_verify(ctx, kernel, 2));
 }
 
-TEST_CASE_GPU("change program with invalid imports and recreate")
+TEST_CASE_GPU("change_program_with_invalid_imports_and_recreate")
 {
     // Disable auto detect changes so can test explicit reload.
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -257,7 +257,7 @@ TEST_CASE_GPU("change program with invalid imports and recreate")
     CHECK(run_and_verify(ctx, kernel, 1));
 }
 
-TEST_CASE_GPU("change program with correct module import and recreate")
+TEST_CASE_GPU("change_program_with_correct_module_import_and_recreate")
 {
     // Disable auto detect changes so can test explicit reload.
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -284,7 +284,7 @@ TEST_CASE_GPU("change program with correct module import and recreate")
     CHECK(run_and_verify(ctx, kernel, 2));
 }
 
-TEST_CASE_GPU("leave program but change the module it imports")
+TEST_CASE_GPU("leave_program_but_change_the_module_it_imports")
 {
     // Disable auto detect changes so can test explicit reload.
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -309,7 +309,7 @@ TEST_CASE_GPU("leave program but change the module it imports")
     CHECK(run_and_verify(ctx, kernel, 2));
 }
 
-TEST_CASE_GPU("leave program then break the module it imports")
+TEST_CASE_GPU("leave_program_then_break_the_module_it_imports")
 {
     // Disable auto detect changes so can test explicit reload.
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -334,7 +334,7 @@ TEST_CASE_GPU("leave program then break the module it imports")
     CHECK(run_and_verify(ctx, kernel, 1));
 }
 
-TEST_CASE_GPU("change program with basic additional source")
+TEST_CASE_GPU("change_program_with_basic_additional_source")
 {
     // Disable auto detection.
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -379,7 +379,7 @@ TEST_CASE_GPU("change program with basic additional source")
     CHECK(run_and_verify(ctx, kernel, 2));
 }
 
-TEST_CASE_GPU("load module separately from program")
+TEST_CASE_GPU("load_module_separately_from_program")
 {
     // Disable auto detection
     ctx.device->_hot_reload()->set_auto_detect_changes(false);
@@ -427,7 +427,7 @@ TEST_CASE_GPU("load module separately from program")
 }
 
 
-TEST_CASE_GPU("change program and auto detect changes")
+TEST_CASE_GPU("change_program_and_auto_detect_changes")
 {
     // Enable auto detection and wipe any existing monitors to ensure test is from a 'clean slate'.
     ctx.device->_hot_reload()->set_auto_detect_changes(true);
@@ -461,7 +461,7 @@ TEST_CASE_GPU("change program and auto detect changes")
 }
 
 /// SKIPPED: This test is flaky on CI, and needs to be reworked.
-TEST_CASE_GPU("create multi directory session and monitor for changes" * doctest::skip())
+TEST_CASE_GPU("create_multi_directory_session_and_monitor_for_changes" * doctest::skip())
 {
     // Enable auto detection and wipe any existing monitors to ensure test is from a 'clean slate'.
     ctx.device->_hot_reload()->set_auto_detect_changes(true);
