@@ -63,4 +63,4 @@ def test_tensor_sum_indirect(device_type: spy.DeviceType, count: int, benchmark:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "-s", "-k", "test_tensor_sum_indirect"])
+    pytest.main([__file__, "-v", "-s", "-k", "test_tensor_add"])
