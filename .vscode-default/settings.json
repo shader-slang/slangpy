@@ -8,6 +8,7 @@
     "python.testing.pytestEnabled": true,
     "python.testing.pytestArgs": [
         "./slangpy/tests",
+        "./slangpy/benchmarks",
         "./samples/tests"
     ]
 }
