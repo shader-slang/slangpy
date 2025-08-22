@@ -6,6 +6,7 @@ from slangpy.core.function import FunctionNodeBwds
 import numpy as np
 from typing import Any, Union
 from time import time
+from datetime import datetime
 
 from bench.report import BenchmarkReport
 
@@ -48,6 +49,7 @@ class BenchmarkFixture:
         cpu_time = end_time - start_time
 
         report: BenchmarkReport = {
+            "time": datetime.now(),
             "name": self.node.name,
             "cpu_time": cpu_time,
             "data": [float(d) for d in deltas],

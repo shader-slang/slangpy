@@ -2,10 +2,13 @@
 
 from typing import TypedDict, Any
 import json
-from bench.utils import get_project_info, get_machine_info, get_commit_info
+from datetime import datetime
+
+from bench.utils import get_project_info, get_machine_info, get_commit_info, to_json, from_json
 
 
 class BenchmarkReport(TypedDict):
+    time: datetime
     name: str
     cpu_time: float
     data: list[float]
@@ -17,6 +20,7 @@ class BenchmarkReport(TypedDict):
 
 
 class Report(TypedDict):
+    time: datetime
     project_info: dict[str, Any]
     machine_info: dict[str, Any]
     commit_info: dict[str, Any]
@@ -25,6 +29,7 @@ class Report(TypedDict):
 
 def generate_report(benchmarks: list[BenchmarkReport]) -> Report:
     return {
+        "time": datetime.now(),
         "project_info": get_project_info(),
         "machine_info": get_machine_info(),
         "commit_info": get_commit_info(),
@@ -34,9 +39,17 @@ def generate_report(benchmarks: list[BenchmarkReport]) -> Report:
 
 def write_report(report: Report, path: str) -> None:
     with open(path, "w") as f:
-        json.dump(report, f, indent=4)
+        json.dump(to_json(report), f, indent=4)
 
 
 def load_report(path: str) -> Report:
     with open(path, "r") as f:
-        return json.load(f)
+        return from_json(json.load(f))
+
+
+def upload_report(report: Report, connection_string: str, database_name: str):
+    from pymongo import MongoClient
+
+    client = MongoClient(connection_string)
+    db = client[database_name]
+    db["benchmark"].insert_one(report)

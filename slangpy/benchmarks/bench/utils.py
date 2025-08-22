@@ -4,6 +4,7 @@ from typing import Any, Optional
 from pathlib import Path
 import subprocess
 import platform
+from datetime import datetime
 
 
 def get_project_info() -> dict[str, Any]:
@@ -68,8 +69,8 @@ def get_commit_info() -> dict[str, Any]:
                 branch = "(detached head)"
         return {
             "id": commit,
-            "time": commit_time,
-            "author_time": author_time,
+            "time": datetime.fromisoformat(commit_time) if commit_time else None,
+            "author_time": datetime.fromisoformat(author_time) if author_time else None,
             "dirty": dirty,
             "branch": branch,
         }
@@ -88,12 +89,37 @@ def get_commit_info() -> dict[str, Any]:
         }
 
 
+def to_json(d: Any) -> Any:
+    # Recurse through the dictionary and replace datetime objects with their ISO format
+    if isinstance(d, dict):
+        return {k: to_json(v) for k, v in d.items()}
+    elif isinstance(d, list):
+        return [to_json(item) for item in d]
+    elif isinstance(d, datetime):
+        return d.isoformat()
+    return d
+
+
+def from_json(d: Any) -> Any:
+    # Recurse through the dictionary and replace ISO format strings with datetime objects
+    if isinstance(d, dict):
+        return {k: from_json(v) for k, v in d.items()}
+    elif isinstance(d, list):
+        return [from_json(item) for item in d]
+    elif isinstance(d, str):
+        try:
+            return datetime.fromisoformat(d)
+        except ValueError:
+            return d
+    return d
+
+
 def _test_infos():
     import json
 
-    print(json.dumps(get_machine_info(), indent=4))
-    print(json.dumps(get_commit_info(), indent=4))
-    print(json.dumps(get_project_info(), indent=4))
+    print(json.dumps(to_json(get_machine_info()), indent=4))
+    print(json.dumps(to_json(get_commit_info()), indent=4))
+    print(json.dumps(to_json(get_project_info()), indent=4))
 
 
 # _test_infos()

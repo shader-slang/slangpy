@@ -10,7 +10,40 @@ import slangpy as spy
 from typing import Any
 
 from bench.table import display
-from bench.report import BenchmarkReport, generate_report, write_report
+from bench.report import BenchmarkReport, generate_report, write_report, upload_report
+
+
+def pytest_addoption(parser: pytest.Parser):
+    parser.addoption(
+        "--write-benchmark-report",
+        action="store_true",
+        default=False,
+        help="Write benchmark report to a JSON file",
+    )
+    parser.addoption(
+        "--benchmark-report-path",
+        action="store",
+        default="benchmark_report.json",
+        help="Path to the benchmark report JSON file",
+    )
+    parser.addoption(
+        "--upload-benchmark-report",
+        action="store_true",
+        default=False,
+        help="Upload benchmark report to a MongoDB",
+    )
+    parser.addoption(
+        "--mongodb-connection-string",
+        action="store",
+        default="mongodb://localhost:27017",
+        help="MongoDB connection string",
+    )
+    parser.addoption(
+        "--mongodb-database-name",
+        action="store",
+        default="nvr-ci",
+        help="MongoDB database name",
+    )
 
 
 # Called after every test to ensure any devices that aren't part of the
@@ -51,10 +84,22 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: Any):
         print(f"Closing device on shutdown {device.desc.label}")
         device.close()
 
-    # Write benchmark report
+    # Generate benchmark report
     benchmark_reports: list[BenchmarkReport] = session.config._benchmark_reports  # type: ignore
     report = generate_report(benchmark_reports)
-    write_report(report, "benchmark_report.json")
+
+    # Write report to JSON
+    if session.config.getoption("--write-benchmark-report"):
+        path = session.config.getoption("--benchmark-report-path")
+        print(f"Writing benchmark report to {path}")
+        write_report(report, path)
+
+    # Upload report to MongoDB
+    if session.config.getoption("--upload-benchmark-report"):
+        print("Uploading benchmark report to MongoDB")
+        connection_string = session.config.getoption("--mongodb-connection-string")
+        database_name = session.config.getoption("--mongodb-database-name")
+        upload_report(report, connection_string, database_name)
 
 
 def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):
