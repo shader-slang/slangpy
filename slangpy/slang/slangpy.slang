@@ -6,6 +6,7 @@ module slangpy;
 // https://github.com/shader-slang/slang/issues/8166
 // Once fixed, we should go back to locally disabling the warnings where needed.
 // Searching for "// #pragma warning(disable: 30856)" should reveal the relevant instances.
+// Edit: Even this workaround isn't reliable, so we currently disable the warning globally in shader.cpp
 #pragma warning(disable: 30856)
 
 __include "core.slang";
