@@ -36,6 +36,7 @@ namespace impl
     int[D] makeIndex<let D : int, T : IInteger>(ISizedArray<T, D> indices)
     {
         int[D] idxVec;
+        [ForceUnroll]
         for (int i = 0; i < D; ++i)
             idxVec[i] = indices[i].toInt();
         return idxVec;
@@ -251,6 +252,7 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }
@@ -282,6 +284,7 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }
@@ -317,6 +320,7 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }
