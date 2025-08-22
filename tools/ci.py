@@ -181,6 +181,17 @@ def test_examples(args: Any):
     run_command(cmd, env=env)
 
 
+def benchmark_python(args: Any):
+    env = get_python_env()
+    cmd = "pytest slangpy/benchmarks -ra"
+    if args.mongodb_connection_string:
+        cmd += " --upload-benchmark-report"
+        cmd += f" --mongodb-connection-string={args.mongodb_connection_string}"
+        if args.mongodb_database_name:
+            cmd += f" --mongodb-database-name={args.mongodb_database_name}"
+    run_command(cmd, env=env)
+
+
 def coverage_report(args: Any):
     if not "coverage" in args.flags:
         print("Coverage flag not set, skipping coverage report.")
@@ -220,6 +231,16 @@ def main():
     parser_test_examples = commands.add_parser("test-examples", help="run examples tests")
     parser_test_examples.add_argument(
         "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+
+    parser_benchmark_python = commands.add_parser(
+        "benchmark-python", help="run benchmarks (python)"
+    )
+    parser_benchmark_python.add_argument(
+        "-c", "--mongodb-connection-string", type=str, help="MongoDB connection string"
+    )
+    parser_benchmark_python.add_argument(
+        "-d", "--mongodb-database-name", type=str, help="MongoDB database name"
     )
 
     parser_coverage_report = commands.add_parser("coverage-report", help="generate coverage report")
@@ -277,6 +298,7 @@ def main():
         "typing-check-python": typing_check_python,
         "unit-test-python": unit_test_python,
         "test-examples": test_examples,
+        "benchmark-python": benchmark_python,
         "coverage-report": coverage_report,
     }[args.command](args)
 
