@@ -7,8 +7,10 @@ sys.path.append(str(Path(__file__).parent))
 
 import pytest
 import slangpy as spy
-from bench import Report, display
 from typing import Any
+
+from bench.table import display
+from bench.report import BenchmarkReport, generate_report, write_report
 
 
 # Called after every test to ensure any devices that aren't part of the
@@ -28,12 +30,13 @@ def pytest_sessionstart(session: Any):
 
 
 def pytest_configure(config: pytest.Config):
-    bs = config._benchmark_reports = []  # type: ignore
+    # Setup list for storing benchmark reports
+    config._benchmark_reports = []  # type: ignore
 
 
 # After all tests finished, close remaining devices. This ensures they're
 # cleaned up before pytorch, avoiding crashes for devices that share context.
-def pytest_sessionfinish(session: Any, exitstatus: Any):
+def pytest_sessionfinish(session: pytest.Session, exitstatus: Any):
 
     # If torch enabled, sync all devices to ensure all operations are finished.
     try:
@@ -48,7 +51,12 @@ def pytest_sessionfinish(session: Any, exitstatus: Any):
         print(f"Closing device on shutdown {device.desc.label}")
         device.close()
 
+    # Write benchmark report
+    benchmark_reports: list[BenchmarkReport] = session.config._benchmark_reports  # type: ignore
+    report = generate_report(benchmark_reports)
+    write_report(report, "benchmark_report.json")
+
 
 def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):
-    reports: list[Report] = terminalreporter.config._benchmark_reports  # type: ignore
-    display(reports)
+    benchmark_reports: list[BenchmarkReport] = terminalreporter.config._benchmark_reports  # type: ignore
+    display(benchmark_reports)

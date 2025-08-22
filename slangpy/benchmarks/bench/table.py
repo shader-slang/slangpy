@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from .report import Report
+from bench.report import BenchmarkReport
 
 
-def display(reports: list[Report]):
+def display(benchmark_reports: list[BenchmarkReport]):
 
     column_titles = ["Name", "Min (ms)", "Max (ms)", "Mean (ms)", "Median (ms)", "Stddev (ms)"]
     rows = []
 
-    for report in reports:
+    for report in benchmark_reports:
         row = [
             report["name"],
             f"{report['min']:.3f}",

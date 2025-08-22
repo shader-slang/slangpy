@@ -5,8 +5,9 @@ import slangpy as spy
 from slangpy.core.function import FunctionNodeBwds
 import numpy as np
 from typing import Any, Union
+from time import time
 
-from .report import Report
+from bench.report import BenchmarkReport
 
 
 class BenchmarkFixture:
@@ -25,6 +26,9 @@ class BenchmarkFixture:
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
+
+        start_time = time()
+
         for _ in range(warmup_iterations):
             function(**kwargs)
 
@@ -40,8 +44,13 @@ class BenchmarkFixture:
         frequency = float(device.info.timestamp_frequency)
         deltas = (queries[1::2] - queries[0::2]) / frequency * 1000.0
 
-        report: Report = {
+        end_time = time()
+        cpu_time = end_time - start_time
+
+        report: BenchmarkReport = {
             "name": self.node.name,
+            "cpu_time": cpu_time,
+            "data": [float(d) for d in deltas],
             "min": float(np.min(deltas)),
             "max": float(np.max(deltas)),
             "mean": float(np.mean(deltas)),
