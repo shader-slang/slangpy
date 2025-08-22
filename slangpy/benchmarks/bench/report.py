@@ -8,8 +8,8 @@ from bench.utils import get_project_info, get_machine_info, get_commit_info, to_
 
 
 class BenchmarkReport(TypedDict):
-    time: datetime
     name: str
+    timestamp: datetime
     cpu_time: float
     data: list[float]
     min: float
@@ -20,7 +20,7 @@ class BenchmarkReport(TypedDict):
 
 
 class Report(TypedDict):
-    time: datetime
+    timestamp: datetime
     project_info: dict[str, Any]
     machine_info: dict[str, Any]
     commit_info: dict[str, Any]
@@ -29,7 +29,7 @@ class Report(TypedDict):
 
 def generate_report(benchmarks: list[BenchmarkReport]) -> Report:
     return {
-        "time": datetime.now(),
+        "timestamp": datetime.now(),
         "project_info": get_project_info(),
         "machine_info": get_machine_info(),
         "commit_info": get_commit_info(),

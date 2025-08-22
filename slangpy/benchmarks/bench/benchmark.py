@@ -49,8 +49,8 @@ class BenchmarkFixture:
         cpu_time = end_time - start_time
 
         report: BenchmarkReport = {
-            "time": datetime.now(),
             "name": self.node.name,
+            "timestamp": datetime.now(),
             "cpu_time": cpu_time,
             "data": [float(d) for d in deltas],
             "min": float(np.min(deltas)),
