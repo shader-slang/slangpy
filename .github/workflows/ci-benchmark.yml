@@ -1,4 +1,4 @@
-name: ci-latest-slang
+name: ci-benchmark
 
 on:
   schedule:
