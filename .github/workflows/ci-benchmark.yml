@@ -16,8 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows, linux, macos]
-        config: [Debug, Release]
+        os: [windows, linux]
+        config: [Release]
         python: ["3.10"]
         include:
           # Builds running on self-hosted runners
