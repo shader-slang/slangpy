@@ -199,31 +199,6 @@ class Module:
             return None
         return child.as_func()
 
-    def relink_if_different(self, link: list[Union["Module", SlangModule]]):
-        """
-        Relink the program if the new link is different from the existing link.
-        """
-
-        # Create a new list of modules to link and compare with the current one
-        new_link_set = set([x.module if isinstance(x, Module) else x for x in link])
-        if self.link_set == new_link_set:
-            return
-
-        self.link_set = new_link_set
-        self.link = list(self.link_set)
-
-        # If different, we relink and clear the caches:
-        # Relink combined program
-        module_list = [self.slangpy_device_module, self.device_module] + self.link
-        combined_program = self.device_module.session.link_program(module_list, [])
-        self.layout.on_hot_reload(combined_program.layout)
-
-        # Clear all caches
-        self.call_data_cache = CallDataCache()
-        self.dispatch_data_cache = {}
-        self.kernel_cache = {}
-        self._attr_cache = {}
-
     def on_hot_reload(self):
         """
         Called by device when the module is hot reloaded.
