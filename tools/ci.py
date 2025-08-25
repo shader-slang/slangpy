@@ -72,6 +72,9 @@ def run_command(
     print(f'Running "{" ".join(command)}" ...')
     sys.stdout.flush()
 
+    if shell:
+        command = " ".join(command)
+
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
