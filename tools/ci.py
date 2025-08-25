@@ -59,8 +59,6 @@ def get_default_compiler():
 
 
 def run_command(command: str, shell: bool = True, env: Optional[dict[str, str]] = None):
-    if get_os() == "windows":
-        command = command.replace("/", "\\")
     if env != None:
         new_env = os.environ.copy()
         new_env.update(env)
