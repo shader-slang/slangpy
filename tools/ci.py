@@ -93,32 +93,6 @@ def run_command(command: str, shell: bool = True, env: Optional[dict[str, str]] 
     return out
 
 
-def get_changed_env(command: str):
-    if get_os() == "windows":
-        command = command.replace("/", "\\") + " && set"
-    else:
-        command = command + " && env"
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        shell=True,
-        executable="/bin/bash" if get_os() != "windows" else None,
-    )
-    if result.returncode != 0:
-        raise NameError(f'Error running "{command}"')
-    env_vars = {}
-    for line in result.stdout.splitlines():
-        if "=" in line:
-            key, value = line.split("=", 1)
-            if key in ["_"]:
-                continue
-            curr = os.getenv(key)
-            if curr is None or curr != value:
-                env_vars[key] = value
-    return env_vars
-
-
 def get_python_env():
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PROJECT_DIR)
@@ -127,7 +101,7 @@ def get_python_env():
 
 def setup(args: Any):
     if args.os == "windows":
-        run_command("./setup.bat")
+        run_command(".\\setup.bat")
     else:
         run_command("./setup.sh")
 
