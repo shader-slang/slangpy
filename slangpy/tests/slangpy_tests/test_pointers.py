@@ -763,6 +763,8 @@ void bindings_to_pointer_function(int call_id, StructuredBuffer<int> in_buffer, 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
 @pytest.mark.parametrize("sync_type", ["none", "global", "resource"])
 def test_pointer_barriers(device_type: DeviceType, sync_type: str):
+    if sync_type == "none":
+        pytest.skip("Skipping non-deterministic race-condition test")
 
     device = helpers.get_device(device_type)
 
@@ -865,9 +867,7 @@ void buffer_to_ptr(int idx, StructuredBuffer<int> src, int* dst) {
     res = dst.to_numpy().view(np.int32)
 
     if sync_type == "none" and device_type in [DeviceType.vulkan, DeviceType.d3d12]:
-        # This is testing for a race-condition, which is not deterministic!
-        # assert not np.array_equal(res, rand_ints), f"Expected {rand_ints}, got {res}"
-        pass
+        assert not np.array_equal(res, rand_ints), f"Expected {rand_ints}, got {res}"
     else:
         assert np.array_equal(res, rand_ints), f"Expected {rand_ints}, got {res}"
 
