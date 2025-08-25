@@ -51,6 +51,7 @@ DEVICE_CACHE: dict[
     Device,
 ] = {}
 
+USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
 # Always dump stuff when testing
@@ -69,13 +70,11 @@ def close_all_devices():
     # After all tests finished, close remaining devices. This ensures they're
     # cleaned up before pytorch, avoiding crashes for devices that share context.
 
-    # If torch enabled, sync all devices to ensure all operations are finished.
-    try:
+    global USED_TORCH_DEVICES
+    if USED_TORCH_DEVICES:
         import torch
 
         torch.cuda.synchronize()
-    except ImportError:  # @IgnoreException
-        pass
 
     # Close all devices that were created during the tests.
     for device in Device.get_created_devices():
@@ -174,13 +173,13 @@ def get_device(
     return device
 
 
-TORCH_DEVICES: dict[str, Device] = {}
-
-
 # Helper that gets a device that wraps the current torch cuda context.
 # This is useful for testing the torch integration.
 def get_torch_device(type: DeviceType, use_cache: bool = True) -> Device:
     import torch
+
+    global USED_TORCH_DEVICES
+    USED_TORCH_DEVICES = True
 
     # For testing, comment this in to disable backwards passes running on other threads
     torch.autograd.grad_mode.set_multithreading_enabled(False)
