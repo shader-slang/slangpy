@@ -1,17 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from pathlib import Path
-import sys
-from time import time
-from typing import Any, cast
-import numpy as np
 import pytest
-from slangpy import grid, float3
-from slangpy import DeviceType, BufferUsage, QueryType, ResourceState
-from slangpy.types import NDBuffer, Tensor
+from time import time
+import numpy as np
 
-sys.path.append(str(Path(__file__).parent))
-import helpers
+from slangpy import DeviceType, BufferUsage, QueryType, ResourceState, grid, float3
+from slangpy.types import NDBuffer, Tensor
+from slangpy.testing import helpers
+
+from typing import Any, cast
 
 # Filter default device types to only include those that support pointers
 # TODO: Metal does support pointers but the is a slang bug leading to incorrect Metal shader code

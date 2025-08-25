@@ -26,7 +26,7 @@ from slangpy import (
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
 
-SHADER_DIR = Path(__file__).parent
+SHADER_INCLUDE_PATHS = []
 
 if os.environ.get("SLANGPY_DEVICE", None) is not None:
     DEFAULT_DEVICE_TYPES = [DeviceType[os.environ["SLANGPY_DEVICE"]]]
@@ -53,6 +53,53 @@ slangpy.set_dump_generated_shaders(True)
 @pytest.fixture
 def test_id(request: Any):
     return hashlib.sha256(request.node.nodeid.encode()).hexdigest()[:16]
+
+
+def start_session(shader_include_paths: list[Path] = []):
+    """Start a new test session. Typically called from pytest_sessionstart."""
+
+    global SHADER_INCLUDE_PATHS
+    SHADER_INCLUDE_PATHS = shader_include_paths
+
+    # pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
+    # when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
+    slangpy.ConsoleLoggerOutput.IGNORE_PRINT_EXCEPTION = True
+
+
+def finish_session():
+    """Finish the current test session. Typically called from pytest_sessionfinish."""
+
+    # After all tests finished, close remaining devices. This ensures they're
+    # cleaned up before pytorch, avoiding crashes for devices that share context.
+
+    # If torch enabled, sync all devices to ensure all operations are finished.
+    try:
+        import torch
+
+        torch.cuda.synchronize()
+    except ImportError:  # @IgnoreException
+        pass
+
+    # Close all devices that were created during the tests.
+    for device in slangpy.Device.get_created_devices():
+        print(f"Closing device on shutdown {device.desc.label}")
+        device.close()
+
+
+def setup_test():
+    """Setup a new test. Typically called from pytest_runtest_setup."""
+    pass
+
+
+def teardown_test():
+    """Teardown the current test. Typically called from pytest_runtest_teardown."""
+
+    # Ensure any devices that aren't part of the device cache are cleaned up.
+    for device in slangpy.Device.get_created_devices():
+        if device.desc.label.startswith("cached-"):
+            continue
+        print(f"Closing leaked device {device.desc.label}")
+        device.close()
 
 
 # Helper to get device of a given type
@@ -106,7 +153,7 @@ def get_device(
         enable_debug_layers=True,
         compiler_options=SlangCompilerOptions(
             {
-                "include_paths": [SHADER_DIR, SLANG_PATH],
+                "include_paths": [*SHADER_INCLUDE_PATHS, SLANG_PATH],
                 "debug_info": SlangDebugInfoLevel.standard,
             }
         ),

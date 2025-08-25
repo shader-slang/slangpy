@@ -57,14 +57,13 @@ All tests are parameterized to run on multiple backend devices:
 - Automatic device detection and fallback
 """
 
-import numpy as np
 import pytest
+import numpy as np
 import slangpy as spy
 from slangpy import DeviceType, Device, TextureDesc, TextureUsage, Format, TextureType
 from slangpy.slangpy import Shape
 from slangpy.types import NDBuffer, Tensor
-from . import helpers
-import sys
+from slangpy.testing import helpers
 import os
 
 

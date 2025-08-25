@@ -2,9 +2,9 @@
 import numpy as np
 import pytest
 
-from . import helpers
-from slangpy import DeviceType
 import slangpy as spy
+from slangpy import DeviceType
+from slangpy.testing import helpers
 
 
 NUMPY_MODULE = r"""

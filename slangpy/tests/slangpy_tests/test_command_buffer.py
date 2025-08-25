@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import numpy as np
-import pytest
 
-from . import helpers
+import pytest
+import numpy as np
 from slangpy import Module
 from slangpy import DeviceType, float3
 from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
+from slangpy.testing import helpers
 
 
 def load_test_module(device_type: DeviceType):

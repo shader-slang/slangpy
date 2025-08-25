@@ -1,15 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from pathlib import Path
-import sys
 
 import pytest
-from slangpy import pack, Tensor
 import numpy as np
 
-sys.path.append(str(Path(__file__).parent))
-
-import helpers
-from slangpy import DeviceType
+from slangpy import DeviceType, pack, Tensor
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

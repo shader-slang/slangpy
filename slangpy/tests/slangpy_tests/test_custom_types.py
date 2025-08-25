@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Callable
+
+import pytest
 import numpy as np
 import numpy.typing as npt
-import pytest
-
 from slangpy import DeviceType, float3, uint3
 from slangpy.experimental.gridarg import grid
-from . import helpers
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.callidarg import call_id
 from slangpy.types.randfloatarg import RandFloatArg, rand_float
 from slangpy.types.threadidarg import thread_id
 from slangpy.types.wanghasharg import WangHashArg, calc_wang_hash_numpy, wang_hash
+from slangpy.testing import helpers
+
+from typing import Any, Callable
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -452,4 +453,4 @@ int range_test(int input) {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])
