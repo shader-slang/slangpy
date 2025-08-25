@@ -2,17 +2,11 @@
 
 import pytest
 from typing import Any
-from pathlib import Path
 from slangpy.testing import helpers
 
 
 def pytest_sessionstart(session: pytest.Session):
-    helpers.start_session(
-        shader_include_paths=[
-            Path(__file__).parent,
-            Path(__file__).parent / "slangpy_tests",
-        ]
-    )
+    helpers.start_session()
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int):

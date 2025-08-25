@@ -16,7 +16,7 @@ SlangCompileError = RuntimeError if sys.platform == "darwin" else spy.SlangCompi
 def create_session(device: spy.Device) -> spy.SlangSession:
     return device.create_slang_session(
         compiler_options={
-            "include_paths": helpers.SHADER_INCLUDE_PATHS,
+            "include_paths": device.slang_session.desc.compiler_options.include_paths,
             "debug_info": spy.SlangDebugInfoLevel.standard,
         }
     )

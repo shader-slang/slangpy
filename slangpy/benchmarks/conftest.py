@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-from pathlib import Path
 
 from slangpy.testing import helpers
 
@@ -10,11 +9,9 @@ from bench.report import BenchmarkReport, generate_report, write_report, upload_
 
 from typing import Any
 
-SHADER_DIR = Path(__file__).parent
-
 
 def pytest_sessionstart(session: pytest.Session):
-    helpers.start_session(shader_include_paths=[SHADER_DIR])
+    helpers.start_session()
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int):

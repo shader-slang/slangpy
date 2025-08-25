@@ -143,7 +143,6 @@ def test_device_import(device_type: spy.DeviceType):
         type=device_type,
         enable_debug_layers=True,
         compiler_options={
-            "include_paths": helpers.SHADER_INCLUDE_PATHS,
             "debug_info": spy.SlangDebugInfoLevel.standard,
         },
         label=f"deviceimport-{device_type.name}-1",
@@ -154,7 +153,6 @@ def test_device_import(device_type: spy.DeviceType):
         type=device_type,
         enable_debug_layers=True,
         compiler_options={
-            "include_paths": helpers.SHADER_INCLUDE_PATHS,
             "debug_info": spy.SlangDebugInfoLevel.standard,
         },
         existing_device_handles=device1.native_handles,

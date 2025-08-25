@@ -30,8 +30,6 @@ from slangpy import (
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
 
-SHADER_INCLUDE_PATHS = []
-
 if os.environ.get("SLANGPY_DEVICE", None) is not None:
     DEFAULT_DEVICE_TYPES = [DeviceType[os.environ["SLANGPY_DEVICE"]]]
 elif sys.platform == "win32":
@@ -59,11 +57,8 @@ def test_id(request: Any):
     return hashlib.sha256(request.node.nodeid.encode()).hexdigest()[:16]
 
 
-def start_session(shader_include_paths: list[Path] = []):
+def start_session():
     """Start a new test session. Typically called from pytest_sessionstart."""
-
-    global SHADER_INCLUDE_PATHS
-    SHADER_INCLUDE_PATHS = shader_include_paths
 
     # pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
     # when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
