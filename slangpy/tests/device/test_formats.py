@@ -75,4 +75,4 @@ def test_format_info_bc7_unorm_srgb():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

@@ -163,4 +163,4 @@ def test_link_time_type(device_type: spy.DeviceType, op: str):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

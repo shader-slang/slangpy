@@ -39,4 +39,4 @@ def test_cast_float16(device_type: spy.DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-vvvs"])
+    pytest.main([__file__, "-v", "-s"])

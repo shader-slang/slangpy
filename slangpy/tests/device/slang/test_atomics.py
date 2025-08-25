@@ -199,4 +199,4 @@ def test_texture_add_f32(device_type: spy.DeviceType, dimension: int):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

@@ -367,4 +367,4 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-vvvs"])
+    pytest.main([__file__, "-v", "-s"])
