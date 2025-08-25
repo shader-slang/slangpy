@@ -11,7 +11,7 @@ import argparse
 import subprocess
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
@@ -58,12 +58,18 @@ def get_default_compiler():
         raise NameError(f"Unsupported OS: {get_os()}")
 
 
-def run_command(command: str, shell: bool = True, env: Optional[dict[str, str]] = None):
+def run_command(
+    command: Union[str, list[str]], shell: bool = True, env: Optional[dict[str, str]] = None
+):
+    if isinstance(command, str):
+        command = [command]
+    if get_os() == "windows":
+        command[0] = command[0].replace("/", "\\")
     if env != None:
         new_env = os.environ.copy()
         new_env.update(env)
         env = new_env
-    print(f'Running "{command}" ...')
+    print(f'Running "{" ".join(command)}" ...')
     sys.stdout.flush()
 
     process = subprocess.Popen(
@@ -101,28 +107,28 @@ def get_python_env():
 
 def setup(args: Any):
     if args.os == "windows":
-        run_command(".\\setup.bat")
+        run_command("./setup.bat")
     else:
         run_command("./setup.sh")
 
 
 def configure(args: Any):
-    cmd = f"{args.cmake} --preset {args.preset}"
+    cmd = [args.cmake, "--preset", args.preset]
     if "header-validation" in args.flags:
-        cmd += " -DSGL_ENABLE_HEADER_VALIDATION=ON"
+        cmd += ["-DSGL_ENABLE_HEADER_VALIDATION=ON"]
     if "coverage" in args.flags:
-        cmd += " -DSGL_ENABLE_COVERAGE=ON"
+        cmd += ["-DSGL_ENABLE_COVERAGE=ON"]
     if args.cmake_args != "":
-        cmd += " " + args.cmake_args
+        cmd += args.cmake_args.split()
     run_command(cmd)
 
 
 def build(args: Any):
-    run_command(f"{args.cmake} --build build/{args.preset} --config {args.config}")
+    run_command([args.cmake, "--build", f"build/{args.preset}", "--config", args.config])
 
 
 def unit_test_cpp(args: Any):
-    out = run_command(f"{args.bin_dir}/sgl_tests -r=console,junit")
+    out = run_command([f"{args.bin_dir}/sgl_tests", "-r=console,junit"])
     # doctest outputs both regular output and junit xml report on stdout
     # filter out regular output and write remaining to junit xml file
     report = "\n".join(filter(lambda line: line.strip().startswith("<"), out.splitlines()))
@@ -139,28 +145,28 @@ def typing_check_python(args: Any):
 def unit_test_python(args: Any):
     env = get_python_env()
     os.makedirs("reports", exist_ok=True)
-    cmd = "pytest slangpy/tests -ra --junit-xml=reports/pytest-junit.xml"
+    cmd = ["pytest", "slangpy/tests", "-ra", "--junit-xml=reports/pytest-junit.xml"]
     if args.parallel:
-        cmd += " -n auto --maxprocesses=4"
+        cmd += ["-n", "auto", "--maxprocesses=4"]
     run_command(cmd, env=env)
 
 
 def test_examples(args: Any):
     env = get_python_env()
-    cmd = "pytest samples/tests -vra"
+    cmd = ["pytest", "samples/tests", "-vra"]
     if args.parallel:
-        cmd += " -n auto --maxprocesses=4"
+        cmd += ["-n", "auto", "--maxprocesses=4"]
     run_command(cmd, env=env)
 
 
 def benchmark_python(args: Any):
     env = get_python_env()
-    cmd = "pytest slangpy/benchmarks -ra"
+    cmd = ["pytest", "slangpy/benchmarks", "-ra"]
     if args.mongodb_connection_string:
-        cmd += " --upload-benchmark-report"
-        cmd += f" --mongodb-connection-string={args.mongodb_connection_string}"
+        cmd += ["--upload-benchmark-report"]
+        cmd += ["--mongodb-connection-string", args.mongodb_connection_string]
         if args.mongodb_database_name:
-            cmd += f" --mongodb-database-name={args.mongodb_database_name}"
+            cmd += ["--mongodb-database-name", args.mongodb_database_name]
     run_command(cmd, env=env)
 
 
@@ -168,7 +174,7 @@ def coverage_report(args: Any):
     if not "coverage" in args.flags:
         print("Coverage flag not set, skipping coverage report.")
     os.makedirs("reports", exist_ok=True)
-    run_command(f"gcovr -r . -f src/sgl --html reports/coverage.html")
+    run_command(["gcovr", "-r", ".", "-f", "src/sgl", "--html", "reports/coverage.html"])
 
 
 def main():
