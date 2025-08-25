@@ -199,7 +199,7 @@ class Module:
             return None
         return child.as_func()
 
-    def relink_if_missing(self, link: list[Union["Module", SlangModule]]):
+    def relink_if_different(self, link: list[Union["Module", SlangModule]]):
         """
         Relink the program if the new link is different from the existing link.
         """
