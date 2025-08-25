@@ -82,7 +82,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
     title = {SlangPy},
     author = {Simon Kallweit and Chris Cummings and Benedikt Bitterli and Sai Bangaru and Yong He},
     note = {https://github.com/shader-slang/slangpy},
-    version = {0.33.0},
+    version = {0.33.1},
     year = 2025
 }
 ```
