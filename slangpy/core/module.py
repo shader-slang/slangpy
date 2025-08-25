@@ -61,17 +61,20 @@ class Module:
         #: The slangpy device module.
         self.slangpy_device_module = device_module.session.load_module("slangpy")
 
+        # Extract linked modules
+        self.link = [x.module if isinstance(x, Module) else x for x in link]
+        self.link.sort(key=id)
+
         #: Reflection / layout information for the module.
         # Link the user- and device module together so we can reflect combined types
         # This should be solved by the combined object API in the future
-        module_list = [self.slangpy_device_module, self.device_module]
+        module_list = [self.slangpy_device_module, self.device_module] + self.link
         combined_program = device_module.session.link_program(module_list, [])
         self.layout = SlangProgramLayout(combined_program.layout)
 
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, "DispatchData"] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
-        self.link = [x.module if isinstance(x, Module) else x for x in link]
         self.logger: Optional[Logger] = None
 
         self._attr_cache: dict[str, Union[Function, Struct]] = {}
@@ -196,12 +199,37 @@ class Module:
             return None
         return child.as_func()
 
+    def relink_if_missing(self, link: list[Union["Module", SlangModule]]):
+        """
+        Relink the program if the new link is different from the existing link.
+        """
+
+        # Create a new list of modules to link and compare with the current one
+        new_link = [x.module if isinstance(x, Module) else x for x in link]
+        new_link.sort(key=id)
+        if self.link == new_link:
+            return
+
+        self.link = new_link
+
+        # If different, we relink and clear the caches:
+        # Relink combined program
+        module_list = [self.slangpy_device_module, self.device_module] + self.link
+        combined_program = self.device_module.session.link_program(module_list, [])
+        self.layout.on_hot_reload(combined_program.layout)
+
+        # Clear all caches
+        self.call_data_cache = CallDataCache()
+        self.dispatch_data_cache = {}
+        self.kernel_cache = {}
+        self._attr_cache = {}
+
     def on_hot_reload(self):
         """
         Called by device when the module is hot reloaded.
         """
         # Relink combined program
-        module_list = [self.slangpy_device_module, self.device_module]
+        module_list = [self.slangpy_device_module, self.device_module] + self.link
         combined_program = self.device_module.session.link_program(module_list, [])
         self.layout.on_hot_reload(combined_program.layout)
 
