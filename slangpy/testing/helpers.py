@@ -57,17 +57,7 @@ def test_id(request: Any):
     return hashlib.sha256(request.node.nodeid.encode()).hexdigest()[:16]
 
 
-def start_session():
-    """Start a new test session. Typically called from pytest_sessionstart."""
-
-    # pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
-    # when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
-    spy.ConsoleLoggerOutput.IGNORE_PRINT_EXCEPTION = True
-
-
-def finish_session():
-    """Finish the current test session. Typically called from pytest_sessionfinish."""
-
+def close_all_devices():
     # After all tests finished, close remaining devices. This ensures they're
     # cleaned up before pytorch, avoiding crashes for devices that share context.
 
@@ -85,14 +75,7 @@ def finish_session():
         device.close()
 
 
-def setup_test():
-    """Setup a new test. Typically called from pytest_runtest_setup."""
-    pass
-
-
-def teardown_test():
-    """Teardown the current test. Typically called from pytest_runtest_teardown."""
-
+def close_leaked_devices():
     # Ensure any devices that aren't part of the device cache are cleaned up.
     for device in Device.get_created_devices():
         if device.desc.label.startswith("cached-"):

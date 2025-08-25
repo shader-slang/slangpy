@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import pytest
+pytest_plugins = "slangpy.testing.plugin"
 
-from slangpy.testing import helpers
+import pytest
 
 from bench.table import display
 from bench.report import BenchmarkReport, generate_report, write_report, upload_report
@@ -10,13 +10,7 @@ from bench.report import BenchmarkReport, generate_report, write_report, upload_
 from typing import Any
 
 
-def pytest_sessionstart(session: pytest.Session):
-    helpers.start_session()
-
-
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
-    helpers.finish_session()
-
     # Generate benchmark report
     benchmark_reports: list[BenchmarkReport] = session.config._benchmark_reports  # type: ignore
     report = generate_report(benchmark_reports)
@@ -33,14 +27,6 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
         connection_string = session.config.getoption("--mongodb-connection-string")
         database_name = session.config.getoption("--mongodb-database-name")
         upload_report(report, connection_string, database_name)
-
-
-def pytest_runtest_setup(item: Any):
-    helpers.setup_test()
-
-
-def pytest_runtest_teardown(item: Any, nextitem: Any):
-    helpers.teardown_test()
 
 
 def pytest_addoption(parser: pytest.Parser):
