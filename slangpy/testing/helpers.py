@@ -41,7 +41,7 @@ elif sys.platform == "darwin":
 else:
     raise RuntimeError("Unsupported platform")
 
-DEVICE_CACHE: dict[tuple[DeviceType, tuple[Path, ...], bool], Device] = {}
+DEVICE_CACHE: dict[tuple[DeviceType, tuple[Path, ...], tuple[NativeHandle, ...], bool], Device] = {}
 
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
@@ -116,12 +116,6 @@ def get_device(
             "Metal device does not support parameter blocks (requires argument buffer tier 2)"
         )
 
-    if existing_device_handles is not None and use_cache:
-        raise ValueError(
-            "Cannot use existing_device_handles with caching enabled. "
-            "Please set use_cache=False if you want to use existing_device_handles."
-        )
-
     selected_adaptor_luid = None
 
     # This lets you force tests to use a specific GPU locally.
@@ -144,11 +138,21 @@ def get_device(
             label += "-cuda-interop"
 
     # Use directory from caller module as the shader search path.
-    caller_module_path = Path(inspect.getfile(sys._getframe(1))).parent
-    print(caller_module_path)
+    caller_module_path: Optional[Path] = None
+    stack_index = 1
+    while caller_module_path == None:
+        if Path(inspect.getfile(sys._getframe(stack_index))) != Path(__file__):
+            caller_module_path = Path(inspect.getfile(sys._getframe(stack_index))).parent
+        stack_index += 1
     include_paths = [caller_module_path, SLANG_PATH]
 
-    cache_key = (type, tuple(include_paths), cuda_interop)
+    cache_key = (
+        type,
+        tuple(include_paths),
+        tuple(existing_device_handles) if existing_device_handles else (),
+        cuda_interop,
+    )
+
     if use_cache and cache_key in DEVICE_CACHE:
         return DEVICE_CACHE[cache_key]
     device = Device(
@@ -184,7 +188,7 @@ TORCH_DEVICES: dict[str, Device] = {}
 
 # Helper that gets a device that wraps the current torch cuda context.
 # This is useful for testing the torch integration.
-def get_torch_device(type: DeviceType) -> Device:
+def get_torch_device(type: DeviceType, use_cache: bool = True) -> Device:
     import torch
 
     # For testing, comment this in to disable backwards passes running on other threads
@@ -194,20 +198,13 @@ def get_torch_device(type: DeviceType) -> Device:
     torch.cuda.current_device()
     torch.cuda.current_stream()
 
-    id = f"cached-torch-{torch.cuda.current_device()}-{type}"
-    if id in TORCH_DEVICES:
-        return TORCH_DEVICES[id]
-
     handles = spy.get_cuda_current_context_native_handles()
-    device = get_device(
+    return get_device(
         type,
-        use_cache=False,
+        use_cache=use_cache,
         existing_device_handles=handles,
         cuda_interop=True,
-        label=id + f"-{handles[1]}",
     )
-    TORCH_DEVICES[id] = device
-    return device
 
 
 # Helper that creates a module from source (if not already loaded) and returns
