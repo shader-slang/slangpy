@@ -865,7 +865,9 @@ void buffer_to_ptr(int idx, StructuredBuffer<int> src, int* dst) {
     res = dst.to_numpy().view(np.int32)
 
     if sync_type == "none" and device_type in [DeviceType.vulkan, DeviceType.d3d12]:
-        assert not np.array_equal(res, rand_ints), f"Expected {rand_ints}, got {res}"
+        # This is testing for a race-condition, which is not deterministic!
+        # assert not np.array_equal(res, rand_ints), f"Expected {rand_ints}, got {res}"
+        pass
     else:
         assert np.array_equal(res, rand_ints), f"Expected {rand_ints}, got {res}"
 
