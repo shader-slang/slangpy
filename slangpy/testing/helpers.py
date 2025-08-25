@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence, Union, cast
 from os import PathLike
+import inspect
 
 import pytest
 import numpy as np
@@ -42,7 +43,7 @@ elif sys.platform == "darwin":
 else:
     raise RuntimeError("Unsupported platform")
 
-DEVICE_CACHE: dict[tuple[DeviceType, bool], Device] = {}
+DEVICE_CACHE: dict[tuple[DeviceType, tuple[Path, ...], bool], Device] = {}
 
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
@@ -147,7 +148,12 @@ def get_device(
         if cuda_interop:
             label += "-cuda-interop"
 
-    cache_key = (type, cuda_interop)
+    # Use directory from caller module as the shader search path.
+    caller_module_path = Path(inspect.getfile(sys._getframe(1))).parent
+    print(caller_module_path)
+    include_paths = [caller_module_path, SLANG_PATH]
+
+    cache_key = (type, tuple(include_paths), cuda_interop)
     if use_cache and cache_key in DEVICE_CACHE:
         return DEVICE_CACHE[cache_key]
     device = Device(
@@ -156,7 +162,7 @@ def get_device(
         enable_debug_layers=True,
         compiler_options=SlangCompilerOptions(
             {
-                "include_paths": [*SHADER_INCLUDE_PATHS, SLANG_PATH],
+                "include_paths": include_paths,
                 "debug_info": SlangDebugInfoLevel.standard,
             }
         ),
@@ -331,7 +337,7 @@ def dispatch_compute(
     if shader_model > device.supported_shader_model:
         pytest.skip(f"Shader model {str(shader_model)} not supported")
 
-    compiler_options["include_paths"] = SHADER_INCLUDE_PATHS
+    compiler_options["include_paths"] = device.slang_session.desc.compiler_options.include_paths
     compiler_options["shader_model"] = shader_model
     compiler_options["defines"] = defines
     compiler_options["debug_info"] = spy.SlangDebugInfoLevel.standard

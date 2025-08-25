@@ -10,7 +10,7 @@ from slangpy.testing import helpers
 def test_buffer_from_resource_type_layout(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
 
-    module = device.load_module("device/test_buffer_from_resource_type_layout.slang")
+    module = device.load_module("test_buffer_from_resource_type_layout.slang")
     program = device.link_program(
         modules=[module], entry_points=[module.entry_point("compute_main")]
     )

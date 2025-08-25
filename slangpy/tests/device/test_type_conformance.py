@@ -6,15 +6,15 @@ import numpy as np
 import slangpy as spy
 from slangpy.testing import helpers
 
-from typing import Sequence
+from typing import Sequence, Union
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_type_conformance(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
-    def run(conformances: Sequence[tuple[str | int, ...]]):
-        module = device.load_module("device/test_type_conformance.slang")
+    def run(conformances: Sequence[tuple[Union[str, int], ...]]):
+        module = device.load_module("test_type_conformance.slang")
         entry_point = module.entry_point("compute_main", type_conformances=conformances)  # type: ignore (TYPINGTODO: type_conformances has implicit conversion)
         program = device.link_program(modules=[module], entry_points=[entry_point])
         kernel = device.create_compute_kernel(program)

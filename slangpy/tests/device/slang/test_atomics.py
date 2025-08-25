@@ -29,7 +29,7 @@ def test_buffer_add_f16(device_type: spy.DeviceType):
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path="device/slang/test_atomics.slang",
+        path="test_atomics.slang",
         entry_point="test_buffer_add_f16",
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
@@ -59,7 +59,7 @@ def test_buffer_add_f16x2(device_type: spy.DeviceType):
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path="device/slang/test_atomics.slang",
+        path="test_atomics.slang",
         entry_point="test_buffer_add_f16x2",
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
@@ -85,7 +85,7 @@ def test_buffer_add_f32(device_type: spy.DeviceType):
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path="device/slang/test_atomics.slang",
+        path="test_atomics.slang",
         entry_point="test_buffer_add_f32",
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
@@ -111,7 +111,7 @@ def test_buffer_add_u64(device_type: spy.DeviceType):
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path="device/slang/test_atomics.slang",
+        path="test_atomics.slang",
         entry_point="test_buffer_add_u64",
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
@@ -137,7 +137,7 @@ def test_buffer_add_i64(device_type: spy.DeviceType):
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path="device/slang/test_atomics.slang",
+        path="test_atomics.slang",
         entry_point="test_buffer_add_i64",
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
@@ -179,7 +179,7 @@ def test_texture_add_f32(device_type: spy.DeviceType, dimension: int):
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path="device/slang/test_atomics.slang",
+        path="test_atomics.slang",
         entry_point=f"test_texture_add_f32_{dimension}d",
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={

@@ -21,7 +21,7 @@ def test_cast_float16(device_type: spy.DeviceType):
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path="device/slang/test_cast_float16.slang",
+        path="test_cast_float16.slang",
         entry_point="compute_main",
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={

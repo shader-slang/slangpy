@@ -12,7 +12,7 @@ def test_print(device_type: spy.DeviceType):
     device = spy.Device(type=device_type, enable_print=True, label=f"print-{device_type.name}")
     helpers.dispatch_compute(
         device=device,
-        path="device/test_print.slang",
+        path=Path(__file__).parent / "test_print.slang",
         entry_point="compute_main",
         thread_count=[1, 1, 1],
     )

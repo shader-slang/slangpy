@@ -241,7 +241,7 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
 
     device = helpers.get_device(type=device_type)
 
-    program = device.load_program("device/test_shader_cursor.slang", ["compute_main"])
+    program = device.load_program("test_shader_cursor.slang", ["compute_main"])
     kernel = device.create_compute_kernel(program)
 
     result_buffer = device.create_buffer(

@@ -30,7 +30,7 @@ def test_float16(device_type: spy.DeviceType, shader_model: spy.ShaderModel, vie
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path="device/slang/test_float16.slang",
+        path="test_float16.slang",
         entry_point=f"main_{view}",
         shader_model=shader_model,
         thread_count=[ELEMENT_COUNT, 1, 1],

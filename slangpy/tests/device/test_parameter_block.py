@@ -23,7 +23,7 @@ def test_parameter_block(device_type: spy.DeviceType):
         pytest.skip("Parameter block feature not supported on this device.")
 
     # Load the shader program
-    program = device.load_program("device/test_parameter_block.slang", ["computeMain"])
+    program = device.load_program("test_parameter_block.slang", ["computeMain"])
     kernel = device.create_compute_kernel(program)
 
     # Create a buffer for the output

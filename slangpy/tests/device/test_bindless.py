@@ -13,7 +13,7 @@ def test_bindless_texture(device_type: spy.DeviceType):
     if not device.has_feature(spy.Feature.bindless):
         pytest.skip("Bindless not supported on this device.")
 
-    module = device.load_module("device/test_bindless_texture.slang")
+    module = device.load_module("test_bindless_texture.slang")
     program = device.link_program(
         modules=[module], entry_points=[module.entry_point("compute_main")]
     )
@@ -82,7 +82,7 @@ def test_bindless_buffer(device_type: spy.DeviceType):
     if not device.has_feature(spy.Feature.bindless):
         pytest.skip("Bindless not supported on this device.")
 
-    module = device.load_module("device/test_bindless_buffer.slang")
+    module = device.load_module("test_bindless_buffer.slang")
     program = device.link_program(
         modules=[module], entry_points=[module.entry_point("compute_main")]
     )

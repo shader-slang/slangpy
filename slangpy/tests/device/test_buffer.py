@@ -116,7 +116,7 @@ def test_buffer(device_type: spy.DeviceType, type: str, size_MB: int):
     )
 
     copy_kernel = device.create_compute_kernel(
-        device.load_program("device/test_buffer.slang", ["copy_" + type])
+        device.load_program("test_buffer.slang", ["copy_" + type])
     )
 
     for offset in check_offsets:

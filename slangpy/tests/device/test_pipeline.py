@@ -31,10 +31,10 @@ class PipelineTestContext:
         )
 
         self.clear_kernel = self.device.create_compute_kernel(
-            self.device.load_program("device/test_pipeline_utils.slang", ["clear"])
+            self.device.load_program("test_pipeline_utils.slang", ["clear"])
         )
         self.count_kernel = self.device.create_compute_kernel(
-            self.device.load_program("device/test_pipeline_utils.slang", ["count"])
+            self.device.load_program("test_pipeline_utils.slang", ["count"])
         )
 
         self.clear()
@@ -96,7 +96,7 @@ def test_clear_and_count(device_type: spy.DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_compute_set_square(device_type: spy.DeviceType):
     ctx = PipelineTestContext(device_type)
-    prog = ctx.device.load_program("device/test_pipeline_utils.slang", ["setcolor"])
+    prog = ctx.device.load_program("test_pipeline_utils.slang", ["setcolor"])
     set_kernel = ctx.device.create_compute_kernel(prog)
 
     pos = spy.int2(32, 32)
@@ -116,7 +116,7 @@ def test_compute_set_square(device_type: spy.DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_compute_set_and_overwrite(device_type: spy.DeviceType):
     ctx = PipelineTestContext(device_type)
-    prog = ctx.device.load_program("device/test_pipeline_utils.slang", ["setcolor"])
+    prog = ctx.device.load_program("test_pipeline_utils.slang", ["setcolor"])
     set_kernel = ctx.device.create_compute_kernel(prog)
 
     pos1 = spy.int2(0, 0)
@@ -165,7 +165,7 @@ class GfxContext:
 
         self.ctx = ctx
         self.program = ctx.device.load_program(
-            "device/test_pipeline_raster.slang", ["vertex_main", "fragment_main"]
+            "test_pipeline_raster.slang", ["vertex_main", "fragment_main"]
         )
         self.vertex_buffer, self.index_buffer, self.input_layout = ctx.create_quad_mesh()
 
@@ -678,7 +678,7 @@ class RayContext:
             raise ValueError(f"Unknown mode {mode}")
 
     def dispatch_ray_grid_compute(self, tlas: spy.AccelerationStructure):
-        program = self.ctx.device.load_program("device/test_pipeline_rt.slang", ["raygrid"])
+        program = self.ctx.device.load_program("test_pipeline_rt.slang", ["raygrid"])
         kernel = self.ctx.device.create_compute_kernel(program)
         kernel.dispatch(
             thread_count=[
@@ -695,7 +695,7 @@ class RayContext:
 
     def dispatch_ray_grid_rtp(self, tlas: spy.AccelerationStructure):
         program = self.ctx.device.load_program(
-            "device/test_pipeline_rt.slang", ["rt_ray_gen", "rt_miss", "rt_closest_hit"]
+            "test_pipeline_rt.slang", ["rt_ray_gen", "rt_miss", "rt_closest_hit"]
         )
         pipeline = self.ctx.device.create_ray_tracing_pipeline(
             program=program,

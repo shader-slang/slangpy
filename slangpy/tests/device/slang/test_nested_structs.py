@@ -11,7 +11,7 @@ from slangpy.testing import helpers
 def test_nested_structs(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
 
-    program = device.load_program("device/slang/test_nested_structs.slang", ["compute_main"])
+    program = device.load_program("test_nested_structs.slang", ["compute_main"])
     kernel = device.create_compute_kernel(program)
 
     result_buffer = device.create_buffer(

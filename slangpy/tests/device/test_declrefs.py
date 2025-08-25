@@ -2,6 +2,7 @@
 
 import pytest
 from deepdiff.diff import DeepDiff
+from pathlib import Path
 
 import slangpy as spy
 from slangpy.testing import helpers
@@ -445,7 +446,7 @@ def test_ast_cursor_hashgrid(device_type: spy.DeviceType):
 
     session = device.create_slang_session(
         compiler_options={
-            "include_paths": helpers.SHADER_INCLUDE_PATHS,
+            "include_paths": [Path(__file__).parent],
             "defines": {
                 "NUM_LATENT_DIMS": "8",
                 "NUM_HASHGRID_LEVELS": "4",
@@ -455,7 +456,7 @@ def test_ast_cursor_hashgrid(device_type: spy.DeviceType):
         }
     )
 
-    module = session.load_module("device/test_declrefs_falcorhashgrid.slang")
+    module = session.load_module("test_declrefs_falcorhashgrid.slang")
 
     # TODO: Setup when generic reflection works.
 
@@ -794,7 +795,7 @@ def test_ast_cursor_hashgrid_nogenerics(device_type: spy.DeviceType):
 
     device = helpers.get_device(type=device_type)
 
-    module = device.load_module("device/test_declrefs_falcorhashgrid_nogenerics.slang")
+    module = device.load_module("test_declrefs_falcorhashgrid_nogenerics.slang")
 
     #  print_ast(module.module_decl, device)
     dump = ast_to_dict(module.module_decl, device)

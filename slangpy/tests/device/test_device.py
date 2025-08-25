@@ -111,7 +111,7 @@ def test_hot_reload_event(device_type: spy.DeviceType):
 
     # Load a shader
     program = device.load_program(
-        module_name="device/test_shader_foo.slang",
+        module_name="test_shader_foo.slang",
         entry_point_names=["main_a"],
     )
 

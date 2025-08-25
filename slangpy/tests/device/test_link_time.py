@@ -104,7 +104,7 @@ def test_link_time_constants(device_type: spy.DeviceType, value: int):
     )
 
     program = device.load_program(
-        module_name="device/test_link_time_constants.slang",
+        module_name="test_link_time_constants.slang",
         entry_point_names=["compute_main"],
         additional_source=constants,
     )
@@ -133,13 +133,13 @@ def test_link_time_type(device_type: spy.DeviceType, op: str):
 
     constants = "\n".join(
         [
-            'import "device/test_link_time_type_binary_op.slang";',
+            'import "test_link_time_type_binary_op.slang";',
             f"export struct BINARY_OP : IBinaryOp = {op};",
         ]
     )
 
     program = device.load_program(
-        module_name="device/test_link_time_type.slang",
+        module_name="test_link_time_type.slang",
         entry_point_names=["compute_main"],
         additional_source=constants,
     )
