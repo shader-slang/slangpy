@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import pytest
-import helpers
-import slangpy as spy
 import numpy as np
+
 from bench import benchmark, BenchmarkFixture  # type: ignore
+
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -63,4 +66,4 @@ def test_tensor_sum_indirect(device_type: spy.DeviceType, count: int, benchmark:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "-s", "-k", "test_tensor_add"])
+    pytest.main([__file__, "-v", "-s"])
