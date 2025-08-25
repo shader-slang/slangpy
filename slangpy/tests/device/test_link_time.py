@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import sys
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
-from sglhelpers import test_id  # type: ignore (pytest fixture)
+import slangpy as spy
+from slangpy.testing import helpers
+from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
 
 
 # Before running more in depth link time tests below, this test simply
@@ -107,7 +104,7 @@ def test_link_time_constants(device_type: spy.DeviceType, value: int):
     )
 
     program = device.load_program(
-        module_name="test_link_time_constants.slang",
+        module_name="device/test_link_time_constants.slang",
         entry_point_names=["compute_main"],
         additional_source=constants,
     )
@@ -136,13 +133,13 @@ def test_link_time_type(device_type: spy.DeviceType, op: str):
 
     constants = "\n".join(
         [
-            'import "test_link_time_type_binary_op.slang";',
+            'import "device/test_link_time_type_binary_op.slang";',
             f"export struct BINARY_OP : IBinaryOp = {op};",
         ]
     )
 
     program = device.load_program(
-        module_name="test_link_time_type.slang",
+        module_name="device/test_link_time_type.slang",
         entry_point_names=["compute_main"],
         additional_source=constants,
     )

@@ -1,15 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import slangpy as spy
-import sys
-from pathlib import Path
-
 import numpy as np
 import numpy.typing as npt
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 # Generate random data for a texture with a given array size and mip level count.

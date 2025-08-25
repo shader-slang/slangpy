@@ -1,13 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import sys
 import pytest
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 ELEMENT_COUNT = 1024
 
@@ -24,7 +21,7 @@ def test_cast_float16(device_type: spy.DeviceType):
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path=Path(__file__).parent / "test_cast_float16.slang",
+        path="device/slang/test_cast_float16.slang",
         entry_point="compute_main",
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={

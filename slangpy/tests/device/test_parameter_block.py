@@ -2,12 +2,9 @@
 
 import pytest
 import numpy as np
-import slangpy as spy
-import sys
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 # The shader code is in test_parameterBlock.slang, fill in the parameter block
@@ -26,7 +23,7 @@ def test_parameter_block(device_type: spy.DeviceType):
         pytest.skip("Parameter block feature not supported on this device.")
 
     # Load the shader program
-    program = device.load_program("test_parameter_block.slang", ["computeMain"])
+    program = device.load_program("device/test_parameter_block.slang", ["computeMain"])
     kernel = device.create_compute_kernel(program)
 
     # Create a buffer for the output

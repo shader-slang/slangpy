@@ -4,18 +4,21 @@ import hashlib
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional, Sequence, cast
+from typing import Any, Optional, Sequence, Union, cast
+from os import PathLike
 
 import pytest
 import numpy as np
 
 from slangpy.core.calldata import SLANG_PATH
 
-import slangpy
-from slangpy import Module
+import slangpy as spy
 from slangpy import (
     Device,
     DeviceType,
+    Buffer,
+    Texture,
+    Module,
     SlangCompilerOptions,
     SlangDebugInfoLevel,
     TypeReflection,
@@ -44,8 +47,8 @@ DEVICE_CACHE: dict[tuple[DeviceType, bool], Device] = {}
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
 # Always dump stuff when testing
-slangpy.set_dump_generated_shaders(True)
-# slangpy.set_dump_slang_intermediates(True)
+spy.set_dump_generated_shaders(True)
+# spy.set_dump_slang_intermediates(True)
 
 # Returns a unique random 16 character string for every variant of every test.
 
@@ -63,7 +66,7 @@ def start_session(shader_include_paths: list[Path] = []):
 
     # pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
     # when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
-    slangpy.ConsoleLoggerOutput.IGNORE_PRINT_EXCEPTION = True
+    spy.ConsoleLoggerOutput.IGNORE_PRINT_EXCEPTION = True
 
 
 def finish_session():
@@ -81,7 +84,7 @@ def finish_session():
         pass
 
     # Close all devices that were created during the tests.
-    for device in slangpy.Device.get_created_devices():
+    for device in Device.get_created_devices():
         print(f"Closing device on shutdown {device.desc.label}")
         device.close()
 
@@ -95,7 +98,7 @@ def teardown_test():
     """Teardown the current test. Typically called from pytest_runtest_teardown."""
 
     # Ensure any devices that aren't part of the device cache are cleaned up.
-    for device in slangpy.Device.get_created_devices():
+    for device in Device.get_created_devices():
         if device.desc.label.startswith("cached-"):
             continue
         print(f"Closing leaked device {device.desc.label}")
@@ -164,7 +167,7 @@ def get_device(
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
     if type == DeviceType.metal:
-        METAL_PARAMETER_BLOCK_SUPPORT = device.has_feature(slangpy.Feature.parameter_block)
+        METAL_PARAMETER_BLOCK_SUPPORT = device.has_feature(spy.Feature.parameter_block)
         if METAL_PARAMETER_BLOCK_SUPPORT == False:
             pytest.skip(
                 "Metal device does not support parameter blocks (requires argument buffer tier 2)"
@@ -194,7 +197,7 @@ def get_torch_device(type: DeviceType) -> Device:
     if id in TORCH_DEVICES:
         return TORCH_DEVICES[id]
 
-    handles = slangpy.get_cuda_current_context_native_handles()
+    handles = spy.get_cuda_current_context_native_handles()
     device = get_device(
         type,
         use_cache=False,
@@ -213,11 +216,11 @@ def create_module(
     module_source: str,
     link: list[Any] = [],
     options: dict[str, Any] = {},
-) -> slangpy.Module:
+) -> Module:
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
-    spy_module = slangpy.Module(module, link=link, options=options)
+    spy_module = Module(module, link=link, options=options)
     spy_module.logger = Logger(level=LogLevel.info)
     return spy_module
 
@@ -233,7 +236,7 @@ def create_function_from_module(
     module_source: str,
     link: list[Any] = [],
     options: dict[str, Any] = {},
-) -> slangpy.Function:
+) -> Function:
 
     if not 'import "slangpy";' in module_source:
         module_source = 'import "slangpy";\n' + module_source
@@ -298,3 +301,91 @@ def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count:
             cursor[i].write(buffer_data)
 
     cursor.apply()
+
+
+class Context:
+    buffers: dict[str, Buffer]
+    textures: dict[str, Texture]
+
+    def __init__(self):
+        super().__init__()
+        self.buffers = {}
+        self.textures = {}
+
+
+def dispatch_compute(
+    device: Device,
+    path: Union[str, PathLike[str]],
+    entry_point: str,
+    thread_count: list[int],
+    buffers: dict[str, Any] = {},
+    textures: dict[str, Texture] = {},
+    defines: dict[str, str] = {},
+    compiler_options: "spy.SlangCompilerOptionsDict" = {},
+    shader_model: spy.ShaderModel = spy.ShaderModel.sm_6_6,
+) -> Context:
+    # TODO(slang-rhi): Metal and CUDA don't support shader models.
+    # we should move away from this concept and check features instead.
+    if device.info.type == spy.DeviceType.metal or device.info.type == spy.DeviceType.cuda:
+        shader_model = spy.ShaderModel.sm_6_0
+    if shader_model > device.supported_shader_model:
+        pytest.skip(f"Shader model {str(shader_model)} not supported")
+
+    compiler_options["include_paths"] = SHADER_INCLUDE_PATHS
+    compiler_options["shader_model"] = shader_model
+    compiler_options["defines"] = defines
+    compiler_options["debug_info"] = spy.SlangDebugInfoLevel.standard
+
+    session = device.create_slang_session(compiler_options)
+    program = session.load_program(module_name=str(path), entry_point_names=[entry_point])
+    kernel = device.create_compute_kernel(program)
+
+    ctx = Context()
+    vars = {}
+    params = {}
+
+    for name, desc in buffers.items():
+        is_global = kernel.reflection.find_field(name).is_valid()
+
+        if isinstance(desc, spy.Buffer):
+            buffer = desc
+        else:
+            args: Any = {
+                "usage": spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+            }
+            if "size" in desc:
+                args["size"] = desc["size"]
+            if "element_count" in desc:
+                args["element_count"] = desc["element_count"]
+                args["resource_type_layout"] = (
+                    kernel.reflection[name] if is_global else kernel.reflection[entry_point][name]
+                )
+            if "data" in desc:
+                args["data"] = desc["data"]
+
+            buffer = device.create_buffer(**args)
+
+        ctx.buffers[name] = buffer
+
+        if is_global:
+            vars[name] = buffer
+        else:
+            params[name] = buffer
+
+    for name, desc in textures.items():
+        if isinstance(desc, spy.Texture):
+            texture = desc
+        else:
+            raise NotImplementedError("Texture creation from dict not implemented")
+
+        ctx.textures[name] = texture
+
+        is_global = kernel.reflection.find_field(name).is_valid()
+        if is_global:
+            vars[name] = texture
+        else:
+            params[name] = texture
+
+    kernel.dispatch(thread_count=thread_count, vars=vars, **params)
+
+    return ctx

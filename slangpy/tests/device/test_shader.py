@@ -2,12 +2,10 @@
 
 import pytest
 import sys
-import slangpy as spy
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
-from sglhelpers import test_id  # type: ignore (pytest fixture)
+import slangpy as spy
+from slangpy.testing import helpers
+from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
 
 # TODO: Due to a bug in "Apple clang", the exception binding in nanobind
 # raises RuntimeError instead of SlangCompileError
@@ -19,15 +17,17 @@ def test_load_module(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Loading non-existing module must raise an exception
-    with pytest.raises(Exception, match='Failed to load slang module "does_not_exist.slang"'):
-        device.load_module("does_not_exist.slang")
+    with pytest.raises(
+        Exception, match='Failed to load slang module "device/does_not_exist.slang"'
+    ):
+        device.load_module("device/does_not_exist.slang")
 
     # Compilation errors must raise an exception
     with pytest.raises(SlangCompileError, match="unexpected end of file, expected identifier"):
-        device.load_module("test_shader_compile_error.slang")
+        device.load_module("device/test_shader_compile_error.slang")
 
     # Loading a valid module must succeed
-    module = device.load_module("test_shader_foo.slang")
+    module = device.load_module("device/test_shader_foo.slang")
     assert len(module.entry_points) == 4
     main_a = module.entry_point("main_a")
     assert main_a.name == "main_a"
@@ -88,31 +88,33 @@ def test_load_program(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Loading non-existing module must raise an exception
-    with pytest.raises(Exception, match='Failed to load slang module "does_not_exist.slang"'):
+    with pytest.raises(
+        Exception, match='Failed to load slang module "device/does_not_exist.slang"'
+    ):
         device.load_program(
-            module_name="does_not_exist.slang",
+            module_name="device/does_not_exist.slang",
             entry_point_names=["main"],
         )
 
     # Loading non-existing entry point must raise an exception
     with pytest.raises(Exception, match='Entry point "does_not_exist" not found'):
         device.load_program(
-            module_name="test_print.slang",
+            module_name="device/test_print.slang",
             entry_point_names=["does_not_exist"],
         )
 
     # Compilation errors must raise an exception
     with pytest.raises(SlangCompileError, match="unexpected end of file, expected identifier"):
         device.load_program(
-            module_name="test_shader_compile_error.slang",
+            module_name="device/test_shader_compile_error.slang",
             entry_point_names=["main"],
         )
 
     # Loading valid programs must succeed
-    device.load_program(module_name="test_shader_foo.slang", entry_point_names=["main_a"])
-    device.load_program(module_name="test_shader_foo.slang", entry_point_names=["main_b"])
+    device.load_program(module_name="device/test_shader_foo.slang", entry_point_names=["main_a"])
+    device.load_program(module_name="device/test_shader_foo.slang", entry_point_names=["main_b"])
     device.load_program(
-        module_name="test_shader_foo.slang", entry_point_names=["main_vs", "main_fs"]
+        module_name="device/test_shader_foo.slang", entry_point_names=["main_vs", "main_fs"]
     )
 
 

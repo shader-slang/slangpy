@@ -1,12 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import sys
-import slangpy as spy
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -14,7 +12,7 @@ def test_print(device_type: spy.DeviceType):
     device = spy.Device(type=device_type, enable_print=True, label=f"print-{device_type.name}")
     helpers.dispatch_compute(
         device=device,
-        path=Path(__file__).parent / "test_print.slang",
+        path="device/test_print.slang",
         entry_point="compute_main",
         thread_count=[1, 1, 1],
     )

@@ -1,13 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import sys
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -16,7 +13,7 @@ def test_bindless_texture(device_type: spy.DeviceType):
     if not device.has_feature(spy.Feature.bindless):
         pytest.skip("Bindless not supported on this device.")
 
-    module = device.load_module("test_bindless_texture.slang")
+    module = device.load_module("device/test_bindless_texture.slang")
     program = device.link_program(
         modules=[module], entry_points=[module.entry_point("compute_main")]
     )
@@ -85,7 +82,7 @@ def test_bindless_buffer(device_type: spy.DeviceType):
     if not device.has_feature(spy.Feature.bindless):
         pytest.skip("Bindless not supported on this device.")
 
-    module = device.load_module("test_bindless_buffer.slang")
+    module = device.load_module("device/test_bindless_buffer.slang")
     program = device.link_program(
         modules=[module], entry_points=[module.entry_point("compute_main")]
     )

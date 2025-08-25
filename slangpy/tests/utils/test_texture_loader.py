@@ -1,17 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import slangpy as spy
-from slangpy import TextureLoader, Bitmap, Format, DataStruct, FormatSupport
-import sys
 import numpy as np
 import numpy.typing as npt
 import enum
 from dataclasses import dataclass
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent / "device"))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy import TextureLoader, Bitmap, Format, DataStruct, FormatSupport
+from slangpy.testing import helpers
+
 
 PixelFormat = Bitmap.PixelFormat
 ComponentType = DataStruct.Type

@@ -1,20 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import sys
 import pytest
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_nested_structs(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
 
-    program = device.load_program("slang/test_nested_structs.slang", ["compute_main"])
+    program = device.load_program("device/slang/test_nested_structs.slang", ["compute_main"])
     kernel = device.create_compute_kernel(program)
 
     result_buffer = device.create_buffer(

@@ -1,20 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import numpy as np
-import slangpy as spy
-import sys
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_buffer_from_resource_type_layout(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
 
-    module = device.load_module("test_buffer_from_resource_type_layout.slang")
+    module = device.load_module("device/test_buffer_from_resource_type_layout.slang")
     program = device.link_program(
         modules=[module], entry_points=[module.entry_point("compute_main")]
     )

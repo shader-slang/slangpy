@@ -1,15 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from __future__ import annotations
-from typing import Sequence
 import pytest
-import sys
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
+
+from typing import Sequence
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -17,7 +14,7 @@ def test_type_conformance(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     def run(conformances: Sequence[tuple[str | int, ...]]):
-        module = device.load_module("test_type_conformance.slang")
+        module = device.load_module("device/test_type_conformance.slang")
         entry_point = module.entry_point("compute_main", type_conformances=conformances)  # type: ignore (TYPINGTODO: type_conformances has implicit conversion)
         program = device.link_program(modules=[module], entry_points=[entry_point])
         kernel = device.create_compute_kernel(program)
