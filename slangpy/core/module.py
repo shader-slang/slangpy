@@ -62,8 +62,8 @@ class Module:
         self.slangpy_device_module = device_module.session.load_module("slangpy")
 
         # Extract linked modules
-        self.link = [x.module if isinstance(x, Module) else x for x in link]
-        self.link.sort(key=id)
+        self.link_set = set([x.module if isinstance(x, Module) else x for x in link])
+        self.link = list(self.link_set)
 
         #: Reflection / layout information for the module.
         # Link the user- and device module together so we can reflect combined types
@@ -205,12 +205,12 @@ class Module:
         """
 
         # Create a new list of modules to link and compare with the current one
-        new_link = [x.module if isinstance(x, Module) else x for x in link]
-        new_link.sort(key=id)
-        if self.link == new_link:
+        new_link_set = set([x.module if isinstance(x, Module) else x for x in link])
+        if self.link_set == new_link_set:
             return
 
-        self.link = new_link
+        self.link_set = new_link_set
+        self.link = list(self.link_set)
 
         # If different, we relink and clear the caches:
         # Relink combined program
