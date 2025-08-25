@@ -8,7 +8,7 @@ from typing import Any, Union
 from time import time
 from datetime import datetime
 
-from bench.report import BenchmarkReport
+from .report import BenchmarkReport
 
 
 class BenchmarkFixture:

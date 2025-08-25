@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from bench.report import BenchmarkReport
+from .report import BenchmarkReport
 
 
 def display(benchmark_reports: list[BenchmarkReport]):

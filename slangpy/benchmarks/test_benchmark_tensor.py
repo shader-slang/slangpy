@@ -3,10 +3,9 @@
 import pytest
 import numpy as np
 
-from bench import benchmark, BenchmarkFixture  # type: ignore
-
 import slangpy as spy
 from slangpy.testing import helpers
+from slangpy.testing.benchmark import benchmark, BenchmarkFixture  # type: ignore
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
