@@ -41,7 +41,15 @@ elif sys.platform == "darwin":
 else:
     raise RuntimeError("Unsupported platform")
 
-DEVICE_CACHE: dict[tuple[DeviceType, tuple[Path, ...], tuple[NativeHandle, ...], bool], Device] = {}
+DEVICE_CACHE: dict[
+    tuple[
+        DeviceType,  # device_type
+        tuple[Path, ...],  # include_paths
+        tuple[NativeHandle, ...],  # existing_device_handles
+        bool,  # cuda_interop
+    ],
+    Device,
+] = {}
 
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
