@@ -9,6 +9,10 @@ from .utils import get_project_info, get_machine_info, get_commit_info, to_json,
 
 class BenchmarkReport(TypedDict):
     name: str
+    filename: str
+    function: str
+    params: dict[str, str]
+    meta: dict[str, str]
     timestamp: datetime
     cpu_time: float
     data: list[float]
@@ -27,9 +31,9 @@ class Report(TypedDict):
     benchmarks: list[BenchmarkReport]
 
 
-def generate_report(benchmarks: list[BenchmarkReport]) -> Report:
+def generate_report(timestamp: datetime, benchmarks: list[BenchmarkReport]) -> Report:
     return {
-        "timestamp": datetime.now(),
+        "timestamp": timestamp,
         "project_info": get_project_info(),
         "machine_info": get_machine_info(),
         "commit_info": get_commit_info(),
