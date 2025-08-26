@@ -1,17 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import pytest
 import random
 import numpy as np
-import pytest
 
 from slangpy import DeviceType
 from slangpy.experimental.gridarg import grid
-from . import helpers
 from slangpy.types.buffer import NDBuffer
-
-
-def load_test_module(device_type: DeviceType):
-    device = helpers.get_device(device_type)
-    return
+from slangpy.testing import helpers
 
 
 def grid_test(

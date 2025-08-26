@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import pytest
 import time
 import logging
-from pathlib import Path
-import pytest
-import slangpy as spy
-
 import sys
+from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 try:
     import torch

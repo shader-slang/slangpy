@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import pytest
 
+import pytest
 from slangpy import DeviceType, BufferUsage
-from . import helpers
 from slangpy.types import NDBuffer, Tensor
+from slangpy.testing import helpers
 
 from typing import Any, Union, Type
 
@@ -320,3 +320,7 @@ def test_torch_copy_errors(
         if torch.cuda.is_available():
             tensor = tensor.cuda()
         buffer_view.copy_from_torch(tensor)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

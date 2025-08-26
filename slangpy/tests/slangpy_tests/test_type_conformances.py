@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import pytest
-from slangpy import TypeConformance
 
-from . import helpers
-from slangpy import DeviceType
+import pytest
+
+from slangpy import DeviceType, TypeConformance
+from slangpy.testing import helpers
 
 CONFORMING_MODULE = r"""
 import "slangpy";
@@ -56,4 +56,4 @@ def test_conformance_fail(device_type: DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

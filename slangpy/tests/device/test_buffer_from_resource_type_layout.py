@@ -1,13 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import numpy as np
-import slangpy as spy
-import sys
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

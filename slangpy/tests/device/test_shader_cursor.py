@@ -1,18 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from __future__ import annotations
 import pytest
 import sys
-import slangpy as spy
 import struct
 import numpy as np
 from dataclasses import dataclass
-from typing import Literal, Any, Union, cast
-from numpy.typing import DTypeLike
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
+
+from typing import Literal, Any
+from numpy.typing import DTypeLike
+
 
 INT_MIN = -2147483648
 INT_MAX = 2147483647
@@ -367,4 +366,4 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-vvvs"])
+    pytest.main([__file__, "-v", "-s"])

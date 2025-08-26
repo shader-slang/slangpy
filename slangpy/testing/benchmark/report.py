@@ -4,7 +4,7 @@ from typing import TypedDict, Any
 import json
 from datetime import datetime
 
-from bench.utils import get_project_info, get_machine_info, get_commit_info, to_json, from_json
+from .utils import get_project_info, get_machine_info, get_commit_info, to_json, from_json
 
 
 class BenchmarkReport(TypedDict):

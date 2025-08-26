@@ -4,18 +4,22 @@ import hashlib
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional, Sequence, cast
+from typing import Any, Optional, Sequence, Union, cast
+from os import PathLike
+import inspect
 
 import pytest
 import numpy as np
 
 from slangpy.core.calldata import SLANG_PATH
 
-import slangpy
-from slangpy import Module
+import slangpy as spy
 from slangpy import (
     Device,
     DeviceType,
+    Buffer,
+    Texture,
+    Module,
     SlangCompilerOptions,
     SlangDebugInfoLevel,
     TypeReflection,
@@ -25,8 +29,6 @@ from slangpy import (
 )
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
-
-SHADER_DIR = Path(__file__).parent
 
 if os.environ.get("SLANGPY_DEVICE", None) is not None:
     DEFAULT_DEVICE_TYPES = [DeviceType[os.environ["SLANGPY_DEVICE"]]]
@@ -39,13 +41,22 @@ elif sys.platform == "darwin":
 else:
     raise RuntimeError("Unsupported platform")
 
-DEVICE_CACHE: dict[tuple[DeviceType, bool], Device] = {}
+DEVICE_CACHE: dict[
+    tuple[
+        DeviceType,  # device_type
+        tuple[Path, ...],  # include_paths
+        tuple[NativeHandle, ...],  # existing_device_handles
+        bool,  # cuda_interop
+    ],
+    Device,
+] = {}
 
+USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
 # Always dump stuff when testing
-slangpy.set_dump_generated_shaders(True)
-# slangpy.set_dump_slang_intermediates(True)
+spy.set_dump_generated_shaders(True)
+# spy.set_dump_slang_intermediates(True)
 
 # Returns a unique random 16 character string for every variant of every test.
 
@@ -53,6 +64,31 @@ slangpy.set_dump_generated_shaders(True)
 @pytest.fixture
 def test_id(request: Any):
     return hashlib.sha256(request.node.nodeid.encode()).hexdigest()[:16]
+
+
+def close_all_devices():
+    # After all tests finished, close remaining devices. This ensures they're
+    # cleaned up before pytorch, avoiding crashes for devices that share context.
+
+    global USED_TORCH_DEVICES
+    if USED_TORCH_DEVICES:
+        import torch
+
+        torch.cuda.synchronize()
+
+    # Close all devices that were created during the tests.
+    for device in Device.get_created_devices():
+        print(f"Closing device on shutdown {device.desc.label}")
+        device.close()
+
+
+def close_leaked_devices():
+    # Ensure any devices that aren't part of the device cache are cleaned up.
+    for device in Device.get_created_devices():
+        if device.desc.label.startswith("cached-"):
+            continue
+        print(f"Closing leaked device {device.desc.label}")
+        device.close()
 
 
 # Helper to get device of a given type
@@ -68,12 +104,6 @@ def get_device(
     if type == DeviceType.metal and METAL_PARAMETER_BLOCK_SUPPORT == False:
         pytest.skip(
             "Metal device does not support parameter blocks (requires argument buffer tier 2)"
-        )
-
-    if existing_device_handles is not None and use_cache:
-        raise ValueError(
-            "Cannot use existing_device_handles with caching enabled. "
-            "Please set use_cache=False if you want to use existing_device_handles."
         )
 
     selected_adaptor_luid = None
@@ -97,7 +127,22 @@ def get_device(
         if cuda_interop:
             label += "-cuda-interop"
 
-    cache_key = (type, cuda_interop)
+    # Use directory from caller module as the shader search path.
+    caller_module_path: Optional[Path] = None
+    stack_index = 1
+    while caller_module_path == None:
+        if Path(inspect.getfile(sys._getframe(stack_index))) != Path(__file__):
+            caller_module_path = Path(inspect.getfile(sys._getframe(stack_index))).parent
+        stack_index += 1
+    include_paths = [caller_module_path, SLANG_PATH]
+
+    cache_key = (
+        type,
+        tuple(include_paths),
+        tuple(existing_device_handles) if existing_device_handles else (),
+        cuda_interop,
+    )
+
     if use_cache and cache_key in DEVICE_CACHE:
         return DEVICE_CACHE[cache_key]
     device = Device(
@@ -106,7 +151,7 @@ def get_device(
         enable_debug_layers=True,
         compiler_options=SlangCompilerOptions(
             {
-                "include_paths": [SHADER_DIR, SLANG_PATH],
+                "include_paths": include_paths,
                 "debug_info": SlangDebugInfoLevel.standard,
             }
         ),
@@ -117,7 +162,7 @@ def get_device(
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
     if type == DeviceType.metal:
-        METAL_PARAMETER_BLOCK_SUPPORT = device.has_feature(slangpy.Feature.parameter_block)
+        METAL_PARAMETER_BLOCK_SUPPORT = device.has_feature(spy.Feature.parameter_block)
         if METAL_PARAMETER_BLOCK_SUPPORT == False:
             pytest.skip(
                 "Metal device does not support parameter blocks (requires argument buffer tier 2)"
@@ -128,13 +173,13 @@ def get_device(
     return device
 
 
-TORCH_DEVICES: dict[str, Device] = {}
-
-
 # Helper that gets a device that wraps the current torch cuda context.
 # This is useful for testing the torch integration.
-def get_torch_device(type: DeviceType) -> Device:
+def get_torch_device(type: DeviceType, use_cache: bool = True) -> Device:
     import torch
+
+    global USED_TORCH_DEVICES
+    USED_TORCH_DEVICES = True
 
     # For testing, comment this in to disable backwards passes running on other threads
     torch.autograd.grad_mode.set_multithreading_enabled(False)
@@ -143,20 +188,13 @@ def get_torch_device(type: DeviceType) -> Device:
     torch.cuda.current_device()
     torch.cuda.current_stream()
 
-    id = f"cached-torch-{torch.cuda.current_device()}-{type}"
-    if id in TORCH_DEVICES:
-        return TORCH_DEVICES[id]
-
-    handles = slangpy.get_cuda_current_context_native_handles()
-    device = get_device(
+    handles = spy.get_cuda_current_context_native_handles()
+    return get_device(
         type,
-        use_cache=False,
+        use_cache=use_cache,
         existing_device_handles=handles,
         cuda_interop=True,
-        label=id + f"-{handles[1]}",
     )
-    TORCH_DEVICES[id] = device
-    return device
 
 
 # Helper that creates a module from source (if not already loaded) and returns
@@ -166,11 +204,11 @@ def create_module(
     module_source: str,
     link: list[Any] = [],
     options: dict[str, Any] = {},
-) -> slangpy.Module:
+) -> Module:
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
-    spy_module = slangpy.Module(module, link=link, options=options)
+    spy_module = Module(module, link=link, options=options)
     spy_module.logger = Logger(level=LogLevel.info)
     return spy_module
 
@@ -186,7 +224,7 @@ def create_function_from_module(
     module_source: str,
     link: list[Any] = [],
     options: dict[str, Any] = {},
-) -> slangpy.Function:
+) -> Function:
 
     if not 'import "slangpy";' in module_source:
         module_source = 'import "slangpy";\n' + module_source
@@ -251,3 +289,91 @@ def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count:
             cursor[i].write(buffer_data)
 
     cursor.apply()
+
+
+class Context:
+    buffers: dict[str, Buffer]
+    textures: dict[str, Texture]
+
+    def __init__(self):
+        super().__init__()
+        self.buffers = {}
+        self.textures = {}
+
+
+def dispatch_compute(
+    device: Device,
+    path: Union[str, PathLike[str]],
+    entry_point: str,
+    thread_count: list[int],
+    buffers: dict[str, Any] = {},
+    textures: dict[str, Texture] = {},
+    defines: dict[str, str] = {},
+    compiler_options: "spy.SlangCompilerOptionsDict" = {},
+    shader_model: spy.ShaderModel = spy.ShaderModel.sm_6_6,
+) -> Context:
+    # TODO(slang-rhi): Metal and CUDA don't support shader models.
+    # we should move away from this concept and check features instead.
+    if device.info.type == spy.DeviceType.metal or device.info.type == spy.DeviceType.cuda:
+        shader_model = spy.ShaderModel.sm_6_0
+    if shader_model > device.supported_shader_model:
+        pytest.skip(f"Shader model {str(shader_model)} not supported")
+
+    compiler_options["include_paths"] = device.slang_session.desc.compiler_options.include_paths
+    compiler_options["shader_model"] = shader_model
+    compiler_options["defines"] = defines
+    compiler_options["debug_info"] = spy.SlangDebugInfoLevel.standard
+
+    session = device.create_slang_session(compiler_options)
+    program = session.load_program(module_name=str(path), entry_point_names=[entry_point])
+    kernel = device.create_compute_kernel(program)
+
+    ctx = Context()
+    vars = {}
+    params = {}
+
+    for name, desc in buffers.items():
+        is_global = kernel.reflection.find_field(name).is_valid()
+
+        if isinstance(desc, spy.Buffer):
+            buffer = desc
+        else:
+            args: Any = {
+                "usage": spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+            }
+            if "size" in desc:
+                args["size"] = desc["size"]
+            if "element_count" in desc:
+                args["element_count"] = desc["element_count"]
+                args["resource_type_layout"] = (
+                    kernel.reflection[name] if is_global else kernel.reflection[entry_point][name]
+                )
+            if "data" in desc:
+                args["data"] = desc["data"]
+
+            buffer = device.create_buffer(**args)
+
+        ctx.buffers[name] = buffer
+
+        if is_global:
+            vars[name] = buffer
+        else:
+            params[name] = buffer
+
+    for name, desc in textures.items():
+        if isinstance(desc, spy.Texture):
+            texture = desc
+        else:
+            raise NotImplementedError("Texture creation from dict not implemented")
+
+        ctx.textures[name] = texture
+
+        is_global = kernel.reflection.find_field(name).is_valid()
+        if is_global:
+            vars[name] = texture
+        else:
+            params[name] = texture
+
+    kernel.dispatch(thread_count=thread_count, vars=vars, **params)
+
+    return ctx

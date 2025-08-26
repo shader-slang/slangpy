@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import numpy as np
-import pytest
 
-from . import helpers
+import pytest
+import numpy as np
 from slangpy import DeviceType
 from slangpy.types import NDBuffer
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -40,4 +40,4 @@ void add_numbers_nd(float a, float b, out float c) {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import pytest
+import numpy as np
 
 from slangpy import DeviceType, int3, float3
-from . import helpers
 from slangpy.types.buffer import NDBuffer
-import numpy as np
+from slangpy.testing import helpers
 
 SIMPLE_FUNC = """
 import "slangpy";

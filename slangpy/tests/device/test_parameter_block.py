@@ -2,12 +2,9 @@
 
 import pytest
 import numpy as np
-import slangpy as spy
-import sys
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 # The shader code is in test_parameterBlock.slang, fill in the parameter block

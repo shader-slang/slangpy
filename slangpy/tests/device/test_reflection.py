@@ -2,16 +2,24 @@
 
 import pytest
 import sys
-import slangpy as spy
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
-from sglhelpers import test_id  # type: ignore (pytest fixture)
+import slangpy as spy
+from slangpy.testing import helpers
+from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
+
 
 # TODO: Due to a bug in "Apple clang", the exception binding in nanobind
 # raises RuntimeError instead of SlangCompileError
 SlangCompileError = RuntimeError if sys.platform == "darwin" else spy.SlangCompileError
+
+
+def create_session(device: spy.Device) -> spy.SlangSession:
+    return device.create_slang_session(
+        compiler_options={
+            "include_paths": device.slang_session.desc.compiler_options.include_paths,
+            "debug_info": spy.SlangDebugInfoLevel.standard,
+        }
+    )
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -149,7 +157,7 @@ def test_cursor_lifetime_new_session(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module and program.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=MODULE_SOURCE,
@@ -173,7 +181,7 @@ def test_cursor_child_lifetime(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module and program.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=MODULE_SOURCE,
@@ -198,7 +206,7 @@ def test_module_layout_lifetime(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=MODULE_SOURCE,
@@ -219,7 +227,7 @@ def test_module_declref_lifetime(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=MODULE_SOURCE,
@@ -240,7 +248,7 @@ def test_module_declref_child_lifetime(test_id: str, device_type: spy.DeviceType
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=MODULE_SOURCE,
@@ -260,7 +268,7 @@ def test_list_type_fields(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -296,7 +304,7 @@ def test_list_function_parameters(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -321,7 +329,7 @@ def test_list_program_layout_params_and_entry_points(test_id: str, device_type: 
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -349,7 +357,7 @@ def test_function_modifier(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -375,7 +383,7 @@ def test_parameter_modifier(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -397,7 +405,7 @@ def test_return_value_modifier(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -417,7 +425,7 @@ def test_full_type_name(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -513,7 +521,7 @@ def test_null_type(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -535,7 +543,7 @@ def test_deduplication(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -569,7 +577,7 @@ def test_find_type_by_name(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -594,7 +602,7 @@ def test_find_generic_type_by_name(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -619,7 +627,7 @@ def test_find_func_by_name(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -641,7 +649,7 @@ def test_get_type_layout(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -668,7 +676,7 @@ def test_basic_function_overloads(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -725,7 +733,7 @@ def test_type_method_overloads(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"test_type_method_overloads_{test_id}",
         source=r"""
@@ -757,7 +765,7 @@ def test_type_constructor_overloads(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"test_type_constructor_overloads_{test_id}",
         source=r"""
@@ -783,7 +791,7 @@ def test_specialize_concrete_function(test_id: str, device_type: spy.DeviceType)
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -818,7 +826,7 @@ def test_specialize_concrete_function_with_defaults(test_id: str, device_type: s
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -854,7 +862,7 @@ def test_specialize_concrete_function_with_inout(test_id: str, device_type: spy.
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -884,7 +892,7 @@ def test_fail_specialize_concrete_function(test_id: str, device_type: spy.Device
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -914,7 +922,7 @@ def test_specialize_interface_function(test_id: str, device_type: spy.DeviceType
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -950,7 +958,7 @@ def test_specialize_generic_function(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -985,7 +993,7 @@ def test_specialize_partially_generic_function(test_id: str, device_type: spy.De
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -1029,7 +1037,7 @@ def test_fail_specialize_partially_generic_function(test_id: str, device_type: s
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -1068,7 +1076,7 @@ def test_specialize_partially_generic_function_with_implicit_cast(
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=r"""
@@ -1112,7 +1120,7 @@ def test_is_sub_type(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
@@ -1154,7 +1162,7 @@ def test_hot_reload_invalid(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source=MODULE_SOURCE,
@@ -1180,7 +1188,7 @@ def test_independent_module_generic_resolution(test_id: str, device_type: spy.De
     device = helpers.get_device(type=device_type)
 
     # Create a session, and within it a module.
-    session = helpers.create_session(device, {})
+    session = create_session(device)
 
     generic_module = session.load_module_from_source(
         module_name=f"module_with_generic_{test_id}",
@@ -1232,4 +1240,4 @@ struct MyStruct
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

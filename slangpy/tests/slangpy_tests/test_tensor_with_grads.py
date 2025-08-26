@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import pytest
+import numpy as np
+import os
+
 from slangpy import DeviceType, Device
 from slangpy.types import Tensor
-from . import helpers
-import numpy as np
+from slangpy.testing import helpers
+
 from typing import Any
-import os
-import sys
 
 
 def get_test_tensors(device: Device, din: int = 5, dout: int = 8, N: int = 4):

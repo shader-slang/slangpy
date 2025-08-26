@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import sys
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
-from sglhelpers import test_id  # type: ignore (pytest fixture)
+import slangpy as spy
+from slangpy.testing import helpers
+from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
 
 
 # Before running more in depth link time tests below, this test simply
@@ -163,4 +160,4 @@ def test_link_time_type(device_type: spy.DeviceType, op: str):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

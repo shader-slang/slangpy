@@ -1,12 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import sys
-import slangpy as spy
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -165,4 +163,4 @@ float3x3: {{-4.00, -3.00, -1.00}, {+0.00, +1.00, +2.00}, {+3.00, +4.00, +5.00}}
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-vvvs"])
+    pytest.main([__file__, "-v", "-s"])

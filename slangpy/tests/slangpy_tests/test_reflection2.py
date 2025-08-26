@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Callable
 
 import pytest
 
-from slangpy import TypeReflection
-
+from slangpy import DeviceType, TypeReflection
 import slangpy.reflection as r
-from . import helpers
-from slangpy import DeviceType
 from slangpy.reflection.reflectiontypes import is_float
 from slangpy.core.function import Function
+from slangpy.testing import helpers
+
+from typing import Any, Callable
 
 MODULE = """
 import "slangpy";
@@ -373,4 +372,4 @@ struct MyStruct: IDifferentiable {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

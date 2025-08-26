@@ -1,13 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import slangpy as spy
-import sys
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 def get_coop_vec_device(device_type: spy.DeviceType) -> spy.Device:
