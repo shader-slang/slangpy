@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union, Sequence
 
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
@@ -50,7 +50,7 @@ class Module:
         self,
         device_module: SlangModule,
         options: dict[str, Any] = {},
-        link: list[Union["Module", SlangModule]] = [],
+        link: Sequence[Union["Module", SlangModule]] = [],
     ):
         super().__init__()
         _register_hot_reload_hook(device_module.session.device)
@@ -62,8 +62,7 @@ class Module:
         self.slangpy_device_module = device_module.session.load_module("slangpy")
 
         # Extract linked modules
-        self.link_set = set([x.module if isinstance(x, Module) else x for x in link])
-        self.link = list(self.link_set)
+        self.link = list(set([x.module if isinstance(x, Module) else x for x in link]))
 
         #: Reflection / layout information for the module.
         # Link the user- and device module together so we can reflect combined types
