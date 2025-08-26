@@ -52,7 +52,7 @@ class BenchmarkFixture:
             {k: str(v) for k, v in self.node.callspec.params.items()} if self.node.callspec else {}
         )
 
-        meta = { "adapter_name": device.info.adapter_name }
+        meta = {"adapter_name": device.info.adapter_name}
 
         report: BenchmarkReport = {
             "name": self.node.name,
