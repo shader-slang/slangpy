@@ -70,7 +70,7 @@ class BenchmarkFixture:
             "stddev": float(np.std(deltas)),
         }
 
-        self.config._benchmark_reports.append(report)  # type: ignore
+        self.config._benchmark_context["benchmark_reports"].append(report)  # type: ignore
 
 
 @pytest.fixture

@@ -1,17 +1,39 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
+from datetime import datetime
 
 from .report import BenchmarkReport, generate_report, write_report, upload_report
 from .table import display
 
-from typing import Any
+from typing import Any, TypedDict
+
+
+class Context(TypedDict):
+    timestamp: datetime
+    benchmark_reports: list[BenchmarkReport]
+
+
+def get_context(config: pytest.Config) -> Context:
+    return config._benchmark_context  # type: ignore
+
+
+def pytest_configure(config: pytest.Config):
+    context: Context = {
+        "timestamp": datetime.now(),
+        "benchmark_reports": [],
+    }
+    config._benchmark_context = context  # type: ignore
+
+
+def pytest_sessionstart(session: pytest.Session):
+    get_context(session.config)["timestamp"] = datetime.now()
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
     # Generate benchmark report
-    benchmark_reports: list[BenchmarkReport] = session.config._benchmark_reports  # type: ignore
-    report = generate_report(benchmark_reports)
+    context = get_context(session.config)
+    report = generate_report(context["timestamp"], context["benchmark_reports"])
 
     # Write report to JSON
     if session.config.getoption("--write-benchmark-report"):
@@ -60,11 +82,7 @@ def pytest_addoption(parser: pytest.Parser):
     )
 
 
-def pytest_configure(config: pytest.Config):
-    # Setup list for storing benchmark reports
-    config._benchmark_reports = []  # type: ignore
-
-
 def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):
-    benchmark_reports: list[BenchmarkReport] = terminalreporter.config._benchmark_reports  # type: ignore
+    context = get_context(terminalreporter.config)
+    benchmark_reports: list[BenchmarkReport] = context["benchmark_reports"]
     display(benchmark_reports)
