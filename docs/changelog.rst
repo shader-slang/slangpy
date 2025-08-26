@@ -7,6 +7,30 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.33.1 (August 25, 2025)
+----------------------------
+
+- Include the missing Slang binary file into the package.
+  (PR `#445 <https://github.com/shader-slang/slangpy/pull/445>`__)
+- Introduce benchmark plugin and testing infrastructure with MongoDB integration for automated performance tracking.
+  (PR `#452 <https://github.com/shader-slang/slangpy/pull/452>`__)
+- Add support for bindless storage buffers in GPU abstraction layer.
+  (PR `#421 <https://github.com/shader-slang/slangpy/pull/421>`__).
+- Fix ``copy_from_torch()`` for CUDA devices and resolve PyTorch integration issues.
+  (PR `#391 <https://github.com/shader-slang/slangpy/pull/391>`__).
+- Introduce unified ``slangpy.testing`` module consolidating all testing utilities and pytest plugin system.
+  (PR `#448 <https://github.com/shader-slang/slangpy/pull/448>`__).
+- Force release all slang-rhi resources during shutdown to prevent memory leaks and segfaults on Linux.
+  (PR `#426 <https://github.com/shader-slang/slangpy/pull/426>`__).
+- Rename ``DeviceResource`` to ``DeviceChild`` for consistency with slang-rhi.
+  (PR `#425 <https://github.com/shader-slang/slangpy/pull/425>`__).
+- Enable more tests across platforms: Linux, CUDA, and Metal support improvements.
+  (PR `#429 <https://github.com/shader-slang/slangpy/pull/429>`__).
+- Fix race condition in hot reload test and improve shader change detection.
+  (PR `#433 <https://github.com/shader-slang/slangpy/pull/433>`__).
+- Force unroll small fixed size loops and globally disable warning 30856 for better compilation.
+  (PR `#437 <https://github.com/shader-slang/slangpy/pull/437>`__).
+
 Version 0.33.0 (August 12, 2025)
 ----------------------------
 

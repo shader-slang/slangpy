@@ -6,7 +6,7 @@
 
 #define SGL_VERSION_MAJOR 0
 #define SGL_VERSION_MINOR 33
-#define SGL_VERSION_PATCH 0
+#define SGL_VERSION_PATCH 1
 
 #define SGL_VERSION                                                                                                    \
     SGL_TO_STRING(SGL_VERSION_MAJOR) "." SGL_TO_STRING(SGL_VERSION_MINOR) "." SGL_TO_STRING(SGL_VERSION_PATCH)
