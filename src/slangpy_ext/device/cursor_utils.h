@@ -387,17 +387,17 @@ public:
     /// First dimension of the ndarray is treated as an index into the buffer,
     /// and all the other dimensions are then written to the corresponding
     /// BufferElementCursors.
-    /// If bitexact_write is true, the numpy values are written directly to the backend storage,
+    /// If unchecked_copy is true, the numpy values are written directly to the backend storage,
     /// with only the basic check that the data fits into the backend store. Writing less is permitted,
     /// (e.g., float3 is 16B on Metal, with the last 4 bytes unused).
     /// Otherwise, the standard _set_type calls are invoked. This is especially dangerous if writing
     /// into bool type which has different size based on the storage.
-    void write_from_numpy(BufferCursor& dst, nb::object nbval, bool bitexact_write = false)
+    void write_from_numpy(BufferCursor& dst, nb::object nbval, bool unchecked_copy = false)
         requires std::same_as<CursorType, BufferElementCursor>
     {
         m_stack.clear();
         try {
-            write_from_numpy_internal(dst, dst[0], nbval, bitexact_write);
+            write_from_numpy_internal(dst, dst[0], nbval, unchecked_copy);
         } catch (const std::exception& err) {
             SGL_THROW("{}: {}", build_error(), err.what());
         }
@@ -417,7 +417,7 @@ private:
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
 
-    void write_from_numpy_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval, bool bitexact_write)
+    void write_from_numpy_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval, bool unchecked_copy)
         requires std::same_as<CursorType, BufferElementCursor>
     {
         if (!self.is_valid())
@@ -443,7 +443,7 @@ private:
                     auto child = self[name];
                     if (dict.contains(name)) {
                         m_stack.push_back(name);
-                        write_from_numpy_internal(dst, child, dict[name], bitexact_write);
+                        write_from_numpy_internal(dst, child, dict[name], unchecked_copy);
                         m_stack.pop_back();
                     }
                 }
@@ -475,7 +475,7 @@ private:
         auto data = reinterpret_cast<const uint8_t*>(nbarray.data());
         const size_t element_byte_stride = nbarray.stride(0) * element_byte_size;
 
-        if (bitexact_write) {
+        if (unchecked_copy) {
             const size_t layout_compatible_size = element_byte_size * (nbarray.ndim() == 2 ? nbarray.shape(1) : 1);
             SGL_CHECK(
                 layout_compatible_size <= self.type_layout()->size(),
