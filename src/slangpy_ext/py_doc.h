@@ -7552,7 +7552,23 @@ static const char *__doc_sgl_TypeReflection_to_string = R"doc()doc";
 
 static const char *__doc_sgl_TypeReflection_total_element_count = R"doc()doc";
 
+static const char *__doc_sgl_TypeReflection_get_user_attribute_count = R"doc()doc";
+
+static const char *__doc_sgl_TypeReflection_get_user_attribute_by_index = R"doc()doc";
+
+static const char *__doc_sgl_TypeReflection_find_user_attribute_by_name = R"doc()doc";
+
 static const char *__doc_sgl_TypeReflection_unwrap_array = R"doc()doc";
+
+static const char *__doc_sgl_Attribute = R"doc()doc";
+
+static const char *__doc_sgl_Attribute_argument_count = R"doc()doc";
+
+static const char *__doc_sgl_Attribute_name = R"doc()doc";
+
+static const char *__doc_sgl_Attribute_to_string = R"doc()doc";
+
+static const char *__doc_sgl_Attribute_argument_type = R"doc()doc";
 
 static const char *__doc_sgl_UnownedSlangBlob =
 R"doc(Implementation of slang's ISlangBlob interface to access an unowned
