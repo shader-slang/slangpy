@@ -121,8 +121,10 @@ SGL_PY_EXPORT(device_buffer_cursor)
         .def("__len__", [](BufferCursor& self) { return self.element_count(); })
         .def(
             "write_from_numpy",
-            [](BufferCursor& self, nb::object nbval) { detail::_writeconv.write_from_numpy(self, nbval); },
-            "data"_a
+            [](BufferCursor& self, nb::object data, bool unchecked_copy)
+            { detail::_writeconv.write_from_numpy(self, data, unchecked_copy); },
+            "data"_a,
+            "unchecked_copy"_a = true
         )
         .def(
             "to_numpy",

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import pytest
 
-import slangpy as kf
-from . import helpers
-from slangpy import DeviceType
+from slangpy import DeviceType, Module
+from slangpy.testing import helpers
 
 SIMPLE_FUNCTION_RETURN_VALUE = r"""
 int add_numbers(int a, int b) {
@@ -28,7 +28,7 @@ def test_create_function(device_type: DeviceType):
     slang_module = device.load_module_from_source(
         "simple_function_return_value", SIMPLE_FUNCTION_RETURN_VALUE
     )
-    module = kf.Module(slang_module)
+    module = Module(slang_module)
     function = module.find_function("add_numbers")
     assert function is not None
     assert function.name == "add_numbers"
@@ -42,7 +42,7 @@ def test_create_in_type(device_type: DeviceType):
     slang_module = device.load_module_from_source(
         "simple_function_create_in_type", SIMPLE_FUNCTION_IN_TYPE_RETURN_VALUE
     )
-    module = kf.Module(slang_module)
+    module = Module(slang_module)
     function = module.find_function_in_struct("MyStruct", "add_numbers")
     assert function is not None
     assert function.name == "add_numbers"
@@ -81,4 +81,4 @@ def test_missing_function(device_type: DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional
 import pytest
-import slangpy as spy
-import sys
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
+
+from typing import Optional
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -145,7 +143,6 @@ def test_device_import(device_type: spy.DeviceType):
         type=device_type,
         enable_debug_layers=True,
         compiler_options={
-            "include_paths": [helpers.SHADER_DIR],
             "debug_info": spy.SlangDebugInfoLevel.standard,
         },
         label=f"deviceimport-{device_type.name}-1",
@@ -156,7 +153,6 @@ def test_device_import(device_type: spy.DeviceType):
         type=device_type,
         enable_debug_layers=True,
         compiler_options={
-            "include_paths": [helpers.SHADER_DIR],
             "debug_info": spy.SlangDebugInfoLevel.standard,
         },
         existing_device_handles=device1.native_handles,
@@ -209,4 +205,4 @@ def test_device_import(device_type: spy.DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

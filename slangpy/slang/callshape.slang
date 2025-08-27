@@ -102,7 +102,7 @@ public bool init_thread_local_call_shape_info<let N: int = call_data_len>(
 {
     if (call_group_size != 1)
     {
-        [unroll]
+        [ForceUnroll]
         for (int i = 0; i < N; i++)
         {
             call_group_thread_id[i] = (flat_call_group_thread_id / call_group_strides[i]) % call_group_shape_vector[i];
@@ -113,7 +113,7 @@ public bool init_thread_local_call_shape_info<let N: int = call_data_len>(
         // The Slang compiler seems to have trouble unrolling the for loop above when it
         // contains the if statement in the below. Separate the if checks into a separate
         // loop for now to better facilitate unrolling and improve perf.
-        [unroll]
+        [ForceUnroll]
         for (int i = 0; i < N; i++)
         {
 
@@ -129,7 +129,7 @@ public bool init_thread_local_call_shape_info<let N: int = call_data_len>(
     }
     else
     {
-        [unroll]
+        [ForceUnroll]
         for (int i = 0; i < N; i++)
         {
             call_id[i] = (flat_call_thread_id.x / grid_stride[i]) % grid_dim[i];

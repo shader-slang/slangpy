@@ -10,4 +10,4 @@ def test_shape_and_element_types():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

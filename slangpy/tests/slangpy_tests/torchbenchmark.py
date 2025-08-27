@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import cast
+
 import slangpy as spy
 import numpy as np
+from pathlib import Path
 import torch
 from time import time
-
-from pathlib import Path
+from typing import cast
 
 
 SHADER_DIR = Path(__file__).parent

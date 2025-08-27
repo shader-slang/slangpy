@@ -3,7 +3,7 @@
 #pragma once
 
 #include "sgl/device/fwd.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/native_handle.h"
 
 #include "sgl/core/macros.h"
@@ -22,7 +22,7 @@ struct FenceDesc {
 };
 
 /// Fence.
-class SGL_API Fence : public DeviceResource {
+class SGL_API Fence : public DeviceChild {
     SGL_OBJECT(Fence)
 public:
     static constexpr uint64_t AUTO = uint64_t(-1);
@@ -31,6 +31,8 @@ public:
     /// Constructor.
     /// Do not use directly, instead use \c Device::create_fence.
     Fence(ref<Device> device, FenceDesc desc);
+
+    virtual void _release_rhi_resources() override { m_rhi_fence.setNull(); }
 
     const FenceDesc& desc() const { return m_desc; }
 

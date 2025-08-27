@@ -187,6 +187,7 @@ private:
 };
 
 class SGL_API BaseReflectionObject : public Object {
+    SGL_OBJECT(BaseReflectionObject)
 public:
     BaseReflectionObject(ref<const Object> owner)
         : m_owner(std::move(owner))

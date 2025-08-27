@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import pytest
 import time
 import logging
-from pathlib import Path
-import pytest
-import slangpy as spy
-
 import sys
+from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 try:
     import torch
@@ -165,11 +164,6 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
 # Pytest for our most common default cuda-interop case, in which we've configured pytorch
 # and slangpy to share the same context and stream.
 def test_shared_context_and_stream():
-    if sys.platform == "win32":
-        pytest.skip(
-            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
-        )
-
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=False, share_stream=True)
         == False
@@ -180,11 +174,6 @@ def test_shared_context_and_stream():
 # of synchronization in the default streams of separate contexts. For now this has shown not
 # to cause race conditions, so testing for that behaviour.
 def test_non_shared_context():
-    if sys.platform == "win32":
-        pytest.skip(
-            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
-        )
-
     assert run_tensor_race_condition_tests(share_context=False) == False
 
 
@@ -199,11 +188,6 @@ def test_custom_stream_no_share():
 
 # Pytest that removes the race condition by sharing the custom stream
 def test_custom_stream_share():
-    if sys.platform == "win32":
-        pytest.skip(
-            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
-        )
-
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=True)
         == False

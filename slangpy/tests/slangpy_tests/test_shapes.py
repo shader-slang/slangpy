@@ -1,21 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Optional
-
-from deepdiff.diff import DeepDiff
 
 import pytest
-from slangpy import float4
+from deepdiff.diff import DeepDiff
 
+from slangpy import DeviceType, float3, float4
 from slangpy.core.callsignature import BoundVariable
 from slangpy.core.shapes import TShapeOrTuple
-
-from slangpy import DeviceType, float3
 from slangpy.core.native import NativeCallRuntimeOptions
-from . import helpers
 from slangpy.types import floatRef
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
+from slangpy.testing import helpers
 
+from typing import Any, Optional
 from typing import Union
 
 # First set of tests emulate the shape of the following slang function
@@ -26,15 +23,15 @@ TTupleOrList = Union[tuple[int, ...], list[int]]
 
 
 def make_int_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=int)
+    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=int)
 
 
 def make_float_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float)
+    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float)
 
 
 def make_vec4_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float4)
+    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float4)
 
 
 def make_vec4_raw_buffer(device_type: DeviceType, count: int):
@@ -616,9 +613,6 @@ def test_readslice_function_map(device_type: DeviceType):
 def test_copyatindex_both_buffers_defined(
     device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
-
     # Call copy-at-index passing 2 fully defined buffers
     shapes = copy_at_index(
         device_type,
@@ -648,9 +642,6 @@ def test_copyatindex_both_buffers_defined(
 def test_copyatindex_undersized_output(
     device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
-
     # Situation we'd ideally detect in which output
     # buffer will overrun as its too small, but we
     # need generics/IBuffer to do so.

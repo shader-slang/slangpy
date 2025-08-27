@@ -3,7 +3,7 @@
 #pragma once
 
 #include "sgl/device/fwd.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/shader_cursor.h"
 #include "sgl/device/native_handle.h"
 
@@ -14,12 +14,14 @@
 
 namespace sgl {
 
-class SGL_API Kernel : public DeviceResource {
+class SGL_API Kernel : public DeviceChild {
     SGL_OBJECT(Kernel)
 public:
     using BindVarsCallback = std::function<void(ShaderCursor)>;
 
     virtual ~Kernel() = default;
+
+    virtual void _release_rhi_resources() override { }
 
     ShaderProgram* program() const { return m_program; }
     ReflectionCursor reflection() const { return ReflectionCursor(program()); }

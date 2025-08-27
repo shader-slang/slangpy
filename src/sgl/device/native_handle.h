@@ -173,6 +173,10 @@ public:
     NativeHandleType type() const { return m_type; }
     uint64_t value() const { return m_value; }
 
+    bool operator==(const NativeHandle& other) const { return m_type == other.m_type && m_value == other.m_value; }
+
+    bool operator!=(const NativeHandle& other) const { return !(*this == other); }
+
     bool is_valid() const { return m_type != NativeHandleType::undefined; }
 
     explicit operator bool() const { return is_valid(); }

@@ -8,6 +8,7 @@ public struct CallIdArg {
     // Array load
     public void load<let N : int, T: __BuiltinIntegerType>(ContextND<N> context, out Array<T, N> value) {
         var t = context.call_id;
+        [ForceUnroll]
         for (int i = 0; i < N; i++) {
             value[i] = (T)t[i];
         }
@@ -17,6 +18,7 @@ public struct CallIdArg {
     public void load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out vector<T,N> value) {
         var t = context.call_id;
         int end = N - 1;
+        [ForceUnroll]
         for (int i = 0; i < N; i++) {
             value[end-i] = (T)t[i];
         }
@@ -27,6 +29,7 @@ public struct CallIdArg {
     public void load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out vector<T,N+1> value) {
         var t = context.call_id;
         int end = N - 1;
+        [ForceUnroll]
         for (int i = 0; i < N; i++) {
             value[end-i] = (T)t[i];
         }

@@ -24,7 +24,7 @@ SGL_PY_EXPORT(device_kernel)
 {
     using namespace sgl;
 
-    nb::class_<Kernel, DeviceResource>(m, "Kernel", D(Kernel)) //
+    nb::class_<Kernel, DeviceChild>(m, "Kernel", D(Kernel)) //
         .def_prop_ro("program", &Kernel::program, D(Kernel, program))
         .def_prop_ro("reflection", &Kernel::reflection, D(Kernel, reflection));
 

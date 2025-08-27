@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from pathlib import Path
+
 import pytest
-from slangpy import DeviceType, Device, Module
-from slangpy.core.native import NativeCallDataCache, SignatureBuilder, TensorRef
 import sys
 
-sys.path.append(str(Path(__file__).parent))
-import helpers
+from slangpy import DeviceType, Device, Module
+from slangpy.core.native import NativeCallDataCache, SignatureBuilder, TensorRef
+from slangpy.testing import helpers
 
 try:
     import torch

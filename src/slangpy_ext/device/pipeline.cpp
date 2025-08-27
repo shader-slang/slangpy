@@ -45,7 +45,7 @@ SGL_PY_EXPORT(device_pipeline)
 {
     using namespace sgl;
 
-    nb::class_<Pipeline, DeviceResource>(m, "Pipeline", D(Pipeline));
+    nb::class_<Pipeline, DeviceChild>(m, "Pipeline", D(Pipeline));
 
     nb::class_<ComputePipelineDesc>(m, "ComputePipelineDesc", D(ComputePipelineDesc))
         .def(nb::init<>())

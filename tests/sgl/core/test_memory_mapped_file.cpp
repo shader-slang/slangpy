@@ -27,7 +27,7 @@ TEST_CASE("MemoryMappedFile")
         CHECK_EQ(file.is_open(), false);
     }
 
-    SUBCASE("non existing")
+    SUBCASE("non_existing")
     {
         {
             MemoryMappedFile file;

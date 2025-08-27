@@ -75,7 +75,8 @@ protected:
     // with the same buffer/view, call the inplace method on the copy, and return it
     void view_inplace(Shape shape, Shape strides = Shape(), int offset = 0);
     void broadcast_to_inplace(const Shape& shape);
-    void index_inplace(nb::args args);
+    void index_inplace(nb::object index_arg);
+    bool maybe_pad_data(nb::ndarray<nb::numpy> data, size_t dtype_size, size_t byte_offset);
 
 private:
     ref<Buffer> m_storage;

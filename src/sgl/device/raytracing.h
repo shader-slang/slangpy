@@ -4,7 +4,7 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/resource.h"
 
 #include "sgl/math/vector_types.h"
@@ -205,11 +205,13 @@ struct AccelerationStructureDesc {
     std::string label;
 };
 
-class SGL_API AccelerationStructure : public DeviceResource {
+class SGL_API AccelerationStructure : public DeviceChild {
     SGL_OBJECT(AccelerationStructure)
 public:
     AccelerationStructure(ref<Device> device, AccelerationStructureDesc desc);
     ~AccelerationStructure();
+
+    virtual void _release_rhi_resources() override { m_rhi_acceleration_structure.setNull(); }
 
     const AccelerationStructureDesc& desc() const { return m_desc; }
 
@@ -224,11 +226,13 @@ private:
     Slang::ComPtr<rhi::IAccelerationStructure> m_rhi_acceleration_structure;
 };
 
-class SGL_API AccelerationStructureInstanceList : public DeviceResource {
+class SGL_API AccelerationStructureInstanceList : public DeviceChild {
     SGL_OBJECT(AccelerationStructureInstanceList)
 public:
     AccelerationStructureInstanceList(ref<Device> device, size_t size = 0);
     ~AccelerationStructureInstanceList();
+
+    virtual void _release_rhi_resources() override { }
 
     size_t size() const { return m_instances.size(); }
 
@@ -261,11 +265,13 @@ struct ShaderTableDesc {
     std::vector<std::string> callable_entry_points;
 };
 
-class SGL_API ShaderTable : public DeviceResource {
+class SGL_API ShaderTable : public DeviceChild {
     SGL_OBJECT(ShaderTable)
 public:
     ShaderTable(ref<Device> device, ShaderTableDesc desc);
     ~ShaderTable();
+
+    virtual void _release_rhi_resources() override { m_rhi_shader_table.setNull(); }
 
     rhi::IShaderTable* rhi_shader_table() const { return m_rhi_shader_table; }
 

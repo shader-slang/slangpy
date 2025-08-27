@@ -9,14 +9,14 @@ This module tests:
 4. Function existence and specific validation tests
 """
 
-import numpy as np
 import pytest
+import numpy as np
 import slangpy as spy
 import math
 from slangpy import DeviceType
 from slangpy.slangpy import Shape
 from slangpy.types.buffer import NDBuffer
-from . import helpers
+from slangpy.testing import helpers
 
 
 # Test data for different call group shapes.

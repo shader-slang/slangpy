@@ -1,19 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import sys
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
-from sglhelpers import test_id  # type: ignore (pytest fixture)
-
-# @pytest.fixture(autouse=True)
-# def skip_metal(device_type: spy.DeviceType):
-#     if device_type == spy.DeviceType.metal:
-#         pytest.skip("Skipping test for Metal device, trace by https://github.com/shader-slang/slang/issues/6385")
+import slangpy as spy
+from slangpy.testing import helpers
+from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
 
 
 # Before running more in depth link time tests below, this test simply
@@ -21,9 +13,6 @@ from sglhelpers import test_id  # type: ignore (pytest fixture)
 # variables works.
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_link_time_modules_compile(test_id: str, device_type: spy.DeviceType):
-    if sys.platform == "linux" or sys.platform == "linux2":
-        pytest.skip("This test currently crashes on linux")
-
     device = helpers.get_device(type=device_type)
 
     extra_module = device.load_module_from_source(
@@ -105,9 +94,6 @@ def test_link_time_constant_value(test_id: str, device_type: spy.DeviceType, val
 @pytest.mark.parametrize("value", [2, 5])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_link_time_constants(device_type: spy.DeviceType, value: int):
-    if sys.platform == "linux" or sys.platform == "linux2":
-        pytest.skip("This test currently crashes on linux")
-
     device = helpers.get_device(type=device_type)
 
     constants = "\n".join(
@@ -174,4 +160,4 @@ def test_link_time_type(device_type: spy.DeviceType, op: str):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

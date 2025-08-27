@@ -67,7 +67,6 @@ class DispatchData:
             if slang_function.have_return_value:
                 raise ValueError("Raw dispatch functions cannot have return values.")
 
-            program = None
             ep = None
             codegen = CodeGen()
 
@@ -75,15 +74,10 @@ class DispatchData:
             generate_constants(build_info, codegen)
 
             # Try to load the entry point from the device module to see if there is an existing kernel.
-            try:
-                ep = build_info.module.device_module.entry_point(  # @IgnoreException
-                    reflection.name, type_conformances
-                )
-            except RuntimeError as e:
-                if not re.match(r"Entry point \"\w+\" not found.*", e.args[0]):
-                    raise e
-                else:
-                    program = None
+            if any(
+                [reflection.name == x.name for x in build_info.module.device_module.entry_points]
+            ):
+                ep = build_info.module.device_module.entry_point(reflection.name, type_conformances)
 
             # Due to current slang crash, fail if entry point exists and we're trying to set thread group size.
             if ep is not None and thread_group_size is not None:

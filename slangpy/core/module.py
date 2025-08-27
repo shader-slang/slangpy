@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union, Sequence
 
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
@@ -50,7 +50,7 @@ class Module:
         self,
         device_module: SlangModule,
         options: dict[str, Any] = {},
-        link: list[Union["Module", SlangModule]] = [],
+        link: Sequence[Union["Module", SlangModule]] = [],
     ):
         super().__init__()
         _register_hot_reload_hook(device_module.session.device)
@@ -61,17 +61,19 @@ class Module:
         #: The slangpy device module.
         self.slangpy_device_module = device_module.session.load_module("slangpy")
 
+        # Extract linked modules
+        self.link = list(set([x.module if isinstance(x, Module) else x for x in link]))
+
         #: Reflection / layout information for the module.
         # Link the user- and device module together so we can reflect combined types
         # This should be solved by the combined object API in the future
-        module_list = [self.slangpy_device_module, self.device_module]
+        module_list = [self.slangpy_device_module, self.device_module] + self.link
         combined_program = device_module.session.link_program(module_list, [])
         self.layout = SlangProgramLayout(combined_program.layout)
 
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, "DispatchData"] = {}
         self.kernel_cache: dict[str, ComputeKernel] = {}
-        self.link = [x.module if isinstance(x, Module) else x for x in link]
         self.logger: Optional[Logger] = None
 
         self._attr_cache: dict[str, Union[Function, Struct]] = {}
@@ -201,7 +203,7 @@ class Module:
         Called by device when the module is hot reloaded.
         """
         # Relink combined program
-        module_list = [self.slangpy_device_module, self.device_module]
+        module_list = [self.slangpy_device_module, self.device_module] + self.link
         combined_program = self.device_module.session.link_program(module_list, [])
         self.layout.on_hot_reload(combined_program.layout)
 

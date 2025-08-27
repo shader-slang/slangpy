@@ -59,11 +59,6 @@ int main(int argc, char** argv)
 
     sgl::Device::close_all_devices();
 
-#if SGL_ENABLE_OBJECT_TRACKING
-    sgl::Logger::get().add_console_output();
-    sgl::Object::report_alive_objects();
-#endif
-
     sgl::static_shutdown();
 
     return result;

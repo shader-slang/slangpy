@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any
 
 import pytest
-
-from . import helpers
 from slangpy import DeviceType
 from slangpy.types.buffer import NDBuffer
+from slangpy.testing import helpers
+
+from typing import Any
+
 
 BASE_MODULE = r"""
 import "slangpy";

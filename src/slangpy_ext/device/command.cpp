@@ -254,7 +254,7 @@ SGL_PY_EXPORT(device_command)
         );
     nb::implicitly_convertible<nb::dict, RenderPassDesc>();
 
-    nb::class_<CommandEncoder, DeviceResource>(m, "CommandEncoder", D(CommandEncoder))
+    nb::class_<CommandEncoder, DeviceChild>(m, "CommandEncoder", D(CommandEncoder))
         .def("begin_render_pass", &CommandEncoder::begin_render_pass, "desc"_a, D(CommandEncoder, begin_render_pass))
         .def("begin_compute_pass", &CommandEncoder::begin_compute_pass, D(CommandEncoder, begin_compute_pass))
         .def(
@@ -687,5 +687,5 @@ SGL_PY_EXPORT(device_command)
             D(RayTracingPassEncoder, dispatch_rays)
         );
 
-    nb::class_<CommandBuffer, DeviceResource>(m, "CommandBuffer", D(CommandBuffer));
+    nb::class_<CommandBuffer, DeviceChild>(m, "CommandBuffer", D(CommandBuffer));
 }

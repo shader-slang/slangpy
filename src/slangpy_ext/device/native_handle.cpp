@@ -18,6 +18,13 @@ SGL_PY_EXPORT(device_native_handle)
         .def_prop_ro("value", &NativeHandle::value, D_NA(NativeHandle, value))
         .def("__bool__", &NativeHandle::is_valid)
         .def("__repr__", &NativeHandle::to_string)
+        .def(
+            "__hash__",
+            [](const NativeHandle& nh)
+            { return std::hash<uint64_t>()(static_cast<uint64_t>(nh.type())) ^ std::hash<uint64_t>()(nh.value()); }
+        )
+        .def(nb::self == nb::self)
+        .def(nb::self != nb::self)
         .def_static(
             "from_cuda_stream",
             [](uint64_t stream) { return NativeHandle(reinterpret_cast<CUstream>(stream)); },

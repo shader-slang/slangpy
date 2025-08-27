@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import pytest
 
 from slangpy.core.utils import parse_generic_signature
@@ -25,4 +26,4 @@ def test_ndbuffer_padded():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

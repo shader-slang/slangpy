@@ -7,7 +7,7 @@ using namespace sgl;
 
 TEST_SUITE_BEGIN("short_vector");
 
-TEST_CASE("default constructor")
+TEST_CASE("default_constructor")
 {
     short_vector<int, 4> v;
     CHECK(v.empty());
@@ -16,7 +16,7 @@ TEST_CASE("default constructor")
     CHECK_EQ(v.begin(), v.end());
 }
 
-TEST_CASE("size constructor")
+TEST_CASE("size_constructor")
 {
     short_vector<int, 4> v(3, 0);
     CHECK_EQ(v.size(), 3);
@@ -26,7 +26,7 @@ TEST_CASE("size constructor")
     CHECK_EQ(v[2], 0);
 }
 
-TEST_CASE("initializer list constructor")
+TEST_CASE("initializer_list_constructor")
 {
     short_vector<int, 4> v1 = {1, 2, 3, 4};
     CHECK_EQ(v1.size(), 4);
@@ -46,7 +46,7 @@ TEST_CASE("initializer list constructor")
     CHECK_EQ(v2[4], 5);
 }
 
-TEST_CASE("element access")
+TEST_CASE("element_access")
 {
     short_vector<int, 4> v;
     v.push_back(1);

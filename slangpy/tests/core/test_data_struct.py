@@ -332,4 +332,4 @@ def test_blend_gamma():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

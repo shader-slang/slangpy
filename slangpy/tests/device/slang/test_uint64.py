@@ -1,19 +1,28 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import sys
 import pytest
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 ELEMENT_COUNT = 1024
 
 
 @pytest.mark.parametrize("view", ["uav", "srv"])
-@pytest.mark.parametrize("shader_model", helpers.ALL_SHADER_MODELS)
+@pytest.mark.parametrize(
+    "shader_model",
+    [
+        spy.ShaderModel.sm_6_0,
+        spy.ShaderModel.sm_6_1,
+        spy.ShaderModel.sm_6_2,
+        spy.ShaderModel.sm_6_3,
+        spy.ShaderModel.sm_6_4,
+        spy.ShaderModel.sm_6_5,
+        spy.ShaderModel.sm_6_6,
+        spy.ShaderModel.sm_6_7,
+    ],
+)
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_uint64(device_type: spy.DeviceType, shader_model: spy.ShaderModel, view: str):
     device = helpers.get_device(device_type)
@@ -23,7 +32,7 @@ def test_uint64(device_type: spy.DeviceType, shader_model: spy.ShaderModel, view
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path=Path(__file__).parent / "test_uint64.slang",
+        path="test_uint64.slang",
         entry_point=f"main_{view}",
         shader_model=shader_model,
         thread_count=[ELEMENT_COUNT, 1, 1],
@@ -38,4 +47,4 @@ def test_uint64(device_type: spy.DeviceType, shader_model: spy.ShaderModel, view
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

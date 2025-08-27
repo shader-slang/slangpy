@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import pytest
-from slangpy import float4
 
+import pytest
+
+from slangpy import float4
 from slangpy.bindings.boundvariable import BoundVariableException
-from . import helpers
 from slangpy import DeviceType
 from slangpy.types.buffer import NDBuffer
+from slangpy.testing import helpers
 
 MODULE = """
 import "slangpy";
@@ -175,4 +176,4 @@ def test_missing_child_function(device_type: DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

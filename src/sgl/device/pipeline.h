@@ -3,7 +3,7 @@
 #pragma once
 
 #include "sgl/device/fwd.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/types.h"
 #include "sgl/device/native_handle.h"
 
@@ -22,7 +22,7 @@ namespace sgl {
 
 
 /// Pipeline base class.
-class SGL_API Pipeline : public DeviceResource {
+class SGL_API Pipeline : public DeviceChild {
     SGL_OBJECT(Pipeline)
 public:
     Pipeline(ref<Device> device, ref<ShaderProgram> program);
@@ -50,6 +50,8 @@ struct ComputePipelineDesc {
 class SGL_API ComputePipeline : public Pipeline {
 public:
     ComputePipeline(ref<Device> device, ComputePipelineDesc desc);
+
+    virtual void _release_rhi_resources() override { m_rhi_pipeline.setNull(); }
 
     const ComputePipelineDesc& desc() const { return m_desc; }
 
@@ -88,6 +90,8 @@ struct RenderPipelineDesc {
 class SGL_API RenderPipeline : public Pipeline {
 public:
     RenderPipeline(ref<Device> device, RenderPipelineDesc desc);
+
+    virtual void _release_rhi_resources() override { m_rhi_pipeline.setNull(); }
 
     const RenderPipelineDesc& desc() const { return m_desc; }
 
@@ -132,6 +136,8 @@ struct RayTracingPipelineDesc {
 class SGL_API RayTracingPipeline : public Pipeline {
 public:
     RayTracingPipeline(ref<Device> device, RayTracingPipelineDesc desc);
+
+    virtual void _release_rhi_resources() override { m_rhi_pipeline.setNull(); }
 
     const RayTracingPipelineDesc& desc() const { return m_desc; }
 

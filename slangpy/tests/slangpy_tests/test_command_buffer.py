@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import numpy as np
-import pytest
 
-from . import helpers
+import pytest
+import numpy as np
 from slangpy import Module
 from slangpy import DeviceType, float3
 from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
+from slangpy.testing import helpers
 
 
 def load_test_module(device_type: DeviceType):
@@ -16,9 +16,6 @@ def load_test_module(device_type: DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("use_arg", [True, False])
 def test_command_buffer(device_type: DeviceType, use_arg: bool):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
-
     m = load_test_module(device_type)
     assert m is not None
 

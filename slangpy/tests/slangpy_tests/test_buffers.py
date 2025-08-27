@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import pytest
 
+import pytest
 import slangpy as spy
 import numpy as np
 from slangpy import DeviceType
-from . import helpers
+from slangpy.testing import helpers
 
 MODULE = r"""
 float read_only(StructuredBuffer<float> buffer) {
@@ -40,3 +40,7 @@ def test_buffer_usage_error(device_type: DeviceType):
 
     with pytest.raises(Exception, match=r"Buffers bound to RW"):
         module.write_only(ro_buffer)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

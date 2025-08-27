@@ -123,6 +123,10 @@ void ShaderObject::set_texture_view(const ShaderOffset& offset, const ref<Textur
 
 void ShaderObject::set_sampler(const ShaderOffset& offset, const ref<Sampler>& sampler)
 {
+    // CUDA does not support samplers and slang-rhi returns an error when trying to set a sampler.
+    // To improve compatibility with binding code for other backends, we skip setting samplers on CUDA.
+    if (m_device->type() == DeviceType::cuda)
+        return;
     SLANG_RHI_CALL(
         m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(sampler ? sampler->rhi_sampler() : nullptr))
     );

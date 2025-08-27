@@ -12,7 +12,7 @@
 namespace sgl {
 
 Sampler::Sampler(ref<Device> device, SamplerDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_desc(std::move(desc))
 {
     rhi::SamplerDesc rhi_desc{

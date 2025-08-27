@@ -70,6 +70,6 @@ SGL_PY_EXPORT(device_input_layout)
         .def_rw("vertex_streams", &InputLayoutDesc::vertex_streams, D(InputLayoutDesc, vertex_streams));
     nb::implicitly_convertible<nb::dict, InputLayoutDesc>();
 
-    nb::class_<InputLayout, DeviceResource>(m, "InputLayout", D(InputLayout))
+    nb::class_<InputLayout, DeviceChild>(m, "InputLayout", D(InputLayout))
         .def_prop_ro("desc", &InputLayout::desc, D(InputLayout, desc));
 }

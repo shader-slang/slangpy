@@ -94,7 +94,12 @@ def create_torch_device(
     # Import and init torch
     import torch
 
+    # Ensure torch cuda is initialized
     torch.cuda.init()
+
+    # These lines ensure that torch has set a default context
+    torch.cuda.current_device()
+    torch.cuda.current_stream()
 
     # Use current device if not specified
     if torch_device is None:
