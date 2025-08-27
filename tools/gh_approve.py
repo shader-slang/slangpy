@@ -81,6 +81,8 @@ def approve_pr(
     trigger_pattern: str = r"\[auto-approve:([^\]]*)\]",
     approved_users: Optional[str] = None,
     dry_run: bool = False,
+    auto_merge: bool = False,
+    merge_method: str = "merge",
 ) -> str:
     """
     Approve a pull request.
@@ -95,9 +97,12 @@ def approve_pr(
         trigger_pattern: Regex pattern for approval trigger
         approved_users: Comma-separated list of approved users (overrides APPROVED_USERS env var)
         dry_run: If True, perform all checks but skip the actual approval
+        auto_merge: If True, automatically merge the PR after approval
+        merge_method: Merge method to use ("merge", "squash", or "rebase")
 
     Returns:
         "approved": Approval was successful
+        "merged": Approval and merge were successful
         "skipped": Approval was skipped (e.g., missing trigger)
         "error": An error occurred
     """
@@ -166,6 +171,8 @@ def approve_pr(
             logger.info(
                 f"DRY RUN: Would approve PR #{pr_number} with comment: '{approval_comment}'"
             )
+            if auto_merge:
+                logger.info(f"DRY RUN: Would merge PR #{pr_number} using '{merge_method}' method")
             logger.info("Dry run completed - all checks passed, would proceed with approval")
             return "approved"
         else:
@@ -176,6 +183,33 @@ def approve_pr(
             logger.debug(f"Review ID: {review['id']}")
             if comment:
                 logger.debug(f"Comment: {comment}")
+
+            # Auto-merge if requested
+            if auto_merge:
+                try:
+                    logger.debug(f"Auto-merging PR #{pr_number} using '{merge_method}' method...")
+                    merge_result = github.merge_pull_request(
+                        pr_number,
+                        commit_title=f"Auto-merge PR #{pr_number}",
+                        merge_method=merge_method,
+                    )
+                    logger.info(f"Successfully merged PR #{pr_number}")
+                    logger.debug(f"Merge SHA: {merge_result.get('sha', 'unknown')}")
+                    return "merged"
+                except Exception as merge_error:
+                    merge_error_str = str(merge_error)
+                    if "405 Client Error" in merge_error_str:
+                        logger.error(
+                            f"Cannot merge PR #{pr_number}: Method not allowed (may have branch protection rules)"
+                        )
+                    elif "409 Client Error" in merge_error_str:
+                        logger.error(
+                            f"Cannot merge PR #{pr_number}: Merge conflict or branch protection requirements not met"
+                        )
+                    else:
+                        logger.error(f"Failed to merge PR #{pr_number}: {merge_error_str}")
+                    logger.info("PR was approved but merge failed")
+                    return "approved"  # Still return approved since approval succeeded
 
             return "approved"
 
@@ -264,6 +298,20 @@ def main():
         help="Enable verbose logging (show debug information)",
     )
 
+    parser.add_argument(
+        "--auto-merge",
+        action="store_true",
+        help="Automatically merge the PR after approval",
+    )
+
+    parser.add_argument(
+        "--merge-method",
+        type=str,
+        choices=["merge", "squash", "rebase"],
+        default="merge",
+        help="Merge method to use when auto-merging (default: merge)",
+    )
+
     args = parser.parse_args()
 
     # Set up logging based on verbosity
@@ -329,6 +377,8 @@ def main():
         args.trigger_pattern,
         args.approved_users,
         args.dry_run,
+        args.auto_merge,
+        args.merge_method,
     )
 
     if result == "error":
@@ -338,6 +388,9 @@ def main():
         sys.exit(0)  # Exit successfully since this is expected behavior
     elif result == "approved":
         logger.info("Approval process completed successfully")
+        sys.exit(0)
+    elif result == "merged":
+        logger.info("Approval and merge process completed successfully")
         sys.exit(0)
 
 

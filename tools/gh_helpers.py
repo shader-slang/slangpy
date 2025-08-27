@@ -182,6 +182,40 @@ class GitHubAPI:
 
         return None
 
+    def merge_pull_request(
+        self,
+        pr_number: int,
+        commit_title: Optional[str] = None,
+        commit_message: Optional[str] = None,
+        merge_method: str = "merge",
+    ) -> Dict[str, Any]:
+        """
+        Merge a pull request.
+
+        Args:
+            pr_number: Pull request number
+            commit_title: Optional title for the merge commit
+            commit_message: Optional message for the merge commit
+            merge_method: Merge method - "merge", "squash", or "rebase" (default: "merge")
+
+        Returns:
+            Merge result dictionary
+
+        Raises:
+            requests.RequestException: If merge fails
+        """
+        endpoint = f"/repos/{self.repo_owner}/{self.repo_name}/pulls/{pr_number}/merge"
+
+        data = {"merge_method": merge_method}
+
+        if commit_title:
+            data["commit_title"] = commit_title
+        if commit_message:
+            data["commit_message"] = commit_message
+
+        response = self._make_request("PUT", endpoint, data)
+        return response.json()
+
 
 def check_approved_user(
     username: str, approved_users: Optional[str] = None, approved_users_env: str = "APPROVED_USERS"
