@@ -182,12 +182,54 @@ class GitHubAPI:
 
         return None
 
+    def check_auto_merge_trigger(
+        self, pr_number: int, merge_trigger_pattern: str = r"\[auto-merge(?::([^\]]*))?\]"
+    ) -> Optional[str]:
+        """
+        Check if PR description or comments contain an auto-merge trigger.
+
+        Args:
+            pr_number: Pull request number
+            merge_trigger_pattern: Regex pattern to match auto-merge trigger (default: [auto-merge] or [auto-merge: method])
+
+        Returns:
+            The merge method from the trigger, or "merge" if trigger found without method, or None if not found
+        """
+        import re
+
+        # Get PR details
+        pr_info = self.get_pull_request(pr_number)
+
+        # Check PR description
+        if pr_info.get("body"):
+            match = re.search(merge_trigger_pattern, pr_info["body"], re.IGNORECASE)
+            if match:
+                merge_method = match.group(1).strip() if match.group(1) else "merge"
+                # Validate merge method
+                if merge_method.lower() in ["merge", "squash", "rebase"]:
+                    return merge_method.lower()
+                return "squash"  # Default if invalid method specified
+
+        # Check PR comments
+        comments = self.get_pull_request_comments(pr_number)
+        for comment in comments:
+            if comment.get("body"):
+                match = re.search(merge_trigger_pattern, comment["body"], re.IGNORECASE)
+                if match:
+                    merge_method = match.group(1).strip() if match.group(1) else "merge"
+                    # Validate merge method
+                    if merge_method.lower() in ["merge", "squash", "rebase"]:
+                        return merge_method.lower()
+                    return "squash"  # Default if invalid method specified
+
+        return None
+
     def merge_pull_request(
         self,
         pr_number: int,
         commit_title: Optional[str] = None,
         commit_message: Optional[str] = None,
-        merge_method: str = "merge",
+        merge_method: str = "squash",
     ) -> Dict[str, Any]:
         """
         Merge a pull request.

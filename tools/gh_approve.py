@@ -11,6 +11,9 @@ auto-detect the PR number from the CI environment.
 Supports approval triggers for security - requiring specific text in PR description
 or comments before allowing approval (e.g., [auto-approve: Ready to merge]).
 
+Also supports auto-merge triggers that automatically merge PRs after approval
+(e.g., [auto-merge] or [auto-merge: squash]).
+
 Usage:
     # Manual usage with PR number
     python tools/gh_approve.py --pr=<pr_number> [--token=<github_token>] [--comment=<comment>]
@@ -23,6 +26,9 @@ Usage:
 
     # Custom trigger pattern
     python tools/gh_approve.py --require-trigger --trigger-pattern="\\[approve-me:([^\\]]*)\\]"
+
+    # Auto-merge after approval
+    python tools/gh_approve.py --pr=<pr_number> --auto-merge [--merge-method=squash]
 
 Environment Variables:
     GITHUB_TOKEN: GitHub personal access token
@@ -48,6 +54,19 @@ Approval Triggers:
     - [auto-approve: Ready to merge]
     - [auto-approve: Dependency update]
     - [auto-approve: Minor fix]
+
+Auto-Merge Triggers:
+    Pattern: [auto-merge] or [auto-merge: <method>]
+    Methods: merge (default), squash, rebase
+    Behavior:
+    - Automatically enables auto-merge functionality
+    - Overrides command-line --auto-merge settings
+    - Can be placed in PR description or comments
+    Examples:
+    - [auto-merge] (uses default merge method)
+    - [auto-merge: squash] (squash and merge)
+    - [auto-merge: rebase] (rebase and merge)
+    Note: Auto-merge triggers work independently of approval triggers
 """
 
 import argparse
@@ -128,7 +147,9 @@ def approve_pr(
 
         # Add CI detection info
         if is_running_in_ci():
-            logger.debug("Running in CI environment - approved users list is mandatory")
+            logger.debug(
+                "Running in CI environment - require trigger and approved users list is mandatory"
+            )
 
         try:
             if not check_approved_user(pr_author, approved_users):
@@ -156,6 +177,23 @@ def approve_pr(
                 # Use the trigger comment if no explicit comment was provided
                 if not comment:
                     comment = trigger_comment
+        else:
+            if is_running_in_ci():
+                logger.error(
+                    "Running in CI environment - require trigger and approved users list is mandatory"
+                )
+                return "error"
+
+        # Check for auto-merge trigger (overrides command-line auto-merge setting)
+        merge_method_from_trigger = github.check_auto_merge_trigger(pr_number)
+        if merge_method_from_trigger:
+            logger.debug(f"Auto-merge trigger found: method='{merge_method_from_trigger}'")
+            auto_merge = True
+            merge_method = merge_method_from_trigger
+        elif auto_merge:
+            logger.debug(f"Auto-merge enabled via command line: method='{merge_method}'")
+        else:
+            logger.debug("Auto-merge not requested")
 
         # Check if already approved by current user
         reviews = github.list_pull_request_reviews(pr_number)
