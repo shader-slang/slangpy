@@ -167,9 +167,9 @@ std::string Attribute::to_string() const
     std::string str;
     str += "Attribute(\n";
     str += fmt::format("  name={},\n", name());
-    uint32_t argument_count = argument_count();
-    str += fmt::format("  argument_count={},\n", argument_count);
-    for (int32_t i = 0; i < argument_count; i++) {
+    uint32_t count = argument_count();
+    str += fmt::format("  argument_count={},\n", count);
+    for (int32_t i = 0; i < count; i++) {
         str += fmt::format("  argument_{}={},\n", i, argument_type(i));
     }
     str += ")";
