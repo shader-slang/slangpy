@@ -10,3 +10,4 @@ isort
 autoflake
 libcst
 pymongo
+requests
