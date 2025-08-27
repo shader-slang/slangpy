@@ -26,6 +26,7 @@ def test_ci_environment_requires_trigger_flag(monkeypatch: Any) -> None:
         def __init__(
             self, token: str, repo_owner: str = "shader-slang", repo_name: str = "slangpy"
         ) -> None:
+            super().__init__()
             self.token = token
             self.repo_owner = repo_owner
             self.repo_name = repo_name

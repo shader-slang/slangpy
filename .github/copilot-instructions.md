@@ -14,7 +14,7 @@ Directory structure:
     - The c++ tests are in #tests
 
 Code structure:
-    - Any new python api must have tests added in #slangpy/tests.
+    - Any new python api MUST have tests added in #slangpy/tests.
     - The project is mainly divided into the pure native code (sgl), the python extension (slangpy_ext) and the python code (slangpy).
     - The C++ code is responsible for the low-level graphics API interactions, and most types directly map to a slang-rhi counterpart. i.e. Device wraps the slang-rhi rhi::IDevice type
 
@@ -25,8 +25,9 @@ Testing:
     - Python tests are in #slangpy/tests and C++ tests are in #tests
     - The Python testing system uses pytest
     - The C++ testing system uses doctest
-    - Always build before running tests.
+    - ALWAYS build before running tests.
     - To run all Python tests, run "pytest slangpy/tests"
+    - ALL tests MUST pass for a task to be considered complete.
 
 C++ Code style:
     - Class names should start with a capital letter.
@@ -40,9 +41,10 @@ Python code style:
     - Local variable names are in snake_case.
     - Member variables start with "m_" and are in snake_case.
     - All arguments should have type annotations.
+    - All __init__ functions of classes should call their superclass's __init__ method using 'super().__init__()'
 
 Additional tools:
-    - Once a task is complete, to fix any formatting errors, run "pre-commit run --all-files".
+    - Once a task is complete, to fix any formatting errors, you must ALWAYS run "pre-commit run --all-files".
     - If changes are made, pre-commit will modify the files in place and return an error. Re-running the command should then succeed.
 
 External dependencies:
