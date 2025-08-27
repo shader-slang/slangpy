@@ -21,6 +21,7 @@ class GitHubAPI:
             repo_owner: Repository owner (default: shader-slang)
             repo_name: Repository name (default: slangpy)
         """
+        super().__init__()
         self.token = token
         self.repo_owner = repo_owner
         self.repo_name = repo_name

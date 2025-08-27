@@ -51,6 +51,7 @@ Approval Triggers:
 """
 
 import argparse
+import logging
 import os
 import sys
 from typing import Optional
@@ -64,6 +65,10 @@ from gh_helpers import (
     check_approved_user,
     is_running_in_ci,
 )
+
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 def approve_pr(
@@ -100,17 +105,17 @@ def approve_pr(
         github = GitHubAPI(token, repo_owner, repo_name)
 
         if dry_run:
-            print("INFO: Dry run mode - performing all checks but will not actually approve")
+            logger.info("Dry run mode - performing all checks but will not actually approve")
 
         # First, get PR details to verify it exists
-        print(f"Fetching PR #{pr_number} details...")
+        logger.debug(f"Fetching PR #{pr_number} details...")
         pr_info = github.get_pull_request(pr_number)
-        print(f"PR Title: {pr_info['title']}")
-        print(f"PR Author: {pr_info['user']['login']}")
-        print(f"PR State: {pr_info['state']}")
+        logger.debug(f"PR Title: {pr_info['title']}")
+        logger.debug(f"PR Author: {pr_info['user']['login']}")
+        logger.debug(f"PR State: {pr_info['state']}")
 
         if pr_info["state"] != "open":
-            print(f"Warning: PR #{pr_number} is not open (state: {pr_info['state']})")
+            logger.warning(f"PR #{pr_number} is not open (state: {pr_info['state']})")
             return "error"
 
         # Check if PR author is in approved users list
@@ -118,31 +123,31 @@ def approve_pr(
 
         # Add CI detection info
         if is_running_in_ci():
-            print("INFO: Running in CI environment - approved users list is mandatory")
+            logger.debug("Running in CI environment - approved users list is mandatory")
 
         try:
             if not check_approved_user(pr_author, approved_users):
-                print(f"INFO: User '{pr_author}' is not in the approved users list")
-                print(
-                    f"INFO: Auto-approval is restricted to users listed in APPROVED_USERS environment variable"
+                logger.info(f"User '{pr_author}' is not in the approved users list")
+                logger.debug(
+                    f"Auto-approval is restricted to users listed in APPROVED_USERS environment variable"
                 )
-                print(f"INFO: Auto-approval skipped.")
+                logger.info("Auto-approval skipped")
                 return "skipped"
         except ValueError as e:
-            print(f"ERROR: {e}")
+            logger.error(str(e))
             return "error"
 
         # Check for approval trigger if required
         if require_trigger:
-            print("INFO: Checking for approval trigger...")
+            logger.debug("Checking for approval trigger...")
             trigger_comment = github.check_approval_trigger(pr_number, trigger_pattern)
             if not trigger_comment:
-                print(f"INFO: No approval trigger found in PR description or comments")
-                print(f"INFO: Expected pattern: {trigger_pattern}")
-                print(f"INFO: Auto-approval skipped. Add '[auto-approve: comment]' to enable.")
+                logger.info("No approval trigger found in PR description or comments")
+                logger.debug(f"Expected pattern: {trigger_pattern}")
+                logger.info("Auto-approval skipped. Add '[auto-approve: comment]' to enable")
                 return "skipped"  # Return skipped - this is not an error condition
             else:
-                print(f"INFO: Approval trigger found: '{trigger_comment}'")
+                logger.debug(f"Approval trigger found: '{trigger_comment}'")
                 # Use the trigger comment if no explicit comment was provided
                 if not comment:
                     comment = trigger_comment
@@ -152,23 +157,25 @@ def approve_pr(
         current_user_reviews = [r for r in reviews if r["state"] == "APPROVED"]
 
         if current_user_reviews:
-            print(f"Note: PR #{pr_number} already has approvals")
+            logger.debug(f"PR #{pr_number} already has approvals")
 
         # Approve the PR (or simulate in dry-run mode)
         approval_comment = comment or f"Approved via gh_approve.py tool"
 
         if dry_run:
-            print(f"DRY RUN: Would approve PR #{pr_number} with comment: '{approval_comment}'")
-            print("SUCCESS: Dry run completed - all checks passed, would proceed with approval")
+            logger.info(
+                f"DRY RUN: Would approve PR #{pr_number} with comment: '{approval_comment}'"
+            )
+            logger.info("Dry run completed - all checks passed, would proceed with approval")
             return "approved"
         else:
-            print(f"Approving PR #{pr_number}...")
+            logger.debug(f"Approving PR #{pr_number}...")
             review = github.approve_pull_request(pr_number, approval_comment)
 
-            print(f"SUCCESS: Successfully approved PR #{pr_number}")
-            print(f"Review ID: {review['id']}")
+            logger.info(f"Successfully approved PR #{pr_number}")
+            logger.debug(f"Review ID: {review['id']}")
             if comment:
-                print(f"Comment: {comment}")
+                logger.debug(f"Comment: {comment}")
 
             return "approved"
 
@@ -178,20 +185,20 @@ def approve_pr(
         # Check for specific GitHub errors
         if "422 Client Error" in error_str and "Unprocessable Entity" in error_str:
             # This is likely the "can't approve your own PR" error
-            print(
-                f"ERROR: Cannot approve PR #{pr_number}: You cannot approve your own pull request"
+            logger.error(
+                f"Cannot approve PR #{pr_number}: You cannot approve your own pull request"
             )
-            print(f"   PR Author: {pr_info['user']['login']}")
-            print(f"   This is a GitHub policy restriction.")
-            print(f"   Ask another team member to approve this PR.")
+            logger.debug(f"PR Author: {pr_info['user']['login']}")
+            logger.debug("This is a GitHub policy restriction.")
+            logger.debug("Ask another team member to approve this PR.")
         elif "404 Client Error" in error_str:
-            print(f"ERROR: PR #{pr_number} not found")
-            print(f"   Check that the PR number is correct and the repository is accessible")
+            logger.error(f"PR #{pr_number} not found")
+            logger.debug("Check that the PR number is correct and the repository is accessible")
         elif "403 Client Error" in error_str:
-            print(f"ERROR: Access denied")
-            print(f"   Check that your GitHub token has the necessary permissions")
+            logger.error("Access denied")
+            logger.debug("Check that your GitHub token has the necessary permissions")
         else:
-            print(f"ERROR: Error approving PR #{pr_number}: {error_str}")
+            logger.error(f"Error approving PR #{pr_number}: {error_str}")
         return "error"
 
 
@@ -250,27 +257,44 @@ def main():
         help="Comma-separated list of GitHub usernames allowed to use auto-approval (default: APPROVED_USERS env var, or allow all users if not set)",
     )
 
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable verbose logging (show debug information)",
+    )
+
     args = parser.parse_args()
+
+    # Set up logging based on verbosity
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format="%(levelname)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
 
     # Early validation for CI environment requirements
     if is_running_in_ci():
-        print("INFO: Running in CI environment - approved users list is mandatory")
         if not args.approved_users and not os.environ.get("APPROVED_USERS"):
-            print("ERROR: Approved users list is required when running in CI environment.")
-            print(
-                "ERROR: Set APPROVED_USERS environment variable or use --approved-users parameter."
+            logger.error("Running in CI environment - approved users list is mandatory")
+            logger.error("Approved users list is required when running in CI environment.")
+            logger.error(
+                "Set APPROVED_USERS environment variable or use --approved-users parameter."
             )
             sys.exit(1)
+        else:
+            logger.debug("Running in CI environment - approved users list is mandatory")
 
     # Get PR number - either from argument or auto-detect from CI
     pr_number = args.pr
     if not pr_number:
         pr_number = get_pr_number_from_ci()
         if pr_number:
-            print(f"INFO: Auto-detected PR number from CI: {pr_number}")
+            logger.debug(f"Auto-detected PR number from CI: {pr_number}")
         else:
-            print("ERROR: No PR number provided and could not auto-detect from CI")
-            print("Please provide --pr argument or run in GitHub Actions PR context")
+            logger.error("No PR number provided and could not auto-detect from CI")
+            logger.error("Please provide --pr argument or run in GitHub Actions PR context")
             sys.exit(1)
 
     # Get token
@@ -278,8 +302,8 @@ def main():
         try:
             args.token = get_github_token()
         except ValueError as e:
-            print(f"ERROR: {e}")
-            print("Please provide --token argument or set GITHUB_TOKEN environment variable")
+            logger.error(str(e))
+            logger.error("Please provide --token argument or set GITHUB_TOKEN environment variable")
             sys.exit(1)
 
     # Get repository info
@@ -291,8 +315,8 @@ def main():
         repo_owner = args.repo_owner
         repo_name = args.repo_name
 
-    print(f"Repository: {repo_owner}/{repo_name}")
-    print(f"PR Number: {pr_number}")
+    logger.debug(f"Repository: {repo_owner}/{repo_name}")
+    logger.debug(f"PR Number: {pr_number}")
 
     # Call approve_pr with dry_run parameter
     result = approve_pr(
@@ -310,10 +334,10 @@ def main():
     if result == "error":
         sys.exit(1)
     elif result == "skipped":
-        print("INFO: Approval process completed - PR was not approved due to missing trigger")
+        logger.info("Approval process completed - PR was not approved due to missing trigger")
         sys.exit(0)  # Exit successfully since this is expected behavior
     elif result == "approved":
-        print("INFO: Approval process completed successfully")
+        logger.info("Approval process completed successfully")
         sys.exit(0)
 
 

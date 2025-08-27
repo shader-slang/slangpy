@@ -15,7 +15,7 @@ from gh_helpers import check_approved_user, is_running_in_ci
 class TestCIEnvironment:
     """Test the CI environment detection and approved users requirement"""
 
-    def test_non_ci_environment_no_approved_users_required(self, clean_environment):
+    def test_non_ci_environment_no_approved_users_required(self, clean_environment: None):
         """Test that non-CI environment doesn't require approved users"""
         result = is_running_in_ci()
         assert result == False, "Should not detect CI when CI env var is not set"
@@ -24,36 +24,36 @@ class TestCIEnvironment:
         result = check_approved_user("testuser")
         assert result == True, "Should allow user when no approved list in non-CI"
 
-    def test_ci_environment_detection(self, ci_environment):
+    def test_ci_environment_detection(self, ci_environment: None):
         """Test that CI environment is detected correctly"""
         result = is_running_in_ci()
         assert result == True, "Should detect CI when CI=true"
 
-    def test_ci_environment_requires_approved_users_list(self, ci_environment):
+    def test_ci_environment_requires_approved_users_list(self, ci_environment: None):
         """Test that CI environment requires approved users list"""
         with pytest.raises(
             ValueError, match="Approved users list is required when running in CI environment"
         ):
             check_approved_user("testuser")
 
-    def test_ci_environment_with_approved_users_list(self, ci_environment):
+    def test_ci_environment_with_approved_users_list(self, ci_environment: None):
         """Test that CI environment works with approved users list"""
         result = check_approved_user("testuser", "testuser,anotheruser")
         assert result == True, "Should work with approved list in CI"
 
-    def test_ci_environment_user_not_in_approved_list(self, ci_environment):
+    def test_ci_environment_user_not_in_approved_list(self, ci_environment: None):
         """Test that CI environment rejects user not in approved list"""
         result = check_approved_user("baduser", "testuser,anotheruser")
         assert result == False, "Should reject user not in approved list in CI"
 
-    def test_ci_environment_with_environment_variable(self, ci_environment):
+    def test_ci_environment_with_environment_variable(self, ci_environment: None):
         """Test that CI environment works with APPROVED_USERS environment variable"""
         os.environ["APPROVED_USERS"] = "envuser,testuser"
 
         result = check_approved_user("envuser")
         assert result == True, "Should work with environment variable in CI"
 
-    def test_ci_false_not_detected_as_ci(self, clean_environment):
+    def test_ci_false_not_detected_as_ci(self, clean_environment: None):
         """Test that CI=false is not detected as CI environment"""
         os.environ["CI"] = "false"
 

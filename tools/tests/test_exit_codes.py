@@ -35,14 +35,15 @@ class TestExitCodes:
 
     def test_ci_without_approved_users_fails(self):
         """Test that CI environment without approved users fails"""
-        result = self.run_gh_approve(["--pr=123"], env_vars={"CI": "true"})
+        result = self.run_gh_approve(["--pr=123", "--verbose"], env_vars={"CI": "true"})
         assert result.returncode == 1, "Should fail in CI without approved users"
         assert "approved users list is mandatory" in result.stdout.lower()
 
     def test_ci_with_approved_users_proceeds(self):
         """Test that CI environment with approved users proceeds past validation"""
         result = self.run_gh_approve(
-            ["--pr=123", "--dry-run"], env_vars={"CI": "true", "APPROVED_USERS": "testuser,admin"}
+            ["--pr=123", "--dry-run", "--verbose"],
+            env_vars={"CI": "true", "APPROVED_USERS": "testuser,admin"},
         )
         # Should proceed past CI validation (might fail on API call, but that's expected)
         # The key is it doesn't fail on the CI validation
