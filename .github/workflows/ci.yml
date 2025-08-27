@@ -226,4 +226,4 @@ jobs:
 
       - name: Auto-approve PR
         run: |
-          python tools/gh_approve.py --require-trigger --verbose
+          python tools/gh_approve.py --require-trigger
