@@ -52,12 +52,13 @@ class TestExitCodes:
         """Test that dry run with non-existent PR fails gracefully"""
         result = self.run_gh_approve(["--pr=999999", "--dry-run"])
         assert result.returncode == 1, "Should fail for non-existent PR"
-        # Could be 404 (Not Found) or 401 (Unauthorized) depending on token validity
+        # Should fail with PR not found error (same path as regular mode)
         assert (
             "404" in result.stdout
             or "Not Found" in result.stdout
             or "401" in result.stdout
             or "Unauthorized" in result.stdout
+            or "not found" in result.stdout
         ), "Should fail with HTTP error for non-existent or unauthorized PR"
 
     def test_help_option_succeeds(self):

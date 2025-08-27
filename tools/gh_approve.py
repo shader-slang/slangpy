@@ -55,26 +55,15 @@ import os
 import sys
 from typing import Optional
 
-try:
-    from gh_helpers import (
-        GitHubAPI,
-        get_github_token,
-        get_repo_info,
-        get_pr_number_from_ci,
-        check_approved_user,
-        is_running_in_ci,
-    )
-except ImportError:
-    # If running from a different directory, add tools to path
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-    from gh_helpers import (
-        GitHubAPI,
-        get_github_token,
-        get_repo_info,
-        get_pr_number_from_ci,
-        check_approved_user,
-        is_running_in_ci,
-    )
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+from gh_helpers import (
+    GitHubAPI,
+    get_github_token,
+    get_repo_info,
+    get_pr_number_from_ci,
+    check_approved_user,
+    is_running_in_ci,
+)
 
 
 def approve_pr(
@@ -86,6 +75,7 @@ def approve_pr(
     require_trigger: bool = False,
     trigger_pattern: str = r"\[auto-approve:([^\]]*)\]",
     approved_users: Optional[str] = None,
+    dry_run: bool = False,
 ) -> str:
     """
     Approve a pull request.
@@ -99,6 +89,7 @@ def approve_pr(
         require_trigger: Whether to require approval trigger in PR/comments
         trigger_pattern: Regex pattern for approval trigger
         approved_users: Comma-separated list of approved users (overrides APPROVED_USERS env var)
+        dry_run: If True, perform all checks but skip the actual approval
 
     Returns:
         "approved": Approval was successful
@@ -107,6 +98,9 @@ def approve_pr(
     """
     try:
         github = GitHubAPI(token, repo_owner, repo_name)
+
+        if dry_run:
+            print("INFO: Dry run mode - performing all checks but will not actually approve")
 
         # First, get PR details to verify it exists
         print(f"Fetching PR #{pr_number} details...")
@@ -160,17 +154,23 @@ def approve_pr(
         if current_user_reviews:
             print(f"Note: PR #{pr_number} already has approvals")
 
-        # Approve the PR
-        print(f"Approving PR #{pr_number}...")
+        # Approve the PR (or simulate in dry-run mode)
         approval_comment = comment or f"Approved via gh_approve.py tool"
-        review = github.approve_pull_request(pr_number, approval_comment)
 
-        print(f"SUCCESS: Successfully approved PR #{pr_number}")
-        print(f"Review ID: {review['id']}")
-        if comment:
-            print(f"Comment: {comment}")
+        if dry_run:
+            print(f"DRY RUN: Would approve PR #{pr_number} with comment: '{approval_comment}'")
+            print("SUCCESS: Dry run completed - all checks passed, would proceed with approval")
+            return "approved"
+        else:
+            print(f"Approving PR #{pr_number}...")
+            review = github.approve_pull_request(pr_number, approval_comment)
 
-        return "approved"
+            print(f"SUCCESS: Successfully approved PR #{pr_number}")
+            print(f"Review ID: {review['id']}")
+            if comment:
+                print(f"Comment: {comment}")
+
+            return "approved"
 
     except Exception as e:
         error_str = str(e)
@@ -294,76 +294,27 @@ def main():
     print(f"Repository: {repo_owner}/{repo_name}")
     print(f"PR Number: {pr_number}")
 
-    if args.dry_run:
-        print("INFO: Dry run mode - would approve PR but not actually doing it")
-        try:
-            github = GitHubAPI(args.token, repo_owner, repo_name)
-            pr_info = github.get_pull_request(pr_number)
-            print(f"PR Title: {pr_info['title']}")
-            print(f"PR Author: {pr_info['user']['login']}")
-            print(f"PR State: {pr_info['state']}")
+    # Call approve_pr with dry_run parameter
+    result = approve_pr(
+        pr_number,
+        args.token,
+        args.comment,
+        repo_owner,
+        repo_name,
+        args.require_trigger,
+        args.trigger_pattern,
+        args.approved_users,
+        args.dry_run,
+    )
 
-            # Check if PR author is in approved users list (dry run)
-            pr_author = pr_info["user"]["login"]
-
-            # Add CI detection info
-            if is_running_in_ci():
-                print("INFO: Running in CI environment - approved users list is mandatory")
-
-            try:
-                if not check_approved_user(pr_author, args.approved_users):
-                    print(f"INFO: User '{pr_author}' is not in the approved users list")
-                    print(
-                        f"INFO: Auto-approval is restricted to users listed in APPROVED_USERS environment variable"
-                    )
-                    print(f"INFO: Would skip auto-approval.")
-                    print(
-                        "SUCCESS: Dry run completed - would skip approval due to user restrictions"
-                    )
-                    sys.exit(0)
-            except ValueError as e:
-                print(f"ERROR: {e}")
-                print("ERROR: Dry run failed due to user restriction requirements")
-                sys.exit(1)
-
-            # Check trigger in dry run mode too
-            if args.require_trigger:
-                print("INFO: Checking for approval trigger (dry run)...")
-                trigger_comment = github.check_approval_trigger(pr_number, args.trigger_pattern)
-                if not trigger_comment:
-                    print(f"INFO: No approval trigger found in PR description or comments")
-                    print(f"INFO: Expected pattern: {args.trigger_pattern}")
-                    print(
-                        f"INFO: Would skip auto-approval. Add '[auto-approve: comment]' to enable."
-                    )
-                else:
-                    print(f"INFO: Approval trigger found: '{trigger_comment}'")
-                    print("INFO: Would proceed with approval")
-
-            print("SUCCESS: Dry run completed successfully")
-        except Exception as e:
-            print(f"ERROR: Dry run failed: {str(e)}")
-            sys.exit(1)
-    else:
-        result = approve_pr(
-            pr_number,
-            args.token,
-            args.comment,
-            repo_owner,
-            repo_name,
-            args.require_trigger,
-            args.trigger_pattern,
-            args.approved_users,
-        )
-
-        if result == "error":
-            sys.exit(1)
-        elif result == "skipped":
-            print("INFO: Approval process completed - PR was not approved due to missing trigger")
-            sys.exit(0)  # Exit successfully since this is expected behavior
-        elif result == "approved":
-            print("INFO: Approval process completed successfully")
-            sys.exit(0)
+    if result == "error":
+        sys.exit(1)
+    elif result == "skipped":
+        print("INFO: Approval process completed - PR was not approved due to missing trigger")
+        sys.exit(0)  # Exit successfully since this is expected behavior
+    elif result == "approved":
+        print("INFO: Approval process completed successfully")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
