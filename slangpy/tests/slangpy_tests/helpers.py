@@ -79,13 +79,13 @@ def get_device(
     selected_adaptor_luid = None
 
     # This lets you force tests to use a specific GPU locally.
-    # if existing_device_handles is None:
-    #     adaptors = Device.enumerate_adapters(type)
-    #     selected_adaptor_luid = adaptors[0].luid
-    #     for adapter in adaptors:
-    #         if "5090" in adapter.name:
-    #             selected_adaptor_luid = adapter.luid
-    #             break
+    if existing_device_handles is None:
+        adaptors = Device.enumerate_adapters(type)
+        selected_adaptor_luid = adaptors[0].luid
+        for adapter in adaptors:
+            if "5090" in adapter.name:
+                selected_adaptor_luid = adapter.luid
+                break
 
     if label is None:
         label = ""
@@ -103,7 +103,7 @@ def get_device(
     device = Device(
         type=type,
         adapter_luid=selected_adaptor_luid,
-        enable_debug_layers=True,
+        enable_debug_layers=False,
         compiler_options=SlangCompilerOptions(
             {
                 "include_paths": [SHADER_DIR, SLANG_PATH],

@@ -116,5 +116,32 @@ def test_load_program(device_type: spy.DeviceType):
     )
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_slang_out_of_bounds(test_id: str, device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    # Loading a valid module must succeed
+    module = device.load_module_from_source(
+        module_name=f"module_from_source_{test_id}",
+        source="""
+        struct Foo {
+            uint[10] a;
+        };
+
+
+        [shader("compute")]
+        [numthreads(1, 1, 1)]
+        void main(uint3 tid: SV_DispatchThreadID, RWStructuredBuffer<Foo> values) {
+            values[0].a[100] = 1;
+        }
+    """,
+    )
+    assert len(module.entry_points) == 1
+    main = module.entry_point("main")
+    assert main.name == "main"
+    assert main.stage == spy.ShaderStage.compute
+    assert main.layout.compute_thread_group_size == [1, 1, 1]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
