@@ -206,7 +206,7 @@ jobs:
       success()
 
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.APPROVAL_TOKEN }}
       # List of GitHub usernames allowed to use auto-approval
       # Configure this in repository Settings > Secrets and variables > Actions
       # Add a secret named 'APPROVED_USERS' with comma-separated usernames
