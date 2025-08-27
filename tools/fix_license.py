@@ -77,14 +77,14 @@ def process_file(path: str, dry_run: bool = False):
     if not ext in EXTENSIONS:
         return
 
-    text = open(path, "r").read()
+    text = open(path, "r", encoding="utf8").read()
     edited = add_spdx_identifier(path, text)
     if edited != text:
         if dry_run:
             print(edited[0:100])
         else:
             print(f"Writing file '{path}'")
-            open(path, "w").write(edited)
+            open(path, "w", encoding="utf8").write(edited)
 
 
 def run(args: Any):
