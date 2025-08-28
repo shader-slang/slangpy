@@ -31,7 +31,10 @@ Testing:
     - The Python testing system uses PYTEST
     - The C++ testing system uses doctest
     - Always build before running tests.
-    - To run all Python tests, run "pytest slangpy/tests"
+    - To run all Python tests, run "pytest slangpy/tests -v"
+    - An example of running a specific set of tests in a file is: "pytest slangpy/tests/slangpy_tests/test_shader_printing.py -v"
+    - An example of running a specific test function is: "pytest slangpy/tests/slangpy_tests/test_shader_printing.py::test_printing -v"
+    - To log any generated shaders in a test, set the SLANGPY_PRINT_SHADERS environment variable to "true". For example: "$env:SLANGPY_PRINT_SHADERS=1"true"; pytest slangpy/tests/slangpy_tests/test_shader_printing.py -v" (powershell syntax)
 
 C++ Code style:
     - Class names should start with a capital letter.
@@ -45,6 +48,10 @@ Python code style:
     - Local variable names are in snake_case.
     - Member variables start with "m_" and are in snake_case.
     - All arguments should have type annotations.
+
+Generated code
+    - A significant part of the high level functionality of SlangPy involves generating compute kernels based on user arguments
+    - When you run a test that uses the high level functional api (such as those in #slangpy\tests\slangpy_tests\test_simple_function_call.py), you can request the generated code to be printed to the console by setting the SLANGPY_PRINT_SHADERS environment variable to "true".
 
 CI
     - Our CI system uses github, and the main ci job is in #.github/workflows/ci.yml
