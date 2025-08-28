@@ -246,3 +246,9 @@ class Module:
         with the specified item name (by calling __getattr__).
         """
         return self.__getattr__(name)
+
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the Module for debugging.
+        """
+        return f"Module(name='{self.device_module.name}', linked_modules={len(self.link)})"

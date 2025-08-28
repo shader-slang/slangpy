@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "nanobind.h"
-
-#include "sgl/device/device.h"
 #include "sgl/device/command.h"
-
 #include "utils/slangpyfunction.h"
+#include <fmt/format.h>
 
 namespace sgl {
 
@@ -100,6 +98,25 @@ void NativeFunctionNode::append_to(
     }
 }
 
+std::string NativeFunctionNode::to_string() const
+{
+    std::string data_type_name = "None";
+    if (!m_data.is_none()) {
+        data_type_name = nb::cast<std::string>(m_data.type().attr("__name__"));
+    }
+
+    return fmt::format(
+        "NativeFunctionNode(\n"
+        "  type = {},\n"
+        "  parent = {},\n"
+        "  data_type = \"{}\"\n"
+        ")",
+        static_cast<int>(m_type),
+        m_parent ? "present" : "None",
+        data_type_name
+    );
+}
+
 } // namespace sgl::slangpy
 
 SGL_PY_EXPORT(utils_slangpy_function)
@@ -163,5 +180,6 @@ SGL_PY_EXPORT(utils_slangpy_function)
             &NativeFunctionNode::gather_runtime_options,
             "options"_a,
             D_NA(NativeFunctionNode, gather_runtime_options)
-        );
+        )
+        .def("__repr__", &NativeFunctionNode::to_string);
 }
