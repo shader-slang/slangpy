@@ -236,6 +236,7 @@ class CallData(NativeCallData):
                 snippets=True,
                 call_data_structs=True,
                 constants=True,
+                use_param_block_for_call_data=context.device.info.type != DeviceType.cuda,
             )
 
             # Optionally write the shader to a file for debugging.

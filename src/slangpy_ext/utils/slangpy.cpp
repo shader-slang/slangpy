@@ -563,7 +563,13 @@ nb::object NativeCallData::exec(
     // Dispatch the kernel.
     auto bind_vars = [&](ShaderCursor cursor)
     {
-        auto call_data_cursor = cursor.find_field("call_data");
+        // Get the call data cursor, either as an entry point parameter or global depending on platform
+        ShaderCursor call_data_cursor;
+        if (context->device()->type() == DeviceType::cuda) {
+            call_data_cursor = cursor.find_entry_point(0).find_field("call_data");
+        } else {
+            call_data_cursor = cursor.find_field("call_data");
+        }
 
         // Dereference the cursor if it is a reference.
         // We do this here to avoid doing it automatically for every

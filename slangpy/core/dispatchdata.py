@@ -9,7 +9,7 @@ from slangpy.core.enums import IOType
 from slangpy.core.native import CallMode, pack_arg, unpack_arg
 from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS
 
-from slangpy import CommandEncoder, SlangLinkOptions, uint3
+from slangpy import CommandEncoder, SlangLinkOptions, uint3, DeviceType
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.boundvariable import BoundCall
@@ -142,6 +142,7 @@ void {reflection.name}_entrypoint({params}) {{
                 snippets=True,
                 call_data_structs=True,
                 constants=True,
+                use_param_block_for_call_data=context.device.info.type != DeviceType.cuda,
             )
 
             sanitized = ""

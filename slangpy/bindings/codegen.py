@@ -184,13 +184,16 @@ class CodeGen:
         snippets: bool = False,
         call_data_structs: bool = False,
         constants: bool = False,
+        use_param_block_for_call_data: bool = False,
     ):
         """
         Generate the final code for the kernel.
         """
 
         self.call_data.end_block()
-        self.call_data.append_statement("ParameterBlock<CallData> call_data")
+
+        if use_param_block_for_call_data:
+            self.call_data.append_statement("ParameterBlock<CallData> call_data")
 
         all_code: list[str] = []
         if header:
