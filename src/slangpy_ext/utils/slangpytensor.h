@@ -63,6 +63,9 @@ public:
     /// Create a new version of this tensor without grads that refers to the same storage.
     ref<NativeTensor> detach() const;
 
+    /// Get string representation of the tensor.
+    std::string to_string() const;
+
 private:
     NativeTensorDesc m_desc;
     ref<NativeTensor> m_grad_in;

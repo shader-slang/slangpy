@@ -98,6 +98,9 @@ public:
 
     void append_to(NativeCallDataCache* cache, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 
+    /// Get string representation of the function node.
+    std::string to_string() const;
+
     virtual ref<NativeCallData> generate_call_data(nb::args args, nb::kwargs kwargs)
     {
         SGL_UNUSED(args);

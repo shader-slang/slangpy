@@ -8,6 +8,8 @@
 
 #include "utils/slangpybuffer.h"
 
+#include <fmt/format.h>
+
 namespace sgl {
 
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
@@ -40,6 +42,26 @@ ref<NativeNDBuffer> NativeNDBuffer::index(nb::object index_arg) const
     auto result = make_ref<NativeNDBuffer>(device(), desc(), storage());
     result->index_inplace(index_arg);
     return result;
+}
+
+std::string NativeNDBuffer::to_string() const
+{
+    return fmt::format(
+        "NativeNDBuffer(\n"
+        "  shape = {},\n"
+        "  strides = {},\n"
+        "  offset = {},\n"
+        "  dtype = \"{}\",\n"
+        "  memory_type = {},\n"
+        "  usage = {}\n"
+        ")",
+        shape().to_string(),
+        strides().to_string(),
+        offset(),
+        m_desc.dtype->to_string(),
+        static_cast<int>(m_desc.memory_type),
+        static_cast<int>(m_desc.usage)
+    );
 }
 
 Shape NativeNDBufferMarshall::get_shape(nb::object data) const
@@ -274,7 +296,8 @@ SGL_PY_EXPORT(utils_slangpy_buffer)
         .def(nb::init<ref<Device>, NativeNDBufferDesc, ref<Buffer>>(), "device"_a, "desc"_a, "buffer"_a = nullptr)
         .def("broadcast_to", &NativeNDBuffer::broadcast_to, "shape"_a)
         .def("view", &NativeNDBuffer::view, "shape"_a, "strides"_a = Shape(), "offset"_a = 0)
-        .def("__getitem__", &NativeNDBuffer::index);
+        .def("__getitem__", &NativeNDBuffer::index)
+        .def("__repr__", &NativeNDBuffer::to_string);
 
 
     nb::class_<NativeNDBufferMarshall, NativeMarshall>(slangpy, "NativeNDBufferMarshall") //

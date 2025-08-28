@@ -170,6 +170,9 @@ public:
     /// Get the buffer type layout of the type (call into Python).
     ref<TypeLayoutReflection> buffer_type_layout() const { return _py_buffer_type_layout(); }
 
+    /// Get string representation of the type.
+    std::string to_string() const;
+
     /// Virtual accessors to give native system access to python defined reflection properties
     virtual ref<NativeSlangType> _py_element_type() const { return nullptr; }
     virtual bool _py_has_derivative() const { return false; }

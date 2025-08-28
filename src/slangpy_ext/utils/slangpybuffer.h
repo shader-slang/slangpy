@@ -34,6 +34,9 @@ public:
     ref<NativeNDBuffer> broadcast_to(const Shape& shape) const;
     ref<NativeNDBuffer> index(nb::object index_arg) const;
 
+    /// Get string representation of the NDBuffer.
+    std::string to_string() const;
+
 private:
     NativeNDBufferDesc m_desc;
 };

@@ -2,6 +2,7 @@
 
 #include <initializer_list>
 #include "nanobind.h"
+#include <fmt/format.h>
 
 #include "sgl/device/device.h"
 #include "sgl/device/buffer_cursor.h"
@@ -103,6 +104,17 @@ ref<NativeTensor> NativeTensor::detach() const
     // Create a new tensor object that refers to the same data as this one, but without
     // associated grads.
     return make_ref<NativeTensor>(m_desc, storage(), nullptr, nullptr);
+}
+
+std::string NativeTensor::to_string() const
+{
+    return fmt::format(
+        "NativeTensor(dtype={}, shape={}, has_grad_in={}, has_grad_out={})",
+        m_desc.dtype->to_string(),
+        m_desc.shape.to_string(),
+        m_grad_in ? "true" : "false",
+        m_grad_out ? "true" : "false"
+    );
 }
 
 Shape NativeTensorMarshall::get_shape(nb::object data) const
@@ -289,7 +301,8 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
             "grad_out"_a.none() = nullptr,
             "zero"_a = true
         )
-        .def("detach", &NativeTensor::detach);
+        .def("detach", &NativeTensor::detach)
+        .def("__repr__", &NativeTensor::to_string);
 
 
     nb::class_<NativeTensorMarshall, PyNativeTensorMarshall, NativeMarshall>(slangpy, "NativeTensorMarshall") //
