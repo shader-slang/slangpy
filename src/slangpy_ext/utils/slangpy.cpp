@@ -13,8 +13,6 @@
 #include "sgl/device/command.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
-#include <fmt/format.h>
-
 #include "utils/slangpy.h"
 #include "utils/slangpyvalue.h"
 #include "utils/slangpybuffer.h"
