@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import pytest
-from slangpy import float4
 
+import pytest
+
+from slangpy import float4
 from slangpy.bindings.boundvariable import BoundVariableException
-from . import helpers
 from slangpy import DeviceType
 from slangpy.types.buffer import NDBuffer
+from slangpy.testing import helpers
 
 MODULE = """
 import "slangpy";
@@ -123,7 +124,9 @@ def test_bad_implicit_buffer_cast(device_type: DeviceType):
 def test_invalid_broadcast(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
-    function = helpers.create_function_from_module(device, "foo2", MODULE)
+    function = helpers.create_function_from_module(
+        device, "foo2", MODULE, options={"strict_broadcasting": True}
+    )
 
     buffer = NDBuffer(device, dtype=float, shape=(10,))
     buffer2 = NDBuffer(device, dtype=float, shape=(10, 10))
@@ -173,4 +176,4 @@ def test_missing_child_function(device_type: DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

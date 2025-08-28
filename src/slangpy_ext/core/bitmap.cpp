@@ -89,7 +89,43 @@ SGL_PY_EXPORT(core_bitmap)
                 if (is_ndarray_contiguous(data)) {
                     std::memcpy(self->data(), data.data(), self->buffer_size());
                 } else {
-                    SGL_THROW("data is not contiguous.");
+                    uint8_t* dst = reinterpret_cast<uint8_t*>(self->data());
+                    const uint8_t* src = reinterpret_cast<const uint8_t*>(data.data());
+                    size_t dst_component_size = DataStruct::type_size(self->component_type());
+                    size_t dst_row_stride = self->width() * self->bytes_per_pixel();
+                    size_t dst_pixel_stride = self->bytes_per_pixel();
+                    size_t src_component_size = data.itemsize();
+                    size_t src_row_stride = data.stride(0) * src_component_size;
+                    size_t src_pixel_stride = data.stride(1) * src_component_size;
+                    if (data.ndim() == 2) {
+                        for (uint32_t y = 0; y < self->height(); ++y) {
+                            uint8_t* dst_row = dst + y * dst_row_stride;
+                            const uint8_t* src_row = src + y * src_row_stride;
+                            for (uint32_t x = 0; x < self->width(); ++x) {
+                                std::memcpy(
+                                    dst_row + x * dst_pixel_stride,
+                                    src_row + x * src_pixel_stride,
+                                    dst_component_size
+                                );
+                            }
+                        }
+                    } else if (data.ndim() == 3) {
+                        size_t src_component_stride = data.stride(2) * src_component_size;
+                        for (uint32_t y = 0; y < self->height(); ++y) {
+                            uint8_t* dst_row = dst + y * dst_row_stride;
+                            const uint8_t* src_row = src + y * src_row_stride;
+                            for (uint32_t x = 0; x < self->width(); ++x) {
+                                const uint8_t* src_pixel = src_row + x * src_pixel_stride;
+                                for (uint32_t c = 0; c < self->channel_count(); ++c) {
+                                    std::memcpy(
+                                        dst_row + x * dst_pixel_stride + c * dst_component_size,
+                                        src_pixel + c * src_component_stride,
+                                        dst_component_size
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
             },
             "data"_a,

@@ -10,7 +10,10 @@ import platform
 import argparse
 import subprocess
 import json
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Optional, Union
+
+PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
 def get_os():
@@ -55,15 +58,22 @@ def get_default_compiler():
         raise NameError(f"Unsupported OS: {get_os()}")
 
 
-def run_command(command: str, shell: bool = True, env: Optional[dict[str, str]] = None):
+def run_command(
+    command: Union[str, list[str]], shell: bool = True, env: Optional[dict[str, str]] = None
+):
+    if isinstance(command, str):
+        command = [command]
     if get_os() == "windows":
-        command = command.replace("/", "\\")
+        command[0] = command[0].replace("/", "\\")
     if env != None:
         new_env = os.environ.copy()
         new_env.update(env)
         env = new_env
-    print(f'Running "{command}" ...')
+    print(f'Running "{" ".join(command)}" ...')
     sys.stdout.flush()
+
+    if shell:
+        command = " ".join(command)
 
     process = subprocess.Popen(
         command,
@@ -92,37 +102,10 @@ def run_command(command: str, shell: bool = True, env: Optional[dict[str, str]] 
     return out
 
 
-def get_changed_env(command: str):
-    if get_os() == "windows":
-        command = command.replace("/", "\\") + " && set"
-    else:
-        command = command + " && env"
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        shell=True,
-        executable="/bin/bash" if get_os() != "windows" else None,
-    )
-    if result.returncode != 0:
-        raise NameError(f'Error running "{command}"')
-    env_vars = {}
-    for line in result.stdout.splitlines():
-        if "=" in line:
-            key, value = line.split("=", 1)
-            if key in ["_"]:
-                continue
-            curr = os.getenv(key)
-            if curr is None or curr != value:
-                env_vars[key] = value
-    return env_vars
-
-
-def get_python_env(args: Any):
-    if args.os == "windows":
-        return get_changed_env(f"{args.bin_dir}/setpath.bat")
-    else:
-        return get_changed_env(f"source {args.bin_dir}/setpath.sh")
+def get_python_env():
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(PROJECT_DIR)
+    return env
 
 
 def setup(args: Any):
@@ -133,20 +116,22 @@ def setup(args: Any):
 
 
 def configure(args: Any):
-    cmd = f"{args.cmake} --preset {args.preset}"
+    cmd = [args.cmake, "--preset", args.preset]
     if "header-validation" in args.flags:
-        cmd += " -DSGL_ENABLE_HEADER_VALIDATION=ON"
+        cmd += ["-DSGL_ENABLE_HEADER_VALIDATION=ON"]
     if "coverage" in args.flags:
-        cmd += " -DSGL_ENABLE_COVERAGE=ON"
+        cmd += ["-DSGL_ENABLE_COVERAGE=ON"]
+    if args.cmake_args != "":
+        cmd += args.cmake_args.split()
     run_command(cmd)
 
 
 def build(args: Any):
-    run_command(f"{args.cmake} --build build/{args.preset} --config {args.config}")
+    run_command([args.cmake, "--build", f"build/{args.preset}", "--config", args.config])
 
 
 def unit_test_cpp(args: Any):
-    out = run_command(f"{args.bin_dir}/sgl_tests -r=console,junit")
+    out = run_command([f"{args.bin_dir}/sgl_tests", "-r=console,junit"])
     # doctest outputs both regular output and junit xml report on stdout
     # filter out regular output and write remaining to junit xml file
     report = "\n".join(filter(lambda line: line.strip().startswith("<"), out.splitlines()))
@@ -156,21 +141,43 @@ def unit_test_cpp(args: Any):
 
 
 def typing_check_python(args: Any):
-    env = get_python_env(args)
+    env = get_python_env()
     run_command(f"pyright", env=env)
 
 
 def unit_test_python(args: Any):
-    env = get_python_env(args)
+    env = get_python_env()
     os.makedirs("reports", exist_ok=True)
-    run_command(f"pytest slangpy/tests -r a --junit-xml=reports/pytest-junit.xml", env=env)
+    cmd = ["pytest", "slangpy/tests", "-ra", "--junit-xml=reports/pytest-junit.xml"]
+    if args.parallel:
+        cmd += ["-n", "auto", "--maxprocesses=4"]
+    run_command(cmd, env=env)
+
+
+def test_examples(args: Any):
+    env = get_python_env()
+    cmd = ["pytest", "samples/tests", "-vra"]
+    if args.parallel:
+        cmd += ["-n", "auto", "--maxprocesses=4"]
+    run_command(cmd, env=env)
+
+
+def benchmark_python(args: Any):
+    env = get_python_env()
+    cmd = ["pytest", "slangpy/benchmarks", "-ra"]
+    if args.mongodb_connection_string:
+        cmd += ["--upload-benchmark-report"]
+        cmd += ["--mongodb-connection-string", args.mongodb_connection_string]
+        if args.mongodb_database_name:
+            cmd += ["--mongodb-database-name", args.mongodb_database_name]
+    run_command(cmd, env=env)
 
 
 def coverage_report(args: Any):
     if not "coverage" in args.flags:
         print("Coverage flag not set, skipping coverage report.")
     os.makedirs("reports", exist_ok=True)
-    run_command(f"gcovr -r . -f src/sgl --html reports/coverage.html")
+    run_command(["gcovr", "-r", ".", "-f", "src/sgl", "--html", "reports/coverage.html"])
 
 
 def main():
@@ -181,6 +188,7 @@ def main():
     parser.add_argument("--config", type=str, action="store", help="Config (Release, Debug)")
     parser.add_argument("--python", type=str, action="store", help="Python version")
     parser.add_argument("--flags", type=str, action="store", help="Additional flags")
+    parser.add_argument("--cmake-args", type=str, action="store", help="Additional CMake arguments")
 
     commands = parser.add_subparsers(dest="command", required=True, help="sub-command help")
 
@@ -197,6 +205,24 @@ def main():
     )
 
     parser_test_python = commands.add_parser("unit-test-python", help="run unit tests (python)")
+    parser_test_python.add_argument(
+        "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+
+    parser_test_examples = commands.add_parser("test-examples", help="run examples tests")
+    parser_test_examples.add_argument(
+        "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+
+    parser_benchmark_python = commands.add_parser(
+        "benchmark-python", help="run benchmarks (python)"
+    )
+    parser_benchmark_python.add_argument(
+        "-c", "--mongodb-connection-string", type=str, help="MongoDB connection string"
+    )
+    parser_benchmark_python.add_argument(
+        "-d", "--mongodb-database-name", type=str, help="MongoDB database name"
+    )
 
     parser_coverage_report = commands.add_parser("coverage-report", help="generate coverage report")
 
@@ -210,6 +236,7 @@ def main():
         ("config", "CI_CONFIG", "Debug"),
         ("python", "CI_PYTHON", "3.9"),
         ("flags", "CI_FLAGS", ""),
+        ("cmake_args", "CI_CMAKE_ARGS", ""),
     ]
 
     for var, env_var, default_value in VARS:
@@ -251,6 +278,8 @@ def main():
         "unit-test-cpp": unit_test_cpp,
         "typing-check-python": typing_check_python,
         "unit-test-python": unit_test_python,
+        "test-examples": test_examples,
+        "benchmark-python": benchmark_python,
         "coverage-report": coverage_report,
     }[args.command](args)
 

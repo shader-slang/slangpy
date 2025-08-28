@@ -76,7 +76,13 @@ SGL_PY_EXPORT(device_buffer_cursor)
 
     // Interface to simpler root cursor object that maps to the larger buffer.
     nb::class_<BufferCursor, Object>(m, "BufferCursor", D(BufferCursor)) //
-        .def(nb::init<ref<TypeLayoutReflection>, size_t>(), "element_layout"_a, "size"_a, D(BufferCursor, BufferCursor))
+        .def(
+            nb::init<DeviceType, ref<TypeLayoutReflection>, size_t>(),
+            "device_type"_a,
+            "element_layout"_a,
+            "size"_a,
+            D(BufferCursor, BufferCursor)
+        )
         .def(
             nb::init<ref<TypeLayoutReflection>, ref<Buffer>, bool>(),
             "element_layout"_a,
@@ -104,12 +110,21 @@ SGL_PY_EXPORT(device_buffer_cursor)
         .def("load", &BufferCursor::load, D(BufferCursor, load))
         .def("apply", &BufferCursor::apply, D(BufferCursor, apply))
         .def_prop_ro("resource", &BufferCursor::resource, D(BufferCursor, resource))
-        .def("__getitem__", [](BufferCursor& self, int index) { return self[index]; })
+        .def(
+            "__getitem__",
+            [](BufferCursor& self, Py_ssize_t index)
+            {
+                index = detail::sanitize_getitem_index(index, self.element_count());
+                return self[uint32_t(index)];
+            }
+        )
         .def("__len__", [](BufferCursor& self) { return self.element_count(); })
         .def(
             "write_from_numpy",
-            [](BufferCursor& self, nb::object nbval) { detail::_writeconv.write_from_numpy(self, nbval); },
-            "data"_a
+            [](BufferCursor& self, nb::object data, bool unchecked_copy)
+            { detail::_writeconv.write_from_numpy(self, data, unchecked_copy); },
+            "data"_a,
+            "unchecked_copy"_a = true
         )
         .def(
             "to_numpy",

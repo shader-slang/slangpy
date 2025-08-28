@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import numpy as np
-import pytest
 
-from . import helpers
+import pytest
+import numpy as np
+
 from slangpy import DeviceType, float2
 from slangpy.types import NDBuffer, Tensor
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

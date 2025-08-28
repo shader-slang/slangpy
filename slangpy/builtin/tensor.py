@@ -6,7 +6,8 @@ from typing import Any, Optional, cast
 from slangpy.core.native import AccessType, Shape, CallMode
 
 from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorType
-from slangpy.types.tensor import Tensor, innermost_type
+from slangpy.types.tensor import Tensor
+from slangpy.types.buffer import innermost_type
 from slangpy.core.native import NativeTensorMarshall, NativeTensor
 
 from slangpy import TypeReflection, ShaderObject, ShaderCursor
@@ -17,6 +18,7 @@ from slangpy.reflection import (
     TypeReflection,
     ArrayType,
     ScalarType,
+    MatrixType,
 )
 from slangpy.bindings import (
     PYTHON_TYPES,
@@ -79,6 +81,8 @@ def types_equal(a: SlangType, b: SlangType):
 def is_nested_array(a: SlangType):
     while True:
         if isinstance(a, ScalarType):
+            return True
+        if isinstance(a, MatrixType):
             return True
         if not isinstance(a, ArrayType):
             return False

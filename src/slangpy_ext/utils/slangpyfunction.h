@@ -19,15 +19,14 @@
 
 namespace sgl::slangpy {
 
-enum class FunctionNodeType { unknown, uniforms, kernelgen, this_ };
+enum class FunctionNodeType { unknown, uniforms, kernelgen, this_, cuda_stream };
 SGL_ENUM_INFO(
     FunctionNodeType,
-    {
-        {FunctionNodeType::unknown, "unknown"},
-        {FunctionNodeType::uniforms, "uniforms"},
-        {FunctionNodeType::kernelgen, "kernelgen"},
-        {FunctionNodeType::this_, "this"},
-    }
+    {{FunctionNodeType::unknown, "unknown"},
+     {FunctionNodeType::uniforms, "uniforms"},
+     {FunctionNodeType::kernelgen, "kernelgen"},
+     {FunctionNodeType::this_, "this"},
+     {FunctionNodeType::cuda_stream, "cuda_stream"}}
 );
 SGL_ENUM_REGISTER(FunctionNodeType);
 
@@ -70,6 +69,9 @@ public:
         case sgl::slangpy::FunctionNodeType::uniforms:
             options->get_uniforms().append(m_data);
             break;
+        case sgl::slangpy::FunctionNodeType::cuda_stream:
+            options->set_cuda_stream(nb::cast<NativeHandle>(m_data));
+            break;
         default:
             break;
         }
@@ -95,6 +97,9 @@ public:
     nb::object call(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs);
 
     void append_to(NativeCallDataCache* cache, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+
+    /// Get string representation of the function node.
+    std::string to_string() const;
 
     virtual ref<NativeCallData> generate_call_data(nb::args args, nb::kwargs kwargs)
     {

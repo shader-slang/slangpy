@@ -97,9 +97,9 @@ SGL_PY_EXPORT(device_types)
     nb::sgl_enum<Feature>(m, "Feature", nb::is_arithmetic());
 
     nb::sgl_enum<DescriptorHandleType>(m, "DescriptorHandleType", nb::is_arithmetic());
-    nb::class_<DescriptorHandle>(m, "DescriptorHandle", D_NA(DescriptorHandle))
-        .def_ro("type", &DescriptorHandle::type, D_NA(DescriptorHandle, type))
-        .def_ro("value", &DescriptorHandle::value, D_NA(DescriptorHandle, value))
+    nb::class_<DescriptorHandle>(m, "DescriptorHandle", D(DescriptorHandle))
+        .def_ro("type", &DescriptorHandle::type, D(DescriptorHandle, type))
+        .def_ro("value", &DescriptorHandle::value, D(DescriptorHandle, value))
         .def("__bool__", &DescriptorHandle::is_valid)
         .def("__repr__", &DescriptorHandle::to_string);
 

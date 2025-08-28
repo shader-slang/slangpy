@@ -36,11 +36,15 @@ namespace impl
     int[D] makeIndex<let D : int, T : IInteger>(ISizedArray<T, D> indices)
     {
         int[D] idxVec;
+        [ForceUnroll]
         for (int i = 0; i < D; ++i)
             idxVec[i] = indices[i].toInt();
         return idxVec;
     }
 }
+
+// #pragma warning(push)
+// #pragma warning(disable: 30856)
 
 public extension<T : IDifferentiable, let D : int, TensorType : ITensor<T, D>> TensorType
 {
@@ -114,6 +118,25 @@ public extension<T : IDifferentiable, let D : int, TensorType : ITensor<T, D>> T
             }
         }
     }
+
+    [Differentiable]
+    public void load<let M : int, let N : int>(ContextND<D - 2> context, out matrix <T, M, N> value)
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 2; ++i)
+            idx[i] = context.call_id[i];
+        [ForceUnroll]
+        for (int i = 0; i < M; i++) {
+            [ForceUnroll]
+            for (int j = 0; j < N; j++) {
+                idx[D - 2] = i;
+                idx[D - 1] = j;
+
+                value[i][j] = get(idx);
+            }
+        }
+    }
 }
 
 public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>> TensorType
@@ -171,6 +194,25 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>>
         }
     }
 
+    [Differentiable]
+    public void store<let M : int, let N : int>(ContextND<D - 2> context, in matrix <T, M, N> value)
+    {
+        int idx[D];
+        [ForceUnroll]
+        for (int i = 0; i < D - 2; ++i)
+            idx[i] = context.call_id[i];
+        [ForceUnroll]
+        for (int i = 0; i < M; i++) {
+            [ForceUnroll]
+            for (int j = 0; j < N; j++) {
+                idx[D - 2] = i;
+                idx[D - 1] = j;
+
+                set(idx, value[i][j]);
+            }
+        }
+    }
+
     // Operator [] currently causes compiler crash and is disabled
 #if 0
     __generic<each Is : IInteger>
@@ -188,9 +230,13 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>>
 #endif
 }
 
+// #pragma warning(pop)
+
 public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
-    public StructuredBuffer<T> buffer;
+    typealias Storage = StorageTraits<T>.BufferType;
+
+    public Storage buffer;
     public StridedLayout<D> layout;
     private uint _shape[D];
 
@@ -206,6 +252,7 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }
@@ -213,7 +260,9 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 
 public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
 {
-    public RWStructuredBuffer<T> buffer;
+    typealias Storage = StorageTraits<T>.RWBufferType;
+
+    public Storage buffer;
     public StridedLayout<D> layout;
     private uint _shape[D];
 
@@ -235,6 +284,7 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }
@@ -242,35 +292,35 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
 
 public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferentiable, IAtomicAddable
 {
-    public RWByteAddressBuffer buffer;
+    typealias Storage = StorageTraits<T>.AtomicBufferType;
+
+    public Storage buffer;
     public StridedLayout<D> layout;
     private uint _shape[D];
 
     public property shape : uint[D] { get { return _shape; } }
 
     [TreatAsDifferentiable]
-    public T get(int[D] idx) { return buffer.Load<T>(layout.at(idx) * sizeof(T)); }
+    public T get(int[D] idx) { return StorageTraits<T>::atomicLoad(buffer, layout.at(idx)); }
 
     [TreatAsDifferentiable]
-    public T getv(vector<int,D> idx) { return buffer.Load<T>(layout.at_vec(idx)); }
+    public T getv(vector<int,D> idx) { return StorageTraits<T>::atomicLoad(buffer, layout.at_vec(idx)); }
 
     [TreatAsDifferentiable]
     public void set(int idx[D], T value) {
-        T::atomicAdd(buffer, layout.at(idx) * sizeof(T), value);
-        // TODO: Atomic adds are conservative and not always needed. If we inspect the layout
-        // during load() and determine each call id sees a unique slice, we could do the Store below instead:
-        //buffer.Store<T>(layout.at(idx) * sizeof(T), value, sizeof(T));
+        StorageTraits<T>::atomicAdd(buffer, layout.at(idx), value);
     }
 
     [TreatAsDifferentiable]
     public void setv(vector<int,D> idx, T value) {
-        T::atomicAdd(buffer, layout.at_vec(idx) * sizeof(T), value);
+        StorageTraits<T>::atomicAdd(buffer, layout.at_vec(idx), value);
     }
 
     public void load<let SliceD : int>(ContextND<D - SliceD> ctx, out AtomicTensor<T, SliceD> value)
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }

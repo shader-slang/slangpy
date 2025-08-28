@@ -18,21 +18,21 @@ N = 1024
 
 buffer_a = device.create_buffer(
     element_count=N,
-    struct_type=kernel.reflection.processor.a,
+    resource_type_layout=kernel.reflection.processor.a,
     usage=spy.BufferUsage.shader_resource,
     data=np.linspace(0, N - 1, N, dtype=np.uint32),
 )
 
 buffer_b = device.create_buffer(
     element_count=N,
-    struct_type=kernel.reflection.processor.b,
+    resource_type_layout=kernel.reflection.processor.b,
     usage=spy.BufferUsage.shader_resource,
     data=np.linspace(N, 1, N, dtype=np.uint32),
 )
 
 buffer_c = device.create_buffer(
     element_count=N,
-    struct_type=kernel.reflection.processor.c,
+    resource_type_layout=kernel.reflection.processor.c,
     usage=spy.BufferUsage.unordered_access,
 )
 

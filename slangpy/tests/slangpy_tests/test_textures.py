@@ -1,22 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import numpy as np
-import pytest
-from slangpy import TextureDesc, TextureUsage
 
-from . import helpers
-from slangpy import InstanceBuffer, Module
-from slangpy import DeviceType, Format, TextureType, Texture, ALL_MIPS
+import pytest
+import numpy as np
+
+from slangpy import (
+    DeviceType,
+    Format,
+    TextureType,
+    TextureDesc,
+    TextureUsage,
+    Texture,
+    ALL_MIPS,
+    InstanceBuffer,
+    Module,
+)
 from slangpy.types import NDBuffer
 from slangpy.reflection import ScalarType
 from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
-from slangpy.types.tensor import _slang_to_numpy
-import sys
+from slangpy.types.buffer import _slang_to_numpy
+from slangpy.testing import helpers
 
-if sys.platform == "darwin":
-    pytest.skip(
-        "Skipping on macOS: Waiting for slang-gfx fix for resource clear API https://github.com/shader-slang/slang/issues/6640",
-        allow_module_level=True,
-    )
+from typing import Union
 
 
 def load_test_module(device_type: DeviceType):
@@ -38,7 +42,7 @@ def make_rand_data(type: TextureType, array_length: int, mip_count: int):
         sz = 32
         mips = []
         for i in range(0, mip_count):
-            if type == TextureType.texture_1d:
+            if type in (TextureType.texture_1d, TextureType.texture_1d_array):
                 mips.append(np.random.rand(sz, 4).astype(np.float32))
             elif type in (TextureType.texture_2d, TextureType.texture_2d_array):
                 mips.append(np.random.rand(sz, sz, 4).astype(np.float32))
@@ -169,15 +173,17 @@ def make_grid_data(type: TextureType, array_length: int = 1):
 @pytest.mark.parametrize("mips", [ALL_MIPS, 1, 4])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, type: TextureType):
+    if device_type == DeviceType.cuda:
+        pytest.skip("Limited texture support in CUDA backend")
+    if device_type == DeviceType.metal:
+        pytest.skip("Limited texture support in Metal backend")
+
     m = load_test_module(device_type)
     assert m is not None
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
         return
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
 
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
@@ -220,17 +226,17 @@ def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, typ
 def test_read_write_texture_with_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
 ):
+    if device_type == DeviceType.cuda:
+        pytest.skip("Limited texture support in CUDA backend")
+    if device_type == DeviceType.metal:
+        pytest.skip("Limited texture support in Metal backend")
+
     m = load_test_module(device_type)
     assert m is not None
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
         return
-    if type == TextureType.texture_3d and mips != 1:
-        pytest.skip("Pending slang fix")
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
 
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
@@ -274,18 +280,18 @@ def test_read_write_texture_with_resource_views(
     [TextureType.texture_1d, TextureType.texture_2d, TextureType.texture_3d],
 )
 @pytest.mark.parametrize("slices", [1, 4])
-@pytest.mark.parametrize("mips", [1])
+@pytest.mark.parametrize("mips", [ALL_MIPS, 1])
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_copy_value(device_type: DeviceType, slices: int, mips: int, type: TextureType):
+    if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
+        pytest.skip("1D textures with mip maps are not supported on Metal")
+
     m = load_test_module(device_type)
     assert m is not None
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
         return
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -315,18 +321,15 @@ def test_copy_value(device_type: DeviceType, slices: int, mips: int, type: Textu
 def test_copy_mip_values_with_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
 ):
+    if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
+        pytest.skip("1D textures with mip maps are not supported on Metal")
+
     m = load_test_module(device_type)
     assert m is not None
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
         return
-
-    if type == TextureType.texture_3d and mips != 1:
-        pytest.skip("Pending slang fix")
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -339,13 +342,18 @@ def test_copy_mip_values_with_resource_views(
             src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
-        m.copy_value(src_tex.create_view(mip=mip_idx), dest_tex.create_view(mip=mip_idx))
+        m.copy_value(
+            src_tex.create_view(mip=mip_idx, mip_count=1),
+            dest_tex.create_view(mip=mip_idx, mip_count=1),
+        )
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
             data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
-            assert np.allclose(data, rand_data[slice_idx][mip_idx])
+            assert np.allclose(
+                data, rand_data[slice_idx][mip_idx]
+            ), f"Mismatch in slice {slice_idx}, mip {mip_idx}"
 
 
 @pytest.mark.parametrize(
@@ -358,18 +366,15 @@ def test_copy_mip_values_with_resource_views(
 def test_copy_mip_values_with_all_uav_resource_views(
     device_type: DeviceType, slices: int, mips: int, type: TextureType
 ):
+    if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
+        pytest.skip("1D textures with mip maps are not supported on Metal")
+
     m = load_test_module(device_type)
     assert m is not None
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
         return
-
-    if type == TextureType.texture_3d and mips != 1:
-        pytest.skip("Pending slang fix")
-
-    if type == TextureType.texture_1d and slices > 1:
-        pytest.skip("Pending slang fix")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -382,13 +387,18 @@ def test_copy_mip_values_with_all_uav_resource_views(
             src_tex.copy_from_numpy(mip_data, layer=slice_idx, mip=mip_idx)
 
     for mip_idx in range(src_tex.mip_count):
-        m.copy_value(src_tex.create_view(mip=mip_idx), dest_tex.create_view(mip=mip_idx))
+        m.copy_value(
+            src_tex.create_view(mip=mip_idx, mip_count=1),
+            dest_tex.create_view(mip=mip_idx, mip_count=1),
+        )
 
     # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
             data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
-            assert np.allclose(data, rand_data[slice_idx][mip_idx])
+            assert np.allclose(
+                data, rand_data[slice_idx][mip_idx]
+            ), f"Mismatch in slice {slice_idx}, mip {mip_idx}"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -432,13 +442,16 @@ def test_texture_3d_shapes(device_type: DeviceType, shape: tuple[int, ...]):
     assert np.allclose(copied, tex_data)
 
 
-@pytest.mark.parametrize(
-    "texel_name", ["uint8_t", "uint16_t", "int8_t", "int16_t", "float", "half", "uint"]
-)
-@pytest.mark.parametrize("dims", [1, 2, 3])
-@pytest.mark.parametrize("channels", [1, 2, 4])
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: int, channels: int):
+def texture_return_value_impl(
+    device_type: DeviceType,
+    texel_name: str,
+    dims: int,
+    channels: int,
+    return_type: Union[str, type],
+):
+    if device_type == DeviceType.cuda and texel_name == "half":
+        pytest.skip("Issue with half type in CUDA backend")
+
     if texel_name in ("uint8_t", "int8_t") and device_type == DeviceType.d3d12:
         pytest.skip("8-bit types not supported by DXC")
 
@@ -460,7 +473,7 @@ def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: in
     buffer = NDBuffer(m.device, dtype, shape=shape)
     buffer.copy_from_numpy(data)
 
-    result = m.passthru.map(buffer.dtype)(buffer, _result=Texture)
+    result = m.passthru.map(buffer.dtype)(buffer, _result=return_type)
 
     assert isinstance(result, Texture)
     if dims == 1:
@@ -487,6 +500,30 @@ def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: in
     # result_np = result_np.transpose(order)
 
     assert np.allclose(result_np, data.squeeze())
+
+
+@pytest.mark.parametrize(
+    "texel_name", ["uint8_t", "uint16_t", "int8_t", "int16_t", "float", "half", "uint"]
+)
+@pytest.mark.parametrize("dims", [1, 2, 3])
+@pytest.mark.parametrize("channels", [1, 2, 4])
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: int, channels: int):
+    if device_type == DeviceType.metal:
+        pytest.skip("Limited texture support in Metal backend")
+    texture_return_value_impl(device_type, texel_name, dims, channels, Texture)
+
+
+# This case checks for when the return type is the string "texture".
+# This checks a subset of the "test_texture_return_value" parameters.
+@pytest.mark.parametrize("texel_name", ["float"])
+@pytest.mark.parametrize("dims", [1, 2, 3])
+@pytest.mark.parametrize("channels", [4])
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_return_value_str(
+    device_type: DeviceType, texel_name: str, dims: int, channels: int
+):
+    texture_return_value_impl(device_type, texel_name, dims, channels, "texture")
 
 
 if __name__ == "__main__":

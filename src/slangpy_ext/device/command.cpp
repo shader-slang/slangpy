@@ -254,7 +254,7 @@ SGL_PY_EXPORT(device_command)
         );
     nb::implicitly_convertible<nb::dict, RenderPassDesc>();
 
-    nb::class_<CommandEncoder, DeviceResource>(m, "CommandEncoder", D(CommandEncoder))
+    nb::class_<CommandEncoder, DeviceChild>(m, "CommandEncoder", D(CommandEncoder))
         .def("begin_render_pass", &CommandEncoder::begin_render_pass, "desc"_a, D(CommandEncoder, begin_render_pass))
         .def("begin_compute_pass", &CommandEncoder::begin_compute_pass, D(CommandEncoder, begin_compute_pass))
         .def(
@@ -450,6 +450,13 @@ SGL_PY_EXPORT(device_command)
             D(CommandEncoder, blit, 2)
         )
         .def(
+            "generate_mips",
+            &CommandEncoder::generate_mips,
+            "texture"_a,
+            "layer"_a = 0,
+            D(CommandEncoder, generate_mips)
+        )
+        .def(
             "resolve_query",
             &CommandEncoder::resolve_query,
             "query_pool"_a,
@@ -520,6 +527,7 @@ SGL_PY_EXPORT(device_command)
             "state"_a,
             D(CommandEncoder, set_texture_state)
         )
+        .def("global_barrier", &CommandEncoder::global_barrier, D_NA(CommandEncoder, global_barrier))
         .def(
             "push_debug_group",
             &CommandEncoder::push_debug_group,
@@ -679,5 +687,5 @@ SGL_PY_EXPORT(device_command)
             D(RayTracingPassEncoder, dispatch_rays)
         );
 
-    nb::class_<CommandBuffer, DeviceResource>(m, "CommandBuffer", D(CommandBuffer));
+    nb::class_<CommandBuffer, DeviceChild>(m, "CommandBuffer", D(CommandBuffer));
 }

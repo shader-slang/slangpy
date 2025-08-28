@@ -1,18 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from pathlib import Path
 
-import numpy as np
 import pytest
+import numpy as np
+from pathlib import Path
+import sys
 
 from slangpy import DeviceType, float1, float3, uint3
-from . import helpers
-from .helpers import test_id  # type: ignore (pytest fixture)
-from .test_differential_function_call import (
+from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
+from slangpy.testing import helpers
+from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
+
+sys.path.append(str(Path(__file__).parent))
+from test_differential_function_call import (
     python_eval_polynomial,
     python_eval_polynomial_a_deriv,
     python_eval_polynomial_b_deriv,
 )
-from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 

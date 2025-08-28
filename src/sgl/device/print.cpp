@@ -229,10 +229,11 @@ namespace print_buffer {
     decode_buffer(const void* data, size_t size, const std::map<uint32_t, std::string>& hashed_strings, Output output)
     {
         const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data);
+        ptr += 4; // Skip header (buffer capacity).
         uint32_t buffer_size = *reinterpret_cast<const uint32_t*>(ptr);
-        ptr += 4;
+        ptr += 4; // Skip header (buffer size).
         // Clamp buffer size to the actual size of the buffer (in case the device has overflown the buffer).
-        buffer_size = std::min(buffer_size, uint32_t(size) - 4);
+        buffer_size = std::min(buffer_size, uint32_t(size) - 8);
         const uint8_t* end = ptr + buffer_size;
 
         size_t count = 0;
@@ -258,6 +259,7 @@ DebugPrinter::DebugPrinter(Device* device, size_t buffer_size)
     m_buffer = m_device->create_buffer({
         .size = buffer_size,
         .usage = BufferUsage::unordered_access | BufferUsage::copy_source,
+        .default_state = ResourceState::unordered_access,
         .label = "debug_printer_buffer",
     });
 
@@ -267,6 +269,12 @@ DebugPrinter::DebugPrinter(Device* device, size_t buffer_size)
         .usage = BufferUsage::copy_destination,
         .label = "debug_printer_readback_buffer",
     });
+
+    // Write buffer header.
+    ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
+    uint32_t header[2] = {uint32_t(buffer_size), 0};
+    command_encoder->upload_buffer_data(m_buffer, 0, sizeof(header), header);
+    m_device->submit_command_buffer(command_encoder->finish());
 }
 
 void DebugPrinter::add_hashed_strings(const std::map<uint32_t, std::string>& hashed_strings)
@@ -318,7 +326,7 @@ void DebugPrinter::flush_device(bool wait)
 {
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
     command_encoder->copy_buffer(m_readback_buffer, 0, m_buffer, 0, m_buffer->size());
-    command_encoder->clear_buffer(m_buffer);
+    command_encoder->clear_buffer(m_buffer, {4, 4});
     m_device->submit_command_buffer(command_encoder->finish());
     if (wait)
         m_device->wait_for_idle();

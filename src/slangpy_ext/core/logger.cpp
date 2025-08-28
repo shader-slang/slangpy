@@ -39,7 +39,8 @@ SGL_PY_EXPORT(core_logger)
         .def("write", &LoggerOutput::write, "level"_a, "name"_a, "msg"_a, D(LoggerOutput, write));
 
     nb::class_<ConsoleLoggerOutput, LoggerOutput>(m, "ConsoleLoggerOutput", D(ConsoleLoggerOutput))
-        .def(nb::init<bool>(), "colored"_a = true);
+        .def(nb::init<bool>(), "colored"_a = true)
+        .def_rw_static("IGNORE_PRINT_EXCEPTION", &ConsoleLoggerOutput::IGNORE_PRINT_EXCEPTION);
 
     nb::class_<FileLoggerOutput, LoggerOutput>(m, "FileLoggerOutput", D(FileLoggerOutput))
         .def(nb::init<const std::filesystem::path&>(), "path"_a);

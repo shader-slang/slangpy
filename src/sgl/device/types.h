@@ -20,6 +20,8 @@ using DeviceAddress = uint64_t;
 using DeviceOffset = uint64_t;
 /// Represents a size in device memory (in bytes).
 using DeviceSize = uint64_t;
+/// Adapter LUID (locally unique identifier).
+using AdapterLUID = std::array<uint8_t, 16>;
 
 enum CommandQueueType : uint32_t {
     graphics = static_cast<uint32_t>(rhi::QueueType::Graphics),
@@ -658,24 +660,24 @@ SGL_ENUM_INFO(
 SGL_ENUM_REGISTER(BlendFactor);
 
 enum class RenderTargetWriteMask : uint8_t {
-    enable_none = static_cast<uint8_t>(rhi::RenderTargetWriteMask::EnableNone),
-    enable_red = static_cast<uint8_t>(rhi::RenderTargetWriteMask::EnableRed),
-    enable_green = static_cast<uint8_t>(rhi::RenderTargetWriteMask::EnableGreen),
-    enable_blue = static_cast<uint8_t>(rhi::RenderTargetWriteMask::EnableBlue),
-    enable_alpha = static_cast<uint8_t>(rhi::RenderTargetWriteMask::EnableAlpha),
-    enable_all = static_cast<uint8_t>(rhi::RenderTargetWriteMask::EnableAll),
+    none = static_cast<uint8_t>(rhi::RenderTargetWriteMask::None),
+    red = static_cast<uint8_t>(rhi::RenderTargetWriteMask::Red),
+    green = static_cast<uint8_t>(rhi::RenderTargetWriteMask::Green),
+    blue = static_cast<uint8_t>(rhi::RenderTargetWriteMask::Blue),
+    alpha = static_cast<uint8_t>(rhi::RenderTargetWriteMask::Alpha),
+    all = static_cast<uint8_t>(rhi::RenderTargetWriteMask::All),
 };
 
 SGL_ENUM_CLASS_OPERATORS(RenderTargetWriteMask);
 SGL_ENUM_INFO(
     RenderTargetWriteMask,
     {
-        {RenderTargetWriteMask::enable_none, "enable_none"},
-        {RenderTargetWriteMask::enable_red, "enable_red"},
-        {RenderTargetWriteMask::enable_green, "enable_green"},
-        {RenderTargetWriteMask::enable_blue, "enable_blue"},
-        {RenderTargetWriteMask::enable_alpha, "enable_alpha"},
-        {RenderTargetWriteMask::enable_all, "enable_all"},
+        {RenderTargetWriteMask::none, "none"},
+        {RenderTargetWriteMask::red, "red"},
+        {RenderTargetWriteMask::green, "green"},
+        {RenderTargetWriteMask::blue, "blue"},
+        {RenderTargetWriteMask::alpha, "alpha"},
+        {RenderTargetWriteMask::all, "all"},
     }
 );
 SGL_ENUM_REGISTER(RenderTargetWriteMask);
@@ -692,7 +694,7 @@ struct ColorTargetDesc {
     AspectBlendDesc alpha;
     bool enable_blend{false};
     LogicOp logic_op{LogicOp::no_op};
-    RenderTargetWriteMask write_mask{RenderTargetWriteMask::enable_all};
+    RenderTargetWriteMask write_mask{RenderTargetWriteMask::all};
 };
 
 struct MultisampleDesc {

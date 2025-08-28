@@ -5,13 +5,15 @@
 #include "sgl/core/macros.h"
 
 #define SGL_VERSION_MAJOR 0
-#define SGL_VERSION_MINOR 31
-#define SGL_VERSION_PATCH 0
+#define SGL_VERSION_MINOR 33
+#define SGL_VERSION_PATCH 1
 
 #define SGL_VERSION                                                                                                    \
     SGL_TO_STRING(SGL_VERSION_MAJOR) "." SGL_TO_STRING(SGL_VERSION_MINOR) "." SGL_TO_STRING(SGL_VERSION_PATCH)
 
 extern SGL_API const char* SGL_GIT_VERSION;
+
+extern SGL_API const char* SLANG_BUILD_TAG;
 
 namespace sgl {
 

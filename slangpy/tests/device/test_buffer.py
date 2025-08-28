@@ -2,12 +2,10 @@
 
 import pytest
 import numpy as np
-import slangpy as spy
 import sys
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -53,7 +51,7 @@ def test_buffer_init_data(device_type: spy.DeviceType):
         "structured_buffer_uint",
     ],
 )
-@pytest.mark.parametrize("size_MB", [128, 1024, 2048, 3072, 4096])
+@pytest.mark.parametrize("size_MB", [128, 1024, 2048, 3072, 4094])
 def test_buffer(device_type: spy.DeviceType, type: str, size_MB: int):
     device = helpers.get_device(device_type)
 
@@ -82,10 +80,6 @@ def test_buffer(device_type: spy.DeviceType, type: str, size_MB: int):
 
     element_size = 4
     size = size_MB * 1024 * 1024
-
-    # Vulkan does not support actual 4GB buffers, but 4GB - 1B
-    if device_type == spy.DeviceType.vulkan and size >= 4096 * 1024 * 1024:
-        size -= element_size
 
     # create device local buffer
     device_buffer = device.create_buffer(
@@ -146,6 +140,15 @@ def test_buffer(device_type: spy.DeviceType, type: str, size_MB: int):
         )
         readback = read_buffer.to_numpy().view(np.uint32)
         assert np.all(data == readback)
+
+    # Set allocated resources to None and have the device wait
+    # to ensure resources are cleaned up. Running the tests on devices with lower
+    # amounts of available GPU memory can result in failures without clean up.
+    device_buffer = None
+    write_buffer = None
+    read_buffer = None
+    copy_kernel = None
+    device.wait_for_idle()
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

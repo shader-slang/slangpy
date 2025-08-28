@@ -2,6 +2,7 @@
 
 #include <initializer_list>
 #include "nanobind.h"
+#include <fmt/format.h>
 
 #include "sgl/device/device.h"
 #include "sgl/device/buffer_cursor.h"
@@ -41,10 +42,10 @@ ref<NativeTensor> NativeTensor::broadcast_to(const Shape& shape) const
     result->broadcast_to_inplace(shape);
     return result;
 }
-ref<NativeTensor> NativeTensor::index(nb::args args) const
+ref<NativeTensor> NativeTensor::index(nb::object index_arg) const
 {
     auto result = make_ref<NativeTensor>(desc(), storage(), m_grad_in, m_grad_out);
-    result->index_inplace(args);
+    result->index_inplace(index_arg);
     return result;
 }
 
@@ -103,6 +104,17 @@ ref<NativeTensor> NativeTensor::detach() const
     // Create a new tensor object that refers to the same data as this one, but without
     // associated grads.
     return make_ref<NativeTensor>(m_desc, storage(), nullptr, nullptr);
+}
+
+std::string NativeTensor::to_string() const
+{
+    return fmt::format(
+        "NativeTensor(dtype={}, shape={}, has_grad_in={}, has_grad_out={})",
+        m_desc.dtype->to_string(),
+        m_desc.shape.to_string(),
+        m_grad_in ? "true" : "false",
+        m_grad_out ? "true" : "false"
+    );
 }
 
 Shape NativeTensorMarshall::get_shape(nb::object data) const
@@ -195,7 +207,8 @@ void NativeTensorMarshall::write_shader_cursor_fields(
 
     // Write shape vector as an array of ints.
     const std::vector<int>& shape_vec = buffer->shape().as_vector();
-    field["_shape"]._set_array_unsafe(&shape_vec[0], shape_vec.size() * 4, shape_vec.size());
+    field["_shape"]
+        ._set_array_unsafe(&shape_vec[0], shape_vec.size() * 4, shape_vec.size(), TypeReflection::ScalarType::int32);
 
     // Generate and write strides vector, clearing strides to 0
     // for dimensions that are broadcast.
@@ -211,7 +224,12 @@ void NativeTensorMarshall::write_shader_cursor_fields(
 
     // Write the strides vector as an array of ints.
     auto layout_field = field["layout"];
-    layout_field["strides"]._set_array_unsafe(&strides_vec[0], strides_vec.size() * 4, strides_vec.size());
+    layout_field["strides"]._set_array_unsafe(
+        &strides_vec[0],
+        strides_vec.size() * 4,
+        strides_vec.size(),
+        TypeReflection::ScalarType::int32
+    );
     layout_field["offset"] = buffer->offset();
 }
 
@@ -307,9 +325,10 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
             &NativeTensor::with_grads,
             "grad_in"_a.none() = nullptr,
             "grad_out"_a.none() = nullptr,
-            "zero"_a = false
+            "zero"_a = true
         )
-        .def("detach", &NativeTensor::detach);
+        .def("detach", &NativeTensor::detach)
+        .def("__repr__", &NativeTensor::to_string);
 
 
     nb::class_<NativeTensorMarshall, PyNativeTensorMarshall, NativeMarshall>(slangpy, "NativeTensorMarshall") //

@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#ifndef USE_RAYTRACING_PIPELINE
+#error "Missing USE_RAYTRACING_PIPELINE define"
+#endif
+
 static const float PI = 3.14159265358979323846;
 static const float TWO_PI = 6.28318530717958647692;
 static const float INV_PI = 0.31830988618379067154;
@@ -164,26 +168,6 @@ struct Scene {
             b.x * v0.uv + b.y * v1.uv + b.z * v2.uv,
         };
     }
-
-    HitInfo intersect(Ray ray)
-    {
-        HitInfo hit = {};
-
-        RayQuery<RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> q;
-        q.TraceRayInline(g_scene.tlas, 0, 0xff, ray.to_ray_desc());
-        while (q.Proceed())
-            ;
-        if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
-            hit = {
-                true,
-                q.CommittedTriangleBarycentrics(),
-                // q.CommittedT(),
-                q.CommittedInstanceIndex(),
-                q.CommittedPrimitiveIndex(),
-            };
-        }
-        return hit;
-    }
 };
 
 struct HitInfo {
@@ -232,10 +216,114 @@ float3 envmap(float3 dir)
     // return env;
 }
 
+ParameterBlock<Scene> g_scene;
+RWTexture2D<float4> g_output;
+uniform uint g_frame;
+
+#if USE_RAYTRACING_PIPELINE
+
+[shader("miss")]
+void rt_miss(inout Path path)
+{
+    path.L += path.thp * envmap(path.ray.dir);
+}
+
+[shader("closesthit")]
+void rt_closest_hit(inout Path path, BuiltInTriangleIntersectionAttributes attribs)
+{
+    HitInfo hit = {
+        true,
+        attribs.barycentrics,
+        // RayTMin(),
+        InstanceID(),
+        PrimitiveIndex(),
+    };
+    Vertex vertex = g_scene.get_vertex(hit);
+    // Flip normal if we hit the backside of the triangle
+    vertex.normal *= sign(-dot(vertex.normal, path.ray.dir));
+    Frame frame = Frame(vertex.normal);
+    float3 wi = frame.to_local(-path.ray.dir);
+    float pdf;
+    float3 wo = diffuse_brdf_sample(wi, path.rng.next_2d(), pdf);
+    MaterialDesc material = g_scene.get_material(hit);
+    float3 f = material.base_color * INV_PI;
+    path.thp *= f * abs(dot(wo, frame.n)) / pdf;
+    path.vertex_index++;
+    path.ray = Ray(vertex.position + vertex.normal * 1e-6f, frame.to_global(wo));
+    if (path.vertex_index >= 5) {
+        return;
+    }
+    TraceRay(
+        g_scene.tlas,
+        0,
+        0xff,
+        0 /* RayContributionToHitGroupIndex */,
+        0 /* MultiplierForGeometryContributionHitGroupIndex */,
+        0 /* MissShaderIndex */,
+        path.ray.to_ray_desc(),
+        path
+    );
+}
+
+[shader("raygeneration")]
+void rt_ray_gen()
+{
+    uint2 pixel = DispatchRaysIndex().xy;
+    uint2 dim;
+    g_output.GetDimensions(dim.x, dim.y);
+    if (any(pixel >= dim))
+        return;
+
+    const uint spp = 4;
+    float3 L = float3(0);
+    for (uint i = 0; i < spp; i++) {
+        RNG rng = RNG(pixel, g_frame * spp + i);
+        float2 uv = float2(pixel + rng.next_2d()) / float2(dim);
+        uv.y = 1 - uv.y;
+        Ray ray = g_scene.camera.get_ray(uv);
+        Path path = Path(pixel, ray, rng);
+        TraceRay(
+            g_scene.tlas,
+            0,
+            0xff,
+            0 /* RayContributionToHitGroupIndex */,
+            0 /* MultiplierForGeometryContributionHitGroupIndex */,
+            0 /* MissShaderIndex */,
+            path.ray.to_ray_desc(),
+            path
+        );
+        L += path.L;
+    }
+    L /= spp;
+    g_output[pixel] = float4(L, 1);
+}
+
+#else // USE_RAYTRACING_PIPELINE
+
+HitInfo intersect(Ray ray)
+{
+    HitInfo hit = {};
+
+    RayQuery<RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> q;
+    q.TraceRayInline(g_scene.tlas, 0, 0xff, ray.to_ray_desc());
+    while (q.Proceed())
+        ;
+    if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
+        hit = {
+            true,
+            q.CommittedTriangleBarycentrics(),
+            // q.CommittedT(),
+            q.CommittedInstanceIndex(),
+            q.CommittedPrimitiveIndex(),
+        };
+    }
+    return hit;
+}
+
 void trace_path(inout Path path)
 {
     while (path.vertex_index < 5) {
-        HitInfo hit = g_scene.intersect(path.ray);
+        HitInfo hit = intersect(path.ray);
         if (!hit.valid) {
             path.L += path.thp * envmap(path.ray.dir);
             break;
@@ -255,14 +343,9 @@ void trace_path(inout Path path)
     }
 }
 
-ParameterBlock<Scene> g_scene;
-RWTexture2D<float4> g_output;
-uniform uint g_frame;
-
-
 [shader("compute")]
 [numthreads(16, 16, 1)]
-void main(uint3 tid: SV_DispatchThreadID)
+void compute_main(uint3 tid: SV_DispatchThreadID)
 {
     uint2 pixel = tid.xy;
     uint2 dim;
@@ -284,3 +367,5 @@ void main(uint3 tid: SV_DispatchThreadID)
     L /= spp;
     g_output[pixel] = float4(L, 1);
 }
+
+#endif // USE_RAYTRACING_PIPELINE

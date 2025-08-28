@@ -13,7 +13,7 @@
 namespace sgl {
 
 InputLayout::InputLayout(ref<Device> device, InputLayoutDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_desc(std::move(desc))
 {
     short_vector<rhi::InputElementDesc, 16> rhi_input_elements;

@@ -151,7 +151,7 @@ TEST_CASE("FileStream")
 {
     char buffer[16];
 
-    SUBCASE("open non-exist file")
+    SUBCASE("open_non_existing_file")
     {
         CHECK_THROWS(FileStream("__file_that_does_not_exist__", FileStream::Mode::read));
     }

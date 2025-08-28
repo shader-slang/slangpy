@@ -14,7 +14,7 @@
 
 namespace sgl {
 
-BufferElementCursor::BufferElementCursor(ref<TypeLayoutReflection> layout, ref<BufferCursor> owner)
+BufferElementCursor::BufferElementCursor(ref<const TypeLayoutReflection> layout, ref<BufferCursor> owner)
     : m_type_layout(std::move(layout))
     , m_buffer(std::move(owner))
     , m_offset(0)
@@ -101,6 +101,13 @@ BufferElementCursor BufferElementCursor::find_element(uint32_t index) const
     return {};
 }
 
+void BufferElementCursor::set_pointer(uint64_t pointer_value)
+{
+    size_t pointer_size = m_type_layout->size();
+    SGL_CHECK(pointer_size == 8, "Expected a pointer type with size 8, got {}", pointer_size);
+    set_data(&pointer_value, 8);
+}
+
 void BufferElementCursor::set_data(const void* data, size_t size)
 {
     if (m_type_layout->parameter_category() != TypeReflection::ParameterCategory::uniform)
@@ -108,125 +115,19 @@ void BufferElementCursor::set_data(const void* data, size_t size)
     write_data(m_offset, data, size);
 }
 
-void BufferElementCursor::_set_array(
-    const void* data,
-    size_t size,
-    TypeReflection::ScalarType scalar_type,
-    size_t element_count
-)
+DeviceType BufferElementCursor::_get_device_type() const
 {
-    ref<const TypeReflection> element_type = m_type_layout->unwrap_array()->type();
-    size_t element_size = cursor_utils::get_scalar_type_size(element_type->scalar_type());
-
-    cursor_utils::check_array(m_type_layout->slang_target(), size, scalar_type, element_count);
-
-    size_t stride = m_type_layout->element_stride();
-    if (element_size == stride) {
-        write_data(m_offset, data, size);
-    } else {
-        size_t offset = m_offset;
-        for (size_t i = 0; i < element_count; ++i) {
-            write_data(offset, reinterpret_cast<const uint8_t*>(data) + i * element_size, element_size);
-            offset += stride;
-        }
-    }
+    return m_buffer->get_device_type();
 }
 
-void BufferElementCursor::_get_array(
-    void* data,
-    size_t size,
-    TypeReflection::ScalarType scalar_type,
-    size_t element_count
-) const
-{
-    ref<const TypeReflection> element_type = m_type_layout->unwrap_array()->type();
-    size_t element_size = cursor_utils::get_scalar_type_size(element_type->scalar_type());
+// Explicit instantiation of the methods
+template void
+CursorWriteWrappers<BufferElementCursor, size_t>::_set_array(const void*, size_t, TypeReflection::ScalarType, size_t)
+    const;
 
-    cursor_utils::check_array(m_type_layout->slang_target(), size, scalar_type, element_count);
-
-    size_t stride = m_type_layout->element_stride();
-    if (element_size == stride) {
-        read_data(m_offset, data, size);
-    } else {
-        size_t offset = m_offset;
-        for (size_t i = 0; i < element_count; ++i) {
-            read_data(offset, reinterpret_cast<uint8_t*>(data) + i * element_size, element_size);
-            offset += stride;
-        }
-    }
-}
-void BufferElementCursor::_set_scalar(const void* data, size_t size, TypeReflection::ScalarType scalar_type)
-{
-    cursor_utils::check_scalar(m_type_layout->slang_target(), size, scalar_type);
-    write_data(m_offset, data, size);
-}
-
-void BufferElementCursor::_get_scalar(void* data, size_t size, TypeReflection::ScalarType scalar_type) const
-{
-    cursor_utils::check_scalar(m_type_layout->slang_target(), size, scalar_type);
-    read_data(m_offset, data, size);
-}
-
-void BufferElementCursor::_set_vector(
-    const void* data,
-    size_t size,
-    TypeReflection::ScalarType scalar_type,
-    int dimension
-)
-{
-    cursor_utils::check_vector(m_type_layout->slang_target(), size, scalar_type, dimension);
-    write_data(m_offset, data, size);
-}
-
-void BufferElementCursor::_get_vector(void* data, size_t size, TypeReflection::ScalarType scalar_type, int dimension)
-    const
-{
-    cursor_utils::check_vector(m_type_layout->slang_target(), size, scalar_type, dimension);
-    read_data(m_offset, data, size);
-}
-
-void BufferElementCursor::_set_matrix(
-    const void* data,
-    size_t size,
-    TypeReflection::ScalarType scalar_type,
-    int rows,
-    int cols
-)
-{
-    cursor_utils::check_matrix(m_type_layout->slang_target(), size, scalar_type, rows, cols);
-    size_t stride = slang_type_layout()->getStride();
-    if (stride != size) {
-        size_t row_stride = stride / rows;
-        size_t row_size = size / rows;
-        for (int i = 0; i < rows; ++i) {
-            write_data(m_offset + i * row_stride, reinterpret_cast<const uint8_t*>(data) + i * row_size, row_size);
-        }
-    } else {
-        write_data(m_offset, data, size);
-    }
-}
-
-void BufferElementCursor::_get_matrix(
-    void* data,
-    size_t size,
-    TypeReflection::ScalarType scalar_type,
-    int rows,
-    int cols
-) const
-{
-    cursor_utils::check_matrix(m_type_layout->slang_target(), size, scalar_type, rows, cols);
-    size_t stride = slang_type_layout()->getStride();
-    if (stride != size) {
-        size_t row_stride = stride / rows;
-        size_t row_size = size / rows;
-        for (int i = 0; i < rows; ++i) {
-            read_data(m_offset + i * row_stride, reinterpret_cast<uint8_t*>(data) + i * row_size, row_size);
-        }
-    } else {
-        read_data(m_offset, data, size);
-    }
-}
-
+template void
+CursorWriteWrappers<BufferElementCursor, size_t>::_set_vector(const void*, size_t, TypeReflection::ScalarType, int)
+    const;
 
 //
 // Setter specializations
@@ -267,6 +168,15 @@ void BufferElementCursor::_get_matrix(
     {                                                                                                                  \
         _get_matrix(&value, sizeof(value), TypeReflection::ScalarType::scalar_type, type::rows, type::cols);           \
     }
+
+GETSET_SCALAR(bool, bool_);
+// bool1 case specifically cannot be handled due to:
+// https://github.com/shader-slang/slang/issues/7441
+// GETSET_VECTOR(bool1, bool_);
+GETSET_VECTOR(bool2, bool_);
+GETSET_VECTOR(bool3, bool_);
+GETSET_VECTOR(bool4, bool_);
+
 
 GETSET_SCALAR(int8_t, int8);
 GETSET_SCALAR(uint8_t, uint8);
@@ -330,108 +240,16 @@ GETSET_SCALAR(double, float64);
 // Note that this applies to our boolN vectors as well, which are currently 1B per element.
 
 template<>
-SGL_API void BufferElementCursor::set(const bool& value)
+SGL_API void BufferElementCursor::set(const bool1& v)
 {
-    uint v = value ? 1 : 0;
-    _set_scalar(&v, sizeof(v), TypeReflection::ScalarType::bool_);
-}
-template<>
-SGL_API void BufferElementCursor::get(bool& value) const
-{
-    uint v;
-    _get_scalar(&v, sizeof(v), TypeReflection::ScalarType::bool_);
-    value = v != 0;
-}
-
-template<>
-SGL_API void BufferElementCursor::set(const bool1& value)
-{
-#if SGL_MACOS
-    bool1 v = value;
-#else
-    uint1 v(value.x ? 1 : 0);
-#endif
+    SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
     _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
 }
 template<>
-SGL_API void BufferElementCursor::get(bool1& value) const
+SGL_API void BufferElementCursor::get(bool1& v) const
 {
-#if SGL_MACOS
-    bool1 v;
-#else
-    uint1 v;
-#endif
+    SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
     _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
-    value = bool1(v.x != 0);
-}
-
-template<>
-SGL_API void BufferElementCursor::set(const bool2& value)
-{
-#if SGL_MACOS
-    bool2 v = value;
-#else
-    uint2 v = {value.x ? 1 : 0, value.y ? 1 : 0};
-#endif
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 2);
-}
-
-template<>
-SGL_API void BufferElementCursor::get(bool2& value) const
-{
-#if SGL_MACOS
-    bool2 v;
-#else
-    uint2 v;
-#endif
-    _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 2);
-    value = {v.x != 0, v.y != 0};
-}
-
-template<>
-SGL_API void BufferElementCursor::set(const bool3& value)
-{
-#if SGL_MACOS
-    bool3 v = value;
-#else
-    uint3 v = {value.x ? 1 : 0, value.y ? 1 : 0, value.z ? 1 : 0};
-#endif
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 3);
-}
-
-template<>
-SGL_API void BufferElementCursor::get(bool3& value) const
-{
-#if SGL_MACOS
-    bool3 v;
-#else
-    uint3 v;
-#endif
-    _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 3);
-    value = {v.x != 0, v.y != 0, v.z != 0};
-}
-
-template<>
-SGL_API void BufferElementCursor::set(const bool4& value)
-{
-#if SGL_MACOS
-    bool4 v = value;
-#else
-    uint4 v = {value.x ? 1 : 0, value.y ? 1 : 0, value.z ? 1 : 0, value.w ? 1 : 0};
-#endif
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 4);
-}
-
-template<>
-SGL_API void BufferElementCursor::get(bool4& value) const
-{
-#if SGL_MACOS
-    bool4 v;
-#else
-    uint4 v;
-#endif
-    _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 4);
-    value = {v.x != 0, v.y != 0, v.z != 0, v.w != 0};
 }
 
 template<>
@@ -446,7 +264,7 @@ SGL_API void BufferElementCursor::get(DescriptorHandle& value) const
     read_data(m_offset, &value.value, sizeof(value.value));
 }
 
-void BufferElementCursor::write_data(size_t offset, const void* data, size_t size)
+void BufferElementCursor::write_data(size_t offset, const void* data, size_t size) const
 {
     m_buffer->write_data(offset, data, size);
 }
@@ -456,24 +274,32 @@ void BufferElementCursor::read_data(size_t offset, void* data, size_t size) cons
     m_buffer->read_data(offset, data, size);
 }
 
-BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, void* data, size_t size)
+BufferCursor::BufferCursor(
+    DeviceType device_type,
+    ref<const TypeLayoutReflection> element_layout,
+    void* data,
+    size_t size
+)
     : m_element_type_layout(std::move(element_layout))
+    , m_device_type(device_type)
     , m_buffer((uint8_t*)data)
     , m_size(size)
     , m_owner(false)
 {
 }
 
-BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, size_t element_count)
+BufferCursor::BufferCursor(DeviceType device_type, ref<const TypeLayoutReflection> element_layout, size_t element_count)
     : m_element_type_layout(std::move(element_layout))
+    , m_device_type(device_type)
 {
     m_size = element_count * m_element_type_layout->stride();
     m_buffer = new uint8_t[m_size];
     m_owner = true;
 }
 
-BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, ref<Buffer> resource, bool load_before_write)
+BufferCursor::BufferCursor(ref<const TypeLayoutReflection> element_layout, ref<Buffer> resource, bool load_before_write)
     : m_element_type_layout(std::move(element_layout))
+    , m_device_type(resource->device()->type())
 {
     m_resource = std::move(resource);
     m_size = m_resource->size();
@@ -484,7 +310,7 @@ BufferCursor::BufferCursor(ref<TypeLayoutReflection> element_layout, ref<Buffer>
 }
 
 BufferCursor::BufferCursor(
-    ref<TypeLayoutReflection> element_layout,
+    ref<const TypeLayoutReflection> element_layout,
     ref<Buffer> resource,
     size_t size,
     size_t offset,

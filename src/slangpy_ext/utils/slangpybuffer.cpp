@@ -8,6 +8,8 @@
 
 #include "utils/slangpybuffer.h"
 
+#include <fmt/format.h>
+
 namespace sgl {
 
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
@@ -35,11 +37,31 @@ ref<NativeNDBuffer> NativeNDBuffer::broadcast_to(const Shape& shape) const
     result->broadcast_to_inplace(shape);
     return result;
 }
-ref<NativeNDBuffer> NativeNDBuffer::index(nb::args args) const
+ref<NativeNDBuffer> NativeNDBuffer::index(nb::object index_arg) const
 {
     auto result = make_ref<NativeNDBuffer>(device(), desc(), storage());
-    result->index_inplace(args);
+    result->index_inplace(index_arg);
     return result;
+}
+
+std::string NativeNDBuffer::to_string() const
+{
+    return fmt::format(
+        "NativeNDBuffer(\n"
+        "  shape = {},\n"
+        "  strides = {},\n"
+        "  offset = {},\n"
+        "  dtype = \"{}\",\n"
+        "  memory_type = {},\n"
+        "  usage = {}\n"
+        ")",
+        shape().to_string(),
+        strides().to_string(),
+        offset(),
+        m_desc.dtype->to_string(),
+        static_cast<int>(m_desc.memory_type),
+        static_cast<int>(m_desc.usage)
+    );
 }
 
 Shape NativeNDBufferMarshall::get_shape(nb::object data) const
@@ -70,7 +92,8 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
 
     // Write shape vector as an array of ints.
     const std::vector<int>& shape_vec = buffer->shape().as_vector();
-    field["_shape"]._set_array_unsafe(&shape_vec[0], shape_vec.size() * 4, shape_vec.size());
+    field["_shape"]
+        ._set_array_unsafe(&shape_vec[0], shape_vec.size() * 4, shape_vec.size(), TypeReflection::ScalarType::int32);
 
     // Write layout info to layout field.
     auto layout_field = field["layout"];
@@ -91,7 +114,12 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
     }
 
     // Write the strides vector as an array of ints.
-    layout_field["strides"]._set_array_unsafe(&strides_vec[0], strides_vec.size() * 4, strides_vec.size());
+    layout_field["strides"]._set_array_unsafe(
+        &strides_vec[0],
+        strides_vec.size() * 4,
+        strides_vec.size(),
+        TypeReflection::ScalarType::int32
+    );
 }
 
 void NativeNDBufferMarshall::read_calldata(
@@ -268,7 +296,8 @@ SGL_PY_EXPORT(utils_slangpy_buffer)
         .def(nb::init<ref<Device>, NativeNDBufferDesc, ref<Buffer>>(), "device"_a, "desc"_a, "buffer"_a = nullptr)
         .def("broadcast_to", &NativeNDBuffer::broadcast_to, "shape"_a)
         .def("view", &NativeNDBuffer::view, "shape"_a, "strides"_a = Shape(), "offset"_a = 0)
-        .def("__getitem__", &NativeNDBuffer::index);
+        .def("__getitem__", &NativeNDBuffer::index)
+        .def("__repr__", &NativeNDBuffer::to_string);
 
 
     nb::class_<NativeNDBufferMarshall, NativeMarshall>(slangpy, "NativeNDBufferMarshall") //

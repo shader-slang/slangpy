@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import pytest
 
-from . import helpers
 from slangpy import DeviceType
+from slangpy.testing import helpers
 
 
-@pytest.mark.skip(reason="Not implemented yet")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_explicit_add_int64s(device_type: DeviceType):
 
@@ -25,7 +25,6 @@ int64_t add_numbers(int64_t a, int64_t b) {
     assert res == 15000000000
 
 
-@pytest.mark.skip(reason="Not implemented yet")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_implicit_add_int64s(device_type: DeviceType):
 
@@ -65,4 +64,4 @@ uint32_t add_numbers(uint32_t a, uint32_t b) {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

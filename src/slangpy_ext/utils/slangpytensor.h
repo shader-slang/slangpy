@@ -39,7 +39,7 @@ public:
 
     ref<NativeTensor> view(Shape shape, Shape strides = Shape(), int offset = 0) const;
     ref<NativeTensor> broadcast_to(const Shape& shape) const;
-    ref<NativeTensor> index(nb::args args) const;
+    ref<NativeTensor> index(nb::object index_arg) const;
 
     const ref<NativeTensor>& grad_in() const { return m_grad_in; }
     void set_grad_in(const ref<NativeTensor>& grad_in) { m_grad_in = grad_in; }
@@ -58,10 +58,13 @@ public:
     /// both input and output grads to refer to the same tensor. If neither grad_in
     /// or grad_out are provided, a single new tensor is created and used for both grads.
     ref<NativeTensor>
-    with_grads(ref<NativeTensor> grad_in = nullptr, ref<NativeTensor> grad_out = nullptr, bool zero = false) const;
+    with_grads(ref<NativeTensor> grad_in = nullptr, ref<NativeTensor> grad_out = nullptr, bool zero = true) const;
 
     /// Create a new version of this tensor without grads that refers to the same storage.
     ref<NativeTensor> detach() const;
+
+    /// Get string representation of the tensor.
+    std::string to_string() const;
 
 private:
     NativeTensorDesc m_desc;

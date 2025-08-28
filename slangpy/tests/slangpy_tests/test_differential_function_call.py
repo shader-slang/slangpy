@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import numpy as np
 import pytest
+import numpy as np
 
-from . import helpers
 from slangpy import DeviceType, float3
 from slangpy.types import Tensor, diffPair
 from slangpy.types.tensor import Tensor
+from slangpy.testing import helpers
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 
@@ -306,4 +306,4 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

@@ -123,6 +123,10 @@ void ShaderObject::set_texture_view(const ShaderOffset& offset, const ref<Textur
 
 void ShaderObject::set_sampler(const ShaderOffset& offset, const ref<Sampler>& sampler)
 {
+    // CUDA does not support samplers and slang-rhi returns an error when trying to set a sampler.
+    // To improve compatibility with binding code for other backends, we skip setting samplers on CUDA.
+    if (m_device->type() == DeviceType::cuda)
+        return;
     SLANG_RHI_CALL(
         m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(sampler ? sampler->rhi_sampler() : nullptr))
     );
@@ -149,12 +153,29 @@ void ShaderObject::set_data(const ShaderOffset& offset, const void* data, size_t
     SLANG_RHI_CALL(m_shader_object->setData(rhi_shader_offset(offset), data, size));
 }
 
-void ShaderObject::set_cuda_tensor_view(const ShaderOffset& offset, const cuda::TensorView& tensor_view, bool is_uav)
+void ShaderObject::set_cuda_tensor_view_buffer(
+    const ShaderOffset& offset,
+    const cuda::TensorView& tensor_view,
+    bool is_uav
+)
 {
     SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
     ref<cuda::InteropBuffer> cuda_interop_buffer = make_ref<cuda::InteropBuffer>(m_device, tensor_view, is_uav);
     set_buffer(offset, cuda_interop_buffer->buffer());
     m_cuda_interop_buffers.push_back(cuda_interop_buffer);
+}
+
+void ShaderObject::set_cuda_tensor_view_pointer(const ShaderOffset& offset, const cuda::TensorView& tensor_view)
+{
+    if (m_device->type() != DeviceType::cuda) {
+        SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
+        ref<cuda::InteropBuffer> cuda_interop_buffer = make_ref<cuda::InteropBuffer>(m_device, tensor_view, true);
+        DeviceAddress address = cuda_interop_buffer->buffer()->device_address();
+        set_data(offset, &address, sizeof(address));
+        m_cuda_interop_buffers.push_back(cuda_interop_buffer);
+    } else {
+        set_data(offset, &tensor_view.data, sizeof(tensor_view.data));
+    }
 }
 
 void ShaderObject::get_cuda_interop_buffers(std::vector<ref<cuda::InteropBuffer>>& cuda_interop_buffers) const

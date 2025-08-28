@@ -1,6 +1,7 @@
 name: ci
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths-ignore:
@@ -10,6 +11,7 @@ on:
       - "**.md"
       - .github/workflows/wheels.yml
       - .github/workflows/ci-gcp.yml
+      - .github/workflows/ci-latest-slang.yml
   pull_request:
     branches: [main]
     paths-ignore:
@@ -19,7 +21,10 @@ on:
       - "**.md"
       - .github/workflows/wheels.yml
       - .github/workflows/ci-gcp.yml
-  workflow_dispatch:
+      - .github/workflows/ci-latest-slang.yml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -51,14 +56,16 @@ jobs:
         include:
           # Builds running on self-hosted runners (build + tests + coverage)
           - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test,test-examples", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,header-validation,coverage", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test,test-examples", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+          # Builds running on GitHub hosted runners (build + tests)
+          - { os: macos, platform: aarch64, compiler: clang, config: Debug, flags: "unit-test,header-validation", runs-on: macos-latest }
+          - { os: macos, platform: aarch64, compiler: clang, config: Release, flags: "unit-test,test-examples", runs-on: macos-latest }
           # Additional builds running on GitHub hosted runners (build only)
           - { os: linux, platform: x86_64, compiler: clang, runs-on: ubuntu-latest }
           - { os: linux, platform: aarch64, compiler: gcc, runs-on: ubuntu-24.04-arm }
           - { os: linux, platform: aarch64, compiler: clang, runs-on: ubuntu-24.04-arm }
-          - { os: macos, platform: aarch64, compiler: clang, flags: "unit-test", runs-on: macos-latest }
 
     env:
       # Environment variables used by ci.py
@@ -86,8 +93,16 @@ jobs:
         run: |
           sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
 
-      # Setup Python.
-      - name: Setup Python ${{ matrix.python }}
+      # Setup Python (no pip cache on unit test windows runners - massive slow down).
+      - name: Setup Python ${{ matrix.python }} (No cache)
+        if: runner.os == 'windows' && contains(matrix.flags, 'unit-test')
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Setup Python (with pip cache on all other runners).
+      - name: Setup Python ${{ matrix.python }} (Pip cache)
+        if: runner.os != 'windows' || !contains(matrix.flags, 'unit-test')
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -97,7 +112,14 @@ jobs:
       - name: Setup Python environment
         run: |
           python -m pip install -r requirements-dev.txt
+          python -m pip install -r samples/requirements.txt
           python -m pip install pytest-github-actions-annotate-failures
+
+      # Setup PyTorch environment
+      - name: Setup PyTorch environment
+        if: runner.os != 'macos' && contains(matrix.flags, 'unit-test')
+        run: |
+          python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
       # Setup MSVC.
       - name: Setup MSVC
@@ -146,7 +168,7 @@ jobs:
       # Unit Tests (Python)
       - name: Unit Tests (Python)
         if: contains(matrix.flags, 'unit-test')
-        run: python tools/ci.py unit-test-python
+        run: python tools/ci.py unit-test-python --parallel
 
       # Unit Test Report
       - name: Unit Test Report
@@ -155,6 +177,11 @@ jobs:
         with:
           report_paths: 'reports/*-junit.xml'
           check_name: "Unit Test Report"
+
+      # Test Examples
+      - name: Test Examples
+        if: contains(matrix.flags, 'test-examples')
+        run: python tools/ci.py test-examples -p
 
       # Generate Coverage Report
       - name: Generate Coverage Report

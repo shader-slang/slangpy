@@ -44,4 +44,4 @@ def test_show_in_tev_async_stress():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

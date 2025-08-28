@@ -1,24 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from pathlib import Path
-import sys
-from typing import Optional, Union
 
-import numpy as np
 import pytest
-from slangpy import float3
+import numpy as np
 
-from slangpy import Device, DeviceType
+from slangpy import Device, DeviceType, float3
 from slangpy.types import NDBuffer
 from slangpy.types.diffpair import diffPair, floatDiffPair
 from slangpy.types.valueref import intRef
+from slangpy.testing import helpers
 
-sys.path.append(str(Path(__file__).parent))
-import helpers
+from typing import Optional, Union
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_call_function(device_type: DeviceType):
-
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
         device,
@@ -503,6 +498,8 @@ struct Foo {{ {scalar_type} x; }}
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_pass_buffer_to_structured_buffer(device_type: DeviceType):
+    if device_type == DeviceType.cuda:
+        pytest.skip("CUDA uses pointers to represent NDBuffer data")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(

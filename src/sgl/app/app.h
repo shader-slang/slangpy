@@ -53,7 +53,7 @@ struct AppWindowDesc {
     /// Height of the window in pixels.
     uint32_t height{1280};
     /// Title of the window.
-    std::string title{"sgl"};
+    std::string title{"slangpy"};
     /// Window mode.
     WindowMode mode{WindowMode::normal};
     /// Whether the window is resizable.
@@ -103,6 +103,7 @@ private:
     Device* m_device;
     ref<Window> m_window;
     ref<Surface> m_surface;
+    SurfaceConfig m_surface_config;
     ref<ui::Context> m_ui_context;
 };
 

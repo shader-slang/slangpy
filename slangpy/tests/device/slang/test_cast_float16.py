@@ -1,13 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import sys
 import pytest
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 ELEMENT_COUNT = 1024
 
@@ -16,10 +13,6 @@ ELEMENT_COUNT = 1024
 def test_cast_float16(device_type: spy.DeviceType):
     if device_type == spy.DeviceType.metal:
         pytest.skip("float16 cast not supported on Metal")
-    if device_type == spy.DeviceType.cuda and (sys.platform == "linux" or sys.platform == "linux2"):
-        pytest.skip(
-            "Slang fails to find cuda_fp16.h header https://github.com/shader-slang/slang/issues/7037"
-        )
 
     device = helpers.get_device(device_type)
 
@@ -28,7 +21,7 @@ def test_cast_float16(device_type: spy.DeviceType):
 
     ctx = helpers.dispatch_compute(
         device=device,
-        path=Path(__file__).parent / "test_cast_float16.slang",
+        path="test_cast_float16.slang",
         entry_point="compute_main",
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
@@ -43,4 +36,4 @@ def test_cast_float16(device_type: spy.DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-vvvs"])
+    pytest.main([__file__, "-v", "-s"])
