@@ -333,9 +333,7 @@ class SlangType(NativeSlangType):
         """
         Return a detailed string representation of the SlangType for debugging.
         """
-        return (
-            f"SlangType(name='{self.name}', kind={self.type_reflection.kind}, shape={self.shape})"
-        )
+        return f"SlangType(name='{self.full_name}', kind={self.type_reflection.kind}, shape={self.shape})"
 
 
 class VoidType(SlangType):

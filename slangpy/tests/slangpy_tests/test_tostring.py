@@ -4,7 +4,6 @@ import pytest
 from slangpy import DeviceType, NDBuffer
 from slangpy.types import Tensor
 from slangpy.testing import helpers
-from slangpy.core.module import Module
 
 MODULE = r"""
 struct Foo {
@@ -30,7 +29,7 @@ def test_buffer_to_string(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_slangtype_to_string(device_type: DeviceType):
+def test_slangtype_struct_to_string(device_type: DeviceType):
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, MODULE)
     foo_struct = module["Foo"].as_struct()
@@ -45,6 +44,27 @@ def test_slangtype_to_string(device_type: DeviceType):
     # Verify the repr contains expected information
     assert "SlangType" in repr_str
     assert "name" in repr_str
+    assert "Foo" in repr_str
+    assert "shape" in repr_str
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_slangtype_vector_to_string(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, MODULE)
+    foo_struct = module["float3"].as_struct()
+
+    # Access the underlying SlangType
+    foo_type = foo_struct.struct
+
+    # Test that repr() returns a meaningful string
+    repr_str = repr(foo_type)
+    print(f"SlangType: {repr_str}")
+
+    # Verify the repr contains expected information
+    assert "SlangType" in repr_str
+    assert "name" in repr_str
+    assert "vector<float,3>" in repr_str
     assert "shape" in repr_str
 
 

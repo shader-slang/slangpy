@@ -58,7 +58,7 @@ std::string NativeNDBuffer::to_string() const
         shape().to_string(),
         strides().to_string(),
         offset(),
-        m_desc.dtype ? m_desc.dtype->get_type_reflection()->name() : "None",
+        m_desc.dtype->to_string(),
         static_cast<int>(m_desc.memory_type),
         static_cast<int>(m_desc.usage)
     );

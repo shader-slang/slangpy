@@ -44,7 +44,7 @@ std::string NativeSlangType::to_string() const
             "  shape = {},\n"
             "  kind = {}\n"
             ")",
-            m_type_reflection->name(),
+            m_type_reflection->full_name(),
             m_shape.to_string(),
             m_type_reflection->kind()
         );
