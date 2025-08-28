@@ -13,11 +13,15 @@
 #include "sgl/device/command.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
+#include <fmt/format.h>
+
 #include "utils/slangpy.h"
 #include "utils/slangpyvalue.h"
 #include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpyfunction.h"
+
+#include <fmt/format.h>
 
 namespace sgl {
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
@@ -29,6 +33,31 @@ buffer_to_torch(Buffer* self, DataType type, std::vector<size_t> shape, std::vec
 } // namespace sgl
 
 namespace sgl::slangpy {
+
+// Implementation of to_string methods
+std::string NativeSlangType::to_string() const
+{
+    if (m_type_reflection) {
+        return fmt::format(
+            "NativeSlangType(\n"
+            "  name = \"{}\",\n"
+            "  shape = {},\n"
+            "  kind = {}\n"
+            ")",
+            m_type_reflection->name(),
+            m_shape.to_string(),
+            m_type_reflection->kind()
+        );
+    } else {
+        return fmt::format(
+            "NativeSlangType(\n"
+            "  shape = {},\n"
+            "  type_reflection = None\n"
+            ")",
+            m_shape.to_string()
+        );
+    }
+}
 
 static constexpr std::array<char, 16> HEX_CHARS
     = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -1048,7 +1077,8 @@ SGL_PY_EXPORT(utils_slangpy)
         .def("_py_has_derivative", &NativeSlangType::_py_has_derivative)
         .def("_py_derivative", &NativeSlangType::_py_derivative)
         .def("_py_uniform_type_layout", &NativeSlangType::_py_uniform_type_layout)
-        .def("_py_buffer_type_layout", &NativeSlangType::_py_buffer_type_layout);
+        .def("_py_buffer_type_layout", &NativeSlangType::_py_buffer_type_layout)
+        .def("__repr__", &NativeSlangType::to_string);
 
     nb::class_<NativeMarshall, PyNativeMarshall, Object>(slangpy, "NativeMarshall") //
         .def(
