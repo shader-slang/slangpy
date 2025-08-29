@@ -33,7 +33,7 @@ static_assert(sizeof(Py_ssize_t_) == sizeof(size_t));
 /// Optionally all references can be tracked by setting SGL_TRACK_ALL_REFS.
 #ifndef SGL_ENABLE_REF_TRACKING
 #define SGL_ENABLE_REF_TRACKING 0
-#endif // SGL_ENABLE_REF_TRACKING
+#endif
 
 #if SGL_ENABLE_REF_TRACKING
 #if !SGL_ENABLE_OBJECT_TRACKING
