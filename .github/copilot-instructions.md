@@ -34,7 +34,7 @@ Testing:
     - To run all Python tests, run "pytest slangpy/tests -v"
     - An example of running a specific set of tests in a file is: "pytest slangpy/tests/slangpy_tests/test_shader_printing.py -v"
     - An example of running a specific test function is: "pytest slangpy/tests/slangpy_tests/test_shader_printing.py::test_printing -v"
-    - To log any generated shaders in a test, set the SLANGPY_PRINT_SHADERS environment variable to "true". For example: "$env:SLANGPY_PRINT_SHADERS=1"true"; pytest slangpy/tests/slangpy_tests/test_shader_printing.py -v" (powershell syntax)
+    - To log any generated shaders in a test, set the SLANGPY_PRINT_SHADERS environment variable to "true". For example: `$env:SLANGPY_PRINT_SHADERS="true"; pytest slangpy/tests/slangpy_tests/test_shader_printing.py -v` (PowerShell syntax)
 
 C++ Code style:
     - Class names should start with a capital letter.
