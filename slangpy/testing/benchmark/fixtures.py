@@ -4,7 +4,7 @@ import pytest
 import slangpy as spy
 from slangpy.core.function import FunctionNodeBwds
 import numpy as np
-from typing import Any, Callable, Union
+from typing import Any, Callable, Optional, Union
 from time import time
 from datetime import datetime
 
@@ -20,7 +20,7 @@ class ReportFixture:
 
     def __call__(
         self,
-        device: spy.Device,
+        device: Optional[spy.Device],
         data: list[float],
         cpu_time: float,
         **kwargs: Any,
@@ -33,7 +33,10 @@ class ReportFixture:
             else {}
         )
 
-        meta = {"adapter_name": device.info.adapter_name}
+        meta = {}
+
+        if device:
+            meta["adapter_name"] = device.info.adapter_name
 
         report: BenchmarkReport = {
             "name": self.node.name,
@@ -143,7 +146,7 @@ class BenchmarkPythonFunction:
 
     def __call__(
         self,
-        device: spy.Device,
+        device: Optional[spy.Device],
         function: Callable[..., None],
         iterations: int = 10,
         sub_iterations: int = 200,
