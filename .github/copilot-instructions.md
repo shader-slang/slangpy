@@ -12,6 +12,10 @@ Directory structure:
     - The python code is in #slangpy
     - The python tests are in #slangpy/tests
     - The c++ tests are in #tests
+    - General utility scripts are in #tools
+    - CI workflows are in #.github/workflows
+    - Example code is in #examples, #samples/examples, #samples/experiments
+    - Documentation is in #docs
 
 Code structure:
     - Any new python api must have tests added in #slangpy/tests.
@@ -19,14 +23,18 @@ Code structure:
     - The C++ code is responsible for the low-level graphics API interactions, and most types directly map to a slang-rhi counterpart. i.e. Device wraps the slang-rhi rhi::IDevice type
 
 Building:
-    - To build the project, run "cmake --build ./build --config Debug"
+    - On windows, build using: 'cmake --build .\build\windows-msvc --config Debug'
+    - On linux, build using: 'cmake --build ./build/linux-gcc --config Debug'
 
 Testing:
     - Python tests are in #slangpy/tests and C++ tests are in #tests
-    - The Python testing system uses pytest
+    - The Python testing system uses PYTEST
     - The C++ testing system uses doctest
     - Always build before running tests.
-    - To run all Python tests, run "pytest slangpy/tests"
+    - To run all Python tests, run "pytest slangpy/tests -v"
+    - An example of running a specific set of tests in a file is: "pytest slangpy/tests/slangpy_tests/test_shader_printing.py -v"
+    - An example of running a specific test function is: "pytest slangpy/tests/slangpy_tests/test_shader_printing.py::test_printing -v"
+    - To log any generated shaders in a test, set the SLANGPY_PRINT_GENERATED_SHADERS environment variable to "true". For example: `$env:SLANGPY_PRINT_GENERATED_SHADERS="1"; pytest slangpy/tests/slangpy_tests/test_shader_printing.py -v` (PowerShell syntax)
 
 C++ Code style:
     - Class names should start with a capital letter.
@@ -40,6 +48,16 @@ Python code style:
     - Local variable names are in snake_case.
     - Member variables start with "m_" and are in snake_case.
     - All arguments should have type annotations.
+
+Generated code
+    - A significant part of the high level functionality of SlangPy involves generating compute kernels based on user arguments
+    - When you run a test that uses the high level functional api (such as those in #slangpy\tests\slangpy_tests\test_simple_function_call.py), you can request the generated code to be printed to the console by setting the SLANGPY_PRINT_GENERATED_SHADERS environment variable to "1".
+
+CI
+    - Our CI system uses github, and the main ci job is in #.github/workflows/ci.yml
+    - It works by calling #tools/ci.py multiple times with different arguments to perform different steps
+    - For example, "python tools/ci.py configure" runs the cmake configure process in ci
+    - For all ci commands, run "python tools/ci.py --help"
 
 Additional tools:
     - Once a task is complete, to fix any formatting errors, run "pre-commit run --all-files".
