@@ -28,7 +28,9 @@ class ReportFixture:
         """Generate and store a benchmark report with the given data."""
 
         params = (
-            {k: str(v) for k, v in self.node.callspec.params.items()} if self.node.callspec else {}
+            {k: str(v) for k, v in self.node.callspec.params.items()}
+            if hasattr(self.node, "callspec") and self.node.callspec
+            else {}
         )
 
         meta = {"adapter_name": device.info.adapter_name}
