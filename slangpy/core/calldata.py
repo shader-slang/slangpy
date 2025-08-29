@@ -31,12 +31,18 @@ if TYPE_CHECKING:
 
 SLANG_PATH = Path(__file__).parent.parent / "slang"
 
-_DUMP_GENERATED_SHADERS = False
-_DUMP_SLANG_INTERMEDIATES = False
-_PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_SHADERS", "false").lower() in (
+_DUMP_GENERATED_SHADERS = os.environ.get("SLANGPY_DUMP_GENERATED_SHADERS", "false").lower() in (
     "true",
     "1",
-    "yes",
+)
+
+_DUMP_SLANG_INTERMEDIATES = os.environ.get("SLANGPY_DUMP_SLANG_INTERMEDIATES", "false").lower() in (
+    "true",
+    "1",
+)
+_PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_GENERATED_SHADERS", "false").lower() in (
+    "true",
+    "1",
 )
 
 
@@ -59,7 +65,7 @@ def set_dump_slang_intermediates(value: bool):
 def set_print_generated_shaders(value: bool):
     """
     Specify whether to print generated shaders to the terminal for analysis.
-    Can also be controlled via the SLANGPY_PRINT_SHADERS environment variable.
+    Can also be controlled via the SLANGPY_PRINT_GENERATED_SHADERS environment variable.
     """
     global _PRINT_GENERATED_SHADERS
     _PRINT_GENERATED_SHADERS = value
