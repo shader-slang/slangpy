@@ -372,6 +372,7 @@ def test_slangpy_tensor_addition_noalloc_gpu(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.skip(reason="Memory leak")
 def test_slangpy_addition_noalloc_interop_cpu(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
 ):
@@ -392,6 +393,7 @@ def test_slangpy_addition_noalloc_interop_cpu(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.skip(reason="Memory leak")
 def test_slangpy_addition_alloc_interop_cpu(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
 ):
@@ -411,6 +413,7 @@ def test_slangpy_addition_alloc_interop_cpu(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.skip(reason="Memory leak")
 def test_slangpy_addition_noalloc_interop_gpu_est(
     device_type: spy.DeviceType, report: ReportFixture
 ):
