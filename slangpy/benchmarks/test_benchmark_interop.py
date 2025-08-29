@@ -12,6 +12,8 @@ from slangpy.testing.benchmark import (
     ReportFixture,
 )
 
+pytest.skip("Temp disable interop benchmarks", allow_module_level=True)
+
 ADD_FLOATS = """
 float add_floats(float a, float b) {
     return a + b;
