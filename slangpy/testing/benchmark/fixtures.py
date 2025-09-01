@@ -67,7 +67,7 @@ class BenchmarkSlangFunction:
         self,
         device: spy.Device,
         function: Union[spy.Function, FunctionNodeBwds],
-        iterations: int = 200,
+        iterations: int = 2000,
         warmup_iterations: int = 10,
         **kwargs: Any,
     ) -> None:
@@ -108,7 +108,7 @@ class BenchmarkComputeKernel:
         device: spy.Device,
         kernel: spy.ComputeKernel,
         thread_count: spy.uint3,
-        iterations: int = 200,
+        iterations: int = 2000,
         warmup_iterations: int = 10,
         **kwargs: Any,
     ) -> None:
