@@ -12,8 +12,6 @@ from slangpy.testing.benchmark import (
     ReportFixture,
 )
 
-pytest.skip("Temp disable interop benchmarks", allow_module_level=True)
-
 ADD_FLOATS = """
 float add_floats(float a, float b) {
     return a + b;
@@ -109,7 +107,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID, StructuredBuffer<float> a, Str
 
 
 def test_pytorch_tensor_addition_cpu(benchmark_python_function: BenchmarkPythonFunction):
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_device(spy.DeviceType.cuda)
 
     BUFFER_SIZE = 10
     import torch
@@ -127,7 +125,7 @@ def test_pytorch_tensor_addition_cpu(benchmark_python_function: BenchmarkPythonF
 def test_compute_addition_noalloc_cpu(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 10
     buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
@@ -148,7 +146,7 @@ def test_compute_addition_noalloc_cpu(
 def test_slangpy_tensor_addition_noalloc_cpu(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "add_floats", ADD_FLOATS)
 
     BUFFER_SIZE = 10
@@ -166,7 +164,7 @@ def test_slangpy_tensor_addition_noalloc_cpu(
 def test_slangpy_tensor_addition_alloc_cpu(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "add_floats", ADD_FLOATS)
 
     BUFFER_SIZE = 10
@@ -183,7 +181,7 @@ def test_slangpy_tensor_addition_alloc_cpu(
 def test_slangpy_tensor_addition_appendonly_cpu(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "add_floats", ADD_FLOATS)
 
     BUFFER_SIZE = 10
@@ -199,7 +197,7 @@ def test_slangpy_tensor_addition_appendonly_cpu(
 
 
 def test_pytorch_tensor_addition_gpu_est(report: ReportFixture):
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_device(spy.DeviceType.cuda)
 
     BUFFER_SIZE = 65535 * 32
     import torch
@@ -231,7 +229,7 @@ def test_pytorch_tensor_addition_gpu_est(report: ReportFixture):
 def test_compute_addition_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
     buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
@@ -256,7 +254,7 @@ def test_compute_addition_noalloc_gpu(
 def test_compute_addition_4x_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
     buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
@@ -281,7 +279,7 @@ def test_compute_addition_4x_noalloc_gpu(
 def test_compute_addition_16x_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
     buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
@@ -308,7 +306,7 @@ def test_compute_addition_16x_noalloc_gpu(
 def test_compute_addition_16xloop_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
     buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
@@ -335,7 +333,7 @@ def test_compute_addition_16xloop_noalloc_gpu(
 def test_compute_addition_16xunroll_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
     buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
@@ -362,7 +360,7 @@ def test_compute_addition_16xunroll_noalloc_gpu(
 def test_slangpy_tensor_addition_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_slang_function: BenchmarkSlangFunction
 ):
-    device = helpers.get_torch_device(device_type)
+    device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "add_floats", ADD_FLOATS)
 
     BUFFER_SIZE = 65535 * 32
