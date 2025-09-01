@@ -93,9 +93,10 @@ class BenchmarkSlangFunction:
         query_pool = device.create_query_pool(type=spy.QueryType.timestamp, count=iterations * 2)
         for i in range(iterations):
             command_encoder = device.create_command_encoder()
-            command_encoder.write_timestamp(query_pool, i * 2)
-            function(**kwargs, _append_to=command_encoder)
-            command_encoder.write_timestamp(query_pool, i * 2 + 1)
+            function.write_timestamps((query_pool, i * 2, i * 2 + 1))(
+                **kwargs,
+                _append_to=command_encoder,
+            )
             device.submit_command_buffer(command_encoder.finish())
         device.wait()
         queries = np.array(query_pool.get_results(0, iterations * 2))
@@ -134,9 +135,14 @@ class BenchmarkComputeKernel:
         query_pool = device.create_query_pool(type=spy.QueryType.timestamp, count=iterations * 2)
         for i in range(iterations):
             command_encoder = device.create_command_encoder()
-            command_encoder.write_timestamp(query_pool, i * 2)
-            kernel.dispatch(thread_count, command_encoder=command_encoder, **kwargs)
-            command_encoder.write_timestamp(query_pool, i * 2 + 1)
+            kernel.dispatch(
+                thread_count,
+                command_encoder=command_encoder,
+                query_pool=query_pool,
+                query_index_before=i * 2,
+                query_index_after=i * 2 + 1,
+                **kwargs,
+            )
             device.submit_command_buffer(command_encoder.finish())
         device.wait()
         queries = np.array(query_pool.get_results(0, iterations * 2))
