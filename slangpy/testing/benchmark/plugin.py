@@ -5,16 +5,18 @@ from datetime import datetime
 from pathlib import Path
 
 from .report import (
+    Report,
     BenchmarkReport,
     generate_report,
     generate_report_name,
     list_report_ids,
     write_report,
+    load_report,
     upload_report,
 )
 from .table import display
 
-from typing import Any, TypedDict
+from typing import Any, TypedDict, Optional
 
 BENCHMARK_DIR = Path(".benchmarks")
 
@@ -22,18 +24,23 @@ BENCHMARK_DIR = Path(".benchmarks")
 class Context(TypedDict):
     timestamp: datetime
     benchmark_reports: list[BenchmarkReport]
+    compare_report_path: Optional[Path]
 
 
 def get_context(config: pytest.Config) -> Context:
-    return config._benchmark_context  # type: ignore
+    if not hasattr(config, "_benchmark_context"):
+        context: Context = {
+            "timestamp": datetime.now(),
+            "benchmark_reports": [],
+            "compare_report_path": None,
+        }
+        setattr(config, "_benchmark_context", context)
+    return getattr(config, "_benchmark_context")
 
 
 def pytest_configure(config: pytest.Config):
-    context: Context = {
-        "timestamp": datetime.now(),
-        "benchmark_reports": [],
-    }
-    config._benchmark_context = context  # type: ignore
+    # Make sure context is initialized
+    get_context(config)
 
 
 def pytest_sessionstart(session: pytest.Session):
@@ -120,6 +127,7 @@ def pytest_cmdline_main(config: pytest.Config):
             print(f'Benchmark run "{id}" not found!')
             return 1
         print(f"Comparing against benchmark run: {id}")
+        get_context(config)["compare_report_path"] = BENCHMARK_DIR / (id + ".json")
 
     if config.getoption("--benchmark-list-runs"):
         print("Benchmark runs:")
@@ -132,4 +140,11 @@ def pytest_cmdline_main(config: pytest.Config):
 def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):
     context = get_context(terminalreporter.config)
     benchmark_reports: list[BenchmarkReport] = context["benchmark_reports"]
-    display(benchmark_reports)
+    baseline_report: Optional[Report] = None
+    if context["compare_report_path"]:
+        baseline_report = load_report(context["compare_report_path"])
+    display(
+        terminalreporter.config.get_terminal_writer(),
+        benchmark_reports,
+        baseline_benchmarks=baseline_report["benchmarks"] if baseline_report else None,
+    )
