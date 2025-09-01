@@ -10,6 +10,9 @@ from datetime import datetime
 
 from .report import BenchmarkReport
 
+DEFAULT_ITERATIONS = 2000
+INITIAL_WARMUP_ITERATIONS = 100
+
 
 class ReportFixture:
 
@@ -76,8 +79,8 @@ class BenchmarkSlangFunction:
         self,
         device: spy.Device,
         function: Union[spy.Function, FunctionNodeBwds],
-        iterations: int = 2000,
-        warmup_iterations: int = 100,
+        iterations: int = DEFAULT_ITERATIONS,
+        warmup_iterations: int = INITIAL_WARMUP_ITERATIONS,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
@@ -117,8 +120,8 @@ class BenchmarkComputeKernel:
         device: spy.Device,
         kernel: spy.ComputeKernel,
         thread_count: spy.uint3,
-        iterations: int = 2000,
-        warmup_iterations: int = 100,
+        iterations: int = DEFAULT_ITERATIONS,
+        warmup_iterations: int = INITIAL_WARMUP_ITERATIONS,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
@@ -158,8 +161,8 @@ class BenchmarkPythonFunction:
         device: Optional[spy.Device],
         function: Callable[..., None],
         iterations: int = 10,
-        sub_iterations: int = 2000,
-        warmup_iterations: int = 100,
+        sub_iterations: int = DEFAULT_ITERATIONS // 10,
+        warmup_iterations: int = INITIAL_WARMUP_ITERATIONS,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
