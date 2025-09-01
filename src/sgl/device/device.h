@@ -237,6 +237,9 @@ public:
     /// Default slang session.
     SlangSession* slang_session() const { return m_slang_session; }
 
+    /// Whether device is already closed
+    bool is_closed() const { return m_closed; }
+
     /**
      * \brief Close the device.
      *

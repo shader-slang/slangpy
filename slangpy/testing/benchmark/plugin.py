@@ -3,10 +3,11 @@
 import pytest
 from datetime import datetime
 
+from slangpy.testing import helpers
 from .report import BenchmarkReport, generate_report, write_report, upload_report
 from .table import display
 
-from typing import Any, TypedDict
+from typing import Any, TypedDict, Union
 
 
 class Context(TypedDict):
@@ -27,6 +28,7 @@ def pytest_configure(config: pytest.Config):
 
 
 def pytest_sessionstart(session: pytest.Session):
+    helpers.ENABLE_DEVICE_CACHE = False
     get_context(session.config)["timestamp"] = datetime.now()
 
 
@@ -80,6 +82,11 @@ def pytest_addoption(parser: pytest.Parser):
         default="nvr-ci",
         help="MongoDB database name",
     )
+
+
+def pytest_runtest_teardown(item: pytest.Item, nextitem: Union[pytest.Item, None]):
+    """Called after each test to clean up leaked devices."""
+    helpers.close_all_devices()
 
 
 def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):

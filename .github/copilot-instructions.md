@@ -42,6 +42,12 @@ C++ Code style:
     - Local variable names are in snake_case.
     - Member variables start with "m_" and are in snake_case.
 
+Python Bindings
+    - The python bindings are all in #src/slangpy_ext
+    - Most native types have a corresponding binding - for example Device in #src/device/device.cpp has a binding in #src/slangpy_ext/device/device.cpp
+    - Doc strings are initially added using the D_NA macro, to indicate they will be generated later. eg device.def_prop_ro("is_closed", &Device::is_closed, D_NA(Device, is_closed));
+    - Once documentation has been generated, the binding is updated to use the D macro: device.def_prop_ro("is_closed", &Device::is_closed, D(Device, is_closed));
+
 Python code style:
     - Class names should start with a capital letter.
     - Function names are in snake_case.

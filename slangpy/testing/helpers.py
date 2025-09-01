@@ -53,6 +53,7 @@ DEVICE_CACHE: dict[
 
 USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
+ENABLE_DEVICE_CACHE: bool = True
 
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
@@ -78,8 +79,9 @@ def close_all_devices():
 
     # Close all devices that were created during the tests.
     for device in Device.get_created_devices():
-        print(f"Closing device on shutdown {device.desc.label}")
-        device.close()
+        if not device.is_closed:
+            print(f"Closing device on shutdown {device.desc.label}")
+            device.close()
 
 
 def close_leaked_devices():
@@ -87,8 +89,9 @@ def close_leaked_devices():
     for device in Device.get_created_devices():
         if device.desc.label.startswith("cached-"):
             continue
-        print(f"Closing leaked device {device.desc.label}")
-        device.close()
+        if not device.is_closed:
+            print(f"Closing leaked device {device.desc.label}")
+            device.close()
 
 
 # Helper to get device of a given type
@@ -116,6 +119,9 @@ def get_device(
     #         if "5090" in adapter.name:
     #             selected_adaptor_luid = adapter.luid
     #             break
+
+    # Only use cache if enabled
+    use_cache = use_cache and ENABLE_DEVICE_CACHE
 
     if label is None:
         label = ""
