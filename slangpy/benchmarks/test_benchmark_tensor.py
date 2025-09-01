@@ -64,7 +64,6 @@ def test_tensor_sum_indirect(
     benchmark_slang_function(
         device,
         func,
-        iterations=500,
         tid=spy.call_id(),
         tensor_list=tensor_list,
         tensor_indices=tensor_indices,

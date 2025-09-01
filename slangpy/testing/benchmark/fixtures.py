@@ -68,7 +68,7 @@ class BenchmarkSlangFunction:
         device: spy.Device,
         function: Union[spy.Function, FunctionNodeBwds],
         iterations: int = 2000,
-        warmup_iterations: int = 10,
+        warmup_iterations: int = 100,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
@@ -109,7 +109,7 @@ class BenchmarkComputeKernel:
         kernel: spy.ComputeKernel,
         thread_count: spy.uint3,
         iterations: int = 2000,
-        warmup_iterations: int = 10,
+        warmup_iterations: int = 100,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
@@ -150,7 +150,7 @@ class BenchmarkPythonFunction:
         function: Callable[..., None],
         iterations: int = 10,
         sub_iterations: int = 2000,
-        warmup_iterations: int = 10,
+        warmup_iterations: int = 100,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
