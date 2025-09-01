@@ -5,7 +5,7 @@ import slangpy as spy
 from slangpy.core.function import FunctionNodeBwds
 import numpy as np
 from typing import Any, Callable, Optional, Union
-from time import time, sleep
+from time import time
 from datetime import datetime
 
 from .report import BenchmarkReport
@@ -73,23 +73,18 @@ class BenchmarkSlangFunction:
     ) -> None:
         """Run the benchmark with the given parameters."""
 
-        device.wait()
-        sleep(0.1)
-
         start_time = time()
 
-        query_pool = device.create_query_pool(type=spy.QueryType.timestamp, count=iterations * 2)
-        command_encoder = device.create_command_encoder()
-
         for _ in range(warmup_iterations):
-            function(**kwargs, _append_to=command_encoder)
+            function(**kwargs)
 
+        query_pool = device.create_query_pool(type=spy.QueryType.timestamp, count=iterations * 2)
         for i in range(iterations):
+            command_encoder = device.create_command_encoder()
             command_encoder.write_timestamp(query_pool, i * 2)
             function(**kwargs, _append_to=command_encoder)
             command_encoder.write_timestamp(query_pool, i * 2 + 1)
-
-        device.submit_command_buffer(command_encoder.finish())
+            device.submit_command_buffer(command_encoder.finish())
         device.wait()
         queries = np.array(query_pool.get_results(0, iterations * 2))
         frequency = float(device.info.timestamp_frequency)
@@ -119,23 +114,18 @@ class BenchmarkComputeKernel:
     ) -> None:
         """Run the benchmark with the given parameters."""
 
-        device.wait()
-        sleep(0.1)
-
         start_time = time()
 
-        command_encoder = device.create_command_encoder()
-        query_pool = device.create_query_pool(type=spy.QueryType.timestamp, count=iterations * 2)
-
         for _ in range(warmup_iterations):
-            kernel.dispatch(thread_count, command_encoder=command_encoder, **kwargs)
+            kernel.dispatch(thread_count, **kwargs)
 
+        query_pool = device.create_query_pool(type=spy.QueryType.timestamp, count=iterations * 2)
         for i in range(iterations):
+            command_encoder = device.create_command_encoder()
             command_encoder.write_timestamp(query_pool, i * 2)
             kernel.dispatch(thread_count, command_encoder=command_encoder, **kwargs)
             command_encoder.write_timestamp(query_pool, i * 2 + 1)
-
-        device.submit_command_buffer(command_encoder.finish())
+            device.submit_command_buffer(command_encoder.finish())
         device.wait()
         queries = np.array(query_pool.get_results(0, iterations * 2))
         frequency = float(device.info.timestamp_frequency)
@@ -159,15 +149,11 @@ class BenchmarkPythonFunction:
         device: Optional[spy.Device],
         function: Callable[..., None],
         iterations: int = 10,
-        sub_iterations: int = 200,
+        sub_iterations: int = 2000,
         warmup_iterations: int = 10,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
-
-        if device:
-            device.wait()
-        sleep(0.1)
 
         start_time = time()
 
