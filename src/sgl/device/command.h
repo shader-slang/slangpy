@@ -68,6 +68,14 @@ public:
      */
     void insert_debug_marker(const char* name, float3 color);
 
+    /**
+     * \brief Write a timestamp.
+     *
+     * \param query_pool Query pool.
+     * \param index Index of the query.
+     */
+    void write_timestamp(QueryPool* query_pool, uint32_t index);
+
     virtual void end();
 
 protected:

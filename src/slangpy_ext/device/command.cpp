@@ -563,6 +563,13 @@ SGL_PY_EXPORT(device_command)
             "name"_a,
             "color"_a,
             D(PassEncoder, insert_debug_marker)
+        )
+        .def(
+            "write_timestamp",
+            &PassEncoder::write_timestamp,
+            "query_pool"_a,
+            "index"_a,
+            D_NA(PassEncoder, write_timestamp)
         );
 
     nb::class_<RenderPassEncoder, PassEncoder>(m, "RenderPassEncoder", D(RenderPassEncoder))
