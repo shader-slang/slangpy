@@ -2,11 +2,21 @@
 
 import pytest
 from datetime import datetime
+from pathlib import Path
 
-from .report import BenchmarkReport, generate_report, write_report, upload_report
+from .report import (
+    BenchmarkReport,
+    generate_report,
+    generate_report_name,
+    list_report_ids,
+    write_report,
+    upload_report,
+)
 from .table import display
 
 from typing import Any, TypedDict
+
+BENCHMARK_DIR = Path(".benchmarks")
 
 
 class Context(TypedDict):
@@ -35,11 +45,14 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
     context = get_context(session.config)
     report = generate_report(context["timestamp"], context["benchmark_reports"])
 
-    # Write report to JSON
-    if session.config.getoption("--write-benchmark-report"):
-        path = session.config.getoption("--benchmark-report-path")
-        print(f"Writing benchmark report to {path}")
-        write_report(report, path)
+    # Save report
+    save = session.config.getoption("--benchmark-save")
+    if save != "_unspecified_":
+        name = save if save else generate_report_name(report)
+        path = BENCHMARK_DIR / (name + ".json")
+        print(f"Saving benchmark report to {path}")
+        BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
+        write_report(report, path, strip_data=True)
 
     # Upload report to MongoDB
     if session.config.getoption("--benchmark-upload"):
@@ -50,36 +63,67 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
 
 
 def pytest_addoption(parser: pytest.Parser):
-    parser.addoption(
-        "--write-benchmark-report",
+    group = parser.getgroup("benchmarking")
+    group.addoption(
+        "--benchmark-save",
+        action="store",
+        default="_unspecified_",
+        nargs="?",
+        metavar="ID",
+        help="Save the current benchmark run to a file. Optionally specify a run ID.",
+    )
+    group.addoption(
+        "--benchmark-compare",
+        action="store",
+        default="_unspecified_",
+        nargs="?",
+        metavar="ID",
+        help="Compare against previously saved benchmark run. Optionally specify a run ID. By default, use the latest run.",
+    )
+    group.addoption(
+        "--benchmark-list-runs",
         action="store_true",
         default=False,
-        help="Write benchmark report to a JSON file",
+        help="List the IDs of all saved benchmark runs.",
     )
-    parser.addoption(
-        "--benchmark-report-path",
-        action="store",
-        default="benchmark_report.json",
-        help="Path to the benchmark report JSON file",
-    )
-    parser.addoption(
+    group.addoption(
         "--benchmark-upload",
         action="store_true",
         default=False,
-        help="Upload benchmark report to a MongoDB",
+        help="Upload benchmark report to a MongoDB.",
     )
-    parser.addoption(
+    group.addoption(
         "--benchmark-mongodb-connection-string",
         action="store",
         default="mongodb://localhost:27017",
-        help="MongoDB connection string",
+        metavar="CONNECTION_STRING",
+        help="MongoDB connection string.",
     )
-    parser.addoption(
+    group.addoption(
         "--benchmark-mongodb-database-name",
         action="store",
         default="nvr-ci",
-        help="MongoDB database name",
+        metavar="NAME",
+        help="MongoDB database name.",
     )
+
+
+def pytest_cmdline_main(config: pytest.Config):
+    compare = config.getoption("--benchmark-compare")
+    if compare != "_unspecified_":
+        ids = list_report_ids(BENCHMARK_DIR)
+        id = compare if compare else ids[0]
+        if not id in ids:
+            print(f'Benchmark run "{id}" not found')
+            return 1
+        print(f"Comparing against benchmark run: {id}")
+
+    if config.getoption("--benchmark-list-runs"):
+        print("Benchmark runs:")
+        ids = list_report_ids(BENCHMARK_DIR)
+        for id in ids:
+            print(id)
+        return 0
 
 
 def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):
