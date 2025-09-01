@@ -145,7 +145,6 @@ def test_compute_addition_noalloc_cpu(
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1, res=resbuffer)
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_slangpy_tensor_addition_noalloc_cpu(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
@@ -164,7 +163,6 @@ def test_slangpy_tensor_addition_noalloc_cpu(
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1, res=resbuffer)
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_slangpy_tensor_addition_alloc_cpu(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
@@ -182,7 +180,6 @@ def test_slangpy_tensor_addition_alloc_cpu(
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1)
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_slangpy_tensor_addition_appendonly_cpu(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
@@ -202,7 +199,6 @@ def test_slangpy_tensor_addition_appendonly_cpu(
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1, res=resbuffer)
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.skip(reason="See if pytorch causes perf issues")
 def test_pytorch_tensor_addition_gpu_est(report: ReportFixture):
     device = helpers.get_device(spy.DeviceType.cuda)
@@ -233,7 +229,6 @@ def test_pytorch_tensor_addition_gpu_est(report: ReportFixture):
     report(device, [d * 1000 for d in deltas], end - start)  # convert to ms
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_compute_addition_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
@@ -259,7 +254,6 @@ def test_compute_addition_noalloc_gpu(
     )
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_compute_addition_4x_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
@@ -285,7 +279,6 @@ def test_compute_addition_4x_noalloc_gpu(
     )
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_compute_addition_16x_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
@@ -313,7 +306,6 @@ def test_compute_addition_16x_noalloc_gpu(
     )
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_compute_addition_16xloop_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
@@ -341,7 +333,6 @@ def test_compute_addition_16xloop_noalloc_gpu(
     )
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_compute_addition_16xunroll_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_compute_kernel: BenchmarkComputeKernel
@@ -369,7 +360,6 @@ def test_compute_addition_16xunroll_noalloc_gpu(
     )
 
 
-@pytest.mark.skip(reason="Try skipping")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_slangpy_tensor_addition_noalloc_gpu(
     device_type: spy.DeviceType, benchmark_slang_function: BenchmarkSlangFunction
