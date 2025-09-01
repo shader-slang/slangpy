@@ -106,6 +106,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID, StructuredBuffer<float> a, Str
 """
 
 
+@pytest.mark.skip(reason="See if pytorch causes perf issues")
 def test_pytorch_tensor_addition_cpu(benchmark_python_function: BenchmarkPythonFunction):
     device = helpers.get_device(spy.DeviceType.cuda)
 
@@ -196,6 +197,7 @@ def test_slangpy_tensor_addition_appendonly_cpu(
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1, res=resbuffer)
 
 
+@pytest.mark.skip(reason="See if pytorch causes perf issues")
 def test_pytorch_tensor_addition_gpu_est(report: ReportFixture):
     device = helpers.get_device(spy.DeviceType.cuda)
 
