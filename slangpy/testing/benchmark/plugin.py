@@ -112,9 +112,12 @@ def pytest_cmdline_main(config: pytest.Config):
     compare = config.getoption("--benchmark-compare")
     if compare != "_unspecified_":
         ids = list_report_ids(BENCHMARK_DIR)
+        if len(ids) == 0:
+            print("No benchmark runs found!")
+            return 1
         id = compare if compare else ids[0]
         if not id in ids:
-            print(f'Benchmark run "{id}" not found')
+            print(f'Benchmark run "{id}" not found!')
             return 1
         print(f"Comparing against benchmark run: {id}")
 
