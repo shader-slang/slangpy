@@ -42,10 +42,10 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
         write_report(report, path)
 
     # Upload report to MongoDB
-    if session.config.getoption("--upload-benchmark-report"):
+    if session.config.getoption("--benchmark-upload"):
         print("Uploading benchmark report to MongoDB")
-        connection_string = session.config.getoption("--mongodb-connection-string")
-        database_name = session.config.getoption("--mongodb-database-name")
+        connection_string = session.config.getoption("--benchmark-mongodb-connection-string")
+        database_name = session.config.getoption("--benchmark-mongodb-database-name")
         upload_report(report, connection_string, database_name)
 
 
@@ -63,19 +63,19 @@ def pytest_addoption(parser: pytest.Parser):
         help="Path to the benchmark report JSON file",
     )
     parser.addoption(
-        "--upload-benchmark-report",
+        "--benchmark-upload",
         action="store_true",
         default=False,
         help="Upload benchmark report to a MongoDB",
     )
     parser.addoption(
-        "--mongodb-connection-string",
+        "--benchmark-mongodb-connection-string",
         action="store",
         default="mongodb://localhost:27017",
         help="MongoDB connection string",
     )
     parser.addoption(
-        "--mongodb-database-name",
+        "--benchmark-mongodb-database-name",
         action="store",
         default="nvr-ci",
         help="MongoDB database name",
