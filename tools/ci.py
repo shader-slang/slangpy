@@ -148,7 +148,7 @@ def typing_check_python(args: Any):
 def unit_test_python(args: Any):
     env = get_python_env()
     os.makedirs("reports", exist_ok=True)
-    cmd = ["pytest", "slangpy/tests", "-ra", "--junit-xml=reports/pytest-junit.xml", "--color=yes"]
+    cmd = ["pytest", "slangpy/tests", "-ra", "--junit-xml=reports/pytest-junit.xml"]
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
     run_command(cmd, env=env)
@@ -156,7 +156,7 @@ def unit_test_python(args: Any):
 
 def test_examples(args: Any):
     env = get_python_env()
-    cmd = ["pytest", "samples/tests", "-vra", "--color=yes"]
+    cmd = ["pytest", "samples/tests", "-vra"]
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
     run_command(cmd, env=env)
@@ -164,7 +164,7 @@ def test_examples(args: Any):
 
 def benchmark_python(args: Any):
     env = get_python_env()
-    cmd = ["pytest", "slangpy/benchmarks", "-ra", "--color=yes"]
+    cmd = ["pytest", "slangpy/benchmarks", "-ra"]
     if args.mongodb_connection_string:
         cmd += ["--benchmark-upload"]
         cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
