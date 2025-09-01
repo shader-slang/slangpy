@@ -598,10 +598,25 @@ public:
     /// Set the CUDA stream.
     void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
 
+    QueryPool* get_query_pool() const { return m_query_pool.get(); }
+
+    void set_query_pool(QueryPool* query_pool) { m_query_pool = ref(query_pool); }
+
+    uint32_t get_query_before_index() const { return m_query_before_index; }
+
+    void set_query_before_index(uint32_t query_before_index) { m_query_before_index = query_before_index; }
+
+    uint32_t get_query_after_index() const { return m_query_after_index; }
+
+    void set_query_after_index(uint32_t query_after_index) { m_query_after_index = query_after_index; }
+
 private:
     nb::list m_uniforms;
     nb::object m_this{nb::none()};
     NativeHandle m_cuda_stream;
+    ref<QueryPool> m_query_pool;
+    uint32_t m_query_before_index{0};
+    uint32_t m_query_after_index{0};
 };
 
 /// Defines the common logging functions for a given log level.

@@ -10,7 +10,15 @@ from slangpy.core.native import (
 )
 
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy import CommandEncoder, TypeConformance, uint3, Logger, NativeHandle, NativeHandleType
+from slangpy import (
+    CommandEncoder,
+    QueryPool,
+    TypeConformance,
+    uint3,
+    Logger,
+    NativeHandle,
+    NativeHandleType,
+)
 from slangpy.slangpy import Shape
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
@@ -138,6 +146,12 @@ class FunctionNode(NativeFunctionNode):
         CUDA operations or ensuring that the function runs on a specific stream.
         """
         return FunctionNodeCUDAStream(self, stream)
+
+    def write_timestamps(self, write_timestamps: tuple[QueryPool, int, int]) -> "FunctionNode":
+        """
+        Specify a query pool and and a before/after query index to write timestamps before/after the dispatch.
+        """
+        return FunctionNodeWriteTimestamps(self, write_timestamps)
 
     def constants(self, constants: dict[str, Any]):
         """
@@ -425,6 +439,21 @@ class FunctionNodeCUDAStream(FunctionNode):
 
     def _populate_build_info(self, info: FunctionBuildInfo):
         info.options["cuda_stream"] = self.stream
+
+
+class FunctionNodeWriteTimestamps(FunctionNode):
+    def __init__(
+        self, parent: NativeFunctionNode, write_timestamps: tuple[QueryPool, int, int]
+    ) -> None:
+        super().__init__(parent, FunctionNodeType.write_timestamps, write_timestamps)
+        self.slangpy_signature = str(write_timestamps)
+
+    @property
+    def write_timestamps(self):
+        return cast(tuple[QueryPool, int, int], self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.options["write_timestamps"] = self.write_timestamps
 
 
 class FunctionNodeConstants(FunctionNode):

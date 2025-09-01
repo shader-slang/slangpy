@@ -10,6 +10,7 @@
 #include "sgl/utils/slangpy.h"
 #include "sgl/device/device.h"
 #include "sgl/device/kernel.h"
+#include "sgl/device/query.h"
 #include "sgl/device/command.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
@@ -649,10 +650,25 @@ nb::object NativeCallData::exec(
 
     if (command_encoder == nullptr) {
         // If we are not appending to a command encoder, we can dispatch directly.
-        m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, CommandQueueType::graphics, cuda_stream);
+        m_kernel->dispatch(
+            uint3(total_threads, 1, 1),
+            bind_vars,
+            CommandQueueType::graphics,
+            cuda_stream,
+            opts->get_query_pool(),
+            opts->get_query_before_index(),
+            opts->get_query_after_index()
+        );
     } else {
         // If we are appending to a command encoder, we need to use the command encoder.
-        m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, command_encoder);
+        m_kernel->dispatch(
+            uint3(total_threads, 1, 1),
+            bind_vars,
+            command_encoder,
+            opts->get_query_pool(),
+            opts->get_query_before_index(),
+            opts->get_query_after_index()
+        );
     }
 
     // If command_buffer is not null, return early.
