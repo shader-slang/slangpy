@@ -5,7 +5,7 @@ import slangpy as spy
 from slangpy.core.function import FunctionNodeBwds
 import numpy as np
 from typing import Any, Callable, Optional, Union
-from time import time
+from time import time, sleep
 from datetime import datetime
 
 from .report import BenchmarkReport
@@ -73,6 +73,9 @@ class BenchmarkSlangFunction:
     ) -> None:
         """Run the benchmark with the given parameters."""
 
+        device.wait()
+        sleep(0.1)
+
         start_time = time()
 
         for _ in range(warmup_iterations):
@@ -114,6 +117,9 @@ class BenchmarkComputeKernel:
     ) -> None:
         """Run the benchmark with the given parameters."""
 
+        device.wait()
+        sleep(0.1)
+
         start_time = time()
 
         for _ in range(warmup_iterations):
@@ -154,6 +160,10 @@ class BenchmarkPythonFunction:
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
+
+        if device:
+            device.wait()
+        sleep(0.1)
 
         start_time = time()
 
