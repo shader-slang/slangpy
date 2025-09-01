@@ -38,6 +38,15 @@ class ReportFixture:
         if device:
             meta["adapter_name"] = device.info.adapter_name
 
+        # Calculate trimmed mean (remove 10% outliers - 5% from each end)
+        sorted_data = np.sort(data)
+        trim_count = int(len(sorted_data) * 0.05)  # 5% from each end
+        if trim_count > 0:
+            trimmed_data = sorted_data[trim_count:-trim_count]
+        else:
+            trimmed_data = sorted_data
+        trimmed_mean = float(np.mean(trimmed_data))
+
         report: BenchmarkReport = {
             "name": self.node.name,
             "filename": str(self.node.location[0]).replace("\\", "/"),
@@ -49,7 +58,7 @@ class ReportFixture:
             "data": [float(d) for d in data],
             "min": float(np.min(data)),
             "max": float(np.max(data)),
-            "mean": float(np.mean(data)),
+            "mean": trimmed_mean,
             "median": float(np.median(data)),
             "stddev": float(np.std(data)),
         }
