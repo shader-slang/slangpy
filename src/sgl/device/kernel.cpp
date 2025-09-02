@@ -39,14 +39,27 @@ ComputePipeline* ComputeKernel::pipeline() const
     return m_pipeline;
 }
 
-void ComputeKernel::dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandEncoder* command_encoder)
+void ComputeKernel::dispatch(
+    uint3 thread_count,
+    BindVarsCallback bind_vars,
+    CommandEncoder* command_encoder,
+    QueryPool* query_pool,
+    uint32_t query_index_before,
+    uint32_t query_index_after
+)
 {
     {
         auto pass_encoder = command_encoder->begin_compute_pass();
         ShaderObject* shader_object = pass_encoder->bind_pipeline(pipeline());
         if (bind_vars)
             bind_vars(ShaderCursor(shader_object));
-        pass_encoder->dispatch(thread_count);
+        if (query_pool) {
+            pass_encoder->write_timestamp(query_pool, query_index_before);
+            pass_encoder->dispatch(thread_count);
+            pass_encoder->write_timestamp(query_pool, query_index_after);
+        } else {
+            pass_encoder->dispatch(thread_count);
+        }
         pass_encoder->end();
     }
 }
@@ -55,12 +68,15 @@ void ComputeKernel::dispatch(
     uint3 thread_count,
     BindVarsCallback bind_vars,
     CommandQueueType queue,
-    NativeHandle cuda_stream
+    NativeHandle cuda_stream,
+    QueryPool* query_pool,
+    uint32_t query_index_before,
+    uint32_t query_index_after
 )
 {
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
 
-    dispatch(thread_count, bind_vars, command_encoder);
+    dispatch(thread_count, bind_vars, command_encoder, query_pool, query_index_before, query_index_after);
 
     m_device->submit_command_buffer(command_encoder->finish(), queue, cuda_stream);
 }
