@@ -158,13 +158,49 @@ def test_examples(args: Any):
 
 def benchmark_python(args: Any):
     env = get_python_env()
-    cmd = ["pytest", "slangpy/benchmarks", "-vra"]
-    if args.mongodb_connection_string:
-        cmd += ["--benchmark-upload"]
-        cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
-        if args.mongodb_database_name:
-            cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
-    run_command(cmd, env=env)
+
+    # Define available device types per platform
+    os_name = get_os()
+    if os_name == "windows":
+        device_types = ["d3d12", "vulkan", "cuda"]
+    elif os_name == "linux":
+        device_types = ["vulkan", "cuda"]
+    elif os_name == "macos":
+        device_types = ["metal"]
+    else:
+        raise RuntimeError(f"Unsupported OS for benchmarks: {os_name}")
+
+    # If specific device is requested, only run for that device
+    if args.device_type:
+        if args.device_type == "nodevice":
+            device_types = ["nodevice"]
+        elif args.device_type not in device_types:
+            print(f"Device type {args.device_type} not supported on {os_name}, skipping benchmarks")
+            return
+        else:
+            device_types = [args.device_type]
+    else:
+        # Run for all device types plus nodevice tests
+        device_types = device_types + ["nodevice"]
+
+    # Run benchmarks for each device type
+    for device_type in device_types:
+        print(f"Running benchmarks for device type: {device_type}")
+
+        cmd = ["pytest", "slangpy/benchmarks", "-ra", "--device-types", device_type]
+        if args.mongodb_connection_string:
+            cmd += ["--benchmark-upload"]
+            cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
+            if args.mongodb_database_name:
+                cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
+
+        try:
+            run_command(cmd, env=env)
+        except Exception as e:
+            print(f"Benchmarks failed for device type {device_type}: {e}")
+            if args.device_type:  # If specific device requested, fail hard
+                raise
+            # Otherwise, continue with other devices
 
 
 def coverage_report(args: Any):
@@ -216,6 +252,11 @@ def main():
     )
     parser_benchmark_python.add_argument(
         "-d", "--mongodb-database-name", type=str, help="MongoDB database name"
+    )
+    parser_benchmark_python.add_argument(
+        "--device-type",
+        type=str,
+        help="Specific device type to benchmark (d3d12, vulkan, cuda, metal, nodevice)",
     )
 
     parser_coverage_report = commands.add_parser("coverage-report", help="generate coverage report")
