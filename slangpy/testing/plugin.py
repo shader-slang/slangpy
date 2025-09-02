@@ -25,15 +25,6 @@ def pytest_addoption(parser: pytest.Parser):
         help="Run tests only for the specified device types (comma-separated). "
         "Valid types: d3d12, vulkan, cuda, metal. Use 'nodevice' for tests that don't require a device.",
     )
-    # Keep backwards compatibility with the old single device type option
-    group.addoption(
-        "--device-type",
-        action="store",
-        default=None,
-        choices=["d3d12", "vulkan", "cuda", "metal", "nodevice"],
-        help="Run tests only for the specified device type. Use 'nodevice' for tests that don't require a device. "
-        "(Deprecated: use --device-types instead)",
-    )
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -42,18 +33,8 @@ def pytest_sessionstart(session: pytest.Session):
     # when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
     spy.ConsoleLoggerOutput.IGNORE_PRINT_EXCEPTION = True
 
-    # Set the global device types based on the command line options
+    # Set the global device types based on the command line option
     device_types_option = session.config.getoption("--device-types")
-    device_type_option = session.config.getoption("--device-type")
-
-    # Handle backwards compatibility: if --device-type is used, convert it to --device-types format
-    if device_type_option and device_types_option:
-        raise ValueError(
-            "Cannot specify both --device-type and --device-types. Use --device-types instead."
-        )
-    elif device_type_option:
-        device_types_option = device_type_option
-
     set_device_types(device_types_option)
 
 
