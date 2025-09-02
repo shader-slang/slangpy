@@ -251,18 +251,6 @@ def test_compute_addition_noalloc_gpu(
         res=resbuffer.storage,
     )
 
-    device.wait()
-    sleep(0.5)
-
-    benchmark_compute_kernel(
-        device,
-        kernel,
-        spy.uint3(BUFFER_SIZE, 1, 1),
-        a=buffer0.storage,
-        b=buffer1.storage,
-        res=resbuffer.storage,
-    )
-
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_compute_addition_4x_noalloc_gpu(
@@ -462,5 +450,4 @@ def test_slangpy_addition_noalloc_interop_gpu_est(
 
 
 if __name__ == "__main__":
-    input("Press Enter to run the CUDA tensor test...")
-    pytest.main([__file__ + "::test_compute_addition_noalloc_gpu[DeviceType.cuda]", "-v", "-s"])
+    pytest.main([__file__, "-v", "-s"])
