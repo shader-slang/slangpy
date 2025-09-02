@@ -783,4 +783,18 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(RayTracingPipelineFlags);
 
+/// Report information for a memory heap.
+struct HeapReport {
+    /// Name of the heap.
+    std::string name;
+    /// Number of pages in the heap.
+    uint32_t num_pages{0};
+    /// Total allocated memory in bytes.
+    uint64_t total_allocated{0};
+    /// Total memory usage in bytes.
+    uint64_t total_mem_usage{0};
+    /// Number of allocations.
+    uint64_t num_allocations{0};
+};
+
 } // namespace sgl

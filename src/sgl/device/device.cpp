@@ -974,6 +974,39 @@ void Device::report_live_objects()
     rhi::getRHI()->reportLiveObjects();
 }
 
+std::vector<HeapReport> Device::report_heaps()
+{
+    uint32_t heap_count = 0;
+    // First call to get the number of heaps
+    SLANG_CALL(m_rhi_device->reportHeaps(nullptr, &heap_count));
+
+    if (heap_count == 0) {
+        return {};
+    }
+
+    // Allocate buffer for heap reports
+    std::vector<rhi::HeapReport> rhi_heap_reports(heap_count);
+
+    // Second call to get the actual heap reports
+    SLANG_CALL(m_rhi_device->reportHeaps(rhi_heap_reports.data(), &heap_count));
+
+    // Convert to SGL format
+    std::vector<HeapReport> result;
+    result.reserve(heap_count);
+
+    for (const auto& rhi_report : rhi_heap_reports) {
+        HeapReport sgl_report;
+        sgl_report.name = std::string(rhi_report.label);
+        sgl_report.num_pages = rhi_report.numPages;
+        sgl_report.total_allocated = rhi_report.totalAllocated;
+        sgl_report.total_mem_usage = rhi_report.totalMemUsage;
+        sgl_report.num_allocations = rhi_report.numAllocations;
+        result.push_back(std::move(sgl_report));
+    }
+
+    return result;
+}
+
 bool Device::enable_agility_sdk()
 {
 #if SGL_HAS_D3D12 && SGL_HAS_AGILITY_SDK
