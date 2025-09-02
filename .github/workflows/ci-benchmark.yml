@@ -21,7 +21,7 @@ jobs:
         python: ["3.10"]
         include:
           # Builds running on self-hosted runners
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "benchmark", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "benchmark", runs-on: { group: nvrgfx-perf, labels: [Windows, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "benchmark", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
 
     env:
@@ -55,7 +55,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-          cache: 'pip'
 
       # Setup Python environment.
       - name: Setup Python environment

@@ -31,8 +31,19 @@ if TYPE_CHECKING:
 
 SLANG_PATH = Path(__file__).parent.parent / "slang"
 
-_DUMP_GENERATED_SHADERS = False
-_DUMP_SLANG_INTERMEDIATES = False
+_DUMP_GENERATED_SHADERS = os.environ.get("SLANGPY_DUMP_GENERATED_SHADERS", "false").lower() in (
+    "true",
+    "1",
+)
+
+_DUMP_SLANG_INTERMEDIATES = os.environ.get("SLANGPY_DUMP_SLANG_INTERMEDIATES", "false").lower() in (
+    "true",
+    "1",
+)
+_PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_GENERATED_SHADERS", "false").lower() in (
+    "true",
+    "1",
+)
 
 
 def set_dump_generated_shaders(value: bool):
@@ -49,6 +60,15 @@ def set_dump_slang_intermediates(value: bool):
     """
     global _DUMP_SLANG_INTERMEDIATES
     _DUMP_SLANG_INTERMEDIATES = value
+
+
+def set_print_generated_shaders(value: bool):
+    """
+    Specify whether to print generated shaders to the terminal for analysis.
+    Can also be controlled via the SLANGPY_PRINT_GENERATED_SHADERS environment variable.
+    """
+    global _PRINT_GENERATED_SHADERS
+    _PRINT_GENERATED_SHADERS = value
 
 
 def unpack_arg(arg: Any) -> Any:
@@ -251,6 +271,24 @@ class CallData(NativeCallData):
                     f.write(bound_call_table(bindings))
                     f.write("\n*/\n")
                     f.write(code)
+
+            # Optionally print the shader to the terminal for AI analysis.
+            if _PRINT_GENERATED_SHADERS:
+                print("=" * 80)
+                print(f"GENERATED SHADER: {build_info.module.name}::{build_info.name}")
+                if self.call_mode == CallMode.bwds:
+                    print("MODE: Backwards")
+                else:
+                    print("MODE: Forward")
+                print("=" * 80)
+                print("/* BINDINGS:")
+                print(bound_call_table(bindings))
+                print("*/")
+                print(code)
+                print("=" * 80)
+                print(f"END SHADER: {build_info.module.name}::{build_info.name}")
+                print("=" * 80)
+                print()
 
             # Hash the code to get a unique identifier for the module.
             # We add type conformances to the start of the code to ensure that the hash is unique

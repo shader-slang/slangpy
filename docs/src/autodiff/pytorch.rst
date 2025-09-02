@@ -1,26 +1,31 @@
 PyTorch
 =======
 
-Building on the previous `auto-diff <autodiff.html>`_ example, the switch to PyTorch and its auto-grad capabilities is trivial.
+Building on the previous `auto-diff <autodiff.html>`_ example, the switch to PyTorch and its auto-grad capabilities is straightforward.
 
 Initialization
 --------------
 
-The critical line that changes is loading the module:
+To use SlangPy with PyTorch, you first need to create a device configured for PyTorch integration:
 
 .. code-block:: python
 
-    # Load torch wrapped module.
-    module = spy.TorchModule.load_from_file(device, "example.slang")
+    import slangpy as spy
+    import torch
 
-Here, rather than simply write ``spy.Module.load_from_file``, we write ``spy.TorchModule.load_from_file``. From here, all structures or functions utilizing the module will support PyTorch tensors and be injected into PyTorch's auto-grad graph.
+    # Create a device configured for PyTorch integration
+    # CUDA backend is recommended for best performance
+    device = spy.create_torch_device(type=spy.DeviceType.cuda)
 
-In future SlangPy versions we intend to remove the need for wrapping altogether, instead auto-detecting the need for auto-grad support at the point of call.
+    # Load module using the standard Module type
+    module = spy.Module.load_from_file(device, "example.slang")
+
+SlangPy automatically detects when PyTorch tensors are used and integrates them into PyTorch's auto-grad graph. No special module types are needed - you can use the standard ``spy.Module`` type as documented in `First Functions <../basics/firstfunctions.html>`_.
 
 Creating a tensor
 -----------------
 
-Now, rather than use a SlangPy ``Tensor``, we create a ``torch.Tensor`` tensor to store the inputs:
+Now, rather than use a SlangPy ``Tensor``, we create a ``torch.Tensor`` to store the inputs:
 
 .. code-block:: python
 
@@ -30,16 +35,16 @@ Now, rather than use a SlangPy ``Tensor``, we create a ``torch.Tensor`` tensor t
 Note:
 
 - We set ``requires_grad=True`` to tell PyTorch to track the gradients of this tensor.
-- We set ``device='cuda'`` to ensure the tensor is on the GPU.
+- We set ``device='cuda'`` to ensure the tensor is on the GPU and matches our device configuration.
 
 Running the kernel
 ------------------
 
-Calling the function is pretty much unchanged, however calculation of gradients is now done via PyTorch:
+Calling the function is unchanged from the standard SlangPy API, but calculation of gradients is now done via PyTorch:
 
 .. code-block:: python
 
-    # Evaluate the polynomial. Result will now default to a torch tensor.
+    # Evaluate the polynomial. Result will automatically be a torch tensor.
     # Expecting result = 2x^2 + 8x - 1
     result = module.polynomial(a=2, b=8, c=-1, x=x)
     print(result)
@@ -49,20 +54,54 @@ Calling the function is pretty much unchanged, however calculation of gradients 
     result.backward(torch.ones_like(result))
     print(x.grad)
 
-This works because the wrapped PyTorch module automatically wrapped the call to `polynomial` in a custom autograd function. As a result, the call to `result.backwards` automatically called `module.polynomial.bwds`.
+This works because SlangPy automatically detects PyTorch tensors and wraps the call to `polynomial` in a custom autograd function. As a result, the call to `result.backward` automatically invokes `module.polynomial.bwds` to compute gradients.
+
+Device Backend Selection
+------------------------
+
+SlangPy supports multiple backend types for PyTorch integration:
+
+**CUDA Backend (Recommended)**
+
+The CUDA backend provides the best performance by directly sharing the CUDA context with PyTorch:
+
+.. code-block:: python
+
+    device = spy.create_torch_device(type=spy.DeviceType.cuda)
+
+This approach avoids expensive context switching and memory copies, making it ideal for performance-critical applications.
+
+**Graphics Backends (D3D12, Vulkan)**
+
+For applications that need access to graphics features (such as rasterization), you can use D3D12 or Vulkan backends:
+
+.. code-block:: python
+
+    # D3D12 backend (Windows only)
+    device = spy.create_torch_device(type=spy.DeviceType.d3d12)
+
+    # Vulkan backend (Cross-platform)
+    device = spy.create_torch_device(type=spy.DeviceType.vulkan)
+
+These backends use CUDA interop with shared memory and semaphores to synchronize between SlangPy and PyTorch. While functional, this approach has higher overhead due to hardware context switching and memory copies.
 
 A word on performance
 ---------------------
 
-This example showed a very basic use of PyTorch's auto-grad capabilities. However in practice, the switch from a CUDA PyTorch context to a D3D or Vulkan context has an overhead. Typically, very simple logic will be faster in PyTorch. However as functions become more complex, writing them as simple scalar processes that are vectorized by SlangPy and wrapped in PyTorch quickly becomes apparent.
+The choice of backend significantly impacts performance:
 
-Additionally, we intend to add a pure CUDA backend to SlangPy in the future, which will allow for seamless switching between PyTorch and SlangPy contexts.
+- **CUDA Backend**: Provides the best performance for compute-focused workloads. Very simple operations may still be faster in pure PyTorch, but as functions become more complex, the benefits of SlangPy's vectorization and GPU optimization become apparent.
+
+- **Graphics Backends (D3D12/Vulkan)**: Useful when graphics features are required, but expect substantially worse performance due to context switching overhead. Consider whether the graphics features are truly necessary for your use case.
 
 Summary
 -------
 
-That's it! You can now use PyTorch tensors with SlangPy, and take advantage of PyTorch's auto-grad capabilities. This example covered:
+PyTorch integration with SlangPy is seamless and automatic. This example covered:
 
-- Initialization with a `TorchModule` to enable PyTorch support
-- Use of PyTorch's `.backward` process to track an auto-grad graph and back propagate gradients.
-- Performance considerations when wrapping Slang code with PyTorch.
+- Device creation using `create_torch_device` with support for CUDA, D3D12, and Vulkan backends
+- Automatic detection of PyTorch tensors - no special module types required
+- Use of PyTorch's `.backward()` process to track an auto-grad graph and backpropagate gradients
+- Performance considerations when choosing between CUDA and graphics backends
+
+The CUDA backend is recommended for best performance, while graphics backends provide access to additional GPU features at the cost of some performance overhead.

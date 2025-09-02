@@ -166,10 +166,10 @@ def benchmark_python(args: Any):
     env = get_python_env()
     cmd = ["pytest", "slangpy/benchmarks", "-ra"]
     if args.mongodb_connection_string:
-        cmd += ["--upload-benchmark-report"]
-        cmd += ["--mongodb-connection-string", args.mongodb_connection_string]
+        cmd += ["--benchmark-upload"]
+        cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
         if args.mongodb_database_name:
-            cmd += ["--mongodb-database-name", args.mongodb_database_name]
+            cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
     run_command(cmd, env=env)
 
 

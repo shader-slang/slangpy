@@ -35,6 +35,9 @@ public:
     /// Get the Python object.
     nb::object python_object() const { return m_python_object; }
 
+    /// Get string representation of the packed arg.
+    std::string to_string() const;
+
 private:
     ref<NativeMarshall> m_python;
     ref<ShaderObject> m_shader_object;

@@ -2,9 +2,11 @@
 
 from typing import Any, Optional
 from pathlib import Path
+import os
 import subprocess
 import platform
 from datetime import datetime
+import shutil
 
 
 def get_project_info() -> dict[str, Any]:
@@ -17,11 +19,59 @@ def get_project_info() -> dict[str, Any]:
     }
 
 
+def get_gpu_infos() -> list[dict[str, Any]]:
+    if platform.system() == "Windows":
+        nvidia_smi = shutil.which("nvidia-smi")
+        if nvidia_smi is None:
+            nvidia_smi = (
+                "%s\\Program Files\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"
+                % os.environ["systemdrive"]
+            )
+    else:
+        nvidia_smi = "nvidia-smi"
+
+    infos = []
+
+    try:
+        p = subprocess.Popen(
+            [
+                nvidia_smi,
+                "--query-gpu=index,uuid,utilization.gpu,memory.total,memory.used,driver_version,name,gpu_serial,temperature.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            stdout=subprocess.PIPE,
+        )
+        stdout, stderror = p.communicate()
+        output = stdout.decode("UTF-8")
+
+        for line in output.strip().split("\n"):
+            values = line.strip().split(", ")
+
+            infos.append(
+                {
+                    "index": int(values[0]),
+                    "uuid": values[1],
+                    "utilization": float(values[2]) / 100,
+                    "memory_total": float(values[3]),
+                    "memory_used": float(values[4]),
+                    "driver_version": values[5],
+                    "name": values[6],
+                    "serial_number": values[7],
+                    "temperature": float(values[8]),
+                }
+            )
+    except Exception as e:
+        print(f"Failed to retrieve GPU information: {e}")
+
+    return infos
+
+
 def get_machine_info() -> dict[str, Any]:
     return {
         "node": platform.node(),
         "processor": platform.processor(),
         "machine": platform.machine(),
+        "gpus": get_gpu_infos(),
         "system": platform.system(),
         "release": platform.release(),
         "version": platform.version(),

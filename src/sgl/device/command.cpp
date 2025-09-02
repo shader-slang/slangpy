@@ -84,6 +84,11 @@ void PassEncoder::insert_debug_marker(const char* name, float3 color)
     m_rhi_pass_encoder->insertDebugMarker(name, rhi::MarkerColor{color.r, color.g, color.b});
 }
 
+void PassEncoder::write_timestamp(QueryPool* query_pool, uint32_t index)
+{
+    m_rhi_pass_encoder->writeTimestamp(query_pool->rhi_query_pool(), index);
+}
+
 void PassEncoder::end()
 {
     SGL_CHECK(m_rhi_pass_encoder, "Pass encoder already ended");
