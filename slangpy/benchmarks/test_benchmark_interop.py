@@ -450,5 +450,4 @@ def test_slangpy_addition_noalloc_interop_gpu_est(
 
 
 if __name__ == "__main__":
-    # input("Press Enter to run the CUDA tensor test...")
     pytest.main([__file__, "-v", "-s"])
