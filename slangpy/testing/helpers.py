@@ -32,13 +32,13 @@ from slangpy.core.function import Function
 
 if os.environ.get("SLANGPY_DEVICE", None) is not None:
     DEFAULT_DEVICE_TYPES = [DeviceType[os.environ["SLANGPY_DEVICE"]]]
-elif os.environ.get("SLANGPY_BENCHMARK_DEVICE", None) is not None:
-    # For benchmarks, use only the specified device type
-    benchmark_device = os.environ["SLANGPY_BENCHMARK_DEVICE"]
-    if benchmark_device == "nodevice":
+elif os.environ.get("SLANGPY_TEST_DEVICE", None) is not None:
+    # For isolated testing, use only the specified device type
+    test_device = os.environ["SLANGPY_TEST_DEVICE"]
+    if test_device == "nodevice":
         DEFAULT_DEVICE_TYPES = []  # No device types for nodevice tests
     else:
-        DEFAULT_DEVICE_TYPES = [DeviceType[benchmark_device]]
+        DEFAULT_DEVICE_TYPES = [DeviceType[test_device]]
 elif sys.platform == "win32":
     DEFAULT_DEVICE_TYPES = [DeviceType.d3d12, DeviceType.vulkan, DeviceType.cuda]
 elif sys.platform == "linux" or sys.platform == "linux2":
@@ -98,44 +98,44 @@ def close_leaked_devices():
         device.close()
 
 
-def is_benchmark_mode() -> bool:
-    """Check if we're running in benchmark mode with device isolation."""
-    return os.environ.get("SLANGPY_BENCHMARK_DEVICE", None) is not None
+def is_device_isolation_mode() -> bool:
+    """Check if we're running in device isolation mode."""
+    return os.environ.get("SLANGPY_TEST_DEVICE", None) is not None
 
 
-def get_benchmark_device_type() -> Optional[DeviceType]:
-    """Get the device type being benchmarked, if any."""
-    benchmark_device = os.environ.get("SLANGPY_BENCHMARK_DEVICE", None)
-    if benchmark_device == "nodevice":
+def get_target_device_type() -> Optional[DeviceType]:
+    """Get the device type being targeted for isolated testing, if any."""
+    test_device = os.environ.get("SLANGPY_TEST_DEVICE", None)
+    if test_device == "nodevice":
         return None
-    return DeviceType[benchmark_device] if benchmark_device else None
+    return DeviceType[test_device] if test_device else None
 
 
-def is_benchmark_nodevice_mode() -> bool:
-    """Check if we're running in benchmark mode targeting nodevice tests."""
-    return os.environ.get("SLANGPY_BENCHMARK_DEVICE", None) == "nodevice"
+def is_nodevice_mode() -> bool:
+    """Check if we're running in mode targeting nodevice tests."""
+    return os.environ.get("SLANGPY_TEST_DEVICE", None) == "nodevice"
 
 
 def should_skip_test_for_device(device_type: DeviceType) -> bool:
     """
-    Check if a test should be skipped based on benchmark device filtering.
+    Check if a test should be skipped based on device filtering.
     Returns True if the test should be skipped.
     """
-    if not is_benchmark_mode():
+    if not is_device_isolation_mode():
         return False
 
-    expected_device = get_benchmark_device_type()
+    expected_device = get_target_device_type()
     return expected_device is not None and device_type != expected_device
 
 
 def should_skip_non_device_test() -> bool:
     """
-    Check if a non-device test should be skipped in benchmark mode.
+    Check if a non-device test should be skipped in device isolation mode.
     Non-device tests should only run when targeting 'nodevice' mode specifically.
     """
-    if not is_benchmark_mode():
+    if not is_device_isolation_mode():
         return False
-    return not is_benchmark_nodevice_mode()
+    return not is_nodevice_mode()
 
 
 # Helper to get device of a given type
@@ -146,13 +146,13 @@ def get_device(
     existing_device_handles: Optional[Sequence[NativeHandle]] = None,
     label: Optional[str] = None,
 ) -> Device:
-    # Check if we're in benchmark mode and should restrict device types
-    benchmark_device = os.environ.get("SLANGPY_BENCHMARK_DEVICE", None)
-    if benchmark_device is not None:
-        expected_device_type = DeviceType[benchmark_device]
+    # Check if we're in device isolation mode and should restrict device types
+    test_device = os.environ.get("SLANGPY_TEST_DEVICE", None)
+    if test_device is not None and test_device != "nodevice":
+        expected_device_type = DeviceType[test_device]
         if type != expected_device_type:
             pytest.skip(
-                f"Skipping test for device type {type.name}, benchmark mode is set to {benchmark_device}"
+                f"Skipping test for device type {type.name}, device isolation mode is set to {test_device}"
             )
 
     # Early out if we know we don't have support for parameter blocks

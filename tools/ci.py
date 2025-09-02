@@ -156,6 +156,39 @@ def test_examples(args: Any):
     run_command(cmd, env=env)
 
 
+def test_device_isolated(args: Any):
+    """Run tests for a specific device type in isolation."""
+    env = get_python_env()
+
+    # Define available device types per platform
+    os_name = get_os()
+    if os_name == "windows":
+        device_types = ["d3d12", "vulkan", "cuda", "nodevice"]
+    elif os_name == "linux":
+        device_types = ["vulkan", "cuda", "nodevice"]
+    elif os_name == "macos":
+        device_types = ["metal", "nodevice"]
+    else:
+        raise RuntimeError(f"Unsupported OS for device testing: {os_name}")
+
+    if not args.device_type:
+        raise ValueError("Device type must be specified for isolated testing")
+
+    if args.device_type not in device_types:
+        print(f"Device type {args.device_type} not supported on {os_name}")
+        return
+
+    print(f"Running tests for device type: {args.device_type}")
+    device_env = env.copy()
+    device_env["SLANGPY_TEST_DEVICE"] = args.device_type
+
+    cmd = ["pytest", "slangpy/tests", "-vra"]
+    if args.parallel:
+        cmd += ["-n", "auto", "--maxprocesses=4"]
+
+    run_command(cmd, env=device_env)
+
+
 def benchmark_python(args: Any):
     env = get_python_env()
 
@@ -187,7 +220,7 @@ def benchmark_python(args: Any):
     for device_type in device_types:
         print(f"Running benchmarks for device type: {device_type}")
         device_env = env.copy()
-        device_env["SLANGPY_BENCHMARK_DEVICE"] = device_type
+        device_env["SLANGPY_TEST_DEVICE"] = device_type
 
         cmd = ["pytest", "slangpy/benchmarks", "-ra"]
         if args.mongodb_connection_string:
@@ -243,6 +276,19 @@ def main():
 
     parser_test_examples = commands.add_parser("test-examples", help="run examples tests")
     parser_test_examples.add_argument(
+        "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+
+    parser_test_device_isolated = commands.add_parser(
+        "test-device-isolated", help="run tests for specific device type in isolation"
+    )
+    parser_test_device_isolated.add_argument(
+        "--device-type",
+        type=str,
+        required=True,
+        help="Device type to test (d3d12, vulkan, cuda, metal, nodevice)",
+    )
+    parser_test_device_isolated.add_argument(
         "-p", "--parallel", action="store_true", help="run tests in parallel"
     )
 
@@ -316,6 +362,7 @@ def main():
         "typing-check-python": typing_check_python,
         "unit-test-python": unit_test_python,
         "test-examples": test_examples,
+        "test-device-isolated": test_device_isolated,
         "benchmark-python": benchmark_python,
         "coverage-report": coverage_report,
     }[args.command](args)
