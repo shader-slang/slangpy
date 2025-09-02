@@ -30,24 +30,12 @@ from slangpy import (
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
 
-# Global variable to store the current device isolation setting
+# Global variables for device isolation. If TEST_SINGLE_DEVICE_TYPE is True,
+# and TEST_DEVICE_TYPE is None, it will only run tests that don't use a device.
+TEST_SINGLE_DEVICE_TYPE: bool = False
 TEST_DEVICE_TYPE: Optional[DeviceType] = None
 
-
-def set_device_isolation_mode(device_type: Optional[str]) -> None:
-    """Set the global device type. Called by pytest plugin."""
-    global TEST_DEVICE_TYPE
-    global DEFAULT_DEVICE_TYPES
-    if device_type:
-        TEST_DEVICE_TYPE = DeviceType[device_type]
-        if device_type == "nodevice":
-            DEFAULT_DEVICE_TYPES = []  # No device types for nodevice tests
-        else:
-            DEFAULT_DEVICE_TYPES = [TEST_DEVICE_TYPE]
-    else:
-        TEST_DEVICE_TYPE = None
-
-
+# Default device types based on the platform
 if sys.platform == "win32":
     DEFAULT_DEVICE_TYPES = [DeviceType.d3d12, DeviceType.vulkan, DeviceType.cuda]
 elif sys.platform == "linux" or sys.platform == "linux2":
@@ -56,6 +44,27 @@ elif sys.platform == "darwin":
     DEFAULT_DEVICE_TYPES = [DeviceType.metal]
 else:
     raise RuntimeError("Unsupported platform")
+
+
+# Called from pytest plugin if 'device-type' argument is provided
+def set_device_type(device_type: Optional[str]) -> None:
+    """Set the global device type. Called by pytest plugin."""
+    global TEST_SINGLE_DEVICE_TYPE
+    global TEST_DEVICE_TYPE
+    global DEFAULT_DEVICE_TYPES
+
+    if device_type:
+        TEST_SINGLE_DEVICE_TYPE = True
+        if device_type == "nodevice":
+            TEST_DEVICE_TYPE = None  # No device for nodevice mode
+            DEFAULT_DEVICE_TYPES = []  # No device types for nodevice tests
+        else:
+            TEST_DEVICE_TYPE = DeviceType[device_type]
+            DEFAULT_DEVICE_TYPES = [TEST_DEVICE_TYPE]
+    else:
+        TEST_SINGLE_DEVICE_TYPE = False
+        TEST_DEVICE_TYPE = None
+
 
 DEVICE_CACHE: dict[
     tuple[
@@ -107,44 +116,24 @@ def close_leaked_devices():
         device.close()
 
 
-def is_device_isolation_mode() -> bool:
-    """Check if we're running in device isolation mode."""
-    return TEST_DEVICE_TYPE is not None
-
-
-def get_target_device_type() -> Optional[DeviceType]:
-    """Get the device type being targeted for isolated testing, if any."""
-    test_device = get_device_isolation_mode()
-    if test_device == "nodevice":
-        return None
-    return DeviceType[test_device] if test_device else None
-
-
-def is_nodevice_mode() -> bool:
-    """Check if we're running in mode targeting nodevice tests."""
-    return get_device_isolation_mode() == "nodevice"
-
-
 def should_skip_test_for_device(device_type: DeviceType) -> bool:
     """
     Check if a test should be skipped based on device filtering.
     Returns True if the test should be skipped.
     """
-    if not is_device_isolation_mode():
+    if not TEST_SINGLE_DEVICE_TYPE:
         return False
-
-    expected_device = get_target_device_type()
-    return expected_device is not None and device_type != expected_device
+    return TEST_DEVICE_TYPE != device_type
 
 
 def should_skip_non_device_test() -> bool:
     """
-    Check if a non-device test should be skipped in device isolation mode.
+    Check if a non-device test should be skipped based on device filtering.
     Non-device tests should only run when targeting 'nodevice' mode specifically.
     """
-    if not is_device_isolation_mode():
+    if not TEST_SINGLE_DEVICE_TYPE:
         return False
-    return not is_nodevice_mode()
+    return TEST_DEVICE_TYPE != None
 
 
 # Helper to get device of a given type
@@ -156,13 +145,12 @@ def get_device(
     label: Optional[str] = None,
 ) -> Device:
     # Check if we're in device isolation mode and should restrict device types
-    test_device = get_device_isolation_mode()
-
-    if test_device is not None and test_device != "nodevice":
-        expected_device_type = DeviceType[test_device]
-        if type != expected_device_type:
-            pytest.skip(
-                f"Skipping test for device type {type.name}, device isolation mode is set to {test_device}"
+    if TEST_SINGLE_DEVICE_TYPE:
+        if TEST_DEVICE_TYPE is None:
+            raise RuntimeError("get_device called when global device type is None")
+        elif TEST_DEVICE_TYPE != type:
+            raise RuntimeError(
+                f"get_device called with incompatible device type {type.name}, expected {TEST_DEVICE_TYPE.name}"
             )
 
     # Early out if we know we don't have support for parameter blocks
