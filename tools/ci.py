@@ -131,13 +131,7 @@ def build(args: Any):
 
 
 def unit_test_cpp(args: Any):
-    out = run_command([f"{args.bin_dir}/sgl_tests", "-r=console,junit"])
-    # doctest outputs both regular output and junit xml report on stdout
-    # filter out regular output and write remaining to junit xml file
-    report = "\n".join(filter(lambda line: line.strip().startswith("<"), out.splitlines()))
-    os.makedirs("reports", exist_ok=True)
-    with open("reports/doctest-junit.xml", "w") as f:
-        f.write(report)
+    run_command([f"{args.bin_dir}/sgl_tests"])
 
 
 def typing_check_python(args: Any):
@@ -148,7 +142,7 @@ def typing_check_python(args: Any):
 def unit_test_python(args: Any):
     env = get_python_env()
     os.makedirs("reports", exist_ok=True)
-    cmd = ["pytest", "slangpy/tests", "-ra", "--junit-xml=reports/pytest-junit.xml"]
+    cmd = ["pytest", "slangpy/tests", "-vra"]
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
     run_command(cmd, env=env)
@@ -164,7 +158,7 @@ def test_examples(args: Any):
 
 def benchmark_python(args: Any):
     env = get_python_env()
-    cmd = ["pytest", "slangpy/benchmarks", "-ra"]
+    cmd = ["pytest", "slangpy/benchmarks", "-vra"]
     if args.mongodb_connection_string:
         cmd += ["--benchmark-upload"]
         cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
