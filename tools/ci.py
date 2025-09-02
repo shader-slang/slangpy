@@ -179,14 +179,12 @@ def test_device_isolated(args: Any):
         return
 
     print(f"Running tests for device type: {args.device_type}")
-    device_env = env.copy()
-    device_env["SLANGPY_TEST_DEVICE"] = args.device_type
 
-    cmd = ["pytest", "slangpy/tests", "-vra"]
+    cmd = ["pytest", "slangpy/tests", "-vra", "--device-type", args.device_type]
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
 
-    run_command(cmd, env=device_env)
+    run_command(cmd, env=env)
 
 
 def benchmark_python(args: Any):
@@ -219,10 +217,8 @@ def benchmark_python(args: Any):
     # Run benchmarks for each device type
     for device_type in device_types:
         print(f"Running benchmarks for device type: {device_type}")
-        device_env = env.copy()
-        device_env["SLANGPY_TEST_DEVICE"] = device_type
 
-        cmd = ["pytest", "slangpy/benchmarks", "-ra"]
+        cmd = ["pytest", "slangpy/benchmarks", "-ra", "--device-type", device_type]
         if args.mongodb_connection_string:
             cmd += ["--benchmark-upload"]
             cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
@@ -230,7 +226,7 @@ def benchmark_python(args: Any):
                 cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
 
         try:
-            run_command(cmd, env=device_env)
+            run_command(cmd, env=env)
         except Exception as e:
             print(f"Benchmarks failed for device type {device_type}: {e}")
             if args.device_type:  # If specific device requested, fail hard

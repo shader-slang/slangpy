@@ -30,16 +30,25 @@ from slangpy import (
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
 
-if os.environ.get("SLANGPY_DEVICE", None) is not None:
-    DEFAULT_DEVICE_TYPES = [DeviceType[os.environ["SLANGPY_DEVICE"]]]
-elif os.environ.get("SLANGPY_TEST_DEVICE", None) is not None:
-    # For isolated testing, use only the specified device type
-    test_device = os.environ["SLANGPY_TEST_DEVICE"]
-    if test_device == "nodevice":
-        DEFAULT_DEVICE_TYPES = []  # No device types for nodevice tests
+# Global variable to store the current device isolation setting
+TEST_DEVICE_TYPE: Optional[DeviceType] = None
+
+
+def set_device_isolation_mode(device_type: Optional[str]) -> None:
+    """Set the global device type. Called by pytest plugin."""
+    global TEST_DEVICE_TYPE
+    global DEFAULT_DEVICE_TYPES
+    if device_type:
+        TEST_DEVICE_TYPE = DeviceType[device_type]
+        if device_type == "nodevice":
+            DEFAULT_DEVICE_TYPES = []  # No device types for nodevice tests
+        else:
+            DEFAULT_DEVICE_TYPES = [TEST_DEVICE_TYPE]
     else:
-        DEFAULT_DEVICE_TYPES = [DeviceType[test_device]]
-elif sys.platform == "win32":
+        TEST_DEVICE_TYPE = None
+
+
+if sys.platform == "win32":
     DEFAULT_DEVICE_TYPES = [DeviceType.d3d12, DeviceType.vulkan, DeviceType.cuda]
 elif sys.platform == "linux" or sys.platform == "linux2":
     DEFAULT_DEVICE_TYPES = [DeviceType.vulkan, DeviceType.cuda]
@@ -100,12 +109,12 @@ def close_leaked_devices():
 
 def is_device_isolation_mode() -> bool:
     """Check if we're running in device isolation mode."""
-    return os.environ.get("SLANGPY_TEST_DEVICE", None) is not None
+    return TEST_DEVICE_TYPE is not None
 
 
 def get_target_device_type() -> Optional[DeviceType]:
     """Get the device type being targeted for isolated testing, if any."""
-    test_device = os.environ.get("SLANGPY_TEST_DEVICE", None)
+    test_device = get_device_isolation_mode()
     if test_device == "nodevice":
         return None
     return DeviceType[test_device] if test_device else None
@@ -113,7 +122,7 @@ def get_target_device_type() -> Optional[DeviceType]:
 
 def is_nodevice_mode() -> bool:
     """Check if we're running in mode targeting nodevice tests."""
-    return os.environ.get("SLANGPY_TEST_DEVICE", None) == "nodevice"
+    return get_device_isolation_mode() == "nodevice"
 
 
 def should_skip_test_for_device(device_type: DeviceType) -> bool:
@@ -147,7 +156,8 @@ def get_device(
     label: Optional[str] = None,
 ) -> Device:
     # Check if we're in device isolation mode and should restrict device types
-    test_device = os.environ.get("SLANGPY_TEST_DEVICE", None)
+    test_device = get_device_isolation_mode()
+
     if test_device is not None and test_device != "nodevice":
         expected_device_type = DeviceType[test_device]
         if type != expected_device_type:
