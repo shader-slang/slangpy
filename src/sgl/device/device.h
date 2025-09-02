@@ -613,6 +613,13 @@ public:
     static void report_live_objects();
 
     /**
+     * \brief Report status of internal heaps used by the device.
+     *
+     * \return List of heap reports containing heap names and allocation information.
+     */
+    std::vector<HeapReport> report_heaps();
+
+    /**
      * Try to enable D3D12 Agility SDK at runtime.
      * Note: This must be called before creating a device to have any effect.
      *

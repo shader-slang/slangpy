@@ -204,5 +204,38 @@ def test_device_import(device_type: spy.DeviceType):
     device2 = None
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_report_heaps(device_type: spy.DeviceType):
+    """Test the report_heaps API."""
+    device = helpers.get_device(device_type)
+
+    # Call report_heaps - this should not throw an exception
+    heap_reports = device.report_heaps()
+
+    # Verify the return type is a list
+    assert isinstance(heap_reports, list)
+
+    # Verify each heap report has the expected structure
+    for heap_report in heap_reports:
+        assert hasattr(heap_report, "name")
+        assert hasattr(heap_report, "num_pages")
+        assert hasattr(heap_report, "total_allocated")
+        assert hasattr(heap_report, "total_mem_usage")
+        assert hasattr(heap_report, "num_allocations")
+        assert isinstance(heap_report.name, str)
+
+        # Verify the types are correct
+        assert isinstance(heap_report.num_pages, int)
+        assert isinstance(heap_report.total_allocated, int)
+        assert isinstance(heap_report.total_mem_usage, int)
+        assert isinstance(heap_report.num_allocations, int)
+
+        # Verify values are non-negative
+        assert heap_report.num_pages >= 0
+        assert heap_report.total_allocated >= 0
+        assert heap_report.total_mem_usage >= 0
+        assert heap_report.num_allocations >= 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

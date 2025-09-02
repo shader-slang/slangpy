@@ -239,6 +239,13 @@ SGL_PY_EXPORT(device_device)
 
     nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
 
+    nb::class_<HeapReport>(m, "HeapReport", D_NA(HeapReport))
+        .def_rw("name", &HeapReport::name, D_NA(HeapReport, name))
+        .def_rw("num_pages", &HeapReport::num_pages, D_NA(HeapReport, num_pages))
+        .def_rw("total_allocated", &HeapReport::total_allocated, D_NA(HeapReport, total_allocated))
+        .def_rw("total_mem_usage", &HeapReport::total_mem_usage, D_NA(HeapReport, total_mem_usage))
+        .def_rw("num_allocations", &HeapReport::num_allocations, D_NA(HeapReport, num_allocations));
+
     nb::class_<Device, Object> device(m, "Device", nb::is_weak_referenceable(), D(Device));
     device.def(
         "__init__",
@@ -896,6 +903,8 @@ SGL_PY_EXPORT(device_device)
     device.def_static("get_created_devices", &Device::get_created_devices, D_NA(Device, get_created_devices));
 
     device.def_static("report_live_objects", &Device::report_live_objects, D(Device, report_live_objects));
+
+    device.def("report_heaps", &Device::report_heaps, D_NA(Device, report_heaps));
 
     m.def(
         "get_cuda_current_context_native_handles",
