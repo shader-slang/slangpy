@@ -44,13 +44,23 @@ public:
 
     ComputePipeline* pipeline() const;
 
-    void dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandEncoder* command_encoder);
+    void dispatch(
+        uint3 thread_count,
+        BindVarsCallback bind_vars,
+        CommandEncoder* command_encoder,
+        QueryPool* query_pool = nullptr,
+        uint32_t query_index_before = 0,
+        uint32_t query_index_after = 0
+    );
 
     void dispatch(
         uint3 thread_count,
         BindVarsCallback bind_vars,
         CommandQueueType queue = CommandQueueType::graphics,
-        NativeHandle cuda_stream = {}
+        NativeHandle cuda_stream = {},
+        QueryPool* query_pool = nullptr,
+        uint32_t query_index_before = 0,
+        uint32_t query_index_after = 0
     );
 
 private:

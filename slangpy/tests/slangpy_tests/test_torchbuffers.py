@@ -107,7 +107,7 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
 
     for i in range(iterations):
         if custom_stream:
-            with torch.cuda.stream(stream):
+            with torch.cuda.stream(stream):  # type: ignore
                 for i in range(0, 20):
                     torch_tensor.add_(ones)
             stream_handle = spy.NativeHandle.from_cuda_stream(stream.cuda_stream)
@@ -163,7 +163,8 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
 
 # Pytest for our most common default cuda-interop case, in which we've configured pytorch
 # and slangpy to share the same context and stream.
-def test_shared_context_and_stream():
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_shared_context_and_stream(device_type: spy.DeviceType):
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=False, share_stream=True)
         == False
@@ -173,12 +174,14 @@ def test_shared_context_and_stream():
 # Pytest for none-shared context case, which appears to avoid race conditions through some level
 # of synchronization in the default streams of separate contexts. For now this has shown not
 # to cause race conditions, so testing for that behaviour.
-def test_non_shared_context():
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_non_shared_context(device_type: spy.DeviceType):
     assert run_tensor_race_condition_tests(share_context=False) == False
 
 
 # Pytest for known race condition case, where we use a custom stream in torch but not sharing it with slangpy.
-def test_custom_stream_no_share():
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_custom_stream_no_share(device_type: spy.DeviceType):
     pytest.skip("Race condition doesn't reproduce reliably on CI machines of varying specs")
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=False)
@@ -187,7 +190,8 @@ def test_custom_stream_no_share():
 
 
 # Pytest that removes the race condition by sharing the custom stream
-def test_custom_stream_share():
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_custom_stream_share(device_type: spy.DeviceType):
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=True)
         == False

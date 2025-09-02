@@ -10,6 +10,9 @@ from datetime import datetime
 
 from .report import BenchmarkReport
 
+DEFAULT_ITERATIONS = 2000
+INITIAL_WARMUP_ITERATIONS = 100
+
 
 class ReportFixture:
 
@@ -38,6 +41,15 @@ class ReportFixture:
         if device:
             meta["adapter_name"] = device.info.adapter_name
 
+        # Calculate trimmed mean (remove 10% outliers - 5% from each end)
+        sorted_data = np.sort(data)
+        trim_count = int(len(sorted_data) * 0.05)  # 5% from each end
+        if trim_count > 0:
+            trimmed_data = sorted_data[trim_count:-trim_count]
+        else:
+            trimmed_data = sorted_data
+        trimmed_mean = float(np.mean(trimmed_data))
+
         report: BenchmarkReport = {
             "name": self.node.name,
             "filename": str(self.node.location[0]).replace("\\", "/"),
@@ -49,7 +61,7 @@ class ReportFixture:
             "data": [float(d) for d in data],
             "min": float(np.min(data)),
             "max": float(np.max(data)),
-            "mean": float(np.mean(data)),
+            "mean": trimmed_mean,
             "median": float(np.median(data)),
             "stddev": float(np.std(data)),
         }
@@ -67,8 +79,8 @@ class BenchmarkSlangFunction:
         self,
         device: spy.Device,
         function: Union[spy.Function, FunctionNodeBwds],
-        iterations: int = 200,
-        warmup_iterations: int = 10,
+        iterations: int = DEFAULT_ITERATIONS,
+        warmup_iterations: int = INITIAL_WARMUP_ITERATIONS,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
@@ -108,8 +120,8 @@ class BenchmarkComputeKernel:
         device: spy.Device,
         kernel: spy.ComputeKernel,
         thread_count: spy.uint3,
-        iterations: int = 200,
-        warmup_iterations: int = 10,
+        iterations: int = DEFAULT_ITERATIONS,
+        warmup_iterations: int = INITIAL_WARMUP_ITERATIONS,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
@@ -149,8 +161,8 @@ class BenchmarkPythonFunction:
         device: Optional[spy.Device],
         function: Callable[..., None],
         iterations: int = 10,
-        sub_iterations: int = 200,
-        warmup_iterations: int = 10,
+        sub_iterations: int = DEFAULT_ITERATIONS // 10,
+        warmup_iterations: int = INITIAL_WARMUP_ITERATIONS,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""

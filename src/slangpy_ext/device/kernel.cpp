@@ -7,6 +7,7 @@
 #include "sgl/device/resource.h"
 #include "sgl/device/sampler.h"
 #include "sgl/device/pipeline.h"
+#include "sgl/device/query.h"
 #include "sgl/device/shader.h"
 
 namespace sgl {
@@ -42,6 +43,9 @@ SGL_PY_EXPORT(device_kernel)
                CommandEncoder* command_encoder,
                CommandQueueType queue,
                NativeHandle cuda_stream,
+               QueryPool* query_pool,
+               uint32_t query_index_before,
+               uint32_t query_index_after,
                nb::kwargs kwargs)
             {
                 auto bind_vars = [&](ShaderCursor cursor)
@@ -57,9 +61,24 @@ SGL_PY_EXPORT(device_kernel)
                         !cuda_stream.is_valid(),
                         "Can not specify CUDA stream if appending to a command encoder."
                     );
-                    self->dispatch(thread_count, bind_vars, command_encoder);
+                    self->dispatch(
+                        thread_count,
+                        bind_vars,
+                        command_encoder,
+                        query_pool,
+                        query_index_before,
+                        query_index_after
+                    );
                 } else {
-                    self->dispatch(thread_count, bind_vars, queue, cuda_stream);
+                    self->dispatch(
+                        thread_count,
+                        bind_vars,
+                        queue,
+                        cuda_stream,
+                        query_pool,
+                        query_index_before,
+                        query_index_after
+                    );
                 }
             },
             "thread_count"_a,
@@ -67,6 +86,9 @@ SGL_PY_EXPORT(device_kernel)
             "command_encoder"_a = nullptr,
             "queue"_a = CommandQueueType::graphics,
             "cuda_stream"_a = NativeHandle(),
+            "query_pool"_a.none() = nb::none(),
+            "query_index_before"_a = 0,
+            "query_index_after"_a = 0,
             "kwargs"_a,
             D(ComputeKernel, dispatch)
         );

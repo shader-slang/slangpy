@@ -133,14 +133,6 @@ jobs:
         if: contains(matrix.flags, 'unit-test')
         run: python tools/ci.py unit-test-python --parallel
 
-      # Unit Test Report
-      - name: Unit Test Report
-        uses: mikepenz/action-junit-report@v4
-        if: contains(matrix.flags, 'unit-test')
-        with:
-          report_paths: 'reports/*-junit.xml'
-          check_name: "Unit Test Report"
-
       # Test Examples
       - name: Test Examples
         if: contains(matrix.flags, 'test-examples')
