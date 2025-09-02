@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from time import time, sleep
+from time import time
 import pytest
 
 import slangpy as spy
