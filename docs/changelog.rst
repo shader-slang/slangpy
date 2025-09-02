@@ -7,7 +7,7 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Version 0.33.2 (Unreleased)
+Version 0.34 (Unreleased)
 ----------------------------
 
 - Add ``Device.report_heaps()`` method to query internal memory heap status and allocation information.
