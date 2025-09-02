@@ -29,10 +29,10 @@ from slangpy import (
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
 
-# Global variables for device isolation. If TEST_SINGLE_DEVICE_TYPE is True,
-# and TEST_DEVICE_TYPE is None, it will only run tests that don't use a device.
-TEST_SINGLE_DEVICE_TYPE: bool = False
-TEST_DEVICE_TYPE: Optional[DeviceType] = None
+# Global variables for device isolation. If SELECTED_DEVICE_TYPES is None, no restriction.
+# If SELECTED_DEVICE_TYPES is an empty list, it means "nodevice" mode (only non-device tests).
+# If SELECTED_DEVICE_TYPES has items, only tests for those device types will run.
+SELECTED_DEVICE_TYPES: Optional[list[DeviceType]] = None
 
 # Default device types based on the platform
 if sys.platform == "win32":
@@ -45,24 +45,28 @@ else:
     raise RuntimeError("Unsupported platform")
 
 
-# Called from pytest plugin if 'device-type' argument is provided
-def set_device_type(device_type: Optional[str]) -> None:
-    """Set the global device type. Called by pytest plugin."""
-    global TEST_SINGLE_DEVICE_TYPE
-    global TEST_DEVICE_TYPE
+# Called from pytest plugin if 'device-types' argument is provided
+def set_device_types(device_types_str: Optional[str]) -> None:
+    """Set the global device types. Called by pytest plugin."""
+    global SELECTED_DEVICE_TYPES
     global DEFAULT_DEVICE_TYPES
 
-    if device_type:
-        TEST_SINGLE_DEVICE_TYPE = True
-        if device_type == "nodevice":
-            TEST_DEVICE_TYPE = None  # No device for nodevice mode
+    if device_types_str:
+        if device_types_str == "nodevice":
+            SELECTED_DEVICE_TYPES = []  # Empty list for nodevice mode
             DEFAULT_DEVICE_TYPES = []  # No device types for nodevice tests
         else:
-            TEST_DEVICE_TYPE = DeviceType[device_type]
-            DEFAULT_DEVICE_TYPES = [TEST_DEVICE_TYPE]
+            # Parse comma-separated device types
+            device_type_names = [name.strip() for name in device_types_str.split(",")]
+            SELECTED_DEVICE_TYPES = []
+            for name in device_type_names:
+                try:
+                    SELECTED_DEVICE_TYPES.append(DeviceType[name])
+                except KeyError:
+                    raise ValueError(f"Invalid device type: {name}")
+            DEFAULT_DEVICE_TYPES = SELECTED_DEVICE_TYPES.copy()
     else:
-        TEST_SINGLE_DEVICE_TYPE = False
-        TEST_DEVICE_TYPE = None
+        SELECTED_DEVICE_TYPES = None  # No restriction
 
 
 DEVICE_CACHE: dict[
@@ -120,9 +124,11 @@ def should_skip_test_for_device(device_type: DeviceType) -> bool:
     Check if a test should be skipped based on device filtering.
     Returns True if the test should be skipped.
     """
-    if not TEST_SINGLE_DEVICE_TYPE:
-        return False
-    return TEST_DEVICE_TYPE != device_type
+    if SELECTED_DEVICE_TYPES is None:
+        return False  # No restriction, don't skip
+    if len(SELECTED_DEVICE_TYPES) == 0:
+        return True  # nodevice mode, skip all device tests
+    return device_type not in SELECTED_DEVICE_TYPES
 
 
 def should_skip_non_device_test() -> bool:
@@ -130,9 +136,9 @@ def should_skip_non_device_test() -> bool:
     Check if a non-device test should be skipped based on device filtering.
     Non-device tests should only run when targeting 'nodevice' mode specifically.
     """
-    if not TEST_SINGLE_DEVICE_TYPE:
-        return False
-    return TEST_DEVICE_TYPE != None
+    if SELECTED_DEVICE_TYPES is None:
+        return False  # No restriction, don't skip
+    return len(SELECTED_DEVICE_TYPES) != 0  # Skip if specific devices were selected
 
 
 # Helper to get device of a given type
@@ -144,12 +150,15 @@ def get_device(
     label: Optional[str] = None,
 ) -> Device:
     # Check if we're in device isolation mode and should restrict device types
-    if TEST_SINGLE_DEVICE_TYPE:
-        if TEST_DEVICE_TYPE is None:
-            raise RuntimeError("get_device called when global device type is None")
-        elif TEST_DEVICE_TYPE != type:
+    if SELECTED_DEVICE_TYPES is not None:
+        if len(SELECTED_DEVICE_TYPES) == 0:
             raise RuntimeError(
-                f"get_device called with incompatible device type {type.name}, expected {TEST_DEVICE_TYPE.name}"
+                "get_device called when no device types are selected (nodevice mode)"
+            )
+        elif type not in SELECTED_DEVICE_TYPES:
+            allowed_types = [dt.name for dt in SELECTED_DEVICE_TYPES]
+            raise RuntimeError(
+                f"get_device called with incompatible device type {type.name}, expected one of {allowed_types}"
             )
 
     # Early out if we know we don't have support for parameter blocks
