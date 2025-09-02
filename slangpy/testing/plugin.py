@@ -5,7 +5,15 @@ import inspect
 from typing import Any
 
 import slangpy as spy
-from .helpers import close_all_devices, close_leaked_devices, set_device_type
+from .helpers import (
+    close_all_devices,
+    close_leaked_devices,
+    set_device_type,
+    should_skip_test_for_device,
+    should_skip_non_device_test,
+    TEST_SINGLE_DEVICE_TYPE,
+    TEST_DEVICE_TYPE,
+)
 
 
 def pytest_addoption(parser: pytest.Parser):
@@ -48,14 +56,6 @@ def pytest_runtest_setup(item: Any) -> None:
     This hook runs before each test and can skip tests that don't match
     the target device type.
     """
-    # Import here to avoid circular imports
-    from .helpers import (
-        should_skip_test_for_device,
-        should_skip_non_device_test,
-        TEST_SINGLE_DEVICE_TYPE,
-        TEST_DEVICE_TYPE,
-    )
-
     if not TEST_SINGLE_DEVICE_TYPE:
         return
 

@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import hashlib
-import os
 import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence, Union, cast
