@@ -240,7 +240,7 @@ SGL_PY_EXPORT(device_device)
     nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
 
     nb::class_<HeapReport>(m, "HeapReport", D_NA(HeapReport))
-        .def_rw("name", &HeapReport::name, D_NA(HeapReport, name))
+        .def_rw("label", &HeapReport::label, D_NA(HeapReport, label))
         .def_rw("num_pages", &HeapReport::num_pages, D_NA(HeapReport, num_pages))
         .def_rw("total_allocated", &HeapReport::total_allocated, D_NA(HeapReport, total_allocated))
         .def_rw("total_mem_usage", &HeapReport::total_mem_usage, D_NA(HeapReport, total_mem_usage))
