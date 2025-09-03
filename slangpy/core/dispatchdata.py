@@ -41,7 +41,7 @@ class DispatchData:
             # Determine call data mode based on device type
             call_data_mode = (
                 CallDataMode.entry_point
-                if build_info.module.device_module.session.device.info.type == DeviceType.cuda
+                if build_info.module.device.info.type == DeviceType.cuda
                 else CallDataMode.global_data
             )
 

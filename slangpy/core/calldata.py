@@ -133,7 +133,7 @@ class CallData(NativeCallData):
             self.call_mode = build_info.call_mode
 
             # Set call data mode based on device type
-            if build_info.module.device_module.session.device.info.type == DeviceType.cuda:
+            if build_info.module.device.info.type == DeviceType.cuda:
                 self.call_data_mode = CallDataMode.entry_point
             else:
                 self.call_data_mode = CallDataMode.global_data
