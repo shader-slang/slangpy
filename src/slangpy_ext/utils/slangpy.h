@@ -655,6 +655,12 @@ public:
     /// Set the call mode (primitive/forward/backward).
     void set_call_mode(CallMode call_mode) { m_call_mode = call_mode; }
 
+    /// Get the call data mode (global_data/entry_point).
+    CallDataMode get_call_data_mode() const { return m_call_data_mode; }
+
+    /// Set the call data mode (global_data/entry_point).
+    void set_call_data_mode(CallDataMode call_data_mode) { m_call_data_mode = call_data_mode; }
+
     /// Get the shape of the last call (useful for debugging).
     const Shape& get_last_call_shape() const { return m_last_call_shape; }
 
@@ -746,6 +752,7 @@ private:
     int m_call_dimensionality{0};
     ref<NativeBoundCallRuntime> m_runtime;
     CallMode m_call_mode{CallMode::prim};
+    CallDataMode m_call_data_mode{CallDataMode::global_data};
     Shape m_last_call_shape;
     std::string m_debug_name;
     ref<Logger> m_logger;

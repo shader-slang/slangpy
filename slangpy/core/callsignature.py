@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.native import AccessType, CallMode, NativeMarshall
+from slangpy.core.native import AccessType, CallMode, CallDataMode, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
 import slangpy.reflection as slr
@@ -394,8 +394,8 @@ def generate_code(
     """
     nodes: list[BoundVariable] = []
 
-    # Check if we're using CUDA device
-    is_cuda = context.device.info.type == DeviceType.cuda
+    # Check if we're using entry point call data mode
+    is_entry_point = context.call_data_mode == CallDataMode.entry_point
 
     # Generate the header
     cg.add_import("slangpy")
@@ -513,8 +513,8 @@ def generate_code(
     if context.call_mode != CallMode.prim:
         cg.trampoline.append_line("[Differentiable]")
 
-    # For CUDA, add CallData as a parameter to the trampoline function
-    if is_cuda:
+    # For entry point mode, add CallData as a parameter to the trampoline function
+    if is_entry_point:
         cg.trampoline.append_line(
             f"void {trampoline_fn}(Context __slangpy_context__, CallData __calldata__)"
         )
@@ -528,7 +528,7 @@ def generate_code(
         cg.trampoline.declare(x.vector_type.full_name, x.variable_name)
     for x in root_params:
         if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
-            if is_cuda:
+            if is_entry_point:
                 data_name = (
                     f"_param_{x.variable_name}"
                     if x.create_param_block
@@ -577,7 +577,7 @@ def generate_code(
         ):
             if not x.python.is_writable:
                 raise BoundVariableException(f"Cannot read back value for non-writable type", x)
-            if is_cuda:
+            if is_entry_point:
                 data_name = (
                     f"_param_{x.variable_name}"
                     if x.create_param_block
@@ -605,7 +605,7 @@ def generate_code(
 
     # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
     #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
-    if is_cuda:
+    if is_entry_point:
         cg.kernel.append_line(
             "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex, CallData call_data)"
         )
@@ -640,7 +640,7 @@ def generate_code(
     if context.call_mode == CallMode.bwds:
         fn = f"bwd_diff({fn})"
 
-    if is_cuda:
+    if is_entry_point:
         cg.kernel.append_statement(f"{fn}(__slangpy_context__, call_data)")
     else:
         cg.kernel.append_statement(f"{fn}(__slangpy_context__)")

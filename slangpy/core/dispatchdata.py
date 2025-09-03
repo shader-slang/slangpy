@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from slangpy.core.callsignature import generate_constants
 from slangpy.core.enums import IOType
-from slangpy.core.native import CallMode, pack_arg, unpack_arg
+from slangpy.core.native import CallMode, CallDataMode, pack_arg, unpack_arg
 from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS
 
 from slangpy import CommandEncoder, SlangLinkOptions, uint3, DeviceType
@@ -38,11 +38,19 @@ class DispatchData:
 
             # Bind
             # Setup context
+            # Determine call data mode based on device type
+            call_data_mode = (
+                CallDataMode.entry_point
+                if build_info.module.device_module.session.device.info.type == DeviceType.cuda
+                else CallDataMode.global_data
+            )
+
             context = BindContext(
                 func.module.layout,
                 CallMode.prim,
                 build_info.module.device_module,
                 build_info.options,
+                call_data_mode,
             )
 
             # Build the unbound signature from inputs and convert straight

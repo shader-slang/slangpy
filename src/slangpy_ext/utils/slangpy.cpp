@@ -563,9 +563,9 @@ nb::object NativeCallData::exec(
     // Dispatch the kernel.
     auto bind_vars = [&](ShaderCursor cursor)
     {
-        // Get the call data cursor, either as an entry point parameter or global depending on platform
+        // Get the call data cursor, either as an entry point parameter or global depending on call data mode
         ShaderCursor call_data_cursor;
-        if (context->device()->type() == DeviceType::cuda) {
+        if (m_call_data_mode == CallDataMode::entry_point) {
             call_data_cursor = cursor.find_entry_point(0).find_field("call_data");
         } else {
             call_data_cursor = cursor.find_field("call_data");
@@ -987,6 +987,7 @@ SGL_PY_EXPORT(utils_slangpy)
 
     nb::sgl_enum<AccessType>(slangpy, "AccessType");
     nb::sgl_enum<CallMode>(slangpy, "CallMode");
+    nb::sgl_enum<CallDataMode>(slangpy, "CallDataMode");
 
     slangpy.def(
         "unpack_args",
@@ -1306,6 +1307,12 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::get_call_mode,
             &NativeCallData::set_call_mode,
             D_NA(NativeCallData, call_mode)
+        )
+        .def_prop_rw(
+            "call_data_mode",
+            &NativeCallData::get_call_data_mode,
+            &NativeCallData::set_call_data_mode,
+            D_NA(NativeCallData, call_data_mode)
         )
         .def_prop_ro("last_call_shape", &NativeCallData::get_last_call_shape, D_NA(NativeCallData, last_call_shape))
         .def_prop_rw(

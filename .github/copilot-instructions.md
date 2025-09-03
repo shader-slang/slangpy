@@ -25,6 +25,9 @@ Code structure:
 Building:
     - On windows, build using: 'cmake --build .\build\windows-msvc --config Debug'
     - On linux, build using: 'cmake --build ./build/linux-gcc --config Debug'
+    - If the build environment gets corrupted, you can reconfigure with:
+        - windows: cmake --preset windows-msvc --fresh
+        - linux: cmake --preset linux-gcc --fresh
 
 Testing:
     - Python tests are in #slangpy/tests and C++ tests are in #tests

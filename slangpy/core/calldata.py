@@ -9,6 +9,7 @@ from slangpy.core.callsignature import *
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
 from slangpy.core.native import (
     CallMode,
+    CallDataMode,
     NativeCallData,
     unpack_refs_and_args,
     unpack_refs_and_kwargs,
@@ -16,7 +17,7 @@ from slangpy.core.native import (
     TensorRef,
 )
 
-from slangpy import SlangCompileError, SlangLinkOptions, NativeHandle
+from slangpy import SlangCompileError, SlangLinkOptions, NativeHandle, DeviceType
 from slangpy.bindings import (
     BindContext,
     BoundCallRuntime,
@@ -131,6 +132,12 @@ class CallData(NativeCallData):
             self.layout = build_info.module.layout
             self.call_mode = build_info.call_mode
 
+            # Set call data mode based on device type
+            if build_info.module.device_module.session.device.info.type == DeviceType.cuda:
+                self.call_data_mode = CallDataMode.entry_point
+            else:
+                self.call_data_mode = CallDataMode.global_data
+
             # Build 'unpacked' args (that handle IThis) and extract any pytorch
             # tensor references at the same time.
             tensor_refs = []
@@ -162,6 +169,7 @@ class CallData(NativeCallData):
                 self.call_mode,
                 build_info.module.device_module,
                 build_info.options,
+                self.call_data_mode,
             )
 
             # Build the unbound signature from inputs
@@ -242,7 +250,7 @@ class CallData(NativeCallData):
                 snippets=True,
                 call_data_structs=True,
                 constants=True,
-                use_param_block_for_call_data=context.device.info.type != DeviceType.cuda,
+                use_param_block_for_call_data=context.call_data_mode == CallDataMode.global_data,
             )
 
             # Optionally write the shader to a file for debugging.
