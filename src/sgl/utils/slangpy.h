@@ -42,7 +42,7 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(CallMode);
 
-enum class CallDataMode { global_data = 0, entry_point = 1 };
+enum class CallDataMode { global_data, entry_point };
 SGL_ENUM_INFO(
     CallDataMode,
     {
