@@ -188,10 +188,11 @@ def benchmark_python(args: Any):
 
     # Lock GPU clocks
     if args.lock_gpu_clocks:
-        run_command(
-            ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"],
-            fail_ok=True,
-        )
+        cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"]
+        if os_name == "linux":
+            run_command(["sudo"] + cmd, fail_ok=True)
+        else:
+            run_command(cmd, fail_ok=True)
 
     # Run benchmarks for each device type
     for device_type in device_types:
@@ -214,7 +215,11 @@ def benchmark_python(args: Any):
 
     # Unlock GPU clocks
     if args.lock_gpu_clocks:
-        run_command(["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"], fail_ok=True)
+        cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"]
+        if os_name == "linux":
+            run_command(["sudo"] + cmd, fail_ok=True)
+        else:
+            run_command(cmd, fail_ok=True)
 
 
 def coverage_report(args: Any):
