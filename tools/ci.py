@@ -247,7 +247,7 @@ def main():
     parser_benchmark_python = commands.add_parser(
         "benchmark-python", help="run benchmarks (python)"
     )
-    parser_benchmark_python.add_argument("-r", "--run_id", type=str, required=True, help="Run ID")
+    parser_benchmark_python.add_argument("-r", "--run-id", type=str, required=True, help="Run ID")
     parser_benchmark_python.add_argument(
         "-c", "--mongodb-connection-string", type=str, help="MongoDB connection string"
     )
