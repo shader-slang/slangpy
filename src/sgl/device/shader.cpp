@@ -618,16 +618,18 @@ void SlangSession::_unregister_program(ShaderProgram* program)
     m_registered_programs.erase(program);
 }
 
-void SlangSession::_register_module(SlangModule* module, const SlangModuleDesc& desc)
+void SlangSession::_register_module(SlangModule* module)
 {
     SGL_ASSERT(
         std::find(m_registered_modules.begin(), m_registered_modules.end(), module) == m_registered_modules.end()
     );
     m_registered_modules.push_back(module);
 
-    auto [it, inserted] = m_session_module_cache.insert(std::make_pair(desc, module));
-    SGL_ASSERT(inserted);
-    m_session_module_cache_reversed[module] = it;
+    if (m_desc.cache_modules) {
+        auto [it, inserted] = m_session_module_cache.insert(std::make_pair(module->desc(), module));
+        SGL_ASSERT(inserted);
+        m_session_module_cache_reversed[module] = it;
+    }
 }
 
 void SlangSession::_unregister_module(SlangModule* module)
@@ -636,10 +638,12 @@ void SlangSession::_unregister_module(SlangModule* module)
     SGL_ASSERT(existing != m_registered_modules.end());
     m_registered_modules.erase(existing);
 
-    auto it = m_session_module_cache_reversed.find(module);
-    SGL_ASSERT(it != m_session_module_cache_reversed.end());
-    m_session_module_cache.erase(it->second);
-    m_session_module_cache_reversed.erase(it);
+    if (m_desc.cache_modules) {
+        auto it = m_session_module_cache_reversed.find(module);
+        SGL_ASSERT(it != m_session_module_cache_reversed.end());
+        m_session_module_cache.erase(it->second);
+        m_session_module_cache_reversed.erase(it);
+    }
 }
 
 std::string SlangSession::to_string() const
@@ -775,7 +779,7 @@ SlangModule::SlangModule(ref<SlangSession> session, const SlangModuleDesc& desc)
     : m_session(std::move(session))
     , m_desc(desc)
 {
-    m_session->_register_module(this, desc);
+    m_session->_register_module(this);
 }
 
 SlangModule::~SlangModule()

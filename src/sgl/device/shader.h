@@ -10,7 +10,6 @@
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
 #include "sgl/core/hash.h"
-#include "sgl/core/platform.h"
 
 #include <exception>
 #include <map>
@@ -234,6 +233,7 @@ struct SlangSessionDesc {
     SlangCompilerOptions compiler_options;
     bool add_default_include_paths{true};
     std::optional<std::filesystem::path> cache_path;
+    bool cache_modules{true};
 };
 
 /// Internal data stored once the slang session has been created.
@@ -273,21 +273,7 @@ struct SlangModuleDesc {
     /// If source specified, additional path for compilation.
     std::optional<std::filesystem::path> path;
 
-    bool operator==(const SlangModuleDesc& rhs) const
-    {
-        if (module_name != rhs.module_name)
-            return false;
-        if (source != rhs.source)
-            return false;
-        if (path.has_value() != rhs.path.has_value())
-            return false;
-        if (path.has_value())
-            return platform::is_same_path(*path, *rhs.path);
-        return true;
-    }
-
-    /// Compute hash from the struct.
-    SGL_API friend size_t hash(const SlangModuleDesc& desc) { return hash(desc.module_name, desc.source, desc.path); }
+    bool operator==(const SlangModuleDesc&) const = default;
 };
 
 /// A slang session, used to load modules and link programs.
@@ -340,7 +326,7 @@ public:
     // Internal functions to link programs+modules to their owning session
     void _register_program(ShaderProgram* program);
     void _unregister_program(ShaderProgram* program);
-    void _register_module(SlangModule* module, const SlangModuleDesc& desc);
+    void _register_module(SlangModule* module);
     void _unregister_module(SlangModule* module);
 
     // Internal access to the built session data.
@@ -365,8 +351,12 @@ private:
     /// All created sgl programs (via link_program)
     std::set<ShaderProgram*> m_registered_programs;
 
+    struct SlangModuleDescHasher {
+        size_t operator()(const SlangModuleDesc& v) const { return hash(v.module_name, v.path, v.source); }
+    };
+
     /// Maps descriptor to already loaded modules, to avoid having multiple modules referencing the same code.
-    using SessionModuleCache = std::unordered_map<SlangModuleDesc, SlangModule*, hasher<SlangModuleDesc>>;
+    using SessionModuleCache = std::unordered_map<SlangModuleDesc, SlangModule*, SlangModuleDescHasher>;
     SessionModuleCache m_session_module_cache;
     /// Maps module to an iterator in the cache for fast module deletion.
     std::map<SlangModule*, SessionModuleCache::iterator> m_session_module_cache_reversed;
