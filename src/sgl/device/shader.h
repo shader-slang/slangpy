@@ -365,10 +365,10 @@ private:
     /// All created sgl programs (via link_program)
     std::set<ShaderProgram*> m_registered_programs;
 
-    /// Maps descriptor to already loaded modules,
-    /// to avoid having multiple modules referencing the same code.
+    /// Maps descriptor to already loaded modules, to avoid having multiple modules referencing the same code.
     using SessionModuleCache = std::unordered_map<SlangModuleDesc, SlangModule*, hasher<SlangModuleDesc>>;
     SessionModuleCache m_session_module_cache;
+    /// Maps module to an iterator in the cache for fast module deletion.
     std::map<SlangModule*, SessionModuleCache::iterator> m_session_module_cache_reversed;
 
     void update_module_cache_and_dependencies();
