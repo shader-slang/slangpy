@@ -263,7 +263,33 @@ struct SlangSessionData : Object {
     std::string resolve_module_name(std::string_view module_name) const;
 };
 
-struct SlangModuleDesc;
+
+struct SlangModuleDesc {
+    /// Required module name
+    std::string module_name;
+
+    /// Optional module source. If not specified slang module resolution is used.
+    std::optional<std::string> source;
+
+    /// If source specified, additional path for compilation.
+    std::optional<std::filesystem::path> path;
+
+    bool operator==(const SlangModuleDesc& rhs) const
+    {
+        if (module_name != rhs.module_name)
+            return false;
+        if (source != rhs.source)
+            return false;
+        if (path.has_value() != rhs.path.has_value())
+            return false;
+        if (path.has_value())
+            return platform::is_same_path(*path, *rhs.path);
+        return true;
+    }
+
+    /// Compute hash from the struct.
+    SGL_API friend size_t hash(const SlangModuleDesc& desc) { return hash(desc.module_name, desc.source, desc.path); }
+};
 
 /// A slang session, used to load modules and link programs.
 class SGL_API SlangSession : public Object {
@@ -347,33 +373,6 @@ private:
     void update_module_cache_and_dependencies();
     bool write_module_to_cache(slang::IModule* module);
     void create_session(SlangSessionBuild& build);
-};
-
-struct SlangModuleDesc {
-    /// Required module name
-    std::string module_name;
-
-    /// Optional module source. If not specified slang module resolution is used.
-    std::optional<std::string> source;
-
-    /// If source specified, additional path for compilation.
-    std::optional<std::filesystem::path> path;
-
-    bool operator==(const SlangModuleDesc& rhs) const
-    {
-        if (module_name != rhs.module_name)
-            return false;
-        if (source != rhs.source)
-            return false;
-        if (path.has_value() != rhs.path.has_value())
-            return false;
-        if (path.has_value())
-            return platform::is_same_path(*path, *rhs.path);
-        return true;
-    }
-
-    /// Compute hash from the struct.
-    SGL_API friend size_t hash(const SlangModuleDesc& desc) { return hash(desc.module_name, desc.source, desc.path); }
 };
 
 struct SlangModuleData : Object {
