@@ -265,19 +265,19 @@ class FunctionNode(NativeFunctionNode):
             )
             raise ValueError(msg) from e
 
-    def append_to(self, command_buffer: CommandEncoder, *args: Any, **kwargs: Any):
+    def append_to(self, command_encoder: CommandEncoder, *args: Any, **kwargs: Any):
         """
-        Append the function to a command buffer without dispatching it. As with calling,
+        Append the function to a command encoder without dispatching it. As with calling,
         this will generate and compile a new kernel if need be. However the dispatch
         is just added to the command list and no results are returned.
         """
-        self._native_append_to(self.module.call_data_cache, command_buffer, *args, **kwargs)
+        self._native_append_to(self.module.call_data_cache, command_encoder, *args, **kwargs)
 
     def dispatch(
         self,
         thread_count: uint3,
         vars: dict[str, Any] = {},
-        command_buffer: Optional[CommandEncoder] = None,
+        command_encoder: Optional[CommandEncoder] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -324,7 +324,7 @@ class FunctionNode(NativeFunctionNode):
 
         opts = NativeCallRuntimeOptions()
         self.gather_runtime_options(opts)
-        dispatch_data.dispatch(opts, thread_count, vars, command_buffer, **kwargs)
+        dispatch_data.dispatch(opts, thread_count, vars, command_encoder, **kwargs)
 
     def calc_build_info(self):
         info = FunctionBuildInfo()

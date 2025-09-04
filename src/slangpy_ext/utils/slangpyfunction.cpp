@@ -157,7 +157,7 @@ SGL_PY_EXPORT(utils_slangpy_function)
             "_native_append_to",
             &NativeFunctionNode::append_to,
             "cache"_a,
-            "command_buffer"_a,
+            "command_encoder"_a,
             "args"_a,
             "kwargs"_a,
             D_NA(NativeFunctionNode, append_to)
