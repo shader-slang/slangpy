@@ -365,10 +365,7 @@ public:
     ~SlangModule();
 
     // Deleted because the hot reload mechanism in SlangSession assumes only objects created by it exist.
-    SlangModule(SlangModule&) = delete;
-    SlangModule(SlangModule&&) = delete;
-    SlangModule& operator=(SlangModule&) = delete;
-    SlangModule& operator=(SlangModule&&) = delete;
+    SGL_NON_COPYABLE_AND_MOVABLE(SlangModule);
 
     /// Loads slang module and outputs the resulting SlangModuleData in current build info.
     void load(SlangSessionBuild& build) const;
@@ -493,10 +490,7 @@ public:
     ~ShaderProgram();
 
     // Deleted because the hot reload mechanism in SlangSession assumes only objects created by it exist.
-    ShaderProgram(ShaderProgram&) = delete;
-    ShaderProgram(ShaderProgram&&) = delete;
-    ShaderProgram& operator=(ShaderProgram&) = delete;
-    ShaderProgram& operator=(ShaderProgram&&) = delete;
+    SGL_NON_COPYABLE_AND_MOVABLE(ShaderProgram);
 
     virtual void _release_rhi_resources() override
     {
