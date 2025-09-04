@@ -59,10 +59,7 @@ def get_default_compiler():
 
 
 def run_command(
-    command: Union[str, list[str]],
-    shell: bool = True,
-    env: Optional[dict[str, str]] = None,
-    fail_ok: bool = False,
+    command: Union[str, list[str]], shell: bool = True, env: Optional[dict[str, str]] = None
 ):
     if isinstance(command, str):
         command = [command]
@@ -99,7 +96,7 @@ def run_command(
         out += nextline
 
     process.communicate()
-    if process.returncode != 0 and not fail_ok:
+    if process.returncode != 0:
         raise RuntimeError(f'Error running "{command}"')
 
     return out
@@ -186,40 +183,39 @@ def benchmark_python(args: Any):
         # Run for all device types plus nodevice tests
         device_types = device_types + ["nodevice"]
 
-    # Lock GPU clocks
-    if args.lock_gpu_clocks:
-        cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"]
-        if os_name == "linux":
-            run_command(["sudo"] + cmd, fail_ok=True)
-        else:
-            run_command(cmd, fail_ok=True)
+    try:
+        # Lock GPU clocks
+        if args.lock_gpu_clocks:
+            cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"]
+            if os_name == "linux":
+                cmd = ["sudo"] + cmd
+            run_command(cmd)
 
-    # Run benchmarks for each device type
-    for device_type in device_types:
-        print(f"Running benchmarks for device type: {device_type}")
+        # Run benchmarks for each device type
+        for device_type in device_types:
+            print(f"Running benchmarks for device type: {device_type}")
 
-        cmd = ["pytest", "slangpy/benchmarks", "-ra", "--device-types", device_type]
-        if args.mongodb_connection_string:
-            cmd += ["--benchmark-upload", args.run_id]
-            cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
-            if args.mongodb_database_name:
-                cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
+            cmd = ["pytest", "slangpy/benchmarks", "-ra", "--device-types", device_type]
+            if args.mongodb_connection_string:
+                cmd += ["--benchmark-upload", args.run_id]
+                cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
+                if args.mongodb_database_name:
+                    cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
 
-        try:
-            run_command(cmd, env=env)
-        except Exception as e:
-            print(f"Benchmarks failed for device type {device_type}: {e}")
-            if args.device_type:  # If specific device requested, fail hard
-                raise
-            # Otherwise, continue with other devices
-
-    # Unlock GPU clocks
-    if args.lock_gpu_clocks:
-        cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"]
-        if os_name == "linux":
-            run_command(["sudo"] + cmd, fail_ok=True)
-        else:
-            run_command(cmd, fail_ok=True)
+            try:
+                run_command(cmd, env=env)
+            except Exception as e:
+                print(f"Benchmarks failed for device type {device_type}: {e}")
+                if args.device_type:  # If specific device requested, fail hard
+                    raise
+                # Otherwise, continue with other devices
+    finally:
+        # Unlock GPU clocks
+        if args.lock_gpu_clocks:
+            cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"]
+            if os_name == "linux":
+                cmd = ["sudo"] + cmd
+            run_command(cmd)
 
 
 def coverage_report(args: Any):
