@@ -602,11 +602,13 @@ std::string SlangSession::load_source(std::string_view module_name)
 
 void SlangSession::_register_program(ShaderProgram* program)
 {
+    SGL_ASSERT(m_registered_programs.count(program) == 0);
     m_registered_programs.insert(program);
 }
 
 void SlangSession::_unregister_program(ShaderProgram* program)
 {
+    SGL_ASSERT(m_registered_programs.count(program) == 1);
     m_registered_programs.erase(program);
 }
 
