@@ -491,6 +491,7 @@ ref<SlangModule> SlangSession::load_module(std::string_view module_name)
 
     // Update cache of loaded modules.
     update_module_cache_and_dependencies();
+
     return module;
 }
 
@@ -518,6 +519,7 @@ ref<SlangModule> SlangSession::load_module_from_source(
 
     // Update cache of loaded modules.
     update_module_cache_and_dependencies();
+
     return module;
 }
 
