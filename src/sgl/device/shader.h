@@ -263,7 +263,6 @@ struct SlangSessionData : Object {
     std::string resolve_module_name(std::string_view module_name) const;
 };
 
-
 struct SlangModuleDesc {
     /// Required module name
     std::string module_name;
@@ -341,7 +340,7 @@ public:
     // Internal functions to link programs+modules to their owning session
     void _register_program(ShaderProgram* program);
     void _unregister_program(ShaderProgram* program);
-    void _register_module(SlangModule* module);
+    void _register_module(SlangModule* module, const SlangModuleDesc& desc);
     void _unregister_module(SlangModule* module);
 
     // Internal access to the built session data.
@@ -368,7 +367,9 @@ private:
 
     /// Maps descriptor to already loaded modules,
     /// to avoid having multiple modules referencing the same code.
-    std::unordered_map<SlangModuleDesc, ref<SlangModule>, hasher<SlangModuleDesc>> m_module_cache;
+    using SessionModuleCache = std::unordered_map<SlangModuleDesc, SlangModule*, hasher<SlangModuleDesc>>;
+    SessionModuleCache m_session_module_cache;
+    std::map<SlangModule*, SessionModuleCache::iterator> m_session_module_cache_reversed;
 
     void update_module_cache_and_dependencies();
     bool write_module_to_cache(slang::IModule* module);
