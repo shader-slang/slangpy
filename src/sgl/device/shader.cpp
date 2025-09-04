@@ -478,6 +478,9 @@ ref<SlangModule> SlangSession::load_module(std::string_view module_name)
     SlangModuleDesc desc;
     desc.module_name = module_name;
 
+    if (auto it = m_module_cache.find(desc); it != m_module_cache.end())
+        return it->second;
+
     ref<SlangModule> module = make_ref<SlangModule>(ref(this), desc);
 
     // Setup build info with just this session in and load/store the module.
@@ -489,6 +492,7 @@ ref<SlangModule> SlangSession::load_module(std::string_view module_name)
     // Update cache of loaded modules.
     update_module_cache_and_dependencies();
 
+    m_module_cache[desc] = module;
     return module;
 }
 
@@ -503,6 +507,9 @@ ref<SlangModule> SlangSession::load_module_from_source(
     desc.source = source;
     desc.path = path;
 
+    if (auto it = m_module_cache.find(desc); it != m_module_cache.end())
+        return it->second;
+
     ref<SlangModule> module = make_ref<SlangModule>(ref(this), desc);
 
     // Setup build info with just this session in and load/store the module.
@@ -514,6 +521,7 @@ ref<SlangModule> SlangSession::load_module_from_source(
     // Update cache of loaded modules.
     update_module_cache_and_dependencies();
 
+    m_module_cache[desc] = module;
     return module;
 }
 
