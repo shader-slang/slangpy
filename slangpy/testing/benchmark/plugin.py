@@ -8,7 +8,7 @@ from .report import (
     Report,
     BenchmarkReport,
     generate_report,
-    generate_report_name,
+    generate_run_id,
     list_report_ids,
     write_report,
     load_report,
@@ -24,7 +24,7 @@ BENCHMARK_DIR = Path(".benchmarks")
 class Context(TypedDict):
     timestamp: datetime
     benchmark_reports: list[BenchmarkReport]
-    compare_report_path: Optional[Path]
+    compare_run_id: Optional[str]
 
 
 def get_context(config: pytest.Config) -> Context:
@@ -32,7 +32,7 @@ def get_context(config: pytest.Config) -> Context:
         context: Context = {
             "timestamp": datetime.now(),
             "benchmark_reports": [],
-            "compare_report_path": None,
+            "compare_run_id": None,
         }
         setattr(config, "_benchmark_context", context)
     return getattr(config, "_benchmark_context")
@@ -50,19 +50,22 @@ def pytest_sessionstart(session: pytest.Session):
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
     # Generate benchmark report
     context = get_context(session.config)
-    report = generate_report(context["timestamp"], context["benchmark_reports"])
+    report = generate_report(context["timestamp"], "", context["benchmark_reports"])
 
     # Save report
     save = session.config.getoption("--benchmark-save")
     if save != "_unspecified_":
-        name = save if save else generate_report_name(report)
-        path = BENCHMARK_DIR / (name + ".json")
+        run_id = save if save else generate_run_id(report)
+        report["run_id"] = run_id
+        path = BENCHMARK_DIR / (run_id + ".json")
         print(f"Saving benchmark report to {path}")
         BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
         write_report(report, path, strip_data=True)
 
     # Upload report to MongoDB
-    if session.config.getoption("--benchmark-upload"):
+    upload = session.config.getoption("--benchmark-upload")
+    if upload:
+        report["run_id"] = upload
         print("Uploading benchmark report to MongoDB")
         connection_string = session.config.getoption("--benchmark-mongodb-connection-string")
         database_name = session.config.getoption("--benchmark-mongodb-database-name")
@@ -95,9 +98,10 @@ def pytest_addoption(parser: pytest.Parser):
     )
     group.addoption(
         "--benchmark-upload",
-        action="store_true",
+        action="store",
         default=False,
-        help="Upload benchmark report to a MongoDB.",
+        metavar="ID",
+        help="Upload benchmark report to a MongoDB with the specified run ID.",
     )
     group.addoption(
         "--benchmark-mongodb-connection-string",
@@ -127,7 +131,7 @@ def pytest_cmdline_main(config: pytest.Config):
             print(f'Benchmark run "{id}" not found!')
             return 1
         print(f"Comparing against benchmark run: {id}")
-        get_context(config)["compare_report_path"] = BENCHMARK_DIR / (id + ".json")
+        get_context(config)["compare_run_id"] = id
 
     if config.getoption("--benchmark-list-runs"):
         print("Benchmark runs:")
@@ -141,8 +145,8 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):
     context = get_context(terminalreporter.config)
     benchmark_reports: list[BenchmarkReport] = context["benchmark_reports"]
     baseline_report: Optional[Report] = None
-    if context["compare_report_path"]:
-        baseline_report = load_report(context["compare_report_path"])
+    if context["compare_run_id"]:
+        baseline_report = load_report(BENCHMARK_DIR / (context["compare_run_id"] + ".json"))
     display(
         terminalreporter.config.get_terminal_writer(),
         benchmark_reports,
