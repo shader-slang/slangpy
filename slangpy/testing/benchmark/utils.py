@@ -19,7 +19,10 @@ def get_project_info() -> dict[str, Any]:
     }
 
 
-def get_gpu_infos() -> list[dict[str, Any]]:
+def find_nvidia_smi() -> str:
+    """
+    Locate the nvidia-smi utility.
+    """
     if platform.system() == "Windows":
         nvidia_smi = shutil.which("nvidia-smi")
         if nvidia_smi is None:
@@ -29,22 +32,31 @@ def get_gpu_infos() -> list[dict[str, Any]]:
             )
     else:
         nvidia_smi = "nvidia-smi"
+    return nvidia_smi
 
+
+def run_command(cmd: list[str]) -> str:
+    try:
+        return subprocess.check_output(
+            cmd, stderr=subprocess.STDOUT, universal_newlines=True
+        ).strip()
+    except subprocess.CalledProcessError as e:
+        print(f"Command failed with exit code {e.returncode}: {e.output}")
+        raise e
+
+
+def get_gpu_infos() -> list[dict[str, Any]]:
     infos = []
 
     try:
-        p = subprocess.Popen(
+        output = run_command(
             [
-                nvidia_smi,
-                "--query-gpu=index,uuid,utilization.gpu,memory.total,memory.used,driver_version,name,gpu_serial,temperature.gpu",
+                find_nvidia_smi(),
+                "--query-gpu=index,uuid,utilization.gpu,memory.total,memory.used,driver_version,name,gpu_serial,clocks.current.graphics,clocks.current.memory,clocks.max.graphics,clocks.max.memory,temperature.gpu",
                 "--format=csv,noheader,nounits",
             ],
-            stdout=subprocess.PIPE,
         )
-        stdout, stderror = p.communicate()
-        output = stdout.decode("UTF-8")
-
-        for line in output.strip().split("\n"):
+        for line in output.split("\n"):
             values = line.strip().split(", ")
 
             infos.append(
@@ -57,7 +69,11 @@ def get_gpu_infos() -> list[dict[str, Any]]:
                     "driver_version": values[5],
                     "name": values[6],
                     "serial_number": values[7],
-                    "temperature": float(values[8]),
+                    "clock_current_graphics": int(values[8]),
+                    "clock_current_memory": int(values[9]),
+                    "clock_max_graphics": int(values[10]),
+                    "clock_max_memory": int(values[11]),
+                    "temperature": float(values[12]),
                 }
             )
     except Exception as e:
