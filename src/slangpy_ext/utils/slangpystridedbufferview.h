@@ -29,6 +29,7 @@ struct StridedBufferViewDesc {
 };
 
 class StridedBufferView : public NativeObject {
+    SGL_OBJECT(StridedBufferView)
 public:
     StridedBufferView(Device* device, const StridedBufferViewDesc& desc, ref<Buffer> storage);
     virtual ~StridedBufferView() { }

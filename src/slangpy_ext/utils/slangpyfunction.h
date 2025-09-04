@@ -31,6 +31,7 @@ SGL_ENUM_INFO(
 SGL_ENUM_REGISTER(FunctionNodeType);
 
 class NativeFunctionNode : NativeObject {
+    SGL_OBJECT(NativeFunctionNode)
 public:
     NativeFunctionNode(NativeFunctionNode* parent, FunctionNodeType type, nb::object data)
         : m_parent(parent)
@@ -106,6 +107,12 @@ public:
         SGL_UNUSED(args);
         SGL_UNUSED(kwargs);
         return nullptr;
+    }
+
+    void garbage_collect()
+    {
+        m_parent = nullptr;
+        m_data = nb::none();
     }
 
 private:
