@@ -59,7 +59,10 @@ def get_default_compiler():
 
 
 def run_command(
-    command: Union[str, list[str]], shell: bool = True, env: Optional[dict[str, str]] = None
+    command: Union[str, list[str]],
+    shell: bool = True,
+    env: Optional[dict[str, str]] = None,
+    fail_ok: bool = False,
 ):
     if isinstance(command, str):
         command = [command]
@@ -96,7 +99,7 @@ def run_command(
         out += nextline
 
     process.communicate()
-    if process.returncode != 0:
+    if process.returncode != 0 and not fail_ok:
         raise RuntimeError(f'Error running "{command}"')
 
     return out
@@ -183,6 +186,13 @@ def benchmark_python(args: Any):
         # Run for all device types plus nodevice tests
         device_types = device_types + ["nodevice"]
 
+    # Lock GPU clocks
+    if args.lock_gpu_clocks:
+        run_command(
+            ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"],
+            fail_ok=True,
+        )
+
     # Run benchmarks for each device type
     for device_type in device_types:
         print(f"Running benchmarks for device type: {device_type}")
@@ -201,6 +211,10 @@ def benchmark_python(args: Any):
             if args.device_type:  # If specific device requested, fail hard
                 raise
             # Otherwise, continue with other devices
+
+    # Unlock GPU clocks
+    if args.lock_gpu_clocks:
+        run_command(["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"], fail_ok=True)
 
 
 def coverage_report(args: Any):
@@ -258,6 +272,11 @@ def main():
         "--device-type",
         type=str,
         help="Specific device type to benchmark (d3d12, vulkan, cuda, metal, nodevice)",
+    )
+    parser_benchmark_python.add_argument(
+        "--lock-gpu-clocks",
+        action="store_true",
+        help="Lock GPU clocks during benchmarking (requires admin privileges).",
     )
 
     parser_coverage_report = commands.add_parser("coverage-report", help="generate coverage report")
