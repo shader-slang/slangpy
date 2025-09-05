@@ -22,7 +22,7 @@ static_assert(sizeof(Py_ssize_t_) == sizeof(size_t));
 /// When enabled, each object derived from Object will have its
 /// lifetime tracked. This is useful for debugging memory leaks.
 #ifndef SGL_ENABLE_OBJECT_TRACKING
-#define SGL_ENABLE_OBJECT_TRACKING 0
+#define SGL_ENABLE_OBJECT_TRACKING 1
 #endif
 
 /// Enable/disable reference tracking.
@@ -47,6 +47,19 @@ static constexpr bool SGL_TRACK_ALL_REFS{false};
 
 
 namespace sgl {
+
+class Object;
+
+#if SGL_ENABLE_OBJECT_TRACKING
+struct LiveObjectInfo {
+    const Object* object;
+    uint64_t ref_count;
+    PyObject* self_py;
+    const char* class_name;
+
+    std::string to_string();
+};
+#endif
 
 /**
  * \brief Object base class with intrusive reference counting
@@ -143,7 +156,7 @@ public:
 
 #if SGL_ENABLE_OBJECT_TRACKING
     /// Reports current set of live objects.
-    static void report_live_objects();
+    static std::vector<LiveObjectInfo> report_live_objects(bool log_to_tty = true);
 
     /// Report references of this object.
     void report_refs() const;

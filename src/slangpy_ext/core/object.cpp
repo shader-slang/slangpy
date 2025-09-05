@@ -32,7 +32,27 @@ SGL_PY_EXPORT(core_object)
         "Base class for all reference counted objects."
     )
 #if SGL_ENABLE_OBJECT_TRACKING
-        .def_static("report_live_objects", &Object::report_live_objects)
+        .def_static(
+            "report_live_objects",
+            [](bool log_to_tty = true)
+            {
+                // We want to avoid creating new live objects by reporting objects, so instead of
+                // creating bindings for LiveObjectInfo, convert each to a dictionary.
+                auto live_objects = Object::report_live_objects(log_to_tty);
+                nb::list result;
+                for (const auto& info : live_objects) {
+                    nb::dict obj_dict;
+                    obj_dict["object"] = reinterpret_cast<uintptr_t>(info.object);
+                    obj_dict["ref_count"] = info.ref_count;
+                    obj_dict["self_py"] = reinterpret_cast<uintptr_t>(info.self_py);
+                    obj_dict["class_name"] = info.class_name;
+                    result.append(obj_dict);
+                }
+                return result;
+            },
+            "log_to_tty"_a = true,
+            "Returns a list of dictionaries containing information about live objects"
+        )
 #endif
         .def("__repr__", &Object::to_string);
 }

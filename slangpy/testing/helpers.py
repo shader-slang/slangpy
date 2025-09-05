@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gc
 import hashlib
 import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence, Union, cast
 from os import PathLike
 import inspect
+import objgraph
 
 import pytest
 import numpy as np
@@ -26,7 +28,7 @@ from slangpy import (
     LogLevel,
     NativeHandle,
 )
-from slangpy.types.buffer import NDBuffer
+from slangpy.types.buffer import NDBuffer, get_lookup_module
 from slangpy.core.function import Function
 
 # Global variables for device isolation. If SELECTED_DEVICE_TYPES is None, no restriction.
@@ -82,6 +84,38 @@ DEVICE_CACHE: dict[
 USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
+TRACKED_LIVE_OBJECTS: Optional[list[Any]] = None
+
+IGNORE_LIVE_OBJECT_TYPES = ["NativeSlangType", "TypeLayoutReflection", "TypeReflection"]
+
+
+def save_live_objects():
+    print("Saving live objects")
+    global TRACKED_LIVE_OBJECTS
+    TRACKED_LIVE_OBJECTS = spy.Object.report_live_objects(True)
+    # objgraph.show_growth(limit=1)
+
+
+def compare_and_save_live_objects():
+    while gc.collect() > 0:
+        pass
+    # objgraph.show_growth()
+    # objgraph.show_backrefs(objgraph.by_type('ArrayType')[0], max_depth=4, filename='backref.svg')
+    global TRACKED_LIVE_OBJECTS
+    new = spy.Object.report_live_objects(True)
+    if TRACKED_LIVE_OBJECTS:
+        errors = []
+        current_by_address = {x["object"]: x for x in TRACKED_LIVE_OBJECTS}
+        for obj in new:
+            if obj["object"] not in current_by_address:
+                if not obj["class_name"] in IGNORE_LIVE_OBJECT_TYPES:
+                    errors.append(obj)
+        if len(errors) > 0:
+            msg = "\n".join([f"  {e}" for e in errors])
+            raise RuntimeError(f"Leaked objects detected:\n{msg}")
+    TRACKED_LIVE_OBJECTS = new
+
+
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
 # spy.set_dump_slang_intermediates(True)
@@ -103,6 +137,9 @@ def close_all_devices():
         import torch
 
         torch.cuda.synchronize()
+
+    # Clear device cache
+    DEVICE_CACHE.clear()
 
     # Close all devices that were created during the tests.
     for device in Device.get_created_devices():
@@ -232,6 +269,11 @@ def get_device(
 
     if use_cache:
         DEVICE_CACHE[cache_key] = device
+        get_lookup_module(
+            device
+        )  # Init the slangpy loopup cache up front to make tracking more robust
+        save_live_objects()  # Update live object tracking if caching device as it won't get freed
+
     return device
 
 

@@ -72,3 +72,6 @@ reportInvalidTypeForm = "warning"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+    "memory_leak: Marks test as known to leak objects"
+]
