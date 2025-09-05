@@ -244,7 +244,8 @@ SGL_PY_EXPORT(device_device)
         .def_rw("num_pages", &HeapReport::num_pages, D_NA(HeapReport, num_pages))
         .def_rw("total_allocated", &HeapReport::total_allocated, D_NA(HeapReport, total_allocated))
         .def_rw("total_mem_usage", &HeapReport::total_mem_usage, D_NA(HeapReport, total_mem_usage))
-        .def_rw("num_allocations", &HeapReport::num_allocations, D_NA(HeapReport, num_allocations));
+        .def_rw("num_allocations", &HeapReport::num_allocations, D_NA(HeapReport, num_allocations))
+        .def("__repr__", &HeapReport::to_string);
 
     nb::class_<Device, Object> device(m, "Device", nb::is_weak_referenceable(), D(Device));
     device.def(
