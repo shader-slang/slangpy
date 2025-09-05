@@ -26,15 +26,17 @@ class BenchmarkReport(TypedDict):
 
 class Report(TypedDict):
     timestamp: datetime
+    run_id: str
     project_info: dict[str, Any]
     machine_info: dict[str, Any]
     commit_info: dict[str, Any]
     benchmarks: list[BenchmarkReport]
 
 
-def generate_report(timestamp: datetime, benchmarks: list[BenchmarkReport]) -> Report:
+def generate_report(timestamp: datetime, run_id: str, benchmarks: list[BenchmarkReport]) -> Report:
     return {
         "timestamp": timestamp,
+        "run_id": run_id,
         "project_info": get_project_info(),
         "machine_info": get_machine_info(),
         "commit_info": get_commit_info(),
@@ -42,7 +44,7 @@ def generate_report(timestamp: datetime, benchmarks: list[BenchmarkReport]) -> R
     }
 
 
-def generate_report_name(report: Report) -> str:
+def generate_run_id(report: Report) -> str:
     timestamp = report["timestamp"].strftime("%Y%m%d-%H%M%S")
     commit_id = report["commit_info"].get("id", "unknown")
     commit_dirty = "dirty" if report["commit_info"].get("dirty", False) else "clean"

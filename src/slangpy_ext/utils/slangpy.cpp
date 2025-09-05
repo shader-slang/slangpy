@@ -33,9 +33,9 @@ struct GcHelper<slangpy::NativeCallRuntimeOptions> {
     void traverse(slangpy::NativeCallRuntimeOptions*, GcVisitor& visitor)
     {
         visitor("uniforms");
-        visitor("this_ref");
+        visitor("_native_this");
     }
-    void clear(slangpy::NativeCallRuntimeOptions* opts) { opts->clear(); }
+    void clear(slangpy::NativeCallRuntimeOptions* opts) { opts->garbage_collect(); }
 };
 
 } // namespace sgl
@@ -1282,10 +1282,10 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(NativeCallRuntimeOptions, uniforms)
         )
         .def_prop_rw(
-            "this_ref",
+            "_native_this",
             &NativeCallRuntimeOptions::get_this,
             &NativeCallRuntimeOptions::set_this,
-            D_NA(NativeCallRuntimeOptions, this_ref)
+            D_NA(NativeCallRuntimeOptions, _native_this)
         )
         .def_prop_rw(
             "cuda_stream",

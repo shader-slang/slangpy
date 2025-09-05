@@ -786,7 +786,7 @@ SGL_ENUM_REGISTER(RayTracingPipelineFlags);
 /// Report information for a memory heap.
 struct HeapReport {
     /// Name of the heap.
-    std::string name;
+    std::string label;
     /// Number of pages in the heap.
     uint32_t num_pages{0};
     /// Total allocated memory in bytes.
@@ -800,13 +800,13 @@ struct HeapReport {
     {
         return fmt::format(
             "HeapReport(\n"
-            "  name = \"{}\",\n"
+            "  label = \"{}\",\n"
             "  num_pages = {},\n"
             "  total_allocated = {},\n"
             "  total_mem_usage = {},\n"
             "  num_allocations = {}\n"
             ")",
-            name,
+            label,
             num_pages,
             total_allocated,
             total_mem_usage,
