@@ -9,6 +9,7 @@
 
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
+#include "sgl/core/hash.h"
 
 #include <exception>
 #include <map>
@@ -232,6 +233,7 @@ struct SlangSessionDesc {
     SlangCompilerOptions compiler_options;
     bool add_default_include_paths{true};
     std::optional<std::filesystem::path> cache_path;
+    bool cache_modules{true};
 };
 
 /// Internal data stored once the slang session has been created.
@@ -261,6 +263,19 @@ struct SlangSessionData : Object {
 
     /// Finds fully qualified module name by scanning the cache and include paths.
     std::string resolve_module_name(std::string_view module_name) const;
+};
+
+struct SlangModuleDesc {
+    /// Required module name
+    std::string module_name;
+
+    /// Optional module source. If not specified slang module resolution is used.
+    std::optional<std::string> source;
+
+    /// If source specified, additional path for compilation.
+    std::optional<std::filesystem::path> path;
+
+    bool operator==(const SlangModuleDesc&) const = default;
 };
 
 /// A slang session, used to load modules and link programs.
@@ -338,20 +353,19 @@ private:
     /// All created sgl programs (via link_program)
     std::set<ShaderProgram*> m_registered_programs;
 
+    struct SlangModuleDescHasher {
+        size_t operator()(const SlangModuleDesc& v) const { return hash(v.module_name, v.path, v.source); }
+    };
+
+    /// Maps descriptor to already loaded modules, to avoid having multiple modules referencing the same code.
+    using SessionModuleCache = std::unordered_map<SlangModuleDesc, SlangModule*, SlangModuleDescHasher>;
+    SessionModuleCache m_session_module_cache;
+    /// Maps module to an iterator in the cache for fast module deletion.
+    std::map<SlangModule*, SessionModuleCache::iterator> m_session_module_cache_reversed;
+
     void update_module_cache_and_dependencies();
     bool write_module_to_cache(slang::IModule* module);
     void create_session(SlangSessionBuild& build);
-};
-
-struct SlangModuleDesc {
-    /// Required module name
-    std::string module_name;
-
-    /// Optional module source. If not specified slang module resolution is used.
-    std::optional<std::string> source;
-
-    /// If source specified, additional path for compilation.
-    std::optional<std::filesystem::path> path;
 };
 
 struct SlangModuleData : Object {
