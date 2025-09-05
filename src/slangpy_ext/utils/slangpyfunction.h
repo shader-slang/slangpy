@@ -14,19 +14,21 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/resource.h"
+#include "sgl/device/query.h"
 
 #include "utils/slangpy.h"
 
 namespace sgl::slangpy {
 
-enum class FunctionNodeType { unknown, uniforms, kernelgen, this_, cuda_stream };
+enum class FunctionNodeType { unknown, uniforms, kernelgen, this_, cuda_stream, write_timestamps };
 SGL_ENUM_INFO(
     FunctionNodeType,
     {{FunctionNodeType::unknown, "unknown"},
      {FunctionNodeType::uniforms, "uniforms"},
      {FunctionNodeType::kernelgen, "kernelgen"},
      {FunctionNodeType::this_, "this"},
-     {FunctionNodeType::cuda_stream, "cuda_stream"}}
+     {FunctionNodeType::cuda_stream, "cuda_stream"},
+     {FunctionNodeType::write_timestamps, "write_timestamps"}}
 );
 SGL_ENUM_REGISTER(FunctionNodeType);
 
@@ -72,6 +74,13 @@ public:
         case sgl::slangpy::FunctionNodeType::cuda_stream:
             options->set_cuda_stream(nb::cast<NativeHandle>(m_data));
             break;
+        case sgl::slangpy::FunctionNodeType::write_timestamps: {
+            nb::tuple t = nb::cast<nb::tuple>(m_data);
+            options->set_query_pool(nb::cast<QueryPool*>(t[0]));
+            options->set_query_before_index(nb::cast<uint32_t>(t[1]));
+            options->set_query_after_index(nb::cast<uint32_t>(t[2]));
+            break;
+        }
         default:
             break;
         }
