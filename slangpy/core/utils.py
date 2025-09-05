@@ -127,8 +127,10 @@ def find_type_layout_for_buffer(
 ):
     if isinstance(slang_type, str):
         slang_type_name = slang_type
-    elif isinstance(slang_type, (TypeReflection, TypeLayoutReflection)):
-        slang_type_name = slang_type.name
+    elif isinstance(slang_type, TypeReflection):
+        slang_type_name = slang_type.full_name
+    elif isinstance(slang_type, TypeLayoutReflection):
+        slang_type_name = slang_type.type.full_name
     buffer_type = program_layout.find_type_by_name(f"StructuredBuffer<{slang_type_name}>")
     buffer_layout = program_layout.get_type_layout(buffer_type)
     return buffer_layout.element_type_layout

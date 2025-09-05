@@ -229,6 +229,7 @@ private:
 };
 
 class SGL_API DeclReflection : public BaseReflectionObjectImpl<slang::DeclReflection> {
+    SGL_OBJECT(DeclReflection)
 
 public:
     DeclReflection(ref<const Object> owner, slang::DeclReflection* target)
@@ -346,6 +347,7 @@ protected:
 };
 
 class SGL_API TypeReflection : public BaseReflectionObjectImpl<slang::TypeReflection> {
+    SGL_OBJECT(TypeReflection)
 public:
     enum class Kind {
         none = SLANG_TYPE_KIND_NONE,
@@ -676,6 +678,7 @@ protected:
 
 
 class SGL_API TypeLayoutReflection : public BaseReflectionObjectImpl<slang::TypeLayoutReflection> {
+    SGL_OBJECT(TypeLayoutReflection)
 public:
     static ref<const TypeLayoutReflection>
     from_slang(ref<const Object> owner, slang::TypeLayoutReflection* type_layout_reflection)
@@ -798,6 +801,7 @@ protected:
 };
 
 class SGL_API FunctionReflection : public BaseReflectionObjectImpl<slang::FunctionReflection> {
+    SGL_OBJECT(FunctionReflection)
 public:
     FunctionReflection(ref<const Object> owner, slang::FunctionReflection* target)
         : BaseReflectionObjectImpl(std::move(owner), target)
@@ -911,6 +915,7 @@ protected:
 };
 
 class SGL_API VariableReflection : public BaseReflectionObjectImpl<slang::VariableReflection> {
+    SGL_OBJECT(VariableReflection)
 public:
     static ref<const VariableReflection>
     from_slang(ref<const Object> owner, slang::VariableReflection* variable_reflection)
@@ -964,6 +969,7 @@ public:
 };
 
 class SGL_API EntryPointLayout : public BaseReflectionObjectImpl<slang::EntryPointLayout> {
+    SGL_OBJECT(EntryPointLayout)
 public:
     static ref<const EntryPointLayout>
     from_slang(ref<const Object> owner, slang::EntryPointLayout* entry_point_reflection)
@@ -1027,6 +1033,7 @@ protected:
 
 
 class SGL_API ProgramLayout : public BaseReflectionObjectImpl<slang::ProgramLayout> {
+    SGL_OBJECT(ProgramLayout)
 public:
     static ref<const ProgramLayout> from_slang(ref<const Object> owner, slang::ProgramLayout* program_layout)
     {

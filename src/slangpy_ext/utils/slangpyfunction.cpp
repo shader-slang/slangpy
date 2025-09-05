@@ -7,9 +7,20 @@
 
 namespace sgl {
 
+template<>
+struct GcHelper<slangpy::NativeFunctionNode> {
+    void traverse(slangpy::NativeFunctionNode*, GcVisitor& visitor)
+    {
+        visitor("_native_data");
+        visitor("_native_parent");
+    }
+    void clear(slangpy::NativeFunctionNode* node) { node->garbage_collect(); }
+};
+
 } // namespace sgl
 
 namespace sgl::slangpy {
+
 
 ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
@@ -128,7 +139,11 @@ SGL_PY_EXPORT(utils_slangpy_function)
 
     nb::sgl_enum<FunctionNodeType>(slangpy, "FunctionNodeType");
 
-    nb::class_<NativeFunctionNode, PyNativeFunctionNode, NativeObject>(slangpy, "NativeFunctionNode")
+    nb::class_<NativeFunctionNode, PyNativeFunctionNode, NativeObject>(
+        slangpy,
+        "NativeFunctionNode",
+        gc_helper_type_slots<NativeFunctionNode>()
+    )
         .def(
             "__init__",
             [](NativeFunctionNode& self,

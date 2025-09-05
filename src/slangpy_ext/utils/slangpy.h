@@ -127,6 +127,7 @@ private:
 
 /// Nanobind trampoline class for NativeObject
 class PyNativeObject : public NativeObject {
+    SGL_OBJECT(PyNativeObject)
 public:
     NB_TRAMPOLINE(NativeObject, 1);
 
@@ -529,6 +530,7 @@ private:
 /// Binding information for a call to a compute kernel. Includes a set of positional
 /// and keyword arguments as bound variables.
 class NativeBoundCallRuntime : Object {
+    SGL_OBJECT(NativeBoundCallRuntime)
 public:
     NativeBoundCallRuntime() = default;
 
@@ -579,6 +581,7 @@ private:
 };
 
 class NativeCallRuntimeOptions : Object {
+    SGL_OBJECT(NativeCallRuntimeOptions)
 public:
     /// Get the uniforms.
     nb::list get_uniforms() const { return m_uniforms; }
@@ -597,6 +600,13 @@ public:
 
     /// Set the CUDA stream.
     void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
+
+    /// Clear internal data for garbage collection
+    void garbage_collect()
+    {
+        m_uniforms.clear();
+        m_this = nb::none();
+    }
 
 private:
     nb::list m_uniforms;
@@ -622,6 +632,7 @@ private:
 /// Contains the compute kernel for a call, the corresponding bindings and any additional
 /// options provided by the user.
 class NativeCallData : Object {
+    SGL_OBJECT(NativeCallData)
 public:
     NativeCallData() = default;
 
@@ -778,6 +789,8 @@ typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> Bu
 
 /// Native side of system for caching call data info for given function signatures.
 class NativeCallDataCache : Object {
+    SGL_OBJECT(NativeCallDataCache)
+
 public:
     NativeCallDataCache();
 

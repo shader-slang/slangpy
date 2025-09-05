@@ -795,6 +795,24 @@ struct HeapReport {
     uint64_t total_mem_usage{0};
     /// Number of allocations.
     uint64_t num_allocations{0};
+
+    std::string to_string() const
+    {
+        return fmt::format(
+            "HeapReport(\n"
+            "  label = \"{}\",\n"
+            "  num_pages = {},\n"
+            "  total_allocated = {},\n"
+            "  total_mem_usage = {},\n"
+            "  num_allocations = {}\n"
+            ")",
+            label,
+            num_pages,
+            total_allocated,
+            total_mem_usage,
+            num_allocations
+        );
+    }
 };
 
 } // namespace sgl

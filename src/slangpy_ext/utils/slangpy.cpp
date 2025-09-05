@@ -28,6 +28,16 @@ extern void buffer_copy_from_numpy(Buffer* self, nb::ndarray<nb::numpy> data);
 extern nb::ndarray<nb::pytorch, nb::device::cuda>
 buffer_to_torch(Buffer* self, DataType type, std::vector<size_t> shape, std::vector<int64_t> strides, size_t offset);
 
+template<>
+struct GcHelper<slangpy::NativeCallRuntimeOptions> {
+    void traverse(slangpy::NativeCallRuntimeOptions*, GcVisitor& visitor)
+    {
+        visitor("uniforms");
+        visitor("_native_this");
+    }
+    void clear(slangpy::NativeCallRuntimeOptions* opts) { opts->garbage_collect(); }
+};
+
 } // namespace sgl
 
 namespace sgl::slangpy {
@@ -1270,6 +1280,12 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallRuntimeOptions::get_uniforms,
             &NativeCallRuntimeOptions::set_uniforms,
             D_NA(NativeCallRuntimeOptions, uniforms)
+        )
+        .def_prop_rw(
+            "_native_this",
+            &NativeCallRuntimeOptions::get_this,
+            &NativeCallRuntimeOptions::set_this,
+            D_NA(NativeCallRuntimeOptions, _native_this)
         )
         .def_prop_rw(
             "cuda_stream",

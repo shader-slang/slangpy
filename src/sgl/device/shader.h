@@ -236,6 +236,8 @@ struct SlangSessionDesc {
 
 /// Internal data stored once the slang session has been created.
 struct SlangSessionData : Object {
+    SGL_OBJECT(SlangSessionData)
+
     /// Pointer to internal slang session.
     Slang::ComPtr<slang::ISession> slang_session;
 
@@ -353,6 +355,8 @@ struct SlangModuleDesc {
 };
 
 struct SlangModuleData : Object {
+    SGL_OBJECT(SlangModuleData)
+
     slang::IModule* slang_module = nullptr;
     std::string name;
     std::filesystem::path path;
@@ -432,6 +436,8 @@ struct SlangEntryPointDesc {
     std::vector<TypeConformance> type_conformances;
 };
 struct SlangEntryPointData : Object {
+    SGL_OBJECT(SlangEntryPointData)
+
     Slang::ComPtr<slang::IComponentType> slang_entry_point;
     std::string name;
     ShaderStage stage;
@@ -480,6 +486,7 @@ struct ShaderProgramDesc {
     std::string label;
 };
 struct ShaderProgramData : Object {
+    SGL_OBJECT(ShaderProgramData)
     Slang::ComPtr<slang::IComponentType> linked_program;
     Slang::ComPtr<rhi::IShaderProgram> rhi_shader_program;
 };
