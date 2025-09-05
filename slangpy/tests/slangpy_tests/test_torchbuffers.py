@@ -163,6 +163,7 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
 
 # Pytest for our most common default cuda-interop case, in which we've configured pytorch
 # and slangpy to share the same context and stream.
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 def test_shared_context_and_stream(device_type: spy.DeviceType):
     assert (
@@ -174,12 +175,14 @@ def test_shared_context_and_stream(device_type: spy.DeviceType):
 # Pytest for none-shared context case, which appears to avoid race conditions through some level
 # of synchronization in the default streams of separate contexts. For now this has shown not
 # to cause race conditions, so testing for that behaviour.
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 def test_non_shared_context(device_type: spy.DeviceType):
     assert run_tensor_race_condition_tests(share_context=False) == False
 
 
 # Pytest for known race condition case, where we use a custom stream in torch but not sharing it with slangpy.
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 def test_custom_stream_no_share(device_type: spy.DeviceType):
     pytest.skip("Race condition doesn't reproduce reliably on CI machines of varying specs")
@@ -190,6 +193,7 @@ def test_custom_stream_no_share(device_type: spy.DeviceType):
 
 
 # Pytest that removes the race condition by sharing the custom stream
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 def test_custom_stream_share(device_type: spy.DeviceType):
     assert (

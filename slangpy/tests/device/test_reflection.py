@@ -1157,6 +1157,10 @@ def test_is_sub_type(test_id: str, device_type: spy.DeviceType):
     assert module.layout.is_sub_type(t, i)
 
 
+@pytest.mark.memory_leak(
+    "Leaks a module",
+    details={"SlangModule": 1, "SlangModuleData": 2, "SlangSessionData": 1, "ProgramLayout": 1},
+)
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_hot_reload_invalid(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)

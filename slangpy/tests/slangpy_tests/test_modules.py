@@ -114,7 +114,10 @@ def test_call_mutable_func(device_type: DeviceType):
     assert np.allclose(data[:2], [0.05, 0.1])
 
 
-@pytest.mark.memory_leak("Leaks modules")
+@pytest.mark.memory_leak(
+    "Leaks modules, probably issue with looking up types by name",
+    details={"ShaderProgram": 1, "ShaderProgramData": 1, "SlangModuleData": 2, "SlangModule": 2},
+)
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_read_back_with_global_func(device_type: DeviceType):
     m = load_test_module(device_type)

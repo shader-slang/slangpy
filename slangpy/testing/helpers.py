@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Optional, Sequence, Union, cast
 from os import PathLike
 import inspect
-import objgraph
 
 import pytest
 import numpy as np
@@ -45,6 +44,9 @@ elif sys.platform == "darwin":
     DEFAULT_DEVICE_TYPES = [DeviceType.metal]
 else:
     raise RuntimeError("Unsupported platform")
+
+# If live object tracking is supported, enable leak tracking
+LEAK_TRACKING_ENABLED = hasattr(spy.Object, "report_live_objects")
 
 
 # Called from pytest plugin if 'device-types' argument is provided
@@ -86,34 +88,55 @@ METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
 TRACKED_LIVE_OBJECTS: Optional[list[Any]] = None
 
-IGNORE_LIVE_OBJECT_TYPES = ["NativeSlangType", "TypeLayoutReflection", "TypeReflection"]
+# Types to ignore when checking for leaked objects
+# - The reflection types are created and cached per device when buffers are loaded, so are hard
+#   to identify as actual leaks.
+# - CoopVec is created on demand within the device when the coopvec api is used, and so will appear
+#   as a leak for cached devices.
+IGNORE_LIVE_OBJECT_TYPES = ["NativeSlangType", "TypeLayoutReflection", "TypeReflection", "CoopVec"]
 
 
 def save_live_objects():
-    print("Saving live objects")
-    global TRACKED_LIVE_OBJECTS
-    TRACKED_LIVE_OBJECTS = spy.Object.report_live_objects(True)
-    # objgraph.show_growth(limit=1)
+    if LEAK_TRACKING_ENABLED:
+        global TRACKED_LIVE_OBJECTS
+        TRACKED_LIVE_OBJECTS = spy.Object.report_live_objects(True)
 
 
-def compare_and_save_live_objects():
-    while gc.collect() > 0:
-        pass
-    # objgraph.show_growth()
-    # objgraph.show_backrefs(objgraph.by_type('ArrayType')[0], max_depth=4, filename='backref.svg')
-    global TRACKED_LIVE_OBJECTS
-    new = spy.Object.report_live_objects(True)
-    if TRACKED_LIVE_OBJECTS:
-        errors = []
-        current_by_address = {x["object"]: x for x in TRACKED_LIVE_OBJECTS}
-        for obj in new:
-            if obj["object"] not in current_by_address:
-                if not obj["class_name"] in IGNORE_LIVE_OBJECT_TYPES:
-                    errors.append(obj)
-        if len(errors) > 0:
-            msg = "\n".join([f"  {e}" for e in errors])
-            raise RuntimeError(f"Leaked objects detected:\n{msg}")
-    TRACKED_LIVE_OBJECTS = new
+def compare_and_save_live_objects(allowed_leaks: Optional[dict[str, int]] = None):
+    if LEAK_TRACKING_ENABLED:
+        while gc.collect() > 0:
+            pass
+
+        # Make a copy of allowed_leaks so we don't modify the original dict
+        allowed_leaks = allowed_leaks.copy() if allowed_leaks else {}
+
+        # Get current live objects and compare to previous captured list
+        global TRACKED_LIVE_OBJECTS
+        new = spy.Object.report_live_objects(True)
+        if TRACKED_LIVE_OBJECTS:
+            errors = []
+
+            # Build a lookup by address for fast comparison
+            current_by_address = {x["object"]: x for x in TRACKED_LIVE_OBJECTS}
+
+            # Find any new objects, and build list of errors
+            for obj in new:
+                if obj["object"] not in current_by_address:
+                    cn = obj["class_name"]
+                    if not cn in IGNORE_LIVE_OBJECT_TYPES:
+                        if cn in allowed_leaks:
+                            if allowed_leaks[cn] > 0:
+                                allowed_leaks[cn] -= 1
+                                continue
+                        errors.append(obj)
+
+            # If any errors, raise runtime error with all of them in
+            if len(errors) > 0:
+                msg = "\n".join([f"  {e}" for e in errors])
+                raise RuntimeError(f"Leaked objects detected:\n{msg}")
+
+        # Store updated live objects list
+        TRACKED_LIVE_OBJECTS = new
 
 
 # Always dump stuff when testing
@@ -268,11 +291,14 @@ def get_device(
             )
 
     if use_cache:
+        # Cache device
         DEVICE_CACHE[cache_key] = device
-        get_lookup_module(
-            device
-        )  # Init the slangpy loopup cache up front to make tracking more robust
-        save_live_objects()  # Update live object tracking if caching device as it won't get freed
+
+        # When leak tracking, init the slangpy loopup cache up front and save live
+        # objects so that we don't report cached device resources as leaks.
+        if LEAK_TRACKING_ENABLED:
+            get_lookup_module(device)
+            save_live_objects()
 
     return device
 

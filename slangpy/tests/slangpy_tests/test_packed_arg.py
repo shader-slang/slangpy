@@ -7,6 +7,7 @@ from slangpy import DeviceType, pack, Tensor
 from slangpy.testing import helpers
 
 
+@pytest.mark.memory_leak("Leaks call data cache", details={"NativeCallDataCache": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_simple_int_call(device_type: DeviceType):
 
@@ -28,6 +29,7 @@ int copy(int val) {
     assert result == 42
 
 
+@pytest.mark.memory_leak("Leaks call data cache", details={"NativeCallDataCache": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_simple_struct_call(device_type: DeviceType):
 
@@ -53,6 +55,7 @@ int copy(Val val) {
     assert result == 42
 
 
+@pytest.mark.memory_leak("Leaks call data cache", details={"NativeCallDataCache": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_array(device_type: DeviceType):
 
@@ -88,6 +91,7 @@ int inc(Val val) {
     assert np.array_equal(results, np.array([2, 3, 4, 5], dtype=np.int32))
 
 
+@pytest.mark.memory_leak("Leaks call data cache", details={"NativeCallDataCache": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_with_tensor_array(device_type: DeviceType):
     if device_type == DeviceType.metal:

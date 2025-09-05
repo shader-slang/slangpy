@@ -16,6 +16,7 @@ from .helpers import (
     DEVICE_CACHE,
     save_live_objects,
     compare_and_save_live_objects,
+    LEAK_TRACKING_ENABLED,
 )
 
 
@@ -149,16 +150,29 @@ def pytest_runtest_setup(item: Any) -> None:
 @pytest.hookimpl(wrapper=True)
 def pytest_pyfunc_call(pyfuncitem: pytest.Function):
 
-    leaks_mem = pyfuncitem.get_closest_marker("memory_leak") != None
+    if LEAK_TRACKING_ENABLED:
+        # Check if leak tests enabled, and optionally read list of allowed leaks
+        leak_check = True
+        allowed_leaks = None
+        leaks_mem_marker = pyfuncitem.get_closest_marker("memory_leak")
+        if leaks_mem_marker != None:
+            if hasattr(leaks_mem_marker, "kwargs"):
+                allowed_leaks = leaks_mem_marker.kwargs.get("details", None)
+            leak_check = allowed_leaks != None
 
-    if not leaks_mem:
-        save_live_objects()
+        # If checks enabled, save current live objects.
+        if leak_check:
+            save_live_objects()
 
     # If the outcome is an exception, will raise the exception.
     res = yield
 
-    if not leaks_mem:
-        compare_and_save_live_objects()
+    if LEAK_TRACKING_ENABLED:
+        # If checks enabled, immediately close any left over devices, then
+        # check for leaked objects.
+        if leak_check:
+            close_leaked_devices()
+            compare_and_save_live_objects(allowed_leaks)
 
     # Return result
     return res

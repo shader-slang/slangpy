@@ -8,6 +8,7 @@ import slangpy as spy
 from slangpy.testing import helpers
 
 
+@pytest.mark.memory_leak("Leaks a whole device!")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_buffer_to_torch(device_type: spy.DeviceType):
     if device_type == spy.DeviceType.cuda:
@@ -50,6 +51,7 @@ def test_buffer_to_torch(device_type: spy.DeviceType):
     )
 
 
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_torch_interop(device_type: spy.DeviceType):
     if device_type == spy.DeviceType.cuda:
