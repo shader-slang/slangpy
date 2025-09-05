@@ -197,8 +197,9 @@ void {reflection.name}_entrypoint({params}) {{
                     [ep],
                     opts,
                 )
-
-                self.compute_pipeline = device.create_compute_pipeline(program)
+                self.compute_pipeline = device.create_compute_pipeline(
+                    program, defer_target_compilation=True
+                )
                 self.device = device
 
         except Exception as e:
