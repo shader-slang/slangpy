@@ -368,6 +368,9 @@ public:
     SlangModule(ref<SlangSession> session, const SlangModuleDesc& desc);
     ~SlangModule();
 
+    // Deleted because the hot reload mechanism in SlangSession assumes only objects created by it exist.
+    SGL_NON_COPYABLE_AND_MOVABLE(SlangModule);
+
     /// Loads slang module and outputs the resulting SlangModuleData in current build info.
     void load(SlangSessionBuild& build) const;
 
@@ -492,6 +495,9 @@ class SGL_API ShaderProgram : public DeviceChild {
 public:
     ShaderProgram(ref<Device> device, ref<SlangSession> session, const ShaderProgramDesc& desc);
     ~ShaderProgram();
+
+    // Deleted because the hot reload mechanism in SlangSession assumes only objects created by it exist.
+    SGL_NON_COPYABLE_AND_MOVABLE(ShaderProgram);
 
     virtual void _release_rhi_resources() override
     {

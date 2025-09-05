@@ -602,26 +602,29 @@ std::string SlangSession::load_source(std::string_view module_name)
 
 void SlangSession::_register_program(ShaderProgram* program)
 {
+    SGL_ASSERT(m_registered_programs.count(program) == 0);
     m_registered_programs.insert(program);
 }
 
 void SlangSession::_unregister_program(ShaderProgram* program)
 {
+    SGL_ASSERT(m_registered_programs.count(program) == 1);
     m_registered_programs.erase(program);
 }
 
 void SlangSession::_register_module(SlangModule* module)
 {
-    auto existing = std::find(m_registered_modules.begin(), m_registered_modules.end(), module);
-    if (existing == m_registered_modules.end())
-        m_registered_modules.push_back(module);
+    SGL_ASSERT(
+        std::find(m_registered_modules.begin(), m_registered_modules.end(), module) == m_registered_modules.end()
+    );
+    m_registered_modules.push_back(module);
 }
 
 void SlangSession::_unregister_module(SlangModule* module)
 {
     auto existing = std::find(m_registered_modules.begin(), m_registered_modules.end(), module);
-    if (existing != m_registered_modules.end())
-        m_registered_modules.erase(existing);
+    SGL_ASSERT(existing != m_registered_modules.end());
+    m_registered_modules.erase(existing);
 }
 
 std::string SlangSession::to_string() const

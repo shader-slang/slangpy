@@ -183,24 +183,39 @@ def benchmark_python(args: Any):
         # Run for all device types plus nodevice tests
         device_types = device_types + ["nodevice"]
 
-    # Run benchmarks for each device type
-    for device_type in device_types:
-        print(f"Running benchmarks for device type: {device_type}")
+    try:
+        # Lock GPU clocks
+        if args.lock_gpu_clocks:
+            cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"]
+            if os_name == "linux":
+                cmd = ["sudo"] + cmd
+            run_command(cmd)
 
-        cmd = ["pytest", "slangpy/benchmarks", "-ra", "--device-types", device_type]
-        if args.mongodb_connection_string:
-            cmd += ["--benchmark-upload", args.run_id]
-            cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
-            if args.mongodb_database_name:
-                cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
+        # Run benchmarks for each device type
+        for device_type in device_types:
+            print(f"Running benchmarks for device type: {device_type}")
 
-        try:
-            run_command(cmd, env=env)
-        except Exception as e:
-            print(f"Benchmarks failed for device type {device_type}: {e}")
-            if args.device_type:  # If specific device requested, fail hard
-                raise
-            # Otherwise, continue with other devices
+            cmd = ["pytest", "slangpy/benchmarks", "-ra", "--device-types", device_type]
+            if args.mongodb_connection_string:
+                cmd += ["--benchmark-upload", args.run_id]
+                cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
+                if args.mongodb_database_name:
+                    cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
+
+            try:
+                run_command(cmd, env=env)
+            except Exception as e:
+                print(f"Benchmarks failed for device type {device_type}: {e}")
+                if args.device_type:  # If specific device requested, fail hard
+                    raise
+                # Otherwise, continue with other devices
+    finally:
+        # Unlock GPU clocks
+        if args.lock_gpu_clocks:
+            cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"]
+            if os_name == "linux":
+                cmd = ["sudo"] + cmd
+            run_command(cmd)
 
 
 def coverage_report(args: Any):
@@ -258,6 +273,11 @@ def main():
         "--device-type",
         type=str,
         help="Specific device type to benchmark (d3d12, vulkan, cuda, metal, nodevice)",
+    )
+    parser_benchmark_python.add_argument(
+        "--lock-gpu-clocks",
+        action="store_true",
+        help="Lock GPU clocks during benchmarking (requires admin privileges).",
     )
 
     parser_coverage_report = commands.add_parser("coverage-report", help="generate coverage report")

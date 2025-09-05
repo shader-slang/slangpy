@@ -209,7 +209,7 @@ void {reflection.name}_entrypoint({params}) {{
         opts: "NativeCallRuntimeOptions",
         thread_count: uint3,
         vars: dict[str, Any] = {},
-        command_buffer: Optional[CommandEncoder] = None,
+        command_encoder: Optional[CommandEncoder] = None,
         **kwargs: dict[str, Any],
     ) -> None:
 
@@ -231,10 +231,10 @@ void {reflection.name}_entrypoint({params}) {{
         self.runtime.write_raw_dispatch_data(call_data, unpacked_kwargs)
 
         # Call dispatch
-        self.kernel.dispatch(thread_count, uniforms, command_buffer, **call_data)
+        self.kernel.dispatch(thread_count, uniforms, command_encoder, **call_data)
 
-        # If just adding to command buffer, post dispatch is redundant
-        if command_buffer is not None:
+        # If just adding to command encoder, post dispatch is redundant
+        if command_encoder is not None:
             return
 
         # Push updated 'this' values back to original objects

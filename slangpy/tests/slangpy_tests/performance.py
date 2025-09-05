@@ -107,13 +107,13 @@ def run():
         lambda: raw_compute_test(compute_kernel, a, b, res, 10000000),
     )
 
-    command_buffer = device.create_command_encoder()
+    command_encoder = device.create_command_encoder()
     sgl_queue = perf_test(
         "Queue dispatch",
         device,
-        lambda: raw_queue_kernel_test(compute_kernel, a, b, res, 10000000, command_buffer),
+        lambda: raw_queue_kernel_test(compute_kernel, a, b, res, 10000000, command_encoder),
     )
-    device.submit_command_buffer(command_buffer.finish())
+    device.submit_command_buffer(command_encoder.finish())
     device.wait_for_idle()
 
     perf_test(
@@ -124,13 +124,13 @@ def run():
 
     perf_test("Spy large invoke", device, lambda: spy_module.add(a=a, b=b, _result=res))
 
-    command_buffer = device.create_command_encoder()
+    command_encoder = device.create_command_encoder()
     spy_queue = perf_test(
         "Spy append",
         device,
-        lambda: spy_module.add.append_to(command_buffer, a=a, b=b, _result=res),
+        lambda: spy_module.add.append_to(command_encoder, a=a, b=b, _result=res),
     )
-    device.submit_command_buffer(command_buffer.finish())
+    device.submit_command_buffer(command_encoder.finish())
     device.wait_for_idle()
 
     perf_test(
@@ -219,7 +219,7 @@ def run_for_profiling():
 
     # Bare bones append
     if False:
-        command_buffer = device.create_command_encoder()
+        command_encoder = device.create_command_encoder()
 
         def add_command():
             add_kernel.dispatch(
@@ -232,7 +232,7 @@ def run_for_profiling():
                         "count": 32,
                     }
                 },
-                command_buffer=command_buffer,
+                command_encoder=command_encoder,
             )
 
         start = time()
@@ -240,14 +240,14 @@ def run_for_profiling():
             add_command()
         direct_dispatch = time() - start
 
-        device.submit_command_buffer(command_buffer.finish())
+        device.submit_command_buffer(command_encoder.finish())
         device.wait_for_idle()
 
         sleep(interval)
 
     # SGL ND buffer append
     if True:
-        command_buffer = device.create_command_encoder()
+        command_encoder = device.create_command_encoder()
 
         def add_shapes_command():
             add_with_shapes_kernel.dispatch(
@@ -260,7 +260,7 @@ def run_for_profiling():
                         "count": 32,
                     }
                 },
-                command_buffer=command_buffer,
+                command_encoder=command_encoder,
             )
 
         start = time()
@@ -268,35 +268,35 @@ def run_for_profiling():
             add_shapes_command()
         direct_dispatch_2 = time() - start
 
-        device.submit_command_buffer(command_buffer.finish())
+        device.submit_command_buffer(command_encoder.finish())
         device.wait_for_idle()
 
         sleep(interval)
 
     # SlangPy append
     if True:
-        command_buffer = device.create_command_encoder()
+        command_encoder = device.create_command_encoder()
 
         def sp_command():
-            spy_module.add.append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
+            spy_module.add.append_to(command_encoder, a=a_small, b=b_small, _result=res_small)
 
         start = time()
         for i in range(0, iterations):
             sp_command()
         spy_append = time() - start
 
-        device.submit_command_buffer(command_buffer.finish())
+        device.submit_command_buffer(command_encoder.finish())
         device.wait_for_idle()
 
         sleep(interval)
 
     # SlangPy complex append
     if True:
-        command_buffer = device.create_command_encoder()
+        command_encoder = device.create_command_encoder()
 
         def comp_command():
             spy_module.add.map(a=(0,), b=(0,), _result=(0,)).set({}).constants({"x": 10}).append_to(
-                command_buffer, a=a_small, b=b_small, _result=res_small
+                command_encoder, a=a_small, b=b_small, _result=res_small
             )
 
         start = time()
@@ -304,18 +304,18 @@ def run_for_profiling():
             comp_command()
         spy_complex_append = time() - start
 
-        device.submit_command_buffer(command_buffer.finish())
+        device.submit_command_buffer(command_encoder.finish())
         device.wait_for_idle()
 
         sleep(interval)
 
     # SlangPy texture append
     if True:
-        command_buffer = device.create_command_encoder()
+        command_encoder = device.create_command_encoder()
 
         def tex_command():
             spy_module.add.map(a=float_type, b=float_type, _result=float_type).append_to(
-                command_buffer, a=a_texture, b=b_texture, _result=res_texture
+                command_encoder, a=a_texture, b=b_texture, _result=res_texture
             )
 
         start = time()
@@ -323,24 +323,24 @@ def run_for_profiling():
             tex_command()
         spy_tex_append = time() - start
 
-        device.submit_command_buffer(command_buffer.finish())
+        device.submit_command_buffer(command_encoder.finish())
         device.wait_for_idle()
 
         sleep(interval)
 
     # SlangPy tensor append
     if True:
-        command_buffer = device.create_command_encoder()
+        command_encoder = device.create_command_encoder()
 
         def sp_command():
-            spy_module.add.append_to(command_buffer, a=a_tensor, b=b_tensor, _result=res_tensor)
+            spy_module.add.append_to(command_encoder, a=a_tensor, b=b_tensor, _result=res_tensor)
 
         start = time()
         for i in range(0, iterations):
             sp_command()
         spy_tensor_append = time() - start
 
-        device.submit_command_buffer(command_buffer.finish())
+        device.submit_command_buffer(command_encoder.finish())
         device.wait_for_idle()
 
         sleep(interval)
@@ -451,12 +451,12 @@ def run_for_sig_test():
     spy_module.add(a=a_small, b=10.0, _result=res_small)
 
     # Run perf test
-    command_buffer = device.create_command_encoder()
+    command_encoder = device.create_command_encoder()
     start = time()
     for i in range(0, iterations):
-        spy_module.add.map().append_to(command_buffer, a=a_small, b=b_small, _result=res_small)
+        spy_module.add.map().append_to(command_encoder, a=a_small, b=b_small, _result=res_small)
     spy_append = time() - start
-    device.submit_command_buffer(command_buffer.finish())
+    device.submit_command_buffer(command_encoder.finish())
     device.wait_for_idle()
 
     print(f"SlangPy:  {spy_append}")
