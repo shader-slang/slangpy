@@ -37,7 +37,7 @@ public:
     nb::object python_object() const { return m_python_object; }
 
     /// Get string representation of the packed arg.
-    std::string to_string() const;
+    std::string to_string() const override;
 
 private:
     ref<NativeMarshall> m_python;
