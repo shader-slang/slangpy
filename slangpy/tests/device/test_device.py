@@ -217,12 +217,12 @@ def test_report_heaps(device_type: spy.DeviceType):
 
     # Verify each heap report has the expected structure
     for heap_report in heap_reports:
-        assert hasattr(heap_report, "name")
+        assert hasattr(heap_report, "label")
         assert hasattr(heap_report, "num_pages")
         assert hasattr(heap_report, "total_allocated")
         assert hasattr(heap_report, "total_mem_usage")
         assert hasattr(heap_report, "num_allocations")
-        assert isinstance(heap_report.name, str)
+        assert isinstance(heap_report.label, str)
 
         # Verify the types are correct
         assert isinstance(heap_report.num_pages, int)

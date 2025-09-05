@@ -189,7 +189,7 @@ def benchmark_python(args: Any):
 
         cmd = ["pytest", "slangpy/benchmarks", "-ra", "--device-types", device_type]
         if args.mongodb_connection_string:
-            cmd += ["--benchmark-upload"]
+            cmd += ["--benchmark-upload", args.run_id]
             cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
             if args.mongodb_database_name:
                 cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
@@ -247,6 +247,7 @@ def main():
     parser_benchmark_python = commands.add_parser(
         "benchmark-python", help="run benchmarks (python)"
     )
+    parser_benchmark_python.add_argument("-r", "--run-id", type=str, required=True, help="Run ID")
     parser_benchmark_python.add_argument(
         "-c", "--mongodb-connection-string", type=str, help="MongoDB connection string"
     )

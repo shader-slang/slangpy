@@ -996,7 +996,7 @@ std::vector<HeapReport> Device::report_heaps()
 
     for (const auto& rhi_report : rhi_heap_reports) {
         HeapReport sgl_report;
-        sgl_report.name = std::string(rhi_report.label);
+        sgl_report.label = std::string(rhi_report.label);
         sgl_report.num_pages = rhi_report.numPages;
         sgl_report.total_allocated = rhi_report.totalAllocated;
         sgl_report.total_mem_usage = rhi_report.totalMemUsage;
