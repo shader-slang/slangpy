@@ -800,13 +800,13 @@ struct HeapReport {
     {
         return fmt::format(
             "HeapReport(\n"
-            "  name = \"{}\",\n"
+            "  label = \"{}\",\n"
             "  num_pages = {},\n"
             "  total_allocated = {},\n"
             "  total_mem_usage = {},\n"
             "  num_allocations = {}\n"
             ")",
-            name,
+            label,
             num_pages,
             total_allocated,
             total_mem_usage,

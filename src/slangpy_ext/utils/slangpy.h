@@ -602,7 +602,7 @@ public:
     void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
 
     /// Clear internal data for garbage collection
-    void clear()
+    void garbage_collect()
     {
         m_uniforms.clear();
         m_this = nb::none();
