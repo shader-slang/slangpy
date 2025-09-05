@@ -35,7 +35,7 @@ public:
     ref<NativeNDBuffer> index(nb::object index_arg) const;
 
     /// Get string representation of the NDBuffer.
-    std::string to_string() const;
+    std::string to_string() const override;
 
 private:
     NativeNDBufferDesc m_desc;

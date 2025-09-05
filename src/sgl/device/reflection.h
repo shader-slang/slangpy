@@ -290,7 +290,7 @@ public:
     }
 
     /// Description as string.
-    std::string to_string() const;
+    std::string to_string() const override;
 
     /// Get type corresponding to this decl ref.
     ref<const TypeReflection> as_type() const;
@@ -648,7 +648,7 @@ public:
     }
 #endif
 
-    std::string to_string() const;
+    std::string to_string() const override;
 };
 
 SGL_ENUM_CLASS_OPERATORS(TypeReflection::ResourceShape);
@@ -776,7 +776,7 @@ public:
         return narrow_cast<uint32_t>(slang_target()->getFieldBindingRangeOffset(field_index));
     }
 
-    std::string to_string() const;
+    std::string to_string() const override;
 };
 
 /// TypeLayoutReflection lazy field list evaluation.
@@ -965,7 +965,7 @@ public:
         return slang_target()->getOffset(SlangParameterCategory::SLANG_PARAMETER_CATEGORY_UNIFORM);
     }
 
-    std::string to_string() const;
+    std::string to_string() const override;
 };
 
 class SGL_API EntryPointLayout : public BaseReflectionObjectImpl<slang::EntryPointLayout> {
@@ -1007,7 +1007,7 @@ public:
 
     bool uses_any_sample_rate_input() const { return slang_target()->usesAnySampleRateInput(); }
 
-    std::string to_string() const;
+    std::string to_string() const override;
 };
 
 
@@ -1178,7 +1178,7 @@ public:
         return result;
     }
 
-    std::string to_string() const;
+    std::string to_string() const override;
 };
 
 /// ProgramLayout lazy parameter list evaluation.
