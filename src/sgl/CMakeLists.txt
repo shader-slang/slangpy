@@ -220,13 +220,19 @@ target_compile_options(sgl
         >
         # Clang flags.
         $<$<CXX_COMPILER_ID:Clang>:
+            -Wno-unknown-warning-option
             -Wno-unused-private-field
             -Wno-braced-scalar-init
             -Wno-self-assign-overloaded
             -Wno-deprecated-copy
+            -Wno-microsoft-cast
+
+            # this is for ImGUI only
+            -Wno-nontrivial-memcall
         >
         # GCC flags.
         $<$<CXX_COMPILER_ID:GNU>:
+            -Wno-unknown-warning
             -Wno-literal-suffix
             -Wno-class-memaccess
             -Wno-strict-aliasing

@@ -717,9 +717,17 @@ SGL_PY_EXPORT(device_device)
 
     device.def(
         "create_compute_pipeline",
-        [](Device* self, ref<ShaderProgram> program)
-        { return self->create_compute_pipeline({.program = std::move(program)}); },
+        [](Device* self, ref<ShaderProgram> program, bool defer_target_compilation, std::optional<std::string> label)
+        {
+            return self->create_compute_pipeline({
+                .program = std::move(program),
+                .defer_target_compilation = defer_target_compilation,
+                .label = label.value_or(""),
+            });
+        },
         "program"_a,
+        "defer_target_compilation"_a = ComputePipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
         D(Device, create_compute_pipeline)
     );
     device
@@ -734,17 +742,21 @@ SGL_PY_EXPORT(device_device)
            std::vector<ColorTargetDesc> targets,
            std::optional<DepthStencilDesc> depth_stencil,
            std::optional<RasterizerDesc> rasterizer,
-           std::optional<MultisampleDesc> multisample)
+           std::optional<MultisampleDesc> multisample,
+           bool defer_target_compilation,
+           std::optional<std::string> label)
         {
-            return self->create_render_pipeline({
-                .program = std::move(program),
-                .input_layout = input_layout,
-                .primitive_topology = primitive_topology,
-                .targets = targets,
-                .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
-                .rasterizer = rasterizer.value_or(RasterizerDesc{}),
-                .multisample = multisample.value_or(MultisampleDesc{}),
-            });
+            return self->create_render_pipeline(
+                {.program = std::move(program),
+                 .input_layout = input_layout,
+                 .primitive_topology = primitive_topology,
+                 .targets = targets,
+                 .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
+                 .rasterizer = rasterizer.value_or(RasterizerDesc{}),
+                 .multisample = multisample.value_or(MultisampleDesc{}),
+                 .defer_target_compilation = defer_target_compilation,
+                 .label = label.value_or("")}
+            );
         },
         "program"_a,
         "input_layout"_a.none(),
@@ -753,6 +765,8 @@ SGL_PY_EXPORT(device_device)
         "depth_stencil"_a.none() = nb::none(),
         "rasterizer"_a.none() = nb::none(),
         "multisample"_a.none() = nb::none(),
+        "defer_target_compilation"_a = RenderPipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
         D(Device, create_render_pipeline)
     );
     device.def("create_render_pipeline", &Device::create_render_pipeline, "desc"_a, D(Device, create_render_pipeline));
@@ -765,7 +779,9 @@ SGL_PY_EXPORT(device_device)
            uint32_t max_recursion,
            uint32_t max_ray_payload_size,
            uint32_t max_attribute_size,
-           RayTracingPipelineFlags flags)
+           RayTracingPipelineFlags flags,
+           bool defer_target_compilation,
+           std::optional<std::string> label)
         {
             return self->create_ray_tracing_pipeline({
                 .program = std::move(program),
@@ -774,6 +790,8 @@ SGL_PY_EXPORT(device_device)
                 .max_ray_payload_size = max_ray_payload_size,
                 .max_attribute_size = max_attribute_size,
                 .flags = flags,
+                .defer_target_compilation = defer_target_compilation,
+                .label = label.value_or(""),
             });
         },
         "program"_a,
@@ -782,6 +800,8 @@ SGL_PY_EXPORT(device_device)
         "max_ray_payload_size"_a = RayTracingPipelineDesc().max_ray_payload_size,
         "max_attribute_size"_a = RayTracingPipelineDesc().max_attribute_size,
         "flags"_a = RayTracingPipelineDesc().flags,
+        "defer_target_compilation"_a = RayTracingPipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
         D(Device, create_ray_tracing_pipeline)
     );
     device.def(
