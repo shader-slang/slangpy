@@ -131,7 +131,7 @@ class PyNativeObject : public NativeObject {
 public:
     NB_TRAMPOLINE(NativeObject, 1);
 
-    virtual void read_signature(SignatureBuilder* builder) const { NB_OVERRIDE(read_signature, builder); }
+    virtual void read_signature(SignatureBuilder* builder) const override { NB_OVERRIDE(read_signature, builder); }
 };
 
 /// Base class for a slang reflection type
@@ -172,7 +172,7 @@ public:
     ref<TypeLayoutReflection> buffer_type_layout() const { return _py_buffer_type_layout(); }
 
     /// Get string representation of the type.
-    std::string to_string() const;
+    std::string to_string() const override;
 
     /// Virtual accessors to give native system access to python defined reflection properties
     virtual ref<NativeSlangType> _py_element_type() const { return nullptr; }

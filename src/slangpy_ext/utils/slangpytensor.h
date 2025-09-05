@@ -64,7 +64,7 @@ public:
     ref<NativeTensor> detach() const;
 
     /// Get string representation of the tensor.
-    std::string to_string() const;
+    std::string to_string() const override;
 
 private:
     NativeTensorDesc m_desc;
