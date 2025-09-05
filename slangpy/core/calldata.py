@@ -329,7 +329,9 @@ class CallData(NativeCallData):
                     [ep],
                     opts,
                 )
-                self.compute_pipeline = device.create_compute_pipeline(program)
+                self.compute_pipeline = device.create_compute_pipeline(
+                    program, defer_target_compilation=True
+                )
                 build_info.module.compute_pipeline_cache[hash] = self.compute_pipeline
                 self.device = device
                 self.log_debug(f"  Build succesful")
