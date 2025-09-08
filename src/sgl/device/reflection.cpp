@@ -164,16 +164,19 @@ ref<const DeclReflection> DeclReflection::find_first_child_of_kind(Kind kind, st
 
 std::string Attribute::to_string() const
 {
-    std::string str;
-    str += "Attribute(\n";
-    str += fmt::format("  name={},\n", name());
+    std::vector<std::string> arguments;
     uint32_t count = argument_count();
-    str += fmt::format("  argument_count={},\n", count);
+    arguments.reserve(count);
     for (uint32_t i = 0; i < count; i++) {
-        str += fmt::format("  argument_{}={},\n", i, argument_type(i));
+        arguments.push_back(fmt::format("argument_{}={}", i, argument_type(i)));
     }
-    str += ")";
-    return str;
+    return fmt::format(
+        "Attribute(\n  name={},\n  argument_count={}{}{}\n)",
+        name(),
+        count,
+        count > 0 ? ",\n  " : "",
+        fmt::join(arguments, ",\n  ")
+    );
 }
 
 std::string TypeReflection::full_name() const
