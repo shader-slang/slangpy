@@ -89,13 +89,18 @@ jobs:
       - name: Setup CMake/Ninja
         uses: lukka/get-cmake@latest
 
-      # Build Slang.
-      - name: Build Slang
+      # Checkout Slang.
+      - name: Checkout Slang
         run: |
           git clone --recursive https://github.com/shader-slang/slang.git
           cd slang
           git checkout ${{ github.event.inputs.slang_branch }}
           git submodule update --init --recursive
+
+      # Build Slang.
+      - name: Build Slang
+        run: |
+          cd slang
           mkdir build
           cmake -B build --preset default
           cmake --build build --config ${{ matrix.config }} --parallel
