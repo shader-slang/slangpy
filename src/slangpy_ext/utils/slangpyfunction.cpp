@@ -1,17 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "nanobind.h"
-
-#include "sgl/device/device.h"
 #include "sgl/device/command.h"
-
 #include "utils/slangpyfunction.h"
+#include <fmt/format.h>
 
 namespace sgl {
+
+template<>
+struct GcHelper<slangpy::NativeFunctionNode> {
+    void traverse(slangpy::NativeFunctionNode*, GcVisitor& visitor)
+    {
+        visitor("_native_data");
+        visitor("_native_parent");
+    }
+    void clear(slangpy::NativeFunctionNode* node) { node->garbage_collect(); }
+};
 
 } // namespace sgl
 
 namespace sgl::slangpy {
+
 
 ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
@@ -100,6 +109,25 @@ void NativeFunctionNode::append_to(
     }
 }
 
+std::string NativeFunctionNode::to_string() const
+{
+    std::string data_type_name = "None";
+    if (!m_data.is_none()) {
+        data_type_name = nb::cast<std::string>(m_data.type().attr("__name__"));
+    }
+
+    return fmt::format(
+        "NativeFunctionNode(\n"
+        "  type = {},\n"
+        "  parent = {},\n"
+        "  data_type = \"{}\"\n"
+        ")",
+        static_cast<int>(m_type),
+        m_parent ? "present" : "None",
+        data_type_name
+    );
+}
+
 } // namespace sgl::slangpy
 
 SGL_PY_EXPORT(utils_slangpy_function)
@@ -140,7 +168,7 @@ SGL_PY_EXPORT(utils_slangpy_function)
             "_native_append_to",
             &NativeFunctionNode::append_to,
             "cache"_a,
-            "command_buffer"_a,
+            "command_encoder"_a,
             "args"_a,
             "kwargs"_a,
             D_NA(NativeFunctionNode, append_to)
@@ -163,5 +191,6 @@ SGL_PY_EXPORT(utils_slangpy_function)
             &NativeFunctionNode::gather_runtime_options,
             "options"_a,
             D_NA(NativeFunctionNode, gather_runtime_options)
-        );
+        )
+        .def("__repr__", &NativeFunctionNode::to_string);
 }

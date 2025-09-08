@@ -9,6 +9,7 @@ from slangpy.core.callsignature import *
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
 from slangpy.core.native import (
     CallMode,
+    CallDataMode,
     NativeCallData,
     unpack_refs_and_args,
     unpack_refs_and_kwargs,
@@ -16,7 +17,7 @@ from slangpy.core.native import (
     TensorRef,
 )
 
-from slangpy import SlangCompileError, SlangLinkOptions, NativeHandle
+from slangpy import SlangCompileError, SlangLinkOptions, NativeHandle, DeviceType
 from slangpy.bindings import (
     BindContext,
     BoundCallRuntime,
@@ -31,8 +32,19 @@ if TYPE_CHECKING:
 
 SLANG_PATH = Path(__file__).parent.parent / "slang"
 
-_DUMP_GENERATED_SHADERS = False
-_DUMP_SLANG_INTERMEDIATES = False
+_DUMP_GENERATED_SHADERS = os.environ.get("SLANGPY_DUMP_GENERATED_SHADERS", "false").lower() in (
+    "true",
+    "1",
+)
+
+_DUMP_SLANG_INTERMEDIATES = os.environ.get("SLANGPY_DUMP_SLANG_INTERMEDIATES", "false").lower() in (
+    "true",
+    "1",
+)
+_PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_GENERATED_SHADERS", "false").lower() in (
+    "true",
+    "1",
+)
 
 
 def set_dump_generated_shaders(value: bool):
@@ -49,6 +61,15 @@ def set_dump_slang_intermediates(value: bool):
     """
     global _DUMP_SLANG_INTERMEDIATES
     _DUMP_SLANG_INTERMEDIATES = value
+
+
+def set_print_generated_shaders(value: bool):
+    """
+    Specify whether to print generated shaders to the terminal for analysis.
+    Can also be controlled via the SLANGPY_PRINT_GENERATED_SHADERS environment variable.
+    """
+    global _PRINT_GENERATED_SHADERS
+    _PRINT_GENERATED_SHADERS = value
 
 
 def unpack_arg(arg: Any) -> Any:
@@ -111,6 +132,12 @@ class CallData(NativeCallData):
             self.layout = build_info.module.layout
             self.call_mode = build_info.call_mode
 
+            # Set call data mode based on device type
+            if build_info.module.device.info.type == DeviceType.cuda:
+                self.call_data_mode = CallDataMode.entry_point
+            else:
+                self.call_data_mode = CallDataMode.global_data
+
             # Build 'unpacked' args (that handle IThis) and extract any pytorch
             # tensor references at the same time.
             tensor_refs = []
@@ -142,6 +169,7 @@ class CallData(NativeCallData):
                 self.call_mode,
                 build_info.module.device_module,
                 build_info.options,
+                self.call_data_mode,
             )
 
             # Build the unbound signature from inputs
@@ -222,6 +250,7 @@ class CallData(NativeCallData):
                 snippets=True,
                 call_data_structs=True,
                 constants=True,
+                use_param_block_for_call_data=context.call_data_mode == CallDataMode.global_data,
             )
 
             # Optionally write the shader to a file for debugging.
@@ -252,6 +281,24 @@ class CallData(NativeCallData):
                     f.write("\n*/\n")
                     f.write(code)
 
+            # Optionally print the shader to the terminal for AI analysis.
+            if _PRINT_GENERATED_SHADERS:
+                print("=" * 80)
+                print(f"GENERATED SHADER: {build_info.module.name}::{build_info.name}")
+                if self.call_mode == CallMode.bwds:
+                    print("MODE: Backwards")
+                else:
+                    print("MODE: Forward")
+                print("=" * 80)
+                print("/* BINDINGS:")
+                print(bound_call_table(bindings))
+                print("*/")
+                print(code)
+                print("=" * 80)
+                print(f"END SHADER: {build_info.module.name}::{build_info.name}")
+                print("=" * 80)
+                print()
+
             # Hash the code to get a unique identifier for the module.
             # We add type conformances to the start of the code to ensure that the hash is unique
             assert function.slangpy_signature is not None
@@ -261,15 +308,15 @@ class CallData(NativeCallData):
             hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 
             # Check if we've already built this module.
-            if hash in build_info.module.kernel_cache:
-                # Get kernel from cache if we have
-                self.kernel = build_info.module.kernel_cache[hash]
+            if hash in build_info.module.compute_pipeline_cache:
+                # Get pipeline from cache if we have
+                self.compute_pipeline = build_info.module.compute_pipeline_cache[hash]
                 self.device = build_info.module.device
-                self.log_debug(f"  Found cached kernel with hash {hash}")
+                self.log_debug(f"  Found cached pipeline with hash {hash}")
 
             else:
                 # Build new module and link it with the one that contains the function being called.
-                self.log_debug(f"  Building new kernel with hash {hash}")
+                self.log_debug(f"  Building new pipeline with hash {hash}")
                 session = build_info.module.session
                 device = session.device
                 module = session.load_module_from_source(hash, code)
@@ -282,8 +329,10 @@ class CallData(NativeCallData):
                     [ep],
                     opts,
                 )
-                self.kernel = device.create_compute_kernel(program)
-                build_info.module.kernel_cache[hash] = self.kernel
+                self.compute_pipeline = device.create_compute_pipeline(
+                    program, defer_target_compilation=True
+                )
+                build_info.module.compute_pipeline_cache[hash] = self.compute_pipeline
                 self.device = device
                 self.log_debug(f"  Build succesful")
 

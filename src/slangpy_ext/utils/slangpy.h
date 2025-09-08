@@ -127,10 +127,11 @@ private:
 
 /// Nanobind trampoline class for NativeObject
 class PyNativeObject : public NativeObject {
+    SGL_OBJECT(PyNativeObject)
 public:
     NB_TRAMPOLINE(NativeObject, 1);
 
-    virtual void read_signature(SignatureBuilder* builder) const { NB_OVERRIDE(read_signature, builder); }
+    virtual void read_signature(SignatureBuilder* builder) const override { NB_OVERRIDE(read_signature, builder); }
 };
 
 /// Base class for a slang reflection type
@@ -169,6 +170,9 @@ public:
 
     /// Get the buffer type layout of the type (call into Python).
     ref<TypeLayoutReflection> buffer_type_layout() const { return _py_buffer_type_layout(); }
+
+    /// Get string representation of the type.
+    std::string to_string() const override;
 
     /// Virtual accessors to give native system access to python defined reflection properties
     virtual ref<NativeSlangType> _py_element_type() const { return nullptr; }
@@ -526,6 +530,7 @@ private:
 /// Binding information for a call to a compute kernel. Includes a set of positional
 /// and keyword arguments as bound variables.
 class NativeBoundCallRuntime : Object {
+    SGL_OBJECT(NativeBoundCallRuntime)
 public:
     NativeBoundCallRuntime() = default;
 
@@ -576,6 +581,7 @@ private:
 };
 
 class NativeCallRuntimeOptions : Object {
+    SGL_OBJECT(NativeCallRuntimeOptions)
 public:
     /// Get the uniforms.
     nb::list get_uniforms() const { return m_uniforms; }
@@ -594,6 +600,13 @@ public:
 
     /// Set the CUDA stream.
     void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
+
+    /// Clear internal data for garbage collection
+    void garbage_collect()
+    {
+        m_uniforms.clear();
+        m_this = nb::none();
+    }
 
 private:
     nb::list m_uniforms;
@@ -616,9 +629,10 @@ private:
         log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                               \
     }
 
-/// Contains the compute kernel for a call, the corresponding bindings and any additional
+/// Contains the compute pipeline for a call, the corresponding bindings and any additional
 /// options provided by the user.
 class NativeCallData : Object {
+    SGL_OBJECT(NativeCallData)
 public:
     NativeCallData() = default;
 
@@ -628,11 +642,11 @@ public:
     /// Set the device.
     void set_device(const ref<Device>& device) { m_device = device; }
 
-    /// Get the compute kernel.
-    ref<ComputeKernel> get_kernel() const { return m_kernel; }
+    /// Get the compute pipeline.
+    ref<ComputePipeline> get_compute_pipeline() const { return m_compute_pipeline; }
 
-    /// Set the compute kernel.
-    void set_kernel(const ref<ComputeKernel>& kernel) { m_kernel = kernel; }
+    /// Set the compute pipeline.
+    void set_compute_pipeline(const ref<ComputePipeline>& pipeline) { m_compute_pipeline = pipeline; }
 
     /// Get the call dimensionality.
     int get_call_dimensionality() const { return m_call_dimensionality; }
@@ -651,6 +665,12 @@ public:
 
     /// Set the call mode (primitive/forward/backward).
     void set_call_mode(CallMode call_mode) { m_call_mode = call_mode; }
+
+    /// Get the call data mode (global_data/entry_point).
+    CallDataMode get_call_data_mode() const { return m_call_data_mode; }
+
+    /// Set the call data mode (global_data/entry_point).
+    void set_call_data_mode(CallDataMode call_data_mode) { m_call_data_mode = call_data_mode; }
 
     /// Get the shape of the last call (useful for debugging).
     const Shape& get_last_call_shape() const { return m_last_call_shape; }
@@ -739,10 +759,11 @@ public:
 
 private:
     ref<Device> m_device;
-    ref<ComputeKernel> m_kernel;
+    ref<ComputePipeline> m_compute_pipeline;
     int m_call_dimensionality{0};
     ref<NativeBoundCallRuntime> m_runtime;
     CallMode m_call_mode{CallMode::prim};
+    CallDataMode m_call_data_mode{CallDataMode::global_data};
     Shape m_last_call_shape;
     std::string m_debug_name;
     ref<Logger> m_logger;
@@ -768,6 +789,8 @@ typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> Bu
 
 /// Native side of system for caching call data info for given function signatures.
 class NativeCallDataCache : Object {
+    SGL_OBJECT(NativeCallDataCache)
+
 public:
     NativeCallDataCache();
 

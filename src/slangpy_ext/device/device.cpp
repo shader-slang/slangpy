@@ -239,6 +239,14 @@ SGL_PY_EXPORT(device_device)
 
     nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
 
+    nb::class_<HeapReport>(m, "HeapReport", D_NA(HeapReport))
+        .def_rw("label", &HeapReport::label, D_NA(HeapReport, label))
+        .def_rw("num_pages", &HeapReport::num_pages, D_NA(HeapReport, num_pages))
+        .def_rw("total_allocated", &HeapReport::total_allocated, D_NA(HeapReport, total_allocated))
+        .def_rw("total_mem_usage", &HeapReport::total_mem_usage, D_NA(HeapReport, total_mem_usage))
+        .def_rw("num_allocations", &HeapReport::num_allocations, D_NA(HeapReport, num_allocations))
+        .def("__repr__", &HeapReport::to_string);
+
     nb::class_<Device, Object> device(m, "Device", nb::is_weak_referenceable(), D(Device));
     device.def(
         "__init__",
@@ -709,9 +717,17 @@ SGL_PY_EXPORT(device_device)
 
     device.def(
         "create_compute_pipeline",
-        [](Device* self, ref<ShaderProgram> program)
-        { return self->create_compute_pipeline({.program = std::move(program)}); },
+        [](Device* self, ref<ShaderProgram> program, bool defer_target_compilation, std::optional<std::string> label)
+        {
+            return self->create_compute_pipeline({
+                .program = std::move(program),
+                .defer_target_compilation = defer_target_compilation,
+                .label = label.value_or(""),
+            });
+        },
         "program"_a,
+        "defer_target_compilation"_a = ComputePipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
         D(Device, create_compute_pipeline)
     );
     device
@@ -726,17 +742,21 @@ SGL_PY_EXPORT(device_device)
            std::vector<ColorTargetDesc> targets,
            std::optional<DepthStencilDesc> depth_stencil,
            std::optional<RasterizerDesc> rasterizer,
-           std::optional<MultisampleDesc> multisample)
+           std::optional<MultisampleDesc> multisample,
+           bool defer_target_compilation,
+           std::optional<std::string> label)
         {
-            return self->create_render_pipeline({
-                .program = std::move(program),
-                .input_layout = input_layout,
-                .primitive_topology = primitive_topology,
-                .targets = targets,
-                .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
-                .rasterizer = rasterizer.value_or(RasterizerDesc{}),
-                .multisample = multisample.value_or(MultisampleDesc{}),
-            });
+            return self->create_render_pipeline(
+                {.program = std::move(program),
+                 .input_layout = input_layout,
+                 .primitive_topology = primitive_topology,
+                 .targets = targets,
+                 .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
+                 .rasterizer = rasterizer.value_or(RasterizerDesc{}),
+                 .multisample = multisample.value_or(MultisampleDesc{}),
+                 .defer_target_compilation = defer_target_compilation,
+                 .label = label.value_or("")}
+            );
         },
         "program"_a,
         "input_layout"_a.none(),
@@ -745,6 +765,8 @@ SGL_PY_EXPORT(device_device)
         "depth_stencil"_a.none() = nb::none(),
         "rasterizer"_a.none() = nb::none(),
         "multisample"_a.none() = nb::none(),
+        "defer_target_compilation"_a = RenderPipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
         D(Device, create_render_pipeline)
     );
     device.def("create_render_pipeline", &Device::create_render_pipeline, "desc"_a, D(Device, create_render_pipeline));
@@ -757,7 +779,9 @@ SGL_PY_EXPORT(device_device)
            uint32_t max_recursion,
            uint32_t max_ray_payload_size,
            uint32_t max_attribute_size,
-           RayTracingPipelineFlags flags)
+           RayTracingPipelineFlags flags,
+           bool defer_target_compilation,
+           std::optional<std::string> label)
         {
             return self->create_ray_tracing_pipeline({
                 .program = std::move(program),
@@ -766,6 +790,8 @@ SGL_PY_EXPORT(device_device)
                 .max_ray_payload_size = max_ray_payload_size,
                 .max_attribute_size = max_attribute_size,
                 .flags = flags,
+                .defer_target_compilation = defer_target_compilation,
+                .label = label.value_or(""),
             });
         },
         "program"_a,
@@ -774,6 +800,8 @@ SGL_PY_EXPORT(device_device)
         "max_ray_payload_size"_a = RayTracingPipelineDesc().max_ray_payload_size,
         "max_attribute_size"_a = RayTracingPipelineDesc().max_attribute_size,
         "flags"_a = RayTracingPipelineDesc().flags,
+        "defer_target_compilation"_a = RayTracingPipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
         D(Device, create_ray_tracing_pipeline)
     );
     device.def(
@@ -896,6 +924,8 @@ SGL_PY_EXPORT(device_device)
     device.def_static("get_created_devices", &Device::get_created_devices, D_NA(Device, get_created_devices));
 
     device.def_static("report_live_objects", &Device::report_live_objects, D(Device, report_live_objects));
+
+    device.def("report_heaps", &Device::report_heaps, D_NA(Device, report_heaps));
 
     m.def(
         "get_cuda_current_context_native_handles",

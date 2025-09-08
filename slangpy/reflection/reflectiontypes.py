@@ -329,6 +329,12 @@ class SlangType(NativeSlangType):
             self._cached_fields = {name: make_field(name, value) for name, value in fields.items()}
         return self._cached_fields
 
+    def __repr__(self) -> str:
+        """
+        Return a detailed string representation of the SlangType for debugging.
+        """
+        return f"SlangType(name='{self.full_name}', kind={self.type_reflection.kind}, shape={self.shape})"
+
 
 class VoidType(SlangType):
     """

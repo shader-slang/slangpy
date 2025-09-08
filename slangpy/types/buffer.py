@@ -134,11 +134,11 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
         if element_type.module.layout == program_layout:
             element_type = element_type.struct
         else:
-            element_type = program_layout.find_type_by_name(element_type.name)
+            element_type = program_layout.find_type_by_name(element_type.full_name)
     elif isinstance(element_type, TypeReflection):
-        element_type = program_layout.find_type(element_type)
+        element_type = program_layout.find_type_by_name(element_type.full_name)
     elif isinstance(element_type, TypeLayoutReflection):
-        element_type = program_layout.find_type(element_type.type)
+        element_type = program_layout.find_type_by_name(element_type.type.full_name)
     elif isinstance(element_type, Marshall):
         if element_type.slang_type.program == program_layout:
             element_type = element_type.slang_type

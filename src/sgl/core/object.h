@@ -21,7 +21,9 @@ static_assert(sizeof(Py_ssize_t_) == sizeof(size_t));
 /// Enable/disable object lifetime tracking.
 /// When enabled, each object derived from Object will have its
 /// lifetime tracked. This is useful for debugging memory leaks.
+#ifndef SGL_ENABLE_OBJECT_TRACKING
 #define SGL_ENABLE_OBJECT_TRACKING 0
+#endif
 
 /// Enable/disable reference tracking.
 /// When enabled, all references to an object that has reference tracking
@@ -29,7 +31,9 @@ static_assert(sizeof(Py_ssize_t_) == sizeof(size_t));
 /// count is increased, the current stack trace is stored. This helps identify
 /// owners of objects that are not properly releasing their references.
 /// Optionally all references can be tracked by setting SGL_TRACK_ALL_REFS.
+#ifndef SGL_ENABLE_REF_TRACKING
 #define SGL_ENABLE_REF_TRACKING 0
+#endif
 
 #if SGL_ENABLE_REF_TRACKING
 #if !SGL_ENABLE_OBJECT_TRACKING

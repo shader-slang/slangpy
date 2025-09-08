@@ -55,7 +55,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-          cache: 'pip'
 
       # Setup Python environment.
       - name: Setup Python environment
@@ -118,4 +117,4 @@ jobs:
       # Benchmark (Python)
       - name: Benchmark (Python)
         if: contains(matrix.flags, 'benchmark')
-        run: python tools/ci.py benchmark-python --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci"
+        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci" --lock-gpu-clocks

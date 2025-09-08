@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from slangpy.core.callsignature import generate_constants
 from slangpy.core.enums import IOType
-from slangpy.core.native import CallMode, pack_arg, unpack_arg
+from slangpy.core.native import CallMode, CallDataMode, pack_arg, unpack_arg
 from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS
 
-from slangpy import CommandEncoder, SlangLinkOptions, uint3
+from slangpy import CommandEncoder, ShaderCursor, SlangLinkOptions, uint3, DeviceType
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.boundvariable import BoundCall
@@ -38,11 +38,19 @@ class DispatchData:
 
             # Bind
             # Setup context
+            # Determine call data mode based on device type
+            call_data_mode = (
+                CallDataMode.entry_point
+                if build_info.module.device.info.type == DeviceType.cuda
+                else CallDataMode.global_data
+            )
+
             context = BindContext(
                 func.module.layout,
                 CallMode.prim,
                 build_info.module.device_module,
                 build_info.options,
+                call_data_mode,
             )
 
             # Build the unbound signature from inputs and convert straight
@@ -142,6 +150,7 @@ void {reflection.name}_entrypoint({params}) {{
                 snippets=True,
                 call_data_structs=True,
                 constants=True,
+                use_param_block_for_call_data=context.device.info.type != DeviceType.cuda,
             )
 
             sanitized = ""
@@ -165,9 +174,9 @@ void {reflection.name}_entrypoint({params}) {{
             hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 
             # Check if we've already built this module.
-            if hash in build_info.module.kernel_cache:
-                # Get kernel from cache if we have
-                self.kernel = build_info.module.kernel_cache[hash]
+            if hash in build_info.module.compute_pipeline_cache:
+                # Get pipeline from cache if we have
+                self.compute_pipeline = build_info.module.compute_pipeline_cache[hash]
                 self.device = build_info.module.device
             else:
                 # Load the module
@@ -188,8 +197,9 @@ void {reflection.name}_entrypoint({params}) {{
                     [ep],
                     opts,
                 )
-
-                self.kernel = device.create_compute_kernel(program)
+                self.compute_pipeline = device.create_compute_pipeline(
+                    program, defer_target_compilation=True
+                )
                 self.device = device
 
         except Exception as e:
@@ -200,7 +210,7 @@ void {reflection.name}_entrypoint({params}) {{
         opts: "NativeCallRuntimeOptions",
         thread_count: uint3,
         vars: dict[str, Any] = {},
-        command_buffer: Optional[CommandEncoder] = None,
+        command_encoder: Optional[CommandEncoder] = None,
         **kwargs: dict[str, Any],
     ) -> None:
 
@@ -221,11 +231,27 @@ void {reflection.name}_entrypoint({params}) {{
         call_data = {}
         self.runtime.write_raw_dispatch_data(call_data, unpacked_kwargs)
 
-        # Call dispatch
-        self.kernel.dispatch(thread_count, uniforms, command_buffer, **call_data)
+        # Create temporary command encoder if none is provided
+        temp_command_encoder: Optional[CommandEncoder] = None
+        if command_encoder is None:
+            temp_command_encoder = self.device.create_command_encoder()
+            command_encoder = temp_command_encoder
 
-        # If just adding to command buffer, post dispatch is redundant
-        if command_buffer is not None:
+        # Dispatch kernel
+        compute_pass = command_encoder.begin_compute_pass()
+        cursor = ShaderCursor(compute_pass.bind_pipeline(self.compute_pipeline))
+        cursor.write(uniforms)
+        cursor.find_entry_point(0).write(call_data)
+        compute_pass.dispatch(thread_count)
+        compute_pass.end()
+
+        # Submit if we created a temporary command encoder
+        if temp_command_encoder is not None:
+            self.device.submit_command_buffer(temp_command_encoder.finish())
+            command_encoder = None
+
+        # If just adding to command encoder, post dispatch is redundant
+        if command_encoder is not None:
             return
 
         # Push updated 'this' values back to original objects

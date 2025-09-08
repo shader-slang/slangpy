@@ -9,7 +9,7 @@
 #include "sgl/core/logger.h"
 #include "sgl/utils/slangpy.h"
 #include "sgl/device/device.h"
-#include "sgl/device/kernel.h"
+#include "sgl/device/pipeline.h"
 #include "sgl/device/command.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
@@ -19,6 +19,8 @@
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpyfunction.h"
 
+#include <fmt/format.h>
+
 namespace sgl {
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
 extern nb::ndarray<nb::numpy> buffer_to_numpy(Buffer* self);
@@ -26,9 +28,44 @@ extern void buffer_copy_from_numpy(Buffer* self, nb::ndarray<nb::numpy> data);
 extern nb::ndarray<nb::pytorch, nb::device::cuda>
 buffer_to_torch(Buffer* self, DataType type, std::vector<size_t> shape, std::vector<int64_t> strides, size_t offset);
 
+template<>
+struct GcHelper<slangpy::NativeCallRuntimeOptions> {
+    void traverse(slangpy::NativeCallRuntimeOptions*, GcVisitor& visitor)
+    {
+        visitor("uniforms");
+        visitor("_native_this");
+    }
+    void clear(slangpy::NativeCallRuntimeOptions* opts) { opts->garbage_collect(); }
+};
+
 } // namespace sgl
 
 namespace sgl::slangpy {
+
+// Implementation of to_string methods
+std::string NativeSlangType::to_string() const
+{
+    if (m_type_reflection) {
+        return fmt::format(
+            "NativeSlangType(\n"
+            "  name = \"{}\",\n"
+            "  shape = {},\n"
+            "  kind = {}\n"
+            ")",
+            m_type_reflection->full_name(),
+            m_shape.to_string(),
+            m_type_reflection->kind()
+        );
+    } else {
+        return fmt::format(
+            "NativeSlangType(\n"
+            "  shape = {},\n"
+            "  type_reflection = None\n"
+            ")",
+            m_shape.to_string()
+        );
+    }
+}
 
 static constexpr std::array<char, 16> HEX_CHARS
     = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -533,10 +570,53 @@ nb::object NativeCallData::exec(
 
     nb::list read_back;
 
-    // Dispatch the kernel.
-    auto bind_vars = [&](ShaderCursor cursor)
+    if (is_log_enabled(LogLevel::debug)) {
+        log_debug("Dispatching {}", m_debug_name);
+        log_debug("  Call type: {}", command_encoder ? "append" : "call");
+        log_debug("  Call shape: {}", call_shape.to_string());
+        log_debug("  Call mode: {}", m_call_mode);
+        log_debug("  Strides: [{}]", fmt::join(strides, ", "));
+        log_debug("  Call grid shape: [{}]", fmt::join(call_grid_shape, ", "));
+        log_debug("  Call grid strides: [{}]", fmt::join(call_grid_strides, ", "));
+        log_debug("  Call group shape: [{}]", fmt::join(call_group_shape, ", "));
+        log_debug("  Call group strides: [{}]", fmt::join(call_group_strides, ", "));
+        if (is_call_shape_unaligned) {
+            log_debug("  Call shape was not aligned to the given call group shape");
+            log_debug("  and has been padded up as a result. Note that this will");
+            log_debug("  result in wasted threads.");
+            log_debug("  Aligned call shape: [{}]", fmt::join(aligned_call_shape, ", "));
+        }
+        log_debug("  Threads: {}", total_threads);
+    }
+
+    // If CUDA stream is provided, check for valid use and sync device to the CUDA stream
+    NativeHandle cuda_stream = opts->get_cuda_stream();
+    if (cuda_stream.is_valid()) {
+        SGL_CHECK(command_encoder == nullptr, "Cannot specify a CUDA stream when appending to a command encoder.");
+        SGL_CHECK(
+            m_device->supports_cuda_interop() || m_device->type() == DeviceType::cuda,
+            "To specify a CUDA stream, device must be either using CUDA backend or have CUDA interop enabled."
+        );
+    }
+
+    // Create temporary command encoder if none is provided.
+    ref<CommandEncoder> temp_command_encoder;
+    if (command_encoder == nullptr) {
+        temp_command_encoder = m_device->create_command_encoder();
+        command_encoder = temp_command_encoder.get();
+    }
+
+    ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
+    // Bind pipeline & call data
     {
-        auto call_data_cursor = cursor.find_field("call_data");
+        ShaderCursor cursor(pass_encoder->bind_pipeline(m_compute_pipeline));
+        // Get the call data cursor, either as an entry point parameter or global depending on call data mode
+        ShaderCursor call_data_cursor;
+        if (m_call_data_mode == CallDataMode::entry_point) {
+            call_data_cursor = cursor.find_entry_point(0).find_field("call_data");
+        } else {
+            call_data_cursor = cursor.find_field("call_data");
+        }
 
         // Dereference the cursor if it is a reference.
         // We do this here to avoid doing it automatically for every
@@ -583,46 +663,17 @@ nb::object NativeCallData::exec(
                 }
             }
         }
-    };
+    }
+    pass_encoder->dispatch(uint3(total_threads, 1, 1));
+    pass_encoder->end();
 
-    if (is_log_enabled(LogLevel::debug)) {
-        log_debug("Dispatching {}", m_debug_name);
-        log_debug("  Call type: {}", command_encoder ? "append" : "call");
-        log_debug("  Call shape: {}", call_shape.to_string());
-        log_debug("  Call mode: {}", m_call_mode);
-        log_debug("  Strides: [{}]", fmt::join(strides, ", "));
-        log_debug("  Call grid shape: [{}]", fmt::join(call_grid_shape, ", "));
-        log_debug("  Call grid strides: [{}]", fmt::join(call_grid_strides, ", "));
-        log_debug("  Call group shape: [{}]", fmt::join(call_group_shape, ", "));
-        log_debug("  Call group strides: [{}]", fmt::join(call_group_strides, ", "));
-        if (is_call_shape_unaligned) {
-            log_debug("  Call shape was not aligned to the given call group shape");
-            log_debug("  and has been padded up as a result. Note that this will");
-            log_debug("  result in wasted threads.");
-            log_debug("  Aligned call shape: [{}]", fmt::join(aligned_call_shape, ", "));
-        }
-        log_debug("  Threads: {}", total_threads);
+    // If we created a temporary command encoder, we need to submit it.
+    if (temp_command_encoder) {
+        m_device->submit_command_buffer(temp_command_encoder->finish(), CommandQueueType::graphics, cuda_stream);
+        command_encoder = nullptr;
     }
 
-    // If CUDA stream is provided, check for valid use and sync device to the CUDA stream
-    NativeHandle cuda_stream = opts->get_cuda_stream();
-    if (cuda_stream.is_valid()) {
-        SGL_CHECK(command_encoder == nullptr, "Cannot specify a CUDA stream when appending to a command encoder.");
-        SGL_CHECK(
-            m_device->supports_cuda_interop() || m_device->type() == DeviceType::cuda,
-            "To specify a CUDA stream, device must be either using CUDA backend or have CUDA interop enabled."
-        );
-    }
-
-    if (command_encoder == nullptr) {
-        // If we are not appending to a command encoder, we can dispatch directly.
-        m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, CommandQueueType::graphics, cuda_stream);
-    } else {
-        // If we are appending to a command encoder, we need to use the command encoder.
-        m_kernel->dispatch(uint3(total_threads, 1, 1), bind_vars, command_encoder);
-    }
-
-    // If command_buffer is not null, return early.
+    // If command_encoder is not null, return early.
     if (command_encoder != nullptr) {
         return nanobind::none();
     }
@@ -954,6 +1005,7 @@ SGL_PY_EXPORT(utils_slangpy)
 
     nb::sgl_enum<AccessType>(slangpy, "AccessType");
     nb::sgl_enum<CallMode>(slangpy, "CallMode");
+    nb::sgl_enum<CallDataMode>(slangpy, "CallDataMode");
 
     slangpy.def(
         "unpack_args",
@@ -1048,7 +1100,8 @@ SGL_PY_EXPORT(utils_slangpy)
         .def("_py_has_derivative", &NativeSlangType::_py_has_derivative)
         .def("_py_derivative", &NativeSlangType::_py_derivative)
         .def("_py_uniform_type_layout", &NativeSlangType::_py_uniform_type_layout)
-        .def("_py_buffer_type_layout", &NativeSlangType::_py_buffer_type_layout);
+        .def("_py_buffer_type_layout", &NativeSlangType::_py_buffer_type_layout)
+        .def("__repr__", &NativeSlangType::to_string);
 
     nb::class_<NativeMarshall, PyNativeMarshall, Object>(slangpy, "NativeMarshall") //
         .def(
@@ -1237,6 +1290,12 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(NativeCallRuntimeOptions, uniforms)
         )
         .def_prop_rw(
+            "_native_this",
+            &NativeCallRuntimeOptions::get_this,
+            &NativeCallRuntimeOptions::set_this,
+            D_NA(NativeCallRuntimeOptions, _native_this)
+        )
+        .def_prop_rw(
             "cuda_stream",
             &NativeCallRuntimeOptions::get_cuda_stream,
             &NativeCallRuntimeOptions::set_cuda_stream,
@@ -1254,7 +1313,12 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(NativeCallData, NativeCallData)
         )
         .def_prop_rw("device", &NativeCallData::get_device, &NativeCallData::set_device, D_NA(NativeCallData, device))
-        .def_prop_rw("kernel", &NativeCallData::get_kernel, &NativeCallData::set_kernel, D_NA(NativeCallData, kernel))
+        .def_prop_rw(
+            "compute_pipeline",
+            &NativeCallData::get_compute_pipeline,
+            &NativeCallData::set_compute_pipeline,
+            D_NA(NativeCallData, compute_pipeline)
+        )
         .def_prop_rw(
             "call_dimensionality",
             &NativeCallData::get_call_dimensionality,
@@ -1272,6 +1336,12 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::get_call_mode,
             &NativeCallData::set_call_mode,
             D_NA(NativeCallData, call_mode)
+        )
+        .def_prop_rw(
+            "call_data_mode",
+            &NativeCallData::get_call_data_mode,
+            &NativeCallData::set_call_data_mode,
+            D_NA(NativeCallData, call_data_mode)
         )
         .def_prop_ro("last_call_shape", &NativeCallData::get_last_call_shape, D_NA(NativeCallData, last_call_shape))
         .def_prop_rw(

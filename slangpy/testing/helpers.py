@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import hashlib
-import os
 import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence, Union, cast
@@ -30,9 +29,13 @@ from slangpy import (
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
 
-if os.environ.get("SLANGPY_DEVICE", None) is not None:
-    DEFAULT_DEVICE_TYPES = [DeviceType[os.environ["SLANGPY_DEVICE"]]]
-elif sys.platform == "win32":
+# Global variables for device isolation. If SELECTED_DEVICE_TYPES is None, no restriction.
+# If SELECTED_DEVICE_TYPES is an empty list, it means "nodevice" mode (only non-device tests).
+# If SELECTED_DEVICE_TYPES has items, only tests for those device types will run.
+SELECTED_DEVICE_TYPES: Optional[list[DeviceType]] = None
+
+# Default device types based on the platform
+if sys.platform == "win32":
     DEFAULT_DEVICE_TYPES = [DeviceType.d3d12, DeviceType.vulkan, DeviceType.cuda]
 elif sys.platform == "linux" or sys.platform == "linux2":
     DEFAULT_DEVICE_TYPES = [DeviceType.vulkan, DeviceType.cuda]
@@ -40,6 +43,31 @@ elif sys.platform == "darwin":
     DEFAULT_DEVICE_TYPES = [DeviceType.metal]
 else:
     raise RuntimeError("Unsupported platform")
+
+
+# Called from pytest plugin if 'device-types' argument is provided
+def set_device_types(device_types_str: Optional[str]) -> None:
+    """Set the global device types. Called by pytest plugin."""
+    global SELECTED_DEVICE_TYPES
+    global DEFAULT_DEVICE_TYPES
+
+    if device_types_str:
+        if device_types_str == "nodevice":
+            SELECTED_DEVICE_TYPES = []  # Empty list for nodevice mode
+            DEFAULT_DEVICE_TYPES = []  # No device types for nodevice tests
+        else:
+            # Parse comma-separated device types
+            device_type_names = [name.strip() for name in device_types_str.split(",")]
+            SELECTED_DEVICE_TYPES = []
+            for name in device_type_names:
+                try:
+                    SELECTED_DEVICE_TYPES.append(DeviceType[name])
+                except KeyError:
+                    raise ValueError(f"Invalid device type: {name}")
+            DEFAULT_DEVICE_TYPES = SELECTED_DEVICE_TYPES.copy()
+    else:
+        SELECTED_DEVICE_TYPES = None  # No restriction
+
 
 DEVICE_CACHE: dict[
     tuple[
@@ -91,6 +119,28 @@ def close_leaked_devices():
         device.close()
 
 
+def should_skip_test_for_device(device_type: DeviceType) -> bool:
+    """
+    Check if a test should be skipped based on device filtering.
+    Returns True if the test should be skipped.
+    """
+    if SELECTED_DEVICE_TYPES is None:
+        return False  # No restriction, don't skip
+    if len(SELECTED_DEVICE_TYPES) == 0:
+        return True  # nodevice mode, skip all device tests
+    return device_type not in SELECTED_DEVICE_TYPES
+
+
+def should_skip_non_device_test() -> bool:
+    """
+    Check if a non-device test should be skipped based on device filtering.
+    Non-device tests should only run when targeting 'nodevice' mode specifically.
+    """
+    if SELECTED_DEVICE_TYPES is None:
+        return False  # No restriction, don't skip
+    return len(SELECTED_DEVICE_TYPES) != 0  # Skip if specific devices were selected
+
+
 # Helper to get device of a given type
 def get_device(
     type: DeviceType,
@@ -99,6 +149,18 @@ def get_device(
     existing_device_handles: Optional[Sequence[NativeHandle]] = None,
     label: Optional[str] = None,
 ) -> Device:
+    # Check if we're in device isolation mode and should restrict device types
+    if SELECTED_DEVICE_TYPES is not None:
+        if len(SELECTED_DEVICE_TYPES) == 0:
+            raise RuntimeError(
+                "get_device called when no device types are selected (nodevice mode)"
+            )
+        elif type not in SELECTED_DEVICE_TYPES:
+            allowed_types = [dt.name for dt in SELECTED_DEVICE_TYPES]
+            raise RuntimeError(
+                f"get_device called with incompatible device type {type.name}, expected one of {allowed_types}"
+            )
+
     # Early out if we know we don't have support for parameter blocks
     global METAL_PARAMETER_BLOCK_SUPPORT
     if type == DeviceType.metal and METAL_PARAMETER_BLOCK_SUPPORT == False:

@@ -31,6 +31,7 @@ SGL_ENUM_INFO(
 SGL_ENUM_REGISTER(FunctionNodeType);
 
 class NativeFunctionNode : NativeObject {
+    SGL_OBJECT(NativeFunctionNode)
 public:
     NativeFunctionNode(NativeFunctionNode* parent, FunctionNodeType type, nb::object data)
         : m_parent(parent)
@@ -98,11 +99,20 @@ public:
 
     void append_to(NativeCallDataCache* cache, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 
+    /// Get string representation of the function node.
+    std::string to_string() const override;
+
     virtual ref<NativeCallData> generate_call_data(nb::args args, nb::kwargs kwargs)
     {
         SGL_UNUSED(args);
         SGL_UNUSED(kwargs);
         return nullptr;
+    }
+
+    void garbage_collect()
+    {
+        m_parent = nullptr;
+        m_data = nb::none();
     }
 
 private:

@@ -718,20 +718,20 @@ void bindings_to_pointer_function(int call_id, StructuredBuffer<int> in_buffer, 
             out_buffer.clear()
 
             # Do 1 call to ensure warmed up
-            encoder = device.create_command_encoder()
-            func(g, in_buffer.storage, out_buffer.storage, _append_to=encoder)
-            command_buffer = encoder.finish()
+            command_encoder = device.create_command_encoder()
+            func(g, in_buffer.storage, out_buffer.storage, _append_to=command_encoder)
+            command_buffer = command_encoder.finish()
             device.submit_command_buffer(command_buffer)
             device.wait_for_idle()
 
             # Now time 100 calls
             qp.reset()
-            encoder = device.create_command_encoder()
-            encoder.write_timestamp(qp, 0)
+            command_encoder = device.create_command_encoder()
+            command_encoder.write_timestamp(qp, 0)
             for i in range(DISPATCHES_PER_LOOP):
-                func(g, in_buffer.storage, out_buffer.storage, _append_to=encoder)
-                encoder.write_timestamp(qp, i + 1)
-            command_buffer = encoder.finish()
+                func(g, in_buffer.storage, out_buffer.storage, _append_to=command_encoder)
+                command_encoder.write_timestamp(qp, i + 1)
+            command_buffer = command_encoder.finish()
 
             pointers_start = time()
             device.submit_command_buffer(command_buffer)
