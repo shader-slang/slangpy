@@ -1,4 +1,5 @@
 name: ci-latest-slang
+run-name: "Slang branch: ${{ github.event.inputs.slang_branch }}"
 
 on:
   schedule:
