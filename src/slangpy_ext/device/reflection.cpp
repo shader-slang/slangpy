@@ -117,11 +117,7 @@ SGL_PY_EXPORT(device_reflection)
         )
         .def_prop_ro("resource_shape", &TypeReflection::resource_shape, D(TypeReflection, resource_shape))
         .def_prop_ro("resource_access", &TypeReflection::resource_access, D(TypeReflection, resource_access))
-        .def_prop_ro(
-            "get_user_attribute_count",
-            &TypeReflection::get_user_attribute_count,
-            D(TypeReflection, get_user_attribute_count)
-        )
+        .def("get_user_attribute_count", &TypeReflection::get_user_attribute_count)
         .def(
             "get_user_attribute_by_index",
             &TypeReflection::get_user_attribute_by_index,
