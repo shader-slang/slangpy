@@ -1188,14 +1188,14 @@ def test_attribute_reflection(test_id: str, device_type: spy.DeviceType):
     module = session.load_module_from_source(
         module_name=f"module_from_source_{test_id}",
         source="""
-        [__AttributeUsage(_AttributeTargets.Var)]
-        struct MyAttribute
+        [__AttributeUsage(_AttributeTargets.Struct)]
+        struct FooAttribute
         {
-            int value;
+            int val;
         }
 
-        [MyAttribute(42)]
-        struct MyStruct;
+        [Foo(42)]
+        extern struct MyStruct;
     """,
     )
 
