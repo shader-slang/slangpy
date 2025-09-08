@@ -661,7 +661,7 @@ public:
         return detail::from_slang(m_owner, slang_target()->getUserAttributeByIndex(index));
     }
 
-    ref<const Attribute> find_user_attribute_by_name(char const* name) const
+    ref<const Attribute> find_user_attribute_by_name(const char* name) const
     {
         return detail::from_slang(m_owner, slang_target()->findUserAttributeByName(name));
     }

@@ -80,7 +80,7 @@ SGL_PY_EXPORT(device_reflection)
         D(DeclReflectionIndexedChildList)
     );
 
-    nb::class_<Attribute, BaseReflectionObject> (m, "Attribute", D(Attribute))
+    nb::class_<Attribute, BaseReflectionObject>(m, "Attribute", D(Attribute))
         .def_prop_ro("name", &Attribute::name, D(Attribute, name))
         .def_prop_ro("argument_count", &Attribute::argument_count, D(Attribute, argument_count))
         .def("argument_type", &Attribute::argument_type, "index"_a, D(Attribute, argument_type))
@@ -117,7 +117,11 @@ SGL_PY_EXPORT(device_reflection)
         )
         .def_prop_ro("resource_shape", &TypeReflection::resource_shape, D(TypeReflection, resource_shape))
         .def_prop_ro("resource_access", &TypeReflection::resource_access, D(TypeReflection, resource_access))
-        .def_prop_ro("get_user_attribute_count", &TypeReflection::get_user_attribute_count, D(TypeReflection, get_user_attribute_count))
+        .def_prop_ro(
+            "get_user_attribute_count",
+            &TypeReflection::get_user_attribute_count,
+            D(TypeReflection, get_user_attribute_count)
+        )
         .def(
             "get_user_attribute_by_index",
             &TypeReflection::get_user_attribute_by_index,
