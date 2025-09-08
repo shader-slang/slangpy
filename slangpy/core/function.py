@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast, Sequence
+from enum import Enum
 
 from slangpy.core.native import (
     CallMode,
@@ -10,7 +11,16 @@ from slangpy.core.native import (
 )
 
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy import CommandEncoder, TypeConformance, uint3, Logger, NativeHandle, NativeHandleType
+from slangpy import (
+    CommandEncoder,
+    TypeConformance,
+    uint3,
+    Logger,
+    NativeHandle,
+    NativeHandleType,
+    RayTracingPipelineFlags,
+    HitGroupDesc,
+)
 from slangpy.slangpy import Shape
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
@@ -18,6 +28,7 @@ if TYPE_CHECKING:
     from slangpy.core.calldata import CallData
     from slangpy.core.module import Module
     from slangpy.core.struct import Struct
+    from slangpy import HitGroupDescParam
 
 ENABLE_CALLDATA_CACHE = True
 
@@ -37,6 +48,11 @@ class IThis(Protocol):
     def get_this(self) -> Any: ...
 
     def update_this(self, value: Any) -> None: ...
+
+
+class PipelineType(Enum):
+    compute = 0
+    ray_tracing = 1
 
 
 class FunctionBuildInfo:
@@ -60,6 +76,14 @@ class FunctionBuildInfo:
         self.return_type: Optional[Union[type, str]] = None
         self.logger: Optional[Logger] = None
         self.call_group_shape: Optional[Shape] = None
+        self.pipeline_type: PipelineType = PipelineType.compute
+        self.ray_tracing_hit_groups: list[HitGroupDesc] = []
+        self.ray_tracing_miss_entry_points: list[str] = []
+        self.ray_tracing_callable_entry_points: list[str] = []
+        self.ray_tracing_max_recursion: int = 0
+        self.ray_tracing_max_ray_payload_size: int = 0
+        self.ray_tracing_max_attribute_size: int = 8
+        self.ray_tracing_flags: RayTracingPipelineFlags = RayTracingPipelineFlags.none
 
 
 class FunctionNode(NativeFunctionNode):
@@ -152,6 +176,30 @@ class FunctionNode(NativeFunctionNode):
         Specify Slang type conformances to use when compiling the function.
         """
         return FunctionNodeTypeConformances(self, type_conformances)
+
+    def ray_tracing(
+        self,
+        hit_groups: Sequence["HitGroupDescParam"],
+        miss_entry_points: Sequence[str] = [],
+        callable_entry_points: Sequence[str] = [],
+        max_recursion: int = 1,
+        max_ray_payload_size: int = 32,
+        max_attribute_size: int = 8,
+        flags: RayTracingPipelineFlags = RayTracingPipelineFlags.none,
+    ):
+        """
+        Specify the ray tracing pipeline configuration.
+        """
+        return FunctionNodeRayTracing(
+            self,
+            hit_groups,
+            miss_entry_points,
+            callable_entry_points,
+            max_recursion,
+            max_ray_payload_size,
+            max_attribute_size,
+            flags,
+        )
 
     @property
     def bwds(self):
@@ -453,6 +501,45 @@ class FunctionNodeTypeConformances(FunctionNode):
 
     def _populate_build_info(self, info: FunctionBuildInfo):
         info.type_conformances.extend(self.type_conformances)
+
+
+class FunctionNodeRayTracing(FunctionNode):
+    def __init__(
+        self,
+        parent: NativeFunctionNode,
+        hit_groups: Sequence["HitGroupDescParam"],
+        miss_entry_points: Sequence[str],
+        callable_entry_points: Sequence[str],
+        max_recursion: int,
+        max_ray_payload_size: int,
+        max_attribute_size: int,
+        flags: RayTracingPipelineFlags,
+    ):
+        super().__init__(
+            parent,
+            FunctionNodeType.ray_tracing,
+            {
+                "hit_groups": [HitGroupDesc(hit_group) for hit_group in hit_groups],  # type: ignore
+                "miss_entry_points": list(miss_entry_points),
+                "callable_entry_points": list(callable_entry_points),
+                "max_recursion": max_recursion,
+                "max_ray_payload_size": max_ray_payload_size,
+                "max_attribute_size": max_attribute_size,
+                "flags": flags,
+            },
+        )
+        self.slangpy_signature = f"({hit_groups}, {miss_entry_points}, {callable_entry_points}, {max_recursion}, {max_ray_payload_size}, {max_attribute_size}, {flags})"
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        d = cast(dict[str, Any], self._native_data)
+        info.pipeline_type = PipelineType.ray_tracing
+        info.ray_tracing_hit_groups = d["hit_groups"]
+        info.ray_tracing_miss_entry_points = d["miss_entry_points"]
+        info.ray_tracing_callable_entry_points = d["callable_entry_points"]
+        info.ray_tracing_max_recursion = d["max_recursion"]
+        info.ray_tracing_max_ray_payload_size = d["max_ray_payload_size"]
+        info.ray_tracing_max_attribute_size = d["max_attribute_size"]
+        info.ray_tracing_flags = d["flags"]
 
 
 class FunctionNodeBwds(FunctionNode):

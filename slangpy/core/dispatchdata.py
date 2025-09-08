@@ -9,7 +9,14 @@ from slangpy.core.enums import IOType
 from slangpy.core.native import CallMode, CallDataMode, pack_arg, unpack_arg
 from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS
 
-from slangpy import CommandEncoder, ShaderCursor, SlangLinkOptions, uint3, DeviceType
+from slangpy import (
+    CommandEncoder,
+    ComputePipeline,
+    ShaderCursor,
+    SlangLinkOptions,
+    uint3,
+    DeviceType,
+)
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.boundvariable import BoundCall
@@ -174,9 +181,12 @@ void {reflection.name}_entrypoint({params}) {{
             hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 
             # Check if we've already built this module.
-            if hash in build_info.module.compute_pipeline_cache:
+            if hash in build_info.module.pipeline_cache:
                 # Get pipeline from cache if we have
-                self.compute_pipeline = build_info.module.compute_pipeline_cache[hash]
+                pipeline = build_info.module.pipeline_cache[hash]
+                if not isinstance(pipeline, ComputePipeline):
+                    raise RuntimeError("Pipeline cache entry is not a ComputePipeline")
+                self.compute_pipeline = pipeline
                 self.device = build_info.module.device
             else:
                 # Load the module
