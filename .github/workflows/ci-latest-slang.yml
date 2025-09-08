@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 1 * * *' # run at 1 AM UTC
   workflow_dispatch:
+    inputs:
+      slang_branch:
+        description: 'Slang branch'
+        required: true
+        default: 'master'
 
 permissions:
   contents: read
@@ -83,11 +88,13 @@ jobs:
       - name: Setup CMake/Ninja
         uses: lukka/get-cmake@latest
 
-      # Build latest Slang.
-      - name: Build latest Slang
+      # Build Slang.
+      - name: Build Slang
         run: |
           git clone --recursive https://github.com/shader-slang/slang.git
           cd slang
+          git checkout ${{ github.event.inputs.slang_branch }}
+          git submodule update --init --recursive
           mkdir build
           cmake -B build --preset default
           cmake --build build --config ${{ matrix.config }} --parallel
