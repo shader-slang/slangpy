@@ -607,9 +607,9 @@ nb::object NativeCallData::exec(
     }
 
     ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
-    ShaderCursor cursor(pass_encoder->bind_pipeline(m_compute_pipeline));
-    // Bind call data
+    // Bind pipeline & call data
     {
+        ShaderCursor cursor(pass_encoder->bind_pipeline(m_compute_pipeline));
         // Get the call data cursor, either as an entry point parameter or global depending on call data mode
         ShaderCursor call_data_cursor;
         if (m_call_data_mode == CallDataMode::entry_point) {
