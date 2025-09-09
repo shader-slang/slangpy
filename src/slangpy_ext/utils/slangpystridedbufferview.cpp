@@ -78,7 +78,7 @@ StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc
     m_storage = std::move(storage);
 
     set_slangpy_signature(
-        fmt::format("[{},{},{}]", desc.dtype->get_type_reflection()->full_name(), desc.shape.size(), desc.usage)
+        fmt::format("[{},{},{}]", desc.dtype->type_reflection()->full_name(), desc.shape.size(), desc.usage)
     );
 }
 
@@ -338,7 +338,7 @@ static nb::ndarray<Framework> to_ndarray(void* data, nb::handle owner, const Str
     //      Buffer with shape (4, 5) of float3 -> ndarray of shape (4, 5, 3) and dtype float32
     //      Buffer with shape (5, ) of struct Foo { ... } -> ndarray of shape (5, sizeof(Foo)) and dtype uint8
     bool is_scalar = innermost_layout->type()->kind() == TypeReflection::Kind::scalar;
-    auto dtype_shape = desc.dtype->get_shape();
+    auto dtype_shape = desc.dtype->shape();
     auto dtype_strides = dtype_shape.calc_contiguous_strides();
 
     size_t innermost_size = is_scalar ? innermost_layout->stride() : 1;

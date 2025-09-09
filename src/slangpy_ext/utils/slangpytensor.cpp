@@ -60,7 +60,7 @@ ref<NativeTensor> NativeTensor::with_grads(ref<NativeTensor> grad_in, ref<Native
         // Get the derivative type + buffer layout.
         ref<NativeSlangType> dtype = m_desc.dtype->derivative();
         if (!dtype)
-            SGL_THROW("No derivative type found for {}", m_desc.dtype->get_type_reflection()->name());
+            SGL_THROW("No derivative type found for {}", m_desc.dtype->type_reflection()->name());
         ref<TypeLayoutReflection> layout = dtype->buffer_type_layout();
 
         // Create a new structured buffer for storage.
@@ -136,7 +136,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     // base class implementation.
     NativeTensor* primal;
     if (nb::try_cast(value, primal)) {
-        ShaderCursor field = cursor[binding->get_variable_name()];
+        ShaderCursor field = cursor[binding->variable_name()];
 
         const ref<NativeTensor>& grad_in = primal->grad_in();
         const ref<NativeTensor>& grad_out = primal->grad_out();
@@ -156,7 +156,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
         }
 
         if (context->call_mode() != CallMode::prim && grad_in && grad_in == grad_out) {
-            if (binding->get_access().second == AccessType::readwrite)
+            if (binding->access().second == AccessType::readwrite)
                 SGL_THROW(
                     "inout parameter gradients need separate buffers for inputs and outputs (see Tensor.with_grads)"
                 );
@@ -187,7 +187,7 @@ void NativeTensorMarshall::write_shader_cursor_fields(
     // Generate and write strides vector, clearing strides to 0
     // for dimensions that are broadcast.
     std::vector<int> strides_vec = buffer->strides().as_vector();
-    const std::vector<int>& transform = binding->get_transform().as_vector();
+    const std::vector<int>& transform = binding->transform().as_vector();
     const std::vector<int>& call_shape = context->call_shape().as_vector();
     for (size_t i = 0; i < transform.size(); i++) {
         int csidx = transform[i];

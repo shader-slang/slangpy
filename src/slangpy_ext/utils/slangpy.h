@@ -145,13 +145,13 @@ public:
     };
 
     /// Get the reflection type.
-    ref<TypeReflection> get_type_reflection() const { return m_type_reflection; }
+    ref<TypeReflection> type_reflection() const { return m_type_reflection; }
 
     /// Set the reflection type.
     void set_type_reflection(const ref<TypeReflection>& reflection) { m_type_reflection = reflection; }
 
     /// Get the shape of the type.
-    Shape get_shape() const { return m_shape; }
+    Shape shape() const { return m_shape; }
 
     /// Set the shape of the type.
     void set_shape(const Shape& shape) { m_shape = shape; }
@@ -211,7 +211,7 @@ public:
 
     /// Get the concrete shape of the type. For none-concrete types such as buffers,
     /// this will return an invalid shape.
-    Shape get_concrete_shape() const { return m_concrete_shape; }
+    Shape concrete_shape() const { return m_concrete_shape; }
 
     /// Set the concrete shape of the type.
     void set_concrete_shape(const Shape& concrete_shape) { m_concrete_shape = concrete_shape; }
@@ -219,7 +219,7 @@ public:
     /// Get whether this type always defines its shape by matching that of the
     /// activate call, rather than by inspecting the value. This is preferred
     /// for some generator types.
-    bool get_match_call_shape() const { return m_match_call_shape; }
+    bool match_call_shape() const { return m_match_call_shape; }
 
     /// Set whether this type matches call shape.
     void set_match_call_shape(bool match_call_shape) { m_match_call_shape = match_call_shape; }
@@ -232,7 +232,7 @@ public:
     }
 
     /// Get the slang type.
-    ref<NativeSlangType> get_slang_type() const { return m_slang_type; }
+    ref<NativeSlangType> slang_type() const { return m_slang_type; }
 
     /// Set the slang type.
     void set_slang_type(const ref<NativeSlangType>& slang_type) { m_slang_type = slang_type; }
@@ -343,8 +343,7 @@ public:
         if (!m_slang_type) {
             SGL_THROW("Cannot resolve dimensionality without slang type");
         }
-        return static_cast<int>(m_slang_type->get_shape().size())
-            - static_cast<int>(vector_target_type->get_shape().size());
+        return static_cast<int>(m_slang_type->shape().size()) - static_cast<int>(vector_target_type->shape().size());
     }
 
     /// Builds finalized shader object for a value when requested.
@@ -442,25 +441,25 @@ public:
     NativeBoundVariableRuntime() = default;
 
     /// Get required access for primal and derivative.
-    std::pair<AccessType, AccessType> get_access() const { return m_access; }
+    std::pair<AccessType, AccessType> access() const { return m_access; }
 
     /// Set required access for primal and derivative.
     void set_access(const std::pair<AccessType, AccessType>& access) { m_access = access; }
 
     /// Get the call transform.
-    const Shape& get_transform() const { return m_transform; }
+    const Shape& transform() const { return m_transform; }
 
     /// Set the call transform.
     void set_transform(const Shape& transform) { m_transform = transform; }
 
     /// Get the python type marshal.
-    ref<NativeMarshall> get_python_type() const { return m_python_type; }
+    ref<NativeMarshall> python_type() const { return m_python_type; }
 
     /// Set the python type marshal.
     void set_python_type(const ref<NativeMarshall>& python_type) { m_python_type = python_type; }
 
     /// Get the vector slang type.
-    ref<NativeSlangType> get_vector_type() const { return m_vector_type; }
+    ref<NativeSlangType> vector_type() const { return m_vector_type; }
 
     /// Set the vector slang type.
     void set_vector_type(ref<NativeSlangType> vector_type) { m_vector_type = vector_type; }
@@ -478,13 +477,13 @@ public:
     void set_is_param_block(bool is_param_block) { m_is_param_block = is_param_block; }
 
     /// Get the uniform variable name.
-    std::string_view get_variable_name() const { return m_variable_name; }
+    std::string_view variable_name() const { return m_variable_name; }
 
     /// Set the uniform variable name.
     void set_variable_name(std::string_view variable_name) { m_variable_name = variable_name; }
 
     /// Get children (for structs).
-    std::optional<std::map<std::string, ref<NativeBoundVariableRuntime>>> get_children() const { return m_children; }
+    std::optional<std::map<std::string, ref<NativeBoundVariableRuntime>>> children() const { return m_children; }
 
     /// Set children (for structs).
     void set_children(const std::optional<std::map<std::string, ref<NativeBoundVariableRuntime>>>& children)
@@ -493,7 +492,7 @@ public:
     }
 
     /// Get the call dimensionality.
-    int get_call_dimensionality() const { return m_call_dimensionality; }
+    int call_dimensionality() const { return m_call_dimensionality; }
 
     /// Set the call dimensionality.
     void set_call_dimensionality(int call_dimensionality) { m_call_dimensionality = call_dimensionality; }
@@ -535,13 +534,13 @@ public:
     NativeBoundCallRuntime() = default;
 
     /// Get positional arguments.
-    const std::vector<ref<NativeBoundVariableRuntime>>& get_args() const { return m_args; }
+    const std::vector<ref<NativeBoundVariableRuntime>>& args() const { return m_args; }
 
     /// Set positional arguments.
     void set_args(const std::vector<ref<NativeBoundVariableRuntime>>& args) { m_args = args; }
 
     /// Get keyword arguments.
-    const std::map<std::string, ref<NativeBoundVariableRuntime>>& get_kwargs() const { return m_kwargs; }
+    const std::map<std::string, ref<NativeBoundVariableRuntime>>& kwargs() const { return m_kwargs; }
 
     /// Set keyword arguments.
     void set_kwargs(const std::map<std::string, ref<NativeBoundVariableRuntime>>& kwargs) { m_kwargs = kwargs; }
@@ -584,7 +583,7 @@ class NativeCallRuntimeOptions : Object {
     SGL_OBJECT(NativeCallRuntimeOptions)
 public:
     /// Get the uniforms.
-    nb::list get_uniforms() const { return m_uniforms; }
+    nb::list uniforms() const { return m_uniforms; }
 
     /// Set the uniforms.
     void set_uniforms(const nb::list& uniforms) { m_uniforms = uniforms; }
@@ -596,13 +595,13 @@ public:
     void set_this(const nb::object& this_) { m_this = this_; }
 
     /// Get the CUDA stream.
-    NativeHandle get_cuda_stream() const { return m_cuda_stream; }
+    NativeHandle cuda_stream() const { return m_cuda_stream; }
 
     /// Set the CUDA stream.
     void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
 
     /// Get ray tracing pipeline flag.
-    bool get_is_ray_tracing() const { return m_is_ray_tracing; }
+    bool is_ray_tracing() const { return m_is_ray_tracing; }
 
     /// Set ray tracing pipeline flag.
     void set_is_ray_tracing(bool is_ray_tracing) { m_is_ray_tracing = is_ray_tracing; }
@@ -644,58 +643,58 @@ public:
     NativeCallData() = default;
 
     /// Get the device.
-    ref<Device> get_device() const { return m_device; }
+    ref<Device> device() const { return m_device; }
 
     /// Set the device.
     void set_device(const ref<Device>& device) { m_device = device; }
 
     /// Get the pipeline.
-    ref<Pipeline> get_pipeline() const { return m_pipeline; }
+    ref<Pipeline> pipeline() const { return m_pipeline; }
 
     /// Set the pipeline.
     void set_pipeline(const ref<Pipeline>& pipeline) { m_pipeline = pipeline; }
 
     /// Get the ray tracing shader table.
-    ref<ShaderTable> get_shader_table() const { return m_shader_table; }
+    ref<ShaderTable> shader_table() const { return m_shader_table; }
 
     /// Set the ray tracing shader table.
     void set_shader_table(const ref<ShaderTable>& shader_table) { m_shader_table = shader_table; }
 
     /// Get the call dimensionality.
-    int get_call_dimensionality() const { return m_call_dimensionality; }
+    int call_dimensionality() const { return m_call_dimensionality; }
 
     /// Set the call dimensionality.
     void set_call_dimensionality(int call_dimensionality) { m_call_dimensionality = call_dimensionality; }
 
     /// Get the runtime bindings.
-    ref<NativeBoundCallRuntime> get_runtime() const { return m_runtime; }
+    ref<NativeBoundCallRuntime> runtime() const { return m_runtime; }
 
     /// Set the runtime bindings.
     void set_runtime(const ref<NativeBoundCallRuntime>& runtime) { m_runtime = runtime; }
 
     /// Get the call mode (primitive/forward/backward).
-    CallMode get_call_mode() const { return m_call_mode; }
+    CallMode call_mode() const { return m_call_mode; }
 
     /// Set the call mode (primitive/forward/backward).
     void set_call_mode(CallMode call_mode) { m_call_mode = call_mode; }
 
     /// Get the call data mode (global_data/entry_point).
-    CallDataMode get_call_data_mode() const { return m_call_data_mode; }
+    CallDataMode call_data_mode() const { return m_call_data_mode; }
 
     /// Set the call data mode (global_data/entry_point).
     void set_call_data_mode(CallDataMode call_data_mode) { m_call_data_mode = call_data_mode; }
 
     /// Get the shape of the last call (useful for debugging).
-    const Shape& get_last_call_shape() const { return m_last_call_shape; }
+    const Shape& last_call_shape() const { return m_last_call_shape; }
 
     /// Get the debug name
-    std::string get_debug_name() const { return m_debug_name; }
+    std::string debug_name() const { return m_debug_name; }
 
     /// Set the debug name
     void set_debug_name(std::string debug_name) { m_debug_name = debug_name; }
 
     /// Get the logger
-    ref<Logger> get_logger() const { return m_logger; }
+    ref<Logger> logger() const { return m_logger; }
 
     /// Set the logger
     void set_logger(ref<Logger> logger) { m_logger = logger; }
