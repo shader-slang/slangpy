@@ -135,7 +135,7 @@ def test_raytracing(device_type: DeviceType):
 
     data = tensor.to_numpy()
 
-    spy.tev.show(spy.Bitmap(data))
+    # spy.tev.show(spy.Bitmap(data))
 
     assert np.allclose(data[0, 0, :], [0, 0, 0], atol=0.01)
     assert np.allclose(data[0, 63, :], [1, 0, 0], atol=0.01)
