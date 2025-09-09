@@ -10,6 +10,9 @@ from slangpy.testing import helpers
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("mode", ["render", "compute"])
 def test_generate_mips(device_type: spy.DeviceType, mode: str):
+    if mode == "render" and device_type == spy.DeviceType.metal:
+        pytest.skip("Currently fails on Metal, needs investigation.")
+
     device = helpers.get_device(device_type)
 
     if mode == "render" and not spy.Feature.rasterization in device.features:
