@@ -663,18 +663,20 @@ nb::object NativeCallData::exec(
         command_encoder = temp_command_encoder.get();
     }
 
-    bool is_ray_tracing = opts->get_ray_tracing();
+    bool is_ray_tracing = opts->get_is_ray_tracing();
 
     if (!is_ray_tracing) {
         ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
-        ComputePipeline* pipeline = static_cast<ComputePipeline*>(m_pipeline.get());
+        ComputePipeline* pipeline = dynamic_cast<ComputePipeline*>(m_pipeline.get());
+        SGL_ASSERT(pipeline != nullptr);
         ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline));
         bind_call_data(cursor);
         pass_encoder->dispatch(uint3(total_threads, 1, 1));
         pass_encoder->end();
     } else {
         ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
-        RayTracingPipeline* pipeline = static_cast<RayTracingPipeline*>(m_pipeline.get());
+        RayTracingPipeline* pipeline = dynamic_cast<RayTracingPipeline*>(m_pipeline.get());
+        SGL_ASSERT(pipeline != nullptr);
         ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline, m_shader_table));
         bind_call_data(cursor);
         pass_encoder->dispatch_rays(0, uint3(total_threads, 1, 1));

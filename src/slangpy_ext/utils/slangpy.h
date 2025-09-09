@@ -602,10 +602,10 @@ public:
     void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
 
     /// Get ray tracing pipeline flag.
-    bool get_ray_tracing() const { return m_ray_tracing; }
+    bool get_is_ray_tracing() const { return m_is_ray_tracing; }
 
     /// Set ray tracing pipeline flag.
-    void set_ray_tracing(bool ray_tracing) { m_ray_tracing = ray_tracing; }
+    void set_is_ray_tracing(bool is_ray_tracing) { m_is_ray_tracing = is_ray_tracing; }
 
     /// Clear internal data for garbage collection
     void garbage_collect()
@@ -618,7 +618,7 @@ private:
     nb::list m_uniforms;
     nb::object m_this{nb::none()};
     NativeHandle m_cuda_stream;
-    bool m_ray_tracing{false};
+    bool m_is_ray_tracing{false};
 };
 
 /// Defines the common logging functions for a given log level.

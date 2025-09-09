@@ -84,7 +84,7 @@ public:
             options->set_cuda_stream(nb::cast<NativeHandle>(m_data));
             break;
         case sgl::slangpy::FunctionNodeType::ray_tracing:
-            options->set_ray_tracing(true);
+            options->set_is_ray_tracing(true);
             break;
         default:
             break;
