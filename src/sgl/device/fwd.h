@@ -74,6 +74,7 @@ class FunctionReflectionParameterList;
 class FunctionReflectionOverloadList;
 class VariableReflection;
 class VariableLayoutReflection;
+class Attribute;
 class EntryPointLayout;
 class EntryPointLayoutParameterList;
 class ProgramLayout;

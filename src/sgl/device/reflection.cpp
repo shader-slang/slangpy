@@ -47,6 +47,7 @@ namespace detail {
     SGL_FROM_SLANG(VariableLayoutReflection);
     SGL_FROM_SLANG(EntryPointLayout);
     SGL_FROM_SLANG(ProgramLayout);
+    SGL_FROM_SLANG(Attribute);
 
 #undef SGL_FROM_SLANG
 
@@ -159,6 +160,23 @@ ref<const DeclReflection> DeclReflection::find_first_child_of_kind(Kind kind, st
         }
     }
     return nullptr;
+}
+
+std::string Attribute::to_string() const
+{
+    std::vector<std::string> arguments;
+    uint32_t count = argument_count();
+    arguments.reserve(count);
+    for (uint32_t i = 0; i < count; i++) {
+        arguments.push_back(fmt::format("argument_{}={}", i, argument_type(i)));
+    }
+    return fmt::format(
+        "Attribute(\n  name={},\n  argument_count={}{}{}\n)",
+        name(),
+        count,
+        count > 0 ? ",\n  " : "",
+        fmt::join(arguments, ",\n  ")
+    );
 }
 
 std::string TypeReflection::full_name() const

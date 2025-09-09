@@ -35,6 +35,7 @@ namespace detail {
     SGL_API ref<const EntryPointLayout>
     from_slang(ref<const Object> owner, slang::EntryPointLayout* entry_point_reflection);
     SGL_API ref<const ProgramLayout> from_slang(ref<const Object> owner, slang::ProgramLayout* program_layout);
+    SGL_API ref<const Attribute> from_slang(ref<const Object> owner, slang::Attribute* attribute);
 
     SGL_API void on_slang_wrapper_destroyed(void* slang_reflection);
 
@@ -346,6 +347,25 @@ protected:
     ref<const DeclReflection> evaluate(uint32_t index) const override { return m_owner->child(index); }
 };
 
+class SGL_API Attribute : public BaseReflectionObjectImpl<slang::Attribute> {
+public:
+    Attribute(ref<const Object> owner, slang::Attribute* target)
+        : BaseReflectionObjectImpl(std::move(owner), target)
+    {
+    }
+
+    std::string name() const { return slang_target()->getName(); }
+
+    uint32_t argument_count() const { return slang_target()->getArgumentCount(); }
+
+    ref<const TypeReflection> argument_type(uint32_t index) const
+    {
+        return detail::from_slang(m_owner, slang_target()->getArgumentType(index));
+    }
+
+    std::string to_string() const;
+};
+
 class SGL_API TypeReflection : public BaseReflectionObjectImpl<slang::TypeReflection> {
     SGL_OBJECT(TypeReflection)
 public:
@@ -636,17 +656,17 @@ public:
 
     ResourceAccess resource_access() const { return static_cast<ResourceAccess>(slang_target()->getResourceAccess()); }
 
-#if 0
-    unsigned int getUserAttributeCount() { return spReflectionType_GetUserAttributeCount((SlangReflectionType*)this); }
-    UserAttribute* getUserAttributeByIndex(unsigned int index)
+    uint32_t get_user_attribute_count() const { return slang_target()->getUserAttributeCount(); }
+
+    ref<const Attribute> get_user_attribute_by_index(uint32_t index) const
     {
-        return (UserAttribute*)spReflectionType_GetUserAttribute((SlangReflectionType*)this, index);
+        return detail::from_slang(m_owner, slang_target()->getUserAttributeByIndex(index));
     }
-    UserAttribute* findUserAttributeByName(char const* name)
+
+    ref<const Attribute> find_user_attribute_by_name(const char* name) const
     {
-        return (UserAttribute*)spReflectionType_FindUserAttributeByName((SlangReflectionType*)this, name);
+        return detail::from_slang(m_owner, slang_target()->findUserAttributeByName(name));
     }
-#endif
 
     std::string to_string() const override;
 };

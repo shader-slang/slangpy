@@ -80,6 +80,12 @@ SGL_PY_EXPORT(device_reflection)
         D(DeclReflectionIndexedChildList)
     );
 
+    nb::class_<Attribute, BaseReflectionObject>(m, "Attribute", D(Attribute))
+        .def_prop_ro("name", &Attribute::name, D(Attribute, name))
+        .def_prop_ro("argument_count", &Attribute::argument_count, D(Attribute, argument_count))
+        .def("argument_type", &Attribute::argument_type, "index"_a, D(Attribute, argument_type))
+        .def("__repr__", &Attribute::to_string);
+
     nb::class_<TypeReflection, BaseReflectionObject> type_reflection(m, "TypeReflection", D(TypeReflection));
 
     nb::sgl_enum<TypeReflection::Kind>(type_reflection, "Kind", D(TypeReflection, Kind));
@@ -111,6 +117,19 @@ SGL_PY_EXPORT(device_reflection)
         )
         .def_prop_ro("resource_shape", &TypeReflection::resource_shape, D(TypeReflection, resource_shape))
         .def_prop_ro("resource_access", &TypeReflection::resource_access, D(TypeReflection, resource_access))
+        .def("get_user_attribute_count", &TypeReflection::get_user_attribute_count)
+        .def(
+            "get_user_attribute_by_index",
+            &TypeReflection::get_user_attribute_by_index,
+            "index"_a,
+            D(TypeReflection, get_user_attribute_by_index)
+        )
+        .def(
+            "find_user_attribute_by_name",
+            &TypeReflection::find_user_attribute_by_name,
+            "name"_a,
+            D(TypeReflection, find_user_attribute_by_name)
+        )
         .def("unwrap_array", &TypeReflection::unwrap_array, D(TypeReflection, unwrap_array))
         .def("__repr__", &TypeReflection::to_string);
 
