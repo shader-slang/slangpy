@@ -52,6 +52,7 @@ void ComputePipeline::recreate()
 {
     rhi::ComputePipelineDesc rhi_desc{
         .program = m_desc.program->rhi_shader_program(),
+        .deferTargetCompilation = m_desc.defer_target_compilation,
         .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
     SLANG_RHI_CALL(
@@ -167,6 +168,7 @@ void RenderPipeline::recreate()
             .alphaToCoverageEnable = desc.multisample.alpha_to_coverage_enable,
             .alphaToOneEnable = desc.multisample.alpha_to_one_enable,
         },
+        .deferTargetCompilation = m_desc.defer_target_compilation,
         .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
 
@@ -232,6 +234,7 @@ void RayTracingPipeline::recreate()
         .maxRayPayloadSize = desc.max_ray_payload_size,
         .maxAttributeSizeInBytes = desc.max_attribute_size,
         .flags = static_cast<rhi::RayTracingPipelineFlags>(desc.flags),
+        .deferTargetCompilation = m_desc.defer_target_compilation,
         .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
     SLANG_RHI_CALL(m_device->rhi_device()

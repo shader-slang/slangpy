@@ -308,15 +308,15 @@ class CallData(NativeCallData):
             hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 
             # Check if we've already built this module.
-            if hash in build_info.module.kernel_cache:
-                # Get kernel from cache if we have
-                self.kernel = build_info.module.kernel_cache[hash]
+            if hash in build_info.module.compute_pipeline_cache:
+                # Get pipeline from cache if we have
+                self.compute_pipeline = build_info.module.compute_pipeline_cache[hash]
                 self.device = build_info.module.device
-                self.log_debug(f"  Found cached kernel with hash {hash}")
+                self.log_debug(f"  Found cached pipeline with hash {hash}")
 
             else:
                 # Build new module and link it with the one that contains the function being called.
-                self.log_debug(f"  Building new kernel with hash {hash}")
+                self.log_debug(f"  Building new pipeline with hash {hash}")
                 session = build_info.module.session
                 device = session.device
                 module = session.load_module_from_source(hash, code)
@@ -329,8 +329,10 @@ class CallData(NativeCallData):
                     [ep],
                     opts,
                 )
-                self.kernel = device.create_compute_kernel(program)
-                build_info.module.kernel_cache[hash] = self.kernel
+                self.compute_pipeline = device.create_compute_pipeline(
+                    program, defer_target_compilation=True
+                )
+                build_info.module.compute_pipeline_cache[hash] = self.compute_pipeline
                 self.device = device
                 self.log_debug(f"  Build succesful")
 

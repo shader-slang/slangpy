@@ -139,11 +139,7 @@ SGL_PY_EXPORT(utils_slangpy_function)
 
     nb::sgl_enum<FunctionNodeType>(slangpy, "FunctionNodeType");
 
-    nb::class_<NativeFunctionNode, PyNativeFunctionNode, NativeObject>(
-        slangpy,
-        "NativeFunctionNode",
-        gc_helper_type_slots<NativeFunctionNode>()
-    )
+    nb::class_<NativeFunctionNode, PyNativeFunctionNode, NativeObject>(slangpy, "NativeFunctionNode")
         .def(
             "__init__",
             [](NativeFunctionNode& self,

@@ -42,7 +42,7 @@ def test_scalar_types(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_share_kernel_with_same_mapping(device_type: DeviceType):
+def test_share_compute_pipeline_with_same_mapping(device_type: DeviceType):
     device = helpers.get_device(device_type)
     m = load_test_module(device_type)
     assert m is not None
@@ -55,7 +55,7 @@ def test_share_kernel_with_same_mapping(device_type: DeviceType):
     float_float_cd = func.debug_build_call_data(b0, b1)
     mapped_float_float_cd = func.map((0,), (0,)).debug_build_call_data(b0, b1)
     assert float_float_cd != mapped_float_float_cd
-    assert float_float_cd.kernel == mapped_float_float_cd.kernel
+    assert float_float_cd.compute_pipeline == mapped_float_float_cd.compute_pipeline
 
 
 if __name__ == "__main__":

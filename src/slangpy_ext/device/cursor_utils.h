@@ -886,6 +886,8 @@ namespace {
         case slang::TypeReflection::Kind::Vector:
             return Py_ssize_t(slang_type_layout->getColumnCount());
             break;
+        default:
+            break;
         }
 
         return 0;

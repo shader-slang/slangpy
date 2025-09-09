@@ -235,7 +235,23 @@ class GcHelperFunctions {
 public:
     static int tp_traverse(PyObject* self, visitproc visit, void* arg)
     {
+// On Python 3.9+, we must traverse the implicit dependency
+// of an object on its associated type object.
+#if PY_VERSION_HEX >= 0x03090000
+        Py_VISIT(Py_TYPE(self));
+#endif
+
+        // The tp_traverse method may be called after __new__ but before or during
+        // __init__, before the C++ constructor has been completed. We must not
+        // inspect the C++ state if the constructor has not yet completed.
+        if (!nb::inst_ready(self)) {
+            return 0;
+        }
+
+        // Get the C++ object associated with 'self' (this always succeeds)
         T* object = nb::inst_ptr<T>(self);
+
+        // Use GcVisitor to visit each python attribute.
         GcVisitor visitor;
         visitor.self = self;
         visitor.visit = visit;
@@ -246,7 +262,10 @@ public:
 
     static int tp_clear(PyObject* self)
     {
+        // Get the C++ object associated with 'self' (this always succeeds)
         T* object = nb::inst_ptr<T>(self);
+
+        // Use GcHelper to clear references to python objects.
         GcHelper<T>{}.clear(object);
         return 0;
     }
