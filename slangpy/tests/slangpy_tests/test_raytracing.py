@@ -100,6 +100,11 @@ def build_tlas(
 def test_raytracing(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
+    if not device.has_feature(spy.Feature.acceleration_structure):
+        pytest.skip("Acceleration structures not supported on this device")
+    if not device.has_feature(spy.Feature.ray_tracing):
+        pytest.skip("Ray tracing not supported on this device")
+
     vertices = np.array([-1, -1, 0, 1, -1, 0, -1, 1, 0], dtype=np.float32)
     indices = np.array([0, 1, 2], dtype=np.uint32)
     blas = build_blas(device, vertices, indices)
