@@ -2,10 +2,11 @@
 from typing import TYPE_CHECKING, Any, Optional
 
 from slangpy.core.native import AccessType, CallMode, CallDataMode, NativeMarshall
+from slangpy.core.function import PipelineType
 
 import slangpy.bindings.typeregistry as tr
 import slangpy.reflection as slr
-from slangpy import ModifierID, TypeReflection, DeviceType
+from slangpy import ModifierID, TypeReflection
 from slangpy.bindings.marshall import Marshall, BindContext, ReturnContext
 from slangpy.bindings.boundvariable import (
     BoundCall,
@@ -597,23 +598,35 @@ def generate_code(
     cg.trampoline.append_line("")
 
     # Generate the main function
-    cg.kernel.append_line('[shader("compute")]')
-    if call_group_size != 1:
-        cg.kernel.append_line(f"[numthreads({call_group_size}, 1, 1)]")
+    if build_info.pipeline_type == PipelineType.compute:
+        cg.kernel.append_line('[shader("compute")]')
+        if call_group_size != 1:
+            cg.kernel.append_line(f"[numthreads({call_group_size}, 1, 1)]")
+        else:
+            cg.kernel.append_line("[numthreads(32, 1, 1)]")
+        # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
+        #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
+        if is_entry_point:
+            cg.kernel.append_line(
+                "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex, uniform CallData call_data)"
+            )
+        else:
+            cg.kernel.append_line(
+                "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex)"
+            )
+    elif build_info.pipeline_type == PipelineType.ray_tracing:
+        cg.kernel.append_line('[shader("raygen")]')
+        if is_entry_point:
+            cg.kernel.append_line("void raygen_main(uniform CallData call_data)")
+        else:
+            cg.kernel.append_line("void raygen_main()")
     else:
-        cg.kernel.append_line("[numthreads(32, 1, 1)]")
+        raise RuntimeError(f"Unknown pipeline type: {build_info.pipeline_type}")
 
-    # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
-    #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
-    if is_entry_point:
-        cg.kernel.append_line(
-            "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex, CallData call_data)"
-        )
-    else:
-        cg.kernel.append_line(
-            "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex)"
-        )
     cg.kernel.begin_block()
+
+    if build_info.pipeline_type == PipelineType.ray_tracing:
+        cg.kernel.append_statement("int3 flat_call_thread_id = DispatchRaysIndex();")
 
     cg.kernel.append_statement("if (any(flat_call_thread_id >= call_data._thread_count)) return")
 
@@ -623,14 +636,22 @@ def generate_code(
     # Call init_thread_local_call_shape_info to initialize the call shape info. See
     # definition in callshape.slang.
     if call_data_len > 0:
-        cg.kernel.append_line(
-            f"""
-        if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
-            flat_call_group_id, flat_call_thread_id, call_data._grid_stride,
-            call_data._grid_dim, call_data._call_dim))
-            return;"""
-        )
-
+        if build_info.pipeline_type == PipelineType.compute:
+            cg.kernel.append_line(
+                f"""
+    if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
+        flat_call_group_id, flat_call_thread_id, call_data._grid_stride,
+        call_data._grid_dim, call_data._call_dim))
+        return;"""
+            )
+        elif build_info.pipeline_type == PipelineType.ray_tracing:
+            cg.kernel.append_line(
+                f"""
+    if (!init_thread_local_call_shape_info(0,
+        uint3(0), flat_call_thread_id, call_data._grid_stride,
+        call_data._grid_dim, call_data._call_dim))
+        return;"""
+            )
         context_args += ", CallShapeInfo::get_call_id().shape"
 
     cg.kernel.append_statement(f"Context __slangpy_context__ = {{{context_args}}}")

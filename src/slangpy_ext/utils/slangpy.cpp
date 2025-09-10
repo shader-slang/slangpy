@@ -599,17 +599,8 @@ nb::object NativeCallData::exec(
         );
     }
 
-    // Create temporary command encoder if none is provided.
-    ref<CommandEncoder> temp_command_encoder;
-    if (command_encoder == nullptr) {
-        temp_command_encoder = m_device->create_command_encoder();
-        command_encoder = temp_command_encoder.get();
-    }
-
-    ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
-    // Bind pipeline & call data
+    auto bind_call_data = [&](ShaderCursor cursor)
     {
-        ShaderCursor cursor(pass_encoder->bind_pipeline(m_compute_pipeline));
         // Get the call data cursor, either as an entry point parameter or global depending on call data mode
         ShaderCursor call_data_cursor;
         if (m_call_data_mode == CallDataMode::entry_point) {
@@ -663,9 +654,34 @@ nb::object NativeCallData::exec(
                 }
             }
         }
+    };
+
+    // Create temporary command encoder if none is provided.
+    ref<CommandEncoder> temp_command_encoder;
+    if (command_encoder == nullptr) {
+        temp_command_encoder = m_device->create_command_encoder();
+        command_encoder = temp_command_encoder.get();
     }
-    pass_encoder->dispatch(uint3(total_threads, 1, 1));
-    pass_encoder->end();
+
+    bool is_ray_tracing = opts->get_is_ray_tracing();
+
+    if (!is_ray_tracing) {
+        ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
+        ComputePipeline* pipeline = dynamic_cast<ComputePipeline*>(m_pipeline.get());
+        SGL_ASSERT(pipeline != nullptr);
+        ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline));
+        bind_call_data(cursor);
+        pass_encoder->dispatch(uint3(total_threads, 1, 1));
+        pass_encoder->end();
+    } else {
+        ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
+        RayTracingPipeline* pipeline = dynamic_cast<RayTracingPipeline*>(m_pipeline.get());
+        SGL_ASSERT(pipeline != nullptr);
+        ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline, m_shader_table));
+        bind_call_data(cursor);
+        pass_encoder->dispatch_rays(0, uint3(total_threads, 1, 1));
+        pass_encoder->end();
+    }
 
     // If we created a temporary command encoder, we need to submit it.
     if (temp_command_encoder) {
@@ -1314,10 +1330,16 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def_prop_rw("device", &NativeCallData::get_device, &NativeCallData::set_device, D_NA(NativeCallData, device))
         .def_prop_rw(
-            "compute_pipeline",
-            &NativeCallData::get_compute_pipeline,
-            &NativeCallData::set_compute_pipeline,
-            D_NA(NativeCallData, compute_pipeline)
+            "pipeline",
+            &NativeCallData::get_pipeline,
+            &NativeCallData::set_pipeline,
+            D_NA(NativeCallData, pipeline)
+        )
+        .def_prop_rw(
+            "shader_table",
+            &NativeCallData::get_shader_table,
+            &NativeCallData::set_shader_table,
+            D_NA(NativeCallData, shader_table)
         )
         .def_prop_rw(
             "call_dimensionality",

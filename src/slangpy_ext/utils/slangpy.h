@@ -601,6 +601,12 @@ public:
     /// Set the CUDA stream.
     void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
 
+    /// Get ray tracing pipeline flag.
+    bool get_is_ray_tracing() const { return m_is_ray_tracing; }
+
+    /// Set ray tracing pipeline flag.
+    void set_is_ray_tracing(bool is_ray_tracing) { m_is_ray_tracing = is_ray_tracing; }
+
     /// Clear internal data for garbage collection
     void garbage_collect()
     {
@@ -612,6 +618,7 @@ private:
     nb::list m_uniforms;
     nb::object m_this{nb::none()};
     NativeHandle m_cuda_stream;
+    bool m_is_ray_tracing{false};
 };
 
 /// Defines the common logging functions for a given log level.
@@ -642,11 +649,17 @@ public:
     /// Set the device.
     void set_device(const ref<Device>& device) { m_device = device; }
 
-    /// Get the compute pipeline.
-    ref<ComputePipeline> get_compute_pipeline() const { return m_compute_pipeline; }
+    /// Get the pipeline.
+    ref<Pipeline> get_pipeline() const { return m_pipeline; }
 
-    /// Set the compute pipeline.
-    void set_compute_pipeline(const ref<ComputePipeline>& pipeline) { m_compute_pipeline = pipeline; }
+    /// Set the pipeline.
+    void set_pipeline(const ref<Pipeline>& pipeline) { m_pipeline = pipeline; }
+
+    /// Get the ray tracing shader table.
+    ref<ShaderTable> get_shader_table() const { return m_shader_table; }
+
+    /// Set the ray tracing shader table.
+    void set_shader_table(const ref<ShaderTable>& shader_table) { m_shader_table = shader_table; }
 
     /// Get the call dimensionality.
     int get_call_dimensionality() const { return m_call_dimensionality; }
@@ -759,7 +772,8 @@ public:
 
 private:
     ref<Device> m_device;
-    ref<ComputePipeline> m_compute_pipeline;
+    ref<Pipeline> m_pipeline;
+    ref<ShaderTable> m_shader_table;
     int m_call_dimensionality{0};
     ref<NativeBoundCallRuntime> m_runtime;
     CallMode m_call_mode{CallMode::prim};

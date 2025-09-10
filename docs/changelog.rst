@@ -7,10 +7,37 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Version 0.34 (Unreleased)
-----------------------------
+Version 0.35 (Unreleased)
+-------
+
+Version 0.34.0 (September 9, 2025)
+-------
 
 - Add ``Device.report_heaps()`` method to query internal memory heap status and allocation information.
+- Update to latest Slang version (2025.16.0) with improved CUDA and Metal support.
+  (PR ```#493 <https://github.com/shader-slang/slangpy/pull/493>```__)
+- Add GPU clock locking for consistent benchmark results and implement trimmed mean calculation for more accurate performance measurements.
+  (PR ```#484 <https://github.com/shader-slang/slangpy/pull/484>```__, PR ```#480 <https://github.com/shader-slang/slangpy/pull/480>```__, PR ```#472 <https://github.com/shader-slang/slangpy/pull/472>```__)
+- Support passing call data as entry point parameters on CUDA for improved performance.
+  (PR ```#481 <https://github.com/shader-slang/slangpy/pull/481>```__)
+- Fix multiple memory leaks related to Python object references and improve resource cleanup.
+  (PR ```#488 <https://github.com/shader-slang/slangpy/pull/488>```__)
+- Add benchmark comparison and delta reporting functionality with GPU information in reports.
+  (PR ```#471 <https://github.com/shader-slang/slangpy/pull/471>```__, PR ```#456 <https://github.com/shader-slang/slangpy/pull/456>```__)
+- Rename ```command_buffer``` to ```command_encoder``` for API consistency.
+  (PR ```#487 <https://github.com/shader-slang/slangpy/pull/487>```__)
+- Add ```PassEncoder::write_timestamp``` and timestamp support in ```ComputeKernel::dispatch```.
+  (PR ```#473 <https://github.com/shader-slang/slangpy/pull/473>```__)
+- Optimize ```write_from_numpy``` performance with faster copy options.
+  (PR ```#455 <https://github.com/shader-slang/slangpy/pull/455>```__)
+- Fix PyTorch examples and improve integration.
+  (PR ```#459 <https://github.com/shader-slang/slangpy/pull/459>```__)
+- Add support for platform-specific test isolation via environment variables.
+  (PR ```#478 <https://github.com/shader-slang/slangpy/pull/478>```__)
+- Fix module linking for layout when using ```link``` modules.
+  (PR ```#449 <https://github.com/shader-slang/slangpy/pull/449>```__)
+- Add string conversion functions for slangpy types and improve debugging capabilities.
+  (PR ```#463 <https://github.com/shader-slang/slangpy/pull/463>```__, PR ```#464 <https://github.com/shader-slang/slangpy/pull/464>```__)
 
 Version 0.33.1 (August 25, 2025)
 ----------------------------
