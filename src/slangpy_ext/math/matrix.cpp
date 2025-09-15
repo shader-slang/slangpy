@@ -326,6 +326,11 @@ inline void bind_matrix(nb::module_& m)
         "q"_a
     );
     m.def(
+        "matrix_4x4_from_3x4",
+        [](const float3x4& m) { return matrix_4x4_from_3x4(m); },
+        "m"_a
+    );
+    m.def(
         "decompose",
         [](const float4x4& model_matrix,
            float3& scale,
