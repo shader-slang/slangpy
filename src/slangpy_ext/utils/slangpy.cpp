@@ -117,7 +117,7 @@ void NativeMarshall::write_shader_cursor_pre_dispatch(
     // We are a leaf node, so generate and store call data for this node.
     nb::object cd_val = create_calldata(context, binding, value);
     if (!cd_val.is_none()) {
-        ShaderCursor child_field = cursor[binding->get_variable_name()];
+        ShaderCursor child_field = cursor[binding->variable_name()];
         write_shader_cursor(child_field, cd_val);
         store_readback(binding, read_back, value, cd_val);
     }
@@ -164,9 +164,9 @@ void NativeBoundVariableRuntime::populate_call_shape(
         // only the container shape is needed, as we never map elements.
         // Types that match the call shape simply take their transform
         // and set every corresponding dimension to 1 so it is broadcast.
-        if (m_python_type->get_concrete_shape().valid())
-            m_shape = m_python_type->get_concrete_shape();
-        else if (m_python_type->get_match_call_shape())
+        if (m_python_type->concrete_shape().valid())
+            m_shape = m_python_type->concrete_shape();
+        else if (m_python_type->match_call_shape())
             m_shape = Shape(std::vector<int>(tf.size(), 1));
         else {
             NativePackedArg* packed_arg = nullptr;
@@ -444,7 +444,7 @@ nb::object NativeCallData::exec(
     if (!command_encoder && m_call_mode == CallMode::prim) {
         ref<NativeBoundVariableRuntime> rv_node = m_runtime->find_kwarg("_result");
         if (rv_node && (!kwargs.contains("_result") || kwargs["_result"].is_none())) {
-            nb::object output = rv_node->get_python_type()->create_output(context, rv_node.get());
+            nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
             kwargs["_result"] = output;
             unpacked_kwargs["_result"] = output;
             rv_node->populate_call_shape(call_shape.as_vector(), output, this);
@@ -590,7 +590,7 @@ nb::object NativeCallData::exec(
     }
 
     // If CUDA stream is provided, check for valid use and sync device to the CUDA stream
-    NativeHandle cuda_stream = opts->get_cuda_stream();
+    NativeHandle cuda_stream = opts->cuda_stream();
     if (cuda_stream.is_valid()) {
         SGL_CHECK(command_encoder == nullptr, "Cannot specify a CUDA stream when appending to a command encoder.");
         SGL_CHECK(
@@ -644,7 +644,7 @@ nb::object NativeCallData::exec(
             read_back
         );
 
-        nb::list uniforms = opts->get_uniforms();
+        nb::list uniforms = opts->uniforms();
         if (uniforms) {
             for (auto u : uniforms) {
                 if (nb::isinstance<nb::dict>(u)) {
@@ -663,7 +663,7 @@ nb::object NativeCallData::exec(
         command_encoder = temp_command_encoder.get();
     }
 
-    bool is_ray_tracing = opts->get_is_ray_tracing();
+    bool is_ray_tracing = opts->is_ray_tracing();
 
     if (!is_ray_tracing) {
         ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
@@ -701,7 +701,7 @@ nb::object NativeCallData::exec(
         auto bvr = nb::cast<ref<NativeBoundVariableRuntime>>(t[0]);
         auto rb_val = t[1];
         auto rb_data = t[2];
-        bvr->get_python_type()->read_calldata(context, bvr.get(), rb_val, rb_data);
+        bvr->python_type()->read_calldata(context, bvr.get(), rb_val, rb_data);
     }
 
     // Pack updated 'this' values back.
@@ -1107,11 +1107,11 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def_prop_rw(
             "type_reflection",
-            &NativeSlangType::get_type_reflection,
+            &NativeSlangType::type_reflection,
             &NativeSlangType::set_type_reflection,
             D_NA(NativeSlangType, type_reflection)
         )
-        .def_prop_rw("shape", &NativeSlangType::get_shape, &NativeSlangType::set_shape, D_NA(NativeSlangType, shape))
+        .def_prop_rw("shape", &NativeSlangType::shape, &NativeSlangType::set_shape, D_NA(NativeSlangType, shape))
         .def("_py_element_type", &NativeSlangType::_py_element_type)
         .def("_py_has_derivative", &NativeSlangType::_py_has_derivative)
         .def("_py_derivative", &NativeSlangType::_py_derivative)
@@ -1128,20 +1128,20 @@ SGL_PY_EXPORT(utils_slangpy)
 
         .def_prop_rw(
             "concrete_shape",
-            &NativeMarshall::get_concrete_shape,
+            &NativeMarshall::concrete_shape,
             &NativeMarshall::set_concrete_shape,
             D_NA(NativeMarshall, concrete_shape)
         )
         .def_prop_rw(
             "match_call_shape",
-            &NativeMarshall::get_match_call_shape,
+            &NativeMarshall::match_call_shape,
             &NativeMarshall::set_match_call_shape,
             D_NA(NativeMarshall, match_call_shape)
         )
         .def("get_shape", &NativeMarshall::get_shape, "value"_a, D_NA(NativeMarshall, get_shape))
         .def_prop_rw(
             "slang_type",
-            &NativeMarshall::get_slang_type,
+            &NativeMarshall::slang_type,
             &NativeMarshall::set_slang_type,
             D_NA(NativeMarshall, slang_type)
         )
@@ -1203,25 +1203,25 @@ SGL_PY_EXPORT(utils_slangpy)
         .def(nb::init<>(), D_NA(NativeBoundVariableRuntime, NativeBoundVariableRuntime))
         .def_prop_rw(
             "access",
-            &NativeBoundVariableRuntime::get_access,
+            &NativeBoundVariableRuntime::access,
             &NativeBoundVariableRuntime::set_access,
             D_NA(NativeBoundVariableRuntime, access)
         )
         .def_prop_rw(
             "transform",
-            &NativeBoundVariableRuntime::get_transform,
+            &NativeBoundVariableRuntime::transform,
             &NativeBoundVariableRuntime::set_transform,
             D_NA(NativeBoundVariableRuntime, transform)
         )
         .def_prop_rw(
             "python_type",
-            &NativeBoundVariableRuntime::get_python_type,
+            &NativeBoundVariableRuntime::python_type,
             &NativeBoundVariableRuntime::set_python_type,
             D_NA(NativeBoundVariableRuntime, python_type)
         )
         .def_prop_rw(
             "vector_type",
-            &NativeBoundVariableRuntime::get_vector_type,
+            &NativeBoundVariableRuntime::vector_type,
             &NativeBoundVariableRuntime::set_vector_type,
             D_NA(NativeBoundVariableRuntime, vector_type)
         )
@@ -1239,13 +1239,13 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def_prop_rw(
             "variable_name",
-            &NativeBoundVariableRuntime::get_variable_name,
+            &NativeBoundVariableRuntime::variable_name,
             &NativeBoundVariableRuntime::set_variable_name,
             D_NA(NativeBoundVariableRuntime, variable_name)
         )
         .def_prop_rw(
             "children",
-            &NativeBoundVariableRuntime::get_children,
+            &NativeBoundVariableRuntime::children,
             &NativeBoundVariableRuntime::set_children,
             D_NA(NativeBoundVariableRuntime, children)
         )
@@ -1270,13 +1270,13 @@ SGL_PY_EXPORT(utils_slangpy)
         .def(nb::init<>(), D_NA(NativeBoundCallRuntime, NativeBoundCallRuntime))
         .def_prop_rw(
             "args",
-            &NativeBoundCallRuntime::get_args,
+            &NativeBoundCallRuntime::args,
             &NativeBoundCallRuntime::set_args,
             D_NA(NativeBoundCallRuntime, args)
         )
         .def_prop_rw(
             "kwargs",
-            &NativeBoundCallRuntime::get_kwargs,
+            &NativeBoundCallRuntime::kwargs,
             &NativeBoundCallRuntime::set_kwargs,
             D_NA(NativeBoundCallRuntime, kwargs)
         )
@@ -1301,7 +1301,7 @@ SGL_PY_EXPORT(utils_slangpy)
         .def(nb::init<>(), D_NA(NativeCallRuntimeOptions, NativeCallRuntimeOptions))
         .def_prop_rw(
             "uniforms",
-            &NativeCallRuntimeOptions::get_uniforms,
+            &NativeCallRuntimeOptions::uniforms,
             &NativeCallRuntimeOptions::set_uniforms,
             D_NA(NativeCallRuntimeOptions, uniforms)
         )
@@ -1313,7 +1313,7 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def_prop_rw(
             "cuda_stream",
-            &NativeCallRuntimeOptions::get_cuda_stream,
+            &NativeCallRuntimeOptions::cuda_stream,
             &NativeCallRuntimeOptions::set_cuda_stream,
             D_NA(NativeCallRuntimeOptions, cuda_stream)
         );
@@ -1328,53 +1328,48 @@ SGL_PY_EXPORT(utils_slangpy)
             [](NativeCallData& self) { new (&self) PyNativeCallData(); },
             D_NA(NativeCallData, NativeCallData)
         )
-        .def_prop_rw("device", &NativeCallData::get_device, &NativeCallData::set_device, D_NA(NativeCallData, device))
+        .def_prop_rw("device", &NativeCallData::device, &NativeCallData::set_device, D_NA(NativeCallData, device))
         .def_prop_rw(
             "pipeline",
-            &NativeCallData::get_pipeline,
+            &NativeCallData::pipeline,
             &NativeCallData::set_pipeline,
             D_NA(NativeCallData, pipeline)
         )
         .def_prop_rw(
             "shader_table",
-            &NativeCallData::get_shader_table,
+            &NativeCallData::shader_table,
             &NativeCallData::set_shader_table,
             D_NA(NativeCallData, shader_table)
         )
         .def_prop_rw(
             "call_dimensionality",
-            &NativeCallData::get_call_dimensionality,
+            &NativeCallData::call_dimensionality,
             &NativeCallData::set_call_dimensionality,
             D_NA(NativeCallData, call_dimensionality)
         )
-        .def_prop_rw(
-            "runtime",
-            &NativeCallData::get_runtime,
-            &NativeCallData::set_runtime,
-            D_NA(NativeCallData, runtime)
-        )
+        .def_prop_rw("runtime", &NativeCallData::runtime, &NativeCallData::set_runtime, D_NA(NativeCallData, runtime))
         .def_prop_rw(
             "call_mode",
-            &NativeCallData::get_call_mode,
+            &NativeCallData::call_mode,
             &NativeCallData::set_call_mode,
             D_NA(NativeCallData, call_mode)
         )
         .def_prop_rw(
             "call_data_mode",
-            &NativeCallData::get_call_data_mode,
+            &NativeCallData::call_data_mode,
             &NativeCallData::set_call_data_mode,
             D_NA(NativeCallData, call_data_mode)
         )
-        .def_prop_ro("last_call_shape", &NativeCallData::get_last_call_shape, D_NA(NativeCallData, last_call_shape))
+        .def_prop_ro("last_call_shape", &NativeCallData::last_call_shape, D_NA(NativeCallData, last_call_shape))
         .def_prop_rw(
             "debug_name",
-            &NativeCallData::get_debug_name,
+            &NativeCallData::debug_name,
             &NativeCallData::set_debug_name,
             D_NA(NativeCallData, debug_name)
         )
         .def_prop_rw(
             "logger",
-            &NativeCallData::get_logger,
+            &NativeCallData::logger,
             &NativeCallData::set_logger,
             nb::arg().none(),
             D_NA(NativeCallData, logger)
