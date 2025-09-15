@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union, Sequence
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
-from slangpy import ComputePipeline, SlangModule, Device, Logger
+from slangpy import Pipeline, ShaderTable, SlangModule, Device, Logger
 from slangpy.core.native import NativeCallDataCache
 from slangpy.reflection import SlangProgramLayout
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
@@ -73,7 +73,8 @@ class Module:
 
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, "DispatchData"] = {}
-        self.compute_pipeline_cache: dict[str, ComputePipeline] = {}
+        self.pipeline_cache: dict[str, Pipeline] = {}
+        self.shader_table_cache: dict[str, ShaderTable] = {}
         self.logger: Optional[Logger] = None
 
         self._attr_cache: dict[str, Union[Function, Struct]] = {}
@@ -210,7 +211,8 @@ class Module:
         # Clear all caches
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache = {}
-        self.compute_pipeline_cache = {}
+        self.pipeline_cache = {}
+        self.shader_table_cache = {}
         self._attr_cache = {}
 
     def __getattr__(self, name: str):

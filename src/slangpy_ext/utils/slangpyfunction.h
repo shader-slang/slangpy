@@ -19,14 +19,24 @@
 
 namespace sgl::slangpy {
 
-enum class FunctionNodeType { unknown, uniforms, kernelgen, this_, cuda_stream };
+enum class FunctionNodeType {
+    unknown,
+    uniforms,
+    kernelgen,
+    this_,
+    cuda_stream,
+    ray_tracing,
+};
 SGL_ENUM_INFO(
     FunctionNodeType,
-    {{FunctionNodeType::unknown, "unknown"},
-     {FunctionNodeType::uniforms, "uniforms"},
-     {FunctionNodeType::kernelgen, "kernelgen"},
-     {FunctionNodeType::this_, "this"},
-     {FunctionNodeType::cuda_stream, "cuda_stream"}}
+    {
+        {FunctionNodeType::unknown, "unknown"},
+        {FunctionNodeType::uniforms, "uniforms"},
+        {FunctionNodeType::kernelgen, "kernelgen"},
+        {FunctionNodeType::this_, "this"},
+        {FunctionNodeType::cuda_stream, "cuda_stream"},
+        {FunctionNodeType::ray_tracing, "ray_tracing"},
+    }
 );
 SGL_ENUM_REGISTER(FunctionNodeType);
 
@@ -68,10 +78,13 @@ public:
             options->set_this(m_data);
             break;
         case sgl::slangpy::FunctionNodeType::uniforms:
-            options->get_uniforms().append(m_data);
+            options->uniforms().append(m_data);
             break;
         case sgl::slangpy::FunctionNodeType::cuda_stream:
             options->set_cuda_stream(nb::cast<NativeHandle>(m_data));
+            break;
+        case sgl::slangpy::FunctionNodeType::ray_tracing:
+            options->set_is_ray_tracing(true);
             break;
         default:
             break;

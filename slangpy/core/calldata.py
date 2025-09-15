@@ -132,8 +132,11 @@ class CallData(NativeCallData):
             self.layout = build_info.module.layout
             self.call_mode = build_info.call_mode
 
-            # Set call data mode based on device type
-            if build_info.module.device.info.type == DeviceType.cuda:
+            # Set call data mode based on device and pipeline type
+            if (
+                build_info.module.device.info.type == DeviceType.cuda
+                and build_info.pipeline_type == PipelineType.compute
+            ):
                 self.call_data_mode = CallDataMode.entry_point
             else:
                 self.call_data_mode = CallDataMode.global_data
@@ -308,9 +311,12 @@ class CallData(NativeCallData):
             hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 
             # Check if we've already built this module.
-            if hash in build_info.module.compute_pipeline_cache:
+            if hash in build_info.module.pipeline_cache:
                 # Get pipeline from cache if we have
-                self.compute_pipeline = build_info.module.compute_pipeline_cache[hash]
+                self.pipeline = build_info.module.pipeline_cache[hash]
+                # Get shader table from cache if the pipeline is a raytracing pipeline
+                if build_info.pipeline_type == PipelineType.ray_tracing:
+                    self.shader_table = build_info.module.shader_table_cache[hash]
                 self.device = build_info.module.device
                 self.log_debug(f"  Found cached pipeline with hash {hash}")
 
@@ -320,19 +326,73 @@ class CallData(NativeCallData):
                 session = build_info.module.session
                 device = session.device
                 module = session.load_module_from_source(hash, code)
-                ep = module.entry_point(f"compute_main", type_conformances)
                 opts = SlangLinkOptions()
                 opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
                 opts.dump_intermediates_prefix = sanitized
-                program = session.link_program(
-                    [module, build_info.module.device_module] + build_info.module.link,
-                    [ep],
-                    opts,
-                )
-                self.compute_pipeline = device.create_compute_pipeline(
-                    program, defer_target_compilation=True
-                )
-                build_info.module.compute_pipeline_cache[hash] = self.compute_pipeline
+                if build_info.pipeline_type == PipelineType.compute:
+                    # Create compute pipeline
+                    ep = module.entry_point(f"compute_main", type_conformances)
+                    program = session.link_program(
+                        [module, build_info.module.device_module] + build_info.module.link,
+                        [ep],
+                        opts,
+                    )
+                    self.pipeline = device.create_compute_pipeline(
+                        program, defer_target_compilation=True
+                    )
+                    build_info.module.pipeline_cache[hash] = self.pipeline
+                elif build_info.pipeline_type == PipelineType.ray_tracing:
+                    # Create ray tracing pipeline
+                    eps = [module.entry_point(f"raygen_main", type_conformances)]
+                    hit_group_names: list[str] = []
+                    for hit_group in build_info.ray_tracing_hit_groups:
+                        hit_group_names.append(hit_group.hit_group_name)
+                        if hit_group.closest_hit_entry_point != "":
+                            eps.append(
+                                build_info.module.device_module.entry_point(
+                                    hit_group.closest_hit_entry_point
+                                )
+                            )
+                        if hit_group.any_hit_entry_point != "":
+                            eps.append(
+                                build_info.module.device_module.entry_point(
+                                    hit_group.any_hit_entry_point
+                                )
+                            )
+                        if hit_group.intersection_entry_point != "":
+                            eps.append(
+                                build_info.module.device_module.entry_point(
+                                    hit_group.intersection_entry_point
+                                )
+                            )
+                    for miss_entry_point in build_info.ray_tracing_miss_entry_points:
+                        eps.append(build_info.module.device_module.entry_point(miss_entry_point))
+
+                    program = session.link_program(
+                        [module, build_info.module.device_module] + build_info.module.link,
+                        eps,
+                        opts,
+                    )
+                    self.pipeline = device.create_ray_tracing_pipeline(
+                        program,
+                        hit_groups=build_info.ray_tracing_hit_groups,
+                        max_recursion=build_info.ray_tracing_max_recursion,
+                        max_ray_payload_size=build_info.ray_tracing_max_ray_payload_size,
+                        max_attribute_size=build_info.ray_tracing_max_attribute_size,
+                        flags=build_info.ray_tracing_flags,
+                        defer_target_compilation=True,
+                    )
+                    build_info.module.pipeline_cache[hash] = self.pipeline
+                    self.shader_table = device.create_shader_table(
+                        program,
+                        ray_gen_entry_points=["raygen_main"],
+                        miss_entry_points=build_info.ray_tracing_miss_entry_points,
+                        hit_group_names=hit_group_names,
+                        callable_entry_points=build_info.ray_tracing_callable_entry_points,
+                    )
+                    build_info.module.shader_table_cache[hash] = self.shader_table
+                else:
+                    raise RuntimeError("Unknown pipeline type")
                 self.device = device
                 self.log_debug(f"  Build succesful")
 

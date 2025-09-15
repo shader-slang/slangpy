@@ -55,7 +55,7 @@ def test_share_compute_pipeline_with_same_mapping(device_type: DeviceType):
     float_float_cd = func.debug_build_call_data(b0, b1)
     mapped_float_float_cd = func.map((0,), (0,)).debug_build_call_data(b0, b1)
     assert float_float_cd != mapped_float_float_cd
-    assert float_float_cd.compute_pipeline == mapped_float_float_cd.compute_pipeline
+    assert float_float_cd.pipeline == mapped_float_float_cd.pipeline
 
 
 if __name__ == "__main__":

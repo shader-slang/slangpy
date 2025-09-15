@@ -85,7 +85,7 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
 
     // Cast value to buffer, and get the cursor field to write to.
     auto buffer = nb::cast<NativeNDBuffer*>(value);
-    ShaderCursor field = cursor[binding->get_variable_name()];
+    ShaderCursor field = cursor[binding->variable_name()];
 
     // Write the buffer storage.
     field["buffer"] = buffer->storage();
@@ -104,7 +104,7 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
     // Generate and write strides vector, clearing strides to 0
     // for dimensions that are broadcast.
     std::vector<int> strides_vec = buffer->strides().as_vector();
-    const std::vector<int>& transform = binding->get_transform().as_vector();
+    const std::vector<int>& transform = binding->transform().as_vector();
     const std::vector<int>& call_shape = context->call_shape().as_vector();
     for (size_t i = 0; i < transform.size(); i++) {
         int csidx = transform[i];
@@ -203,7 +203,7 @@ void NativeNumpyMarshall::write_shader_cursor_pre_dispatch(
         shape_vec.push_back((int)ndarray.shape(i));
     }
 
-    std::vector<int> vector_shape = binding->get_vector_type()->get_shape().as_vector();
+    std::vector<int> vector_shape = binding->vector_type()->shape().as_vector();
     for (size_t i = 0; i < vector_shape.size(); i++) {
         int vs_size = vector_shape[vector_shape.size() - i - 1];
         int arr_size = shape_vec[shape_vec.size() - i - 1];
@@ -259,7 +259,7 @@ nb::object NativeNumpyMarshall::create_output(CallContext* context, NativeBoundV
     SGL_UNUSED(context);
     SGL_UNUSED(binding);
 
-    Shape shape = context->call_shape() + binding->get_vector_type()->get_shape();
+    Shape shape = context->call_shape() + binding->vector_type()->shape();
 
     size_t data_size = element_stride() * shape.element_count();
     void* data = new uint8_t[data_size];
