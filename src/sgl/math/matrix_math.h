@@ -711,6 +711,17 @@ template<floating_point T>
     return m;
 }
 
+template<floating_point T>
+[[nodiscard]] inline matrix<T, 4, 4> matrix_4x4_from_3x4(const matrix<T, 3, 4>& m)
+{
+    matrix<T, 4, 4> result;
+    for (int r = 0; r < 3; ++r) {
+        result.set_row(r, m.get_row(r));
+    }
+    result[3][3] = T(1);
+    return result;
+}
+
 template<typename T, int R, int C>
 [[nodiscard]] std::string to_string(const matrix<T, R, C>& m)
 {
