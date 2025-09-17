@@ -148,6 +148,8 @@ SGL_PY_EXPORT(core_bitmap)
             "load_from_numpy",
             [](nb::ndarray<nb::device::cpu> data)
             {
+                if(!is_ndarray_contiguous(data))
+                    SGL_THROW("To load from a numpy array, ensure it is contiguous.");
                 MemoryStream stream(data.data(), data.nbytes());
                 return make_ref<Bitmap>(&stream);
             },
