@@ -69,10 +69,12 @@ def _load_lookup_module(device: Device):
     dummy_module = device.load_module_from_source("slangpy_layout", 'import "slangpy";')
     global_lookup_modules[device] = SlangProgramLayout(dummy_module.layout)
 
+
 def _hot_reload_lookup_module(device: Device):
     if device in global_lookup_modules:
         dummy_module = device.load_module_from_source("slangpy_layout", 'import "slangpy";')
         global_lookup_modules[device].on_hot_reload(dummy_module.layout)
+
 
 def get_lookup_module(device: Device) -> SlangProgramLayout:
     if device not in global_lookup_modules:
