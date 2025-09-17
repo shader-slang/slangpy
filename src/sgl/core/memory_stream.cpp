@@ -55,11 +55,16 @@ void MemoryStream::read(void* p, size_t size)
     if (!is_open())
         SGL_THROW("Attempted to read from a closed memory stream");
 
-    if (m_pos + size > m_size)
-        SGL_THROW("Attempted to read past the end of a memory stream");
+    size_t gcount = size;
+    if (m_pos + size > m_size) {
+        gcount = m_size - m_pos;
+    }
 
-    std::memcpy(p, m_data + m_pos, size);
-    m_pos += size;
+    std::memcpy(p, m_data + m_pos, gcount);
+    m_pos += gcount;
+
+    if (gcount < size)
+        throw EOFException(fmt::format("Memory stream: read {} out of {} bytes", gcount, size), gcount);
 }
 
 void MemoryStream::write(const void* p, size_t size)
