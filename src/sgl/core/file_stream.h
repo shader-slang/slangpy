@@ -12,19 +12,6 @@
 
 namespace sgl {
 
-class SGL_API EOFException : public std::runtime_error {
-public:
-    EOFException(const std::string& what, size_t gcount)
-        : std::runtime_error(what)
-        , m_gcount(gcount)
-    {
-    }
-
-    size_t gcount() const { return m_gcount; }
-
-private:
-    size_t m_gcount;
-};
 
 class SGL_API FileStream : public Stream {
     SGL_OBJECT(FileStream)
