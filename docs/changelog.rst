@@ -7,8 +7,23 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Version 0.35 (Unreleased)
+Version 0.35.0 (September 18, 2025)
 -------
+
+- Add initial support for ray tracing pipelines, enabling hardware-accelerated ray tracing workflows.
+  (PR `#502 <https://github.com/shader-slang/slangpy/pull/502>`__)
+- Update to latest Slang version (2025.17) with improved shader compilation and platform support.
+  (PR `#507 <https://github.com/shader-slang/slangpy/pull/507>`__)
+- Add helper function to create homogeneous 4x4 transformation matrices from 3x4 matrices.
+  (PR `#506 <https://github.com/shader-slang/slangpy/pull/506>`__)
+- Add new ``load_from_file`` and ``load_from_numpy`` functions for improved data loading workflows.
+  (PR `#513 <https://github.com/shader-slang/slangpy/pull/513>`__)
+- Fix hot reload functionality for built-in reflection data to ensure proper shader recompilation.
+  (PR `#514 <https://github.com/shader-slang/slangpy/pull/514>`__)
+- Fix memory stream loading issues and improve data loading reliability.
+  (PR `#513 <https://github.com/shader-slang/slangpy/pull/513>`__)
+- Rename getter methods throughout the API to follow consistent coding conventions.
+  (PR `#505 <https://github.com/shader-slang/slangpy/pull/505>`__)
 
 Version 0.34.0 (September 9, 2025)
 -------
