@@ -157,8 +157,8 @@ matrix<T, 3, 3> rotate_2d(const matrix<T, 3, 3>& m, T angle)
     T s = sin(angle);
 
     matrix<T, 3, 3> result;
-    result.set_col(0, m.get_col(0) * c + m.get_col(1) * -s);
-    result.set_col(1, m.get_col(0) * s + m.get_col(1) * c);
+    result.set_col(0, m.get_col(0) * c + m.get_col(1) * s);
+    result.set_col(1, m.get_col(0) * -s + m.get_col(1) * c);
     result.set_col(2, m.get_col(2));
 
     return result;

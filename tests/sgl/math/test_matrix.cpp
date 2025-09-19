@@ -810,6 +810,22 @@ TEST_CASE("rotate_2d")
     CHECK_ALMOST_EQ(m2[2], float3(0, 0, 1));
 }
 
+TEST_CASE("rotate_2d_direction")
+{
+    // Test to verify that rotate_2d follows counter-clockwise convention
+    float3x3 identity = float3x3::identity();
+
+    // Rotate identity matrix by 90 degrees
+    float3x3 rotated = rotate_2d(identity, math::radians(90.f));
+
+    // The result should be equivalent to matrix_from_rotation_2d(90°)
+    float3x3 expected = math::matrix_from_rotation_2d(math::radians(90.f));
+
+    CHECK_ALMOST_EQ(rotated[0], expected[0]);
+    CHECK_ALMOST_EQ(rotated[1], expected[1]);
+    CHECK_ALMOST_EQ(rotated[2], expected[2]);
+}
+
 TEST_CASE("scale_2d")
 {
     float3x3 m({
@@ -872,6 +888,61 @@ TEST_CASE("matrix_from_scaling_2d")
     CHECK_ALMOST_EQ(m[0], float3(2, 0, 0));
     CHECK_ALMOST_EQ(m[1], float3(0, 3, 0));
     CHECK_ALMOST_EQ(m[2], float3(0, 0, 1));
+}
+
+TEST_CASE("2d_rotation_direction")
+{
+    // Sanity check that the rotation is counter clockwise!
+    float3x3 rot90 = math::matrix_from_rotation_2d(math::radians(90.f));
+    float3 point(1.f, 0.f, 1.f); // Point at (1, 0)
+    float3 rotated = mul(rot90, point);
+
+    // For counter-clockwise rotation: (1,0) -> (0,1)
+    // For clockwise rotation: (1,0) -> (0,-1)
+    CHECK_ALMOST_EQ(rotated, float3(0.f, 1.f, 1.f)); // Expecting counter-clockwise
+}
+
+TEST_CASE("rotate_2d_vs_matrix_multiplication")
+{
+    // Test that rotate_2d(matrix, angle) gives the same result as
+    // mul(matrix, matrix_from_rotation_2d(angle))
+
+    // Test with various starting matrices
+    float3x3 test_matrices[] = {// Identity matrix
+                                float3x3::identity(),
+
+                                // Translation matrix
+                                math::matrix_from_translation_2d(float2(5.f, 3.f)),
+
+                                // Scaling matrix
+                                math::matrix_from_scaling_2d(float2(2.f, 0.5f)),
+
+                                // Complex transformation matrix
+                                float3x3({
+                                    ROW(2, 1, 4),
+                                    ROW(-1, 3, 7),
+                                    ROW(0, 0, 1),
+                                })};
+
+    float angles[] = {0.f, math::radians(30.f), math::radians(90.f), math::radians(-45.f), math::radians(180.f)};
+
+    for (const auto& matrix : test_matrices) {
+        for (float angle : angles) {
+            // Method 1: Using rotate_2d function
+            float3x3 result1 = rotate_2d(matrix, angle);
+
+            // Method 2: Using matrix multiplication
+            // rotate_2d(m, angle) is equivalent to m * rotation_matrix
+            // or equivalently m * matrix_from_rotation_2d(-angle)
+            float3x3 rotation_matrix = math::matrix_from_rotation_2d(angle);
+            float3x3 result2 = mul(matrix, rotation_matrix);
+
+            // Results should be identical
+            CHECK_ALMOST_EQ(result1[0], result2[0]);
+            CHECK_ALMOST_EQ(result1[1], result2[1]);
+            CHECK_ALMOST_EQ(result1[2], result2[2]);
+        }
+    }
 }
 
 TEST_CASE("2d_transform_combinations")
