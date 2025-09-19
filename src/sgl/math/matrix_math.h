@@ -107,6 +107,15 @@ matrix<T, 4, 4> translate(const matrix<T, 4, 4>& m, const vector<T, 3>& v)
     return result;
 }
 
+/// Apply a 2D translation to a 3x3 matrix.
+template<typename T>
+matrix<T, 3, 3> translate_2d(const matrix<T, 3, 3>& m, const vector<T, 2>& v)
+{
+    matrix<T, 3, 3> result(m);
+    result.set_col(2, m.get_col(0) * v.x + m.get_col(1) * v.y + m.get_col(2));
+    return result;
+}
+
 /// Apply a rotation around an axis to a 4x4 matrix.
 template<typename T>
 matrix<T, 4, 4> rotate(const matrix<T, 4, 4>& m, T angle, const vector<T, 3>& axis_)
@@ -140,6 +149,21 @@ matrix<T, 4, 4> rotate(const matrix<T, 4, 4>& m, T angle, const vector<T, 3>& ax
     return result;
 }
 
+/// Apply a 2d rotation to a 3x3 matrix.
+template<typename T>
+matrix<T, 3, 3> rotate_2d(const matrix<T, 3, 3>& m, T angle)
+{
+    T c = cos(angle);
+    T s = sin(angle);
+
+    matrix<T, 3, 3> result;
+    result.set_col(0, m.get_col(0) * c + m.get_col(1) * s);
+    result.set_col(1, m.get_col(0) * -s + m.get_col(1) * c);
+    result.set_col(2, m.get_col(2));
+
+    return result;
+}
+
 /// Apply a scale to a 4x4 matrix.
 template<typename T>
 matrix<T, 4, 4> scale(const matrix<T, 4, 4>& m, const vector<T, 3>& v)
@@ -149,6 +173,17 @@ matrix<T, 4, 4> scale(const matrix<T, 4, 4>& m, const vector<T, 3>& v)
     result.set_col(1, m.get_col(1) * v[1]);
     result.set_col(2, m.get_col(2) * v[2]);
     result.set_col(3, m.get_col(3));
+    return result;
+}
+
+/// Apply a scale to a 3x3 matrix.
+template<typename T>
+matrix<T, 3, 3> scale_2d(const matrix<T, 3, 3>& m, const vector<T, 2>& v)
+{
+    matrix<T, 3, 3> result;
+    result.set_col(0, m.get_col(0) * v[0]);
+    result.set_col(1, m.get_col(1) * v[1]);
+    result.set_col(2, m.get_col(2));
     return result;
 }
 
@@ -535,14 +570,43 @@ template<floating_point T>
 template<floating_point T>
 [[nodiscard]] inline matrix<T, 4, 4> matrix_from_translation(const vector<T, 3>& v)
 {
-    return translate(matrix<T, 4, 4>::identity(), v);
+    matrix<T, 4, 4> m = matrix<T, 4, 4>::identity();
+    m[0][3] = v.x;
+    m[1][3] = v.y;
+    m[2][3] = v.z;
+    return m;
 }
+
+/// Creates a translation matrix.
+template<floating_point T>
+[[nodiscard]] inline matrix<T, 3, 3> matrix_from_translation_2d(const vector<T, 2>& v)
+{
+    matrix<T, 3, 3> m = matrix<T, 3, 3>::identity();
+    m[0][2] = v.x;
+    m[1][2] = v.y;
+    return m;
+}
+
 
 /// Creates a rotation matrix from an angle and an axis.
 template<floating_point T>
 [[nodiscard]] inline matrix<T, 4, 4> matrix_from_rotation(T angle, const vector<T, 3>& axis)
 {
     return rotate(matrix<T, 4, 4>::identity(), angle, axis);
+}
+
+/// Creates a 2D rotation matrix from an angle.
+template<floating_point T>
+[[nodiscard]] inline matrix<T, 3, 3> matrix_from_rotation_2d(T angle)
+{
+    T c = cos(angle);
+    T s = sin(angle);
+    matrix<T, 3, 3> m = matrix<T, 3, 3>::identity();
+    m[0][0] = c;
+    m[0][1] = -s;
+    m[1][0] = s;
+    m[1][1] = c;
+    return m;
 }
 
 /// Creates a rotation matrix around the X-axis.
@@ -641,7 +705,21 @@ template<floating_point T>
 template<floating_point T>
 [[nodiscard]] inline matrix<T, 4, 4> matrix_from_scaling(const vector<T, 3>& v)
 {
-    return scale(matrix<T, 4, 4>::identity(), v);
+    matrix<T, 4, 4> m = matrix<T, 4, 4>::identity();
+    m[0][0] = v.x;
+    m[1][1] = v.y;
+    m[2][2] = v.z;
+    return m;
+}
+
+/// Creates a scaling matrix.
+template<floating_point T>
+[[nodiscard]] inline matrix<T, 3, 3> matrix_from_scaling_2d(const vector<T, 2>& v)
+{
+    matrix<T, 3, 3> m = matrix<T, 3, 3>::identity();
+    m[0][0] = v.x;
+    m[1][1] = v.y;
+    return m;
 }
 
 /**
