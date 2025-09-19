@@ -784,6 +784,109 @@ TEST_CASE("matrix_from_quat")
     }
 }
 
+TEST_CASE("translate_2d")
+{
+    float3x3 m({
+        ROW(1, 0, 10),
+        ROW(0, -1, 20),
+        ROW(0, 0, 1),
+    });
+    float3x3 m2 = translate_2d(m, float2(1, 2));
+    CHECK_ALMOST_EQ(m2[0], float3(1, 0, 11));
+    CHECK_ALMOST_EQ(m2[1], float3(0, -1, 18));
+    CHECK_ALMOST_EQ(m2[2], float3(0, 0, 1));
+}
+
+TEST_CASE("rotate_2d")
+{
+    float3x3 m({
+        ROW(1, 0, 10),
+        ROW(0, -1, 20),
+        ROW(0, 0, 1),
+    });
+    float3x3 m2 = rotate_2d(m, math::radians(90.f));
+    CHECK_ALMOST_EQ(m2[0], float3(0, 1, 10));
+    CHECK_ALMOST_EQ(m2[1], float3(1, 0, 20));
+    CHECK_ALMOST_EQ(m2[2], float3(0, 0, 1));
+}
+
+TEST_CASE("scale_2d")
+{
+    float3x3 m({
+        ROW(1, 0, 10),
+        ROW(0, -1, 20),
+        ROW(0, 0, 1),
+    });
+    float3x3 m2 = scale_2d(m, float2(2, 3));
+    CHECK_ALMOST_EQ(m2[0], float3(2, 0, 10));
+    CHECK_ALMOST_EQ(m2[1], float3(0, -3, 20));
+    CHECK_ALMOST_EQ(m2[2], float3(0, 0, 1));
+}
+
+TEST_CASE("matrix_from_translation_2d")
+{
+    float3x3 m = math::matrix_from_translation_2d(float2(1, 2));
+    CHECK_EQ_VECTOR(m[0], float3(1, 0, 1));
+    CHECK_EQ_VECTOR(m[1], float3(0, 1, 2));
+    CHECK_EQ_VECTOR(m[2], float3(0, 0, 1));
+}
+
+TEST_CASE("matrix_from_rotation_2d")
+{
+    // Rotation by 90 degrees
+    {
+        float3x3 m = math::matrix_from_rotation_2d(math::radians(90.f));
+        CHECK_ALMOST_EQ(m[0], float3(0, -1, 0));
+        CHECK_ALMOST_EQ(m[1], float3(1, 0, 0));
+        CHECK_ALMOST_EQ(m[2], float3(0, 0, 1));
+    }
+
+    // Rotation by -45 degrees
+    {
+        float3x3 m = math::matrix_from_rotation_2d(math::radians(-45.f));
+        CHECK_ALMOST_EQ(m[0], float3(0.707106f, 0.707106f, 0));
+        CHECK_ALMOST_EQ(m[1], float3(-0.707106f, 0.707106f, 0));
+        CHECK_ALMOST_EQ(m[2], float3(0, 0, 1));
+    }
+
+    // Rotation by 180 degrees
+    {
+        float3x3 m = math::matrix_from_rotation_2d(math::radians(180.f));
+        CHECK_ALMOST_EQ(m[0], float3(-1, 0, 0));
+        CHECK_ALMOST_EQ(m[1], float3(0, -1, 0));
+        CHECK_ALMOST_EQ(m[2], float3(0, 0, 1));
+    }
+
+    // Identity rotation (0 degrees)
+    {
+        float3x3 m = math::matrix_from_rotation_2d(0.f);
+        CHECK_ALMOST_EQ(m[0], float3(1, 0, 0));
+        CHECK_ALMOST_EQ(m[1], float3(0, 1, 0));
+        CHECK_ALMOST_EQ(m[2], float3(0, 0, 1));
+    }
+}
+
+TEST_CASE("matrix_from_scaling_2d")
+{
+    float3x3 m = math::matrix_from_scaling_2d(float2(2.f, 3.f));
+    CHECK_ALMOST_EQ(m[0], float3(2, 0, 0));
+    CHECK_ALMOST_EQ(m[1], float3(0, 3, 0));
+    CHECK_ALMOST_EQ(m[2], float3(0, 0, 1));
+}
+
+TEST_CASE("2d_transform_combinations")
+{
+    // Build transformation matrix using matrix_from functions
+    float3x3 transform_matrix = math::matrix_from_translation_2d(float2(5.f, 10.f));
+    transform_matrix = mul(transform_matrix, math::matrix_from_rotation_2d(math::radians(90.f)));
+    transform_matrix = mul(transform_matrix, math::matrix_from_scaling_2d(float2(2.f, 3.f)));
+
+    // Transform point (1, 1) -> scale to (2, 3) -> rotate 90° to (-3, 2) -> translate to (2, 12)
+    float3 point(1.f, 1.f, 1.f);
+    float3 transformed = mul(transform_matrix, point);
+    CHECK_ALMOST_EQ(transformed, float3(2.f, 12.f, 1.f));
+}
+
 TEST_CASE("formatter")
 {
     float3x3 test0({1.1f, 1.2f, 1.3f, 2.1f, 2.2f, 2.3f, 3.1f, 3.2f, 3.3f});
