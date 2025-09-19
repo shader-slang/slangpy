@@ -138,6 +138,24 @@ SGL_PY_EXPORT(core_bitmap)
             "path"_a,
             D(Bitmap, Bitmap, 3)
         )
+        .def_static(
+            "load_from_file",
+            [](const std::filesystem::path& path) { return make_ref<Bitmap>(path); },
+            "path"_a,
+            D_NA(Bitmap, load_from_file)
+        )
+        .def_static(
+            "load_from_numpy",
+            [](nb::ndarray<nb::device::cpu> data)
+            {
+                if (!is_ndarray_contiguous(data))
+                    SGL_THROW("To load from a numpy array, ensure it is contiguous.");
+                MemoryStream stream(data.data(), data.nbytes());
+                return make_ref<Bitmap>(&stream);
+            },
+            "data"_a,
+            D_NA(Bitmap, load_from_numpy)
+        )
         .def_prop_ro("pixel_format", &Bitmap::pixel_format, D(Bitmap, pixel_format))
         .def_prop_ro("component_type", &Bitmap::component_type, D(Bitmap, component_type))
         .def_prop_ro("pixel_struct", &Bitmap::pixel_struct, D(Bitmap, pixel_struct))
