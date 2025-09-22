@@ -805,8 +805,8 @@ TEST_CASE("rotate_2d")
         ROW(0, 0, 1),
     });
     float3x3 m2 = rotate_2d(m, math::radians(90.f));
-    CHECK_ALMOST_EQ(m2[0], float3(0, 1, 10));
-    CHECK_ALMOST_EQ(m2[1], float3(1, 0, 20));
+    CHECK_ALMOST_EQ(m2[0], float3(0, -1, 10));
+    CHECK_ALMOST_EQ(m2[1], float3(-1, 0, 20));
     CHECK_ALMOST_EQ(m2[2], float3(0, 0, 1));
 }
 
@@ -890,7 +890,7 @@ TEST_CASE("matrix_from_scaling_2d")
     CHECK_ALMOST_EQ(m[2], float3(0, 0, 1));
 }
 
-TEST_CASE("2d_rotation_direction")
+TEST_CASE("matrix_2d_rotation_direction")
 {
     // Sanity check that the rotation is counter clockwise!
     float3x3 rot90 = math::matrix_from_rotation_2d(math::radians(90.f));
