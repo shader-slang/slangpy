@@ -2,6 +2,7 @@
 
 import pytest
 import numpy as np
+import pathlib
 
 from slangpy import DeviceType, float2, float3, Module
 from slangpy.core.function import Function
@@ -13,7 +14,12 @@ from slangpy.testing import helpers
 
 def load_test_module(device_type: DeviceType):
     device = helpers.get_device(device_type)
-    return Module(device.load_module("test_modules.slang"))
+    #### Causes failure due to sanitization missing \\ (which is in the path)
+    # see the code in calldata.py after `if _DUMP_GENERATED_SHADERS`
+
+    ## Causes failure, because the name of the module is the full path,
+    # so the generated slang co goes `import "C:\\path\\to\\example.slang";`
+    return Module(device.load_module(str(pathlib.Path(__file__).parent / "test_modules.slang")))
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
