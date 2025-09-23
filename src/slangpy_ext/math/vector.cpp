@@ -59,7 +59,7 @@ void bind_vector_type(nb::module_& m, const char* name)
         vec.def_prop_ro("xy", &T::xy);
     }
     if constexpr (dimension == 4) {
-        vec.def_prop_ro("xyz", & T::xyz);
+        vec.def_prop_ro("xyz", &T::xyz);
     }
 
     vec.def("__len__", [](const T&) { return dimension; });
