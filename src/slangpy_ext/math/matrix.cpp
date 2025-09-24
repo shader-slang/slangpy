@@ -232,6 +232,12 @@ inline void bind_matrix(nb::module_& m)
         "v"_a
     );
     m.def(
+        "translate_2d",
+        [](const float3x3& m, const float2& v) { return translate_2d(m, v); },
+        "m"_a,
+        "v"_a
+    );
+    m.def(
         "rotate",
         [](const float4x4& m, float angle, const float3& axis) { return rotate(m, angle, axis); },
         "m"_a,
@@ -239,8 +245,20 @@ inline void bind_matrix(nb::module_& m)
         "axis"_a
     );
     m.def(
+        "rotate_2d",
+        [](const float3x3& m, float angle) { return rotate_2d(m, angle); },
+        "m"_a,
+        "angle"_a
+    );
+    m.def(
         "scale",
         [](const float4x4& m, const float3& v) { return scale(m, v); },
+        "m"_a,
+        "v"_a
+    );
+    m.def(
+        "scale_2d",
+        [](const float3x3& m, const float2& v) { return scale_2d(m, v); },
         "m"_a,
         "v"_a
     );
@@ -270,10 +288,20 @@ inline void bind_matrix(nb::module_& m)
         [](const float3& v) { return matrix_from_translation(v); },
         "v"_a
     );
+    m.def(
+        "matrix_from_translation_2d",
+        [](const float2& v) { return matrix_from_translation_2d(v); },
+        "v"_a
+    );
 
     m.def(
         "matrix_from_scaling",
         [](const float3& v) { return matrix_from_scaling(v); },
+        "v"_a
+    );
+    m.def(
+        "matrix_from_scaling_2d",
+        [](const float2& v) { return matrix_from_scaling_2d(v); },
         "v"_a
     );
 
@@ -282,6 +310,11 @@ inline void bind_matrix(nb::module_& m)
         [](float angle, const float3& axis) { return matrix_from_rotation(angle, axis); },
         "angle"_a,
         "axis"_a
+    );
+    m.def(
+        "matrix_from_rotation_2d",
+        [](float angle) { return matrix_from_rotation_2d(angle); },
+        "angle"_a
     );
 
     m.def(
