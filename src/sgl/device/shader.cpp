@@ -511,6 +511,8 @@ ref<SlangModule> SlangSession::load_module_from_source(
     module->load(build);
     module->store_built_data(build);
 
+    module = deduplicate_module(std::move(module));
+
     // Update cache of loaded modules.
     update_module_cache_and_dependencies();
 
@@ -625,6 +627,11 @@ void SlangSession::_unregister_module(SlangModule* module)
     auto existing = std::find(m_registered_modules.begin(), m_registered_modules.end(), module);
     SGL_ASSERT(existing != m_registered_modules.end());
     m_registered_modules.erase(existing);
+
+    if (auto it = m_sgl_to_cache_location_map.find(module); it != m_sgl_to_cache_location_map.end()) {
+        m_slang_to_sgl_module_map.erase(it->second);
+        m_sgl_to_cache_location_map.erase(it);
+    }
 }
 
 std::string SlangSession::to_string() const
@@ -725,6 +732,18 @@ bool SlangSession::write_module_to_cache(slang::IModule* module)
     log_debug("Cached slang module \"{}\" to \"{}\"", module->getName(), cache_path);
 
     return true;
+}
+
+ref<SlangModule> SlangSession::deduplicate_module(ref<SlangModule>&& module)
+{
+    auto it = m_slang_to_sgl_module_map.find(module->slang_module());
+    if (it != m_slang_to_sgl_module_map.end())
+        return ref<SlangModule>(it->second);
+
+    it = m_slang_to_sgl_module_map.insert(std::make_pair(module->slang_module(), module.get())).first;
+    m_sgl_to_cache_location_map[module.get()] = it;
+
+    return module;
 }
 
 std::string SlangSessionData::resolve_module_name(std::string_view module_name) const
