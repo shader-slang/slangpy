@@ -7,6 +7,12 @@ These tests compare the slangpy implementations against numpy reference implemen
 
 import numpy as np
 from slangpy import float3, quatf, posrotf, posrotscalef
+from slangpy.math import (
+    posrot_from_translation,
+    posrotscale_from_scaling,
+    posrotscale_from_uniform_scaling,
+    transform_point,
+)
 
 
 def test_matrix_conversion_identity():
@@ -31,7 +37,7 @@ def test_matrix_conversion_identity():
 def test_translation_matrix():
     """Test translation matrix against numpy."""
     pos = float3(1.5, -2.3, 4.7)
-    pr = posrotf.translation(pos)
+    pr = posrot_from_translation(pos)
     m4x4 = pr.to_matrix4x4()
 
     # Convert to numpy
@@ -57,11 +63,11 @@ def test_point_transformation():
     """Test point transformation against numpy matrix multiplication."""
     # Create a transform
     pos = float3(2.0, 3.0, 1.0)
-    pr = posrotf.translation(pos)
+    pr = posrot_from_translation(pos)
 
     # Transform a point using slangpy
     point = float3(1.0, 2.0, 3.0)
-    transformed_slang = pr * point
+    transformed_slang = transform_point(pr, point)
 
     # Transform using numpy matrix multiplication
     m4x4 = pr.to_matrix4x4()
@@ -86,8 +92,8 @@ def test_point_transformation():
 def test_transform_composition():
     """Test transform composition against numpy matrix multiplication."""
     # Create two transforms
-    pr1 = posrotf.translation(float3(1.0, 2.0, 0.0))
-    pr2 = posrotf.translation(float3(3.0, 1.0, 1.0))
+    pr1 = posrot_from_translation(float3(1.0, 2.0, 0.0))
+    pr2 = posrot_from_translation(float3(3.0, 1.0, 1.0))
 
     # Compose using slangpy
     result_slang = pr1 * pr2
@@ -152,7 +158,7 @@ def test_transform_composition():
 def test_scaling_matrix():
     """Test scaling matrix against numpy."""
     scale = float3(2.0, 0.5, 3.0)
-    prs = posrotscalef.from_scaling(scale)
+    prs = posrotscale_from_scaling(scale)
     m4x4 = prs.to_matrix4x4()
 
     # Convert to numpy
@@ -174,7 +180,7 @@ def test_scaling_matrix():
 def test_uniform_scaling_matrix():
     """Test uniform scaling matrix."""
     factor = 2.5
-    prs = posrotscalef.uniform_scaling(factor)
+    prs = posrotscale_from_uniform_scaling(factor)
     m4x4 = prs.to_matrix4x4()
 
     # Convert to numpy
@@ -197,11 +203,11 @@ def test_scaled_point_transformation():
     """Test scaled point transformation against numpy."""
     # Create a scale transform
     scale = float3(2.0, 0.5, 3.0)
-    prs = posrotscalef.from_scaling(scale)
+    prs = posrotscale_from_scaling(scale)
 
     # Transform a point
     point = float3(1.0, 4.0, 2.0)
-    transformed_slang = prs * point
+    transformed_slang = transform_point(prs, point)
 
     # Expected result: component-wise multiplication
     expected_np = np.array([point.x * scale.x, point.y * scale.y, point.z * scale.z])
@@ -222,7 +228,7 @@ def test_trs_composition():
 
     # Test point transformation
     point = float3(2.0, 3.0, 4.0)
-    transformed_slang = prs * point
+    transformed_slang = transform_point(prs, point)
 
     # Manual computation: scale first, then translate
     scaled = np.array([point.x * scale.x, point.y * scale.y, point.z * scale.z])
