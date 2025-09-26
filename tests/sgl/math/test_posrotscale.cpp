@@ -5,45 +5,49 @@
 #include "sgl/math/posrot.h"
 #include "sgl/math/matrix.h"
 #include <doctest/doctest.h>
+#include <fmt/format.h>
 
 using namespace sgl;
 using namespace sgl::math;
+
+#define CHECK_EQ_VECTOR(a, b) CHECK_MESSAGE(all(a == b), fmt::format("{} != {}", a, b))
+#define CHECK_EQ_QUAT(a, b) CHECK_MESSAGE(all(a == b), fmt::format("{} != {}", a, b))
 
 TEST_CASE("posrotscale - constructors")
 {
     SUBCASE("default constructor")
     {
         posrotscalef prs;
-        CHECK(prs.pos == float3(0.0f));
-        CHECK(prs.rot == quatf::identity());
-        CHECK(prs.scale == float3(1.0f));
+        CHECK_EQ_VECTOR(prs.pos, float3(0.0f));
+        CHECK_EQ_QUAT(prs.rot, quatf::identity());
+        CHECK_EQ_VECTOR(prs.scale, float3(1.0f));
     }
 
     SUBCASE("position constructor")
     {
         float3 pos(1.0f, 2.0f, 3.0f);
         posrotscalef prs(pos);
-        CHECK(prs.pos == pos);
-        CHECK(prs.rot == quatf::identity());
-        CHECK(prs.scale == float3(1.0f));
+        CHECK_EQ_VECTOR(prs.pos, pos);
+        CHECK_EQ_QUAT(prs.rot, quatf::identity());
+        CHECK_EQ_VECTOR(prs.scale, float3(1.0f));
     }
 
     SUBCASE("rotation constructor")
     {
         quatf rot(0.0f, 0.0f, 0.707107f, 0.707107f);
         posrotscalef prs(rot);
-        CHECK(prs.pos == float3(0.0f));
-        CHECK(prs.rot == rot);
-        CHECK(prs.scale == float3(1.0f));
+        CHECK_EQ_VECTOR(prs.pos, float3(0.0f));
+        CHECK_EQ_QUAT(prs.rot, rot);
+        CHECK_EQ_VECTOR(prs.scale, float3(1.0f));
     }
 
     SUBCASE("scale constructor")
     {
         float3 scale(2.0f, 3.0f, 4.0f);
-        posrotscalef prs(scale);
-        CHECK(prs.pos == float3(0.0f));
-        CHECK(prs.rot == quatf::identity());
-        CHECK(prs.scale == scale);
+        posrotscalef prs = posrotscale_from_scaling(scale);
+        CHECK_EQ_VECTOR(prs.pos, float3(0.0f));
+        CHECK_EQ_QUAT(prs.rot, quatf::identity());
+        CHECK_EQ_VECTOR(prs.scale, scale);
     }
 
     SUBCASE("position and rotation constructor")
@@ -51,9 +55,9 @@ TEST_CASE("posrotscale - constructors")
         float3 pos(1.0f, 2.0f, 3.0f);
         quatf rot(0.0f, 0.0f, 0.707107f, 0.707107f);
         posrotscalef prs(pos, rot);
-        CHECK(prs.pos == pos);
-        CHECK(prs.rot == rot);
-        CHECK(prs.scale == float3(1.0f));
+        CHECK_EQ_VECTOR(prs.pos, pos);
+        CHECK_EQ_QUAT(prs.rot, rot);
+        CHECK_EQ_VECTOR(prs.scale, float3(1.0f));
     }
 
     SUBCASE("full constructor")
@@ -62,30 +66,30 @@ TEST_CASE("posrotscale - constructors")
         quatf rot(0.0f, 0.0f, 0.707107f, 0.707107f);
         float3 scale(2.0f, 3.0f, 4.0f);
         posrotscalef prs(pos, rot, scale);
-        CHECK(prs.pos == pos);
-        CHECK(prs.rot == rot);
-        CHECK(prs.scale == scale);
+        CHECK_EQ_VECTOR(prs.pos, pos);
+        CHECK_EQ_QUAT(prs.rot, rot);
+        CHECK_EQ_VECTOR(prs.scale, scale);
     }
 
     SUBCASE("posrot constructor")
     {
         posrotf pr(float3(1.0f, 2.0f, 3.0f), quatf::identity());
         posrotscalef prs(pr);
-        CHECK(prs.pos == pr.pos);
-        CHECK(prs.rot == pr.rot);
-        CHECK(prs.scale == float3(1.0f));
+        CHECK_EQ_VECTOR(prs.pos, pr.pos);
+        CHECK_EQ_QUAT(prs.rot, pr.rot);
+        CHECK_EQ_VECTOR(prs.scale, float3(1.0f));
     }
 
     SUBCASE("array constructor")
     {
         std::array<float, 10> a = {1.0f, 2.0f, 3.0f, 0.0f, 0.0f, 0.707107f, 0.707107f, 2.0f, 3.0f, 4.0f};
         posrotscalef prs(a);
-        CHECK(prs.pos == float3(1.0f, 2.0f, 3.0f));
+        CHECK_EQ_VECTOR(prs.pos, float3(1.0f, 2.0f, 3.0f));
         CHECK(prs.rot.x == doctest::Approx(0.0f));
         CHECK(prs.rot.y == doctest::Approx(0.0f));
         CHECK(prs.rot.z == doctest::Approx(0.707107f));
         CHECK(prs.rot.w == doctest::Approx(0.707107f));
-        CHECK(prs.scale == float3(2.0f, 3.0f, 4.0f));
+        CHECK_EQ_VECTOR(prs.scale, float3(2.0f, 3.0f, 4.0f));
     }
 }
 
@@ -94,44 +98,44 @@ TEST_CASE("posrotscale - static constructors")
     SUBCASE("identity")
     {
         posrotscalef prs = posrotscalef::identity();
-        CHECK(prs.pos == float3(0.0f));
-        CHECK(prs.rot == quatf::identity());
-        CHECK(prs.scale == float3(1.0f));
+        CHECK_EQ_VECTOR(prs.pos, float3(0.0f));
+        CHECK_EQ_QUAT(prs.rot, quatf::identity());
+        CHECK_EQ_VECTOR(prs.scale, float3(1.0f));
     }
 
     SUBCASE("translation")
     {
         float3 pos(1.0f, 2.0f, 3.0f);
         posrotscalef prs = posrotscale_from_translation(pos);
-        CHECK(prs.pos == pos);
-        CHECK(prs.rot == quatf::identity());
-        CHECK(prs.scale == float3(1.0f));
+        CHECK_EQ_VECTOR(prs.pos, pos);
+        CHECK_EQ_QUAT(prs.rot, quatf::identity());
+        CHECK_EQ_VECTOR(prs.scale, float3(1.0f));
     }
 
     SUBCASE("rotation")
     {
         quatf rot(0.0f, 0.0f, 0.707107f, 0.707107f);
         posrotscalef prs = posrotscale_from_rotation(rot);
-        CHECK(prs.pos == float3(0.0f));
-        CHECK(prs.rot == rot);
-        CHECK(prs.scale == float3(1.0f));
+        CHECK_EQ_VECTOR(prs.pos, float3(0.0f));
+        CHECK_EQ_QUAT(prs.rot, rot);
+        CHECK_EQ_VECTOR(prs.scale, float3(1.0f));
     }
 
     SUBCASE("scaling")
     {
         float3 scale(2.0f, 3.0f, 4.0f);
         posrotscalef prs = posrotscale_from_scaling(scale);
-        CHECK(prs.pos == float3(0.0f));
-        CHECK(prs.rot == quatf::identity());
-        CHECK(prs.scale == scale);
+        CHECK_EQ_VECTOR(prs.pos, float3(0.0f));
+        CHECK_EQ_QUAT(prs.rot, quatf::identity());
+        CHECK_EQ_VECTOR(prs.scale, scale);
     }
 
     SUBCASE("uniform_scaling")
     {
         posrotscalef prs = posrotscale_from_uniform_scaling(2.5f);
-        CHECK(prs.pos == float3(0.0f));
-        CHECK(prs.rot == quatf::identity());
-        CHECK(prs.scale == float3(2.5f));
+        CHECK_EQ_VECTOR(prs.pos, float3(0.0f));
+        CHECK_EQ_QUAT(prs.rot, quatf::identity());
+        CHECK_EQ_VECTOR(prs.scale, float3(2.5f));
     }
 }
 
@@ -169,7 +173,7 @@ TEST_CASE("posrotscale - transform operations")
         // Scale: (1,1,2) -> (2,1,1)
         // Rotate: identity, so (2,1,1)
         // Translate: (2,1,1) + (1,2,3) = (3,3,4)
-        CHECK(result == float3(3.0f, 3.0f, 4.0f));
+        CHECK_EQ_VECTOR(result, float3(3.0f, 3.0f, 4.0f));
     }
 
     SUBCASE("inverse")
@@ -260,8 +264,8 @@ TEST_CASE("posrotscale - conversions")
         posrotscalef prs(float3(1.0f, 2.0f, 3.0f), quatf::identity(), float3(2.0f, 3.0f, 4.0f));
         posrotf pr = posrot_from_posrotscale(prs);
 
-        CHECK(pr.pos == prs.pos);
-        CHECK(pr.rot == prs.rot);
+        CHECK_EQ_VECTOR(pr.pos, prs.pos);
+        CHECK_EQ_QUAT(pr.rot, prs.rot);
     }
 }
 

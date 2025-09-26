@@ -4,9 +4,13 @@
 #include "sgl/math/posrot.h"
 #include "sgl/math/matrix.h"
 #include <doctest/doctest.h>
+#include <fmt/format.h>
 
 using namespace sgl;
 using namespace sgl::math;
+
+#define CHECK_EQ_VECTOR(a, b) CHECK_MESSAGE(all(a == b), fmt::format("{} != {}", a, b))
+#define CHECK_EQ_QUAT(a, b) CHECK_MESSAGE(all(a == b), fmt::format("{} != {}", a, b))
 
 TEST_CASE("posrot - constructors")
 {
@@ -41,8 +45,8 @@ TEST_CASE("posrot - constructors")
     {
         quatf rot(0.0f, 0.0f, 0.707107f, 0.707107f); // 90 degrees around Z
         posrotf pr(rot);
-        CHECK(pr.pos == float3(0.0f));
-        CHECK(pr.rot == rot);
+        CHECK_EQ_VECTOR(pr.pos, float3(0.0f));
+        CHECK_EQ_QUAT(pr.rot, rot);
     }
 
     SUBCASE("position and rotation constructor")
@@ -50,15 +54,15 @@ TEST_CASE("posrot - constructors")
         float3 pos(1.0f, 2.0f, 3.0f);
         quatf rot(0.0f, 0.0f, 0.707107f, 0.707107f);
         posrotf pr(pos, rot);
-        CHECK(pr.pos == pos);
-        CHECK(pr.rot == rot);
+        CHECK_EQ_VECTOR(pr.pos, pos);
+        CHECK_EQ_QUAT(pr.rot, rot);
     }
 
     SUBCASE("array constructor")
     {
         std::array<float, 7> a = {1.0f, 2.0f, 3.0f, 0.0f, 0.0f, 0.707107f, 0.707107f};
         posrotf pr(a);
-        CHECK(pr.pos == float3(1.0f, 2.0f, 3.0f));
+        CHECK_EQ_VECTOR(pr.pos, float3(1.0f, 2.0f, 3.0f));
         CHECK(pr.rot.x == doctest::Approx(0.0f));
         CHECK(pr.rot.y == doctest::Approx(0.0f));
         CHECK(pr.rot.z == doctest::Approx(0.707107f));
@@ -71,24 +75,24 @@ TEST_CASE("posrot - static constructors")
     SUBCASE("identity")
     {
         posrotf pr = posrotf::identity();
-        CHECK(pr.pos == float3(0.0f));
-        CHECK(pr.rot == quatf::identity());
+        CHECK_EQ_VECTOR(pr.pos, float3(0.0f));
+        CHECK_EQ_QUAT(pr.rot, quatf::identity());
     }
 
     SUBCASE("translation")
     {
         float3 pos(1.0f, 2.0f, 3.0f);
         posrotf pr = posrot_from_translation(pos);
-        CHECK(pr.pos == pos);
-        CHECK(pr.rot == quatf::identity());
+        CHECK_EQ_VECTOR(pr.pos, pos);
+        CHECK_EQ_QUAT(pr.rot, quatf::identity());
     }
 
     SUBCASE("rotation")
     {
         quatf rot(0.0f, 0.0f, 0.707107f, 0.707107f);
         posrotf pr = posrot_from_rotation(rot);
-        CHECK(pr.pos == float3(0.0f));
-        CHECK(pr.rot == rot);
+        CHECK_EQ_VECTOR(pr.pos, float3(0.0f));
+        CHECK_EQ_QUAT(pr.rot, rot);
     }
 }
 
@@ -119,7 +123,7 @@ TEST_CASE("posrot - transform operations")
         posrotf t = posrot_from_translation(float3(1.0f, 2.0f, 3.0f));
         float3 point(1.0f, 1.0f, 1.0f);
         float3 result = transform_point(t, point);
-        CHECK(result == float3(2.0f, 3.0f, 4.0f));
+        CHECK_EQ_VECTOR(result, float3(2.0f, 3.0f, 4.0f));
     }
 
     SUBCASE("inverse")
@@ -214,7 +218,7 @@ TEST_CASE("posrot - normalize")
     posrotf normalized = normalize(t);
 
     // Check that position is unchanged
-    CHECK(normalized.pos == t.pos);
+    CHECK_EQ_VECTOR(normalized.pos, t.pos);
 
     // Check that rotation is normalized
     float quat_length = sqrt(
