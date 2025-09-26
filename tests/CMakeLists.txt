@@ -26,6 +26,8 @@ if(SGL_BUILD_TESTS)
         sgl/device/test_shader.cpp
         sgl/math/test_float16.cpp
         sgl/math/test_matrix.cpp
+        sgl/math/test_posrot.cpp
+        sgl/math/test_posrotscale.cpp
         sgl/math/test_quaternion.cpp
         sgl/math/test_vector.cpp
     )

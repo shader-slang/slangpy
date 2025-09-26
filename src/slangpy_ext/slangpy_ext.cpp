@@ -51,6 +51,8 @@ SGL_PY_DECLARE(math_scalar);
 SGL_PY_DECLARE(math_vector);
 SGL_PY_DECLARE(math_matrix);
 SGL_PY_DECLARE(math_quaternion);
+SGL_PY_DECLARE(math_posrot);
+SGL_PY_DECLARE(math_posrotscale);
 
 SGL_PY_DECLARE(ui);
 SGL_PY_DECLARE(ui_widgets);
@@ -115,6 +117,8 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(math_vector);
     SGL_PY_IMPORT(math_matrix);
     SGL_PY_IMPORT(math_quaternion);
+    SGL_PY_IMPORT(math_posrot);
+    SGL_PY_IMPORT(math_posrotscale);
 
     SGL_PY_IMPORT(device_native_handle);
     SGL_PY_IMPORT(device_formats);
