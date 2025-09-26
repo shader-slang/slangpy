@@ -368,8 +368,15 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     node.call_dimensionality = context.call_dimensionality
     node.python = python_type
 
+
 def is_slangpy_vector(type: Any) -> bool:
-    return hasattr(type, 'element_type') and hasattr(type, 'shape') and len(type.shape) == 1 and type.shape[0] <= 4
+    return (
+        hasattr(type, "element_type")
+        and hasattr(type, "shape")
+        and len(type.shape) == 1
+        and type.shape[0] <= 4
+    )
+
 
 def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen):
     if build_info.constants is not None:
