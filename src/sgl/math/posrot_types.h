@@ -58,19 +58,6 @@ struct posrot {
 
     /// Identity transform.
     [[nodiscard]] static posrot identity() { return posrot{}; }
-
-    /// Translation transform.
-    [[nodiscard]] static posrot translation(const vector<T, 3>& position) { return posrot(position); }
-
-    /// Rotation transform.
-    [[nodiscard]] static posrot rotation(const quat<T>& rotation) { return posrot(rotation); }
-
-    // Accesses
-    vector<T, 3>& position() { return pos; }
-    const vector<T, 3>& position() const { return pos; }
-
-    quat<T>& rotation() { return rot; }
-    const quat<T>& rotation() const { return rot; }
 };
 
 using posrotf = posrot<float>;

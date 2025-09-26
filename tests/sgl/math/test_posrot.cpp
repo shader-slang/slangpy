@@ -78,7 +78,7 @@ TEST_CASE("posrot - static constructors")
     SUBCASE("translation")
     {
         float3 pos(1.0f, 2.0f, 3.0f);
-        posrotf pr = posrotf::translation(pos);
+        posrotf pr = posrot_from_translation(pos);
         CHECK(pr.pos == pos);
         CHECK(pr.rot == quatf::identity());
     }
@@ -86,7 +86,7 @@ TEST_CASE("posrot - static constructors")
     SUBCASE("rotation")
     {
         quatf rot(0.0f, 0.0f, 0.707107f, 0.707107f);
-        posrotf pr = posrotf::rotation(rot);
+        posrotf pr = posrot_from_rotation(rot);
         CHECK(pr.pos == float3(0.0f));
         CHECK(pr.rot == rot);
     }
@@ -106,8 +106,8 @@ TEST_CASE("posrot - transform operations")
 {
     SUBCASE("multiply transforms")
     {
-        posrotf t1 = posrotf::translation(float3(1.0f, 0.0f, 0.0f));
-        posrotf t2 = posrotf::translation(float3(2.0f, 0.0f, 0.0f));
+        posrotf t1 = posrot_from_translation(float3(1.0f, 0.0f, 0.0f));
+        posrotf t2 = posrot_from_translation(float3(2.0f, 0.0f, 0.0f));
         posrotf result = t1 * t2;
         CHECK(result.pos.x == doctest::Approx(3.0f));
         CHECK(result.pos.y == doctest::Approx(0.0f));
@@ -116,9 +116,9 @@ TEST_CASE("posrot - transform operations")
 
     SUBCASE("transform point")
     {
-        posrotf t = posrotf::translation(float3(1.0f, 2.0f, 3.0f));
+        posrotf t = posrot_from_translation(float3(1.0f, 2.0f, 3.0f));
         float3 point(1.0f, 1.0f, 1.0f);
-        float3 result = t * point;
+        float3 result = transform_point(t, point);
         CHECK(result == float3(2.0f, 3.0f, 4.0f));
     }
 
@@ -140,7 +140,7 @@ TEST_CASE("posrot - matrix conversion")
     SUBCASE("to_matrix3x4")
     {
         posrotf t(float3(1.0f, 2.0f, 3.0f), quatf::identity());
-        auto m = to_matrix3x4(t);
+        auto m = matrix_from_posrot_3x4(t);
         CHECK(m[0][3] == 1.0f);
         CHECK(m[1][3] == 2.0f);
         CHECK(m[2][3] == 3.0f);
@@ -154,7 +154,7 @@ TEST_CASE("posrot - matrix conversion")
     SUBCASE("to_matrix4x4")
     {
         posrotf t(float3(1.0f, 2.0f, 3.0f), quatf::identity());
-        auto m = to_matrix4x4(t);
+        auto m = matrix_from_posrot(t);
         CHECK(m[0][3] == 1.0f);
         CHECK(m[1][3] == 2.0f);
         CHECK(m[2][3] == 3.0f);
@@ -169,7 +169,7 @@ TEST_CASE("posrot - matrix conversion")
     SUBCASE("roundtrip conversion")
     {
         posrotf original(float3(1.0f, 2.0f, 3.0f), quatf::identity());
-        auto m4 = to_matrix4x4(original);
+        auto m4 = matrix_from_posrot(original);
         posrotf recovered = posrot_from_matrix4x4(m4);
 
         CHECK(recovered.pos.x == doctest::Approx(original.pos.x));

@@ -28,25 +28,12 @@ void bind_posrot_type(nb::module_& m, const char* name)
     posrot.def(nb::init_implicit<std::array<value_type, 7>>(), "a"_a);
 
     posrot.def_static("identity", []() { return T::identity(); });
-    posrot.def_static(
-        "translation",
-        [](const vector<value_type, 3>& pos) { return T::translation(pos); },
-        "position"_a
-    );
-    posrot.def_static(
-        "from_rotation",
-        [](const quat<value_type>& rot) { return T::rotation(rot); },
-        "rotation"_a
-    );
 
     // Field access
 
     posrot.def_rw("pos", &T::pos, "Position component");
     posrot.def_rw("rot", &T::rot, "Rotation component");
 
-    // Property access
-    posrot.def("position", nb::overload_cast<>(&T::position), "Get position", nb::rv_policy::reference_internal);
-    posrot.def("rotation", nb::overload_cast<>(&T::rotation), "Get rotation", nb::rv_policy::reference_internal);
 
     // Operators
 
@@ -55,7 +42,6 @@ void bind_posrot_type(nb::module_& m, const char* name)
 
     // Transform operations
     posrot.def(nb::self * nb::self, "Multiply transforms (concatenation)");
-    posrot.def(nb::self * vector<value_type, 3>(), "Transform a point");
 
     // Math functions
     posrot.def(
@@ -82,12 +68,12 @@ void bind_posrot_type(nb::module_& m, const char* name)
     // Matrix conversions
     posrot.def(
         "to_matrix3x4",
-        [](const T& self) { return to_matrix3x4(self); },
+        [](const T& self) { return matrix_from_posrot_3x4(self); },
         "Convert to 3x4 matrix"
     );
     posrot.def(
         "to_matrix4x4",
-        [](const T& self) { return to_matrix4x4(self); },
+        [](const T& self) { return matrix_from_posrot(self); },
         "Convert to 4x4 matrix"
     );
 
@@ -128,14 +114,15 @@ void bind_posrot(nb::module_& m)
         [](const posrotf& p) { return normalize(p); },
         "posrot"_a
     );
+    // Matrix conversion functions
     m.def(
-        "to_matrix3x4",
-        [](const posrotf& p) { return to_matrix3x4(p); },
+        "matrix_from_posrot_3x4",
+        [](const posrotf& p) { return matrix_from_posrot_3x4(p); },
         "posrot"_a
     );
     m.def(
-        "to_matrix4x4",
-        [](const posrotf& p) { return to_matrix4x4(p); },
+        "matrix_from_posrot",
+        [](const posrotf& p) { return matrix_from_posrot(p); },
         "posrot"_a
     );
     m.def(
@@ -147,6 +134,38 @@ void bind_posrot(nb::module_& m)
         "posrot_from_matrix4x4",
         [](const matrix<float, 4, 4>& m) { return posrot_from_matrix4x4(m); },
         "matrix"_a
+    );
+
+    // Factory functions
+    m.def(
+        "posrot_from_translation",
+        [](const vector<float, 3>& pos) { return posrot_from_translation(pos); },
+        "position"_a
+    );
+    m.def(
+        "posrot_from_rotation",
+        [](const quatf& rot) { return posrot_from_rotation(rot); },
+        "rotation"_a
+    );
+    m.def(
+        "posrot_from_pos_rot",
+        [](const vector<float, 3>& pos, const quatf& rot) { return posrot_from_pos_rot(pos, rot); },
+        "position"_a,
+        "rotation"_a
+    );
+
+    // Transform functions
+    m.def(
+        "transform_point",
+        [](const posrotf& transform, const vector<float, 3>& point) { return transform_point(transform, point); },
+        "transform"_a,
+        "point"_a
+    );
+    m.def(
+        "transform_vector",
+        [](const posrotf& transform, const vector<float, 3>& vec) { return transform_vector(transform, vec); },
+        "transform"_a,
+        "vector"_a
     );
 }
 

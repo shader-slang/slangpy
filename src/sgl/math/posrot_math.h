@@ -43,12 +43,6 @@ template<typename T>
     return posrot<T>(lhs.pos + transform_vector(lhs.rot, rhs.pos), mul(lhs.rot, rhs.rot));
 }
 
-/// Transform a point by the posrot
-template<typename T>
-[[nodiscard]] vector<T, 3> operator*(const posrot<T>& transform, const vector<T, 3>& point) noexcept
-{
-    return transform.pos + transform_vector(transform.rot, point);
-}
 
 /// Inverse of a posrot transform
 template<typename T>
@@ -58,9 +52,56 @@ template<typename T>
     return posrot<T>(-transform_vector(inv_rot, transform.pos), inv_rot);
 }
 
+// ----------------------------------------------------------------------------
+// Construction functions (following matrix API pattern)
+// ----------------------------------------------------------------------------
+
+/// Create posrot from translation only
+template<typename T>
+[[nodiscard]] posrot<T> posrot_from_translation(const vector<T, 3>& position) noexcept
+{
+    return posrot<T>(position);
+}
+
+/// Create posrot from rotation only
+template<typename T>
+[[nodiscard]] posrot<T> posrot_from_rotation(const quat<T>& rotation) noexcept
+{
+    return posrot<T>(rotation);
+}
+
+/// Create posrot from position and rotation
+template<typename T>
+[[nodiscard]] posrot<T> posrot_from_pos_rot(const vector<T, 3>& position, const quat<T>& rotation) noexcept
+{
+    return posrot<T>(position, rotation);
+}
+
+// ----------------------------------------------------------------------------
+// Transform functions (following matrix API pattern)
+// ----------------------------------------------------------------------------
+
+/// Transform a point by the posrot
+template<typename T>
+[[nodiscard]] vector<T, 3> transform_point(const posrot<T>& transform, const vector<T, 3>& point) noexcept
+{
+    return transform.pos + transform_vector(transform.rot, point);
+}
+
+/// Transform a vector by the posrot (only applies rotation)
+template<typename T>
+[[nodiscard]] vector<T, 3> transform_vector(const posrot<T>& transform, const vector<T, 3>& vec) noexcept
+{
+    return transform_vector(transform.rot, vec);
+}
+
+// ----------------------------------------------------------------------------
+// Matrix conversion functions (following matrix API pattern)
+// ----------------------------------------------------------------------------
+
 /// Convert posrot to 3x4 matrix
 template<typename T>
-[[nodiscard]] matrix<T, 3, 4> to_matrix3x4(const posrot<T>& transform) noexcept
+[[nodiscard]] matrix<T, 3, 4> matrix_from_posrot_3x4(const posrot<T>& transform) noexcept
 {
     matrix<T, 3, 3> rot_matrix = matrix_from_quat(transform.rot);
     matrix<T, 3, 4> result;
@@ -82,7 +123,7 @@ template<typename T>
 
 /// Convert posrot to 4x4 matrix
 template<typename T>
-[[nodiscard]] matrix<T, 4, 4> to_matrix4x4(const posrot<T>& transform) noexcept
+[[nodiscard]] matrix<T, 4, 4> matrix_from_posrot(const posrot<T>& transform) noexcept
 {
     matrix<T, 3, 3> rot_matrix = matrix_from_quat(transform.rot);
     matrix<T, 4, 4> result = matrix<T, 4, 4>::identity();

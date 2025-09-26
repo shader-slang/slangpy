@@ -70,14 +70,98 @@ template<typename T>
     return posrotscale<T>(lhs) * rhs;
 }
 
+// ----------------------------------------------------------------------------
+// Construction functions (following matrix API pattern)
+// ----------------------------------------------------------------------------
+
+/// Create posrotscale from translation only
+template<typename T>
+[[nodiscard]] posrotscale<T> posrotscale_from_translation(const vector<T, 3>& position) noexcept
+{
+    return posrotscale<T>(position);
+}
+
+/// Create posrotscale from rotation only
+template<typename T>
+[[nodiscard]] posrotscale<T> posrotscale_from_rotation(const quat<T>& rotation) noexcept
+{
+    return posrotscale<T>(rotation);
+}
+
+/// Create posrotscale from scaling only
+template<typename T>
+[[nodiscard]] posrotscale<T> posrotscale_from_scaling(const vector<T, 3>& scaling) noexcept
+{
+    posrotscale<T> result;
+    result.scale = scaling;
+    return result;
+}
+
+/// Create posrotscale from uniform scaling
+template<typename T>
+[[nodiscard]] posrotscale<T> posrotscale_from_uniform_scaling(T factor) noexcept
+{
+    posrotscale<T> result;
+    result.scale = vector<T, 3>{factor};
+    return result;
+}
+
+/// Create posrotscale from position and rotation
+template<typename T>
+[[nodiscard]] posrotscale<T> posrotscale_from_pos_rot(const vector<T, 3>& position, const quat<T>& rotation) noexcept
+{
+    return posrotscale<T>(position, rotation);
+}
+
+/// Create posrotscale from all components
+template<typename T>
+[[nodiscard]] posrotscale<T> posrotscale_from_pos_rot_scale(
+    const vector<T, 3>& position,
+    const quat<T>& rotation,
+    const vector<T, 3>& scaling
+) noexcept
+{
+    return posrotscale<T>(position, rotation, scaling);
+}
+
+/// Create posrotscale from posrot
+template<typename T>
+[[nodiscard]] posrotscale<T> posrotscale_from_posrot(const posrot<T>& pr) noexcept
+{
+    return posrotscale<T>(pr);
+}
+
+// ----------------------------------------------------------------------------
+// Transform functions (following matrix API pattern)
+// ----------------------------------------------------------------------------
+
 /// Transform a point by the posrotscale
 template<typename T>
-[[nodiscard]] vector<T, 3> operator*(const posrotscale<T>& transform, const vector<T, 3>& point) noexcept
+[[nodiscard]] vector<T, 3> transform_point(const posrotscale<T>& transform, const vector<T, 3>& point) noexcept
 {
     // Apply scale, then rotation, then translation
     vector<T, 3> scaled = transform.scale * point;
     vector<T, 3> rotated = transform_vector(transform.rot, scaled);
     return transform.pos + rotated;
+}
+
+/// Transform a vector by the posrotscale (applies scale and rotation, no translation)
+template<typename T>
+[[nodiscard]] vector<T, 3> transform_vector(const posrotscale<T>& transform, const vector<T, 3>& vec) noexcept
+{
+    vector<T, 3> scaled = transform.scale * vec;
+    return transform_vector(transform.rot, scaled);
+}
+
+// ----------------------------------------------------------------------------
+// Conversion functions
+// ----------------------------------------------------------------------------
+
+/// Convert to posrot (ignoring scale)
+template<typename T>
+[[nodiscard]] posrot<T> posrot_from_posrotscale(const posrotscale<T>& transform) noexcept
+{
+    return posrot<T>(transform.pos, transform.rot);
 }
 
 /// Inverse of a posrotscale transform
@@ -97,9 +181,13 @@ template<typename T>
     return posrotscale<T>(inv_pos, inv_rot, inv_scale);
 }
 
+// ----------------------------------------------------------------------------
+// Matrix conversion functions (following matrix API pattern)
+// ----------------------------------------------------------------------------
+
 /// Convert posrotscale to 3x4 matrix
 template<typename T>
-[[nodiscard]] matrix<T, 3, 4> to_matrix3x4(const posrotscale<T>& transform) noexcept
+[[nodiscard]] matrix<T, 3, 4> matrix_from_posrotscale_3x4(const posrotscale<T>& transform) noexcept
 {
     matrix<T, 3, 3> rot_matrix = matrix_from_quat(transform.rot);
     matrix<T, 3, 4> result;
@@ -121,7 +209,7 @@ template<typename T>
 
 /// Convert posrotscale to 4x4 matrix
 template<typename T>
-[[nodiscard]] matrix<T, 4, 4> to_matrix4x4(const posrotscale<T>& transform) noexcept
+[[nodiscard]] matrix<T, 4, 4> matrix_from_posrotscale(const posrotscale<T>& transform) noexcept
 {
     matrix<T, 3, 3> rot_matrix = matrix_from_quat(transform.rot);
     matrix<T, 4, 4> result = matrix<T, 4, 4>::identity();
@@ -207,12 +295,6 @@ template<typename T>
     return posrotscale<T>(pos, quat_from_matrix(rot_part), scale);
 }
 
-/// Create posrotscale from 4x4 matrix (alias)
-template<typename T>
-[[nodiscard]] posrotscale<T> posrotscale_from_matrix4x4_alias(const matrix<T, 4, 4>& m) noexcept
-{
-    return posrotscale_from_matrix4x4(m);
-}
 
 /// Linear interpolation between two posrotscale transforms
 template<typename T>

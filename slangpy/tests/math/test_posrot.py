@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from slangpy import float3, quatf, posrotf
+from slangpy.math import posrot_from_translation, posrot_from_rotation, transform_point
 
 
 def test_default_constructor():
@@ -39,13 +40,13 @@ def test_static_constructors():
 
     # Translation
     pos = float3(1.0, 2.0, 3.0)
-    pr = posrotf.translation(pos)
+    pr = posrot_from_translation(pos)
     assert pr.pos == pos
     assert pr.rot == quatf.identity()
 
     # Rotation
     rot = quatf(0.0, 0.0, 0.7071067, 0.7071068)
-    pr = posrotf.from_rotation(rot)
+    pr = posrot_from_rotation(rot)
     assert pr.pos == float3(0.0, 0.0, 0.0)
     assert pr.rot == rot
 
@@ -61,17 +62,17 @@ def test_equality_operators():
 
 def test_transform_operations():
     # Multiply transforms
-    t1 = posrotf.translation(float3(1.0, 0.0, 0.0))
-    t2 = posrotf.translation(float3(2.0, 0.0, 0.0))
+    t1 = posrot_from_translation(float3(1.0, 0.0, 0.0))
+    t2 = posrot_from_translation(float3(2.0, 0.0, 0.0))
     result = t1 * t2
     assert abs(result.pos.x - 3.0) < 1e-6
     assert abs(result.pos.y - 0.0) < 1e-6
     assert abs(result.pos.z - 0.0) < 1e-6
 
     # Transform point
-    t = posrotf.translation(float3(1.0, 2.0, 3.0))
+    t = posrot_from_translation(float3(1.0, 2.0, 3.0))
     point = float3(1.0, 1.0, 1.0)
-    result = t * point
+    result = transform_point(t, point)
     assert result == float3(2.0, 3.0, 4.0)
 
 

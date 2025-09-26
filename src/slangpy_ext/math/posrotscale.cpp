@@ -40,26 +40,6 @@ void bind_posrotscale_type(nb::module_& m, const char* name)
     posrotscale.def(nb::init_implicit<std::array<value_type, 10>>(), "a"_a);
 
     posrotscale.def_static("identity", []() { return T::identity(); });
-    posrotscale.def_static(
-        "translation",
-        [](const vector<value_type, 3>& pos) { return T::translation(pos); },
-        "position"_a
-    );
-    posrotscale.def_static(
-        "from_rotation",
-        [](const quat<value_type>& rot) { return T::rotation(rot); },
-        "rotation"_a
-    );
-    posrotscale.def_static(
-        "from_scaling",
-        [](const vector<value_type, 3>& scale) { return T::scaling(scale); },
-        "scale"_a
-    );
-    posrotscale.def_static(
-        "uniform_scaling",
-        [](value_type factor) { return T::uniform_scaling(factor); },
-        "factor"_a
-    );
 
     // Field access
 
@@ -67,13 +47,6 @@ void bind_posrotscale_type(nb::module_& m, const char* name)
     posrotscale.def_rw("rot", &T::rot, "Rotation component");
     posrotscale.def_rw("scale", &T::scale, "Scale component");
 
-    // Property access
-    posrotscale.def("position", nb::overload_cast<>(&T::position), "Get position", nb::rv_policy::reference_internal);
-    posrotscale.def("rotation", nb::overload_cast<>(&T::rotation), "Get rotation", nb::rv_policy::reference_internal);
-    posrotscale.def("scaling", nb::overload_cast<>(&T::scaling), "Get scale", nb::rv_policy::reference_internal);
-
-    // Conversions
-    posrotscale.def("to_posrot", &T::to_posrot, "Convert to posrot (ignoring scale)");
 
     // Operators
 
@@ -84,7 +57,7 @@ void bind_posrotscale_type(nb::module_& m, const char* name)
     posrotscale.def(nb::self * nb::self, "Multiply transforms (concatenation)");
     posrotscale.def(nb::self * posrot<value_type>(), "Multiply with posrot");
     posrotscale.def(posrot<value_type>() * nb::self, "Multiply posrot with posrotscale");
-    posrotscale.def(nb::self * vector<value_type, 3>(), "Transform a point");
+
 
     // Math functions
     posrotscale.def(
@@ -111,12 +84,12 @@ void bind_posrotscale_type(nb::module_& m, const char* name)
     // Matrix conversions
     posrotscale.def(
         "to_matrix3x4",
-        [](const T& self) { return to_matrix3x4(self); },
+        [](const T& self) { return matrix_from_posrotscale_3x4(self); },
         "Convert to 3x4 matrix"
     );
     posrotscale.def(
         "to_matrix4x4",
-        [](const T& self) { return to_matrix4x4(self); },
+        [](const T& self) { return matrix_from_posrotscale(self); },
         "Convert to 4x4 matrix"
     );
 
@@ -158,14 +131,15 @@ void bind_posrotscale(nb::module_& m)
         [](const posrotscalef& p) { return normalize(p); },
         "posrotscale"_a
     );
+    // Matrix conversion functions
     m.def(
-        "to_matrix3x4",
-        [](const posrotscalef& p) { return to_matrix3x4(p); },
+        "matrix_from_posrotscale_3x4",
+        [](const posrotscalef& p) { return matrix_from_posrotscale_3x4(p); },
         "posrotscale"_a
     );
     m.def(
-        "to_matrix4x4",
-        [](const posrotscalef& p) { return to_matrix4x4(p); },
+        "matrix_from_posrotscale",
+        [](const posrotscalef& p) { return matrix_from_posrotscale(p); },
         "posrotscale"_a
     );
     m.def(
@@ -177,6 +151,68 @@ void bind_posrotscale(nb::module_& m)
         "posrotscale_from_matrix4x4",
         [](const matrix<float, 4, 4>& m) { return posrotscale_from_matrix4x4(m); },
         "matrix"_a
+    );
+
+    // Factory functions
+    m.def(
+        "posrotscale_from_translation",
+        [](const vector<float, 3>& pos) { return posrotscale_from_translation(pos); },
+        "position"_a
+    );
+    m.def(
+        "posrotscale_from_rotation",
+        [](const quatf& rot) { return posrotscale_from_rotation(rot); },
+        "rotation"_a
+    );
+    m.def(
+        "posrotscale_from_scaling",
+        [](const vector<float, 3>& scale) { return posrotscale_from_scaling(scale); },
+        "scale"_a
+    );
+    m.def(
+        "posrotscale_from_uniform_scaling",
+        [](float factor) { return posrotscale_from_uniform_scaling(factor); },
+        "factor"_a
+    );
+    m.def(
+        "posrotscale_from_pos_rot",
+        [](const vector<float, 3>& pos, const quatf& rot) { return posrotscale_from_pos_rot(pos, rot); },
+        "position"_a,
+        "rotation"_a
+    );
+    m.def(
+        "posrotscale_from_pos_rot_scale",
+        [](const vector<float, 3>& pos, const quatf& rot, const vector<float, 3>& scale)
+        { return posrotscale_from_pos_rot_scale(pos, rot, scale); },
+        "position"_a,
+        "rotation"_a,
+        "scale"_a
+    );
+    m.def(
+        "posrotscale_from_posrot",
+        [](const posrotf& pr) { return posrotscale_from_posrot(pr); },
+        "posrot"_a
+    );
+
+    // Transform functions
+    m.def(
+        "transform_point",
+        [](const posrotscalef& transform, const vector<float, 3>& point) { return transform_point(transform, point); },
+        "transform"_a,
+        "point"_a
+    );
+    m.def(
+        "transform_vector",
+        [](const posrotscalef& transform, const vector<float, 3>& vec) { return transform_vector(transform, vec); },
+        "transform"_a,
+        "vector"_a
+    );
+
+    // Conversion functions
+    m.def(
+        "posrot_from_posrotscale",
+        [](const posrotscalef& transform) { return posrot_from_posrotscale(transform); },
+        "posrotscale"_a
     );
 }
 

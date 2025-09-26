@@ -102,7 +102,7 @@ TEST_CASE("posrotscale - static constructors")
     SUBCASE("translation")
     {
         float3 pos(1.0f, 2.0f, 3.0f);
-        posrotscalef prs = posrotscalef::translation(pos);
+        posrotscalef prs = posrotscale_from_translation(pos);
         CHECK(prs.pos == pos);
         CHECK(prs.rot == quatf::identity());
         CHECK(prs.scale == float3(1.0f));
@@ -111,7 +111,7 @@ TEST_CASE("posrotscale - static constructors")
     SUBCASE("rotation")
     {
         quatf rot(0.0f, 0.0f, 0.707107f, 0.707107f);
-        posrotscalef prs = posrotscalef::rotation(rot);
+        posrotscalef prs = posrotscale_from_rotation(rot);
         CHECK(prs.pos == float3(0.0f));
         CHECK(prs.rot == rot);
         CHECK(prs.scale == float3(1.0f));
@@ -120,7 +120,7 @@ TEST_CASE("posrotscale - static constructors")
     SUBCASE("scaling")
     {
         float3 scale(2.0f, 3.0f, 4.0f);
-        posrotscalef prs = posrotscalef::scaling(scale);
+        posrotscalef prs = posrotscale_from_scaling(scale);
         CHECK(prs.pos == float3(0.0f));
         CHECK(prs.rot == quatf::identity());
         CHECK(prs.scale == scale);
@@ -128,7 +128,7 @@ TEST_CASE("posrotscale - static constructors")
 
     SUBCASE("uniform_scaling")
     {
-        posrotscalef prs = posrotscalef::uniform_scaling(2.5f);
+        posrotscalef prs = posrotscale_from_uniform_scaling(2.5f);
         CHECK(prs.pos == float3(0.0f));
         CHECK(prs.rot == quatf::identity());
         CHECK(prs.scale == float3(2.5f));
@@ -149,14 +149,14 @@ TEST_CASE("posrotscale - transform operations")
 {
     SUBCASE("multiply transforms")
     {
-        posrotscalef t1 = posrotscalef::translation(float3(1.0f, 0.0f, 0.0f));
-        posrotscalef t2 = posrotscalef::scaling(float3(2.0f, 1.0f, 1.0f));
+        posrotscalef t1 = posrotscale_from_translation(float3(1.0f, 0.0f, 0.0f));
+        posrotscalef t2 = posrotscale_from_scaling(float3(2.0f, 1.0f, 1.0f));
         posrotscalef result = t1 * t2;
 
         // The scaling should be applied first, then translation
         // So a point at (1,0,0) becomes (2,0,0) after scaling, then (3,0,0) after translation
         float3 test_point(1.0f, 0.0f, 0.0f);
-        float3 transformed = result * test_point;
+        float3 transformed = transform_point(result, test_point);
         CHECK(transformed.x == doctest::Approx(3.0f));
     }
 
@@ -164,7 +164,7 @@ TEST_CASE("posrotscale - transform operations")
     {
         posrotscalef t(float3(1.0f, 2.0f, 3.0f), quatf::identity(), float3(2.0f, 1.0f, 0.5f));
         float3 point(1.0f, 1.0f, 2.0f);
-        float3 result = t * point;
+        float3 result = transform_point(t, point);
 
         // Scale: (1,1,2) -> (2,1,1)
         // Rotate: identity, so (2,1,1)
@@ -193,7 +193,7 @@ TEST_CASE("posrotscale - matrix conversion")
     SUBCASE("to_matrix3x4")
     {
         posrotscalef t(float3(1.0f, 2.0f, 3.0f), quatf::identity(), float3(2.0f, 3.0f, 4.0f));
-        auto m = to_matrix3x4(t);
+        auto m = matrix_from_posrotscale_3x4(t);
 
         CHECK(m[0][3] == 1.0f); // translation x
         CHECK(m[1][3] == 2.0f); // translation y
@@ -208,7 +208,7 @@ TEST_CASE("posrotscale - matrix conversion")
     SUBCASE("to_matrix4x4")
     {
         posrotscalef t(float3(1.0f, 2.0f, 3.0f), quatf::identity(), float3(2.0f, 3.0f, 4.0f));
-        auto m = to_matrix4x4(t);
+        auto m = matrix_from_posrotscale(t);
 
         CHECK(m[0][3] == 1.0f);
         CHECK(m[1][3] == 2.0f);
@@ -224,7 +224,7 @@ TEST_CASE("posrotscale - matrix conversion")
     SUBCASE("roundtrip conversion")
     {
         posrotscalef original(float3(1.0f, 2.0f, 3.0f), quatf::identity(), float3(2.0f, 0.5f, 3.0f));
-        auto m4 = to_matrix4x4(original);
+        auto m4 = matrix_from_posrotscale(original);
         posrotscalef recovered = posrotscale_from_matrix4x4(m4);
 
         CHECK(recovered.pos.x == doctest::Approx(original.pos.x));
@@ -258,7 +258,7 @@ TEST_CASE("posrotscale - conversions")
     SUBCASE("to_posrot")
     {
         posrotscalef prs(float3(1.0f, 2.0f, 3.0f), quatf::identity(), float3(2.0f, 3.0f, 4.0f));
-        posrotf pr = prs.to_posrot();
+        posrotf pr = posrot_from_posrotscale(prs);
 
         CHECK(pr.pos == prs.pos);
         CHECK(pr.rot == prs.rot);
@@ -269,8 +269,8 @@ TEST_CASE("posrotscale - mixed operations")
 {
     SUBCASE("multiply with posrot")
     {
-        posrotscalef prs = posrotscalef::scaling(float3(2.0f));
-        posrotf pr = posrotf::translation(float3(1.0f, 0.0f, 0.0f));
+        posrotscalef prs = posrotscale_from_scaling(float3(2.0f));
+        posrotf pr = posrot_from_translation(float3(1.0f, 0.0f, 0.0f));
 
         posrotscalef result = prs * pr;
         CHECK(result.scale.x == doctest::Approx(2.0f));

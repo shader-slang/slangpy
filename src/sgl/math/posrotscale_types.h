@@ -99,41 +99,6 @@ struct posrotscale {
 
     /// Identity transform.
     [[nodiscard]] static posrotscale identity() { return posrotscale{}; }
-
-    /// Translation transform.
-    [[nodiscard]] static posrotscale translation(const vector<T, 3>& position) { return posrotscale(position); }
-
-    /// Rotation transform.
-    [[nodiscard]] static posrotscale rotation(const quat<T>& rotation) { return posrotscale(rotation); }
-
-    /// Scale transform.
-    [[nodiscard]] static posrotscale scaling(const vector<T, 3>& scaling)
-    {
-        posrotscale result;
-        result.scale = scaling;
-        return result;
-    }
-
-    /// Uniform scale transform.
-    [[nodiscard]] static posrotscale uniform_scaling(T factor)
-    {
-        posrotscale result;
-        result.scale = vector<T, 3>{factor};
-        return result;
-    }
-
-    // Accesses
-    vector<T, 3>& position() { return pos; }
-    const vector<T, 3>& position() const { return pos; }
-
-    quat<T>& rotation() { return rot; }
-    const quat<T>& rotation() const { return rot; }
-
-    vector<T, 3>& scaling() { return scale; }
-    const vector<T, 3>& scaling() const { return scale; }
-
-    /// Convert to posrot (ignoring scale)
-    [[nodiscard]] posrot<T> to_posrot() const { return posrot<T>(pos, rot); }
 };
 
 using posrotscalef = posrotscale<float>;
