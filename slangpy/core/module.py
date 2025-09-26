@@ -87,7 +87,7 @@ class Module:
         name: str,
         source: str,
         options: dict[str, Any] = {},
-        link: list[Union["Module", SlangModule]] = [],
+        link: Sequence[Union["Module", SlangModule]] = [],
     ):
         """
         Load a module from a string.
@@ -100,7 +100,7 @@ class Module:
         device: Device,
         path: str,
         options: dict[str, Any] = {},
-        link: list[Union["Module", SlangModule]] = [],
+        link: Sequence[Union["Module", SlangModule]] = [],
     ):
         """
         Load a module from a file.
