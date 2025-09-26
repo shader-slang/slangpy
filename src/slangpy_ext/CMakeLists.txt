@@ -39,6 +39,8 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     device/surface.cpp
     device/types.cpp
     math/matrix.cpp
+    math/posrot.cpp
+    math/posrotscale.cpp
     math/quaternion.cpp
     math/scalar.cpp
     math/vector.cpp
