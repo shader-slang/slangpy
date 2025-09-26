@@ -187,7 +187,7 @@ template<typename T>
 
 /// Convert posrotscale to 3x4 matrix
 template<typename T>
-[[nodiscard]] matrix<T, 3, 4> matrix_from_posrotscale_3x4(const posrotscale<T>& transform) noexcept
+[[nodiscard]] matrix<T, 3, 4> matrix3x4_from_posrotscale(const posrotscale<T>& transform) noexcept
 {
     matrix<T, 3, 3> rot_matrix = matrix_from_quat(transform.rot);
     matrix<T, 3, 4> result;
@@ -209,7 +209,7 @@ template<typename T>
 
 /// Convert posrotscale to 4x4 matrix
 template<typename T>
-[[nodiscard]] matrix<T, 4, 4> matrix_from_posrotscale(const posrotscale<T>& transform) noexcept
+[[nodiscard]] matrix<T, 4, 4> matrix4x4_from_posrotscale(const posrotscale<T>& transform) noexcept
 {
     matrix<T, 3, 3> rot_matrix = matrix_from_quat(transform.rot);
     matrix<T, 4, 4> result = matrix<T, 4, 4>::identity();

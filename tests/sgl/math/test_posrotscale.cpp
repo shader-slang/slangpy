@@ -193,7 +193,7 @@ TEST_CASE("posrotscale - matrix conversion")
     SUBCASE("to_matrix3x4")
     {
         posrotscalef t(float3(1.0f, 2.0f, 3.0f), quatf::identity(), float3(2.0f, 3.0f, 4.0f));
-        auto m = matrix_from_posrotscale_3x4(t);
+        auto m = matrix3x4_from_posrotscale(t);
 
         CHECK(m[0][3] == 1.0f); // translation x
         CHECK(m[1][3] == 2.0f); // translation y
@@ -208,7 +208,7 @@ TEST_CASE("posrotscale - matrix conversion")
     SUBCASE("to_matrix4x4")
     {
         posrotscalef t(float3(1.0f, 2.0f, 3.0f), quatf::identity(), float3(2.0f, 3.0f, 4.0f));
-        auto m = matrix_from_posrotscale(t);
+        auto m = matrix4x4_from_posrotscale(t);
 
         CHECK(m[0][3] == 1.0f);
         CHECK(m[1][3] == 2.0f);
@@ -224,7 +224,7 @@ TEST_CASE("posrotscale - matrix conversion")
     SUBCASE("roundtrip conversion")
     {
         posrotscalef original(float3(1.0f, 2.0f, 3.0f), quatf::identity(), float3(2.0f, 0.5f, 3.0f));
-        auto m4 = matrix_from_posrotscale(original);
+        auto m4 = matrix4x4_from_posrotscale(original);
         posrotscalef recovered = posrotscale_from_matrix4x4(m4);
 
         CHECK(recovered.pos.x == doctest::Approx(original.pos.x));

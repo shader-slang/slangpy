@@ -68,12 +68,12 @@ void bind_posrot_type(nb::module_& m, const char* name)
     // Matrix conversions
     posrot.def(
         "to_matrix3x4",
-        [](const T& self) { return matrix_from_posrot_3x4(self); },
+        [](const T& self) { return matrix3x4_from_posrot(self); },
         "Convert to 3x4 matrix"
     );
     posrot.def(
         "to_matrix4x4",
-        [](const T& self) { return matrix_from_posrot(self); },
+        [](const T& self) { return matrix4x4_from_posrot(self); },
         "Convert to 4x4 matrix"
     );
 
@@ -116,13 +116,13 @@ void bind_posrot(nb::module_& m)
     );
     // Matrix conversion functions
     m.def(
-        "matrix_from_posrot_3x4",
-        [](const posrotf& p) { return matrix_from_posrot_3x4(p); },
+        "matrix3x4_from_posrot",
+        [](const posrotf& p) { return matrix3x4_from_posrot(p); },
         "posrot"_a
     );
     m.def(
-        "matrix_from_posrot",
-        [](const posrotf& p) { return matrix_from_posrot(p); },
+        "matrix4x4_from_posrot",
+        [](const posrotf& p) { return matrix4x4_from_posrot(p); },
         "posrot"_a
     );
     m.def(

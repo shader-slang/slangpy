@@ -6,8 +6,8 @@ from slangpy.math import (
     posrot_from_translation,
     posrot_from_rotation,
     posrotscale_from_scaling,
-    matrix_from_posrot,
-    matrix_from_posrotscale,
+    matrix4x4_from_posrot,
+    matrix4x4_from_posrotscale,
     posrot_from_matrix4x4,
     posrotscale_from_matrix4x4,
     transform_point,
@@ -36,7 +36,7 @@ def test_posrot_roundtrip_pure_rotation():
     original = posrot_from_rotation(quat_from_angle_axis(np.pi / 4, float3(0, 1, 0)))
 
     # Convert to matrix and back
-    matrix = matrix_from_posrot(original)
+    matrix = matrix4x4_from_posrot(original)
     recovered = posrot_from_matrix4x4(matrix)
 
     # Should be nearly identical
@@ -57,7 +57,7 @@ def test_posrot_roundtrip_translation():
     original = posrot_from_translation(float3(5, -3, 2))
 
     # Convert to matrix and back
-    matrix = matrix_from_posrot(original)
+    matrix = matrix4x4_from_posrot(original)
     recovered = posrot_from_matrix4x4(matrix)
 
     # Should be identical
@@ -95,7 +95,7 @@ def test_posrot_with_scaled_matrix():
 
     # The rotation part will be incorrect because it includes scaling
     # We can verify this by checking if the conversion back gives us the same matrix
-    recovered_matrix = matrix_from_posrot(result)
+    recovered_matrix = matrix4x4_from_posrot(result)
     recovered_np = matrix_to_numpy(recovered_matrix)
 
     # They should NOT be equal because posrot can't represent scaling
@@ -120,7 +120,7 @@ def test_posrot_with_skewed_matrix():
     result = posrot_from_matrix4x4(matrix)
 
     # The recovered matrix should be different from the original
-    recovered_matrix = matrix_from_posrot(result)
+    recovered_matrix = matrix4x4_from_posrot(result)
     recovered_np = matrix_to_numpy(recovered_matrix)
 
     # They should NOT be equal because posrot can't represent skew
@@ -132,7 +132,7 @@ def test_posrotscale_roundtrip_uniform_scaling():
     original = posrotscale_from_scaling(float3(2.0, 2.0, 2.0))
 
     # Convert to matrix and back
-    matrix = matrix_from_posrotscale(original)
+    matrix = matrix4x4_from_posrotscale(original)
     recovered = posrotscale_from_matrix4x4(matrix)
 
     # Should be nearly identical
@@ -158,7 +158,7 @@ def test_posrotscale_roundtrip_non_uniform_scaling():
     original = posrotscale_from_scaling(float3(2.0, 3.0, 0.5))
 
     # Convert to matrix and back
-    matrix = matrix_from_posrotscale(original)
+    matrix = matrix4x4_from_posrotscale(original)
     recovered = posrotscale_from_matrix4x4(matrix)
 
     # Should be nearly identical
@@ -200,7 +200,7 @@ def test_posrotscale_with_skewed_matrix():
     assert np.allclose([result.pos.x, result.pos.y, result.pos.z], [1.0, 2.0, 3.0], atol=1e-6)
 
     # But the conversion back shouldn't match the original
-    recovered_matrix = matrix_from_posrotscale(result)
+    recovered_matrix = matrix4x4_from_posrotscale(result)
     recovered_np = matrix_to_numpy(recovered_matrix)
 
     # They should NOT be equal because posrotscale can't represent skew
@@ -217,7 +217,7 @@ def test_posrotscale_complex_trs():
     original = posrotscalef(pos, rot, scale)
 
     # Convert to matrix and back
-    matrix = matrix_from_posrotscale(original)
+    matrix = matrix4x4_from_posrotscale(original)
     recovered = posrotscale_from_matrix4x4(matrix)
 
     # Should be nearly identical
@@ -244,7 +244,7 @@ def test_posrotscale_negative_scaling():
     original = posrotscale_from_scaling(float3(-1.0, 2.0, 1.0))
 
     # Convert to matrix and back
-    matrix = matrix_from_posrotscale(original)
+    matrix = matrix4x4_from_posrotscale(original)
     recovered = posrotscale_from_matrix4x4(matrix)
 
     # The current implementation uses length() which always returns positive values
@@ -274,7 +274,7 @@ def test_point_transformation_consistency():
     scale = float3(2, 0.5, 3)
 
     transform = posrotscalef(pos, rot, scale)
-    matrix = matrix_from_posrotscale(transform)
+    matrix = matrix4x4_from_posrotscale(transform)
 
     # Test several points
     test_points = [
@@ -310,7 +310,7 @@ def test_zero_scale_robustness():
     """Test behavior with zero or near-zero scaling"""
     # Test that zero scaling is handled gracefully
     original = posrotscale_from_scaling(float3(0.0, 1.0, 1.0))
-    matrix = matrix_from_posrotscale(original)
+    matrix = matrix4x4_from_posrotscale(original)
     recovered = posrotscale_from_matrix4x4(matrix)
 
     # The zero scale should be preserved
@@ -324,7 +324,7 @@ def test_very_small_scale_precision():
     original = posrotscale_from_scaling(float3(1e-6, 1e-5, 1e-4))
 
     # Convert to matrix and back
-    matrix = matrix_from_posrotscale(original)
+    matrix = matrix4x4_from_posrotscale(original)
     recovered = posrotscale_from_matrix4x4(matrix)
 
     # Should maintain reasonable precision even with very small scales
@@ -359,7 +359,7 @@ def test_matrix_decomposition_vs_direct_construction():
     rot = quat_from_angle_axis(np.pi / 6, float3(0, 0, 1))
     scale = float3(2, 3, 0.5)
     transform = posrotscalef(pos, rot, scale)
-    our_matrix = matrix_from_posrotscale(transform)
+    our_matrix = matrix4x4_from_posrotscale(transform)
 
     # Convert to numpy for comparison
     our_np = matrix_to_numpy(our_matrix)
