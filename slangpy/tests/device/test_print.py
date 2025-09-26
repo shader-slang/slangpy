@@ -7,6 +7,7 @@ import slangpy as spy
 from slangpy.testing import helpers
 
 
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_print(device_type: spy.DeviceType):
     device = spy.Device(type=device_type, enable_print=True, label=f"print-{device_type.name}")
