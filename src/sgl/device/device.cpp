@@ -225,6 +225,7 @@ Device::Device(const DeviceDesc& desc)
     m_info.adapter_name = rhi_device_info.adapterName;
     m_info.adapter_luid = from_rhi(rhi_device_info.adapterLUID);
     m_info.timestamp_frequency = rhi_device_info.timestampFrequency;
+    m_info.slang_version = spGetBuildTagString();
     m_info.limits.max_texture_dimension_1d = rhi_device_info.limits.maxTextureDimension1D;
     m_info.limits.max_texture_dimension_2d = rhi_device_info.limits.maxTextureDimension2D;
     m_info.limits.max_texture_dimension_3d = rhi_device_info.limits.maxTextureDimension3D;
@@ -1073,6 +1074,7 @@ std::string Device::to_string() const
         "  type = {},\n"
         "  adapter_name = \"{}\",\n"
         "  adapter_luid = {},\n"
+        "  slang_version = \"{}\",\n"
         "  enable_debug_layers = {},\n"
         "  enable_cuda_interop = {},\n"
         "  enable_print = {},\n"
@@ -1085,6 +1087,7 @@ std::string Device::to_string() const
         m_info.type,
         m_info.adapter_name,
         string::hexlify(m_info.adapter_luid),
+        m_info.slang_version,
         m_desc.enable_debug_layers,
         m_desc.enable_cuda_interop,
         m_desc.enable_print,
