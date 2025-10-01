@@ -7,6 +7,13 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.36.0 (September 30, 2025)
+-------
+
+- Update to Slang version 2025.18 with latest shader compilation improvements and bug fixes.
+- Update slang-rhi submodule to latest version with improved dependency handling.
+  (PR `#533 <https://github.com/shader-slang/slangpy/pull/533>`__)
+
 Version 0.35.0 (September 18, 2025)
 -------
 

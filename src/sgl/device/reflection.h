@@ -1151,7 +1151,7 @@ public:
     }
 
     /// Get corresponding type layout from a given type.
-    ref<const TypeLayoutReflection> get_type_layout(const TypeReflection* type)
+    ref<const TypeLayoutReflection> get_type_layout(const TypeReflection* type) const
     {
         // TODO: Once device is available via session reference, pass metal layout rules for metal target
         return detail::from_slang(
