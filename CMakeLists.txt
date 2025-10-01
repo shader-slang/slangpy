@@ -52,6 +52,9 @@ option(SGL_BUILD_STANDALONE "Build without external dependencies" ON)
 # This allows to build CUDA support without having CUDA SDK installed.
 option(SGL_USE_DYNAMIC_CUDA "Load CUDA driver API dynamically" ON)
 
+# Enable NVTX profiling annotations
+option(SGL_ENABLE_NVTX "Enable NVTX profiling annotations" ON)
+
 # Disable asserts.
 # By default, asserts are enabled in both debug and release builds.
 # This option can be used to override the default behavior.
@@ -117,6 +120,20 @@ endif()
 
 if(NOT SGL_USE_DYNAMIC_CUDA)
     find_package(CUDAToolkit REQUIRED)
+endif()
+
+# NVTX
+# -----------------------------------------------------------------------------
+
+if(SGL_ENABLE_NVTX)
+    find_package(CUDAToolkit REQUIRED)
+    if(CUDAToolkit_FOUND)
+        add_compile_definitions(SGL_ENABLE_NVTX=1)
+        message(STATUS "NVTX support enabled")
+    else()
+        message(WARNING "NVTX requested but CUDA Toolkit not found")
+        set(SGL_ENABLE_NVTX OFF)
+    endif()
 endif()
 
 # -----------------------------------------------------------------------------
