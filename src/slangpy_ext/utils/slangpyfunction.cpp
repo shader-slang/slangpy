@@ -5,6 +5,10 @@
 #include "utils/slangpyfunction.h"
 #include <fmt/format.h>
 
+#ifdef SGL_ENABLE_NVTX
+#include <nvtx3/nvToolsExt.h>
+#endif
+
 namespace sgl {
 
 template<>
@@ -47,6 +51,10 @@ ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cac
 
 nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePush("slangpy_native_call");
+#endif
+
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
 
@@ -55,6 +63,10 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
         args = nb::cast<nb::args>(nb::make_tuple(options->get_this()) + args);
     }
 
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePush("slangpy_signature_build");
+#endif
+
     auto builder = make_ref<SignatureBuilder>();
     read_signature(builder);
     cache->get_args_signature(builder, args, kwargs);
@@ -62,19 +74,46 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     std::string sig = builder->str();
     ref<NativeCallData> call_data = cache->find_call_data(sig);
 
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePop();
+#endif
+
+    nb::object result;
     if (call_data) {
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePush("slangpy_call_cached");
+#endif
         if (call_data->is_torch_integration())
-            return call_data->_py_torch_call(this, options, args, kwargs);
+            result = call_data->_py_torch_call(this, options, args, kwargs);
         else
-            return call_data->call(options, args, kwargs);
+            result = call_data->call(options, args, kwargs);
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePop();
+#endif
     } else {
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePush("slangpy_call_generate");
+#endif
         ref<NativeCallData> new_call_data = generate_call_data(args, kwargs);
         cache->add_call_data(sig, new_call_data);
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePop();
+        nvtxRangePush("slangpy_call_new");
+#endif
         if (new_call_data->is_torch_integration())
-            return new_call_data->_py_torch_call(this, options, args, kwargs);
+            result = new_call_data->_py_torch_call(this, options, args, kwargs);
         else
-            return new_call_data->call(options, args, kwargs);
+            result = new_call_data->call(options, args, kwargs);
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePop();
+#endif
     }
+
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePop();
+#endif
+
+    return result;
 }
 
 void NativeFunctionNode::append_to(

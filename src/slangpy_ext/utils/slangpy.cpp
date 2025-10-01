@@ -21,6 +21,10 @@
 
 #include <fmt/format.h>
 
+#ifdef SGL_ENABLE_NVTX
+#include <nvtx3/nvToolsExt.h>
+#endif
+
 namespace sgl {
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
 extern nb::ndarray<nb::numpy> buffer_to_numpy(Buffer* self);
@@ -429,12 +433,22 @@ nb::object NativeCallData::exec(
     nb::kwargs kwargs
 )
 {
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePush("slangpy_exec_unpack_args");
+#endif
     // Unpack args and kwargs.
     nb::list unpacked_args = unpack_args(args);
     nb::dict unpacked_kwargs = unpack_kwargs(kwargs);
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePop();
+    nvtxRangePush("slangpy_exec_calc_shape");
+#endif
 
     // Calculate call shape.
     Shape call_shape = m_runtime->calculate_call_shape(m_call_dimensionality, unpacked_args, unpacked_kwargs, this);
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePop();
+#endif
     m_last_call_shape = call_shape;
 
     // Setup context.
@@ -656,23 +670,51 @@ nb::object NativeCallData::exec(
         }
     };
 
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePush("slangpy_exec_create_encoder");
+#endif
     // Create temporary command encoder if none is provided.
     ref<CommandEncoder> temp_command_encoder;
     if (command_encoder == nullptr) {
         temp_command_encoder = m_device->create_command_encoder();
         command_encoder = temp_command_encoder.get();
     }
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePop();
+#endif
 
     bool is_ray_tracing = opts->is_ray_tracing();
 
     if (!is_ray_tracing) {
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePush("slangpy_exec_begin_compute_pass");
+#endif
         ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePop();
+        nvtxRangePush("slangpy_exec_bind_pipeline");
+#endif
         ComputePipeline* pipeline = dynamic_cast<ComputePipeline*>(m_pipeline.get());
         SGL_ASSERT(pipeline != nullptr);
         ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline));
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePop();
+        nvtxRangePush("slangpy_exec_bind_call_data");
+#endif
         bind_call_data(cursor);
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePop();
+        nvtxRangePush("slangpy_exec_dispatch");
+#endif
         pass_encoder->dispatch(uint3(total_threads, 1, 1));
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePop();
+        nvtxRangePush("slangpy_exec_end_pass");
+#endif
         pass_encoder->end();
+#ifdef SGL_ENABLE_NVTX
+        nvtxRangePop();
+#endif
     } else {
         ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
         RayTracingPipeline* pipeline = dynamic_cast<RayTracingPipeline*>(m_pipeline.get());
@@ -683,17 +725,26 @@ nb::object NativeCallData::exec(
         pass_encoder->end();
     }
 
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePush("slangpy_exec_submit_cmdbuf");
+#endif
     // If we created a temporary command encoder, we need to submit it.
     if (temp_command_encoder) {
         m_device->submit_command_buffer(temp_command_encoder->finish(), CommandQueueType::graphics, cuda_stream);
         command_encoder = nullptr;
     }
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePop();
+#endif
 
     // If command_encoder is not null, return early.
     if (command_encoder != nullptr) {
         return nanobind::none();
     }
 
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePush("slangpy_exec_readback");
+#endif
     // Read call data post dispatch.
     // m_runtime->read_call_data_post_dispatch(context, call_data, unpacked_args, unpacked_kwargs);
     for (auto val : read_back) {
@@ -703,6 +754,10 @@ nb::object NativeCallData::exec(
         auto rb_data = t[2];
         bvr->python_type()->read_calldata(context, bvr.get(), rb_val, rb_data);
     }
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePop();
+    nvtxRangePush("slangpy_exec_pack_results");
+#endif
 
     // Pack updated 'this' values back.
     for (size_t i = 0; i < args.size(); ++i) {
@@ -711,6 +766,9 @@ nb::object NativeCallData::exec(
     for (auto [k, v] : kwargs) {
         pack_arg(nb::cast<nb::object>(v), unpacked_kwargs[k]);
     }
+#ifdef SGL_ENABLE_NVTX
+    nvtxRangePop();
+#endif
 
     // Handle return value based on call mode.
     if (m_call_mode == CallMode::prim) {
