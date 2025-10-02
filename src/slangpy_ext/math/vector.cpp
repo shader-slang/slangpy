@@ -54,6 +54,14 @@ void bind_vector_type(nb::module_& m, const char* name)
     if constexpr (dimension >= 4)
         vec.def_rw("w", &T::w);
 
+    // Including all swizzles is overkill, but these 2 are very useful for conversions.
+    if constexpr (dimension == 3) {
+        vec.def_prop_ro("xy", &T::xy);
+    }
+    if constexpr (dimension == 4) {
+        vec.def_prop_ro("xyz", &T::xyz);
+    }
+
     vec.def("__len__", [](const T&) { return dimension; });
     vec.def(
         "__getitem__",

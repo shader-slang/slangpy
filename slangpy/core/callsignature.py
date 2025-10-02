@@ -369,6 +369,15 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     node.python = python_type
 
 
+def is_slangpy_vector(type: Any) -> bool:
+    return (
+        hasattr(type, "element_type")
+        and hasattr(type, "shape")
+        and len(type.shape) == 1
+        and type.shape[0] <= 4
+    )
+
+
 def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen):
     if build_info.constants is not None:
         for k, v in build_info.constants.items():
@@ -378,6 +387,11 @@ def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen):
                 )
             elif isinstance(v, (int, float)):
                 cg.constants.append_statement(f"export static const {type(v).__name__} {k} = {v}")
+            elif is_slangpy_vector(v):
+                # Cheeky logic to take, eg, {0,0,0} -> float3(0,0,0)
+                tn = type(v).__name__
+                txt = f"{tn}({str(v)[1:-1]})"
+                cg.constants.append_statement(f"export static const {tn} {k} = {txt}")
             else:
                 raise KernelGenException(
                     f"Constant value '{k}' must be an int, float or bool, not {type(v).__name__}"

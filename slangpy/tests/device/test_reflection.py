@@ -1179,6 +1179,40 @@ def test_hot_reload_invalid(test_id: str, device_type: spy.DeviceType):
         x = func.name
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_attribute_reflection(test_id: str, device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    # Create a session, and within it a module.
+    session = create_session(device)
+    module = session.load_module_from_source(
+        module_name=f"module_from_source_{test_id}",
+        source="""
+        [__AttributeUsage(_AttributeTargets.Struct)]
+        struct FooAttribute
+        {
+            int val;
+        }
+
+        [Foo(42)]
+        extern struct MyStruct;
+    """,
+    )
+
+    my_struct = module.layout.find_type_by_name("MyStruct")
+    assert my_struct is not None
+    user_attr_count = my_struct.get_user_attribute_count()
+    assert user_attr_count == 1
+    user_attr = my_struct.get_user_attribute_by_index(0)
+    assert user_attr is not None
+    assert user_attr.name == "Foo"
+    argument_count = user_attr.argument_count
+    assert argument_count == 1
+    argument_type = user_attr.argument_type(0)
+    assert argument_type is not None
+    assert argument_type.name == "int"
+
+
 # This test reproduces issues with reflection where 2 independently loaded
 # modules can not resolve specialized versions of a generic function that
 # is defined in one but not the other.
