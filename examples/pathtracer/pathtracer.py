@@ -682,11 +682,9 @@ class App:
         super().__init__()
         self.window = spy.Window(width=1920, height=1080, title="PathTracer", resizable=True)
         self.device = spy.Device(
-            # type=spy.DeviceType.cuda,
             enable_debug_layers=False,
             compiler_options={
                 "include_paths": [EXAMPLE_DIR],
-                "defines": {"USE_RAYTRACING_PIPELINE": "1" if USE_RAYTRACING_PIPELINE else "0"},
             },
         )
         self.surface = self.device.create_surface(self.window)

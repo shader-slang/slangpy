@@ -1,9 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#ifndef USE_RAYTRACING_PIPELINE
-#error "Missing USE_RAYTRACING_PIPELINE define"
-#endif
-
 static const float PI = 3.14159265358979323846;
 static const float TWO_PI = 6.28318530717958647692;
 static const float INV_PI = 0.31830988618379067154;
@@ -220,8 +216,6 @@ ParameterBlock<Scene> g_scene;
 RWTexture2D<float4> g_output;
 uniform uint g_frame;
 
-#if USE_RAYTRACING_PIPELINE
-
 [shader("miss")]
 void rt_miss(inout Path path)
 {
@@ -298,7 +292,7 @@ void rt_ray_gen()
     g_output[pixel] = float4(L, 1);
 }
 
-#else // USE_RAYTRACING_PIPELINE
+#ifndef __TARGET_CUDA__
 
 HitInfo intersect(Ray ray)
 {
@@ -368,4 +362,4 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
     g_output[pixel] = float4(L, 1);
 }
 
-#endif // USE_RAYTRACING_PIPELINE
+#endif // __TARGET_CUDA__
