@@ -315,7 +315,8 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
                ref<NativeSlangType> slang_element_type,
                ref<TypeLayoutReflection> element_layout,
                ref<NativeTensorMarshall> d_in,
-               ref<NativeTensorMarshall> d_out) {
+               ref<NativeTensorMarshall> d_out)
+            {
                 new (&self)
                     PyNativeTensorMarshall(dims, writable, slang_type, slang_element_type, element_layout, d_in, d_out);
             },

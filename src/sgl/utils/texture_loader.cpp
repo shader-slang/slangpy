@@ -56,8 +56,9 @@ inline std::pair<Format, bool> determine_texture_format(const Bitmap* bitmap, co
         srgb = 2,
     };
 
-    auto make_key = [](PixelFormat pixel_format, ComponentType component_type, FormatFlags flags = FormatFlags::none
-                    ) constexpr -> uint32_t
+    auto make_key = [](PixelFormat pixel_format,
+                       ComponentType component_type,
+                       FormatFlags flags = FormatFlags::none) constexpr -> uint32_t
     {
         static_assert(Bitmap::PIXEL_FORMAT_COUNT <= 8);
         static_assert(DataStruct::TYPE_COUNT <= 16);
