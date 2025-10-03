@@ -129,10 +129,10 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
     bool convert_to_rgba = false;
     if (options.extend_alpha && pixel_format == PixelFormat::rgb) {
         // Find if the RGB format exists, if it does check if the device supports it
-        auto rgb_it = FORMAT_TABLE.find(make_key(PixelFormat::rgb, component_type, format_flags));
-        bool rgb_format_supported = rgb_it != FORMAT_TABLE.end();
-        if (rgb_format_supported && device->get_format_support(rgb_it->second) != FormatSupport::texture)
-            rgb_format_supported = false;
+        bool rgb_format_supported = false;
+        if (auto it = FORMAT_TABLE.find(make_key(PixelFormat::rgb, component_type, format_flags));
+            it != FORMAT_TABLE.end() && is_set(device->get_format_support(it->second), FormatSupport::texture))
+            rgb_format_supported = true;
 
         bool rgba_format_supported
             = FORMAT_TABLE.find(make_key(PixelFormat::rgba, component_type, format_flags)) != FORMAT_TABLE.end();
