@@ -43,4 +43,28 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(DataType);
 
+/// Get the size of a type in bytes.
+inline size_t data_type_size(sgl::DataType type)
+{
+    using sgl::DataType;
+    switch (type) {
+    case DataType::int8:
+    case DataType::uint8:
+        return 1;
+    case DataType::int16:
+    case DataType::uint16:
+    case DataType::float16:
+        return 2;
+    case DataType::int32:
+    case DataType::uint32:
+    case DataType::float32:
+        return 4;
+    case DataType::int64:
+    case DataType::uint64:
+    case DataType::float64:
+        return 8;
+    }
+    SGL_THROW("Invalid type.");
+}
+
 } // namespace sgl
