@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-RWTexture2D g_output;
+[format("rgba8")] RWTexture2D<float4> g_output;
 uniform uint g_frame;
 uniform float2 g_mouse_pos;
 uniform bool g_mouse_down;
