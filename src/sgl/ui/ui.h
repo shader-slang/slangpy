@@ -15,6 +15,7 @@
 
 struct ImGuiContext;
 struct ImFont;
+struct ImDrawData;
 
 namespace sgl::ui {
 
@@ -38,7 +39,26 @@ public:
     void process_events();
 
 private:
+    void init_rasterizer();
+    void init_sw_rasterizer();
+
     RenderPipeline* get_pipeline(Format format);
+
+    void draw(
+        ImDrawData* draw_data,
+        Buffer* vertex_buffer,
+        Buffer* index_buffer,
+        TextureView* texture_view,
+        CommandEncoder* command_encoder
+    );
+
+    void draw_sw(
+        ImDrawData* draw_data,
+        Buffer* vertex_buffer,
+        Buffer* index_buffer,
+        TextureView* texture_view,
+        CommandEncoder* command_encoder
+    );
 
     static constexpr uint32_t FRAME_COUNT = 3;
 
@@ -56,10 +76,10 @@ private:
     ref<ShaderProgram> m_program;
     ref<Texture> m_font_texture;
     ref<InputLayout> m_input_layout;
+    std::map<Format, ref<RenderPipeline>> m_pipelines;
+    ref<ComputePipeline> m_compute_pipeline;
 
     std::map<std::string, ImFont*> m_fonts;
-
-    std::map<Format, ref<RenderPipeline>> m_pipelines;
 };
 
 } // namespace sgl::ui
