@@ -191,11 +191,13 @@ std::vector<ref<Bitmap>> Bitmap::read_multiple(std::span<std::filesystem::path> 
     std::vector<std::future<ref<Bitmap>>> futures;
     futures.reserve(paths.size());
     for (const auto& path : paths)
-        futures.push_back(thread::do_async(
-            [](const std::filesystem::path& path, FileFormat format) { return make_ref<Bitmap>(path, format); },
-            path,
-            format
-        ));
+        futures.push_back(
+            thread::do_async(
+                [](const std::filesystem::path& path, FileFormat format) { return make_ref<Bitmap>(path, format); },
+                path,
+                format
+            )
+        );
     std::vector<ref<Bitmap>> bitmaps;
     bitmaps.reserve(paths.size());
     for (auto& future : futures) {

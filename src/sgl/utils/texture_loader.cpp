@@ -43,7 +43,8 @@ struct SourceImage {
  * \param options Texture loading options.
  * \return A pair containing the determined format and flag if the bitmap needs to be converted to RGBA to match the format.
  */
-inline std::pair<Format, bool> determine_texture_format(const Bitmap* bitmap, const TextureLoader::Options& options)
+inline std::pair<Format, bool>
+determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoader::Options& options)
 {
     SGL_ASSERT(bitmap != nullptr);
 
@@ -56,8 +57,9 @@ inline std::pair<Format, bool> determine_texture_format(const Bitmap* bitmap, co
         srgb = 2,
     };
 
-    auto make_key = [](PixelFormat pixel_format, ComponentType component_type, FormatFlags flags = FormatFlags::none
-                    ) constexpr -> uint32_t
+    auto make_key = [](PixelFormat pixel_format,
+                       ComponentType component_type,
+                       FormatFlags flags = FormatFlags::none) constexpr -> uint32_t
     {
         static_assert(Bitmap::PIXEL_FORMAT_COUNT <= 8);
         static_assert(DataStruct::TYPE_COUNT <= 16);
@@ -126,8 +128,12 @@ inline std::pair<Format, bool> determine_texture_format(const Bitmap* bitmap, co
     // Check if bitmap is RGB and we can convert to RGBA.
     bool convert_to_rgba = false;
     if (options.extend_alpha && pixel_format == PixelFormat::rgb) {
-        bool rgb_format_supported
-            = FORMAT_TABLE.find(make_key(PixelFormat::rgb, component_type, format_flags)) != FORMAT_TABLE.end();
+        // Find if the RGB format exists, if it does check if the device supports it
+        bool rgb_format_supported = false;
+        if (auto it = FORMAT_TABLE.find(make_key(PixelFormat::rgb, component_type, format_flags));
+            it != FORMAT_TABLE.end() && is_set(device->get_format_support(it->second), FormatSupport::texture))
+            rgb_format_supported = true;
+
         bool rgba_format_supported
             = FORMAT_TABLE.find(make_key(PixelFormat::rgba, component_type, format_flags)) != FORMAT_TABLE.end();
         if (!rgb_format_supported && rgba_format_supported) {
@@ -171,9 +177,9 @@ inline std::pair<TextureType, uint32_t> get_texture_type_and_layer_count(DDSFile
     }
 }
 
-inline SourceImage convert_bitmap(ref<Bitmap> bitmap, const TextureLoader::Options& options)
+inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const TextureLoader::Options& options)
 {
-    auto [format, convert_to_rgba] = determine_texture_format(bitmap, options);
+    auto [format, convert_to_rgba] = determine_texture_format(device, bitmap, options);
     return SourceImage{
         .bitmap = convert_to_rgba
             ? bitmap->convert(Bitmap::PixelFormat::rgba, bitmap->component_type(), bitmap->srgb_gamma())
@@ -196,11 +202,11 @@ inline SourceImage load_source_image(const std::filesystem::path& path)
 }
 
 inline SourceImage
-load_and_convert_source_image(const std::filesystem::path& path, const TextureLoader::Options& options)
+load_and_convert_source_image(Device* device, const std::filesystem::path& path, const TextureLoader::Options& options)
 {
     SourceImage source_image = load_source_image(path);
     if (source_image.bitmap) {
-        source_image = convert_bitmap(source_image.bitmap, options);
+        source_image = convert_bitmap(device, source_image.bitmap, options);
     }
     return source_image;
 }
@@ -218,8 +224,10 @@ inline ref<Texture> create_texture(
         bool allocate_mips = options.allocate_mips || options.generate_mips;
 
         TextureUsage usage = options.usage;
-        if (options.generate_mips)
-            usage |= TextureUsage::render_target;
+        if (options.generate_mips) {
+            usage |= device->has_feature(Feature::rasterization) ? TextureUsage::render_target
+                                                                 : TextureUsage::unordered_access;
+        }
 
         ref<Texture> texture = device->create_texture({
             .type = TextureType::texture_2d,
@@ -376,7 +384,7 @@ TextureLoader::~TextureLoader() = default;
 ref<Texture> TextureLoader::load_texture(const Bitmap* bitmap, std::optional<Options> options_)
 {
     Options options = options_.value_or(Options{});
-    SourceImage source_image = convert_bitmap(ref(const_cast<Bitmap*>(bitmap)), options);
+    SourceImage source_image = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmap)), options);
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
     ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
     m_device->submit_command_buffer(command_encoder->finish());
@@ -386,7 +394,7 @@ ref<Texture> TextureLoader::load_texture(const Bitmap* bitmap, std::optional<Opt
 ref<Texture> TextureLoader::load_texture(const std::filesystem::path& path, std::optional<Options> options_)
 {
     Options options = options_.value_or(Options{});
-    SourceImage source_image = load_and_convert_source_image(path, options);
+    SourceImage source_image = load_and_convert_source_image(m_device, path, options);
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
     ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
     m_device->submit_command_buffer(command_encoder->finish());
@@ -402,7 +410,7 @@ TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::optional<Opt
     std::vector<std::future<SourceImage>> source_images;
     source_images.reserve(bitmaps.size());
     for (const auto& bitmap : bitmaps)
-        source_images.push_back(thread::do_async(convert_bitmap, ref(const_cast<Bitmap*>(bitmap)), options));
+        source_images.push_back(thread::do_async(convert_bitmap, m_device, ref(const_cast<Bitmap*>(bitmap)), options));
 
     return create_textures(m_device, m_blitter, source_images, options);
 }
@@ -416,7 +424,7 @@ TextureLoader::load_textures(std::span<std::filesystem::path> paths, std::option
     std::vector<std::future<SourceImage>> source_images;
     source_images.reserve(paths.size());
     for (const auto& path : paths)
-        source_images.push_back(thread::do_async(load_and_convert_source_image, path, options));
+        source_images.push_back(thread::do_async(load_and_convert_source_image, m_device, path, options));
 
     return create_textures(m_device, m_blitter, source_images, options);
 }
@@ -432,7 +440,7 @@ ref<Texture> TextureLoader::load_texture_array(std::span<const Bitmap*> bitmaps,
     std::vector<std::future<SourceImage>> source_images;
     source_images.reserve(bitmaps.size());
     for (const auto& bitmap : bitmaps)
-        source_images.push_back(thread::do_async(convert_bitmap, ref(const_cast<Bitmap*>(bitmap)), options));
+        source_images.push_back(thread::do_async(convert_bitmap, m_device, ref(const_cast<Bitmap*>(bitmap)), options));
 
     return create_texture_array(m_device, m_blitter, source_images, options);
 }
@@ -448,7 +456,7 @@ ref<Texture> TextureLoader::load_texture_array(std::span<std::filesystem::path> 
     std::vector<std::future<SourceImage>> source_images;
     source_images.reserve(paths.size());
     for (const auto& path : paths)
-        source_images.push_back(thread::do_async(load_and_convert_source_image, path, options));
+        source_images.push_back(thread::do_async(load_and_convert_source_image, m_device, path, options));
 
     return create_texture_array(m_device, m_blitter, source_images, options);
 }

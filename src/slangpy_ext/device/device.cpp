@@ -339,7 +339,7 @@ SGL_PY_EXPORT(device_device)
                 // cursor code below needs to ensure it maintains a reference to the type layout if
                 // returned, so we attempt to convert to the raw ptr here, and then immediately
                 // store it in a local ref counted ptr.
-                if (const TypeLayoutReflection * resolved_struct_type_ptr;
+                if (const TypeLayoutReflection* resolved_struct_type_ptr;
                     nb::try_cast(resource_type_layout, resolved_struct_type_ptr)) {
                     resolved_resource_type_layout = ref<const TypeLayoutReflection>(resolved_struct_type_ptr);
                 }
@@ -657,11 +657,13 @@ SGL_PY_EXPORT(device_device)
            bool add_default_include_paths,
            std::optional<std::filesystem::path> cache_path)
         {
-            return self->create_slang_session(SlangSessionDesc{
-                .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
-                .add_default_include_paths = add_default_include_paths,
-                .cache_path = cache_path,
-            });
+            return self->create_slang_session(
+                SlangSessionDesc{
+                    .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                    .add_default_include_paths = add_default_include_paths,
+                    .cache_path = cache_path,
+                }
+            );
         },
         "compiler_options"_a.none() = nb::none(),
         "add_default_include_paths"_a = SlangSessionDesc().add_default_include_paths,
@@ -908,11 +910,7 @@ SGL_PY_EXPORT(device_device)
         "timeout_ms"_a,
         D_NA(Device, set_hot_reload_delay)
     );
-    device.def(
-        "hot_reload_check",
-        [](Device* self) { self->_hot_reload()->update(); },
-        D_NA(Device, hot_reload_check)
-    );
+    device.def("hot_reload_check", [](Device* self) { self->_hot_reload()->update(); }, D_NA(Device, hot_reload_check));
 
     device.def_static(
         "enumerate_adapters",

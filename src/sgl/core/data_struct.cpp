@@ -947,13 +947,15 @@ private:
                 switch (op.type) {
                 case Op::Type::load_mem: {
                     Register& reg = get_register(op.reg);
-                    comment(fmt::format(
-                        "load_mem (reg={}, type={}, offset={}, swap={})",
-                        reg.index,
-                        op.load_mem.type,
-                        op.load_mem.offset,
-                        op.load_mem.swap
-                    ));
+                    comment(
+                        fmt::format(
+                            "load_mem (reg={}, type={}, offset={}, swap={})",
+                            reg.index,
+                            op.load_mem.type,
+                            op.load_mem.offset,
+                            op.load_mem.swap
+                        )
+                    );
                     load(reg, src, static_cast<int32_t>(op.load_mem.offset), op.load_mem.type, op.load_mem.swap);
                     break;
                 }
@@ -966,13 +968,15 @@ private:
                 }
                 case Op::Type::save_mem: {
                     const Register& reg = get_register(op.reg);
-                    comment(fmt::format(
-                        "save_mem (reg={}, type={}, offset={}, swap={})",
-                        reg.index,
-                        op.save_mem.type,
-                        op.save_mem.offset,
-                        op.save_mem.swap
-                    ));
+                    comment(
+                        fmt::format(
+                            "save_mem (reg={}, type={}, offset={}, swap={})",
+                            reg.index,
+                            op.save_mem.type,
+                            op.save_mem.offset,
+                            op.save_mem.swap
+                        )
+                    );
                     save(reg, dst, static_cast<int32_t>(op.save_mem.offset), op.save_mem.type, op.save_mem.swap);
                     break;
                 }
@@ -1003,12 +1007,14 @@ private:
                 case Op::Type::multiply_add: {
                     const Register& reg1 = get_register(op.reg);
                     const Register& reg2 = get_register(op.multiply_add.reg);
-                    comment(fmt::format(
-                        "multiply_add (reg1={}, reg2={}, factor={})",
-                        reg1.index,
-                        reg2.index,
-                        op.multiply_add.factor
-                    ));
+                    comment(
+                        fmt::format(
+                            "multiply_add (reg1={}, reg2={}, factor={})",
+                            reg1.index,
+                            reg2.index,
+                            op.multiply_add.factor
+                        )
+                    );
                     fmadd231sd(reg1.xmm, reg2.xmm, const_(op.multiply_add.factor));
                     break;
                 }
@@ -1534,13 +1540,15 @@ private:
                 switch (op.type) {
                 case Op::Type::load_mem: {
                     Register& reg = get_register(op.reg);
-                    comment(fmt::format(
-                        "load_mem (reg={}, type={}, offset={}, swap={})",
-                        reg.index,
-                        op.load_mem.type,
-                        op.load_mem.offset,
-                        op.load_mem.swap
-                    ));
+                    comment(
+                        fmt::format(
+                            "load_mem (reg={}, type={}, offset={}, swap={})",
+                            reg.index,
+                            op.load_mem.type,
+                            op.load_mem.offset,
+                            op.load_mem.swap
+                        )
+                    );
                     load(reg, src, static_cast<int32_t>(op.load_mem.offset), op.load_mem.type, op.load_mem.swap);
                     break;
                 }
@@ -1553,13 +1561,15 @@ private:
                 }
                 case Op::Type::save_mem: {
                     const Register& reg = get_register(op.reg);
-                    comment(fmt::format(
-                        "save_mem (reg={}, type={}, offset={}, swap={})",
-                        reg.index,
-                        op.save_mem.type,
-                        op.save_mem.offset,
-                        op.save_mem.swap
-                    ));
+                    comment(
+                        fmt::format(
+                            "save_mem (reg={}, type={}, offset={}, swap={})",
+                            reg.index,
+                            op.save_mem.type,
+                            op.save_mem.offset,
+                            op.save_mem.swap
+                        )
+                    );
                     save(reg, dst, static_cast<int32_t>(op.save_mem.offset), op.save_mem.type, op.save_mem.swap);
                     break;
                 }
@@ -1592,12 +1602,14 @@ private:
                 case Op::Type::multiply_add: {
                     const Register& reg1 = get_register(op.reg);
                     const Register& reg2 = get_register(op.multiply_add.reg);
-                    comment(fmt::format(
-                        "multiply_add (reg1={}, reg2={}, factor={})",
-                        reg1.index,
-                        reg2.index,
-                        op.multiply_add.factor
-                    ));
+                    comment(
+                        fmt::format(
+                            "multiply_add (reg1={}, reg2={}, factor={})",
+                            reg1.index,
+                            reg2.index,
+                            op.multiply_add.factor
+                        )
+                    );
                     auto tmp = c.newVecD();
                     c.ldr(tmp, const_(op.multiply_add.factor));
                     c.fmadd(reg1.vec, reg2.vec, tmp, reg1.vec);

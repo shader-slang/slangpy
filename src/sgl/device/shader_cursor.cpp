@@ -316,9 +316,8 @@ inline bool is_buffer_resource_type(slang::TypeReflection* type)
     switch ((TypeReflection::Kind)type->getKind()) {
     case TypeReflection::Kind::constant_buffer:
     case TypeReflection::Kind::resource: {
-        auto shape = (TypeReflection::ResourceShape)(
-            type->getResourceShape() & SlangResourceShape::SLANG_RESOURCE_BASE_SHAPE_MASK
-        );
+        auto shape = (TypeReflection::ResourceShape)(type->getResourceShape()
+                                                     & SlangResourceShape::SLANG_RESOURCE_BASE_SHAPE_MASK);
         switch (shape) {
         case TypeReflection::ResourceShape::texture_buffer:
         case TypeReflection::ResourceShape::structured_buffer:
@@ -341,9 +340,8 @@ inline bool is_texture_resource_type(slang::TypeReflection* type)
 {
     switch ((TypeReflection::Kind)type->getKind()) {
     case TypeReflection::Kind::resource: {
-        auto shape = (TypeReflection::ResourceShape)(
-            type->getResourceShape() & SlangResourceShape::SLANG_RESOURCE_BASE_SHAPE_MASK
-        );
+        auto shape = (TypeReflection::ResourceShape)(type->getResourceShape()
+                                                     & SlangResourceShape::SLANG_RESOURCE_BASE_SHAPE_MASK);
         switch (shape) {
         case TypeReflection::ResourceShape::texture_1d:
         case TypeReflection::ResourceShape::texture_2d:
@@ -532,13 +530,19 @@ DeviceType ShaderCursor::_get_device_type() const
 }
 
 // Explicit instantiation of the methods
-template void
-CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_array(const void*, size_t, TypeReflection::ScalarType, size_t)
-    const;
+template void CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_array(
+    const void*,
+    size_t,
+    TypeReflection::ScalarType,
+    size_t
+) const;
 
-template void
-CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_vector(const void*, size_t, TypeReflection::ScalarType, int)
-    const;
+template void CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_vector(
+    const void*,
+    size_t,
+    TypeReflection::ScalarType,
+    int
+) const;
 
 //
 // Setter specializations
