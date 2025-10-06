@@ -210,6 +210,7 @@ target_compile_options(sgl
             -fvisibility=hidden             # hide symbols by default
             -Wall                           # set warning level
             -Wextra                         # enable extra warnings
+            -Werror                         # treat warnings as errors
             -Wno-unused-function
             -Wno-unused-variable
             -Wno-unused-but-set-variable
