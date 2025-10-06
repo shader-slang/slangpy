@@ -112,13 +112,14 @@ float3 linear_to_srgb(float3 linear)
 }
 
 [shader("compute")]
+[numthreads(8, 8, 1)]
 void compute_main(uint3 tid: SV_DispatchThreadID, DST_FORMAT_ATTR RWTexture2D<DstType> dst)
 {
     uint2 dim;
-    src.GetDimensions(dim.x, dim.y);
+    dst.GetDimensions(dim.x, dim.y);
     if (any(tid.xy >= dim))
         return;
-    float2 uv = float2(tid.xy) / dim;
+    float2 uv = (float2(tid.xy) + 0.5) / dim;
     DstType value = src.sample(sampler, uv);
 #if DST_SRGB == 1
     value.xyz = linear_to_srgb(value.xyz);
