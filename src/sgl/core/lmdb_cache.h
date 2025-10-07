@@ -7,6 +7,8 @@
 #include <atomic>
 #include <filesystem>
 #include <span>
+#include <vector>
+#include <optional>
 
 // Forward declaration
 struct MDB_env;
@@ -76,7 +78,7 @@ public:
     /// Throws on error.
     /// \param path Path to the cache directory.
     /// \param options Cache options.
-    LMDBCache(const std::filesystem::path& path, const Options& options = Options());
+    LMDBCache(const std::filesystem::path& path, std::optional<Options> options = {});
 
     /// Destructor.
     ~LMDBCache() override;

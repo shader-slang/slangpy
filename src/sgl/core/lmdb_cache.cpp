@@ -100,8 +100,10 @@ inline uint64_t get_current_time_ns()
     );
 }
 
-LMDBCache::LMDBCache(const std::filesystem::path& path, const Options& options)
+LMDBCache::LMDBCache(const std::filesystem::path& path, std::optional<Options> options_)
 {
+    Options options = options_.value_or(Options{});
+
     std::error_code ec;
     if (!std::filesystem::create_directories(path, ec) && ec)
         SGL_THROW("Failed to create cache directory ({})", ec.message());
