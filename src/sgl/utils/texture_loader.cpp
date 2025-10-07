@@ -394,7 +394,7 @@ ref<Texture> TextureLoader::load_texture(const Bitmap* bitmap, std::optional<Opt
 ref<Texture> TextureLoader::load_texture(const std::filesystem::path& path, std::optional<Options> options_)
 {
     Options options = options_.value_or(Options{});
-    SourceImage source_image = load_and_convert_source_image(m_device, path, options);
+    SourceImage source_image = load_and_convert_source_image(m_device.get(), path, options);
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
     ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
     m_device->submit_command_buffer(command_encoder->finish());
@@ -424,7 +424,7 @@ TextureLoader::load_textures(std::span<std::filesystem::path> paths, std::option
     std::vector<std::future<SourceImage>> source_images;
     source_images.reserve(paths.size());
     for (const auto& path : paths)
-        source_images.push_back(thread::do_async(load_and_convert_source_image, m_device, path, options));
+        source_images.push_back(thread::do_async(load_and_convert_source_image, m_device.get(), path, options));
 
     return create_textures(m_device, m_blitter, source_images, options);
 }
@@ -456,7 +456,7 @@ ref<Texture> TextureLoader::load_texture_array(std::span<std::filesystem::path> 
     std::vector<std::future<SourceImage>> source_images;
     source_images.reserve(paths.size());
     for (const auto& path : paths)
-        source_images.push_back(thread::do_async(load_and_convert_source_image, m_device, path, options));
+        source_images.push_back(thread::do_async(load_and_convert_source_image, m_device.get(), path, options));
 
     return create_texture_array(m_device, m_blitter, source_images, options);
 }
