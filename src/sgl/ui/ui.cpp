@@ -283,9 +283,11 @@ Context::Context(ref<Device> device)
     ImGui::GetStyle().ScaleAllSizes(scale_factor);
 
     // Skip initializing rasterizer if device does not support rasterization.
-    // TODO: This will be fixed later when adding sw rasterizer (wip).    
-    if (!m_device->has_feature(Feature::rasterization))
+    // TODO: This will be fixed later when adding sw rasterizer (wip).
+    if (!m_device->has_feature(Feature::rasterization)) {
+        log_warn("Rasterization is not available and UI will not be rendered!");
         return;
+    }
 
     // Setup sampler.
     m_sampler = m_device->create_sampler({
