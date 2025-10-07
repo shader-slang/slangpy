@@ -43,6 +43,8 @@ target_sources(sgl PRIVATE
     core/memory_stream.h
     core/object.cpp
     core/object.h
+    core/lmdb_cache.cpp
+    core/lmdb_cache.h
     core/platform_linux.cpp
     core/platform_macos.cpp
     core/platform_windows.cpp
@@ -353,6 +355,7 @@ target_link_libraries(sgl
         git_version
         glfw
         tevclient
+        lmdb
         $<$<BOOL:${SGL_HAS_D3D12}>:d3d12>
         $<$<BOOL:${SGL_HAS_LIBPNG}>:PNG::PNG>
         $<$<BOOL:${SGL_HAS_LIBJPEG}>:JPEG::JPEG>
