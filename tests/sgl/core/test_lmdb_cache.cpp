@@ -214,6 +214,15 @@ inline uint64_t get_current_time_ns()
     );
 }
 
+/// Helper class to run a stress test.
+/// When running, each iteration works as follows:
+/// - with probability 'delete_ratio', delete a random entry in the cache
+/// - otherwise, select a random entry, try to get it from the cache, if not found, set it
+///   - with probability 'hot_ratio', choose one of the first 'hot_candidates' entries,
+///     otherwise choose any of the remaining entries
+///   - when we successfully accessed an entry or written it, remember the last access time
+/// After running this test from one or multiple threads, we can verify the cache by
+/// checking that the entries in the cache correspond to the most recently accessed entries.
 struct StressTest {
     struct Options {
         std::filesystem::path path;
@@ -396,7 +405,6 @@ struct StressTest {
         }
     }
 };
-
 
 TEST_CASE("stress-single-threaded")
 {
