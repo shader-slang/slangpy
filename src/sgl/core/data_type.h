@@ -63,6 +63,8 @@ inline size_t data_type_size(sgl::DataType type)
     case DataType::uint64:
     case DataType::float64:
         return 8;
+    default:
+        break;
     }
     SGL_THROW("Invalid type.");
 }
