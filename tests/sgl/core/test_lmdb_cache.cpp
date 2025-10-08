@@ -318,11 +318,9 @@ struct StressTest {
         RunStats stats = {};
         std::vector<uint8_t> temp_value;
         for (size_t iteration = 0; iteration < iterations; ++iteration) {
-            if (iteration % 1000 == 0) {
-                if (PRINT_DIAGNOSTICS) {
-                    fmt::println("Iteration {}, hits={}, misses={}", iteration, stats.hits, stats.misses);
-                    print_usage(cache.usage());
-                }
+            if (PRINT_DIAGNOSTICS && iteration % 1000 == 0) {
+                fmt::println("Iteration {}, hits={}, misses={}", iteration, stats.hits, stats.misses);
+                print_usage(cache.usage());
             }
             double r = static_cast<double>(rand()) / RAND_MAX;
             if (r < options.delete_ratio) {
@@ -352,8 +350,10 @@ struct StressTest {
                 stats.total_get_bytes += success ? temp_value.size() : 0;
                 if (success) {
                     stats.hits++;
-                    std::lock_guard lock(mutex);
-                    entry.last_access = get_current_time_ns();
+                    {
+                        std::lock_guard lock(mutex);
+                        entry.last_access = get_current_time_ns();
+                    }
                 } else {
                     stats.misses++;
                     // set the entry
@@ -363,7 +363,10 @@ struct StressTest {
                         stats.total_set_calls++;
                         stats.total_set_time += timer.elapsed_s();
                         stats.total_set_bytes += entry.value.size();
-                        entry.last_access = get_current_time_ns();
+                        {
+                            std::lock_guard lock(mutex);
+                            entry.last_access = get_current_time_ns();
+                        }
                     } catch (const std::exception& e) {
                         if (PRINT_DIAGNOSTICS) {
                             fmt::println("set operation failed: {}", e.what());
