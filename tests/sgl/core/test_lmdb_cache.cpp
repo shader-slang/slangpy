@@ -327,9 +327,11 @@ struct StressTest {
         RunStats stats = {};
         std::vector<uint8_t> temp_value;
         for (size_t iteration = 0; iteration < iterations; ++iteration) {
-            if (PRINT_DIAGNOSTICS && iteration % 1000 == 0) {
-                fmt::println("Iteration {}, hits={}, misses={}", iteration, stats.hits, stats.misses);
-                print_usage(cache.usage());
+            if (PRINT_DIAGNOSTICS) {
+                if (iteration % 1000 == 0) {
+                    fmt::println("Iteration {}, hits={}, misses={}", iteration, stats.hits, stats.misses);
+                    print_usage(cache.usage());
+                }
             }
             double r = static_cast<double>(rand()) / RAND_MAX;
             if (r < options.delete_ratio) {
