@@ -43,6 +43,8 @@ target_sources(sgl PRIVATE
     core/memory_stream.h
     core/object.cpp
     core/object.h
+    core/lmdb_cache.cpp
+    core/lmdb_cache.h
     core/platform_linux.cpp
     core/platform_macos.cpp
     core/platform_windows.cpp
@@ -197,6 +199,7 @@ target_compile_options(sgl
             /wd4275                         # non dll-interface class 'type' used as base for dll-interface class 'type2'
             /external:templates-            # Allows warnings from external headers when they occur in a template that's instantiated in your code.
             # Enable warnings that are disabled with /W4
+            /we4062                         # enumerator 'identifier' in switch of enum 'enumeration' is not handled
             /we4263                         # 'function': member function does not override any base class virtual member function
             /we4264                         # 'virtual_function': no override available for virtual member function from base 'class'; function is hidden
             /we5038                         # data member 'member1' will be initialized after data member 'member2'
@@ -209,6 +212,7 @@ target_compile_options(sgl
             -fvisibility=hidden             # hide symbols by default
             -Wall                           # set warning level
             -Wextra                         # enable extra warnings
+            -Werror                         # treat warnings as errors
             -Wno-unused-function
             -Wno-unused-variable
             -Wno-unused-but-set-variable
@@ -351,6 +355,7 @@ target_link_libraries(sgl
         git_version
         glfw
         tevclient
+        lmdb
         $<$<BOOL:${SGL_HAS_D3D12}>:d3d12>
         $<$<BOOL:${SGL_HAS_LIBPNG}>:PNG::PNG>
         $<$<BOOL:${SGL_HAS_LIBJPEG}>:JPEG::JPEG>

@@ -50,6 +50,12 @@ if(SGL_BUILD_PYTHON)
     nanobind_build_library(nanobind SHARED)
 endif()
 
+# lmdb
+
+add_library(lmdb STATIC)
+target_include_directories(lmdb INTERFACE lmdb)
+target_sources(lmdb PRIVATE lmdb/mdb.c lmdb/midl.c)
+
 # slang
 
 set(SGL_SLANG_DEBUG_INFO ON CACHE BOOL "Download debug info for slang")

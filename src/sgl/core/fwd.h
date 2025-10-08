@@ -32,6 +32,10 @@ struct MouseEvent;
 struct GamepadEvent;
 struct GamepadState;
 
+// lmdb_cache.h
+
+class LMDBCache;
+
 // logger.h
 
 class LoggerOutput;
