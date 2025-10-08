@@ -7,7 +7,9 @@ import slangpy as spy
 from slangpy.testing import helpers
 
 
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+# Metal test disabled until printing of float16 values in Metal has been fixed
+# in Slang: https://github.com/shader-slang/slangpy/issues/497
+@pytest.mark.parametrize("device_type", [spy.DeviceType.d3d12, spy.DeviceType.vulkan, spy.DeviceType.cuda])
 def test_print(device_type: spy.DeviceType):
     device = spy.Device(type=device_type, enable_print=True, label=f"print-{device_type.name}")
     helpers.dispatch_compute(
@@ -115,7 +117,7 @@ int64_tX: {-40000000000000, -30000000000000} {-20000000000000, -10000000000000, 
 uint16_tX: {1000, 2000} {3000, 4000, 5000} {6000, 7000, 8000, 9000}
 uint32_tX: {100000000, 200000000} {300000000, 400000000, 500000000} {600000000, 700000000, 800000000, 900000000}
 uint64_tX: {10000000000000, 20000000000000} {30000000000000, 40000000000000, 50000000000000} {60000000000000, 70000000000000, 80000000000000, 90000000000000}
-float16_tX: {0, 0} {0, 0, 0} {0, 0, 0, 0}
+float16_tX: {-400, -300} {-200, -100, 0} {100, 200, 300, 400}
 float32_tX: {-4000000, -3000000} {-2000000, -1000000, 0} {1000000, 2000000, 3000000, 4000000}
 float3x3: {{-4.00, -3.00, -1.00}, {+0.00, +1.00, +2.00}, {+3.00, +4.00, +5.00}}
 """,
