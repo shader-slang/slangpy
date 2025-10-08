@@ -136,7 +136,7 @@ Bitmap::Bitmap(
     );
 
     // If not specified, use sRGB gamma by default for 8-bit and 16-bit images.
-    if(srgb_gamma.has_value())
+    if (srgb_gamma.has_value())
         m_srgb_gamma = srgb_gamma.value();
     else
         m_srgb_gamma = (m_component_type == ComponentType::uint8) || (m_component_type == ComponentType::uint16);

@@ -29,7 +29,18 @@ SGL_PY_EXPORT(core_bitmap)
                uint32_t channel_count,
                std::vector<std::string> channel_names,
                std::optional<bool> srgb_gamma)
-            { new (self) Bitmap(pixel_format, component_type, width, height, channel_count, channel_names, nullptr, srgb_gamma); },
+            {
+                new (self) Bitmap(
+                    pixel_format,
+                    component_type,
+                    width,
+                    height,
+                    channel_count,
+                    channel_names,
+                    nullptr,
+                    srgb_gamma
+                );
+            },
             "pixel_format"_a,
             "component_type"_a,
             "width"_a,
@@ -85,7 +96,16 @@ SGL_PY_EXPORT(core_bitmap)
                 uint32_t height = narrow_cast<uint32_t>(data.shape(0));
                 std::vector channel_names = channel_names_.value_or(std::vector<std::string>{});
 
-                new (self) Bitmap(pixel_format, component_type, width, height, channel_count, channel_names, nullptr, srgb_gamma);
+                new (self) Bitmap(
+                    pixel_format,
+                    component_type,
+                    width,
+                    height,
+                    channel_count,
+                    channel_names,
+                    nullptr,
+                    srgb_gamma
+                );
 
                 SGL_ASSERT(self->buffer_size() == data.nbytes());
 
