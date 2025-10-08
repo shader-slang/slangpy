@@ -21,12 +21,8 @@ using EnumInfo = decltype(find_enum_info_adl(std::declval<T>()));
 
 template<typename T>
 concept is_enum_info = requires(T v) {
-    {
-        v.name
-    } -> std::same_as<const char* const&>;
-    {
-        v.items[0]
-    } -> std::same_as<const std::pair<typename T::enum_type, const char*>&>;
+    { v.name } -> std::same_as<const char* const&>;
+    { v.items[0] } -> std::same_as<const std::pair<typename T::enum_type, const char*>&>;
 };
 
 template<typename T>

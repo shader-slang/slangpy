@@ -130,7 +130,8 @@ public:
         uint32_t height,
         uint32_t channel_count = 0,
         const std::vector<std::string>& channel_names = {},
-        void* data = nullptr
+        void* data = nullptr,
+        std::optional<bool> srgb_gamma = std::nullopt
     );
 
     Bitmap(Stream* stream, FileFormat format = FileFormat::auto_);

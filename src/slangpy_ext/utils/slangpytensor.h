@@ -113,8 +113,12 @@ public:
         nb::list read_back
     ) const override;
 
-    void read_calldata(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data, nb::object result)
-        const override;
+    void read_calldata(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        nb::object data,
+        nb::object result
+    ) const override;
 
     nb::object create_output(CallContext* context, NativeBoundVariableRuntime* binding) const override;
 
@@ -152,8 +156,12 @@ struct PyNativeTensorMarshall : public NativeTensorMarshall {
         NB_OVERRIDE(create_calldata, context, binding, data);
     }
 
-    void read_calldata(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data, nb::object result)
-        const override
+    void read_calldata(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        nb::object data,
+        nb::object result
+    ) const override
     {
         NB_OVERRIDE(read_calldata, context, binding, data, result);
     }

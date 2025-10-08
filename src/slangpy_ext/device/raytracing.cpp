@@ -151,7 +151,8 @@ SGL_PY_EXPORT(device_raytracing)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](AccelerationStructureBuildInputInstances* self, nb::dict dict) {
+            [](AccelerationStructureBuildInputInstances* self, nb::dict dict)
+            {
                 new (self)
                     AccelerationStructureBuildInputInstances(dict_to_AccelerationStructureBuildInputInstances(dict));
             }
@@ -169,7 +170,8 @@ SGL_PY_EXPORT(device_raytracing)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](AccelerationStructureBuildInputTriangles* self, nb::dict dict) {
+            [](AccelerationStructureBuildInputTriangles* self, nb::dict dict)
+            {
                 new (self)
                     AccelerationStructureBuildInputTriangles(dict_to_AccelerationStructureBuildInputTriangles(dict));
             }
@@ -220,7 +222,8 @@ SGL_PY_EXPORT(device_raytracing)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](AccelerationStructureBuildInputMotionOptions* self, nb::dict dict) {
+            [](AccelerationStructureBuildInputMotionOptions* self, nb::dict dict)
+            {
                 new (self) AccelerationStructureBuildInputMotionOptions(
                     dict_to_AccelerationStructureBuildInputMotionOptions(dict)
                 );

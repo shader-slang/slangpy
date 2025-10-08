@@ -459,7 +459,23 @@ MemoryStats memory_stats()
 
 SharedLibraryHandle load_shared_library(const std::filesystem::path& path)
 {
-    return LoadLibraryW(path.c_str());
+    /// Comments taken from slang-platform
+    // We try to search the DLL in two different attempts.
+    // First attempt - LoadLibraryExW()
+    // If it failed to find one, we will use LoadLibraryW() to search over all PATH.
+    // Search order: 1) The directory that contains the DLL (LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR).
+    //                  This directory is searched only for dependencies of the DLL being loaded.
+    //               2) Application directory
+    //               3) User directories (AddDllDirectory/SetDllDirectory)
+    //               4) System32
+    //               5) PATH environment variable (by the 2nd attempt with LoadLibraryW())
+    // https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadlibraryexw
+    // https://docs.microsoft.com/en-us/windows/desktop/api/libloaderapi/nf-libloaderapi-loadlibraryw
+    SharedLibraryHandle handle = LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+    if (!handle)
+        handle = LoadLibraryW(path.c_str());
+
+    return handle;
 }
 
 void release_shared_library(SharedLibraryHandle library)

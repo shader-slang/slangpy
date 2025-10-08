@@ -63,7 +63,8 @@ SGL_PY_EXPORT(device_shader)
                 new (self) TypeConformance{
                     nb::cast<std::string>(tuple[0]),
                     nb::cast<std::string>(tuple[1]),
-                    tuple.size() > 2 ? nb::cast<int32_t>(tuple[2]) : -1};
+                    tuple.size() > 2 ? nb::cast<int32_t>(tuple[2]) : -1
+                };
             }
         )
         .def_rw("interface_name", &TypeConformance::interface_name, D(TypeConformance, interface_name))

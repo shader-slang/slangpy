@@ -146,7 +146,8 @@ SGL_PY_EXPORT(ui_widgets)
         .def("__len__", &Widget::child_count, D(Widget, child_count))
         .def(
             "__iter__",
-            [](const Widget& self) {
+            [](const Widget& self)
+            {
                 return nb::make_iterator(
                     nb::type<Widget>(),
                     "iterator",

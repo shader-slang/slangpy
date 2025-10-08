@@ -472,12 +472,14 @@ nb::object NativeCallData::exec(
         // Our check above should have already validated that
         // call_group_shape.size() > 0.
         if (call_group_shape.size() > cs.size()) {
-            throw std::runtime_error(fmt::format(
-                "call_group_shape dimensionality ({}) must be <= call_shape dimensionality ({}). "
-                "call_group_shape cannot have more dimensions than call_shape.",
-                call_group_shape.size(),
-                cs.size()
-            ));
+            throw std::runtime_error(
+                fmt::format(
+                    "call_group_shape dimensionality ({}) must be <= call_shape dimensionality ({}). "
+                    "call_group_shape cannot have more dimensions than call_shape.",
+                    call_group_shape.size(),
+                    cs.size()
+                )
+            );
         } else if (call_group_shape.size() < cs.size()) {
             // Call group shape size is less than the call shape size so we need to
             // pad the call group shape with 1's to account for the missing dimensions.
@@ -503,11 +505,13 @@ nb::object NativeCallData::exec(
         // Verify that all elements of call_group_shape are >= 1
         for (size_t i = 0; i < call_group_shape.size(); ++i) {
             if (call_group_shape[i] < 1) {
-                throw std::runtime_error(fmt::format(
-                    "call_group_shape[{}] = {} is invalid. All call_group_shape elements must be >= 1.",
-                    i,
-                    call_group_shape[i]
-                ));
+                throw std::runtime_error(
+                    fmt::format(
+                        "call_group_shape[{}] = {} is invalid. All call_group_shape elements must be >= 1.",
+                        i,
+                        call_group_shape[i]
+                    )
+                );
             }
         }
     } else {
@@ -1023,12 +1027,7 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::sgl_enum<CallMode>(slangpy, "CallMode");
     nb::sgl_enum<CallDataMode>(slangpy, "CallDataMode");
 
-    slangpy.def(
-        "unpack_args",
-        [](nb::args args) { return unpack_args(args); },
-        "args"_a,
-        D_NA(slangpy, unpack_args)
-    );
+    slangpy.def("unpack_args", [](nb::args args) { return unpack_args(args); }, "args"_a, D_NA(slangpy, unpack_args));
     slangpy.def(
         "unpack_refs_and_args",
         [](nb::list refs, nb::args args) { return unpack_args(args, refs); },
@@ -1049,12 +1048,7 @@ SGL_PY_EXPORT(utils_slangpy)
         "kwargs"_a,
         D_NA(slangpy, unpack_kwargs)
     );
-    slangpy.def(
-        "unpack_arg",
-        [](nb::object arg) { return unpack_arg(arg); },
-        "arg"_a,
-        D_NA(slangpy, unpack_arg)
-    );
+    slangpy.def("unpack_arg", [](nb::object arg) { return unpack_arg(arg); }, "arg"_a, D_NA(slangpy, unpack_arg));
     slangpy.def(
         "pack_arg",
         [](nb::object arg, nb::object unpacked_arg) { pack_arg(arg, unpacked_arg); },

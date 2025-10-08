@@ -75,8 +75,12 @@ public:
         nb::list read_back
     ) const override;
 
-    void read_calldata(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data, nb::object result)
-        const override;
+    void read_calldata(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        nb::object data,
+        nb::object result
+    ) const override;
 
     nb::object create_output(CallContext* context, NativeBoundVariableRuntime* binding) const override;
 
@@ -120,8 +124,12 @@ public:
         nb::list read_back
     ) const override;
 
-    void read_calldata(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data, nb::object result)
-        const override;
+    void read_calldata(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        nb::object data,
+        nb::object result
+    ) const override;
 
     nb::object create_output(CallContext* context, NativeBoundVariableRuntime* binding) const override;
 

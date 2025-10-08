@@ -308,13 +308,7 @@ void bind_vector_type(nb::module_& m, const char* name)
         if constexpr (floating_point<value_type>) {
             m.def("fmod", WRAP_INTRINSIC_XY(fmod));
             m.def("frac", WRAP_INTRINSIC_X(frac));
-            m.def(
-                "lerp",
-                [](const T& x, const T& y, const T& s) { return lerp(x, y, s); },
-                "x"_a,
-                "y"_a,
-                "s"_a
-            );
+            m.def("lerp", [](const T& x, const T& y, const T& s) { return lerp(x, y, s); }, "x"_a, "y"_a, "s"_a);
             m.def(
                 "lerp",
                 [](const T& x, const T& y, const value_type& s) { return lerp(x, y, s); },
@@ -343,12 +337,7 @@ void bind_vector_type(nb::module_& m, const char* name)
         if constexpr (floating_point<value_type>) {
             m.def("length", WRAP_INTRINSIC_X(length));
             m.def("normalize", WRAP_INTRINSIC_X(normalize));
-            m.def(
-                "reflect",
-                [](const T& i, const T& n) { return reflect(i, n); },
-                "i"_a,
-                "n"_a
-            );
+            m.def("reflect", [](const T& i, const T& n) { return reflect(i, n); }, "i"_a, "n"_a);
         }
     }
 

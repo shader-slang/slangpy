@@ -102,14 +102,16 @@ public:
     void insert_cache_include(const std::filesystem::path& path, size_t index)
     {
         SGL_ASSERT(index <= m_entries.size());
-        m_entries.insert(m_entries.begin() + index,
+        m_entries.insert(
+            m_entries.begin() + index,
             {
-            .name = slang::CompilerOptionName::Include,
-            .value = {
-                .kind = slang::CompilerOptionValueKind::String,
-                .string0 = path.string(),
-            },
-        });
+                .name = slang::CompilerOptionName::Include,
+                .value = {
+                    .kind = slang::CompilerOptionValueKind::String,
+                    .string0 = path.string(),
+                },
+            }
+        );
     }
 
     std::vector<slang::CompilerOptionEntry> slang_entries() const

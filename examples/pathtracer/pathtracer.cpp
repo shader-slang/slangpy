@@ -420,12 +420,14 @@ struct Scene {
         uint32_t vertex_count = 0;
         uint32_t index_count = 0;
         for (const Mesh& mesh : stage.meshes) {
-            mesh_descs.push_back(MeshDesc{
-                .vertex_count = mesh.vertex_count(),
-                .index_count = mesh.index_count(),
-                .vertex_offset = vertex_count,
-                .index_offset = index_count,
-            });
+            mesh_descs.push_back(
+                MeshDesc{
+                    .vertex_count = mesh.vertex_count(),
+                    .index_count = mesh.index_count(),
+                    .vertex_offset = vertex_count,
+                    .index_offset = index_count,
+                }
+            );
             vertex_count += mesh.vertex_count();
             index_count += mesh.index_count();
         }

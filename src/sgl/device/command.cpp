@@ -209,7 +209,8 @@ void ComputePassEncoder::dispatch(uint3 thread_count)
     uint3 thread_group_count{
         div_round_up(thread_count.x, m_thread_group_size.x),
         div_round_up(thread_count.y, m_thread_group_size.y),
-        div_round_up(thread_count.z, m_thread_group_size.z)};
+        div_round_up(thread_count.z, m_thread_group_size.z)
+    };
     dispatch_compute(thread_group_count);
 }
 
@@ -513,7 +514,8 @@ void CommandEncoder::upload_buffer_data(Buffer* buffer, size_t offset, size_t si
 
     set_buffer_state(buffer, ResourceState::copy_destination);
 
-    SLANG_RHI_CALL(m_rhi_command_encoder->uploadBufferData(buffer->rhi_buffer(), offset, size, const_cast<void*>(data))
+    SLANG_RHI_CALL(
+        m_rhi_command_encoder->uploadBufferData(buffer->rhi_buffer(), offset, size, const_cast<void*>(data))
     );
 }
 

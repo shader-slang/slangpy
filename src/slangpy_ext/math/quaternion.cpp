@@ -92,18 +92,8 @@ void bind_quaternion_type(nb::module_& m, const char* name)
 
     // Multiplication
 
-    m.def(
-        "mul",
-        [](const T& x, const T& y) { return mul(x, y); },
-        "x"_a,
-        "y"_a
-    );
-    m.def(
-        "mul",
-        [](const T& x, const vector<value_type, 3>& y) { return mul(x, y); },
-        "x"_a,
-        "y"_a
-    );
+    m.def("mul", [](const T& x, const T& y) { return mul(x, y); }, "x"_a, "y"_a);
+    m.def("mul", [](const T& x, const vector<value_type, 3>& y) { return mul(x, y); }, "x"_a, "y"_a);
 
     m.def(
         "transform_vector",
@@ -164,11 +154,7 @@ void bind_quaternion_type(nb::module_& m, const char* name)
         "angles"_a
     );
 
-    m.def(
-        "quat_from_matrix",
-        [](const matrix<value_type, 3, 3>& m) { return quat_from_matrix(m); },
-        "m"_a
-    );
+    m.def("quat_from_matrix", [](const matrix<value_type, 3, 3>& m) { return quat_from_matrix(m); }, "m"_a);
 
     m.def(
         "quat_from_look_at",

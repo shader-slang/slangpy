@@ -18,9 +18,8 @@ SGL_PY_EXPORT(core_platform)
 #elif SGL_LINUX
         .def(
             "__init__",
-            [](sgl::WindowHandle* self, uintptr_t xdisplay, uint32_t xwindow) {
-                new (self) sgl::WindowHandle{reinterpret_cast<void*>(xdisplay), xwindow};
-            },
+            [](sgl::WindowHandle* self, uintptr_t xdisplay, uint32_t xwindow)
+            { new (self) sgl::WindowHandle{reinterpret_cast<void*>(xdisplay), xwindow}; },
             "xdisplay"_a,
             "xwindow"_a
         )

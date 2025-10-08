@@ -9,7 +9,8 @@
 namespace sgl {
 
 static ExceptionDiagnosticFlags s_exception_diagnostic_flags{
-    ExceptionDiagnosticFlags::break_debugger | ExceptionDiagnosticFlags::log};
+    ExceptionDiagnosticFlags::break_debugger | ExceptionDiagnosticFlags::log
+};
 
 void set_exception_diagnostics(ExceptionDiagnosticFlags flags)
 {

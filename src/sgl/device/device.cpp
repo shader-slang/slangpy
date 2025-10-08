@@ -102,8 +102,10 @@ Device::Device(const DeviceDesc& desc)
         for (const auto& handle : m_desc.existing_device_handles) {
             if (handle.is_valid()) {
                 m_desc.adapter_luid.reset();
-                log_warn("Both adapter LUID and existing handles have been provided, which are both ways to "
-                         "specify the device. Adapter LUID will be ignored in favor of provided existing handles");
+                log_warn(
+                    "Both adapter LUID and existing handles have been provided, which are both ways to "
+                    "specify the device. Adapter LUID will be ignored in favor of provided existing handles"
+                );
                 break;
             }
         }
@@ -1037,8 +1039,10 @@ bool Device::enable_agility_sdk()
     D3D12GetInterfaceFn pD3D12GetInterface
         = handle ? (D3D12GetInterfaceFn)GetProcAddress(handle, "D3D12GetInterface") : nullptr;
     if (!pD3D12GetInterface) {
-        log_warn("Cannot enable D3D12 Agility SDK: "
-                 "Failed to get D3D12GetInterface.");
+        log_warn(
+            "Cannot enable D3D12 Agility SDK: "
+            "Failed to get D3D12GetInterface."
+        );
         return false;
     }
 
@@ -1049,15 +1053,19 @@ bool Device::enable_agility_sdk()
     _COM_SMARTPTR_TYPEDEF(ID3D12SDKConfiguration, __uuidof(ID3D12SDKConfiguration));
     ID3D12SDKConfigurationPtr pD3D12SDKConfiguration;
     if (!SUCCEEDED(pD3D12GetInterface(CLSID_D3D12SDKConfiguration__, IID_PPV_ARGS(&pD3D12SDKConfiguration)))) {
-        log_warn("Cannot enable D3D12 Agility SDK: "
-                 "Failed to get D3D12SDKConfiguration interface.");
+        log_warn(
+            "Cannot enable D3D12 Agility SDK: "
+            "Failed to get D3D12SDKConfiguration interface."
+        );
         return false;
     }
 
     // Set the SDK version and path.
     if (!SUCCEEDED(pD3D12SDKConfiguration->SetSDKVersion(SLANG_RHI_AGILITY_SDK_VERSION, rel_path.string().c_str()))) {
-        log_warn("Cannot enable D3D12 Agility SDK: "
-                 "Calling SetSDKVersion failed.");
+        log_warn(
+            "Cannot enable D3D12 Agility SDK: "
+            "Calling SetSDKVersion failed."
+        );
         return false;
     }
 

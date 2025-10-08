@@ -908,21 +908,23 @@ TEST_CASE("rotate_2d_vs_matrix_multiplication")
     // mul(matrix, matrix_from_rotation_2d(angle))
 
     // Test with various starting matrices
-    float3x3 test_matrices[] = {// Identity matrix
-                                float3x3::identity(),
+    float3x3 test_matrices[]
+        = {// Identity matrix
+           float3x3::identity(),
 
-                                // Translation matrix
-                                math::matrix_from_translation_2d(float2(5.f, 3.f)),
+           // Translation matrix
+           math::matrix_from_translation_2d(float2(5.f, 3.f)),
 
-                                // Scaling matrix
-                                math::matrix_from_scaling_2d(float2(2.f, 0.5f)),
+           // Scaling matrix
+           math::matrix_from_scaling_2d(float2(2.f, 0.5f)),
 
-                                // Complex transformation matrix
-                                float3x3({
-                                    ROW(2, 1, 4),
-                                    ROW(-1, 3, 7),
-                                    ROW(0, 0, 1),
-                                })};
+           // Complex transformation matrix
+           float3x3({
+               ROW(2, 1, 4),
+               ROW(-1, 3, 7),
+               ROW(0, 0, 1),
+           })
+        };
 
     float angles[] = {0.f, math::radians(30.f), math::radians(90.f), math::radians(-45.f), math::radians(180.f)};
 

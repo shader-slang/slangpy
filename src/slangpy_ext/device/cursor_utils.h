@@ -981,11 +981,7 @@ inline void bind_readable_cursor(ReadConverterTable<CursorType>& table, nanobind
     // __setitem__ and __setattr__ functions are overloaded to allow direct setting
     // of fields and elements.
     cursor //
-        .def(
-            "read",
-            [&table](CursorType& self) { return table.read(self); },
-            D_NA(CursorType, read)
-        );
+        .def("read", [&table](CursorType& self) { return table.read(self); }, D_NA(CursorType, read));
 }
 
 template<typename CursorType>

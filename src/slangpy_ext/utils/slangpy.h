@@ -140,7 +140,7 @@ class NativeSlangType : public Object {
 public:
     NativeSlangType() = default;
 
-    virtual ~NativeSlangType(){
+    virtual ~NativeSlangType() {
 
     };
 
@@ -390,8 +390,12 @@ struct PyNativeMarshall : public NativeMarshall {
 
     nb::object create_dispatchdata(nb::object data) const override { NB_OVERRIDE(create_dispatchdata, data); }
 
-    void read_calldata(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data, nb::object result)
-        const override
+    void read_calldata(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        nb::object data,
+        nb::object result
+    ) const override
     {
         NB_OVERRIDE(read_calldata, context, binding, data, result);
     }
@@ -420,8 +424,11 @@ struct PyNativeMarshall : public NativeMarshall {
         NB_OVERRIDE(resolve_type, context, bound_type);
     }
 
-    int resolve_dimensionality(nb::object context, nb::object binding, ref<NativeSlangType> vector_target_type)
-        const override
+    int resolve_dimensionality(
+        nb::object context,
+        nb::object binding,
+        ref<NativeSlangType> vector_target_type
+    ) const override
     {
         NB_OVERRIDE(resolve_dimensionality, context, binding, vector_target_type);
     }
@@ -793,9 +800,12 @@ class PyNativeCallData : public NativeCallData {
 public:
     NB_TRAMPOLINE(NativeCallData, 1);
 
-    nb::object
-    _py_torch_call(NativeFunctionNode* func, ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs)
-        override;
+    nb::object _py_torch_call(
+        NativeFunctionNode* func,
+        ref<NativeCallRuntimeOptions> opts,
+        nb::tuple args,
+        nb::dict kwargs
+    ) override;
 };
 
 typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> BuildSignatureFunc;
@@ -850,13 +860,15 @@ public:
         : m_id(id)
         , m_tensor(tensor)
     {
-        set_slangpy_signature(fmt::format(
-            "[torch,D{},C{},B{},L{}]",
-            tensor.ndim(),
-            tensor.dtype().code,
-            tensor.dtype().bits,
-            tensor.dtype().lanes
-        ));
+        set_slangpy_signature(
+            fmt::format(
+                "[torch,D{},C{},B{},L{}]",
+                tensor.ndim(),
+                tensor.dtype().code,
+                tensor.dtype().bits,
+                tensor.dtype().lanes
+            )
+        );
     }
 
     std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor() const { return m_tensor; }

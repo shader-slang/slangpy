@@ -84,7 +84,8 @@ ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
 
 void ShaderObject::set_object(const ShaderOffset& offset, const ref<ShaderObject>& object)
 {
-    SLANG_RHI_CALL(m_shader_object->setObject(rhi_shader_offset(offset), object ? object->rhi_shader_object() : nullptr)
+    SLANG_RHI_CALL(
+        m_shader_object->setObject(rhi_shader_offset(offset), object ? object->rhi_shader_object() : nullptr)
     );
 }
 

@@ -51,7 +51,8 @@ AccelerationStructureBuildDescConverter::AccelerationStructureBuildDescConverter
             for (size_t i = 0; i < triangles->vertex_buffers.size(); ++i)
                 rhi_build_input.triangles.vertexBuffers[i] = detail::to_rhi(triangles->vertex_buffers[i]);
             rhi_build_inputs.push_back(rhi_build_input);
-        } else if (auto* proceduralPrimitives = std::get_if<AccelerationStructureBuildInputProceduralPrimitives>(&input)) {
+        } else if (auto* proceduralPrimitives
+                   = std::get_if<AccelerationStructureBuildInputProceduralPrimitives>(&input)) {
             rhi::AccelerationStructureBuildInput rhi_build_input{
                 .type = rhi::AccelerationStructureBuildInputType::ProceduralPrimitives,
                 .proceduralPrimitives{
