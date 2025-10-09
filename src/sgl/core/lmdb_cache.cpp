@@ -374,7 +374,9 @@ void LMDBCache::close_db(DB db)
     SGL_ASSERT(it != s_db_cache.end());
     SGL_ASSERT(it->pid == pid);
     if (--it->ref_count == 0) {
-        mdb_env_close(it->db.env);
+        mdb_dbi_close(db.env, db.dbi_data);
+        mdb_dbi_close(db.env, db.dbi_meta);
+        mdb_env_close(db.env);
         s_db_cache.erase(it);
     }
 }
