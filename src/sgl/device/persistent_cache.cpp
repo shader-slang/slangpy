@@ -40,6 +40,15 @@ PersistentCache::~PersistentCache()
     m_cache.reset();
 }
 
+PersistentCacheStats PersistentCache::stats() const
+{
+    return {
+        .entry_count = m_cache->stats().entries,
+        .hit_count = m_hit_count.load(),
+        .miss_count = m_miss_count.load(),
+    };
+}
+
 SlangResult PersistentCache::queryInterface(const SlangUUID& uuid, void** outObject)
 {
     *outObject = nullptr;
@@ -66,7 +75,7 @@ rhi::Result PersistentCache::queryCache(ISlangBlob* key, ISlangBlob** outData)
             Slang::ComPtr<ISlangBlob> value;
             rhi::Result result{SLANG_E_NOT_FOUND};
         } context;
-        m_cache->get(
+        bool success = m_cache->get(
             key->getBufferPointer(),
             key->getBufferSize(),
             [](const void* data, size_t size, void* user_data)
@@ -76,6 +85,12 @@ rhi::Result PersistentCache::queryCache(ISlangBlob* key, ISlangBlob** outData)
             },
             &context
         );
+
+        if (success)
+            m_hit_count.fetch_add(1);
+        else
+            m_miss_count.fetch_add(1);
+
         if (SLANG_SUCCEEDED(context.result))
             *outData = context.value.detach();
         return context.result;

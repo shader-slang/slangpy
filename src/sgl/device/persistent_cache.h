@@ -6,7 +6,15 @@
 
 #include <slang-rhi.h>
 
+#include <atomic>
+
 namespace sgl {
+
+struct PersistentCacheStats {
+    uint64_t entry_count;
+    uint64_t hit_count;
+    uint64_t miss_count;
+};
 
 /// Wrapper around `LMDBCache` that implements the `rhi::IPersistentCache` interface.
 class SGL_API PersistentCache : public Object, public rhi::IPersistentCache {
@@ -14,6 +22,8 @@ class SGL_API PersistentCache : public Object, public rhi::IPersistentCache {
 public:
     PersistentCache(const std::filesystem::path& path, size_t max_size = 64ull * 1024 * 1024);
     ~PersistentCache() override;
+
+    PersistentCacheStats stats() const;
 
     // ISlangUnknown interface
     virtual SLANG_NO_THROW SlangResult SLANG_MCALL queryInterface(const SlangUUID& uuid, void** outObject) override;
@@ -28,6 +38,9 @@ public:
 private:
     std::filesystem::path m_path;
     ref<LMDBCache> m_cache;
+
+    std::atomic<uint64_t> m_hit_count{0};
+    std::atomic<uint64_t> m_miss_count{0};
 };
 
 } // namespace sgl

@@ -361,12 +361,16 @@ void Device::_release_rhi_resources()
 
 ShaderCacheStats Device::shader_cache_stats() const
 {
-    // TODO: revisit when we add a shader cache.
-    return {
-        .entry_count = 0,
-        .hit_count = 0,
-        .miss_count = 0,
-    };
+    if (m_persistent_cache) {
+        PersistentCacheStats stats = m_persistent_cache->stats();
+        return {
+            .entry_count = stats.entry_count,
+            .hit_count = stats.hit_count,
+            .miss_count = stats.miss_count,
+        };
+    } else {
+        return {};
+    }
 }
 
 bool Device::has_feature(Feature feature) const
