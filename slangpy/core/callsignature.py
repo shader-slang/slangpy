@@ -165,6 +165,7 @@ def specialize(
                 # HACK! If we're calling a function with an interface parameter,
                 # we need to have a concrete type to load data into. This Chris approved hack
                 # allows us to do that. Re-visit after the type resolution fixes are in.
+                # The other half of the hack i sin boundvariable.py, BoundVariable.bind
                 python_arg.vector_type = python_arg.python.slang_type
                 python_arg.explicitly_vectorized = True
                 inputs.append(slang_param.type)
