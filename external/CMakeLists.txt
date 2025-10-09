@@ -50,6 +50,11 @@ if(SGL_BUILD_PYTHON)
     nanobind_build_library(nanobind SHARED)
 endif()
 
+# nanothread
+
+set(NANOTHREAD_STATIC ON)
+add_subdirectory(nanothread)
+
 # lmdb
 
 add_library(lmdb STATIC)
