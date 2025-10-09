@@ -40,6 +40,7 @@ void static_init()
     thread::static_init();
     Logger::static_init();
     platform::static_init();
+    Device::static_init();
     Bitmap::static_init();
 }
 
@@ -58,6 +59,7 @@ void static_shutdown()
     Device::_release_all_rhi_resources();
 
     Bitmap::static_shutdown();
+    Device::static_shutdown();
     platform::static_shutdown();
     Logger::static_shutdown();
     thread::static_shutdown();

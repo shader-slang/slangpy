@@ -180,7 +180,7 @@ void show_async(const Bitmap* bitmap, std::string name, std::string host, uint16
 
     bitmap->inc_ref();
 
-    thread::do_async(
+    Task* task = thread::do_async(
         [=]()
         {
             static std::counting_semaphore semaphore{8};
@@ -190,6 +190,7 @@ void show_async(const Bitmap* bitmap, std::string name, std::string host, uint16
             bitmap->dec_ref();
         }
     );
+    thread::register_task(task);
 }
 
 void show_async(const Texture* texture, std::string name, std::string host, uint16_t port, uint32_t max_retries)

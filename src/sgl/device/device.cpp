@@ -30,6 +30,8 @@
 #include "sgl/core/window.h"
 #include "sgl/core/string.h"
 
+#include "sgl/core/thread.h"
+
 #if SGL_HAS_D3D12
 #include <dxgi.h>
 #include <d3d12.h>
@@ -64,7 +66,9 @@ Device::Device(const DeviceDesc& desc)
     if (m_desc.enable_hot_reload)
         m_hot_reload = make_ref<HotReload>(ref<Device>(this));
 
-    SLANG_CALL(slang::createGlobalSession(m_global_session.writeRef()));
+    // TODO: This should move this to a point later in device creation
+    // as the global session is created asynchronously on startup.
+    m_global_session = _global_session();
 
     // Setup path for slang's downstream compilers.
     for (SlangPassThrough pass_through :
@@ -1141,5 +1145,31 @@ std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
     return handles;
 }
 
+static Task* s_global_session_task = nullptr;
+static Slang::ComPtr<slang::IGlobalSession> s_global_session;
+
+void Device::static_init()
+{
+    s_global_session_task
+        = thread::do_async([]() { SLANG_CALL(slang::createGlobalSession(s_global_session.writeRef())); });
+}
+
+void Device::static_shutdown()
+{
+    if (s_global_session_task) {
+        task_wait_and_release(s_global_session_task);
+        s_global_session_task = nullptr;
+    }
+}
+
+slang::IGlobalSession* Device::_global_session()
+{
+    if (s_global_session_task) {
+        task_wait_and_release(s_global_session_task);
+        s_global_session_task = nullptr;
+    }
+    SGL_CHECK(s_global_session, "Global session is not created. Call sgl::static_init() first.");
+    return s_global_session;
+}
 
 } // namespace sgl
