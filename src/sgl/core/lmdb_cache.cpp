@@ -3,6 +3,7 @@
 #include "lmdb_cache.h"
 
 #include "sgl/core/error.h"
+#include "sgl/core/platform.h"
 
 #include <chrono>
 
@@ -32,6 +33,77 @@
 #define LMDB_THROW(msg, error) throw sgl::LMDBException(fmt::format("{} ({})", msg, mdb_strerror(error)), error)
 
 namespace sgl {
+
+// LMDB doesn't support opening the same DB environment multiple times in the same process.
+// To work around this, we keep a global list of open environments to reuse them if opened multiple times.
+
+struct Environment {
+    uint64_t ref_count;
+    ProcessID pid;
+    std::filesystem::path path;
+    MDB_env* env;
+};
+
+std::vector<Environment> s_environments;
+std::mutex s_environments_mutex;
+
+MDB_env* open_environment(const std::filesystem::path& path, const LMDBCache::Options& options)
+{
+    ProcessID pid = platform::current_process_id();
+    std::filesystem::path abs_path = std::filesystem::absolute(path);
+    std::lock_guard lock(s_environments_mutex);
+    auto it = std::find_if(
+        s_environments.begin(),
+        s_environments.end(),
+        [pid, &abs_path](const Environment& e) { return e.pid == pid && e.path == abs_path; }
+    );
+    if (it != s_environments.end()) {
+        it->ref_count++;
+        return it->env;
+    }
+
+    MDB_env* env = nullptr;
+    if (int result = mdb_env_create(&env); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to create environment", result);
+    if (int result = mdb_env_set_maxreaders(env, 126); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to set max readers", result);
+    if (int result = mdb_env_set_maxdbs(env, 2); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to set max DBs", result);
+    if (int result = mdb_env_set_mapsize(env, options.max_size); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to set map size", result);
+
+    int flags = options.nosync ? MDB_NOSYNC : 0;
+    if (int result = mdb_env_open(env, abs_path.string().c_str(), flags, 0664); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to open environment", result);
+
+    s_environments.push_back(
+        Environment{
+            .ref_count = 1,
+            .pid = pid,
+            .path = abs_path,
+            .env = env,
+        }
+    );
+
+    return env;
+}
+
+void close_environment(MDB_env* env)
+{
+    ProcessID pid = platform::current_process_id();
+    std::lock_guard lock(s_environments_mutex);
+    auto it = std::find_if(
+        s_environments.begin(),
+        s_environments.end(),
+        [env](const Environment& e) { return e.env == env; }
+    );
+    SGL_ASSERT(it != s_environments.end());
+    SGL_ASSERT(it->pid == pid);
+    if (--it->ref_count == 0) {
+        mdb_env_close(it->env);
+        s_environments.erase(it);
+    }
+}
 
 class ScopedTransaction {
 public:
@@ -108,18 +180,7 @@ LMDBCache::LMDBCache(const std::filesystem::path& path, std::optional<Options> o
     if (!std::filesystem::create_directories(path, ec) && ec)
         SGL_THROW("Failed to create cache directory ({})", ec.message());
 
-    if (int result = mdb_env_create(&m_env); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to create environment", result);
-    if (int result = mdb_env_set_maxreaders(m_env, 126); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to set max readers", result);
-    if (int result = mdb_env_set_maxdbs(m_env, 2); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to set max DBs", result);
-    if (int result = mdb_env_set_mapsize(m_env, options.max_size); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to set map size", result);
-
-    int flags = options.nosync ? MDB_NOSYNC : 0;
-    if (int result = mdb_env_open(m_env, path.string().c_str(), flags, 0664); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to open environment", result);
+    m_env = open_environment(path, options);
 
     m_max_key_size = mdb_env_get_maxkeysize(m_env);
 
@@ -140,7 +201,8 @@ LMDBCache::~LMDBCache()
 {
     mdb_dbi_close(m_env, m_dbi_data);
     mdb_dbi_close(m_env, m_dbi_meta);
-    mdb_env_close(m_env);
+
+    close_environment(m_env);
 }
 
 void LMDBCache::set(const void* key_data, size_t key_size, const void* value_data, size_t value_size)
