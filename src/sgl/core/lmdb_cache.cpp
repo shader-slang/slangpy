@@ -34,77 +34,6 @@
 
 namespace sgl {
 
-// LMDB doesn't support opening the same DB environment multiple times in the same process.
-// To work around this, we keep a global list of open environments to reuse them if opened multiple times.
-
-struct Environment {
-    uint64_t ref_count;
-    ProcessID pid;
-    std::filesystem::path path;
-    MDB_env* env;
-};
-
-std::vector<Environment> s_environments;
-std::mutex s_environments_mutex;
-
-MDB_env* open_environment(const std::filesystem::path& path, const LMDBCache::Options& options)
-{
-    ProcessID pid = platform::current_process_id();
-    std::filesystem::path abs_path = std::filesystem::absolute(path);
-    std::lock_guard lock(s_environments_mutex);
-    auto it = std::find_if(
-        s_environments.begin(),
-        s_environments.end(),
-        [pid, &abs_path](const Environment& e) { return e.pid == pid && e.path == abs_path; }
-    );
-    if (it != s_environments.end()) {
-        it->ref_count++;
-        return it->env;
-    }
-
-    MDB_env* env = nullptr;
-    if (int result = mdb_env_create(&env); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to create environment", result);
-    if (int result = mdb_env_set_maxreaders(env, 126); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to set max readers", result);
-    if (int result = mdb_env_set_maxdbs(env, 2); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to set max DBs", result);
-    if (int result = mdb_env_set_mapsize(env, options.max_size); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to set map size", result);
-
-    int flags = options.nosync ? MDB_NOSYNC : 0;
-    if (int result = mdb_env_open(env, abs_path.string().c_str(), flags, 0664); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to open environment", result);
-
-    s_environments.push_back(
-        Environment{
-            .ref_count = 1,
-            .pid = pid,
-            .path = abs_path,
-            .env = env,
-        }
-    );
-
-    return env;
-}
-
-void close_environment(MDB_env* env)
-{
-    ProcessID pid = platform::current_process_id();
-    std::lock_guard lock(s_environments_mutex);
-    auto it = std::find_if(
-        s_environments.begin(),
-        s_environments.end(),
-        [env](const Environment& e) { return e.env == env; }
-    );
-    SGL_ASSERT(it != s_environments.end());
-    SGL_ASSERT(it->pid == pid);
-    if (--it->ref_count == 0) {
-        mdb_env_close(it->env);
-        s_environments.erase(it);
-    }
-}
-
 class ScopedTransaction {
 public:
     ScopedTransaction(MDB_env* env, unsigned int flags = 0)
@@ -180,29 +109,17 @@ LMDBCache::LMDBCache(const std::filesystem::path& path, std::optional<Options> o
     if (!std::filesystem::create_directories(path, ec) && ec)
         SGL_THROW("Failed to create cache directory ({})", ec.message());
 
-    m_env = open_environment(path, options);
+    m_db = open_db(path, options);
 
-    m_max_key_size = mdb_env_get_maxkeysize(m_env);
+    m_max_key_size = mdb_env_get_maxkeysize(m_db.env);
 
     m_eviction_threshold_size = (options.eviction_threshold * options.max_size) / 100;
     m_eviction_target_size = (options.eviction_target * options.max_size) / 100;
-
-    ScopedTransaction txn(m_env);
-
-    if (int result = mdb_dbi_open(txn, "data", MDB_CREATE, &m_dbi_data); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to open data DB", result);
-    if (int result = mdb_dbi_open(txn, "meta", MDB_CREATE, &m_dbi_meta); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to open meta DB", result);
-
-    txn.commit();
 }
 
 LMDBCache::~LMDBCache()
 {
-    mdb_dbi_close(m_env, m_dbi_data);
-    mdb_dbi_close(m_env, m_dbi_meta);
-
-    close_environment(m_env);
+    close_db(m_db);
 }
 
 void LMDBCache::set(const void* key_data, size_t key_size, const void* value_data, size_t value_size)
@@ -214,16 +131,16 @@ void LMDBCache::set(const void* key_data, size_t key_size, const void* value_dat
     if (usage().used_size > m_eviction_threshold_size)
         evict();
 
-    ScopedTransaction txn(m_env);
+    ScopedTransaction txn(m_db.env);
 
     MDB_val mdb_key = {key_size, const_cast<void*>(key_data)};
     MDB_val mdb_val = {value_size, const_cast<void*>(value_data)};
-    if (int result = mdb_put(txn, m_dbi_data, &mdb_key, &mdb_val, 0); result != MDB_SUCCESS)
+    if (int result = mdb_put(txn, m_db.dbi_data, &mdb_key, &mdb_val, 0); result != MDB_SUCCESS)
         LMDB_THROW("Failed to write data", result);
 
     MetaData meta_data{.last_access = get_current_time_ns()};
     MDB_val mdb_val_meta = {sizeof(MetaData), &meta_data};
-    if (int result = mdb_put(txn, m_dbi_meta, &mdb_key, &mdb_val_meta, 0); result != MDB_SUCCESS)
+    if (int result = mdb_put(txn, m_db.dbi_meta, &mdb_key, &mdb_val_meta, 0); result != MDB_SUCCESS)
         LMDB_THROW("Failed to write metadata", result);
 
     txn.commit();
@@ -234,12 +151,12 @@ bool LMDBCache::get(const void* key_data, size_t key_size, WriteValueFunc write_
     SGL_CHECK(key_size > 0, "Key size must be greater than 0");
     SGL_CHECK(key_size <= m_max_key_size, "Key size exceeds maximum allowed size");
 
-    ScopedTransaction txn(m_env);
+    ScopedTransaction txn(m_db.env);
 
     MDB_val mdb_key = {key_size, const_cast<void*>(key_data)};
     MDB_val mdb_val;
 
-    int result = mdb_get(txn, m_dbi_data, &mdb_key, &mdb_val);
+    int result = mdb_get(txn, m_db.dbi_data, &mdb_key, &mdb_val);
     if (result == MDB_NOTFOUND)
         return false;
     if (result != MDB_SUCCESS)
@@ -247,7 +164,7 @@ bool LMDBCache::get(const void* key_data, size_t key_size, WriteValueFunc write_
 
     MetaData meta_data{.last_access = get_current_time_ns()};
     MDB_val mdb_val_meta = {sizeof(MetaData), &meta_data};
-    result = mdb_put(txn, m_dbi_meta, &mdb_key, &mdb_val_meta, 0);
+    result = mdb_put(txn, m_db.dbi_meta, &mdb_key, &mdb_val_meta, 0);
     if (result != MDB_SUCCESS)
         LMDB_THROW("Failed to write metadata", result);
 
@@ -263,17 +180,17 @@ bool LMDBCache::del(const void* key_data, size_t key_size)
     SGL_CHECK(key_size > 0, "Key size must be greater than 0");
     SGL_CHECK(key_size <= m_max_key_size, "Key size exceeds maximum allowed size");
 
-    ScopedTransaction txn(m_env);
+    ScopedTransaction txn(m_db.env);
 
     MDB_val mdb_key = {key_size, const_cast<void*>(key_data)};
 
-    int result = mdb_del(txn, m_dbi_data, &mdb_key, nullptr);
+    int result = mdb_del(txn, m_db.dbi_data, &mdb_key, nullptr);
     if (result == MDB_NOTFOUND)
         return false;
     if (result != MDB_SUCCESS)
         LMDB_THROW("Failed to delete data", result);
 
-    result = mdb_del(txn, m_dbi_meta, &mdb_key, nullptr);
+    result = mdb_del(txn, m_db.dbi_meta, &mdb_key, nullptr);
     if (result != MDB_SUCCESS && result != MDB_NOTFOUND)
         LMDB_THROW("Failed to delete metadata", result);
 
@@ -286,11 +203,11 @@ LMDBCache::Usage LMDBCache::usage() const
 {
     Usage usage;
 
-    ScopedTransaction txn(m_env, MDB_RDONLY);
+    ScopedTransaction txn(m_db.env, MDB_RDONLY);
 
     uint64_t used_pages = 0;
     uint64_t page_size = 0;
-    for (MDB_dbi dbi : {MDB_dbi(0) /* FREE_DBI */, MDB_dbi(1) /* MAIN_DBI */, m_dbi_data, m_dbi_meta}) {
+    for (MDB_dbi dbi : {MDB_dbi(0) /* FREE_DBI */, MDB_dbi(1) /* MAIN_DBI */, m_db.dbi_data, m_db.dbi_meta}) {
         MDB_stat stat = {};
         if (int result = mdb_stat(txn, dbi, &stat); result != MDB_SUCCESS)
             LMDB_THROW("Failed to get DB stats", result);
@@ -299,7 +216,7 @@ LMDBCache::Usage LMDBCache::usage() const
     }
 
     MDB_envinfo info = {};
-    if (int result = mdb_env_info(m_env, &info); result != MDB_SUCCESS)
+    if (int result = mdb_env_info(m_db.env, &info); result != MDB_SUCCESS)
         LMDB_THROW("Failed to get environment info", result);
 
     usage.reserved_size = info.me_mapsize;
@@ -315,8 +232,8 @@ LMDBCache::Stats LMDBCache::stats() const
 
     stats.evictions = m_evictions.load();
 
-    ScopedTransaction txn(m_env, MDB_RDONLY);
-    ScopedCursor cursor(txn, m_dbi_data);
+    ScopedTransaction txn(m_db.env, MDB_RDONLY);
+    ScopedCursor cursor(txn, m_db.dbi_data);
 
     MDB_val key, val;
     while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
@@ -329,8 +246,6 @@ LMDBCache::Stats LMDBCache::stats() const
 
 void LMDBCache::evict()
 {
-    SGL_ASSERT(m_env != nullptr);
-
     struct Entry {
         uint64_t last_access;
         MDB_val key;
@@ -343,8 +258,8 @@ void LMDBCache::evict()
         return;
     size_t required_free_size = used_size - m_eviction_target_size;
 
-    ScopedTransaction txn(m_env);
-    ScopedCursor cursor(txn, m_dbi_meta);
+    ScopedTransaction txn(m_db.env);
+    ScopedCursor cursor(txn, m_db.dbi_meta);
 
     // Scan all entries.
     MDB_val key, val;
@@ -364,12 +279,12 @@ void LMDBCache::evict()
     while (required_free_size > 0 && !entries.empty()) {
         std::pop_heap(entries.begin(), entries.end(), cmp);
         Entry& entry = entries.back();
-        if (int result = mdb_get(txn, m_dbi_data, &entry.key, &val); result != MDB_SUCCESS)
+        if (int result = mdb_get(txn, m_db.dbi_data, &entry.key, &val); result != MDB_SUCCESS)
             LMDB_THROW("Failed to get data during eviction", result);
         required_free_size -= std::min(required_free_size, val.mv_size);
-        if (int result = mdb_del(txn, m_dbi_data, &entry.key, nullptr); result != MDB_SUCCESS)
+        if (int result = mdb_del(txn, m_db.dbi_data, &entry.key, nullptr); result != MDB_SUCCESS)
             LMDB_THROW("Failed to delete data during eviction", result);
-        if (int result = mdb_del(txn, m_dbi_meta, &entry.key, nullptr); result != MDB_SUCCESS)
+        if (int result = mdb_del(txn, m_db.dbi_meta, &entry.key, nullptr); result != MDB_SUCCESS)
             LMDB_THROW("Failed to delete metadata during eviction", result);
         entries.pop_back();
         evictions++;
@@ -381,6 +296,87 @@ void LMDBCache::evict()
     // fmt::println("Eviction complete: used_size={} evictions={}", usage().used_size, evictions);
 
     m_evictions.fetch_add(evictions);
+}
+
+// LMDB doesn't support opening the same DB environment multiple times in the same process.
+// To work around this, we keep a global list of open environments to reuse them if opened multiple times.
+
+struct DBCacheItem {
+    uint64_t ref_count;
+    ProcessID pid;
+    std::filesystem::path path;
+    LMDBCache::DB db;
+};
+
+std::vector<DBCacheItem> s_db_cache;
+std::mutex s_db_cache_mutex;
+
+LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Options& options)
+{
+    ProcessID pid = platform::current_process_id();
+    std::filesystem::path abs_path = std::filesystem::absolute(path);
+    std::lock_guard lock(s_db_cache_mutex);
+    auto it = std::find_if(
+        s_db_cache.begin(),
+        s_db_cache.end(),
+        [pid, &abs_path](const DBCacheItem& e) { return e.pid == pid && e.path == abs_path; }
+    );
+    if (it != s_db_cache.end()) {
+        it->ref_count++;
+        return it->db;
+    }
+
+    DB db = {};
+
+    if (int result = mdb_env_create(&db.env); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to create environment", result);
+    if (int result = mdb_env_set_maxreaders(db.env, 126); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to set max readers", result);
+    if (int result = mdb_env_set_maxdbs(db.env, 2); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to set max DBs", result);
+    if (int result = mdb_env_set_mapsize(db.env, options.max_size); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to set map size", result);
+
+    int flags = options.nosync ? MDB_NOSYNC : 0;
+    if (int result = mdb_env_open(db.env, abs_path.string().c_str(), flags, 0664); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to open environment", result);
+
+    ScopedTransaction txn(db.env);
+
+    if (int result = mdb_dbi_open(txn, "data", MDB_CREATE, &db.dbi_data); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to open data DB", result);
+    if (int result = mdb_dbi_open(txn, "meta", MDB_CREATE, &db.dbi_meta); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to open meta DB", result);
+
+    txn.commit();
+
+    s_db_cache.push_back(
+        DBCacheItem{
+            .ref_count = 1,
+            .pid = pid,
+            .path = abs_path,
+            .db = db,
+        }
+    );
+
+    return db;
+}
+
+void LMDBCache::close_db(DB db)
+{
+    ProcessID pid = platform::current_process_id();
+    std::lock_guard lock(s_db_cache_mutex);
+    auto it = std::find_if(
+        s_db_cache.begin(),
+        s_db_cache.end(),
+        [&db](const DBCacheItem& item) { return item.db.env == db.env; }
+    );
+    SGL_ASSERT(it != s_db_cache.end());
+    SGL_ASSERT(it->pid == pid);
+    if (--it->ref_count == 0) {
+        mdb_env_close(it->db.env);
+        s_db_cache.erase(it);
+    }
 }
 
 } // namespace sgl

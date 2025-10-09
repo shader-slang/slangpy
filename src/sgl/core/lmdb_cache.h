@@ -149,9 +149,16 @@ public:
 private:
     void evict();
 
-    MDB_env* m_env{nullptr};
-    unsigned int m_dbi_data{0};
-    unsigned int m_dbi_meta{0};
+    struct DB {
+        MDB_env* env{nullptr};
+        unsigned int dbi_data{0};
+        unsigned int dbi_meta{0};
+    };
+
+    static DB open_db(const std::filesystem::path& path, const Options& options);
+    static void close_db(DB db);
+
+    DB m_db;
 
     size_t m_max_key_size{0};
 
@@ -161,6 +168,8 @@ private:
     size_t m_eviction_target_size{0};
 
     SGL_NON_COPYABLE_AND_MOVABLE(LMDBCache);
+
+    friend struct DBCacheItem;
 };
 
 } // namespace sgl
