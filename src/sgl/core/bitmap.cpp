@@ -120,7 +120,8 @@ Bitmap::Bitmap(
     uint32_t height,
     uint32_t channel_count,
     const std::vector<std::string>& channel_names,
-    void* data
+    void* data,
+    std::optional<bool> srgb_gamma
 )
     : m_pixel_format(pixel_format)
     , m_component_type(component_type)
@@ -134,8 +135,11 @@ Bitmap::Bitmap(
         "Expected non-zero channel count for multi-channel pixel format."
     );
 
-    // Use sRGB gamma by default for 8-bit and 16-bit images.
-    m_srgb_gamma = (m_component_type == ComponentType::uint8) || (m_component_type == ComponentType::uint16);
+    // If not specified, use sRGB gamma by default for 8-bit and 16-bit images.
+    if (srgb_gamma.has_value())
+        m_srgb_gamma = srgb_gamma.value();
+    else
+        m_srgb_gamma = (m_component_type == ComponentType::uint8) || (m_component_type == ComponentType::uint16);
 
     rebuild_pixel_struct(channel_count, channel_names);
 
