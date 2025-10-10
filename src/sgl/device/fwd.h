@@ -87,6 +87,10 @@ class Kernel;
 struct ComputeKernelDesc;
 class ComputeKernel;
 
+// persistent_cache.h
+
+class PersistentCache;
+
 // pipeline.h
 
 class Pipeline;

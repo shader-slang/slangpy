@@ -23,6 +23,7 @@
 #include "sgl/device/hot_reload.h"
 #include "sgl/device/debug_logger.h"
 #include "sgl/device/native_handle_traits.h"
+#include "sgl/device/persistent_cache.h"
 
 #include "sgl/core/file_system_watcher.h"
 #include "sgl/core/config.h"
@@ -89,6 +90,7 @@ Device::Device(const DeviceDesc& desc)
         if (m_shader_cache_path.is_relative())
             m_shader_cache_path = platform::app_data_directory() / m_shader_cache_path;
         std::filesystem::create_directories(m_shader_cache_path);
+        m_persistent_cache = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size);
     }
 
     // Invalidate CUDA interop if using CUDA
@@ -204,6 +206,9 @@ Device::Device(const DeviceDesc& desc)
         .slang{
             .slangGlobalSession = m_global_session,
         },
+        // Shader and pipeline cache use the same persistent cache.
+        .persistentShaderCache = m_persistent_cache.get(),
+        .persistentPipelineCache = m_persistent_cache.get(),
         // This needs to match NV_SHADER_EXTN_SLOT set in shader.cpp
         .nvapiExtUavSlot = 999,
         // TODO(slang-rhi) make configurable but default to true
@@ -356,12 +361,16 @@ void Device::_release_rhi_resources()
 
 ShaderCacheStats Device::shader_cache_stats() const
 {
-    // TODO: revisit when we add a shader cache.
-    return {
-        .entry_count = 0,
-        .hit_count = 0,
-        .miss_count = 0,
-    };
+    if (m_persistent_cache) {
+        PersistentCacheStats stats = m_persistent_cache->stats();
+        return {
+            .entry_count = stats.entry_count,
+            .hit_count = stats.hit_count,
+            .miss_count = stats.miss_count,
+        };
+    } else {
+        return {};
+    }
 }
 
 bool Device::has_feature(Feature feature) const

@@ -116,6 +116,9 @@ struct DeviceDesc {
     /// If a relative path is used, the cache is stored in the application data directory.
     std::optional<std::filesystem::path> shader_cache_path;
 
+    /// Maximum size of the persistent shader cache used to cache both shaders and pipelines.
+    uint64_t shader_cache_size{128 * 1024 * 1024};
+
     /// Native device handles for initializing with externally created device. Currenlty
     /// only used for CUDA interoperability.
     std::array<NativeHandle, 3> existing_device_handles;
@@ -674,6 +677,7 @@ private:
 
     bool m_shader_cache_enabled{false};
     std::filesystem::path m_shader_cache_path;
+    ref<PersistentCache> m_persistent_cache;
 
     Slang::ComPtr<rhi::IDevice> m_rhi_device;
     Slang::ComPtr<rhi::ICommandQueue> m_rhi_graphics_queue;

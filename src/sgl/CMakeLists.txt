@@ -104,6 +104,8 @@ target_sources(sgl PRIVATE
     device/native_formats.h
     device/nvapi.slang
     device/nvapi.slangh
+    device/persistent_cache.cpp
+    device/persistent_cache.h
     device/pipeline.cpp
     device/pipeline.h
     device/print.cpp
