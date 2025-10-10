@@ -6,17 +6,14 @@ from pathlib import Path
 import slangpy as spy
 from slangpy.testing import helpers
 
-# Metal test disabled until printing of float16 values in Metal has been fixed
-# in Slang: https://github.com/shader-slang/slangpy/issues/497
-PRINT_DEVICE_TYPES = [
-    x
-    for x in helpers.DEFAULT_DEVICE_TYPES
-    if x in [spy.DeviceType.d3d12, spy.DeviceType.vulkan, spy.DeviceType.cuda]
-]
 
-
-@pytest.mark.parametrize("device_type", PRINT_DEVICE_TYPES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_print(device_type: spy.DeviceType):
+    # Metal test disabled until printing of float16 values in Metal has been fixed
+    # in Slang.
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Skipped due to issue in Slang: https://github.com/shader-slang/slangpy/issues/497")
+
     device = spy.Device(type=device_type, enable_print=True, label=f"print-{device_type.name}")
     helpers.dispatch_compute(
         device=device,
