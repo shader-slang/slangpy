@@ -51,9 +51,11 @@ public:
     void commit()
     {
         SGL_CHECK(m_txn != nullptr, "Transaction is already committed or aborted");
-        if (int result = mdb_txn_commit(m_txn); result != MDB_SUCCESS)
-            LMDB_THROW("Failed to commit transaction", result);
+        // It's an error to call `mdb_txn_abort` after `mdb_txn_commit`, even if it fails.
+        MDB_txn* txn = m_txn;
         m_txn = nullptr;
+        if (int result = mdb_txn_commit(txn); result != MDB_SUCCESS)
+            LMDB_THROW("Failed to commit transaction", result);
     }
 
     operator MDB_txn*() { return m_txn; }
