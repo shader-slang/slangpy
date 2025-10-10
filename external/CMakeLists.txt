@@ -52,8 +52,14 @@ endif()
 
 # nanothread
 
-# set(NANOTHREAD_STATIC ON)
+set(NANOTHREAD_STATIC ON)
 add_subdirectory(nanothread)
+# WAR for nanothread cmake script not making that flag public when built as a static library
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "amd64.*|x86_64.*|AMD64.*")
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_C_COMPILER_ID MATCHES "Clang")
+        target_compile_options(nanothread PUBLIC -mcx16)
+    endif()
+endif()
 
 # lmdb
 
