@@ -4,6 +4,8 @@
 
 #include "sgl/core/error.h"
 
+#include <vector>
+
 namespace sgl::thread {
 
 void static_init() { }
