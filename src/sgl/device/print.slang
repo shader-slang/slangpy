@@ -15,6 +15,7 @@ enum class Kind {
 /// Printable primitive types.
 enum class Type {
     boolean,
+    string,
     int8,
     int16,
     int32,
@@ -73,6 +74,15 @@ extension bool : IPrintable {
     static uint printable_data_count() { return 1; }
     [ForceInline]
     uint get_printable_data(uint index) { return asuint(this); }
+};
+
+extension String : IPrintable {
+    [ForceInline]
+    static Layout printable_layout() { return Layout(Kind::scalar, Type::string, 0, 0); }
+    [ForceInline]
+    static uint printable_data_count() { return 1; }
+    [ForceInline]
+    uint get_printable_data(uint index) { return getStringHash(this); }
 };
 
 extension int8_t : IPrintable {
