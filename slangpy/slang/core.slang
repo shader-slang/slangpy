@@ -639,11 +639,6 @@ namespace impl
     extension<From : __BuiltinFloatingPointType, To : IConvertibleFrom<From>, let N : int>
     vector<To, N> : IConvertibleFrom<vector<From, N>> {}
 
-
-    struct Specializer<From,To> {
-
-    }
-
     // This function allows us to check if type A is convertible to type B.
     // We attempt to specialize allowedConversionWitness with types [A, B]
     // If it succeeds, the interface requirements are satisfied.
