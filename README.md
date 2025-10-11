@@ -58,6 +58,7 @@ SlangPy depends on the following third-party libraries, which have their own lic
 - [libpng](http://www.libpng.org/pub/png/libpng.html) (libpng)
 - [lmdb](https://github.com/LMDB/lmdb) (OpenLDAP Public License)
 - [nanobind](https://github.com/wjakob/nanobind) (BSD)
+- [nanothread](https://github.com/mitsuba-renderer/nanothread) (BSD)
 - [NVAPI](https://github.com/NVIDIA/nvapi) (MIT)
 - [OpenEXR](https://openexr.com/en/latest/) (BSD)
 - [pugixml](https://pugixml.org/) (MIT)

@@ -104,6 +104,8 @@ target_sources(sgl PRIVATE
     device/native_formats.h
     device/nvapi.slang
     device/nvapi.slangh
+    device/persistent_cache.cpp
+    device/persistent_cache.h
     device/pipeline.cpp
     device/pipeline.h
     device/print.cpp
@@ -345,6 +347,7 @@ target_include_directories(sgl PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TY
 target_link_libraries(sgl
     PUBLIC
         fmt::fmt
+        nanothread
         slang
         slang-rhi
         slang-rhi-vulkan-headers

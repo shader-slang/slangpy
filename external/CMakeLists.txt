@@ -50,6 +50,11 @@ if(SGL_BUILD_PYTHON)
     nanobind_build_library(nanobind SHARED)
 endif()
 
+# nanothread
+
+set(NANOTHREAD_STATIC ON)
+add_subdirectory(nanothread)
+
 # lmdb
 
 add_library(lmdb STATIC)
@@ -64,7 +69,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SLANG_VERSION "2025.18.1")
+set(SLANG_VERSION "2025.18.2")
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/slang-${SLANG_VERSION}")
 
 if(SGL_WINDOWS)
