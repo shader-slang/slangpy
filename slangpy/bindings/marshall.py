@@ -124,6 +124,14 @@ class Marshall(NativeMarshall):
         res = super().resolve_type(context, bound_type)
         return res  # type: ignore
 
+    def resolve_types(self, context: BindContext, bound_type: "SlangType") -> list["SlangType"]:
+        """
+        Return a list of possible slang types for this variable when passed to a parameter
+        of the given type. Default behaviour always returns a list with a single entry,
+        retrieved by calling the legacy resolve_type() method.
+        """
+        return [self.resolve_type(context, bound_type)]
+
     def resolve_dimensionality(
         self,
         context: BindContext,

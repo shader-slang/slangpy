@@ -13,7 +13,7 @@ from slangpy import (
     NativeHandle,
     get_cuda_current_context_native_handles,
 )
-from slangpy.reflection import SlangType
+from slangpy.reflection import SlangType, SlangProgramLayout
 import builtins
 
 
@@ -169,9 +169,24 @@ def try_find_function_overloads_via_ast(root: DeclReflection, type_name: str, fu
 # type in resolve_type. This lets us e.g. pass a python int to a python uint16_t
 # This is done by specializing a class with a specific generic constraint.
 # If specialization succeeds, slang tells us this is A-OK
-def is_type_castable_on_host(from_type: SlangType, to_type: SlangType) -> bool:
-    witness_name = f"impl::AllowedConversionWitness<{from_type.full_name}, {to_type.full_name}>"
-    witness = to_type.program.find_type_by_name(witness_name)
+def is_type_castable_on_host(
+    from_type: Union[SlangType, str],
+    to_type: Union[SlangType, str],
+    program: Optional[SlangProgramLayout] = None,
+) -> bool:
+    if program is None:
+        if isinstance(from_type, SlangType):
+            program = from_type.program
+        elif isinstance(to_type, SlangType):
+            program = to_type.program
+    if isinstance(from_type, SlangType):
+        from_type = from_type.full_name
+    if isinstance(to_type, SlangType):
+        to_type = to_type.full_name
+    if program is None:
+        raise ValueError("Program must be provided or inferable from from_type or to_type")
+    witness_name = f"impl::AllowedConversionWitness<{from_type}, {to_type}>"
+    witness = program.find_type_by_name(witness_name)
     return witness is not None
 
 

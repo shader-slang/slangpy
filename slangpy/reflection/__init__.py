@@ -14,6 +14,7 @@ from .reflectiontypes import (
     InterfaceType,
     TextureType,
     PointerType,
+    UnknownType,
     StructuredBufferType,
     ByteAddressBufferType,
     DifferentialPairType,
@@ -26,6 +27,10 @@ from .reflectiontypes import (
     SlangProgramLayout,
     TYPE_OVERRIDES,
     is_matching_array_type,
+    is_unknown,
+    is_known,
+    is_known_or_none,
+    vectorize_type,
     SCALAR_TYPE_TO_NUMPY_TYPE,
 )
 

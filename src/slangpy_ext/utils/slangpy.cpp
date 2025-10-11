@@ -1178,6 +1178,13 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(NativeMarshall, resolve_type)
         )
         .def(
+            "resolve_types",
+            &NativeMarshall::resolve_types,
+            "context"_a,
+            "bound_type"_a,
+            D_NA(NativeMarshall, resolve_type)
+        )
+        .def(
             "resolve_dimensionality",
             &NativeMarshall::resolve_dimensionality,
             "context"_a,

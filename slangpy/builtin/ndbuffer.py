@@ -29,11 +29,14 @@ from slangpy.reflection import (
     MatrixType,
     StructuredBufferType,
     PointerType,
+    UnknownType,
     is_matching_array_type,
+    is_unknown,
+    is_known,
+    vectorize_type,
 )
 from slangpy.types import NDBuffer
 from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
-from slangpy.core.utils import is_type_castable_on_host
 
 
 class StopDebuggerException(Exception):
@@ -63,6 +66,10 @@ class NDBufferType(SlangType):
     @property
     def writable(self) -> bool:
         return self._writable
+
+    def build_vector_type_name(self) -> str:
+        prefix = "RW" if self.writable else ""
+        return f"{prefix}NDBuffer<{self.element_type.vector_type_name},{len(self.shape)}>"
 
 
 TYPE_OVERRIDES["NDBuffer"] = NDBufferType
@@ -122,6 +129,60 @@ def ndbuffer_resolve_type(
 
     # Default to just casting to itself (i.e. no implicit cast)
     return self.slang_type
+
+
+def get_ndbuffer_type(
+    context: BindContext, element_type: SlangType, writable: bool, dims: int
+) -> SlangType:
+    prefix = "RW" if writable else ""
+    type_name = f"{prefix}NDBuffer<{element_type.full_name},{dims}>"
+    slang_type = context.layout.find_type_by_name(type_name)
+    if slang_type is None:
+        raise ValueError(f"Could not find type {type_name} in program layout")
+    return slang_type
+
+
+def get_structuredbuffer_type(
+    context: BindContext, element_type: SlangType, writable: bool
+) -> SlangType:
+    prefix = "RW" if writable else ""
+    type_name = f"{prefix}StructuredBuffer<{element_type.full_name}>"
+    slang_type = context.layout.find_type_by_name(type_name)
+    if slang_type is None:
+        raise ValueError(f"Could not find type {type_name} in program layout")
+    return slang_type
+
+
+def ndbuffer_resolve_types(
+    self: Union[NativeNDBufferMarshall, "BaseNDBufferMarshall"],
+    context: BindContext,
+    bound_type: "SlangType",
+):
+
+    self_element_type = cast(SlangType, self.slang_element_type)
+    self_dims = self.dims
+    self_writable = self.writable
+
+    results: list[SlangType] = []
+
+    # If the bound type is unknown, return a list of possible fully specialized types
+    if is_unknown(bound_type):
+        results.append(self_element_type)
+        results.append(get_ndbuffer_type(context, self_element_type, False, self_dims))
+        results.append(get_structuredbuffer_type(context, self_element_type, False))
+        if self_writable:
+            results.append(get_ndbuffer_type(context, self_element_type, True, self_dims))
+            results.append(get_structuredbuffer_type(context, self_element_type, True))
+        return results
+
+    # Otherwise, attempt to use slang's typing system to map the bound type to the marshall
+    marshall = context.layout.find_type_by_name(
+        f"NDBufferMarshall<{self_element_type.full_name},{self_dims},{'true' if self_writable else 'false'}>"
+    )
+    specialized = vectorize_type(marshall, bound_type)
+    if specialized is not None:
+        results.append(specialized)
+    return results
 
 
 def ndbuffer_resolve_dimensionality(
@@ -223,6 +284,9 @@ class NDBufferMarshall(NativeNDBufferMarshall):
 
     def resolve_type(self, context: BindContext, bound_type: "SlangType"):
         return ndbuffer_resolve_type(self, context, bound_type)
+
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        return ndbuffer_resolve_types(self, context, bound_type)
 
     def resolve_dimensionality(
         self,

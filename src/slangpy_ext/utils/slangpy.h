@@ -333,6 +333,18 @@ public:
         return m_slang_type;
     }
 
+    /// Code gen only, takes Python types:
+    ///   context: BindContext
+    /// Return a list of slang types for a variable when passed to a parameter of the given type.
+    /// Default behaviour is to return a list containing the result of resolve_type.
+    virtual std::vector<ref<NativeSlangType>>
+    resolve_types(nb::object context, const ref<NativeSlangType> bound_type) const
+    {
+        SGL_UNUSED(context);
+        SGL_UNUSED(bound_type);
+        return {resolve_type(context, bound_type)};
+    }
+
     /// Code gen only, takes Python types CodeGenBlock, BindContext, BoundVariable.
     /// Calculate the call dimensionality when this value is passed as a given type.
     virtual int
@@ -367,7 +379,7 @@ private:
 
 /// Nanobind trampoline class for NativeMarshall
 struct PyNativeMarshall : public NativeMarshall {
-    NB_TRAMPOLINE(NativeMarshall, 14);
+    NB_TRAMPOLINE(NativeMarshall, 15);
 
     Shape get_shape(nb::object data) const override { NB_OVERRIDE(get_shape, data); }
 
@@ -422,6 +434,12 @@ struct PyNativeMarshall : public NativeMarshall {
     ref<NativeSlangType> resolve_type(nb::object context, const ref<NativeSlangType> bound_type) const override
     {
         NB_OVERRIDE(resolve_type, context, bound_type);
+    }
+
+    std::vector<ref<NativeSlangType>>
+    resolve_types(nb::object context, const ref<NativeSlangType> bound_type) const override
+    {
+        NB_OVERRIDE(resolve_types, context, bound_type);
     }
 
     int resolve_dimensionality(

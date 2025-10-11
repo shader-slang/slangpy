@@ -21,6 +21,7 @@ from slangpy import TypeReflection as TR
 from slangpy import VariableReflection
 
 scalar_names = {
+    TR.ScalarType.none: "Unknown",
     TR.ScalarType.void: "void",
     TR.ScalarType.bool: "bool",
     TR.ScalarType.int8: "int8_t",
@@ -160,6 +161,7 @@ class SlangType(NativeSlangType):
         self._cached_differential: Optional[SlangType] = None
         self._cached_uniform_layout: Optional[SlangLayout] = None
         self._cached_buffer_layout: Optional[SlangLayout] = None
+        self._cached_vector_type_name: Optional[str] = None
 
         # Native shape storage
         if self._element_type == self:
@@ -179,6 +181,7 @@ class SlangType(NativeSlangType):
         self._cached_differential = None
         self._cached_uniform_layout = None
         self._cached_buffer_layout = None
+        self._cached_vector_type_name = None
 
     @property
     def program(self) -> SlangProgramLayout:
@@ -201,6 +204,16 @@ class SlangType(NativeSlangType):
         Fully qualified name of this type.
         """
         return self.type_reflection.full_name
+
+    @property
+    def vector_type_name(self) -> str:
+        """
+        Type name suitable for use in vector type specializations.
+        This should map generics to Unknown and generic integers to 0.
+        """
+        if self._cached_vector_type_name is None:
+            self._cached_vector_type_name = self.build_vector_type_name()
+        return self._cached_vector_type_name
 
     @property
     def element_type(self) -> Optional[SlangType]:
@@ -306,6 +319,13 @@ class SlangType(NativeSlangType):
         """
         return {}
 
+    def build_vector_type_name(self) -> str:
+        """
+        Rebuild a type name that can be used for type specialization handling mapping
+        generics to Unknown or generic integers to 0. Defaults to just returning the full name.
+        """
+        return self.full_name
+
     def _get_differential(self) -> Optional[SlangType]:
         if self._cached_differential is None:
             self._cached_differential = self.build_differential_type()
@@ -334,6 +354,15 @@ class SlangType(NativeSlangType):
         Return a detailed string representation of the SlangType for debugging.
         """
         return f"SlangType(name='{self.full_name}', kind={self.type_reflection.kind}, shape={self.shape})"
+
+
+class UnknownType(SlangType):
+    """
+    Represents an unknown type.
+    """
+
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        super().__init__(program, refl, element_type=self, local_shape=Shape())
 
 
 class VoidType(SlangType):
@@ -424,6 +453,9 @@ class VectorType(SlangType):
         names = ["x", "y", "z", "w"]
         return {names[i]: self.scalar_type for i in range(self.num_elements)}
 
+    def build_vector_type_name(self):
+        return f"vector<{self.element_type.vector_type_name},{self.num_elements}>"
+
 
 class MatrixType(SlangType):
     """
@@ -513,17 +545,27 @@ class ArrayType(SlangType):
         return self.shape[0]
 
 
-def is_matching_array_type(a: SlangType, b: SlangType) -> bool:
+def is_matching_array_type(a: SlangType, b: SlangType, allow_generics: bool = True) -> bool:
     """
     Helper to check if 2 array types are compatible. This handles
     the situation in which one or both of the array types have
     unknown dimensions. In this case, the dimensions are considered
     compatible.
+
+    If `allow_generics` is False, the element types must match exactly. If True,
+    generic element types are considered compatible with any known element type.
     """
     if not isinstance(a, ArrayType) or not isinstance(b, ArrayType):
         return False
-    if a.element_type != b.element_type:
-        return False
+
+    if allow_generics:
+        if is_known(a.element_type) and is_known(b.element_type):
+            if a.element_type != b.element_type:
+                return False
+    else:
+        if a.element_type != b.element_type:
+            return False
+
     if a.num_elements > 0 and b.num_elements > 0:
         return a.num_elements == b.num_elements
     return True
@@ -622,11 +664,14 @@ class StructuredBufferType(ResourceType):
     """
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-
+        if refl.resource_result_type.kind == TR.Kind.none:
+            element_type = program.find_type_by_name("Unknown")
+        else:
+            element_type = program.find_type(refl.resource_result_type)
         super().__init__(
             program,
             refl,
-            element_type=program.find_type(refl.resource_result_type),
+            element_type=element_type,
             local_shape=Shape((-1,)),
         )
 
@@ -639,6 +684,9 @@ class StructuredBufferType(ResourceType):
             return BufferUsage.unordered_access
         else:
             return BufferUsage.shader_resource
+
+    def build_vector_type_name(self) -> str:
+        return f"{self.name}<{self.element_type.full_name}>"
 
 
 class ByteAddressBufferType(ResourceType):
@@ -1249,6 +1297,8 @@ class SlangProgramLayout:
             return SamplerStateType(self, refl)
         elif refl.kind == TR.Kind.pointer:
             return PointerType(self, refl)
+        elif refl.kind == TR.Kind.none:
+            return UnknownType(self, refl)
 
         # It's not any of the fundamental types. Check if a custom handler was defined,
         # giving precedence to handlers that match the fully specialized name
@@ -1357,6 +1407,8 @@ class SlangProgramLayout:
                 x = int(piece)
             else:
                 x = self.find_type_by_name(piece)
+                if x is None:
+                    x = self.require_type_by_name("Unknown")
             result.append(x)
 
         return tuple(result)
@@ -1375,6 +1427,45 @@ def can_convert_to_int(value: Any):
         return False
 
 
+def is_unknown(slang_type: Optional[Union[SlangType, NativeSlangType]]) -> bool:
+    return isinstance(slang_type, UnknownType)
+
+
+def is_known(slang_type: Optional[Union[SlangType, NativeSlangType]]) -> bool:
+    if slang_type is None:
+        raise ValueError("Type is None")
+    return not is_unknown(slang_type)
+
+
+def is_known_or_none(slang_type: Optional[Union[SlangType, NativeSlangType]]) -> bool:
+    if slang_type is None:
+        return True
+    return not is_unknown(slang_type)
+
+
+def vectorize_type(
+    marshall_type: Union[SlangType, str],
+    bound_type: Union[SlangType, str],
+    program: Optional[SlangProgramLayout] = None,
+) -> Optional[SlangType]:
+    if program is None:
+        if isinstance(marshall_type, SlangType):
+            program = marshall_type.program
+        elif isinstance(bound_type, SlangType):
+            program = bound_type.program
+    if isinstance(marshall_type, SlangType):
+        marshall_type = marshall_type.build_vector_type_name()
+    if isinstance(bound_type, SlangType):
+        bound_type = bound_type.build_vector_type_name()
+    if program is None:
+        raise ValueError("Program must be provided or inferable from from_type or to_type")
+
+    witness_name = f"Vectorizer<{marshall_type}, {bound_type}>.VectorType"
+    witness = program.find_type_by_name(witness_name)
+
+    return witness
+
+
 TGenericArgs = Optional[tuple[Union[int, SlangType], ...]]
 
 #: Mapping from a type name to a callable that creates a SlangType from a TypeReflection.
@@ -1386,4 +1477,9 @@ def create_differential_pair(layout: SlangProgramLayout, refl: TypeReflection) -
     return DifferentialPairType(layout, refl)
 
 
+def create_unknown_type(layout: SlangProgramLayout, refl: TypeReflection) -> SlangType:
+    return UnknownType(layout, refl)
+
+
 TYPE_OVERRIDES["DifferentialPair"] = create_differential_pair
+TYPE_OVERRIDES["Unknown"] = create_unknown_type

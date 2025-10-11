@@ -44,6 +44,13 @@ public typealias Context5D = ContextND<5>;
 // call_data_len is a link-time constant declared in callshape.slang
 public typealias Context = ContextND<call_data_len>;
 
+// Types can extend this to describe how they can be vectorized from a marshall type
+// to a type argument for a slang function.
+struct Vectorizer<From, To> {
+
+}
+
+
 public struct Unknown {}
 
 int _idx<let N : int>(int[N] index, int[N] stride) {
@@ -335,6 +342,10 @@ public struct StridedLayout<let D : int>
 }
 
 
+struct NDBufferMarshall<T, let N : int, let RW : bool> {
+
+}
+
 public struct NDBuffer<T, let N : int>
 {
     typealias Storage = StorageTraits<T>.BufferType;
@@ -398,6 +409,21 @@ public struct NDBuffer<T, let N : int>
 
     public void store<let R : int, let C: int>(ContextND<N - 2> context, in matrix<T, R, C> value) {}
 }
+extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<T, N>> {
+    typealias VectorType = NDBuffer<T, N>;
+}
+
+extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<Unknown, N>> {
+    typealias VectorType = NDBuffer<T, N>;
+}
+extension<T, let RW : bool> Vectorizer<NDBufferMarshall<T, 1, RW>, StorageTraits<T>.BufferType> {
+    typealias VectorType = StorageTraits<T>.BufferType;
+}
+
+extension<T, let RW : bool> Vectorizer<NDBufferMarshall<T, 1, RW>, StorageTraits<Unknown>.BufferType> {
+    typealias VectorType = StorageTraits<T>.BufferType;
+}
+
 
 public struct RWNDBuffer<T, let N : int>
 {
@@ -501,6 +527,53 @@ public struct RWNDBuffer<T, let N : int>
         }
     }
 }
+extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, true>, RWNDBuffer<T, N>> {
+    typealias VectorType = RWNDBuffer<T, N>;
+}
+extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, true>, RWNDBuffer<Unknown, N>> {
+    typealias VectorType = RWNDBuffer<T, N>;
+}
+extension<T> Vectorizer<NDBufferMarshall<T, 1, true>, StorageTraits<T>.RWBufferType> {
+    typealias VectorType = StorageTraits<T>.RWBufferType;
+}
+extension<T> Vectorizer<NDBufferMarshall<T, 1, true>, StorageTraits<Unknown>.RWBufferType> {
+    typealias VectorType = StorageTraits<T>.RWBufferType;
+}
+
+// Conversions common to all NDBuffers
+// NDBuffer<T,N> -> T
+extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<T, N, RW>, T> {
+    typealias VectorType = T;
+}
+// NDBuffer<T,N> -> Unknown
+// Should we support this? The conversion is ambiguous
+//extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<T, N, RW>, Unknown> {
+//    typealias VectorType = T;
+//}
+// NDBuffer<T,N> -> vector<T,VN>
+extension<T, let N : int, let RW : bool, let VN : int> Vectorizer<NDBufferMarshall<T, N, RW>, vector<T, VN>> {
+    typealias VectorType = vector<T, VN>;
+}
+// NDBuffer<T,N> -> vector<Unknown,VN>
+extension<T, let N : int, let RW : bool, let VN : int> Vectorizer<NDBufferMarshall<T, N, RW>, vector<Unknown, VN>> {
+    typealias VectorType = vector<T, VN>;
+}
+// NDBuffer<T,N> -> matrix<T,MR,MC>
+extension<T, let N : int, let RW : bool, let MC : int, let MR : int> Vectorizer<NDBufferMarshall<T, N, RW>, matrix<T, MC, MR>> {
+    typealias VectorType = matrix<T, MC, MR>;
+}
+// NDBuffer<T,N> -> matrix<Unknown,MR,MC>
+extension<T, let N : int, let RW : bool, let MC : int, let MR : int> Vectorizer<NDBufferMarshall<T, N, RW>, matrix<Unknown, MC, MR>> {
+    typealias VectorType = matrix<T, MC, MR>;
+}
+// NDBuffer<T,N> -> T[] (dynamic array)
+extension<T, let N : int, let RW : bool, let ALen : int> Vectorizer<NDBufferMarshall<Array<T, ALen>, N, RW>, Array<T, 0>> {
+    typealias VectorType = Array<T, ALen>;
+}
+// NDBuffer<T,N> -> Unknown[] (dynamic array)
+extension<T, let N : int, let RW : bool, let ALen : int> Vectorizer<NDBufferMarshall<Array<T, ALen>, N, RW>, Array<Unknown, 0>> {
+    typealias VectorType = Array<T, ALen>;
+}
 
 // For common case that we create an NDBuffer of uint64_t pointers via a numpy array,
 // these extensions add the ability to load/store pointer types from/to the uint64_t buffer.
@@ -514,6 +587,10 @@ public extension<let N:int> RWNDBuffer<uint64_t,N>
     public void load<T>(ContextND<N> context, out Ptr<T> value) { value = Ptr<T>(get(context.call_id)); }
     public void store<T>(ContextND<N> context, in Ptr<T> value) { set(context.call_id, uint64_t(value)); };
 }
+extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<uint64_t, N, RW>, Ptr<T>> {
+    typealias VectorType = Ptr<T>;
+}
+
 
 // #pragma warning(push)
 // #pragma warning(disable: 30856)
@@ -532,7 +609,10 @@ namespace impl
     // To solve this, we check if the python type (e.g. float[3]) type can be converted
     // safely to the slang type using slang generic constraints.
     // If type B implements IConvertibleFrom<A>, then we can safely convert from A to B
-    interface IConvertibleFrom<From> {}
+    interface IConvertibleFrom<From> {
+        // This associated type allows us to extract the original type From
+        // when we have a To type that implements IConvertibleFrom<From>
+    }
 
     // A python int can be passed to any slang int/float scalar type
     extension<T : __BuiltinIntegerType> T : IConvertibleFrom<int> {}
@@ -559,10 +639,15 @@ namespace impl
     extension<From : __BuiltinFloatingPointType, To : IConvertibleFrom<From>, let N : int>
     vector<To, N> : IConvertibleFrom<vector<From, N>> {}
 
+
+    struct Specializer<From,To> {
+
+    }
+
     // This function allows us to check if type A is convertible to type B.
     // We attempt to specialize allowedConversionWitness with types [A, B]
     // If it succeeds, the interface requirements are satisfied.
-    struct AllowedConversionWitness<From, To : IConvertibleFrom<From>> {}
+    struct AllowedConversionWitness<From, To : IConvertibleFrom<From>> { }
 }
 
 // #pragma warning(pop)
