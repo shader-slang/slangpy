@@ -23,6 +23,19 @@
 #include <iostream>
 #include <fstream>
 
+#import <AppKit/AppKit.h>
+#import <Foundation/Foundation.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <dispatch/dispatch.h>
+#import <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#define __MAC_OS_X_VERSION_MIN_REQUIRED 0
+#endif
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < 150000
+#error "sgl macOS backend requires macOS 15.0+ (set CMAKE_OSX_DEPLOYMENT_TARGET=15.0 or higher)"
+#endif
+
 namespace sgl::platform {
 
 void static_init() { }
@@ -86,21 +99,152 @@ void set_keyboard_interrupt_handler(std::function<void()> handler)
 // File dialogs
 // -------------------------------------------------------------------------------------------------
 
+static std::vector<std::string> parse_extensions_from_filters(std::span<const FileDialogFilter> filters)
+{
+    std::vector<std::string> exts;
+    for (const auto& f : filters) {
+        std::string pattern = f.pattern;
+        for (char& c : pattern) if (c == ';') c = ',';
+        size_t start = 0;
+        while (start < pattern.size()) {
+            size_t end = pattern.find(',', start);
+            if (end == std::string::npos) end = pattern.size();
+            std::string token = pattern.substr(start, end - start);
+            auto l = token.find_first_not_of(" \t\n\r");
+            auto r = token.find_last_not_of(" \t\n\r");
+            if (l != std::string::npos && r != std::string::npos)
+                token = token.substr(l, r - l + 1);
+            while (!token.empty() && (token[0] == '*' || token[0] == '.'))
+                token.erase(token.begin());
+            if (!token.empty())
+                exts.push_back(token);
+            start = end + 1;
+        }
+    }
+    std::vector<std::string> unique;
+    for (const auto& e : exts) {
+        if (std::find(unique.begin(), unique.end(), e) == unique.end())
+            unique.push_back(e);
+    }
+    return unique;
+}
+
+static void ensure_app_activation()
+{
+    if (NSApp == nil) {
+        [NSApplication sharedApplication];
+    }
+    // Use accessory policy to avoid creating a full dock menu for library usage.
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+    [NSApp activateIgnoringOtherApps:YES];
+    NSRunningApplication* app = [NSRunningApplication currentApplication];
+    [app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+}
+
 std::optional<std::filesystem::path> open_file_dialog(std::span<const FileDialogFilter> filters)
 {
-    SGL_UNUSED(filters);
-    SGL_UNIMPLEMENTED();
+    __block std::optional<std::filesystem::path> resultPath;
+    auto work = ^{
+        @autoreleasepool {
+            ensure_app_activation();
+            NSOpenPanel* panel = [NSOpenPanel openPanel];
+            [panel setCanChooseFiles:YES];
+            [panel setCanChooseDirectories:NO];
+            [panel setAllowsMultipleSelection:NO];
+
+            auto exts = parse_extensions_from_filters(filters);
+            if (!exts.empty()) {
+                NSMutableArray<UTType*>* types = [NSMutableArray arrayWithCapacity:exts.size()];
+                for (const auto& e : exts) {
+                    NSString* ext = [NSString stringWithUTF8String:e.c_str()];
+                    UTType* ut = [UTType typeWithFilenameExtension:ext];
+                    if (ut) [types addObject:ut];
+                }
+                [panel setAllowedContentTypes:types];
+            }
+
+            NSInteger response = [panel runModal];
+            if (response == NSModalResponseOK) {
+                NSURL* url = [panel URL];
+                if (url) {
+                    std::string path = [[url path] UTF8String];
+                    resultPath = std::filesystem::path(path);
+                }
+            }
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return resultPath;
 }
 
 std::optional<std::filesystem::path> save_file_dialog(std::span<const FileDialogFilter> filters)
 {
-    SGL_UNUSED(filters);
-    SGL_UNIMPLEMENTED();
+    __block std::optional<std::filesystem::path> resultPath;
+    auto work = ^{
+        @autoreleasepool {
+            ensure_app_activation();
+            NSSavePanel* panel = [NSSavePanel savePanel];
+
+            auto exts = parse_extensions_from_filters(filters);
+            if (!exts.empty()) {
+                NSMutableArray<UTType*>* types = [NSMutableArray arrayWithCapacity:exts.size()];
+                for (const auto& e : exts) {
+                    NSString* ext = [NSString stringWithUTF8String:e.c_str()];
+                    UTType* ut = [UTType typeWithFilenameExtension:ext];
+                    if (ut) [types addObject:ut];
+                }
+                [panel setAllowedContentTypes:types];
+            }
+
+            NSInteger response = [panel runModal];
+            if (response == NSModalResponseOK) {
+                NSURL* url = [panel URL];
+                if (url) {
+                    std::string path = [[url path] UTF8String];
+                    resultPath = std::filesystem::path(path);
+                }
+            }
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return resultPath;
 }
 
 std::optional<std::filesystem::path> choose_folder_dialog()
 {
-    SGL_UNIMPLEMENTED();
+    __block std::optional<std::filesystem::path> resultPath;
+    auto work = ^{
+        @autoreleasepool {
+            ensure_app_activation();
+            NSOpenPanel* panel = [NSOpenPanel openPanel];
+            [panel setCanChooseFiles:NO];
+            [panel setCanChooseDirectories:YES];
+            [panel setAllowsMultipleSelection:NO];
+
+            NSInteger response = [panel runModal];
+            if (response == NSModalResponseOK) {
+                NSURL* url = [panel URL];
+                if (url) {
+                    std::string path = [[url path] UTF8String];
+                    resultPath = std::filesystem::path(path);
+                }
+            }
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return resultPath;
 }
 
 // -------------------------------------------------------------------------------------------------

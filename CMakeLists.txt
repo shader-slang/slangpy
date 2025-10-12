@@ -16,7 +16,8 @@ include(DetermineTargetArchitecture)
 include(GNUInstallDirs)
 include(CMakeRC)
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
+# SlangPy targets macOS 15.0+
+set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0")
 
 if (APPLE)
   set(SGL_ORIGIN "@loader_path")

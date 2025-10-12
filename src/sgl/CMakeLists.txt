@@ -46,7 +46,6 @@ target_sources(sgl PRIVATE
     core/lmdb_cache.cpp
     core/lmdb_cache.h
     core/platform_linux.cpp
-    core/platform_macos.cpp
     core/platform_windows.cpp
     core/platform.cpp
     core/platform.h
@@ -183,6 +182,13 @@ target_sources(sgl PRIVATE
 )
 
 target_include_directories(sgl PUBLIC ../ ${SGL_IMGUI_DIR})
+
+# Add macOS Objective-C++ source only on macOS
+if(SGL_MACOS)
+    target_sources(sgl PRIVATE core/platform_macos.mm)
+    # Enable ARC for Objective-C++ source
+    set_source_files_properties(core/platform_macos.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+endif()
 
 target_compile_features(sgl PUBLIC cxx_std_20)
 
@@ -373,6 +379,11 @@ target_link_libraries(sgl
         # Linux system libraries.
         # $<$<PLATFORM_ID:Linux>:gtk3>
 )
+
+# Link macOS frameworks when building on macOS
+if(SGL_MACOS)
+    target_link_libraries(sgl PRIVATE "-framework AppKit" "-framework Foundation" "-framework UniformTypeIdentifiers")
+endif()
 
 set_target_properties(sgl PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY}
