@@ -29,12 +29,7 @@
 #import <dispatch/dispatch.h>
 #import <Availability.h>
 
-#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
-#define __MAC_OS_X_VERSION_MIN_REQUIRED 0
-#endif
-#if __MAC_OS_X_VERSION_MIN_REQUIRED < 150000
-#error "sgl macOS backend requires macOS 15.0+ (set CMAKE_OSX_DEPLOYMENT_TARGET=15.0 or higher)"
-#endif
+// No hard minimum enforced here; rely on CMake's CMAKE_OSX_DEPLOYMENT_TARGET
 
 namespace sgl::platform {
 
