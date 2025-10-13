@@ -101,7 +101,8 @@ class BoundCall:
             raise ValueError("Too many keyword arguments supplied for explicit vectorization")
 
         for i, arg in enumerate(args):
-            self.args[i].apply_explicit_vectorization(context, arg)
+            if arg:
+                self.args[i].apply_explicit_vectorization(context, arg)
 
         for name, arg in kwargs.items():
             if not name in self.kwargs:
