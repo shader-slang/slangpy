@@ -14,7 +14,7 @@ namespace sgl::thread {
 SGL_API void static_init();
 SGL_API void static_shutdown();
 
-/// Block until all register tasks are completed.
+/// Block until all registered tasks are completed.
 SGL_API void wait_for_tasks();
 
 /// Register a task to be waited for on next wait_for_tasks() call.
