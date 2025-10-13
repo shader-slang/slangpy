@@ -49,6 +49,17 @@ public typealias Context = ContextND<call_data_len>;
 struct Vectorizer<From, To> {
 
 }
+struct IntTrait<let N : int> {
+    static const int Value = N;
+}
+struct BoolTrait<let N : bool> {
+    static const bool Value = N;
+}
+
+interface IVectorizeToSelf<T> {}
+interface IVectorizeToElement<T> {}
+
+interface IVectorizeToVector<T> {}
 
 
 public struct Unknown {}
@@ -104,15 +115,28 @@ public struct NoneType
     public void store<T, let N : int>(ContextND<N> context, in T value) {};
 }
 
-public struct ValueType<T>
+public struct ValueType<T> : IVectorizeToSelf<T>
 {
     T value;
     public void load(Context0D context, out T value) { value = this.value; }
     public void store(Context0D context, in T value) {};
 }
 
-public struct VectorValueType<T,let N: int>
+extension<To, From : IVectorizeToSelf<To>> Vectorizer<From, To> {
+    typealias VectorType = To;
+}
+extension<To, From : IVectorizeToElement<To>> Vectorizer<From, To> {
+    typealias VectorType = To;
+}
+extension<To, From : IVectorizeToElement<To>> Vectorizer<From, Unknown> {
+    typealias VectorType = To;
+}
+
+public struct VectorValueType<T, let N : int>
 {
+    typealias ElementType = T;
+    typealias VectorTarget = vector<T,N>;
+
     vector<T, N> value;
 
     public void load(Context0D context, out vector<T,N> value) { value = this.value; }
@@ -121,6 +145,26 @@ public struct VectorValueType<T,let N: int>
     public void load(Context1D context, out T value) { value = this.value[context.call_id[0]]; }
     public void store(Context1D context, in T value) {};
 }
+
+extension<T, let N : int> Vectorizer<VectorValueType<T, N>, vector<T, N>> {
+    typealias VectorType = vector<T, N>;
+}
+extension<T, let N : int> Vectorizer<VectorValueType<T, N>, vector<T, 0>> {
+    typealias VectorType = vector<T, N>;
+}
+extension<T, let N : int> Vectorizer<VectorValueType<T, N>, vector<Unknown, N>> {
+    typealias VectorType = vector<T, N>;
+}
+extension<T, let N : int> Vectorizer<VectorValueType<T, N>, vector<Unknown, 0>> {
+    typealias VectorType = vector<T, N>;
+}
+extension<T, let N : int> Vectorizer<VectorValueType<T, N>, T> {
+    typealias VectorType = T;
+}
+extension<T, let N : int> Vectorizer<VectorValueType<T, N>, Unknown> {
+    typealias VectorType = T;
+}
+
 
 public struct Array1DValueType<T,let N: int>
 {
@@ -133,7 +177,29 @@ public struct Array1DValueType<T,let N: int>
     public void store(Context1D context, in T value) {};
 }
 
+extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Array<T, N>> {
+    typealias VectorType = Array<T, N>;
+}
+extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Array<T, 0>> {
+    typealias VectorType = Array<T, N>;
+}
+extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Array<Unknown, N>> {
+    typealias VectorType = Array<T, N>;
+}
+extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Array<Unknown, 0>> {
+    typealias VectorType = Array<T, N>;
+}
+extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, T> {
+    typealias VectorType = T;
+}
+extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Unknown> {
+    typealias VectorType = T;
+}
+
+
+
 public struct RangeType
+    : IVectorizeToElement<int>
 {
     int start;
     int stop;
@@ -141,35 +207,73 @@ public struct RangeType
     public void load(Context1D context, out int value) { value = this.start + context.call_id_vec.x * this.step; }
     public void store(Context1D context, in int value) {};
 }
+extension Vectorizer<RangeType, int> {
+    typealias VectorType = int;
+}
+extension Vectorizer<RangeType, Unknown> {
+    typealias VectorType = int;
+}
+
+
+public struct BufferMarshall<T, let RW : bool>
+{
+}
 
 public struct StructuredBufferType<T>
+    : IVectorizeToSelf<StructuredBuffer<T>>
 {
     StructuredBuffer<T> value;
 
     public void load(Context0D context, out StructuredBuffer<T> value) { value = this.value; }
     public void store(Context0D context, in StructuredBuffer<T> value) {};
 }
+extension<T, let RW : bool> Vectorizer<BufferMarshall<T, RW>, StructuredBuffer<T>> {
+    typealias VectorType = StructuredBuffer<T>;
+}
+extension<T, let RW : bool> Vectorizer<BufferMarshall<T, RW>, StructuredBuffer<Unknown>> {
+    typealias VectorType = StructuredBuffer<T>;
+}
 
-public struct RWStructuredBufferType<T> {
+
+public struct RWStructuredBufferType<T>
+    : IVectorizeToSelf<RWStructuredBuffer<T>>
+{
     RWStructuredBuffer<T> value;
 
     public void load(Context0D context, out RWStructuredBuffer<T> value) { value = this.value; }
     public void store(Context0D context, in RWStructuredBuffer<T> value) {};
 }
+extension<T> Vectorizer<BufferMarshall<T, true>, RWStructuredBuffer<T>> {
+    typealias VectorType = RWStructuredBuffer<T>;
+}
+extension<T> Vectorizer<BufferMarshall<T, true>, RWStructuredBuffer<Unknown>> {
+    typealias VectorType = RWStructuredBuffer<T>;
+}
+
 
 public struct ByteAddressBufferType
+    : IVectorizeToSelf<ByteAddressBuffer>
 {
     ByteAddressBuffer value;
 
     public void load(Context0D context, out ByteAddressBuffer value) { value = this.value; }
     public void store(Context0D context, in ByteAddressBuffer value) {};
 }
+extension<T, let RW : bool> Vectorizer<BufferMarshall<T, RW>, ByteAddressBuffer> {
+    typealias VectorType = ByteAddressBuffer;
+}
 
-public struct RWByteAddressBufferType {
+
+public struct RWByteAddressBufferType
+    : IVectorizeToSelf<RWByteAddressBuffer>
+{
     RWByteAddressBuffer value;
 
     public void load(Context0D context, out RWByteAddressBuffer value) { value = this.value; }
     public void store(Context0D context, in RWByteAddressBuffer value) {};
+}
+extension<T> Vectorizer<BufferMarshall<T, true>, RWByteAddressBufferType> {
+    typealias VectorType = RWByteAddressBufferType;
 }
 
 public struct Texture1DType<T : ITexelElement> {

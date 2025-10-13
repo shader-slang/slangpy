@@ -175,7 +175,7 @@ def get_type(module: spy.Module, name: str):
     return t
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_ndbuffer_conversion_witness(device_type: spy.DeviceType):
+def test_vectorize_type(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
     module = helpers.create_module(device, """
 import slangpy;
@@ -194,6 +194,33 @@ import slangpy;
             assert fnclean == expclean, f"Expected specialization of {binding_type} to {marshall_type} to be {expected}, got {res.full_name}"
         else:
             assert not spyr.vectorize_type(marshall_type, binding_type, module.layout)
+
+    check("int", "ValueType<int>", "int")
+    check("float", "ValueType<int>", None)
+    check("Unknown", "ValueType<int>", None) # Fully generics not handled
+
+    check("int", "VectorValueType<int,1>", "int")
+    check("float", "VectorValueType<int,1>", None)
+    check("vector<int,1>", "VectorValueType<int,1>", "vector<int,1>")
+    check("vector<int,0>", "VectorValueType<int,1>", "vector<int,1>")
+    check("vector<Unknown,1>", "VectorValueType<int,1>", "vector<int,1>")
+    check("vector<Unknown,0>", "VectorValueType<int,1>", "vector<int,1>")
+    check("float3", "VectorValueType<float,3>", "vector<float,3>")
+    check("float4", "VectorValueType<float,3>", None)
+    check("int3", "VectorValueType<float,3>", None)
+
+    check("int", "Array1DValueType<int,1>", "int")
+    check("float", "Array1DValueType<int,1>", None)
+    check("vector<int,1>", "Array1DValueType<int,1>", None)
+    check("int[1]", "Array1DValueType<int,1>", "int[1]")
+    check("Unknown[1]", "Array1DValueType<int,1>", "int[1]")
+    check("int[0]", "Array1DValueType<int,1>", "int[1]")
+    check("Unknown[0]", "Array1DValueType<int,1>", "int[1]")
+    check("float[3]", "Array1DValueType<float,3>", "float[3]")
+    check("float[4]", "Array1DValueType<float,3>", None)
+    check("int[3]", "Array1DValueType<float,3>", None)
+
+
 
     check("NDBuffer<int,1>", "NDBufferMarshall<int,1,true>", "NDBuffer<int,1>")
     check("NDBuffer<int,1>", "NDBufferMarshall<int,1,false>", "NDBuffer<int,1>")
@@ -232,7 +259,6 @@ import slangpy;
     check("matrix<int,3,3>", "NDBufferMarshall<int,1,false>", "matrix<int,3,3>")
     check("int[10]", "NDBufferMarshall<int[10],1,false>", "int[10]")
     check("int[0]", "NDBufferMarshall<int[10],1,false>", "int[10]")
-
 
 
 

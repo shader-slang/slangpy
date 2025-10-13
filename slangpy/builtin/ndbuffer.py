@@ -130,6 +130,14 @@ def ndbuffer_resolve_type(
     # Default to just casting to itself (i.e. no implicit cast)
     return self.slang_type
 
+def get_ndbuffer_marshall_type(
+    context: BindContext, element_type: SlangType, writable: bool, dims: int
+) -> SlangType:
+    type_name = f"NDBufferMarshall<{element_type.full_name},{dims},{'true' if writable else 'false'}>"
+    slang_type = context.layout.find_type_by_name(type_name)
+    if slang_type is None:
+        raise ValueError(f"Could not find type {type_name} in program layout")
+    return slang_type
 
 def get_ndbuffer_type(
     context: BindContext, element_type: SlangType, writable: bool, dims: int
@@ -141,7 +149,6 @@ def get_ndbuffer_type(
         raise ValueError(f"Could not find type {type_name} in program layout")
     return slang_type
 
-
 def get_structuredbuffer_type(
     context: BindContext, element_type: SlangType, writable: bool
 ) -> SlangType:
@@ -152,7 +159,6 @@ def get_structuredbuffer_type(
         raise ValueError(f"Could not find type {type_name} in program layout")
     return slang_type
 
-
 def ndbuffer_resolve_types(
     self: Union[NativeNDBufferMarshall, "BaseNDBufferMarshall"],
     context: BindContext,
@@ -162,7 +168,6 @@ def ndbuffer_resolve_types(
     self_element_type = cast(SlangType, self.slang_element_type)
     self_dims = self.dims
     self_writable = self.writable
-
     results: list[SlangType] = []
 
     # If the bound type is unknown, return a list of possible fully specialized types
@@ -176,9 +181,7 @@ def ndbuffer_resolve_types(
         return results
 
     # Otherwise, attempt to use slang's typing system to map the bound type to the marshall
-    marshall = context.layout.find_type_by_name(
-        f"NDBufferMarshall<{self_element_type.full_name},{self_dims},{'true' if self_writable else 'false'}>"
-    )
+    marshall = get_ndbuffer_marshall_type(context, self_element_type, self_writable, self_dims)
     specialized = vectorize_type(marshall, bound_type)
     if specialized is not None:
         results.append(specialized)
