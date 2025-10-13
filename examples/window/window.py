@@ -102,7 +102,6 @@ class App:
 
         while not self.window.should_close():
             self.window.process_events()
-            self.ui.process_events()
 
             elapsed = timer.elapsed_s()
             timer.reset()
@@ -118,6 +117,8 @@ class App:
             surface_texture = self.surface.acquire_next_image()
             if not surface_texture:
                 continue
+
+            self.ui.begin_frame(surface_texture.width, surface_texture.height)
 
             if (
                 self.output_texture == None
@@ -149,8 +150,7 @@ class App:
             )
             command_encoder.blit(surface_texture, self.output_texture)
 
-            self.ui.new_frame(surface_texture.width, surface_texture.height)
-            self.ui.render(surface_texture, command_encoder)
+            self.ui.end_frame(surface_texture, command_encoder)
 
             self.device.submit_command_buffer(command_encoder.finish())
             del surface_texture

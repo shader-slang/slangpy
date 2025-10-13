@@ -168,8 +168,7 @@ SGL_PY_EXPORT(ui_widgets)
         )
         .def("__delitem__", &Widget::remove_child_at, D(Widget, remove_child_at));
 
-    nb::class_<Screen, Widget>(ui, "Screen", D(Screen))
-        .def("dispatch_events", &Screen::dispatch_events, D(Screen, dispatch_events));
+    nb::class_<Screen, Widget>(ui, "Screen", D(Screen));
 
     nb::class_<Window, Widget>(ui, "Window", D(Window))
         .def(

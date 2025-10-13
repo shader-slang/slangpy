@@ -28,14 +28,12 @@ public:
 
     ImFont* get_font(const char* name);
 
-    void new_frame(uint32_t width, uint32_t height);
-    void render(TextureView* texture_view, CommandEncoder* command_encoder);
-    void render(Texture* texture, CommandEncoder* command_encoder);
+    void begin_frame(uint32_t width, uint32_t height);
+    void end_frame(TextureView* texture_view, CommandEncoder* command_encoder);
+    void end_frame(Texture* texture, CommandEncoder* command_encoder);
 
     bool handle_keyboard_event(const KeyboardEvent& event);
     bool handle_mouse_event(const MouseEvent& event);
-
-    void process_events();
 
 private:
     RenderPipeline* get_pipeline(Format format);
