@@ -99,11 +99,14 @@ static std::vector<std::string> parse_extensions_from_filters(std::span<const Fi
     std::vector<std::string> exts;
     for (const auto& f : filters) {
         std::string pattern = f.pattern;
-        for (char& c : pattern) if (c == ';') c = ',';
+        for (char& c : pattern)
+            if (c == ';')
+                c = ',';
         size_t start = 0;
         while (start < pattern.size()) {
             size_t end = pattern.find(',', start);
-            if (end == std::string::npos) end = pattern.size();
+            if (end == std::string::npos)
+                end = pattern.size();
             std::string token = pattern.substr(start, end - start);
             auto l = token.find_first_not_of(" \t\n\r");
             auto r = token.find_last_not_of(" \t\n\r");
@@ -153,7 +156,8 @@ std::optional<std::filesystem::path> open_file_dialog(std::span<const FileDialog
                 for (const auto& e : exts) {
                     NSString* ext = [NSString stringWithUTF8String:e.c_str()];
                     UTType* ut = [UTType typeWithFilenameExtension:ext];
-                    if (ut) [types addObject:ut];
+                    if (ut)
+                        [types addObject:ut];
                 }
                 [panel setAllowedContentTypes:types];
             }
@@ -190,7 +194,8 @@ std::optional<std::filesystem::path> save_file_dialog(std::span<const FileDialog
                 for (const auto& e : exts) {
                     NSString* ext = [NSString stringWithUTF8String:e.c_str()];
                     UTType* ut = [UTType typeWithFilenameExtension:ext];
-                    if (ut) [types addObject:ut];
+                    if (ut)
+                        [types addObject:ut];
                 }
                 [panel setAllowedContentTypes:types];
             }
