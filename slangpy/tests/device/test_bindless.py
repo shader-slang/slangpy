@@ -12,6 +12,8 @@ def test_bindless_texture(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     if not device.has_feature(spy.Feature.bindless):
         pytest.skip("Bindless not supported on this device.")
+    if device_type == spy.DeviceType.cuda:
+        pytest.skip("Bindless textures not supported with CUDA yet.")
 
     module = device.load_module("test_bindless_texture.slang")
     program = device.link_program(
@@ -81,6 +83,8 @@ def test_bindless_buffer(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     if not device.has_feature(spy.Feature.bindless):
         pytest.skip("Bindless not supported on this device.")
+    if device_type == spy.DeviceType.cuda:
+        pytest.skip("Bindless textures not supported with CUDA yet.")
 
     module = device.load_module("test_bindless_buffer.slang")
     program = device.link_program(
