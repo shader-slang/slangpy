@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import string_hash;
-
 #ifndef SGL_ENABLE_PRINT
 #define SGL_ENABLE_PRINT 0
 #endif
