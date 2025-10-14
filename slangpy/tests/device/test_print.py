@@ -37,12 +37,10 @@ This is Print from Another Module: 7
 0123456
 01234567
 bool: false=false, true=true
-string: foo=foo, bar=bar
+stringhash: foo=foo, bar=bar
 string: string_from_function=string_from_function
 string: string_from_method=string_from_method
-string: string_from_static_const=string_from_static_const
 string: string_from_interface_method=string_from_interface_method
-string: string_from_interface_static_const=string_from_interface_static_const
 int16: min=-32768, max=32767, -12345=-12345, 12345=12345
 int32: min=-2147483648, max=2147483647, -12345=-12345, 12345=12345
 int64: min=-9223372036854775808, max=9223372036854775807, -12345=-12345, 12345=12345

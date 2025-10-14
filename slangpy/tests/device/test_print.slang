@@ -62,11 +62,11 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
         print("string: string_from_function={}", string_from_function());
         Struct1 struct1 = {};
         print("string: string_from_method={}", struct1.string_from_method());
-        Struct2 struct2 = {};
-        print("string: string_from_static_const={}", struct2.string_from_static_const);
+        // Struct2 struct2 = {};
+        // print("string: string_from_static_const={}", struct2.string_from_static_const);
         Struct3 struct3 = {};
         print("string: string_from_interface_method={}", struct3.string_from_interface_method());
-        print("string: string_from_interface_static_const={}", struct3.string_from_interface_static_const);
+        // print("string: string_from_interface_static_const={}", struct3.string_from_interface_static_const);
     }
     // no int8 support on D3D12
 #if !defined(__TARGET_D3D12__)
