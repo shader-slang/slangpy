@@ -26,7 +26,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
     // print supports all basic types
     print("bool: false={}, true={}", false, true);
     // print printable string
-    print("pritable_string: foo={}", PrintableString("foo"));
+    print("printable_string: foo={}", PrintableString("foo"));
     // no int8 support on D3D12
 #if !defined(__TARGET_D3D12__)
     print("int8: min={}, max={}, -123={}, 123={}", int8_t.minValue, int8_t.maxValue, int8_t(-123), int8_t(123));

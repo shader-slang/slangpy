@@ -37,7 +37,7 @@ This is Print from Another Module: 7
 0123456
 01234567
 bool: false=false, true=true
-pritable_string: foo=foo
+printable_string: foo=foo
 int16: min=-32768, max=32767, -12345=-12345, 12345=12345
 int32: min=-2147483648, max=2147483647, -12345=-12345, 12345=12345
 int64: min=-9223372036854775808, max=9223372036854775807, -12345=-12345, 12345=12345
@@ -72,7 +72,7 @@ This is Print from Another Module: 7
 0123456
 01234567
 bool: false=false, true=true
-pritable_string: foo=foo
+printable_string: foo=foo
 int8: min=-128, max=127, -123=-123, 123=123
 int16: min=-32768, max=32767, -12345=-12345, 12345=12345
 int32: min=-2147483648, max=2147483647, -12345=-12345, 12345=12345
@@ -108,7 +108,7 @@ This is Print from Another Module: 7
 0123456
 01234567
 bool: false=false, true=true
-pritable_string: foo=foo
+printable_string: foo=foo
 int8: min=-128, max=127, -123=-123, 123=123
 int16: min=-32768, max=32767, -12345=-12345, 12345=12345
 int32: min=-2147483648, max=2147483647, -12345=-12345, 12345=12345
@@ -140,7 +140,7 @@ This is Print from Another Module: 7
 0123456
 01234567
 bool: false=false, true=true
-pritable_string: foo=foo
+printable_string: foo=foo
 int8: min=-128, max=127, -123=-123, 123=123
 int16: min=-32768, max=32767, -12345=-12345, 12345=12345
 int32: min=-2147483648, max=2147483647, -12345=-12345, 12345=12345
