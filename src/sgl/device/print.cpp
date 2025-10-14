@@ -128,7 +128,7 @@ namespace print_buffer {
 
         SGL_ASSERT(value.element_count <= Value<T>::MAX_ELEMENT_COUNT);
 
-        if constexpr (std::is_same_v<T, std::string>) {
+        if constexpr (std::is_same_v<T, std::string_view>) {
             SGL_ASSERT(hashed_strings);
             SGL_ASSERT(layout.type == Type::printable_string);
             for (uint32_t i = 0; i < value.element_count; ++i) {
@@ -172,9 +172,6 @@ namespace print_buffer {
         case Type::boolean:
             arg_store.push_back(decode_value<bool>(data.subspan(4), layout));
             break;
-        case Type::printable_string:
-            arg_store.push_back(decode_value<std::string>(data.subspan(4), layout, &hashed_strings));
-            break;
         case Type::int8:
             arg_store.push_back(decode_value<int8_t>(data.subspan(4), layout));
             break;
@@ -207,6 +204,9 @@ namespace print_buffer {
             break;
         case Type::float64:
             arg_store.push_back(decode_value<double>(data.subspan(4), layout));
+            break;
+        case Type::printable_string:
+            arg_store.push_back(decode_value<std::string_view>(data.subspan(4), layout, &hashed_strings));
             break;
         default:
             SGL_THROW("Invalid argument type in print()");
