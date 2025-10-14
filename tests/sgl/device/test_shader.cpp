@@ -85,7 +85,7 @@ TEST_CASE_GPU("shader")
         CHECK_EQ(path0.filename(), "_testshader_simple.slang");
     }
 
-    // Load a module with a 2-stage dependency chain and verify all 4 dependencies.
+    // Load a module with a 2-stage dependency chain and verify all 3 dependencies.
     SUBCASE("multi_module_dependency")
     {
         ref<SlangModule> module = ctx.device->load_module((dir / "_testshader_dependent.slang").string());
