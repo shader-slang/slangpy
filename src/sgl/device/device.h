@@ -255,6 +255,9 @@ public:
      */
     void close();
 
+    /// Check if the device is closed.
+    bool is_closed() const { return m_closed; }
+
     /// Close all open devices.
     static void close_all_devices();
 
