@@ -129,6 +129,7 @@ target_sources(sgl PRIVATE
     device/shader.cpp
     device/shader.h
     device/slang_utils.h
+    device/string_hash.slang
     device/surface.cpp
     device/surface.h
     device/types.cpp

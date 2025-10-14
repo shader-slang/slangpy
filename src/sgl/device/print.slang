@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import string_hash;
+
 #ifndef SGL_ENABLE_PRINT
 #define SGL_ENABLE_PRINT 0
 #endif
@@ -76,13 +78,13 @@ extension bool : IPrintable {
     uint get_printable_data(uint index) { return asuint(this); }
 };
 
-extension String : IPrintable {
+extension StringHash : IPrintable {
     [ForceInline]
     static Layout printable_layout() { return Layout(Kind::scalar, Type::string, 0, 0); }
     [ForceInline]
     static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return getStringHash(this); }
+    uint get_printable_data(uint index) { return this.hash; }
 };
 
 extension int8_t : IPrintable {
