@@ -1,34 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import sgl.device.print;
+import sgl.device.string_hash;
 import test_print_module2;
 
-String string_from_function() { return "string_from_function"; }
+StringHash string_from_function() { return "string_from_function"; }
 
 struct Struct1
 {
     __init() { }
-    String string_from_method() { return "string_from_method"; }
+    StringHash string_from_method() { return "string_from_method"; }
 }
 
 struct Struct2
 {
     __init() { }
-    static const String string_from_static_const = "string_from_method";
+    static const StringHash string_from_static_const = "string_from_method";
 }
 
 interface Interface
 {
-    static const String string_from_interface_static_const;
-    String string_from_interface_method();
+    static const StringHash string_from_interface_static_const;
+    StringHash string_from_interface_method();
 }
 
 struct Struct3 : Interface
 {
     __init() { }
 
-    static const String string_from_interface_static_const = "string_from_interface_static_const";
-    String string_from_interface_method() { return "string_from_interface_method"; }
+    static const StringHash string_from_interface_static_const = "string_from_interface_static_const";
+    StringHash string_from_interface_method() { return "string_from_interface_method"; }
 }
 
 
@@ -54,8 +55,8 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
 
     // print supports all basic types
     print("bool: false={}, true={}", false, true);
-    // print string raw
-    print("string: foo={}, bar={}", "foo", "bar");
+    // print stringhash raw (cannot print string raw, must be wrapped on this level)
+    print("stringhash: foo={}, bar={}", StringHash("foo"), StringHash("bar"));
     // print strings from various sources
     {
         print("string: string_from_function={}", string_from_function());
