@@ -1,4 +1,4 @@
-import os, sys, platform, ctypes
+import os, sys
 
 package_dir = os.path.normpath(os.path.dirname(__file__))
 
@@ -11,23 +11,7 @@ if os.name == "nt":
     else:
         print("Cannot locate sgl.dll.")
         sys.exit(1)
-elif sys.platform == "darwin":
-    # On macOS during development, pre-load dependent dylibs from the build dir
-    # so the extension can resolve @rpath(libsgl.dylib) without requiring DYLD_LIBRARY_PATH.
-    lib_here = os.path.join(package_dir, "libsgl.dylib")
-    if not os.path.exists(lib_here) and os.path.exists(os.path.join(package_dir, ".build_dir")):
-        try:
-            build_dir = open(os.path.join(package_dir, ".build_dir")).readline().strip()
-            # Preload likely dependencies if present
-            for name in ("libslang.dylib", "libslang-rt.dylib", "libsgl.dylib"):
-                p = os.path.join(build_dir, name)
-                if os.path.exists(p):
-                    ctypes.CDLL(p, mode=ctypes.RTLD_GLOBAL)
-        except Exception:
-            # Fall through; the import may still work if libs are already discoverable
-            pass
-
-del os, sys, platform, ctypes
+del os, sys
 
 from importlib import import_module as _import
 

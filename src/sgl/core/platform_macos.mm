@@ -29,8 +29,6 @@
 #import <dispatch/dispatch.h>
 #import <Availability.h>
 
-// No hard minimum enforced here; rely on CMake's CMAKE_OSX_DEPLOYMENT_TARGET
-
 namespace sgl::platform {
 
 void static_init() { }
@@ -94,17 +92,24 @@ void set_keyboard_interrupt_handler(std::function<void()> handler)
 // File dialogs
 // -------------------------------------------------------------------------------------------------
 
+/*
+ Parse file dialog filters like:
+   "*.png;*.jpg" or "*.txt"
+
+   - Split on ';' (Windows-style multi pattern separator)
+   - Trim whitespace
+   - Strip leading '*' and '.'
+   - Lowercase result
+   - Collect unique extensions (no dot)
+*/
 static std::vector<std::string> parse_extensions_from_filters(std::span<const FileDialogFilter> filters)
 {
     std::vector<std::string> exts;
     for (const auto& f : filters) {
-        std::string pattern = f.pattern;
-        for (char& c : pattern)
-            if (c == ';')
-                c = ',';
+        const std::string& pattern = f.pattern;
         size_t start = 0;
         while (start < pattern.size()) {
-            size_t end = pattern.find(',', start);
+            size_t end = pattern.find(';', start);
             if (end == std::string::npos)
                 end = pattern.size();
             std::string token = pattern.substr(start, end - start);
@@ -114,6 +119,8 @@ static std::vector<std::string> parse_extensions_from_filters(std::span<const Fi
                 token = token.substr(l, r - l + 1);
             while (!token.empty() && (token[0] == '*' || token[0] == '.'))
                 token.erase(token.begin());
+            for (char& c : token)
+                c = (char)std::tolower((unsigned char)c);
             if (!token.empty())
                 exts.push_back(token);
             start = end + 1;
