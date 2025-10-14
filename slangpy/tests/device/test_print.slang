@@ -1,37 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import sgl.device.print;
-import sgl.device.string_hash;
 import test_print_module2;
-
-StringHash string_from_function() { return "string_from_function"; }
-
-struct Struct1
-{
-    __init() { }
-    StringHash string_from_method() { return "string_from_method"; }
-}
-
-struct Struct2
-{
-    __init() { }
-    static const StringHash string_from_static_const = "string_from_method";
-}
-
-interface Interface
-{
-    static const StringHash string_from_interface_static_const;
-    StringHash string_from_interface_method();
-}
-
-struct Struct3 : Interface
-{
-    __init() { }
-
-    static const StringHash string_from_interface_static_const = "string_from_interface_static_const";
-    StringHash string_from_interface_method() { return "string_from_interface_method"; }
-}
-
 
 [shader("compute")]
 [numthreads(1, 1, 1)]
@@ -55,19 +25,8 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
 
     // print supports all basic types
     print("bool: false={}, true={}", false, true);
-    // print stringhash raw (cannot print string raw, must be wrapped on this level)
-    print("stringhash: foo={}, bar={}", StringHash("foo"), StringHash("bar"));
-    // print strings from various sources
-    {
-        print("string: string_from_function={}", string_from_function());
-        Struct1 struct1 = {};
-        print("string: string_from_method={}", struct1.string_from_method());
-        // Struct2 struct2 = {};
-        // print("string: string_from_static_const={}", struct2.string_from_static_const);
-        Struct3 struct3 = {};
-        print("string: string_from_interface_method={}", struct3.string_from_interface_method());
-        // print("string: string_from_interface_static_const={}", struct3.string_from_interface_static_const);
-    }
+    // print printable string
+    print("pritable_string: foo={}", PrintableString("foo"));
     // no int8 support on D3D12
 #if !defined(__TARGET_D3D12__)
     print("int8: min={}, max={}, -123={}, 123={}", int8_t.minValue, int8_t.maxValue, int8_t(-123), int8_t(123));

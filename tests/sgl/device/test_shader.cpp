@@ -89,18 +89,16 @@ TEST_CASE_GPU("shader")
     SUBCASE("multi_module_dependency")
     {
         ref<SlangModule> module = ctx.device->load_module((dir / "_testshader_dependent.slang").string());
-        CHECK_EQ(module->slang_module()->getDependencyFileCount(), 4);
+        REQUIRE_EQ(module->slang_module()->getDependencyFileCount(), 3);
         std::vector<std::filesystem::path> paths{
             module->slang_module()->getDependencyFilePath(0),
             module->slang_module()->getDependencyFilePath(1),
             module->slang_module()->getDependencyFilePath(2),
-            module->slang_module()->getDependencyFilePath(3),
         };
         std::sort(paths.begin(), paths.end(), [](const auto& a, const auto& b) { return a.filename() < b.filename(); });
         CHECK_EQ(paths[0].filename(), "_testshader_dependent.slang");
         CHECK_EQ(paths[1].filename(), "_testshader_struct.slang");
         CHECK_EQ(paths[2].filename(), "print.slang");
-        CHECK_EQ(paths[3].filename(), "string_hash.slang");
     }
 }
 

@@ -6,6 +6,18 @@ import string_hash;
 #define SGL_ENABLE_PRINT 0
 #endif
 
+// Slang's native String has very limited support, notably,
+// cannot be realibly passed out of functions. The work-around is to use
+// result of `getStringHash` instead of the actual String literal and pass that instead.
+// PrintableString wraps the hash so it is strongly typed and can be extended.
+struct PrintableString
+{
+    uint hash;
+
+    __init() { hash = getStringHash(""); }
+    __implicit_conversion(1) __init(String str) { hash = getStringHash(str); }
+}
+
 namespace detail {
 
 enum class Kind {
@@ -17,7 +29,6 @@ enum class Kind {
 /// Printable primitive types.
 enum class Type {
     boolean,
-    string,
     int8,
     int16,
     int32,
@@ -29,6 +40,7 @@ enum class Type {
     float16,
     float32,
     float64,
+    printable_string,
 };
 
 struct Layout {
@@ -78,9 +90,9 @@ extension bool : IPrintable {
     uint get_printable_data(uint index) { return asuint(this); }
 };
 
-extension StringHash : IPrintable {
+extension PrintableString : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::string, 0, 0); }
+    static Layout printable_layout() { return Layout(Kind::scalar, Type::printable_string, 0, 0); }
     [ForceInline]
     static uint printable_data_count() { return 1; }
     [ForceInline]

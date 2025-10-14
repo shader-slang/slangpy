@@ -28,7 +28,6 @@ namespace print_buffer {
     /// This needs to be in sync with the enum in print.slang.
     enum class Type {
         boolean,
-        string,
         int8,
         int16,
         int32,
@@ -40,6 +39,7 @@ namespace print_buffer {
         float16,
         float32,
         float64,
+        printable_string,
         count,
     };
     static_assert(int(Type::count) <= 16, "Type is encoded in 4 bits");
@@ -130,7 +130,7 @@ namespace print_buffer {
 
         if constexpr (std::is_same_v<T, std::string>) {
             SGL_ASSERT(hashed_strings);
-            SGL_ASSERT(layout.type == Type::string);
+            SGL_ASSERT(layout.type == Type::printable_string);
             for (uint32_t i = 0; i < value.element_count; ++i) {
                 const int32_t& string_hash = *reinterpret_cast<const int32_t*>(data.data() + i * 4);
                 auto it = hashed_strings->find(string_hash);
@@ -172,7 +172,7 @@ namespace print_buffer {
         case Type::boolean:
             arg_store.push_back(decode_value<bool>(data.subspan(4), layout));
             break;
-        case Type::string:
+        case Type::printable_string:
             arg_store.push_back(decode_value<std::string>(data.subspan(4), layout, &hashed_strings));
             break;
         case Type::int8:
