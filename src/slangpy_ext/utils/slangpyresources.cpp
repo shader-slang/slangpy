@@ -66,11 +66,11 @@ void NativeDescriptorMarshall::write_shader_cursor_pre_dispatch(
     SGL_UNUSED(read_back);
     SGL_UNUSED(context);
 
-    AccessType primal_access = binding->get_access().first;
+    AccessType primal_access = binding->access().first;
     if (primal_access != AccessType::none) {
         SGL_UNUSED(binding);
         SGL_UNUSED(context);
-        ShaderCursor field = cursor[binding->get_variable_name()]["value"];
+        ShaderCursor field = cursor[binding->variable_name()]["value"];
         auto handle = nb::cast<DescriptorHandle>(value);
         field.set_descriptor_handle(handle);
     }
@@ -275,7 +275,7 @@ SGL_PY_EXPORT(utils_slangpy_resources)
         )
         .def("get_shape", &NativeDescriptorMarshall::get_shape, "value"_a, D_NA(NativeDescriptorMarshall, get_shape))
         .def_prop_ro("type", &sgl::slangpy::NativeDescriptorMarshall::type)
-        .def_prop_ro("slang_type", &sgl::slangpy::NativeDescriptorMarshall::get_slang_type);
+        .def_prop_ro("slang_type", &sgl::slangpy::NativeDescriptorMarshall::type);
 
     nb::class_<NativeTextureMarshall, NativeMarshall>(slangpy, "NativeTextureMarshall") //
         .def(
