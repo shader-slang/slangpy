@@ -7,6 +7,28 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.37.0 (October 15, 2025)
+-------
+
+- Update to Slang version 2025.19 with latest shader compilation improvements and bug fixes.
+  (PR `#572 <https://github.com/shader-slang/slangpy/pull/572>`__, PR `#560 <https://github.com/shader-slang/slangpy/pull/560>`__)
+- Update slang-rhi submodule to latest version with improved stability and bug fixes.
+  (PR `#569 <https://github.com/shader-slang/slangpy/pull/569>`__, PR `#550 <https://github.com/shader-slang/slangpy/pull/550>`__, PR `#541 <https://github.com/shader-slang/slangpy/pull/541>`__)
+- Add persistent shader cache implementation based on LMDB for improved compilation performance and caching across sessions.
+  (PR `#561 <https://github.com/shader-slang/slangpy/pull/561>`__, PR `#555 <https://github.com/shader-slang/slangpy/pull/555>`__)
+- Implement string printing support in shaders for improved debugging capabilities.
+  (PR `#566 <https://github.com/shader-slang/slangpy/pull/566>`__)
+- Add support for calling interface parameters with implementing types.
+  (PR `#562 <https://github.com/shader-slang/slangpy/pull/562>`__)
+- Add nanothread library and improve threading support.
+  (PR `#563 <https://github.com/shader-slang/slangpy/pull/563>`__)
+- Fix import determinism to ensure consistent code generation for shader cache compatibility.
+  (PR `#565 <https://github.com/shader-slang/slangpy/pull/565>`__)
+- Fix texture loader for CUDA and improve platform compatibility.
+  (PR `#545 <https://github.com/shader-slang/slangpy/pull/545>`__, PR `#552 <https://github.com/shader-slang/slangpy/pull/552>`__)
+- Fix compute blit functionality and various bug fixes.
+  (PR `#503 <https://github.com/shader-slang/slangpy/pull/503>`__, PR `#546 <https://github.com/shader-slang/slangpy/pull/546>`__, PR `#554 <https://github.com/shader-slang/slangpy/pull/554>`__, PR `#553 <https://github.com/shader-slang/slangpy/pull/553>`__)
+
 Version 0.36.0 (September 30, 2025)
 -------
 
