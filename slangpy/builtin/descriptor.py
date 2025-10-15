@@ -16,13 +16,15 @@ from slangpy.bindings import (
 )
 from slangpy import DescriptorHandle, DescriptorHandleType
 
+
 class DescriptorMarshall(NativeDescriptorMarshall):
     def __init__(self, layout: kfr.SlangProgramLayout, type: DescriptorHandleType):
         st = layout.find_type_by_name("DescriptorHandle<StructuredBuffer<Unknown>>")
         if st is None:
             raise ValueError(
                 f"Could not find DescriptorHandle<StructuredBuffer<Unknown>> slang type. "
-                "This usually indicates the slangpy module has not been imported.")
+                "This usually indicates the slangpy module has not been imported."
+            )
 
         super().__init__(st, type)
 
@@ -42,13 +44,16 @@ class DescriptorMarshall(NativeDescriptorMarshall):
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
-        name = '(None)' if self.slang_type is None else self.slang_type.full_name
-        vec_name = '(None)' if binding.vector_type is None else binding.vector_type.full_name
+        name = "(None)" if self.slang_type is None else self.slang_type.full_name
+        vec_name = "(None)" if binding.vector_type is None else binding.vector_type.full_name
         access = binding.access
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             assert binding.vector_type is not None
-            cgb.type_alias(f"_t_{name}", binding.vector_type.full_name.replace("DescriptorHandle", "DescriptorType"))
+            cgb.type_alias(
+                f"_t_{name}",
+                binding.vector_type.full_name.replace("DescriptorHandle", "DescriptorType"),
+            )
         else:
             cgb.type_alias(f"_t_{name}", f"NoneType")
 
@@ -62,6 +67,7 @@ class DescriptorMarshall(NativeDescriptorMarshall):
         cursor = ShaderCursor(so)
         cursor.write(data)
         return so
+
 
 PYTHON_TYPES[DescriptorHandle] = lambda layout, handle: DescriptorMarshall(layout, handle.type)
 

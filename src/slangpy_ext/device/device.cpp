@@ -133,7 +133,11 @@ SGL_PY_EXPORT(device_device)
         .def_rw("buffer_count", &BindlessDesc::buffer_count, D_NA(BindlessDesc, buffer_count))
         .def_rw("texture_count", &BindlessDesc::texture_count, D_NA(BindlessDesc, texture_count))
         .def_rw("sampler_count", &BindlessDesc::sampler_count, D_NA(BindlessDesc, sampler_count))
-        .def_rw("acceleration_structure_count", &BindlessDesc::acceleration_structure_count, D_NA(BindlessDesc, acceleration_structure_count))
+        .def_rw(
+            "acceleration_structure_count",
+            &BindlessDesc::acceleration_structure_count,
+            D_NA(BindlessDesc, acceleration_structure_count)
+        )
         .def(
             "__init__",
             [](BindlessDesc* self,
@@ -143,10 +147,14 @@ SGL_PY_EXPORT(device_device)
                std::optional<uint32_t> acceleration_structure_count)
             {
                 new (self) BindlessDesc();
-                if (buffer_count) self->buffer_count = *buffer_count;
-                if (texture_count) self->texture_count = *texture_count;
-                if (sampler_count) self->sampler_count = *sampler_count;
-                if (acceleration_structure_count) self->acceleration_structure_count = *acceleration_structure_count;
+                if (buffer_count)
+                    self->buffer_count = *buffer_count;
+                if (texture_count)
+                    self->texture_count = *texture_count;
+                if (sampler_count)
+                    self->sampler_count = *sampler_count;
+                if (acceleration_structure_count)
+                    self->acceleration_structure_count = *acceleration_structure_count;
             },
             "buffer_count"_a = nb::none(),
             "texture_count"_a = nb::none(),

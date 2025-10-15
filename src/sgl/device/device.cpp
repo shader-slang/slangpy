@@ -195,7 +195,7 @@ Device::Device(const DeviceDesc& desc)
 
     rhi::BindlessDesc bindless_desc{
         .bufferCount = m_desc.bindless_options.buffer_count,
-        .textureCount= m_desc.bindless_options.texture_count,
+        .textureCount = m_desc.bindless_options.texture_count,
         .samplerCount = m_desc.bindless_options.sampler_count,
         .accelerationStructureCount = m_desc.bindless_options.acceleration_structure_count,
     };
