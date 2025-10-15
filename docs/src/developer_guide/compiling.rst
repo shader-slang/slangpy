@@ -252,7 +252,7 @@ The following table lists the available configuration options:
       - Enable header validation
     * - ``SGL_MSVC_TOOLSET_VERSION``
       - ``Unset``
-      - Specify an exact MSVC toolset version to use (e.g., `14.38.33130`)
+      - Specify an exact MSVC toolset version to use (e.g., `14.44.35207`)
 
 
 
