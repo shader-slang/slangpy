@@ -19,7 +19,14 @@
 
 namespace sgl::slangpy {
 
-enum class FunctionNodeType { unknown, uniforms, kernelgen, this_ };
+enum class FunctionNodeType {
+    unknown,
+    uniforms,
+    kernelgen,
+    this_,
+    cuda_stream,
+    ray_tracing,
+};
 SGL_ENUM_INFO(
     FunctionNodeType,
     {
@@ -27,11 +34,14 @@ SGL_ENUM_INFO(
         {FunctionNodeType::uniforms, "uniforms"},
         {FunctionNodeType::kernelgen, "kernelgen"},
         {FunctionNodeType::this_, "this"},
+        {FunctionNodeType::cuda_stream, "cuda_stream"},
+        {FunctionNodeType::ray_tracing, "ray_tracing"},
     }
 );
 SGL_ENUM_REGISTER(FunctionNodeType);
 
 class NativeFunctionNode : NativeObject {
+    SGL_OBJECT(NativeFunctionNode)
 public:
     NativeFunctionNode(NativeFunctionNode* parent, FunctionNodeType type, nb::object data)
         : m_parent(parent)
@@ -68,7 +78,13 @@ public:
             options->set_this(m_data);
             break;
         case sgl::slangpy::FunctionNodeType::uniforms:
-            options->get_uniforms().append(m_data);
+            options->uniforms().append(m_data);
+            break;
+        case sgl::slangpy::FunctionNodeType::cuda_stream:
+            options->set_cuda_stream(nb::cast<NativeHandle>(m_data));
+            break;
+        case sgl::slangpy::FunctionNodeType::ray_tracing:
+            options->set_is_ray_tracing(true);
             break;
         default:
             break;
@@ -96,11 +112,20 @@ public:
 
     void append_to(NativeCallDataCache* cache, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 
+    /// Get string representation of the function node.
+    std::string to_string() const override;
+
     virtual ref<NativeCallData> generate_call_data(nb::args args, nb::kwargs kwargs)
     {
         SGL_UNUSED(args);
         SGL_UNUSED(kwargs);
         return nullptr;
+    }
+
+    void garbage_collect()
+    {
+        m_parent = nullptr;
+        m_data = nb::none();
     }
 
 private:

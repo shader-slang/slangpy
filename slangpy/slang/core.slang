@@ -12,6 +12,7 @@ public struct ContextND<let N: int>
         get {
             vector<int, N> result;
             int end = N - 1;
+            [ForceUnroll]
             for (int i = 0; i < N; ++i)
                 result[i] = call_id[end-i];
             return result;
@@ -27,6 +28,7 @@ public struct ContextND<let N: int>
     {
         ContextND<M> result;
         result.thread_id = thread_id;
+        [ForceUnroll]
         for (int i = 0; i < M; ++i)
             result.call_id[i] = call_id[mapping[i]];
         return result;
@@ -46,12 +48,14 @@ public struct Unknown {}
 
 int _idx<let N : int>(int[N] index, int[N] stride) {
     int idx = 0;
+    [ForceUnroll]
     for (int i = 0; i < N; i++) { idx += index[i] * stride[i]; }
     return idx;
 }
 
 int _idx<let N : int>(ContextND<N> index, int[N] stride) {
     int idx = 0;
+    [ForceUnroll]
     for (int i = 0; i < N; i++) { idx += index.call_id[i] * stride[i]; }
     return idx;
 }
@@ -61,6 +65,7 @@ int _idx<let N : int>(ContextND<N> index, int[N] stride) {
 int _idx_vec<let N : int>(vector<int,N> index, int[N] stride) {
     int idx = 0;
     int end = N - 1;
+    [ForceUnroll]
     for (int i = 0; i < N; i++) { idx += index[end-i] * stride[i]; }
     return idx;
 }
@@ -83,6 +88,11 @@ public struct ImplicitCast<N>
 
 public struct NoneType
 {
+    // TODO: This is a workaround for slang issue
+    // https://github.com/shader-slang/slang/issues/8125
+#ifdef __TARGET_CUDA__
+    int dummy;
+#endif
     public void load<T, let N : int>(ContextND<N> context, out T value) { value = T();}
     public void store<T, let N : int>(ContextND<N> context, in T value) {};
 }
@@ -298,6 +308,7 @@ public struct StridedLayout<let D : int>
     public int at(int[D] idx)
     {
         int result = offset;
+        [ForceUnroll]
         for (int i = 0; i < D; ++i)
             result += strides[i] * idx[i];
         return result;
@@ -308,6 +319,7 @@ public struct StridedLayout<let D : int>
     int at_vec(vector<int, D> index) {
         int result = offset;
         int end = D - 1;
+        [ForceUnroll]
         for (int i = 0; i < D; i++) { result += index[end - i] * strides[i]; }
         return result;
     }
@@ -317,10 +329,12 @@ public struct StridedLayout<let D : int>
     {
         StridedLayout<SliceD> result;
 
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             result.strides[i] = strides[D - SliceD + i];
 
         result.offset = offset;
+        [ForceUnroll]
         for (int i = 0; i < D - SliceD; ++i)
             result.offset += strides[i] * idx[i];
 
@@ -361,8 +375,10 @@ public struct NDBuffer<T, let N : int>
     public void load<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
 
         int call_id[N];
+        [ForceUnroll]
         for (int i = 0; i < N - 1; i++) { call_id[i] = context.call_id[i]; }
 
+        [ForceUnroll]
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
             value[vi] = get(call_id);
@@ -373,11 +389,14 @@ public struct NDBuffer<T, let N : int>
 
     public void load<let R : int, let C: int>(ContextND<N - 2> context, out matrix<T, R, C> value) {
         int call_id[N];
+        [ForceUnroll]
         for (int i = 0; i < N - 2; i++) { call_id[i] = context.call_id[i]; }
 
+        [ForceUnroll]
         for (int r = 0; r < R; r++)
         {
             call_id[N - 2] = r;
+            [ForceUnroll]
             for (int vi = 0; vi < C; vi++) {
                 call_id[N - 1] = vi;
                 value[r][vi] = get(call_id);
@@ -434,8 +453,10 @@ public struct RWNDBuffer<T, let N : int>
 
     public void load<let VD : int>(ContextND<N - 1> context, out vector<T, VD> value) {
         int call_id[N];
+        [ForceUnroll]
         for (int i = 0; i < N-1; i++) { call_id[i] = context.call_id[i]; }
 
+        [ForceUnroll]
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
             value[vi] = get(call_id);
@@ -444,8 +465,10 @@ public struct RWNDBuffer<T, let N : int>
 
     public void store<let VD : int>(ContextND<N - 1> context, in vector<T, VD> value) {
         int call_id[N];
+        [ForceUnroll]
         for (int i = 0; i < N - 1; i++) { call_id[i] = context.call_id[i]; }
 
+        [ForceUnroll]
         for (int vi = 0; vi < VD; vi++) {
             call_id[N - 1] = vi;
             set(call_id, value[vi]);
@@ -454,11 +477,14 @@ public struct RWNDBuffer<T, let N : int>
 
     public void load<let R : int, let C: int>(ContextND<N - 2> context, out matrix<T, R, C> value) {
         int call_id[N];
+        [ForceUnroll]
         for (int i = 0; i < N - 2; i++) { call_id[i] = context.call_id[i]; }
 
+        [ForceUnroll]
         for (int r = 0; r < R; r++)
         {
             call_id[N - 2] = r;
+            [ForceUnroll]
             for (int vi = 0; vi < C; vi++) {
                 call_id[N - 1] = vi;
                 value[r][vi] = get(call_id);
@@ -468,11 +494,14 @@ public struct RWNDBuffer<T, let N : int>
 
     public void store<let R : int, let C: int>(ContextND<N - 2> context, in matrix<T, R, C> value) {
         int call_id[N];
+        [ForceUnroll]
         for (int i = 0; i < N - 2; i++) { call_id[i] = context.call_id[i]; }
 
+        [ForceUnroll]
         for (int r = 0; r < R; r++)
         {
             call_id[N - 2] = r;
+            [ForceUnroll]
             for (int vi = 0; vi < C; vi++) {
                 call_id[N - 1] = vi;
                 set(call_id, value[r][vi]);
@@ -494,10 +523,11 @@ public extension<let N:int> RWNDBuffer<uint64_t,N>
     public void store<T>(ContextND<N> context, in Ptr<T> value) { set(context.call_id, uint64_t(value)); };
 }
 
+// #pragma warning(push)
+// #pragma warning(disable: 30856)
 
 namespace impl
 {
-
     // Utility interface to check if a python type is safe to replace by the target
     // slang type. This works around mismatches between the type systems: Python e.g.
     // only knows float or int, but slang has a much wider array of scalar types;
@@ -550,5 +580,6 @@ namespace impl
     // We attempt to specialize allowedConversionWitness with types [A, B]
     // If it succeeds, the interface requirements are satisfied.
     struct AllowedConversionWitness<From, To : IConvertibleFrom<From>> {}
-
 }
+
+// #pragma warning(pop)

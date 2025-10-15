@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Callable
+
+import pytest
 import numpy as np
 import numpy.typing as npt
-import pytest
-
 from slangpy import DeviceType, float3, uint3
 from slangpy.experimental.gridarg import grid
-from . import helpers
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.callidarg import call_id
 from slangpy.types.randfloatarg import RandFloatArg, rand_float
 from slangpy.types.threadidarg import thread_id
 from slangpy.types.wanghasharg import WangHashArg, calc_wang_hash_numpy, wang_hash
+from slangpy.testing import helpers
+
+from typing import Any, Callable
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -344,7 +345,6 @@ float3 rand_float(float3 input) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_rand_float_uniformity(device_type: DeviceType):
-
     bucket_size = 17
 
     # Create function that atomically increments counts
@@ -362,9 +362,11 @@ void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
 
     # Make buffer for bucket of counts
     buckets = NDBuffer(element_count=bucket_size, device=device, dtype=int)
+    buckets.clear()
 
-    # Run bucketer with 1B random floats
-    count = 1 * 1000 * 1000 * 1000
+    # Run bucketer with 1M random floats
+    # TODO: Find out why this took insanely long to run on CUDA with 1B floats
+    count = 1 * 1000 * 1000
     bucket_values(grid((count,)), buckets.storage, rand_float())
 
     # Verify the distribution of values in range [0,1) is roughly even
@@ -373,7 +375,7 @@ void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
     for i in range(bucket_size - 1):
         bucket = float(res[i])
         rel_diff = abs(bucket - expected_count_per_bucket) / expected_count_per_bucket
-        assert rel_diff < 0.0001
+        assert rel_diff < 0.005
 
     # Verify 1 never turns up
     assert res[bucket_size - 1] == 0
@@ -451,4 +453,4 @@ int range_test(int input) {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

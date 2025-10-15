@@ -1103,6 +1103,10 @@ R"doc(Returns a pointer to the CUDA memory. This is only supported if the
 buffer was created with ResourceUsage::shared and the device has CUDA
 interop enabled.)doc";
 
+static const char *__doc_sgl_Buffer_descriptor_handle_ro = R"doc(Get bindless descriptor handle for read access.)doc";
+
+static const char *__doc_sgl_Buffer_descriptor_handle_rw = R"doc(Get bindless descriptor handle for read-write access.)doc";
+
 static const char *__doc_sgl_Buffer_desc = R"doc()doc";
 
 static const char *__doc_sgl_Buffer_device_address = R"doc()doc";
@@ -2380,23 +2384,23 @@ static const char *__doc_sgl_DeviceLimits_max_viewport_dimensions = R"doc(Maximu
 
 static const char *__doc_sgl_DeviceLimits_max_viewports = R"doc(Maximum number of viewports per pipeline.)doc";
 
-static const char *__doc_sgl_DeviceResource = R"doc()doc";
+static const char *__doc_sgl_DeviceChild = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_DeviceResource = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_DeviceChild = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_MemoryUsage = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_MemoryUsage = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_MemoryUsage_device = R"doc(The amount of memory in bytes used on the device.)doc";
+static const char *__doc_sgl_DeviceChild_MemoryUsage_device = R"doc(The amount of memory in bytes used on the device.)doc";
 
-static const char *__doc_sgl_DeviceResource_MemoryUsage_host = R"doc(The amount of memory in bytes used on the host.)doc";
+static const char *__doc_sgl_DeviceChild_MemoryUsage_host = R"doc(The amount of memory in bytes used on the host.)doc";
 
-static const char *__doc_sgl_DeviceResource_class_name = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_class_name = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_device = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_device = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_m_device = R"doc()doc";
+static const char *__doc_sgl_DeviceChild_m_device = R"doc()doc";
 
-static const char *__doc_sgl_DeviceResource_memory_usage = R"doc(The memory usage by this resource.)doc";
+static const char *__doc_sgl_DeviceChild_memory_usage = R"doc(The memory usage by this resource.)doc";
 
 static const char *__doc_sgl_DeviceType = R"doc()doc";
 
@@ -7548,7 +7552,23 @@ static const char *__doc_sgl_TypeReflection_to_string = R"doc()doc";
 
 static const char *__doc_sgl_TypeReflection_total_element_count = R"doc()doc";
 
+static const char *__doc_sgl_TypeReflection_get_user_attribute_count = R"doc()doc";
+
+static const char *__doc_sgl_TypeReflection_get_user_attribute_by_index = R"doc()doc";
+
+static const char *__doc_sgl_TypeReflection_find_user_attribute_by_name = R"doc()doc";
+
 static const char *__doc_sgl_TypeReflection_unwrap_array = R"doc()doc";
+
+static const char *__doc_sgl_Attribute = R"doc()doc";
+
+static const char *__doc_sgl_Attribute_argument_count = R"doc()doc";
+
+static const char *__doc_sgl_Attribute_name = R"doc()doc";
+
+static const char *__doc_sgl_Attribute_to_string = R"doc()doc";
+
+static const char *__doc_sgl_Attribute_argument_type = R"doc()doc";
 
 static const char *__doc_sgl_UnownedSlangBlob =
 R"doc(Implementation of slang's ISlangBlob interface to access an unowned

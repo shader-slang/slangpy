@@ -103,6 +103,8 @@ namespace detail {
 /// Helper for throwing an exception if a pointer is null.
 #define SGL_CHECK_NOT_NULL(arg) SGL_CHECK(arg != nullptr, "\"{}\" must not be null", #arg)
 
+#define SGL_CHECK_EQ(arg, value) SGL_CHECK(arg == value, "\"{}\" must be equal to {}", #arg, value)
+#define SGL_CHECK_NE(arg, value) SGL_CHECK(arg != value, "\"{}\" must not be equal to {}", #arg, value)
 #define SGL_CHECK_LT(arg, value) SGL_CHECK(arg < value, "\"{}\" must be less than {}", #arg, value)
 #define SGL_CHECK_LE(arg, value) SGL_CHECK(arg <= value, "\"{}\" must be less than or equal {}", #arg, value)
 #define SGL_CHECK_GT(arg, value) SGL_CHECK(arg > value, "\"{}\" must be greater than {}", #arg, value)

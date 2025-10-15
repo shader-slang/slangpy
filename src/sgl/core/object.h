@@ -14,12 +14,16 @@
 extern "C" {
 struct _object;
 typedef _object PyObject;
+typedef int64_t Py_ssize_t_;
+static_assert(sizeof(Py_ssize_t_) == sizeof(size_t));
 };
 
 /// Enable/disable object lifetime tracking.
 /// When enabled, each object derived from Object will have its
 /// lifetime tracked. This is useful for debugging memory leaks.
+#ifndef SGL_ENABLE_OBJECT_TRACKING
 #define SGL_ENABLE_OBJECT_TRACKING 0
+#endif
 
 /// Enable/disable reference tracking.
 /// When enabled, all references to an object that has reference tracking
@@ -27,7 +31,9 @@ typedef _object PyObject;
 /// count is increased, the current stack trace is stored. This helps identify
 /// owners of objects that are not properly releasing their references.
 /// Optionally all references can be tracked by setting SGL_TRACK_ALL_REFS.
+#ifndef SGL_ENABLE_REF_TRACKING
 #define SGL_ENABLE_REF_TRACKING 0
+#endif
 
 #if SGL_ENABLE_REF_TRACKING
 #if !SGL_ENABLE_OBJECT_TRACKING
@@ -136,8 +142,8 @@ public:
     virtual std::string to_string() const;
 
 #if SGL_ENABLE_OBJECT_TRACKING
-    /// Report all objects that are currently alive.
-    static void report_alive_objects();
+    /// Reports current set of live objects.
+    static void report_live_objects();
 
     /// Report references of this object.
     void report_refs() const;
@@ -186,11 +192,14 @@ public:                                                                         
  * Python reference counting functionality will simply not be used.
  *
  * Python binding code must invoke `object_init_py` and provide functions that
- * can be used to increase/decrease the Python reference count of an instance
- * (i.e., `Py_INCREF` / `Py_DECREF`).
+ * can be used to increase/decrease/get the Python reference count of an instance
+ * (i.e., `Py_INCREF` / `Py_DECREF` / `Py_REFCNT`).
  */
-SGL_API void
-object_init_py(void (*object_inc_ref_py)(PyObject*) noexcept, void (*object_dec_ref_py)(PyObject*) noexcept);
+SGL_API void object_init_py(
+    void (*object_inc_ref_py)(PyObject*) noexcept,
+    void (*object_dec_ref_py)(PyObject*) noexcept,
+    Py_ssize_t_ (*object_ref_cnt_py)(PyObject*) noexcept
+);
 
 
 #if SGL_ENABLE_REF_TRACKING

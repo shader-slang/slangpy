@@ -1,17 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
 import hashlib
 import random
-from typing import Any
-import pytest
-import slangpy as spy
-import sys
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
-from sglhelpers import test_id  # type: ignore (pytest fixture)
+import slangpy as spy
+from slangpy.testing import helpers
+
+from typing import Any
 
 TESTS = [
     ("f_bool", "bool", "true", True),
@@ -236,7 +233,7 @@ TESTS = [
 def get_tests(device_type: spy.DeviceType):
     if device_type not in [spy.DeviceType.cuda, spy.DeviceType.metal]:
         return TESTS
-    tests = [x for x in TESTS if "bool" not in x[0]]
+    tests = [x for x in TESTS if "bool1" not in x[0]]
     return tests
 
 
@@ -337,8 +334,6 @@ def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
 
     # Randomize the order of the tests
     tests = get_tests(device_type).copy()
-    if device_type == spy.DeviceType.cuda:
-        tests = [x for x in tests if "bool" not in x[0]]
     random.seed(seed)
     random.shuffle(tests)
 
@@ -346,7 +341,7 @@ def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
     (kernel, resource_type_layout) = make_fill_in_module(device_type, tests)
 
     # Create a buffer cursor with its own data
-    cursor = spy.BufferCursor(resource_type_layout.element_type_layout, 1)
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
 
     # Populate the first element
     element = cursor[0]
@@ -355,7 +350,7 @@ def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
         element[name] = value
 
     # Create new cursor by copying the first, and read element
-    cursor2 = spy.BufferCursor(resource_type_layout.element_type_layout, 1)
+    cursor2 = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
     cursor2.copy_from_numpy(cursor.to_numpy())
     element2 = cursor2[0]
 
@@ -389,7 +384,7 @@ def test_fill_from_kernel(device_type: spy.DeviceType, seed: int):
     kernel.dispatch([count, 1, 1], buffer=buffer)
 
     # Create a cursor and read the buffer by copying its data
-    cursor = spy.BufferCursor(resource_type_layout.element_type_layout, count)
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, count)
     cursor.copy_from_numpy(buffer.to_numpy())
 
     # Verify data matches
@@ -453,7 +448,7 @@ def test_cursor_lifetime(device_type: spy.DeviceType):
     (kernel, resource_type_layout) = make_fill_in_module(device_type, get_tests(device_type))
 
     # Create a buffer cursor with its own data
-    cursor = spy.BufferCursor(resource_type_layout.element_type_layout, 1)
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
 
     # Get element
     element = cursor[0]

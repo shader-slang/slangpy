@@ -39,6 +39,7 @@ namespace print_buffer {
         float16,
         float32,
         float64,
+        printable_string,
         count,
     };
     static_assert(int(Type::count) <= 16, "Type is encoded in 4 bits");
@@ -102,7 +103,11 @@ namespace sgl {
 namespace print_buffer {
 
     template<typename T>
-    inline Value<T> decode_value(std::span<const uint8_t> data, const Layout layout)
+    inline Value<T> decode_value(
+        std::span<const uint8_t> data,
+        const Layout layout,
+        const std::map<uint32_t, std::string>* hashed_strings = nullptr
+    )
     {
         Value<T> value;
         value.layout = layout;
@@ -123,17 +128,35 @@ namespace print_buffer {
 
         SGL_ASSERT(value.element_count <= Value<T>::MAX_ELEMENT_COUNT);
 
-        // Elements are aligned to 4 bytes.
-        uint32_t element_size = ((uint32_t(sizeof(T)) + 3) / 4) * 4;
-        SGL_ASSERT(data.size() >= element_size * value.element_count);
+        if constexpr (std::is_same_v<T, std::string_view>) {
+            SGL_ASSERT(hashed_strings);
+            SGL_ASSERT(layout.type == Type::printable_string);
+            for (uint32_t i = 0; i < value.element_count; ++i) {
+                const int32_t& string_hash = *reinterpret_cast<const int32_t*>(data.data() + i * 4);
+                auto it = hashed_strings->find(string_hash);
+                if (it != hashed_strings->end())
+                    value.elements[i] = it->second;
+                else
+                    value.elements[i] = "<unknown string>";
+            }
+            return value;
+        } else {
+            // Elements are aligned to 4 bytes.
+            uint32_t element_size = ((uint32_t(sizeof(T)) + 3) / 4) * 4;
+            SGL_ASSERT(data.size() >= element_size * value.element_count);
 
-        for (uint32_t i = 0; i < value.element_count; ++i)
-            std::memcpy(&value.elements[i], data.data() + i * element_size, element_size);
+            for (uint32_t i = 0; i < value.element_count; ++i)
+                std::memcpy(&value.elements[i], data.data() + i * element_size, element_size);
 
-        return value;
+            return value;
+        }
     }
 
-    inline void decode_arg(std::span<const uint8_t> data, fmt::dynamic_format_arg_store<fmt::format_context>& arg_store)
+    inline void decode_arg(
+        std::span<const uint8_t> data,
+        fmt::dynamic_format_arg_store<fmt::format_context>& arg_store,
+        const std::map<uint32_t, std::string>& hashed_strings
+    )
     {
         SGL_ASSERT(data.size() >= 4);
         uint32_t header = *reinterpret_cast<const uint32_t*>(data.data());
@@ -182,6 +205,9 @@ namespace print_buffer {
         case Type::float64:
             arg_store.push_back(decode_value<double>(data.subspan(4), layout));
             break;
+        case Type::printable_string:
+            arg_store.push_back(decode_value<std::string_view>(data.subspan(4), layout, &hashed_strings));
+            break;
         default:
             SGL_THROW("Invalid argument type in print()");
         }
@@ -207,7 +233,7 @@ namespace print_buffer {
         for (uint32_t i = 0; i < arg_count; ++i) {
             uint32_t arg_size = *reinterpret_cast<const uint32_t*>(ptr) & 0xffff;
             SGL_ASSERT(ptr + arg_size <= end);
-            decode_arg(std::span(ptr, arg_size), arg_store);
+            decode_arg(std::span(ptr, arg_size), arg_store, hashed_strings);
             ptr += arg_size;
         }
 

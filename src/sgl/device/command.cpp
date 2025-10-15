@@ -84,6 +84,11 @@ void PassEncoder::insert_debug_marker(const char* name, float3 color)
     m_rhi_pass_encoder->insertDebugMarker(name, rhi::MarkerColor{color.r, color.g, color.b});
 }
 
+void PassEncoder::write_timestamp(QueryPool* query_pool, uint32_t index)
+{
+    m_rhi_pass_encoder->writeTimestamp(query_pool->rhi_query_pool(), index);
+}
+
 void PassEncoder::end()
 {
     SGL_CHECK(m_rhi_pass_encoder, "Pass encoder already ended");
@@ -204,7 +209,8 @@ void ComputePassEncoder::dispatch(uint3 thread_count)
     uint3 thread_group_count{
         div_round_up(thread_count.x, m_thread_group_size.x),
         div_round_up(thread_count.y, m_thread_group_size.y),
-        div_round_up(thread_count.z, m_thread_group_size.z)};
+        div_round_up(thread_count.z, m_thread_group_size.z)
+    };
     dispatch_compute(thread_group_count);
 }
 
@@ -270,7 +276,7 @@ void RayTracingPassEncoder::end()
 // ----------------------------------------------------------------------------
 
 CommandEncoder::CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_rhi_command_encoder(std::move(rhi_command_encoder))
     , m_open(true)
 {
@@ -508,7 +514,8 @@ void CommandEncoder::upload_buffer_data(Buffer* buffer, size_t offset, size_t si
 
     set_buffer_state(buffer, ResourceState::copy_destination);
 
-    SLANG_RHI_CALL(m_rhi_command_encoder->uploadBufferData(buffer->rhi_buffer(), offset, size, const_cast<void*>(data))
+    SLANG_RHI_CALL(
+        m_rhi_command_encoder->uploadBufferData(buffer->rhi_buffer(), offset, size, const_cast<void*>(data))
     );
 }
 
@@ -864,7 +871,7 @@ std::string CommandEncoder::to_string() const
 // ----------------------------------------------------------------------------
 
 CommandBuffer::CommandBuffer(ref<Device> device, Slang::ComPtr<rhi::ICommandBuffer> command_buffer)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_rhi_command_buffer(std::move(command_buffer))
 {
 }

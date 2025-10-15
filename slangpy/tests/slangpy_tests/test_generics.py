@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import pytest
-
-from . import helpers
-from slangpy import DeviceType, TypeReflection
-from slangpy.types.buffer import NDBuffer
-
 import numpy as np
 
+from slangpy import DeviceType, TypeReflection
+from slangpy.types.buffer import NDBuffer
 from slangpy.types.tensor import Tensor
+from slangpy.testing import helpers
 
 
 def do_generic_test(
@@ -96,9 +95,6 @@ def test_generic_matrix(device_type: DeviceType, container_type: str, dim: int):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("explicit", [True, False])
 def test_arithmetic_generic_arguments_bug(device_type: DeviceType, explicit: bool):
-    if device_type == DeviceType.cuda:
-        pytest.skip("Slang CUDA backend generates invalid code")
-
     # This test reproduces a Slang issue: https://github.com/shader-slang/slang/issues/6463
     # Attempting to resolve a generic with arithmetic arguments fails. When the test is
     # run with 'explicit' specialization, we generate and succesfully find the function.

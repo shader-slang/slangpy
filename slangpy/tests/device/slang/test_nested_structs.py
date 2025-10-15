@@ -1,24 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import sys
 import pytest
-import slangpy as spy
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_nested_structs(device_type: spy.DeviceType):
-    if device_type in [spy.DeviceType.cuda, spy.DeviceType.metal]:
-        pytest.skip(
-            "bool is currently not handled correctly on CUDA/Metal, see issue: https://github.com/shader-slang/slangpy/issues/274"
-        )
     device = helpers.get_device(device_type)
 
-    program = device.load_program("slang/test_nested_structs.slang", ["compute_main"])
+    program = device.load_program("test_nested_structs.slang", ["compute_main"])
     kernel = device.create_compute_kernel(program)
 
     result_buffer = device.create_buffer(
@@ -96,4 +89,4 @@ def test_nested_structs(device_type: spy.DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

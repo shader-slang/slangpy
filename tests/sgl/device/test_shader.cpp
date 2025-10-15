@@ -70,14 +70,14 @@ TEST_CASE_GPU("shader")
     setup_testshader_files(dir);
 
     // Just verify module loads.
-    SUBCASE("load module")
+    SUBCASE("load_module")
     {
         ref<SlangModule> module = ctx.device->load_module((dir / "_testshader_simple.slang").string());
         CHECK(module);
     }
 
     // Load a module with no external dependencies and verify it only depends on itself.
-    SUBCASE("single module dependency")
+    SUBCASE("single_module_dependency")
     {
         ref<SlangModule> module = ctx.device->load_module((dir / "_testshader_simple.slang").string());
         CHECK_EQ(module->slang_module()->getDependencyFileCount(), 1);
@@ -86,10 +86,10 @@ TEST_CASE_GPU("shader")
     }
 
     // Load a module with a 2-stage dependency chain and verify all 3 dependencies.
-    SUBCASE("multi module dependency")
+    SUBCASE("multi_module_dependency")
     {
         ref<SlangModule> module = ctx.device->load_module((dir / "_testshader_dependent.slang").string());
-        CHECK_EQ(module->slang_module()->getDependencyFileCount(), 3);
+        REQUIRE_EQ(module->slang_module()->getDependencyFileCount(), 3);
         std::vector<std::filesystem::path> paths{
             module->slang_module()->getDependencyFilePath(0),
             module->slang_module()->getDependencyFilePath(1),

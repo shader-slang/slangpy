@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any
 
 import pytest
 
+from slangpy import DeviceType, TypeReflection, Module
 from slangpy.core.native import Shape
-
-import slangpy.bindings.typeregistry as tr
-from . import helpers
-from slangpy import Module
-from slangpy import DeviceType, TypeReflection
 from slangpy.bindings.marshall import BindContext, Marshall
 from slangpy.bindings.boundvariable import BoundVariable
 from slangpy.bindings.codegen import CodeGenBlock
 from slangpy.reflection import SlangProgramLayout, SlangType
+from slangpy.testing import helpers
+import slangpy.bindings.typeregistry as tr
+
+from typing import Any
+
 
 TEST_MODULE = """
 import slangpy;
@@ -71,9 +71,6 @@ tr.PYTHON_TYPES[Foo] = create_test_impl
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_specialization(device_type: DeviceType):
-    if device_type == DeviceType.cuda:
-        pytest.skip("Slang CUDA backend generates invalid code")
-
     device = helpers.get_device(device_type)
     module = Module(device.load_module_from_source("test_specialization", TEST_MODULE))
 

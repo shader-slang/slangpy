@@ -43,6 +43,8 @@ target_sources(sgl PRIVATE
     core/memory_stream.h
     core/object.cpp
     core/object.h
+    core/lmdb_cache.cpp
+    core/lmdb_cache.h
     core/platform_linux.cpp
     core/platform_macos.cpp
     core/platform_windows.cpp
@@ -82,8 +84,8 @@ target_sources(sgl PRIVATE
     device/cursor_utils.cpp
     device/cursor_utils.h
     device/debug_logger.h
-    device/device_resource.cpp
-    device/device_resource.h
+    device/device_child.cpp
+    device/device_child.h
     device/device.cpp
     device/device.h
     device/fence.cpp
@@ -102,6 +104,8 @@ target_sources(sgl PRIVATE
     device/native_formats.h
     device/nvapi.slang
     device/nvapi.slangh
+    device/persistent_cache.cpp
+    device/persistent_cache.h
     device/pipeline.cpp
     device/pipeline.h
     device/print.cpp
@@ -197,6 +201,7 @@ target_compile_options(sgl
             /wd4275                         # non dll-interface class 'type' used as base for dll-interface class 'type2'
             /external:templates-            # Allows warnings from external headers when they occur in a template that's instantiated in your code.
             # Enable warnings that are disabled with /W4
+            /we4062                         # enumerator 'identifier' in switch of enum 'enumeration' is not handled
             /we4263                         # 'function': member function does not override any base class virtual member function
             /we4264                         # 'virtual_function': no override available for virtual member function from base 'class'; function is hidden
             /we5038                         # data member 'member1' will be initialized after data member 'member2'
@@ -209,6 +214,7 @@ target_compile_options(sgl
             -fvisibility=hidden             # hide symbols by default
             -Wall                           # set warning level
             -Wextra                         # enable extra warnings
+            -Werror                         # treat warnings as errors
             -Wno-unused-function
             -Wno-unused-variable
             -Wno-unused-but-set-variable
@@ -220,13 +226,19 @@ target_compile_options(sgl
         >
         # Clang flags.
         $<$<CXX_COMPILER_ID:Clang>:
+            -Wno-unknown-warning-option
             -Wno-unused-private-field
             -Wno-braced-scalar-init
             -Wno-self-assign-overloaded
             -Wno-deprecated-copy
+            -Wno-microsoft-cast
+
+            # this is for ImGUI only
+            -Wno-nontrivial-memcall
         >
         # GCC flags.
         $<$<CXX_COMPILER_ID:GNU>:
+            -Wno-unknown-warning
             -Wno-literal-suffix
             -Wno-class-memaccess
             -Wno-strict-aliasing
@@ -335,6 +347,7 @@ target_include_directories(sgl PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TY
 target_link_libraries(sgl
     PUBLIC
         fmt::fmt
+        nanothread
         slang
         slang-rhi
         slang-rhi-vulkan-headers
@@ -345,6 +358,7 @@ target_link_libraries(sgl
         git_version
         glfw
         tevclient
+        lmdb
         $<$<BOOL:${SGL_HAS_D3D12}>:d3d12>
         $<$<BOOL:${SGL_HAS_LIBPNG}>:PNG::PNG>
         $<$<BOOL:${SGL_HAS_LIBJPEG}>:JPEG::JPEG>

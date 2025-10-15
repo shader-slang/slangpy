@@ -65,11 +65,22 @@ def _on_device_close(device: Device):
     del global_lookup_modules[device]
 
 
+def _load_lookup_module(device: Device):
+    dummy_module = device.load_module_from_source("slangpy_layout", 'import "slangpy";')
+    global_lookup_modules[device] = SlangProgramLayout(dummy_module.layout)
+
+
+def _hot_reload_lookup_module(device: Device):
+    if device in global_lookup_modules:
+        dummy_module = device.load_module_from_source("slangpy_layout", 'import "slangpy";')
+        global_lookup_modules[device].on_hot_reload(dummy_module.layout)
+
+
 def get_lookup_module(device: Device) -> SlangProgramLayout:
     if device not in global_lookup_modules:
-        dummy_module = device.load_module_from_source("slangpy_layout", 'import "slangpy";')
-        global_lookup_modules[device] = SlangProgramLayout(dummy_module.layout)
+        _load_lookup_module(device)
         device.register_device_close_callback(_on_device_close)
+        device.register_shader_hot_reload_callback(lambda _: _hot_reload_lookup_module(device))
 
     return global_lookup_modules[device]
 
@@ -129,11 +140,11 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
         if element_type.module.layout == program_layout:
             element_type = element_type.struct
         else:
-            element_type = program_layout.find_type_by_name(element_type.name)
+            element_type = program_layout.find_type_by_name(element_type.full_name)
     elif isinstance(element_type, TypeReflection):
-        element_type = program_layout.find_type(element_type)
+        element_type = program_layout.find_type_by_name(element_type.full_name)
     elif isinstance(element_type, TypeLayoutReflection):
-        element_type = program_layout.find_type(element_type.type)
+        element_type = program_layout.find_type_by_name(element_type.type.full_name)
     elif isinstance(element_type, Marshall):
         if element_type.slang_type.program == program_layout:
             element_type = element_type.slang_type

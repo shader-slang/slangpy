@@ -13,6 +13,7 @@ namespace sgl {
 
 static void (*object_inc_ref_py)(PyObject*) noexcept = nullptr;
 static void (*object_dec_ref_py)(PyObject*) noexcept = nullptr;
+static Py_ssize_t_ (*object_ref_cnt_py)(PyObject*) noexcept = nullptr;
 
 #if SGL_ENABLE_OBJECT_TRACKING
 static std::mutex s_tracked_objects_mutex;
@@ -116,17 +117,30 @@ PyObject* Object::self_py() const noexcept
 
 #if SGL_ENABLE_OBJECT_TRACKING
 
-void Object::report_alive_objects()
+void Object::report_live_objects()
 {
     std::lock_guard<std::mutex> lock(s_tracked_objects_mutex);
-    fmt::println("Alive objects:");
-    for (const Object* object : s_tracked_objects)
-        object->report_refs();
+    if (!s_tracked_objects.empty()) {
+        fmt::println("Found {} live objects!", s_tracked_objects.size());
+        for (const Object* object : s_tracked_objects) {
+            uint64_t ref_count = object->ref_count();
+            PyObject* self_py = object->self_py();
+            if (self_py)
+                ref_count = object_ref_cnt_py(self_py);
+            fmt::println(
+                "Live object: {} self_py={} ref_count={} class_name=\"{}\"",
+                fmt::ptr(object),
+                self_py ? fmt::ptr(self_py) : "null",
+                ref_count,
+                object->class_name()
+            );
+            object->report_refs();
+        }
+    }
 }
 
 void Object::report_refs() const
 {
-    fmt::println("Object (class={} address={}) has {} reference(s)", class_name(), fmt::ptr(this), ref_count());
 #if SGL_ENABLE_REF_TRACKING
     std::lock_guard<std::mutex> lock(m_ref_trackers_mutex);
     for (const auto& it : m_ref_trackers) {
@@ -180,10 +194,15 @@ void Object::set_enable_ref_tracking(bool enable)
 
 #endif // SGL_ENABLE_REF_TRACKING
 
-void object_init_py(void (*object_inc_ref_py_)(PyObject*) noexcept, void (*object_dec_ref_py_)(PyObject*) noexcept)
+void object_init_py(
+    void (*object_inc_ref_py_)(PyObject*) noexcept,
+    void (*object_dec_ref_py_)(PyObject*) noexcept,
+    Py_ssize_t_ (*object_ref_cnt_py_)(PyObject*) noexcept
+)
 {
     object_inc_ref_py = object_inc_ref_py_;
     object_dec_ref_py = object_dec_ref_py_;
+    object_ref_cnt_py = object_ref_cnt_py_;
 }
 
 } // namespace sgl

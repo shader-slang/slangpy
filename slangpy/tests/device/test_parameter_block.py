@@ -2,12 +2,9 @@
 
 import pytest
 import numpy as np
-import slangpy as spy
-import sys
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 # The shader code is in test_parameterBlock.slang, fill in the parameter block
@@ -16,9 +13,10 @@ import sglhelpers as helpers
 # to test the ParameterBlock binding.
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_parameter_block(device_type: spy.DeviceType):
-    # Create device
-    print(f"Testing {device_type}")
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Crash in slang-rhi due to invalid reflection data")
 
+    # Create device
     device = helpers.get_device(type=device_type)
 
     if not device.has_feature(spy.Feature.parameter_block):

@@ -63,7 +63,8 @@ SGL_PY_EXPORT(device_shader)
                 new (self) TypeConformance{
                     nb::cast<std::string>(tuple[0]),
                     nb::cast<std::string>(tuple[1]),
-                    tuple.size() > 2 ? nb::cast<int32_t>(tuple[2]) : -1};
+                    tuple.size() > 2 ? nb::cast<int32_t>(tuple[2]) : -1
+                };
             }
         )
         .def_rw("interface_name", &TypeConformance::interface_name, D(TypeConformance, interface_name))
@@ -233,7 +234,7 @@ SGL_PY_EXPORT(device_shader)
         .def("rename", &SlangEntryPoint::rename, "new_name"_a, D(SlangEntryPoint, rename))
         .def("with_name", &SlangEntryPoint::with_name, "new_name"_a, D(SlangEntryPoint, with_name));
 
-    nb::class_<ShaderProgram, DeviceResource>(m, "ShaderProgram", D(ShaderProgram))
+    nb::class_<ShaderProgram, DeviceChild>(m, "ShaderProgram", D(ShaderProgram))
         .def_prop_ro("layout", &ShaderProgram::layout, D(ShaderProgram, layout))
         .def_prop_ro("reflection", &ShaderProgram::reflection, D(ShaderProgram, reflection));
 }

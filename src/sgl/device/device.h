@@ -25,13 +25,12 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 namespace sgl {
 
 class DebugPrinter;
 
-/// Adapter LUID (locally unique identifier).
-using AdapterLUID = std::array<uint8_t, 16>;
 
 struct AdapterInfo {
     /// Descriptive name of the adapter.
@@ -126,9 +125,15 @@ struct DeviceDesc {
     /// If a relative path is used, the cache is stored in the application data directory.
     std::optional<std::filesystem::path> shader_cache_path;
 
+    /// Maximum size of the persistent shader cache used to cache both shaders and pipelines.
+    uint64_t shader_cache_size{128 * 1024 * 1024};
+
     /// Native device handles for initializing with externally created device. Currenlty
     /// only used for CUDA interoperability.
     std::array<NativeHandle, 3> existing_device_handles;
+
+    /// Debug label
+    std::string label;
 };
 
 struct DeviceLimits {
@@ -208,6 +213,11 @@ public:
     Device(const DeviceDesc& desc = DeviceDesc{});
     ~Device();
 
+    /// Release all underlying slang-rhi resources.
+    /// This is used as a workaround during shutdown, to ensure all resources are released
+    /// when slangpy fails to clean up properly due to reference cycles introduced in Python.
+    void _release_rhi_resources();
+
     static ref<Device> create(const DeviceDesc& desc = DeviceDesc{}) { return make_ref<Device>(desc); }
 
     const DeviceDesc& desc() const { return m_desc; }
@@ -254,8 +264,17 @@ public:
      */
     void close();
 
+    /// Check if the device is closed.
+    bool is_closed() const { return m_closed; }
+
     /// Close all open devices.
     static void close_all_devices();
+
+    /// Release all slang-rhi resources from all devices.
+    /// This is used as a workaround during shutdown, to ensure all resources are released
+    /// when slangpy fails to clean up properly due to reference cycles introduced in Python.
+    /// This MUST NOT be called by the user!
+    static void _release_all_rhi_resources();
 
     // Resource creation
 
@@ -478,7 +497,11 @@ public:
      * \param queue Command queue to submit to.
      * \return Submission ID.
      */
-    uint64_t submit_command_buffer(CommandBuffer* command_buffer, CommandQueueType queue = CommandQueueType::graphics);
+    uint64_t submit_command_buffer(
+        CommandBuffer* command_buffer,
+        CommandQueueType queue = CommandQueueType::graphics,
+        NativeHandle cuda_stream = {}
+    );
 
     /**
      * \brief Check if a submission is finished executing.
@@ -597,9 +620,19 @@ public:
     /// Enumerates all available adapters of a given device type.
     static std::vector<AdapterInfo> enumerate_adapters(DeviceType type = DeviceType::automatic);
 
+    /// Lists all created devices
+    static std::vector<ref<Device>> get_created_devices();
+
     /// Report live objects in the rhi layer.
     /// This is useful for checking clean shutdown with all resources released properly.
     static void report_live_objects();
+
+    /**
+     * \brief Report status of internal heaps used by the device.
+     *
+     * \return List of heap reports containing heap names and allocation information.
+     */
+    std::vector<HeapReport> report_heaps();
 
     /**
      * Try to enable D3D12 Agility SDK at runtime.
@@ -644,6 +677,9 @@ public:
             hook({});
     }
 
+    void _register_device_child(DeviceChild* device_child);
+    void _unregister_device_child(DeviceChild* device_child);
+
 private:
     DeviceDesc m_desc;
     DeviceInfo m_info;
@@ -653,6 +689,7 @@ private:
 
     bool m_shader_cache_enabled{false};
     std::filesystem::path m_shader_cache_path;
+    ref<PersistentCache> m_persistent_cache;
 
     Slang::ComPtr<rhi::IDevice> m_rhi_device;
     Slang::ComPtr<rhi::ICommandQueue> m_rhi_graphics_queue;
@@ -679,7 +716,9 @@ private:
     bool m_supports_cuda_interop{false};
     ref<cuda::Device> m_cuda_device;
     ref<cuda::ExternalSemaphore> m_cuda_semaphore;
-    bool m_wait_global_fence{false};
+
+    std::mutex m_device_children_mutex;
+    std::unordered_set<DeviceChild*> m_device_children;
 };
 
 /// Gets the device and context handles for the current CUDA context. Use

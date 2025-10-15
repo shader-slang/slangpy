@@ -74,6 +74,7 @@ class FunctionReflectionParameterList;
 class FunctionReflectionOverloadList;
 class VariableReflection;
 class VariableLayoutReflection;
+class Attribute;
 class EntryPointLayout;
 class EntryPointLayoutParameterList;
 class ProgramLayout;
@@ -85,6 +86,10 @@ class ProgramLayoutEntryPointList;
 class Kernel;
 struct ComputeKernelDesc;
 class ComputeKernel;
+
+// persistent_cache.h
+
+class PersistentCache;
 
 // pipeline.h
 

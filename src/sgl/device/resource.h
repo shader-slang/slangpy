@@ -4,7 +4,7 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/formats.h"
 #include "sgl/device/native_handle.h"
 
@@ -238,7 +238,7 @@ struct SubresourceRange {
     }
 };
 
-class SGL_API Resource : public DeviceResource {
+class SGL_API Resource : public DeviceChild {
     SGL_OBJECT(Resource)
 public:
     virtual ~Resource();
@@ -292,6 +292,8 @@ public:
     Buffer(ref<Device> device, BufferDesc desc);
 
     ~Buffer();
+
+    virtual void _release_rhi_resources() override { m_rhi_buffer.setNull(); }
 
     const BufferDesc& desc() const { return m_desc; }
 
@@ -381,6 +383,11 @@ public:
     /// Note: Buffer must be created with the \c BufferUsage::shared usage flag.
     NativeHandle shared_handle() const;
 
+    /// Get bindless descriptor handle for read access.
+    DescriptorHandle descriptor_handle_ro() const;
+    /// Get bindless descriptor handle for read-write access.
+    DescriptorHandle descriptor_handle_rw() const;
+
     virtual rhi::IResource* rhi_resource() const override { return m_rhi_buffer; }
     rhi::IBuffer* rhi_buffer() const { return m_rhi_buffer; }
 
@@ -401,10 +408,12 @@ struct BufferViewDesc {
     std::string label;
 };
 
-class SGL_API BufferView : public DeviceResource {
+class SGL_API BufferView : public DeviceChild {
     SGL_OBJECT(BufferView)
 public:
     BufferView(ref<Device> device, ref<Buffer> buffer, BufferViewDesc desc);
+
+    virtual void _release_rhi_resources() override { }
 
     Buffer* buffer() const { return m_buffer; }
 
@@ -530,6 +539,8 @@ public:
 
     ~Texture();
 
+    virtual void _release_rhi_resources() override { m_rhi_texture.setNull(); }
+
     const TextureDesc& desc() const { return m_desc; }
 
     TextureType type() const { return m_desc.type; }
@@ -610,10 +621,12 @@ struct TextureViewDesc {
     std::string label;
 };
 
-class SGL_API TextureView : public DeviceResource {
+class SGL_API TextureView : public DeviceChild {
     SGL_OBJECT(TextureView)
 public:
     TextureView(ref<Device> device, ref<Texture> texture, TextureViewDesc desc);
+
+    virtual void _release_rhi_resources() override { m_rhi_texture_view.setNull(); }
 
     Texture* texture() const { return m_texture.get(); }
 

@@ -32,7 +32,10 @@ public:
 
     ref<NativeNDBuffer> view(Shape shape, Shape strides = Shape(), int offset = 0) const;
     ref<NativeNDBuffer> broadcast_to(const Shape& shape) const;
-    ref<NativeNDBuffer> index(nb::args args) const;
+    ref<NativeNDBuffer> index(nb::object index_arg) const;
+
+    /// Get string representation of the NDBuffer.
+    std::string to_string() const override;
 
 private:
     NativeNDBufferDesc m_desc;
@@ -72,8 +75,12 @@ public:
         nb::list read_back
     ) const override;
 
-    void read_calldata(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data, nb::object result)
-        const override;
+    void read_calldata(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        nb::object data,
+        nb::object result
+    ) const override;
 
     nb::object create_output(CallContext* context, NativeBoundVariableRuntime* binding) const override;
 
@@ -117,8 +124,12 @@ public:
         nb::list read_back
     ) const override;
 
-    void read_calldata(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data, nb::object result)
-        const override;
+    void read_calldata(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        nb::object data,
+        nb::object result
+    ) const override;
 
     nb::object create_output(CallContext* context, NativeBoundVariableRuntime* binding) const override;
 

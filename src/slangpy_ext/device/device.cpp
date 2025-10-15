@@ -15,6 +15,7 @@
 #include "sgl/device/surface.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/command.h"
+#include "sgl/device/hot_reload.h"
 
 #include "sgl/core/window.h"
 
@@ -29,6 +30,7 @@ SGL_DICT_TO_DESC_FIELD(enable_compilation_reports, bool)
 SGL_DICT_TO_DESC_FIELD(adapter_luid, AdapterLUID)
 SGL_DICT_TO_DESC_FIELD(compiler_options, SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD(shader_cache_path, std::filesystem::path)
+SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_FIELD(bindless_options, BindlessDesc)
 SGL_DICT_TO_DESC_END()
 
@@ -177,7 +179,9 @@ SGL_PY_EXPORT(device_device)
             "existing_device_handles",
             &DeviceDesc::existing_device_handles,
             D_NA(DeviceDesc, existing_device_handles)
-        );
+        )
+        .def_rw("label", &DeviceDesc::label, D_NA(DeviceDesc, label));
+
     nb::implicitly_convertible<nb::dict, DeviceDesc>();
 
     nb::class_<DeviceLimits>(m, "DeviceLimits", D(DeviceLimits))
@@ -264,6 +268,14 @@ SGL_PY_EXPORT(device_device)
 
     nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
 
+    nb::class_<HeapReport>(m, "HeapReport", D_NA(HeapReport))
+        .def_rw("label", &HeapReport::label, D_NA(HeapReport, label))
+        .def_rw("num_pages", &HeapReport::num_pages, D_NA(HeapReport, num_pages))
+        .def_rw("total_allocated", &HeapReport::total_allocated, D_NA(HeapReport, total_allocated))
+        .def_rw("total_mem_usage", &HeapReport::total_mem_usage, D_NA(HeapReport, total_mem_usage))
+        .def_rw("num_allocations", &HeapReport::num_allocations, D_NA(HeapReport, num_allocations))
+        .def("__repr__", &HeapReport::to_string);
+
     nb::class_<Device, Object> device(m, "Device", nb::is_weak_referenceable(), D(Device));
     device.def(
         "__init__",
@@ -278,7 +290,8 @@ SGL_PY_EXPORT(device_device)
            std::optional<SlangCompilerOptions> compiler_options,
            std::optional<std::filesystem::path> shader_cache_path,
            std::optional<std::array<NativeHandle, 3>> existing_device_handles,
-           std::optional<BindlessDesc> bindless_options)
+           std::optional<BindlessDesc> bindless_options,
+           std::string label = "")
         {
             new (self) Device(
                 {.type = type,
@@ -291,7 +304,8 @@ SGL_PY_EXPORT(device_device)
                  .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
                  .bindless_options = bindless_options.value_or(BindlessDesc{}),
                  .shader_cache_path = shader_cache_path,
-                 .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>())}
+                 .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
+                 .label = label}
             );
         },
         "type"_a = DeviceDesc().type,
@@ -305,6 +319,7 @@ SGL_PY_EXPORT(device_device)
         "shader_cache_path"_a.none() = nb::none(),
         "existing_device_handles"_a.none() = nb::none(),
         "bindless_options"_a.none() = nb::none(),
+        "label"_a = DeviceDesc().label,
         D(Device, Device)
     );
     device.def(nb::init<DeviceDesc>(), "desc"_a, D(Device, Device));
@@ -356,7 +371,7 @@ SGL_PY_EXPORT(device_device)
                 // cursor code below needs to ensure it maintains a reference to the type layout if
                 // returned, so we attempt to convert to the raw ptr here, and then immediately
                 // store it in a local ref counted ptr.
-                if (const TypeLayoutReflection * resolved_struct_type_ptr;
+                if (const TypeLayoutReflection* resolved_struct_type_ptr;
                     nb::try_cast(resource_type_layout, resolved_struct_type_ptr)) {
                     resolved_resource_type_layout = ref<const TypeLayoutReflection>(resolved_struct_type_ptr);
                 }
@@ -597,6 +612,7 @@ SGL_PY_EXPORT(device_device)
         &Device::submit_command_buffer,
         "command_buffer"_a,
         "queue"_a = CommandQueueType::graphics,
+        "cuda_stream"_a = NativeHandle(),
         D(Device, submit_command_buffer)
     );
     device.def("is_submit_finished", &Device::is_submit_finished, "id"_a, D(Device, is_submit_finished));
@@ -673,11 +689,13 @@ SGL_PY_EXPORT(device_device)
            bool add_default_include_paths,
            std::optional<std::filesystem::path> cache_path)
         {
-            return self->create_slang_session(SlangSessionDesc{
-                .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
-                .add_default_include_paths = add_default_include_paths,
-                .cache_path = cache_path,
-            });
+            return self->create_slang_session(
+                SlangSessionDesc{
+                    .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                    .add_default_include_paths = add_default_include_paths,
+                    .cache_path = cache_path,
+                }
+            );
         },
         "compiler_options"_a.none() = nb::none(),
         "add_default_include_paths"_a = SlangSessionDesc().add_default_include_paths,
@@ -733,9 +751,17 @@ SGL_PY_EXPORT(device_device)
 
     device.def(
         "create_compute_pipeline",
-        [](Device* self, ref<ShaderProgram> program)
-        { return self->create_compute_pipeline({.program = std::move(program)}); },
+        [](Device* self, ref<ShaderProgram> program, bool defer_target_compilation, std::optional<std::string> label)
+        {
+            return self->create_compute_pipeline({
+                .program = std::move(program),
+                .defer_target_compilation = defer_target_compilation,
+                .label = label.value_or(""),
+            });
+        },
         "program"_a,
+        "defer_target_compilation"_a = ComputePipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
         D(Device, create_compute_pipeline)
     );
     device
@@ -750,17 +776,21 @@ SGL_PY_EXPORT(device_device)
            std::vector<ColorTargetDesc> targets,
            std::optional<DepthStencilDesc> depth_stencil,
            std::optional<RasterizerDesc> rasterizer,
-           std::optional<MultisampleDesc> multisample)
+           std::optional<MultisampleDesc> multisample,
+           bool defer_target_compilation,
+           std::optional<std::string> label)
         {
-            return self->create_render_pipeline({
-                .program = std::move(program),
-                .input_layout = input_layout,
-                .primitive_topology = primitive_topology,
-                .targets = targets,
-                .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
-                .rasterizer = rasterizer.value_or(RasterizerDesc{}),
-                .multisample = multisample.value_or(MultisampleDesc{}),
-            });
+            return self->create_render_pipeline(
+                {.program = std::move(program),
+                 .input_layout = input_layout,
+                 .primitive_topology = primitive_topology,
+                 .targets = targets,
+                 .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
+                 .rasterizer = rasterizer.value_or(RasterizerDesc{}),
+                 .multisample = multisample.value_or(MultisampleDesc{}),
+                 .defer_target_compilation = defer_target_compilation,
+                 .label = label.value_or("")}
+            );
         },
         "program"_a,
         "input_layout"_a.none(),
@@ -769,6 +799,8 @@ SGL_PY_EXPORT(device_device)
         "depth_stencil"_a.none() = nb::none(),
         "rasterizer"_a.none() = nb::none(),
         "multisample"_a.none() = nb::none(),
+        "defer_target_compilation"_a = RenderPipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
         D(Device, create_render_pipeline)
     );
     device.def("create_render_pipeline", &Device::create_render_pipeline, "desc"_a, D(Device, create_render_pipeline));
@@ -781,7 +813,9 @@ SGL_PY_EXPORT(device_device)
            uint32_t max_recursion,
            uint32_t max_ray_payload_size,
            uint32_t max_attribute_size,
-           RayTracingPipelineFlags flags)
+           RayTracingPipelineFlags flags,
+           bool defer_target_compilation,
+           std::optional<std::string> label)
         {
             return self->create_ray_tracing_pipeline({
                 .program = std::move(program),
@@ -790,6 +824,8 @@ SGL_PY_EXPORT(device_device)
                 .max_ray_payload_size = max_ray_payload_size,
                 .max_attribute_size = max_attribute_size,
                 .flags = flags,
+                .defer_target_compilation = defer_target_compilation,
+                .label = label.value_or(""),
             });
         },
         "program"_a,
@@ -798,6 +834,8 @@ SGL_PY_EXPORT(device_device)
         "max_ray_payload_size"_a = RayTracingPipelineDesc().max_ray_payload_size,
         "max_attribute_size"_a = RayTracingPipelineDesc().max_attribute_size,
         "flags"_a = RayTracingPipelineDesc().flags,
+        "defer_target_compilation"_a = RayTracingPipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
         D(Device, create_ray_tracing_pipeline)
     );
     device.def(
@@ -898,6 +936,13 @@ SGL_PY_EXPORT(device_device)
         [](Device* self, size_t offset) { return self->get_or_create_coop_vec()->align_vector_offset(offset); },
         "offset"_a
     );
+    device.def(
+        "set_hot_reload_delay",
+        [](Device* self, uint32_t delay_ms) { self->_hot_reload()->set_auto_detect_delay(delay_ms); },
+        "timeout_ms"_a,
+        D_NA(Device, set_hot_reload_delay)
+    );
+    device.def("hot_reload_check", [](Device* self) { self->_hot_reload()->update(); }, D_NA(Device, hot_reload_check));
 
     device.def_static(
         "enumerate_adapters",
@@ -905,7 +950,12 @@ SGL_PY_EXPORT(device_device)
         "type"_a = DeviceType::automatic,
         D(Device, enumerate_adapters)
     );
+
+    device.def_static("get_created_devices", &Device::get_created_devices, D_NA(Device, get_created_devices));
+
     device.def_static("report_live_objects", &Device::report_live_objects, D(Device, report_live_objects));
+
+    device.def("report_heaps", &Device::report_heaps, D_NA(Device, report_heaps));
 
     m.def(
         "get_cuda_current_context_native_handles",

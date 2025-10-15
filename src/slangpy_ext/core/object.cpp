@@ -17,6 +17,11 @@ SGL_PY_EXPORT(core_object)
         {
             nb::gil_scoped_acquire guard;
             Py_DECREF(o);
+        },
+        [](PyObject* o) noexcept -> Py_ssize_t_
+        {
+            nb::gil_scoped_acquire guard;
+            return Py_REFCNT(o);
         }
     );
 
@@ -27,7 +32,7 @@ SGL_PY_EXPORT(core_object)
         "Base class for all reference counted objects."
     )
 #if SGL_ENABLE_OBJECT_TRACKING
-        .def_static("report_alive_objects", &Object::report_alive_objects)
+        .def_static("report_live_objects", &Object::report_live_objects)
 #endif
         .def("__repr__", &Object::to_string);
 }

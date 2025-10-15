@@ -29,6 +29,7 @@ struct StridedBufferViewDesc {
 };
 
 class StridedBufferView : public NativeObject {
+    SGL_OBJECT(StridedBufferView)
 public:
     StridedBufferView(Device* device, const StridedBufferViewDesc& desc, ref<Buffer> storage);
     virtual ~StridedBufferView() { }
@@ -64,6 +65,8 @@ public:
     nb::ndarray<nb::pytorch> to_torch() const;
     /// Copy from CPU memory (as a numpy array) into GPU buffer
     void copy_from_numpy(nb::ndarray<nb::numpy> data);
+    /// Copy from torch tensor into GPU buffer
+    void copy_from_torch(nb::object tensor);
 
     void point_to(ref<StridedBufferView> target);
 
@@ -73,7 +76,8 @@ protected:
     // with the same buffer/view, call the inplace method on the copy, and return it
     void view_inplace(Shape shape, Shape strides = Shape(), int offset = 0);
     void broadcast_to_inplace(const Shape& shape);
-    void index_inplace(nb::args args);
+    void index_inplace(nb::object index_arg);
+    bool maybe_pad_data(nb::ndarray<nb::numpy> data, size_t dtype_size, size_t byte_offset);
 
 private:
     ref<Buffer> m_storage;

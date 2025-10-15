@@ -102,14 +102,16 @@ public:
     void insert_cache_include(const std::filesystem::path& path, size_t index)
     {
         SGL_ASSERT(index <= m_entries.size());
-        m_entries.insert(m_entries.begin() + index,
+        m_entries.insert(
+            m_entries.begin() + index,
             {
-            .name = slang::CompilerOptionName::Include,
-            .value = {
-                .kind = slang::CompilerOptionValueKind::String,
-                .string0 = path.string(),
-            },
-        });
+                .name = slang::CompilerOptionName::Include,
+                .value = {
+                    .kind = slang::CompilerOptionValueKind::String,
+                    .string0 = path.string(),
+                },
+            }
+        );
     }
 
     std::vector<slang::CompilerOptionEntry> slang_entries() const
@@ -279,6 +281,11 @@ void SlangSession::create_session(SlangSessionBuild& build)
         session_options.add(slang::CompilerOptionName::MatrixLayoutRow, true);
     else if (options.matrix_layout == SlangMatrixLayout::column_major)
         session_options.add(slang::CompilerOptionName::MatrixLayoutColumn, true);
+
+    // TODO: Globally disable warning 30856.
+    // This is a workaround for an issue in the Slang compiler:
+    // https://github.com/shader-slang/slang/issues/8166
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
 
     // Set warnings.
     for (const auto& warning : options.enable_warnings)
@@ -597,26 +604,29 @@ std::string SlangSession::load_source(std::string_view module_name)
 
 void SlangSession::_register_program(ShaderProgram* program)
 {
+    SGL_ASSERT(m_registered_programs.count(program) == 0);
     m_registered_programs.insert(program);
 }
 
 void SlangSession::_unregister_program(ShaderProgram* program)
 {
+    SGL_ASSERT(m_registered_programs.count(program) == 1);
     m_registered_programs.erase(program);
 }
 
 void SlangSession::_register_module(SlangModule* module)
 {
-    auto existing = std::find(m_registered_modules.begin(), m_registered_modules.end(), module);
-    if (existing == m_registered_modules.end())
-        m_registered_modules.push_back(module);
+    SGL_ASSERT(
+        std::find(m_registered_modules.begin(), m_registered_modules.end(), module) == m_registered_modules.end()
+    );
+    m_registered_modules.push_back(module);
 }
 
 void SlangSession::_unregister_module(SlangModule* module)
 {
     auto existing = std::find(m_registered_modules.begin(), m_registered_modules.end(), module);
-    if (existing != m_registered_modules.end())
-        m_registered_modules.erase(existing);
+    SGL_ASSERT(existing != m_registered_modules.end());
+    m_registered_modules.erase(existing);
 }
 
 std::string SlangSession::to_string() const
@@ -1080,7 +1090,7 @@ std::string SlangEntryPoint::to_string() const
 }
 
 ShaderProgram::ShaderProgram(ref<Device> device, ref<SlangSession> session, const ShaderProgramDesc& desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_session(std::move(session))
     , m_desc(desc)
 {

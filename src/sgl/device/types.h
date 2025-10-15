@@ -20,6 +20,8 @@ using DeviceAddress = uint64_t;
 using DeviceOffset = uint64_t;
 /// Represents a size in device memory (in bytes).
 using DeviceSize = uint64_t;
+/// Adapter LUID (locally unique identifier).
+using AdapterLUID = std::array<uint8_t, 16>;
 
 enum CommandQueueType : uint32_t {
     graphics = static_cast<uint32_t>(rhi::QueueType::Graphics),
@@ -780,5 +782,37 @@ SGL_ENUM_INFO(
     }
 );
 SGL_ENUM_REGISTER(RayTracingPipelineFlags);
+
+/// Report information for a memory heap.
+struct HeapReport {
+    /// Name of the heap.
+    std::string label;
+    /// Number of pages in the heap.
+    uint32_t num_pages{0};
+    /// Total allocated memory in bytes.
+    uint64_t total_allocated{0};
+    /// Total memory usage in bytes.
+    uint64_t total_mem_usage{0};
+    /// Number of allocations.
+    uint64_t num_allocations{0};
+
+    std::string to_string() const
+    {
+        return fmt::format(
+            "HeapReport(\n"
+            "  label = \"{}\",\n"
+            "  num_pages = {},\n"
+            "  total_allocated = {},\n"
+            "  total_mem_usage = {},\n"
+            "  num_allocations = {}\n"
+            ")",
+            label,
+            num_pages,
+            total_allocated,
+            total_mem_usage,
+            num_allocations
+        );
+    }
+};
 
 } // namespace sgl

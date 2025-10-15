@@ -1,7 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Any, cast
 from slangpy import Module
-from slangpy.core.native import get_value_signature, CallMode, NativePackedArg, unpack_arg
+from slangpy.core.native import (
+    get_value_signature,
+    CallMode,
+    CallDataMode,
+    NativePackedArg,
+    unpack_arg,
+)
 from slangpy.bindings import get_or_create_type, BindContext
 import hashlib
 
@@ -22,7 +28,10 @@ class PackedArg(NativePackedArg):
 
         # Create a shader object from the python marshall and init native structure
         shader_object = python.build_shader_object(
-            BindContext(module.layout, CallMode.prim, module.device_module, {}), unpacked_obj
+            BindContext(
+                module.layout, CallMode.prim, module.device_module, {}, CallDataMode.global_data
+            ),
+            unpacked_obj,
         )
         if shader_object is None:
             raise ValueError(

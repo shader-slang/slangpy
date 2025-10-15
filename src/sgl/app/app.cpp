@@ -129,8 +129,9 @@ void AppWindow::_run_frame()
     else
         command_encoder->clear_texture_uint(texture, {}, uint4{0, 0, 0, 255});
 
-    struct RenderContext render_context {
-        .surface_texture = texture, .command_encoder = command_encoder,
+    struct RenderContext render_context{
+        .surface_texture = texture,
+        .command_encoder = command_encoder,
     };
 
     render(render_context);

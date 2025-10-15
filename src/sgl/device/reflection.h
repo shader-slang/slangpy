@@ -35,6 +35,7 @@ namespace detail {
     SGL_API ref<const EntryPointLayout>
     from_slang(ref<const Object> owner, slang::EntryPointLayout* entry_point_reflection);
     SGL_API ref<const ProgramLayout> from_slang(ref<const Object> owner, slang::ProgramLayout* program_layout);
+    SGL_API ref<const Attribute> from_slang(ref<const Object> owner, slang::Attribute* attribute);
 
     SGL_API void on_slang_wrapper_destroyed(void* slang_reflection);
 
@@ -187,6 +188,7 @@ private:
 };
 
 class SGL_API BaseReflectionObject : public Object {
+    SGL_OBJECT(BaseReflectionObject)
 public:
     BaseReflectionObject(ref<const Object> owner)
         : m_owner(std::move(owner))
@@ -228,6 +230,7 @@ private:
 };
 
 class SGL_API DeclReflection : public BaseReflectionObjectImpl<slang::DeclReflection> {
+    SGL_OBJECT(DeclReflection)
 
 public:
     DeclReflection(ref<const Object> owner, slang::DeclReflection* target)
@@ -288,7 +291,7 @@ public:
     }
 
     /// Description as string.
-    std::string to_string() const;
+    std::string to_string() const override;
 
     /// Get type corresponding to this decl ref.
     ref<const TypeReflection> as_type() const;
@@ -344,7 +347,27 @@ protected:
     ref<const DeclReflection> evaluate(uint32_t index) const override { return m_owner->child(index); }
 };
 
+class SGL_API Attribute : public BaseReflectionObjectImpl<slang::Attribute> {
+public:
+    Attribute(ref<const Object> owner, slang::Attribute* target)
+        : BaseReflectionObjectImpl(std::move(owner), target)
+    {
+    }
+
+    std::string name() const { return slang_target()->getName(); }
+
+    uint32_t argument_count() const { return slang_target()->getArgumentCount(); }
+
+    ref<const TypeReflection> argument_type(uint32_t index) const
+    {
+        return detail::from_slang(m_owner, slang_target()->getArgumentType(index));
+    }
+
+    std::string to_string() const;
+};
+
 class SGL_API TypeReflection : public BaseReflectionObjectImpl<slang::TypeReflection> {
+    SGL_OBJECT(TypeReflection)
 public:
     enum class Kind {
         none = SLANG_TYPE_KIND_NONE,
@@ -633,19 +656,19 @@ public:
 
     ResourceAccess resource_access() const { return static_cast<ResourceAccess>(slang_target()->getResourceAccess()); }
 
-#if 0
-    unsigned int getUserAttributeCount() { return spReflectionType_GetUserAttributeCount((SlangReflectionType*)this); }
-    UserAttribute* getUserAttributeByIndex(unsigned int index)
-    {
-        return (UserAttribute*)spReflectionType_GetUserAttribute((SlangReflectionType*)this, index);
-    }
-    UserAttribute* findUserAttributeByName(char const* name)
-    {
-        return (UserAttribute*)spReflectionType_FindUserAttributeByName((SlangReflectionType*)this, name);
-    }
-#endif
+    uint32_t get_user_attribute_count() const { return slang_target()->getUserAttributeCount(); }
 
-    std::string to_string() const;
+    ref<const Attribute> get_user_attribute_by_index(uint32_t index) const
+    {
+        return detail::from_slang(m_owner, slang_target()->getUserAttributeByIndex(index));
+    }
+
+    ref<const Attribute> find_user_attribute_by_name(const char* name) const
+    {
+        return detail::from_slang(m_owner, slang_target()->findUserAttributeByName(name));
+    }
+
+    std::string to_string() const override;
 };
 
 SGL_ENUM_CLASS_OPERATORS(TypeReflection::ResourceShape);
@@ -675,6 +698,7 @@ protected:
 
 
 class SGL_API TypeLayoutReflection : public BaseReflectionObjectImpl<slang::TypeLayoutReflection> {
+    SGL_OBJECT(TypeLayoutReflection)
 public:
     static ref<const TypeLayoutReflection>
     from_slang(ref<const Object> owner, slang::TypeLayoutReflection* type_layout_reflection)
@@ -772,7 +796,7 @@ public:
         return narrow_cast<uint32_t>(slang_target()->getFieldBindingRangeOffset(field_index));
     }
 
-    std::string to_string() const;
+    std::string to_string() const override;
 };
 
 /// TypeLayoutReflection lazy field list evaluation.
@@ -797,6 +821,7 @@ protected:
 };
 
 class SGL_API FunctionReflection : public BaseReflectionObjectImpl<slang::FunctionReflection> {
+    SGL_OBJECT(FunctionReflection)
 public:
     FunctionReflection(ref<const Object> owner, slang::FunctionReflection* target)
         : BaseReflectionObjectImpl(std::move(owner), target)
@@ -910,6 +935,7 @@ protected:
 };
 
 class SGL_API VariableReflection : public BaseReflectionObjectImpl<slang::VariableReflection> {
+    SGL_OBJECT(VariableReflection)
 public:
     static ref<const VariableReflection>
     from_slang(ref<const Object> owner, slang::VariableReflection* variable_reflection)
@@ -959,10 +985,11 @@ public:
         return slang_target()->getOffset(SlangParameterCategory::SLANG_PARAMETER_CATEGORY_UNIFORM);
     }
 
-    std::string to_string() const;
+    std::string to_string() const override;
 };
 
 class SGL_API EntryPointLayout : public BaseReflectionObjectImpl<slang::EntryPointLayout> {
+    SGL_OBJECT(EntryPointLayout)
 public:
     static ref<const EntryPointLayout>
     from_slang(ref<const Object> owner, slang::EntryPointLayout* entry_point_reflection)
@@ -1000,7 +1027,7 @@ public:
 
     bool uses_any_sample_rate_input() const { return slang_target()->usesAnySampleRateInput(); }
 
-    std::string to_string() const;
+    std::string to_string() const override;
 };
 
 
@@ -1026,6 +1053,7 @@ protected:
 
 
 class SGL_API ProgramLayout : public BaseReflectionObjectImpl<slang::ProgramLayout> {
+    SGL_OBJECT(ProgramLayout)
 public:
     static ref<const ProgramLayout> from_slang(ref<const Object> owner, slang::ProgramLayout* program_layout)
     {
@@ -1123,7 +1151,7 @@ public:
     }
 
     /// Get corresponding type layout from a given type.
-    ref<const TypeLayoutReflection> get_type_layout(const TypeReflection* type)
+    ref<const TypeLayoutReflection> get_type_layout(const TypeReflection* type) const
     {
         // TODO: Once device is available via session reference, pass metal layout rules for metal target
         return detail::from_slang(
@@ -1170,7 +1198,7 @@ public:
         return result;
     }
 
-    std::string to_string() const;
+    std::string to_string() const override;
 };
 
 /// ProgramLayout lazy parameter list evaluation.

@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.native import AccessType, CallMode, NativeMarshall
+from slangpy.core.native import AccessType, CallMode, CallDataMode, NativeMarshall
+from slangpy.core.function import PipelineType
 
 import slangpy.bindings.typeregistry as tr
 import slangpy.reflection as slr
@@ -14,6 +15,7 @@ from slangpy.bindings.boundvariable import (
 )
 from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.value import NoneMarshall, ValueMarshall
+from slangpy.builtin import StructMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
@@ -153,6 +155,20 @@ def specialize(
                     inputs.append(sl_et)
                 else:
                     inputs.append(python_arg.python)
+
+            elif (
+                slang_param.type.type_reflection.kind == TypeReflection.Kind.interface
+                and isinstance(python_arg.python, StructMarshall)
+                and python_arg.python.slang_type.name != "Unknown"
+                and not python_arg.explicitly_vectorized
+            ):
+                # HACK! If we're calling a function with an interface parameter,
+                # we need to have a concrete type to load data into. This Chris approved hack
+                # allows us to do that. Re-visit after the type resolution fixes are in.
+                # The other half of the hack i sin boundvariable.py, BoundVariable.bind
+                python_arg.vector_type = python_arg.python.slang_type
+                python_arg.explicitly_vectorized = True
+                inputs.append(slang_param.type)
             elif slang_param.type.type_reflection.kind != TypeReflection.Kind.none:
                 # If the type is fully resolved, use it
                 inputs.append(slang_param.type)
@@ -368,6 +384,15 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     node.python = python_type
 
 
+def is_slangpy_vector(type: Any) -> bool:
+    return (
+        hasattr(type, "element_type")
+        and hasattr(type, "shape")
+        and len(type.shape) == 1
+        and type.shape[0] <= 4
+    )
+
+
 def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen):
     if build_info.constants is not None:
         for k, v in build_info.constants.items():
@@ -377,6 +402,11 @@ def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen):
                 )
             elif isinstance(v, (int, float)):
                 cg.constants.append_statement(f"export static const {type(v).__name__} {k} = {v}")
+            elif is_slangpy_vector(v):
+                # Cheeky logic to take, eg, {0,0,0} -> float3(0,0,0)
+                tn = type(v).__name__
+                txt = f"{tn}({str(v)[1:-1]})"
+                cg.constants.append_statement(f"export static const {tn} {k} = {txt}")
             else:
                 raise KernelGenException(
                     f"Constant value '{k}' must be an int, float or bool, not {type(v).__name__}"
@@ -393,6 +423,9 @@ def generate_code(
     Generate a list of call data nodes that will be used to generate the call
     """
     nodes: list[BoundVariable] = []
+
+    # Check if we're using entry point call data mode
+    is_entry_point = context.call_data_mode == CallDataMode.entry_point
 
     # Generate the header
     cg.add_import("slangpy")
@@ -509,7 +542,14 @@ def generate_code(
     trampoline_fn = "_trampoline"
     if context.call_mode != CallMode.prim:
         cg.trampoline.append_line("[Differentiable]")
-    cg.trampoline.append_line(f"void {trampoline_fn}(Context __slangpy_context__)")
+
+    # For entry point mode, add CallData as a parameter to the trampoline function
+    if is_entry_point:
+        cg.trampoline.append_line(
+            f"void {trampoline_fn}(Context __slangpy_context__, CallData __calldata__)"
+        )
+    else:
+        cg.trampoline.append_line(f"void {trampoline_fn}(Context __slangpy_context__)")
     cg.trampoline.begin_block()
 
     # Declare parameters and load inputs
@@ -518,11 +558,18 @@ def generate_code(
         cg.trampoline.declare(x.vector_type.full_name, x.variable_name)
     for x in root_params:
         if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
-            data_name = (
-                f"_param_{x.variable_name}"
-                if x.create_param_block
-                else f"call_data.{x.variable_name}"
-            )
+            if is_entry_point:
+                data_name = (
+                    f"_param_{x.variable_name}"
+                    if x.create_param_block
+                    else f"__calldata__.{x.variable_name}"
+                )
+            else:
+                data_name = (
+                    f"_param_{x.variable_name}"
+                    if x.create_param_block
+                    else f"call_data.{x.variable_name}"
+                )
             cg.trampoline.append_statement(
                 f"{data_name}.load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )
@@ -560,11 +607,18 @@ def generate_code(
         ):
             if not x.python.is_writable:
                 raise BoundVariableException(f"Cannot read back value for non-writable type", x)
-            data_name = (
-                f"_param_{x.variable_name}"
-                if x.create_param_block
-                else f"call_data.{x.variable_name}"
-            )
+            if is_entry_point:
+                data_name = (
+                    f"_param_{x.variable_name}"
+                    if x.create_param_block
+                    else f"__calldata__.{x.variable_name}"
+                )
+            else:
+                data_name = (
+                    f"_param_{x.variable_name}"
+                    if x.create_param_block
+                    else f"call_data.{x.variable_name}"
+                )
             cg.trampoline.append_statement(
                 f"{data_name}.store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )
@@ -573,18 +627,36 @@ def generate_code(
     cg.trampoline.append_line("")
 
     # Generate the main function
-    cg.kernel.append_line('[shader("compute")]')
-    if call_group_size != 1:
-        cg.kernel.append_line(f"[numthreads({call_group_size}, 1, 1)]")
+    if build_info.pipeline_type == PipelineType.compute:
+        cg.kernel.append_line('[shader("compute")]')
+        if call_group_size != 1:
+            cg.kernel.append_line(f"[numthreads({call_group_size}, 1, 1)]")
+        else:
+            cg.kernel.append_line("[numthreads(32, 1, 1)]")
+        # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
+        #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
+        if is_entry_point:
+            cg.kernel.append_line(
+                "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex, uniform CallData call_data)"
+            )
+        else:
+            cg.kernel.append_line(
+                "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex)"
+            )
+    elif build_info.pipeline_type == PipelineType.ray_tracing:
+        cg.kernel.append_line('[shader("raygen")]')
+        if is_entry_point:
+            cg.kernel.append_line("void raygen_main(uniform CallData call_data)")
+        else:
+            cg.kernel.append_line("void raygen_main()")
     else:
-        cg.kernel.append_line("[numthreads(32, 1, 1)]")
+        raise RuntimeError(f"Unknown pipeline type: {build_info.pipeline_type}")
 
-    # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
-    #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
-    cg.kernel.append_line(
-        "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex)"
-    )
     cg.kernel.begin_block()
+
+    if build_info.pipeline_type == PipelineType.ray_tracing:
+        cg.kernel.append_statement("int3 flat_call_thread_id = DispatchRaysIndex();")
+
     cg.kernel.append_statement("if (any(flat_call_thread_id >= call_data._thread_count)) return")
 
     # Loads / initializes call id
@@ -593,14 +665,22 @@ def generate_code(
     # Call init_thread_local_call_shape_info to initialize the call shape info. See
     # definition in callshape.slang.
     if call_data_len > 0:
-        cg.kernel.append_line(
-            f"""
-        if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
-            flat_call_group_id, flat_call_thread_id, call_data._grid_stride,
-            call_data._grid_dim, call_data._call_dim))
-            return;"""
-        )
-
+        if build_info.pipeline_type == PipelineType.compute:
+            cg.kernel.append_line(
+                f"""
+    if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
+        flat_call_group_id, flat_call_thread_id, call_data._grid_stride,
+        call_data._grid_dim, call_data._call_dim))
+        return;"""
+            )
+        elif build_info.pipeline_type == PipelineType.ray_tracing:
+            cg.kernel.append_line(
+                f"""
+    if (!init_thread_local_call_shape_info(0,
+        uint3(0), flat_call_thread_id, call_data._grid_stride,
+        call_data._grid_dim, call_data._call_dim))
+        return;"""
+            )
         context_args += ", CallShapeInfo::get_call_id().shape"
 
     cg.kernel.append_statement(f"Context __slangpy_context__ = {{{context_args}}}")
@@ -609,6 +689,10 @@ def generate_code(
     fn = trampoline_fn
     if context.call_mode == CallMode.bwds:
         fn = f"bwd_diff({fn})"
-    cg.kernel.append_statement(f"{fn}(__slangpy_context__)")
+
+    if is_entry_point:
+        cg.kernel.append_statement(f"{fn}(__slangpy_context__, call_data)")
+    else:
+        cg.kernel.append_statement(f"{fn}(__slangpy_context__)")
 
     cg.kernel.end_block()

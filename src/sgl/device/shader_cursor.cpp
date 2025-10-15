@@ -316,9 +316,8 @@ inline bool is_buffer_resource_type(slang::TypeReflection* type)
     switch ((TypeReflection::Kind)type->getKind()) {
     case TypeReflection::Kind::constant_buffer:
     case TypeReflection::Kind::resource: {
-        auto shape = (TypeReflection::ResourceShape)(
-            type->getResourceShape() & SlangResourceShape::SLANG_RESOURCE_BASE_SHAPE_MASK
-        );
+        auto shape = (TypeReflection::ResourceShape)(type->getResourceShape()
+                                                     & SlangResourceShape::SLANG_RESOURCE_BASE_SHAPE_MASK);
         switch (shape) {
         case TypeReflection::ResourceShape::texture_buffer:
         case TypeReflection::ResourceShape::structured_buffer:
@@ -341,9 +340,8 @@ inline bool is_texture_resource_type(slang::TypeReflection* type)
 {
     switch ((TypeReflection::Kind)type->getKind()) {
     case TypeReflection::Kind::resource: {
-        auto shape = (TypeReflection::ResourceShape)(
-            type->getResourceShape() & SlangResourceShape::SLANG_RESOURCE_BASE_SHAPE_MASK
-        );
+        auto shape = (TypeReflection::ResourceShape)(type->getResourceShape()
+                                                     & SlangResourceShape::SLANG_RESOURCE_BASE_SHAPE_MASK);
         switch (shape) {
         case TypeReflection::ResourceShape::texture_1d:
         case TypeReflection::ResourceShape::texture_2d:
@@ -498,103 +496,53 @@ void ShaderCursor::set_pointer(uint64_t pointer_value) const
     set_data(&pointer_value, 8);
 }
 
-void ShaderCursor::_set_array(
+void ShaderCursor::_set_array_unsafe(
     const void* data,
     size_t size,
-    TypeReflection::ScalarType scalar_type,
-    size_t element_count
+    size_t element_count,
+    TypeReflection::ScalarType cpu_scalar_type
 ) const
 {
     slang::TypeReflection* element_type = cursor_utils::unwrap_array(m_type_layout)->getType();
-    size_t element_size = cursor_utils::get_scalar_type_size((TypeReflection::ScalarType)element_type->getScalarType());
+    size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
 
-#ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
-    cursor_utils::check_array(m_type_layout, size, scalar_type, element_count);
-#else
-    SGL_UNUSED(scalar_type);
-    SGL_UNUSED(element_count);
-#endif
-
-    size_t stride = m_type_layout->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-    if (element_size == stride) {
+    size_t element_stride = m_type_layout->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+    if (element_stride == cpu_element_size) {
         m_shader_object->set_data(m_offset, data, size);
     } else {
         ShaderOffset offset = m_offset;
         for (size_t i = 0; i < element_count; ++i) {
-            m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + i * element_size, element_size);
-            offset.uniform_offset += narrow_cast<uint32_t>(stride);
+            m_shader_object
+                ->set_data(offset, reinterpret_cast<const uint8_t*>(data) + i * cpu_element_size, cpu_element_size);
+            offset.uniform_offset += narrow_cast<uint32_t>(element_stride);
         }
     }
 }
 
-void ShaderCursor::_set_array_unsafe(const void* data, size_t size, size_t element_count) const
+void ShaderCursor::_set_data(ShaderOffset offset, const void* data, size_t size) const
 {
-    slang::TypeReflection* element_type = cursor_utils::unwrap_array(m_type_layout)->getType();
-    size_t element_size = cursor_utils::get_scalar_type_size((TypeReflection::ScalarType)element_type->getScalarType());
-
-    size_t stride = m_type_layout->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-    if (element_size == stride) {
-        m_shader_object->set_data(m_offset, data, size);
-    } else {
-        ShaderOffset offset = m_offset;
-        for (size_t i = 0; i < element_count; ++i) {
-            m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + i * element_size, element_size);
-            offset.uniform_offset += narrow_cast<uint32_t>(stride);
-        }
-    }
+    m_shader_object->set_data(offset, data, size);
 }
 
-void ShaderCursor::_set_scalar(const void* data, size_t size, TypeReflection::ScalarType scalar_type) const
+DeviceType ShaderCursor::_get_device_type() const
 {
-#ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
-    cursor_utils::check_scalar(m_type_layout, size, scalar_type);
-#else
-    SGL_UNUSED(scalar_type);
-#endif
-    m_shader_object->set_data(m_offset, data, size);
+    return m_shader_object->device()->type();
 }
 
-void ShaderCursor::_set_vector(const void* data, size_t size, TypeReflection::ScalarType scalar_type, int dimension)
-    const
-{
-#ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
-    cursor_utils::check_vector(m_type_layout, size, scalar_type, dimension);
-#else
-    SGL_UNUSED(scalar_type);
-    SGL_UNUSED(dimension);
-#endif
-    m_shader_object->set_data(m_offset, data, size);
-}
+// Explicit instantiation of the methods
+template void CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_array(
+    const void*,
+    size_t,
+    TypeReflection::ScalarType,
+    size_t
+) const;
 
-void ShaderCursor::_set_matrix(
-    const void* data,
-    size_t size,
-    TypeReflection::ScalarType scalar_type,
-    int rows,
-    int cols
-) const
-{
-#ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
-    cursor_utils::check_matrix(m_type_layout, size, scalar_type, rows, cols);
-#else
-    SGL_UNUSED(scalar_type);
-    SGL_UNUSED(cols);
-#endif
-
-    if (rows > 1) {
-        size_t mat_stride = m_type_layout->getStride();
-        size_t row_stride = mat_stride / rows;
-
-        size_t row_size = size / rows;
-        ShaderOffset offset = m_offset;
-        for (int row = 0; row < rows; ++row) {
-            m_shader_object->set_data(offset, reinterpret_cast<const uint8_t*>(data) + row * row_size, row_size);
-            offset.uniform_offset += narrow_cast<uint32_t>(row_stride);
-        }
-    } else {
-        m_shader_object->set_data(m_offset, data, size);
-    }
-}
+template void CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_vector(
+    const void*,
+    size_t,
+    TypeReflection::ScalarType,
+    int
+) const;
 
 //
 // Setter specializations
@@ -669,6 +617,14 @@ SGL_API void ShaderCursor::set(const DescriptorHandle& value) const
         _set_matrix(&value, sizeof(value), TypeReflection::ScalarType::scalar_type, type::rows, type::cols);           \
     }
 
+SET_SCALAR(bool, bool_);
+// bool1 case specifically cannot be handled due to:
+// https://github.com/shader-slang/slang/issues/7441
+// SET_VECTOR(bool1, bool_);
+SET_VECTOR(bool2, bool_);
+SET_VECTOR(bool3, bool_);
+SET_VECTOR(bool4, bool_);
+
 SET_SCALAR(int8_t, int8);
 SET_SCALAR(uint8_t, uint8);
 SET_SCALAR(int16_t, int16);
@@ -726,73 +682,11 @@ SET_SCALAR(double, float64);
 #undef SET_VECTOR
 #undef SET_MATRIX
 
-// Template specialization to allow setting booleans on a parameter block.
-// On the host side a bool is 1B and the device 4B. We cast bools to 32-bit integers here.
-// Note that this applies to our boolN vectors as well, which are currently 1B per element.
-
 template<>
-SGL_API void ShaderCursor::set(const bool& value) const
+SGL_API void ShaderCursor::set(const bool1& v) const
 {
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
-        _set_scalar(&value, sizeof(value), TypeReflection::ScalarType::bool_);
-        return;
-    }
-#endif
-    uint v = value ? 1 : 0;
-    _set_scalar(&v, sizeof(v), TypeReflection::ScalarType::bool_);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const bool1& value) const
-{
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
-        _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 1);
-        return;
-    }
-#endif
-    uint1 v(value.x ? 1 : 0);
+    SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
     _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const bool2& value) const
-{
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
-        _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 2);
-        return;
-    }
-#endif
-    uint2 v = {value.x ? 1 : 0, value.y ? 1 : 0};
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 2);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const bool3& value) const
-{
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
-        _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 3);
-        return;
-    }
-#endif
-    uint3 v = {value.x ? 1 : 0, value.y ? 1 : 0, value.z ? 1 : 0};
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 3);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const bool4& value) const
-{
-#if SGL_MACOS
-    if (m_shader_object->device()->type() == DeviceType::metal) {
-        _set_vector(&value, sizeof(value), TypeReflection::ScalarType::bool_, 4);
-        return;
-    }
-#endif
-    uint4 v = {value.x ? 1 : 0, value.y ? 1 : 0, value.z ? 1 : 0, value.w ? 1 : 0};
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 4);
 }
 
 } // namespace sgl

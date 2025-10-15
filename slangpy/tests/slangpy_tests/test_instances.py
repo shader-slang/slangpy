@@ -1,35 +1,28 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 from typing import Any
 
-import sys
+import pytest
 import numpy as np
 import numpy.typing as npt
-import pytest
-from slangpy import Buffer, Device
 
+from slangpy import (
+    Device,
+    DeviceType,
+    float2,
+    float3,
+    math,
+    Buffer,
+    InstanceList,
+    InstanceBuffer,
+    Module,
+)
 from slangpy.core.struct import Struct
-
-from pathlib import Path
-import sys
-import numpy as np
-import pytest
-
-sys.path.append(str(Path(__file__).parent))
-import helpers
-
-from slangpy import InstanceList, InstanceBuffer, Module
-from slangpy import DeviceType, float2, float3, math
 from slangpy.types import NDBuffer, Tensor
 from slangpy.types.randfloatarg import RandFloatArg
 from slangpy.types.valueref import ValueRef, floatRef
 from slangpy.experimental.diffinstancelist import InstanceDifferentiableBuffer
-
-# TODO(testing)
-if sys.platform == "linux" or sys.platform == "linux2":
-    pytest.skip(
-        "These tests leak nanobind objects and segfault on linux",
-        allow_module_level=True,
-    )
+from slangpy.testing import helpers
 
 
 def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Module:
@@ -299,9 +292,6 @@ def test_pass_instance_to_function(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_pass_nested_instance_to_function(device_type: DeviceType):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
-
     # Use test system helper to load a slangpy module from a file
     m = load_module(device_type, "test_modules.slang")
     assert m is not None
@@ -429,9 +419,6 @@ def test_extended_instance_list(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_backwards_diff(device_type: DeviceType):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
-
     # Use test system helper to load a slangpy module from a file
     m = load_module(device_type, "test_modules.slang")
     assert m is not None

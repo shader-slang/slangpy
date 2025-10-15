@@ -94,9 +94,7 @@ SGL_API void copy_to_cstr(char* dst, size_t dst_len, std::string_view src);
 
 template<typename T>
 concept object_to_string = requires(typename std::remove_pointer<typename remove_ref<T>::type>::type t) {
-    {
-        t.to_string()
-    } -> std::convertible_to<std::string>;
+    { t.to_string() } -> std::convertible_to<std::string>;
 };
 
 /**
@@ -125,9 +123,7 @@ inline std::string list_to_string(std::span<T> list, std::string_view indentatio
 
 template<typename T>
 concept free_standing_to_string = requires(T t) {
-    {
-        to_string(t)
-    } -> std::convertible_to<std::string>;
+    { to_string(t) } -> std::convertible_to<std::string>;
 };
 
 /**
@@ -159,9 +155,7 @@ inline std::string list_to_string(const std::vector<T>& list, std::string_view i
 
 template<typename T>
 concept iterable_has_to_string = requires(typename T::iterator t) {
-    {
-        (*t)->to_string()
-    } -> std::convertible_to<std::string>;
+    { (*t)->to_string() } -> std::convertible_to<std::string>;
 };
 
 template<iterable_has_to_string T>
