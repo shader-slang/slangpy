@@ -340,8 +340,8 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int):
 
     compare_tensors(a + b, res)
 
-    # Should this work??
-    # res.backward(torch.ones_like(res))
+    # Test backward pass
+    res.backward(torch.ones_like(res))
 
 
 if __name__ == "__main__":
