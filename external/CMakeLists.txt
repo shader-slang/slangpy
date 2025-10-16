@@ -195,18 +195,6 @@ else()
     set(SGL_HAS_AGILITY_SDK OFF PARENT_SCOPE)
 endif()
 
-if(TARGET slang-rhi-optix)
-    get_target_property(OPTIX_DIR slang-rhi-optix INTERFACE_INCLUDE_DIRECTORIES)
-    sgl_copy_binary(${OPTIX_DIR}/optix.h optix)
-    sgl_copy_binary(${OPTIX_DIR}/optix_device.h optix)
-    sgl_copy_binary(${OPTIX_DIR}/optix_types.h optix)
-    sgl_copy_binary(${OPTIX_DIR}/internal/optix_device_impl.h optix/internal)
-    sgl_copy_binary(${OPTIX_DIR}/internal/optix_device_impl_transformations.h optix/internal)
-    set(SGL_HAS_OPTIX ON PARENT_SCOPE)
-else()
-    set(SGL_HAS_OPTIX OFF PARENT_SCOPE)
-endif()
-
 # imgui
 
 set(IMGUI_VERSION "1.90.1")
