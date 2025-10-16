@@ -498,28 +498,13 @@ class CallData(NativeCallData):
             ]
 
             # Call the dummy auto-grad apply function, which critically takes the primal input list
-            # as arguments and returns the primal output list as results.
-            # The returned tensors are wrapped in the autograd graph and should replace the
-            # original output tensors.
-            autograd_out_tensors = TorchAutoGradHook.apply(
+            # as arguments and returns the primal output list as results
+            TorchAutoGradHook.apply(
                 function,
                 unpacked_args,
                 unpacked_kwargs,
                 refs,
                 *primal_in_tensors,
             )
-
-            # Update the tensor references with the autograd-wrapped output tensors
-            out_idx = 0
-            for ref in refs:
-                if ref.last_access[0] in (AccessType.write, AccessType.readwrite):
-                    ref.tensor = autograd_out_tensors[out_idx]
-                    out_idx += 1
-
-            # If the function returns a tensor, update res with the autograd-wrapped version
-            if isinstance(res, torch.Tensor):
-                # The result should be the last output tensor
-                if out_idx > 0:
-                    res = autograd_out_tensors[-1]
 
         return res
