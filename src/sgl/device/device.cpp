@@ -353,8 +353,7 @@ Device::~Device()
 
 void Device::_release_rhi_resources()
 {
-    auto copy = m_device_children;
-    for (DeviceChild* resource : copy)
+    for (DeviceChild* resource : m_device_children)
         resource->_release_rhi_resources();
     m_device_children.clear();
     m_rhi_graphics_queue.setNull();
