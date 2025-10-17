@@ -4,14 +4,6 @@
 #define SGL_ENABLE_PRINT 0
 #endif
 
-static bool s_print_enabled = true;
-
-// Allows enabling/disabling print on a per-thread basis.
-void set_print_enabled(bool enabled)
-{
-    s_print_enabled = enabled;
-}
-
 // Slang's native String has very limited support, notably,
 // cannot be realibly passed out of functions. The work-around is to use
 // result of `getStringHash` instead of the actual String literal and pass that instead.
@@ -25,6 +17,10 @@ struct PrintableString
 }
 
 namespace detail {
+
+#if SGL_ENABLE_PRINT
+static bool s_print_enabled = true;
+#endif
 
 enum class Kind {
     scalar,
@@ -309,6 +305,15 @@ struct DebugPrinter : IPrintOutput {
 
 detail::DebugPrinter g_debug_printer;
 
+
+// Allows enabling/disabling print on a per-thread basis.
+[ForceInline]
+void set_print_enabled(bool enabled)
+{
+    detail::s_print_enabled = enabled;
+}
+
+
 [ForceInline]
 void print<each T : detail::IPrintable>(String fmt, expand each T args)
 {
@@ -320,5 +325,9 @@ void print<each T : detail::IPrintable>(String fmt, expand each T args)
 
 [ForceInline]
 void print<each T : detail::IPrintable>(String fmt, expand each T args) {}
+
+[ForceInline]
+void set_print_enabled(bool enabled) { }
+
 
 #endif // SGL_ENABLE_PRINT
