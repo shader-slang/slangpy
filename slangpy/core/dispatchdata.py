@@ -208,8 +208,9 @@ void {reflection.name}_entrypoint({params}) {{
                     opts,
                 )
                 self.compute_pipeline = device.create_compute_pipeline(
-                    program, defer_target_compilation=True,
-                    label=f"{build_info.module.name}_{build_info.name}_dispatch"
+                    program,
+                    defer_target_compilation=True,
+                    label=f"{build_info.module.name}_{build_info.name}_dispatch",
                 )
                 self.device = device
 

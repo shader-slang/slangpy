@@ -338,8 +338,9 @@ class CallData(NativeCallData):
                         opts,
                     )
                     self.pipeline = device.create_compute_pipeline(
-                        program, defer_target_compilation=True,
-                        label=f"{build_info.module.name}_{build_info.name}_compute_call"
+                        program,
+                        defer_target_compilation=True,
+                        label=f"{build_info.module.name}_{build_info.name}_compute_call",
                     )
                     build_info.module.pipeline_cache[hash] = self.pipeline
                 elif build_info.pipeline_type == PipelineType.ray_tracing:
@@ -382,7 +383,7 @@ class CallData(NativeCallData):
                         max_attribute_size=build_info.ray_tracing_max_attribute_size,
                         flags=build_info.ray_tracing_flags,
                         defer_target_compilation=True,
-                        label=f"{build_info.module.name}_{build_info.name}_rt_call"
+                        label=f"{build_info.module.name}_{build_info.name}_rt_call",
                     )
                     build_info.module.pipeline_cache[hash] = self.pipeline
                     self.shader_table = device.create_shader_table(
