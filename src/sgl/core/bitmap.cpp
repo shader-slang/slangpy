@@ -277,7 +277,7 @@ void Bitmap::write_async(const std::filesystem::path& path, FileFormat format, i
 {
     // Increment reference count to ensure that the bitmap is not destroyed before written.
     this->inc_ref();
-    thread::do_async(
+    thread::global_task_group().run(
         [=, this]()
         {
             this->write(path, format, quality);

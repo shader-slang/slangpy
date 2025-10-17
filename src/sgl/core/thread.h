@@ -7,18 +7,26 @@
 #include <nanothread/nanothread.h>
 
 #include <type_traits>
-#include <future>
+#include <mutex>
+#include <vector>
 
 namespace sgl::thread {
 
 SGL_API void static_init();
 SGL_API void static_shutdown();
 
-/// Block until all registered tasks are completed.
-SGL_API void wait_for_tasks();
+using TaskHandle = Task*;
 
-/// Register a task to be waited for on next wait_for_tasks() call.
-SGL_API void register_task(Task* task);
+// Import nanothread symbols into sgl::thread namespace.
+using ::task_submit_dep;
+using ::task_release;
+using ::task_wait;
+using ::task_wait_and_release;
+using ::task_query;
+using ::task_time;
+using ::task_time_rel;
+using ::task_retain;
+
 
 /// Submit a new task.
 /// \param func Function to call.
@@ -27,7 +35,7 @@ SGL_API void register_task(Task* task);
 /// \param pool Task pool to submit to (using default pool if not specified).
 /// \return The new task.
 template<typename Func>
-[[nodiscard]] Task* submit_task(Func&& func, const Task* const* parents, size_t parent_count, Pool* pool = nullptr)
+[[nodiscard]] TaskHandle run_async(Func&& func, const TaskHandle* parents, size_t parent_count, Pool* pool = nullptr)
 {
     using BaseFunc = std::decay_t<Func>;
 
@@ -65,51 +73,9 @@ template<typename Func>
 /// \param pool Task pool to submit to (using default pool if not specified).
 /// \return The new task.
 template<typename Func>
-[[nodiscard]] Task* submit_task(Func&& func, std::initializer_list<const Task*> parents = {}, Pool* pool = nullptr)
+[[nodiscard]] TaskHandle run_async(Func&& func, std::initializer_list<TaskHandle> parents = {}, Pool* pool = nullptr)
 {
-    return submit_task(func, parents.begin(), parents.size(), pool);
-}
-
-/// Asynchronously run a function in the default thread pool.
-/// Return a std::future that will eventually hold the result of that function call.
-/// \param func Function to call.
-/// \param args Arguments passed to the function.
-/// \return A future that will eventually hold the result.
-template<
-    typename Func,
-    typename... Args,
-    typename Result = std::invoke_result_t<std::decay_t<Func>, std::decay_t<Args>...>>
-std::future<Result> do_async(Func&& func, Args&&... args)
-{
-    struct Payload {
-        std::decay_t<Func> func;
-        std::tuple<std::decay_t<Args>...> args;
-        std::promise<Result> promise;
-    };
-    Payload* payload
-        = new Payload{std::forward<Func>(func), std::make_tuple(std::forward<Args>(args)...), std::promise<Result>()};
-    std::future<Result> future = payload->promise.get_future();
-    Task* task = task_submit(
-        nullptr,
-        1,
-        [](uint32_t, void* p)
-        {
-            Payload* payload = static_cast<Payload*>(p);
-            if constexpr (std::is_void_v<Result>) {
-                std::apply(payload->func, payload->args);
-                payload->promise.set_value();
-            } else {
-                payload->promise.set_value(std::apply(payload->func, payload->args));
-            }
-            delete payload;
-        },
-        payload,
-        0,
-        nullptr,
-        1
-    );
-    task_release(task);
-    return future;
+    return run_async(std::forward<Func>(func), parents.begin(), parents.size(), pool);
 }
 
 
@@ -158,7 +124,6 @@ private:
 template<typename Int, typename Func>
 void parallel_for(const blocked_range<Int>& range, Func&& func, Pool* pool = nullptr)
 {
-
     struct Payload {
         Func* f;
         Int begin, end, block_size;
@@ -188,10 +153,10 @@ void parallel_for(const blocked_range<Int>& range, Func&& func, Pool* pool = nul
 /// \param pool Task pool to submit to (using default pool if not specified).
 /// \return The new task.
 template<typename Int, typename Func>
-[[nodiscard]] Task* submit_parallel_for(
+[[nodiscard]] TaskHandle parallel_for_async(
     const blocked_range<Int>& range,
     Func&& func,
-    const Task* const* parents,
+    const TaskHandle* parents,
     size_t parent_count,
     Pool* pool = nullptr
 )
@@ -244,14 +209,67 @@ template<typename Int, typename Func>
 /// \param pool Task pool to submit to (using default pool if not specified).
 /// \return The new task.
 template<typename Int, typename Func>
-[[nodiscard]] Task* submit_parallel_for(
+[[nodiscard]] TaskHandle parallel_for_async(
     const blocked_range<Int>& range,
     Func&& func,
-    std::initializer_list<const Task*> parents = {},
+    std::initializer_list<TaskHandle> parents = {},
     Pool* pool = nullptr
 )
 {
-    return submit_parallel_for(range, func, parents.begin(), parents.size(), pool);
+    return parallel_for_async(range, func, parents.begin(), parents.size(), pool);
 }
+
+
+class SGL_API TaskGroup {
+public:
+    TaskGroup() = default;
+    ~TaskGroup() = default;
+
+    template<typename Func>
+    TaskHandle run(Func&& func, TaskHandle* parents, size_t parent_count, Pool* pool = nullptr)
+    {
+        TaskHandle task = run_async(std::forward<Func>(func), parents, parent_count, pool);
+        add_task(task);
+        return task;
+    }
+
+    template<typename Func>
+    TaskHandle run(Func&& func, std::initializer_list<TaskHandle> parents = {}, Pool* pool = nullptr)
+    {
+        TaskHandle task = run_async(std::forward<Func>(func), parents, pool);
+        add_task(task);
+        return task;
+    }
+
+    void add_task(TaskHandle task)
+    {
+        std::lock_guard lock(m_mutex);
+        m_tasks.push_back(task);
+    }
+
+    void wait()
+    {
+        std::vector<TaskHandle> tasks;
+        {
+            std::lock_guard lock(m_mutex);
+            std::swap(tasks, m_tasks);
+        }
+        for (TaskHandle task : tasks) {
+            task_wait_and_release(task);
+        }
+    }
+
+private:
+    std::mutex m_mutex;
+    std::vector<TaskHandle> m_tasks;
+};
+
+/// Get the global task group.
+/// This task group should mostly be used for fire-and-forget tasks without dependencies.
+/// All tasks submitted to this group will be waited for on program shutdown.
+SGL_API TaskGroup& global_task_group();
+
+/// Wait for all tasks in the global task group.
+SGL_API void wait_for_tasks();
 
 } // namespace sgl::thread
