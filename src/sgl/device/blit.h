@@ -63,7 +63,7 @@ public:
     void generate_mips(CommandEncoder* command_encoder, Texture* texture, uint32_t layer = 0);
 
 private:
-    enum class TextureDataType {
+    enum class TextureDataKind {
         float_,
         int_,
     };
@@ -75,26 +75,30 @@ private:
 
     struct ProgramKey {
         TextureLayout src_layout;
-        TextureDataType src_type;
-        TextureDataType dst_type;
+        TextureDataKind src_kind;
+        uint32_t src_channel_count;
+        Format dst_format;
+        TextureDataKind dst_kind;
+        uint32_t dst_channel_count;
 
         auto operator<=>(const ProgramKey&) const = default;
     };
 
-    ref<ShaderProgram> get_render_program(ProgramKey key);
-    ref<RenderPipeline> get_render_pipeline(ProgramKey key, Format dst_format);
-    ref<ShaderProgram> get_compute_program(ProgramKey key, Format dst_format);
-    ref<ComputePipeline> get_compute_pipeline(ProgramKey key, Format dst_format);
+    std::string generate_defines(const ProgramKey& key);
+    ref<ShaderProgram> get_render_program(const ProgramKey& key);
+    ref<RenderPipeline> get_render_pipeline(const ProgramKey& key);
+    ref<ShaderProgram> get_compute_program(const ProgramKey& key);
+    ref<ComputePipeline> get_compute_pipeline(const ProgramKey& key);
 
     Device* m_device;
     ref<Sampler> m_linear_sampler;
     ref<Sampler> m_point_sampler;
 
     std::map<ProgramKey, ref<ShaderProgram>> m_render_program_cache;
-    std::map<std::pair<ProgramKey, Format>, ref<RenderPipeline>> m_render_pipeline_cache;
+    std::map<ProgramKey, ref<RenderPipeline>> m_render_pipeline_cache;
 
-    std::map<std::pair<ProgramKey, Format>, ref<ShaderProgram>> m_compute_program_cache;
-    std::map<std::pair<ProgramKey, Format>, ref<ComputePipeline>> m_compute_pipeline_cache;
+    std::map<ProgramKey, ref<ShaderProgram>> m_compute_program_cache;
+    std::map<ProgramKey, ref<ComputePipeline>> m_compute_pipeline_cache;
 };
 
 } // namespace sgl
