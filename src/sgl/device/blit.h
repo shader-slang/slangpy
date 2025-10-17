@@ -85,10 +85,10 @@ private:
     };
 
     std::string generate_defines(const ProgramKey& key);
-    ref<ShaderProgram> get_render_program(const ProgramKey& key);
-    ref<RenderPipeline> get_render_pipeline(const ProgramKey& key);
-    ref<ShaderProgram> get_compute_program(const ProgramKey& key);
-    ref<ComputePipeline> get_compute_pipeline(const ProgramKey& key);
+    ref<ShaderProgram> get_render_program(ProgramKey key);
+    ref<RenderPipeline> get_render_pipeline(ProgramKey key);
+    ref<ShaderProgram> get_compute_program(ProgramKey key);
+    ref<ComputePipeline> get_compute_pipeline(ProgramKey key);
 
     Device* m_device;
     ref<Sampler> m_linear_sampler;

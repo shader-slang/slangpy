@@ -212,8 +212,11 @@ inline std::string Blitter::generate_defines(const ProgramKey& key)
     );
 }
 
-ref<ShaderProgram> Blitter::get_render_program(const ProgramKey& key)
+ref<ShaderProgram> Blitter::get_render_program(ProgramKey key)
 {
+    // Render programs can be reused for different destination formats as long as the kind/channel count matches.
+    key.dst_format = Format::undefined;
+
     auto it = m_render_program_cache.find(key);
     if (it != m_render_program_cache.end())
         return it->second;
@@ -234,7 +237,7 @@ ref<ShaderProgram> Blitter::get_render_program(const ProgramKey& key)
     return program;
 }
 
-ref<RenderPipeline> Blitter::get_render_pipeline(const ProgramKey& key)
+ref<RenderPipeline> Blitter::get_render_pipeline(ProgramKey key)
 {
     auto it = m_render_pipeline_cache.find(key);
     if (it != m_render_pipeline_cache.end())
@@ -255,7 +258,7 @@ ref<RenderPipeline> Blitter::get_render_pipeline(const ProgramKey& key)
     return pipeline;
 }
 
-ref<ShaderProgram> Blitter::get_compute_program(const ProgramKey& key)
+ref<ShaderProgram> Blitter::get_compute_program(ProgramKey key)
 {
     auto it = m_compute_program_cache.find(key);
     if (it != m_compute_program_cache.end())
@@ -276,7 +279,7 @@ ref<ShaderProgram> Blitter::get_compute_program(const ProgramKey& key)
     return program;
 }
 
-ref<ComputePipeline> Blitter::get_compute_pipeline(const ProgramKey& key)
+ref<ComputePipeline> Blitter::get_compute_pipeline(ProgramKey key)
 {
     auto it = m_compute_pipeline_cache.find(key);
     if (it != m_compute_pipeline_cache.end())
