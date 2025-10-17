@@ -191,12 +191,8 @@ if(SGL_MACOS)
     find_library(SGL_APPKIT_FRAMEWORK AppKit REQUIRED)
     find_library(SGL_FOUNDATION_FRAMEWORK Foundation REQUIRED)
     find_library(SGL_UTI_FRAMEWORK UniformTypeIdentifiers REQUIRED)
-    add_library(sgl_appkit INTERFACE)
-    target_link_libraries(sgl_appkit INTERFACE "${SGL_APPKIT_FRAMEWORK}")
-    add_library(sgl_foundation INTERFACE)
-    target_link_libraries(sgl_foundation INTERFACE "${SGL_FOUNDATION_FRAMEWORK}")
-    add_library(sgl_uti INTERFACE)
-    target_link_libraries(sgl_uti INTERFACE "${SGL_UTI_FRAMEWORK}")
+    add_library(sgl_macos_deps INTERFACE)
+    target_link_libraries(sgl_macos_deps INTERFACE ${SGL_APPKIT_FRAMEWORK} ${SGL_FOUNDATION_FRAMEWORK} ${SGL_UTI_FRAMEWORK})
 endif()
 
 target_compile_features(sgl PUBLIC cxx_std_20)
@@ -388,11 +384,8 @@ target_link_libraries(sgl
         # Linux system libraries.
         # $<$<PLATFORM_ID:Linux>:gtk3>
         # macOS system libraries.
-        $<$<PLATFORM_ID:Darwin>:sgl_appkit>
-        $<$<PLATFORM_ID:Darwin>:sgl_foundation>
-        $<$<PLATFORM_ID:Darwin>:sgl_uti>
+        $<$<PLATFORM_ID:Darwin>:sgl_macos_deps>
 )
-
 
 set_target_properties(sgl PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY}

@@ -7,6 +7,7 @@
 #include "sgl/core/error.h"
 #include "sgl/core/format.h"
 #include "sgl/core/logger.h"
+#include "sgl/core/string.h"
 
 #include <signal.h>
 #include <limits.h>
@@ -105,33 +106,14 @@ void set_keyboard_interrupt_handler(std::function<void()> handler)
 static std::vector<std::string> parse_extensions_from_filters(std::span<const FileDialogFilter> filters)
 {
     std::vector<std::string> exts;
-    for (const auto& f : filters) {
-        const std::string& pattern = f.pattern;
-        size_t start = 0;
-        while (start < pattern.size()) {
-            size_t end = pattern.find(';', start);
-            if (end == std::string::npos)
-                end = pattern.size();
-            std::string token = pattern.substr(start, end - start);
-            auto l = token.find_first_not_of(" \t\n\r");
-            auto r = token.find_last_not_of(" \t\n\r");
-            if (l != std::string::npos && r != std::string::npos)
-                token = token.substr(l, r - l + 1);
-            while (!token.empty() && (token[0] == '*' || token[0] == '.'))
-                token.erase(token.begin());
-            for (char& c : token)
-                c = (char)std::tolower((unsigned char)c);
-            if (!token.empty())
-                exts.push_back(token);
-            start = end + 1;
+    for (const auto& filter : filters) {
+        for (const auto& pattern : string::split(filter.pattern, ";")) {
+            std::string ext = string::to_lower(string::remove_leading_whitespace(pattern, " \n\r\t.*"));
+            if (std::find(exts.begin(), exts.end(), ext) == exts.end())
+                exts.push_back(std::move(ext));
         }
     }
-    std::vector<std::string> unique;
-    for (const auto& e : exts) {
-        if (std::find(unique.begin(), unique.end(), e) == unique.end())
-            unique.push_back(e);
-    }
-    return unique;
+    return exts;
 }
 
 static void ensure_app_activation()

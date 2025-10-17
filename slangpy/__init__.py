@@ -1,16 +1,20 @@
 import os, sys
 
-package_dir = os.path.normpath(os.path.dirname(__file__))
-
 if os.name == "nt":
+    package_dir = os.path.normpath(os.path.dirname(__file__))
     if os.path.exists(os.path.join(package_dir, "sgl.dll")):
+        # This is a deployed package containing all the DLLs.
+        # No need to setup a dll directory.
         pass
     elif os.path.exists(os.path.join(package_dir, ".build_dir")):
+        # Loading package from a development build.
+        # The DLLs are in the build directory.
         build_dir = open(os.path.join(package_dir, ".build_dir")).readline().strip()
         os.add_dll_directory(build_dir)
     else:
         print("Cannot locate sgl.dll.")
         sys.exit(1)
+
 del os, sys
 
 from importlib import import_module as _import
