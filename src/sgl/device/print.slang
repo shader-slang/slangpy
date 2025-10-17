@@ -4,6 +4,14 @@
 #define SGL_ENABLE_PRINT 0
 #endif
 
+static bool s_print_enabled = true;
+
+// Allows enabling/disabling print on a per-thread basis.
+void set_print_enabled(bool enabled)
+{
+    s_print_enabled = enabled;
+}
+
 // Slang's native String has very limited support, notably,
 // cannot be realibly passed out of functions. The work-around is to use
 // result of `getStringHash` instead of the actual String literal and pass that instead.
@@ -304,7 +312,8 @@ detail::DebugPrinter g_debug_printer;
 [ForceInline]
 void print<each T : detail::IPrintable>(String fmt, expand each T args)
 {
-    detail::print(g_debug_printer, fmt, args);
+    if (s_print_enabled)
+        detail::print(g_debug_printer, fmt, args);
 }
 
 #else // SGL_ENABLE_PRINT
