@@ -16,6 +16,7 @@ include(DetermineTargetArchitecture)
 include(GNUInstallDirs)
 include(CMakeRC)
 
+# Default minimum macOS version
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 
 if (APPLE)

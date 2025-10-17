@@ -230,6 +230,7 @@ SGL_PY_EXPORT(device_device)
         .def_ro("api_name", &DeviceInfo::api_name, D(DeviceInfo, api_name))
         .def_ro("adapter_name", &DeviceInfo::adapter_name, D(DeviceInfo, adapter_name))
         .def_ro("timestamp_frequency", &DeviceInfo::timestamp_frequency, D(DeviceInfo, timestamp_frequency))
+        .def_ro("optix_version", &DeviceInfo::optix_version, D_NA(DeviceInfo, optix_version))
         .def_ro("limits", &DeviceInfo::limits, D(DeviceInfo, limits));
 
     nb::class_<ShaderCacheStats>(m, "ShaderCacheStats", D(ShaderCacheStats))

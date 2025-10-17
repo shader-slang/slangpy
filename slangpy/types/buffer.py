@@ -357,7 +357,7 @@ class NDBuffer(NativeNDBuffer):
             device,
             dtype=dtype,
             shape=ndarray.shape,
-            usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
+            usage=usage,
             memory_type=memory_type,
         )
         res.copy_from_numpy(ndarray)

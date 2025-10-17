@@ -312,8 +312,12 @@ void SlangSession::create_session(SlangSessionBuild& build)
 
     // Set downstream argument for optix include path.
     if (device_type == DeviceType::cuda) {
-        auto optix_path = platform::runtime_directory() / "optix";
-        session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", "-I" + optix_path.string());
+        uint32_t optix_version = m_device->info().optix_version;
+        if (optix_version > 0) {
+            std::string version_tag = fmt::format("{}_{}", optix_version / 10000, (optix_version % 10000) / 100);
+            auto optix_path = platform::runtime_directory() / "optix" / version_tag;
+            session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", "-I" + optix_path.string());
+        }
     }
 
     // Set intermediate dump options.
