@@ -8,61 +8,48 @@
 
 // This shader expects the following defines to be set externally:
 // - SRC_LAYOUT (LAYOUT_TEXTURE2D, LAYOUT_TEXTURE2D_ARRAY)
-// - SRC_TYPE (TYPE_FLOAT, TYPE_INT)
-// - DST_TYPE (TYPE_FLOAT, TYPE_INT)
-// - DST_FORMAT_ATTR (slang texture format attribute like [format("rgba8")], only used in compute shader)
+// - SRC_KIND (KIND_FLOAT, KIND_INT)
+// - SRC_CHANNEL_COUNT (1, 2, 4)
+// - SRC_TYPE (float, float2, float4, uint, uint2, uint4)
+// - DST_KIND (KIND_FLOAT, KIND_INT)
+// - DST_CHANNEL_COUNT (1, 2, 4)
+// - DST_TYPE (float, float2, float4, uint, uint2, uint4)
+// - DST_FORMAT_ATTR (slang texture format attribute like [format("rgba8")])
 // - DST_SRGB (0 or 1, whether to convert the output to sRGB, only used in compute shader)
 
-#define TYPE_FLOAT 0
-#define TYPE_INT 1
+#define KIND_FLOAT 0
+#define KIND_INT 1
 
 #define LAYOUT_TEXTURE2D 0
 #define LAYOUT_TEXTURE2D_ARRAY 1
 
-
-#if SRC_TYPE == TYPE_FLOAT
-typedef float4 SrcType;
-#elif SRC_TYPE == TYPE_INT
-typedef uint4 SrcType;
-#else
-#error "Invalid SRC_TYPE"
-#endif
-
-#if DST_TYPE == TYPE_FLOAT
-typedef float4 DstType;
-#elif DST_TYPE == TYPE_INT
-typedef uint4 DstType;
-#else
-#error "Invalid DST_TYPE"
-#endif
-
 #if SRC_LAYOUT == LAYOUT_TEXTURE2D
-typedef Texture2D<SrcType> SrcTexture;
+typedef Texture2D<SRC_TYPE> SrcTexture;
 #elif SRC_LAYOUT == LAYOUT_TEXTURE2D_ARRAY
-typedef Texture2DArray<SrcType> SrcTexture;
+typedef Texture2DArray<SRC_TYPE> SrcTexture;
 #else
 #error "Invalid SRC_LAYOUT"
 #endif
 
-extension Texture2D
+extension Texture2D<SRC_TYPE>
 {
-    SrcType sample(SamplerState s, float2 uv)
+    SRC_TYPE sample(SamplerState s, float2 uv)
     {
-#if SRC_TYPE == TYPE_FLOAT
+#if SRC_KIND == KIND_FLOAT
         return this.Sample(s, uv);
-#elif SRC_TYPE == TYPE_INT
+#elif SRC_KIND == KIND_INT
         return asuint(this.Sample(s, uv));
 #endif
     }
 }
 
-extension Texture2DArray
+extension Texture2DArray<SRC_TYPE>
 {
-    SrcType sample(SamplerState s, float2 uv)
+    SRC_TYPE sample(SamplerState s, float2 uv)
     {
-#if SRC_TYPE == TYPE_FLOAT
+#if SRC_KIND == KIND_FLOAT
         return this.Sample(s, float3(uv, 0));
-#elif SRC_TYPE == TYPE_INT
+#elif SRC_KIND == KIND_INT
         return asuint(this.Sample(s, float3(uv, 0)));
 #endif
     }
@@ -88,12 +75,12 @@ VSOut vs_main(uint vid: SV_VertexID)
 }
 
 [shader("fragment")]
-DstType fs_main(VSOut vs_out)
+DST_TYPE fs_main(VSOut vs_out)
     : SV_Target
 {
     float2 uv = vs_out.uv;
     let value = src.sample(sampler, uv);
-    return reinterpret<DstType>(value);
+    return reinterpret<DST_TYPE>(value);
 }
 
 #endif // __TARGET_CUDA__
@@ -113,14 +100,14 @@ float3 linear_to_srgb(float3 linear)
 
 [shader("compute")]
 [numthreads(8, 8, 1)]
-void compute_main(uint3 tid: SV_DispatchThreadID, DST_FORMAT_ATTR RWTexture2D<DstType> dst)
+void compute_main(uint3 tid: SV_DispatchThreadID, DST_FORMAT_ATTR RWTexture2D<DST_TYPE> dst)
 {
     uint2 dim;
     dst.GetDimensions(dim.x, dim.y);
     if (any(tid.xy >= dim))
         return;
     float2 uv = (float2(tid.xy) + 0.5) / dim;
-    DstType value = src.sample(sampler, uv);
+    DST_TYPE value = src.sample(sampler, uv);
 #if DST_SRGB == 1
     value.xyz = linear_to_srgb(value.xyz);
 #endif
