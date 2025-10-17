@@ -118,7 +118,11 @@ if(SGL_WINDOWS)
     sgl_copy_binary(${SLANG_DIR}/bin/slang.dll .)
     sgl_copy_binary(${SLANG_DIR}/bin/slang-glslang.dll .)
     sgl_copy_binary(${SLANG_DIR}/bin/slang-glsl-module.dll .)
-    sgl_copy_binary(${SLANG_DIR}/bin/slang-llvm.dll .)
+    # slang-llvm.dll is available in x64 prebuilt packages but not in ARM64 packages.
+    # Use conditional copy to support both architectures.
+    if(EXISTS ${SLANG_DIR}/bin/slang-llvm.dll)
+        sgl_copy_binary(${SLANG_DIR}/bin/slang-llvm.dll .)
+    endif()
     sgl_copy_binary(${SLANG_DIR}/bin/slang-rt.dll .)
 elseif(SGL_LINUX)
     add_library(slang SHARED IMPORTED GLOBAL)
