@@ -11,7 +11,6 @@
 // - SRC_KIND (KIND_FLOAT, KIND_INT)
 // - SRC_CHANNEL_COUNT (1, 2, 4)
 // - SRC_TYPE (float, float2, float4, uint, uint2, uint4)
-// - SRC_FORMAT_ATTR (slang texture format attribute like [format("rgba8")])
 // - DST_KIND (KIND_FLOAT, KIND_INT)
 // - DST_CHANNEL_COUNT (1, 2, 4)
 // - DST_TYPE (float, float2, float4, uint, uint2, uint4)
