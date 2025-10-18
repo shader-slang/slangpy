@@ -142,6 +142,12 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
         }
     }
 
+    // If format is greyscale with alpha, we must convert to rgba
+    if (pixel_format == PixelFormat::ya) {
+        pixel_format = PixelFormat::rgba;
+        convert_to_rgba = true;
+    }
+
     // Use sRGB format if requested and supported.
     if (options.load_as_srgb && pixel_format == PixelFormat::rgba && component_type == ComponentType::uint8
         && bitmap->srgb_gamma())
