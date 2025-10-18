@@ -4,30 +4,33 @@
 
 #include "sgl/core/error.h"
 
+#include <vector>
+
 namespace sgl::thread {
 
-static std::unique_ptr<BS::thread_pool> s_global_thread_pool;
+void static_init() { }
 
-void static_init()
-{
-    s_global_thread_pool = std::make_unique<BS::thread_pool>();
-}
+void static_shutdown() { }
 
-void static_shutdown()
-{
-    s_global_thread_pool->wait_for_tasks();
-    s_global_thread_pool.reset();
-}
+static std::vector<Task*> s_tasks;
+std::mutex s_tasks_mutex;
 
 void wait_for_tasks()
 {
-    global_thread_pool().wait_for_tasks();
+    std::vector<Task*> tasks;
+    {
+        std::lock_guard lock(s_tasks_mutex);
+        std::swap(tasks, s_tasks);
+    }
+    for (Task* task : tasks) {
+        task_wait_and_release(task);
+    }
 }
 
-BS::thread_pool& global_thread_pool()
+void register_task(Task* task)
 {
-    SGL_CHECK(s_global_thread_pool, "Global thread pool not initialized!");
-    return *s_global_thread_pool;
+    std::lock_guard lock(s_tasks_mutex);
+    s_tasks.push_back(task);
 }
 
 } // namespace sgl::thread
