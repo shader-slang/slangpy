@@ -82,6 +82,8 @@ FORMATS = [
     FormatEntry(PixelFormat.rgb, ComponentType.uint8, Format.rgba8_uint, Flags.extend_alpha),
     FormatEntry(PixelFormat.rgb, ComponentType.uint8, Format.rgba8_unorm, Flags.load_as_normalized | Flags.extend_alpha),
     FormatEntry(PixelFormat.rgb, ComponentType.uint8, Format.rgba8_unorm_srgb, Flags.load_as_srgb | Flags.extend_alpha),
+    # ya handling
+    FormatEntry(PixelFormat.ya, ComponentType.int8, Format.rgba8_sint, Flags.none),
 ]
 # fmt: on
 
@@ -200,6 +202,17 @@ def test_load_texture_from_bitmap(device_type: spy.DeviceType, format: FormatEnt
             (
                 image,
                 np.full((bitmap.height, bitmap.width, 1), 255, dtype=dtype),
+            ),
+            axis=2,
+        )
+
+    if format.pixel_format == PixelFormat.ya:
+        image = np.concatenate(
+            (
+                image[:, :, :1],  # y
+                image[:, :, :1],  # y
+                image[:, :, :1],  # y
+                image[:, :, 1:],  # a
             ),
             axis=2,
         )
