@@ -17,10 +17,6 @@ namespace sgl::ui {
 
 class Widget;
 
-struct Event {
-    Widget* sender;
-};
-
 /// Base class for Python UI widgets.
 /// Widgets own their children.
 class Widget : public Object {
@@ -108,14 +104,6 @@ public:
             child->render();
     }
 
-    virtual void record_event(const Event& event)
-    {
-        if (m_parent)
-            m_parent->record_event(event);
-    }
-
-    virtual void dispatch_event(const Event& event) { SGL_UNUSED(event); }
-
 protected:
     Widget* m_parent;
     std::vector<ref<Widget>> m_children;
@@ -134,18 +122,6 @@ public:
     }
 
     virtual void render() override { Widget::render(); }
-
-    virtual void record_event(const Event& event) override { m_events.push_back(event); }
-
-    void dispatch_events()
-    {
-        for (const auto& event : m_events)
-            event.sender->dispatch_event(event);
-        m_events.clear();
-    }
-
-private:
-    std::vector<Event> m_events;
 };
 
 /// Scoped push/pop of ImGui ID.
@@ -354,6 +330,12 @@ public:
     Callback callback() const { return m_callback; }
     void set_callback(Callback callback) { m_callback = callback; }
 
+    void notify()
+    {
+        if (m_callback)
+            m_callback();
+    }
+
     virtual void render() override
     {
         if (!m_visible)
@@ -362,14 +344,7 @@ public:
         ScopedID id(this);
         ScopedDisable disable(!m_enabled);
         if (ImGui::Button(m_label.c_str()))
-            record_event({this});
-    }
-
-    virtual void dispatch_event(const Event& event) override
-    {
-        SGL_ASSERT(event.sender == this);
-        if (m_callback)
-            m_callback();
+            notify();
     }
 
 private:
@@ -400,9 +375,8 @@ public:
     Callback callback() const { return m_callback; }
     void set_callback(Callback callback) { m_callback = callback; }
 
-    virtual void dispatch_event(const Event& event) override
+    void notify()
     {
-        SGL_ASSERT(event.sender == this);
         if (m_callback)
             m_callback(m_value);
     }
@@ -431,7 +405,7 @@ public:
         ScopedID id(this);
         ScopedDisable disable(!m_enabled);
         if (ImGui::Checkbox(m_label.c_str(), &m_value))
-            record_event({this});
+            notify();
     }
 };
 
@@ -476,7 +450,7 @@ public:
                 &m_items,
                 (int)m_items.size()
             )) {
-            record_event({this});
+            notify();
         }
     }
 
@@ -527,7 +501,7 @@ public:
                 int(m_items.size()),
                 m_height_in_items
             )) {
-            record_event({this});
+            notify();
         }
     }
 
@@ -577,11 +551,11 @@ public:
     using typename Base::value_type;
     using typename Base::Callback;
 
-    using Widget::record_event;
     using Widget::m_enabled;
     using Widget::m_visible;
     using Base::m_label;
     using Base::m_value;
+    using Base::notify;
 
     using scalar_type = typename VectorTraits<T>::scalar_type;
     static constexpr int N = VectorTraits<T>::N;
@@ -641,7 +615,7 @@ public:
             ImGuiSliderFlags(m_flags)
         );
         if (changed)
-            record_event({this});
+            notify();
     }
 
 private:
@@ -669,11 +643,11 @@ public:
     using typename Base::value_type;
     using typename Base::Callback;
 
-    using Widget::record_event;
     using Widget::m_enabled;
     using Widget::m_visible;
     using Base::m_label;
     using Base::m_value;
+    using Base::notify;
 
     using scalar_type = typename VectorTraits<T>::scalar_type;
     static constexpr int N = VectorTraits<T>::N;
@@ -727,7 +701,7 @@ public:
             ImGuiSliderFlags(m_flags)
         );
         if (changed)
-            record_event({this});
+            notify();
     }
 
 private:
@@ -779,11 +753,11 @@ public:
     using typename Base::value_type;
     using typename Base::Callback;
 
-    using Widget::record_event;
     using Widget::m_enabled;
     using Widget::m_visible;
     using Base::m_label;
     using Base::m_value;
+    using Base::notify;
 
     using scalar_type = typename VectorTraits<T>::scalar_type;
     static constexpr int N = VectorTraits<T>::N;
@@ -837,7 +811,7 @@ public:
             ImGuiInputTextFlags(m_flags)
         );
         if (changed)
-            record_event({this});
+            notify();
     }
 
 private:
@@ -910,7 +884,7 @@ public:
                 = ImGui::InputText(m_label.c_str(), m_value.data(), m_value.capacity() + 1, flags, text_callback, this);
         }
         if (changed)
-            record_event({this});
+            notify();
     }
 
 private:

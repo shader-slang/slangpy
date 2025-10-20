@@ -139,13 +139,14 @@ void AppWindow::on_keyboard_event(const KeyboardEvent& event)
 void AppWindow::_run_frame()
 {
     m_window->process_events();
-    m_ui_context->process_events();
 
     if (!m_surface->config())
         return;
     ref<Texture> texture = m_surface->acquire_next_image();
     if (!texture)
         return;
+
+    m_ui_context->begin_frame(texture->width(), texture->height());
 
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
 
@@ -161,11 +162,9 @@ void AppWindow::_run_frame()
 
     render(render_context);
 
-    m_ui_context->new_frame(texture->width(), texture->height());
-
     render_ui();
 
-    m_ui_context->render(texture, command_encoder);
+    m_ui_context->end_frame(texture, command_encoder);
 
     m_device->submit_command_buffer(command_encoder->finish());
 
