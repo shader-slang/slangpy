@@ -282,31 +282,6 @@ Context::Context(ref<Device> device)
     setup_style();
     ImGui::GetStyle().ScaleAllSizes(scale_factor);
 
-    // Skip initializing rasterizer if device does not support rasterization.
-    // TODO: This will be fixed later when adding sw rasterizer (wip).
-    if (!m_device->has_feature(Feature::rasterization)) {
-        log_warn("Rasterization is not available and UI will not be rendered!");
-        return;
-    }
-
-    // Setup sampler.
-    m_sampler = m_device->create_sampler({
-        .min_filter = TextureFilteringMode::linear,
-        .mag_filter = TextureFilteringMode::linear,
-        .mip_filter = TextureFilteringMode::linear,
-        .address_u = TextureAddressingMode::wrap,
-        .address_v = TextureAddressingMode::wrap,
-        .address_w = TextureAddressingMode::wrap,
-        .mip_lod_bias = 0.f,
-        .max_anisotropy = 1,
-        .border_color = {0.f, 0.f, 0.f, 0.f},
-        .min_lod = 0.f,
-        .max_lod = 0.f,
-    });
-
-    // Setup program.
-    m_program = m_device->load_program("sgl/ui/imgui.slang", {"vs_main", "fs_main"});
-
     // Setup font texture.
     {
         uint8_t* pixels;
@@ -330,17 +305,26 @@ Context::Context(ref<Device> device)
         io.Fonts->SetTexID(static_cast<ImTextureID>(m_font_texture.get()));
     }
 
-    // Setup vertex layout.
-    m_input_layout = m_device->create_input_layout({
-        .input_elements{
-            {.semantic_name = "POSITION", .format = Format::rg32_float, .offset = offsetof(ImDrawVert, pos)},
-            {.semantic_name = "TEXCOORD", .format = Format::rg32_float, .offset = offsetof(ImDrawVert, uv)},
-            {.semantic_name = "COLOR", .format = Format::rgba8_unorm, .offset = offsetof(ImDrawVert, col)},
-        },
-        .vertex_streams{
-            {.stride = sizeof(ImDrawVert)},
-        },
+    // Setup sampler.
+    m_sampler = m_device->create_sampler({
+        .min_filter = TextureFilteringMode::linear,
+        .mag_filter = TextureFilteringMode::linear,
+        .mip_filter = TextureFilteringMode::linear,
+        .address_u = TextureAddressingMode::wrap,
+        .address_v = TextureAddressingMode::wrap,
+        .address_w = TextureAddressingMode::wrap,
+        .mip_lod_bias = 0.f,
+        .max_anisotropy = 1,
+        .border_color = {0.f, 0.f, 0.f, 0.f},
+        .min_lod = 0.f,
+        .max_lod = 0.f,
     });
+
+    if (m_device->has_feature(Feature::rasterization)) {
+        init_rasterizer();
+    } else {
+        init_sw_rasterizer();
+    }
 }
 
 Context::~Context()
@@ -369,9 +353,6 @@ void Context::new_frame(uint32_t width, uint32_t height)
 void Context::render(TextureView* texture_view, CommandEncoder* command_encoder)
 {
     ImGui::SetCurrentContext(m_imgui_context);
-    ImGuiIO& io = ImGui::GetIO();
-
-    bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
 
     m_screen->render();
 
@@ -422,65 +403,11 @@ void Context::render(TextureView* texture_view, CommandEncoder* command_encoder)
         vertex_buffer->unmap();
         index_buffer->unmap();
 
-        // Render command lists.
-        auto pass_encoder = command_encoder->begin_render_pass({
-            .color_attachments = {
-                {
-                    .view = texture_view,
-                    .load_op = LoadOp::load,
-                    .store_op = StoreOp::store,
-                },
-            },
-        });
-        ShaderObject* shader_object = pass_encoder->bind_pipeline(get_pipeline(texture_view->desc().format));
-        ShaderCursor shader_cursor = ShaderCursor(shader_object);
-        shader_cursor["sampler"] = m_sampler;
-        shader_cursor["scale"] = 2.f / float2(io.DisplaySize.x, -io.DisplaySize.y);
-        shader_cursor["offset"] = float2(-1.f, 1.f);
-        shader_cursor["is_srgb_format"] = is_srgb_format;
-        ShaderOffset texture_offset = shader_cursor["texture"].offset();
-
-        RenderState render_state = {
-            .viewports = {Viewport::from_size(io.DisplaySize.x, io.DisplaySize.y)},
-            .scissor_rects = {ScissorRect{}},
-            .vertex_buffers = {vertex_buffer},
-            .index_buffer = index_buffer,
-            .index_format = sizeof(ImDrawIdx) == 2 ? IndexFormat::uint16 : IndexFormat::uint32,
-        };
-
-        int vertex_offset = 0;
-        int index_offset = 0;
-        ImVec2 clip_off = draw_data->DisplayPos;
-        for (int n = 0; n < draw_data->CmdListsCount; n++) {
-            const ImDrawList* cmd_list = draw_data->CmdLists[n];
-            for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
-                const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
-                SGL_ASSERT(pcmd->UserCallback == nullptr);
-                // Project scissor/clipping rectangles into framebuffer space.
-                ScissorRect clip_rect{
-                    .min_x = uint32_t(pcmd->ClipRect.x - clip_off.x),
-                    .min_y = uint32_t(pcmd->ClipRect.y - clip_off.y),
-                    .max_x = uint32_t(pcmd->ClipRect.z - clip_off.x),
-                    .max_y = uint32_t(pcmd->ClipRect.w - clip_off.y),
-                };
-                if (clip_rect.max_x <= clip_rect.min_x || clip_rect.max_y <= clip_rect.min_y)
-                    continue;
-
-                // Apply scissor/clipping rectangle, bind texture, draw.
-                render_state.scissor_rects[0] = clip_rect;
-                ref<Texture> texture = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID()));
-                shader_object->set_texture(texture_offset, texture);
-                pass_encoder->set_render_state(render_state);
-                pass_encoder->draw_indexed({
-                    .vertex_count = pcmd->ElemCount,
-                    .start_vertex_location = pcmd->VtxOffset + vertex_offset,
-                    .start_index_location = pcmd->IdxOffset + index_offset,
-                });
-            }
-            index_offset += cmd_list->IdxBuffer.Size;
-            vertex_offset += cmd_list->VtxBuffer.Size;
+        if (m_device->has_feature(Feature::rasterization)) {
+            draw(draw_data, vertex_buffer, index_buffer, texture_view, command_encoder);
+        } else {
+            draw_sw(draw_data, vertex_buffer, index_buffer, texture_view, command_encoder);
         }
-        pass_encoder->end();
     }
 }
 
@@ -544,6 +471,33 @@ void Context::process_events()
     m_screen->dispatch_events();
 }
 
+void Context::init_rasterizer()
+{
+    // Setup program.
+    m_program = m_device->load_program("sgl/ui/imgui.slang", {"vs_main", "fs_main"});
+
+    // Setup vertex layout.
+    m_input_layout = m_device->create_input_layout({
+        .input_elements{
+            {.semantic_name = "POSITION", .format = Format::rg32_float, .offset = offsetof(ImDrawVert, pos)},
+            {.semantic_name = "TEXCOORD", .format = Format::rg32_float, .offset = offsetof(ImDrawVert, uv)},
+            {.semantic_name = "COLOR", .format = Format::rgba8_unorm, .offset = offsetof(ImDrawVert, col)},
+        },
+        .vertex_streams{
+            {.stride = sizeof(ImDrawVert)},
+        },
+    });
+}
+
+void Context::init_sw_rasterizer()
+{
+    m_program = m_device->load_program("sgl/ui/imguisw.slang", {"cs_main"});
+
+    m_compute_pipeline = m_device->create_compute_pipeline({
+        .program = m_program,
+    });
+}
+
 RenderPipeline* Context::get_pipeline(Format format)
 {
     auto it = m_pipelines.find(format);
@@ -575,6 +529,127 @@ RenderPipeline* Context::get_pipeline(Format format)
 
     m_pipelines.emplace(format, pipeline);
     return pipeline;
+}
+
+void Context::draw(
+    ImDrawData* draw_data,
+    Buffer* vertex_buffer,
+    Buffer* index_buffer,
+    TextureView* texture_view,
+    CommandEncoder* command_encoder
+)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
+
+    // Render command lists.
+    auto pass_encoder = command_encoder->begin_render_pass({
+        .color_attachments = {
+            {
+                .view = texture_view,
+                .load_op = LoadOp::load,
+                .store_op = StoreOp::store,
+            },
+        },
+    });
+    ShaderObject* shader_object = pass_encoder->bind_pipeline(get_pipeline(texture_view->desc().format));
+    ShaderCursor shader_cursor = ShaderCursor(shader_object);
+    shader_cursor["sampler"] = m_sampler;
+    shader_cursor["scale"] = 2.f / float2(io.DisplaySize.x, -io.DisplaySize.y);
+    shader_cursor["offset"] = float2(-1.f, 1.f);
+    shader_cursor["is_srgb_format"] = is_srgb_format;
+    ShaderOffset texture_offset = shader_cursor["texture"].offset();
+
+    RenderState render_state = {
+        .viewports = {Viewport::from_size(io.DisplaySize.x, io.DisplaySize.y)},
+        .scissor_rects = {ScissorRect{}},
+        .vertex_buffers = {vertex_buffer},
+        .index_buffer = index_buffer,
+        .index_format = sizeof(ImDrawIdx) == 2 ? IndexFormat::uint16 : IndexFormat::uint32,
+    };
+
+    int vertex_offset = 0;
+    int index_offset = 0;
+    ImVec2 clip_off = draw_data->DisplayPos;
+    for (int n = 0; n < draw_data->CmdListsCount; n++) {
+        const ImDrawList* cmd_list = draw_data->CmdLists[n];
+        for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
+            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+            SGL_ASSERT(pcmd->UserCallback == nullptr);
+            // Project scissor/clipping rectangles into framebuffer space.
+            ScissorRect clip_rect{
+                .min_x = uint32_t(pcmd->ClipRect.x - clip_off.x),
+                .min_y = uint32_t(pcmd->ClipRect.y - clip_off.y),
+                .max_x = uint32_t(pcmd->ClipRect.z - clip_off.x),
+                .max_y = uint32_t(pcmd->ClipRect.w - clip_off.y),
+            };
+            if (clip_rect.max_x <= clip_rect.min_x || clip_rect.max_y <= clip_rect.min_y)
+                continue;
+
+            // Apply scissor/clipping rectangle, bind texture, draw.
+            render_state.scissor_rects[0] = clip_rect;
+            ref<Texture> texture = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID()));
+            shader_object->set_texture(texture_offset, texture);
+            pass_encoder->set_render_state(render_state);
+            pass_encoder->draw_indexed({
+                .vertex_count = pcmd->ElemCount,
+                .start_vertex_location = pcmd->VtxOffset + vertex_offset,
+                .start_index_location = pcmd->IdxOffset + index_offset,
+            });
+        }
+        index_offset += cmd_list->IdxBuffer.Size;
+        vertex_offset += cmd_list->VtxBuffer.Size;
+    }
+    pass_encoder->end();
+}
+
+void Context::draw_sw(
+    ImDrawData* draw_data,
+    Buffer* vertex_buffer,
+    Buffer* index_buffer,
+    TextureView* texture_view,
+    CommandEncoder* command_encoder
+)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
+
+    auto pass_encoder = command_encoder->begin_compute_pass();
+    ShaderObject* shader_object = pass_encoder->bind_pipeline(m_compute_pipeline);
+    ShaderCursor shader_cursor = ShaderCursor(shader_object);
+    shader_cursor["output_texture"] = ref(texture_view);
+    shader_cursor["sampler"] = m_sampler;
+    shader_cursor["vertices"] = ref(vertex_buffer);
+    shader_cursor["indices"] = ref(index_buffer);
+    shader_cursor["is_srgb_format"] = is_srgb_format;
+    ShaderOffset texture_offset = shader_cursor["texture"].offset();
+    ShaderCursor entry_point_cursor = ShaderCursor(shader_object->get_entry_point(0));
+
+    int vertex_offset = 0;
+    int index_offset = 0;
+    ImVec2 clip_off = draw_data->DisplayPos;
+    for (int n = 0; n < draw_data->CmdListsCount; n++) {
+        const ImDrawList* cmd_list = draw_data->CmdLists[n];
+        for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
+            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+            SGL_ASSERT(pcmd->UserCallback == nullptr);
+            ref<Texture> texture = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID()));
+            shader_object->set_texture(texture_offset, texture);
+            entry_point_cursor["start_vertex"] = pcmd->VtxOffset + vertex_offset;
+            entry_point_cursor["start_index"] = pcmd->IdxOffset + index_offset;
+            entry_point_cursor["vertex_count"] = pcmd->ElemCount;
+            entry_point_cursor["clip_min"] = int2(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
+            entry_point_cursor["clip_max"] = int2(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
+            // TODO dispatch can be optimized to only render within the clip rect
+            pass_encoder->dispatch(uint3(io.DisplaySize.x, io.DisplaySize.y, 1));
+        }
+        index_offset += cmd_list->IdxBuffer.Size;
+        vertex_offset += cmd_list->VtxBuffer.Size;
+    }
+
+    pass_encoder->end();
 }
 
 } // namespace sgl::ui

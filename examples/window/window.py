@@ -11,6 +11,7 @@ class App:
         super().__init__()
         self.window = spy.Window(width=1920, height=1280, title="Example", resizable=True)
         self.device = spy.Device(
+            type=spy.DeviceType.cuda,
             enable_debug_layers=True,
             compiler_options={"include_paths": [EXAMPLE_DIR]},
         )

@@ -155,6 +155,7 @@ target_sources(sgl PRIVATE
 
     ui/fwd.h
     ui/imgui.slang
+    ui/imguisw.slang
     ui/ui.cpp
     ui/ui.h
     ui/widgets.cpp
