@@ -3,6 +3,7 @@
 #pragma once
 
 #include "sgl/core/macros.h"
+#include "sgl/core/error.h"
 
 #include <nanothread/nanothread.h>
 
