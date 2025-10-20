@@ -239,7 +239,15 @@ parallel_for_async(const blocked_range<Int>& range, Func&& func, std::initialize
 class SGL_API TaskGroup {
 public:
     TaskGroup() = default;
-    ~TaskGroup() = default;
+
+    ~TaskGroup()
+    {
+        std::lock_guard lock(m_mutex);
+        SGL_CHECK(
+            m_tasks.empty(),
+            "Cannot destroy task group with tasks potentially still running. Call wait() before the destructor."
+        );
+    }
 
     /// Run a function asynchronously in a new task.
     /// Adds the created task to this task group.
@@ -280,6 +288,8 @@ public:
             task_wait_and_release(task);
         }
     }
+
+    SGL_NON_COPYABLE_AND_MOVABLE(TaskGroup);
 
 private:
     std::mutex m_mutex;
