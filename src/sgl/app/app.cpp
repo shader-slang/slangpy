@@ -84,11 +84,36 @@ AppWindow::AppWindow(AppWindowDesc desc)
 
     m_ui_context = make_ref<ui::Context>(ref(m_device));
 
-    m_window->set_on_resize([this](uint32_t width, uint32_t height) { handle_resize(width, height); });
-    m_window->set_on_keyboard_event([this](const KeyboardEvent& event) { handle_keyboard_event(event); });
-    m_window->set_on_mouse_event([this](const MouseEvent& event) { handle_mouse_event(event); });
-    m_window->set_on_gamepad_event([this](const GamepadEvent& event) { handle_gamepad_event(event); });
-    m_window->set_on_drop_files([this](std::span<const char*> files) { handle_drop_files(files); });
+    m_window->set_on_resize(
+        [this](uint32_t width, uint32_t height)
+        {
+            handle_resize(width, height);
+        }
+    );
+    m_window->set_on_keyboard_event(
+        [this](const KeyboardEvent& event)
+        {
+            handle_keyboard_event(event);
+        }
+    );
+    m_window->set_on_mouse_event(
+        [this](const MouseEvent& event)
+        {
+            handle_mouse_event(event);
+        }
+    );
+    m_window->set_on_gamepad_event(
+        [this](const GamepadEvent& event)
+        {
+            handle_gamepad_event(event);
+        }
+    );
+    m_window->set_on_drop_files(
+        [this](std::span<const char*> files)
+        {
+            handle_drop_files(files);
+        }
+    );
 
     m_app->_add_window(this);
 }

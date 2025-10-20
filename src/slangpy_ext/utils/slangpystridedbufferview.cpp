@@ -379,7 +379,13 @@ nb::ndarray<nb::numpy> StridedBufferView::to_numpy() const
     size_t data_size = m_storage->size() - byte_offset;
     void* data = new uint8_t[data_size];
     m_storage->get_data(data, data_size, byte_offset);
-    nb::capsule owner(data, [](void* p) noexcept { delete[] reinterpret_cast<uint8_t*>(p); });
+    nb::capsule owner(
+        data,
+        [](void* p) noexcept
+        {
+            delete[] reinterpret_cast<uint8_t*>(p);
+        }
+    );
 
     return to_ndarray<nb::numpy>(data, owner, desc());
 }

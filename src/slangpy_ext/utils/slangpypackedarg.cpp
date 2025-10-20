@@ -46,7 +46,9 @@ SGL_PY_EXPORT(utils_slangpy_packedarg)
                ref<NativeMarshall> python,
                ref<ShaderObject> shader_object,
                nb::object python_object)
-            { new (&self) NativePackedArg(std::move(python), std::move(shader_object), python_object); },
+            {
+                new (&self) NativePackedArg(std::move(python), std::move(shader_object), python_object);
+            },
             "python"_a,
             "shader_object"_a,
             "python_object"_a,

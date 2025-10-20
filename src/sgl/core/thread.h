@@ -45,7 +45,10 @@ template<typename Func>
         BaseFunc func;
     };
 
-    auto callback = [](uint32_t /* unused */, void* payload) { ((Payload*)payload)->func(); };
+    auto callback = [](uint32_t /* unused */, void* payload)
+    {
+        ((Payload*)payload)->func();
+    };
 
     if constexpr (std::is_trivially_copyable_v<BaseFunc> && std::is_trivially_destructible_v<BaseFunc>) {
         // Payload is trivially copyable/destructible. Let nanothread manage the payload memory.
@@ -64,7 +67,10 @@ template<typename Func>
     } else {
         // Payload is non-trivially copyable/destructible. Manage payload manually.
         Payload* payload = new Payload{std::forward<Func>(func)};
-        auto deleter = [](void* payload) { delete (Payload*)payload; };
+        auto deleter = [](void* payload)
+        {
+            delete (Payload*)payload;
+        };
         return task_submit_dep(
             nullptr, // default pool
             parents,
@@ -207,7 +213,10 @@ parallel_for_async(const blocked_range<Int>& range, Func&& func, const TaskHandl
     } else {
         Payload* payload = new Payload{std::forward<Func>(func), range.begin(), range.end(), range.block_size()};
 
-        auto deleter = [](void* payload) { delete (Payload*)payload; };
+        auto deleter = [](void* payload)
+        {
+            delete (Payload*)payload;
+        };
 
         return task_submit_dep(
             nullptr, // default pool

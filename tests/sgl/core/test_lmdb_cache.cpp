@@ -398,7 +398,10 @@ struct StressTest {
         std::sort(
             expected_entries.begin(),
             expected_entries.end(),
-            [](const CacheEntry& a, const CacheEntry& b) { return a.last_access > b.last_access; }
+            [](const CacheEntry& a, const CacheEntry& b)
+            {
+                return a.last_access > b.last_access;
+            }
         );
         for (size_t i = 0; i < stats.entries; ++i) {
             Blob value;
@@ -438,7 +441,12 @@ TEST_CASE("stress-multi-threaded")
     std::vector<StressTest::RunStats> thread_run_stats(thread_count);
 
     for (size_t i = 0; i < thread_count; ++i)
-        threads.emplace_back([&, i]() { thread_run_stats[i] = test.run(iterations_per_thread); });
+        threads.emplace_back(
+            [&, i]()
+            {
+                thread_run_stats[i] = test.run(iterations_per_thread);
+            }
+        );
     for (auto& thread : threads)
         thread.join();
 

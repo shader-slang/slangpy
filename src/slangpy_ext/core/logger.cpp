@@ -91,7 +91,9 @@ SGL_PY_EXPORT(core_logger)
     m.def(
          "log",
          [](const LogLevel level, const std::string_view msg, const LogFrequency frequency)
-         { Logger::get().log(level, msg, frequency); },
+         {
+             Logger::get().log(level, msg, frequency);
+         },
          "level"_a,
          "msg"_a,
          "frequency"_a = LogFrequency::always,

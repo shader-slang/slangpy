@@ -279,7 +279,12 @@ const std::filesystem::path& executable_path()
 
 const std::filesystem::path& app_data_directory()
 {
-    static std::filesystem::path path([]() { return home_directory() / ".sgl"; }());
+    static std::filesystem::path path(
+        []()
+        {
+            return home_directory() / ".sgl";
+        }()
+    );
     return path;
 }
 

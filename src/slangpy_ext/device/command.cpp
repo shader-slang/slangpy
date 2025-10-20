@@ -159,7 +159,13 @@ SGL_PY_EXPORT(device_command)
 
     nb::class_<RenderState>(m, "RenderState", D(RenderState))
         .def(nb::init<>())
-        .def("__init__", [](RenderState* self, nb::dict dict) { new (self) RenderState(dict_to_RenderState(dict)); })
+        .def(
+            "__init__",
+            [](RenderState* self, nb::dict dict)
+            {
+                new (self) RenderState(dict_to_RenderState(dict));
+            }
+        )
         .def_rw("stencil_ref", &RenderState::stencil_ref, D(RenderState, stencil_ref))
         .def_rw("viewports", &RenderState::viewports, D(RenderState, viewports))
         .def_rw("scissor_rects", &RenderState::scissor_rects, D(RenderState, scissor_rects))
@@ -173,7 +179,9 @@ SGL_PY_EXPORT(device_command)
         .def(
             "__init__",
             [](RenderPassColorAttachment* self, nb::dict dict)
-            { new (self) RenderPassColorAttachment(dict_to_RenderPassColorAttachment(dict)); }
+            {
+                new (self) RenderPassColorAttachment(dict_to_RenderPassColorAttachment(dict));
+            }
         )
         .def_rw("view", &RenderPassColorAttachment::view, D(RenderPassColorAttachment, view))
         .def_rw(
@@ -195,7 +203,9 @@ SGL_PY_EXPORT(device_command)
         .def(
             "__init__",
             [](RenderPassDepthStencilAttachment* self, nb::dict dict)
-            { new (self) RenderPassDepthStencilAttachment(dict_to_RenderPassDepthStencilAttachment(dict)); }
+            {
+                new (self) RenderPassDepthStencilAttachment(dict_to_RenderPassDepthStencilAttachment(dict));
+            }
         )
         .def_rw("view", &RenderPassDepthStencilAttachment::view, D(RenderPassDepthStencilAttachment, view))
         .def_rw(
@@ -244,7 +254,10 @@ SGL_PY_EXPORT(device_command)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](RenderPassDesc* self, nb::dict dict) { new (self) RenderPassDesc(dict_to_RenderPassDesc(dict)); }
+            [](RenderPassDesc* self, nb::dict dict)
+            {
+                new (self) RenderPassDesc(dict_to_RenderPassDesc(dict));
+            }
         )
         .def_rw("color_attachments", &RenderPassDesc::color_attachments, D(RenderPassDesc, color_attachments))
         .def_rw(
@@ -573,10 +586,19 @@ SGL_PY_EXPORT(device_command)
         );
 
     nb::class_<RenderPassEncoder, PassEncoder>(m, "RenderPassEncoder", D(RenderPassEncoder))
-        .def("__enter__", [](RenderPassEncoder* self) { return self; })
+        .def(
+            "__enter__",
+            [](RenderPassEncoder* self)
+            {
+                return self;
+            }
+        )
         .def(
             "__exit__",
-            [](RenderPassEncoder* self, nb::object, nb::object, nb::object) { self->end(); },
+            [](RenderPassEncoder* self, nb::object, nb::object, nb::object)
+            {
+                self->end();
+            },
             "exc_type"_a = nb::none(),
             "exc_value"_a = nb::none(),
             "traceback"_a = nb::none()
@@ -627,10 +649,19 @@ SGL_PY_EXPORT(device_command)
 
 
     nb::class_<ComputePassEncoder, PassEncoder>(m, "ComputePassEncoder", D(ComputePassEncoder))
-        .def("__enter__", [](ComputePassEncoder* self) { return self; })
+        .def(
+            "__enter__",
+            [](ComputePassEncoder* self)
+            {
+                return self;
+            }
+        )
         .def(
             "__exit__",
-            [](ComputePassEncoder* self, nb::object, nb::object, nb::object) { self->end(); },
+            [](ComputePassEncoder* self, nb::object, nb::object, nb::object)
+            {
+                self->end();
+            },
             "exc_type"_a = nb::none(),
             "exc_value"_a = nb::none(),
             "traceback"_a = nb::none()
@@ -663,10 +694,19 @@ SGL_PY_EXPORT(device_command)
         );
 
     nb::class_<RayTracingPassEncoder, PassEncoder>(m, "RayTracingPassEncoder", D(RayTracingPassEncoder))
-        .def("__enter__", [](RayTracingPassEncoder* self) { return self; })
+        .def(
+            "__enter__",
+            [](RayTracingPassEncoder* self)
+            {
+                return self;
+            }
+        )
         .def(
             "__exit__",
-            [](RayTracingPassEncoder* self, nb::object, nb::object, nb::object) { self->end(); },
+            [](RayTracingPassEncoder* self, nb::object, nb::object, nb::object)
+            {
+                self->end();
+            },
             "exc_type"_a = nb::none(),
             "exc_value"_a = nb::none(),
             "traceback"_a = nb::none()
