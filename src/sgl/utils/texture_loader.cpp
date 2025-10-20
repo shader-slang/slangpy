@@ -414,7 +414,7 @@ TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::optional<Opt
 
     // Convert bitmaps in parallel.
     std::vector<SourceImage> source_images(bitmaps.size());
-    std::vector<thread::TaskHandle> source_image_tasks;
+    std::vector<thread::TaskHandle> source_image_tasks(bitmaps.size());
     for (size_t i = 0; i < bitmaps.size(); ++i) {
         source_image_tasks[i] = thread::do_async(
             [&, i]() { source_images[i] = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmaps[i])), options); }
@@ -431,7 +431,7 @@ TextureLoader::load_textures(std::span<std::filesystem::path> paths, std::option
 
     // Load & convert source images in parallel.
     std::vector<SourceImage> source_images(paths.size());
-    std::vector<thread::TaskHandle> source_image_tasks;
+    std::vector<thread::TaskHandle> source_image_tasks(paths.size());
     for (size_t i = 0; i < paths.size(); ++i) {
         source_image_tasks[i]
             = thread::do_async([&, i]()
@@ -450,7 +450,7 @@ ref<Texture> TextureLoader::load_texture_array(std::span<const Bitmap*> bitmaps,
 
     // Convert bitmaps in parallel.
     std::vector<SourceImage> source_images(bitmaps.size());
-    std::vector<thread::TaskHandle> source_image_tasks;
+    std::vector<thread::TaskHandle> source_image_tasks(bitmaps.size());
     for (size_t i = 0; i < bitmaps.size(); ++i) {
         source_image_tasks[i] = thread::do_async(
             [&, i]() { source_images[i] = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmaps[i])), options); }
@@ -469,7 +469,7 @@ ref<Texture> TextureLoader::load_texture_array(std::span<std::filesystem::path> 
 
     // Load & convert source images in parallel.
     std::vector<SourceImage> source_images(paths.size());
-    std::vector<thread::TaskHandle> source_image_tasks;
+    std::vector<thread::TaskHandle> source_image_tasks(paths.size());
     for (size_t i = 0; i < paths.size(); ++i) {
         source_image_tasks[i]
             = thread::do_async([&, i]()
