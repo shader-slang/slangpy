@@ -180,7 +180,7 @@ void show_async(const Bitmap* bitmap, std::string name, std::string host, uint16
 
     bitmap->inc_ref();
 
-    thread::do_async(
+    thread::global_task_group().do_async(
         [=]()
         {
             static std::counting_semaphore semaphore{8};

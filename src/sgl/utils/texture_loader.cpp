@@ -288,14 +288,17 @@ inline ref<Texture> create_texture(
 inline std::vector<ref<Texture>> create_textures(
     Device* device,
     Blitter* blitter,
-    std::span<std::future<SourceImage>> source_images,
+    std::span<SourceImage> source_images,
+    std::span<thread::TaskHandle> source_image_tasks,
     const TextureLoader::Options& options
 )
 {
+    SGL_ASSERT(source_images.size() == source_image_tasks.size());
     std::vector<ref<Texture>> textures(source_images.size());
     ref<CommandEncoder> command_encoder = device->create_command_encoder();
     for (size_t i = 0; i < source_images.size(); ++i) {
-        textures[i] = create_texture(device, blitter, command_encoder, source_images[i].get(), options);
+        thread::task_wait_and_release(source_image_tasks[i]);
+        textures[i] = create_texture(device, blitter, command_encoder, source_images[i], options);
         if (i && (i % BATCH_SIZE == 0)) {
             device->submit_command_buffer(command_encoder->finish());
             command_encoder = device->create_command_encoder();
@@ -309,10 +312,12 @@ inline std::vector<ref<Texture>> create_textures(
 inline ref<Texture> create_texture_array(
     Device* device,
     Blitter* blitter,
-    std::span<std::future<SourceImage>> source_images,
+    std::span<SourceImage> source_images,
+    std::span<thread::TaskHandle> source_image_tasks,
     const TextureLoader::Options& options
 )
 {
+    SGL_ASSERT(source_images.size() == source_image_tasks.size());
     SGL_ASSERT(source_images.size() > 0);
 
     bool allocate_mips = options.allocate_mips || options.generate_mips;
@@ -329,7 +334,8 @@ inline ref<Texture> create_texture_array(
     ref<CommandEncoder> command_encoder = device->create_command_encoder();
 
     for (size_t i = 0; i < source_images.size(); ++i) {
-        SourceImage source_image = source_images[i].get();
+        thread::task_wait_and_release(source_image_tasks[i]);
+        SourceImage source_image = source_images[i];
         const Bitmap* bitmap = source_image.bitmap;
         if (!bitmap)
             SGL_THROW("Texture array requires all source images to be bitmaps");
@@ -407,12 +413,15 @@ TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::optional<Opt
     Options options = options_.value_or(Options{});
 
     // Convert bitmaps in parallel.
-    std::vector<std::future<SourceImage>> source_images;
-    source_images.reserve(bitmaps.size());
-    for (const auto& bitmap : bitmaps)
-        source_images.push_back(thread::do_async(convert_bitmap, m_device, ref(const_cast<Bitmap*>(bitmap)), options));
-
-    return create_textures(m_device, m_blitter, source_images, options);
+    std::vector<SourceImage> source_images(bitmaps.size());
+    std::vector<thread::TaskHandle> source_image_tasks;
+    for (size_t i = 0; i < bitmaps.size(); ++i) {
+        source_image_tasks[i] = thread::do_async(
+            [&, i]() { source_images[i] = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmaps[i])), options); }
+        );
+    }
+    // Wait for conversions and create textures.
+    return create_textures(m_device, m_blitter, source_images, source_image_tasks, options);
 }
 
 std::vector<ref<Texture>>
@@ -421,12 +430,15 @@ TextureLoader::load_textures(std::span<std::filesystem::path> paths, std::option
     Options options = options_.value_or(Options{});
 
     // Load & convert source images in parallel.
-    std::vector<std::future<SourceImage>> source_images;
-    source_images.reserve(paths.size());
-    for (const auto& path : paths)
-        source_images.push_back(thread::do_async(load_and_convert_source_image, m_device.get(), path, options));
-
-    return create_textures(m_device, m_blitter, source_images, options);
+    std::vector<SourceImage> source_images(paths.size());
+    std::vector<thread::TaskHandle> source_image_tasks;
+    for (size_t i = 0; i < paths.size(); ++i) {
+        source_image_tasks[i]
+            = thread::do_async([&, i]()
+                               { source_images[i] = load_and_convert_source_image(m_device, paths[i], options); });
+    }
+    // Wait for conversions and create textures.
+    return create_textures(m_device, m_blitter, source_images, source_image_tasks, options);
 }
 
 ref<Texture> TextureLoader::load_texture_array(std::span<const Bitmap*> bitmaps, std::optional<Options> options_)
@@ -437,12 +449,15 @@ ref<Texture> TextureLoader::load_texture_array(std::span<const Bitmap*> bitmaps,
     Options options = options_.value_or(Options{});
 
     // Convert bitmaps in parallel.
-    std::vector<std::future<SourceImage>> source_images;
-    source_images.reserve(bitmaps.size());
-    for (const auto& bitmap : bitmaps)
-        source_images.push_back(thread::do_async(convert_bitmap, m_device, ref(const_cast<Bitmap*>(bitmap)), options));
-
-    return create_texture_array(m_device, m_blitter, source_images, options);
+    std::vector<SourceImage> source_images(bitmaps.size());
+    std::vector<thread::TaskHandle> source_image_tasks;
+    for (size_t i = 0; i < bitmaps.size(); ++i) {
+        source_image_tasks[i] = thread::do_async(
+            [&, i]() { source_images[i] = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmaps[i])), options); }
+        );
+    }
+    // Wait for conversions and create texture array.
+    return create_texture_array(m_device, m_blitter, source_images, source_image_tasks, options);
 }
 
 ref<Texture> TextureLoader::load_texture_array(std::span<std::filesystem::path> paths, std::optional<Options> options_)
@@ -453,12 +468,15 @@ ref<Texture> TextureLoader::load_texture_array(std::span<std::filesystem::path> 
     Options options = options_.value_or(Options{});
 
     // Load & convert source images in parallel.
-    std::vector<std::future<SourceImage>> source_images;
-    source_images.reserve(paths.size());
-    for (const auto& path : paths)
-        source_images.push_back(thread::do_async(load_and_convert_source_image, m_device.get(), path, options));
-
-    return create_texture_array(m_device, m_blitter, source_images, options);
+    std::vector<SourceImage> source_images(paths.size());
+    std::vector<thread::TaskHandle> source_image_tasks;
+    for (size_t i = 0; i < paths.size(); ++i) {
+        source_image_tasks[i]
+            = thread::do_async([&, i]()
+                               { source_images[i] = load_and_convert_source_image(m_device, paths[i], options); });
+    }
+    // Wait for conversions and create texture array.
+    return create_texture_array(m_device, m_blitter, source_images, source_image_tasks, options);
 }
 
 } // namespace sgl
