@@ -54,6 +54,8 @@ endif()
 
 set(NANOTHREAD_STATIC ON)
 add_subdirectory(nanothread)
+# Disable LTO for nanothread as this causes problems when linking with sgl.
+set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
 
 # lmdb
 
