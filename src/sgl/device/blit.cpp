@@ -221,9 +221,10 @@ ref<ShaderProgram> Blitter::get_render_program(ProgramKey key)
     if (it != m_render_program_cache.end())
         return it->second;
 
+    std::string name = fmt::format("blit-render-{}", m_render_program_cache.size());
     std::string source = generate_defines(key) + m_device->slang_session()->load_source("sgl/device/blit.slang");
 
-    ref<SlangModule> module = m_device->slang_session()->load_module_from_source("blit", source);
+    ref<SlangModule> module = m_device->slang_session()->load_module_from_source(name, source);
     module->break_strong_reference_to_session();
     ref<ShaderProgram> program = m_device->slang_session()->link_program(
         {module},
@@ -264,9 +265,10 @@ ref<ShaderProgram> Blitter::get_compute_program(ProgramKey key)
     if (it != m_compute_program_cache.end())
         return it->second;
 
+    std::string name = fmt::format("blit-compute-{}", m_compute_pipeline_cache.size());
     std::string source = generate_defines(key) + m_device->slang_session()->load_source("sgl/device/blit.slang");
 
-    ref<SlangModule> module = m_device->slang_session()->load_module_from_source("blit", source);
+    ref<SlangModule> module = m_device->slang_session()->load_module_from_source(name, source);
     module->break_strong_reference_to_session();
     ref<ShaderProgram> program = m_device->slang_session()->link_program(
         {module},
