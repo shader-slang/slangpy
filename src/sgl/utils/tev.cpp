@@ -34,7 +34,10 @@ public:
             auto it = std::find_if(
                 m_clients.begin(),
                 m_clients.end(),
-                [&](const auto& c) { return c->getHostname() == host && c->getPort() == port; }
+                [&](const auto& c)
+                {
+                    return c->getHostname() == host && c->getPort() == port;
+                }
             );
             if (it != m_clients.end()) {
                 client = std::move(*it);

@@ -145,7 +145,10 @@ SGL_PY_EXPORT(utils_slangpy_function)
             [](NativeFunctionNode& self,
                std::optional<NativeFunctionNode*> parent,
                FunctionNodeType type,
-               nb::object data) { new (&self) PyNativeFunctionNode(parent.value_or(nullptr), type, data); },
+               nb::object data)
+            {
+                new (&self) PyNativeFunctionNode(parent.value_or(nullptr), type, data);
+            },
             "parent"_a.none(),
             "type"_a,
             "data"_a.none(),

@@ -95,7 +95,9 @@ SGL_PY_EXPORT(device_raytracing)
         .def(
             "__init__",
             [](AccelerationStructureInstanceDesc* self, nb::dict dict)
-            { new (self) AccelerationStructureInstanceDesc(dict_to_AccelerationStructureInstanceDesc(dict)); }
+            {
+                new (self) AccelerationStructureInstanceDesc(dict_to_AccelerationStructureInstanceDesc(dict));
+            }
         )
         .def_rw(
             "transform",
@@ -104,28 +106,50 @@ SGL_PY_EXPORT(device_raytracing)
         )
         .def_prop_rw(
             "instance_id",
-            [](AccelerationStructureInstanceDesc& self) { return self.instance_id; },
-            [](AccelerationStructureInstanceDesc& self, uint32_t value) { self.instance_id = value; },
+            [](AccelerationStructureInstanceDesc& self)
+            {
+                return self.instance_id;
+            },
+            [](AccelerationStructureInstanceDesc& self, uint32_t value)
+            {
+                self.instance_id = value;
+            },
             D(AccelerationStructureInstanceDesc, instance_id)
         )
         .def_prop_rw(
             "instance_mask",
-            [](AccelerationStructureInstanceDesc& self) { return self.instance_mask; },
-            [](AccelerationStructureInstanceDesc& self, uint32_t value) { self.instance_mask = value; },
+            [](AccelerationStructureInstanceDesc& self)
+            {
+                return self.instance_mask;
+            },
+            [](AccelerationStructureInstanceDesc& self, uint32_t value)
+            {
+                self.instance_mask = value;
+            },
             D(AccelerationStructureInstanceDesc, instance_mask)
         )
         .def_prop_rw(
             "instance_contribution_to_hit_group_index",
-            [](AccelerationStructureInstanceDesc& self) { return self.instance_contribution_to_hit_group_index; },
+            [](AccelerationStructureInstanceDesc& self)
+            {
+                return self.instance_contribution_to_hit_group_index;
+            },
             [](AccelerationStructureInstanceDesc& self, uint32_t value)
-            { self.instance_contribution_to_hit_group_index = value; },
+            {
+                self.instance_contribution_to_hit_group_index = value;
+            },
             D(AccelerationStructureInstanceDesc, instance_contribution_to_hit_group_index)
         )
         .def_prop_rw(
             "flags",
-            [](AccelerationStructureInstanceDesc& self) { return self.flags; },
+            [](AccelerationStructureInstanceDesc& self)
+            {
+                return self.flags;
+            },
             [](AccelerationStructureInstanceDesc& self, AccelerationStructureInstanceFlags value)
-            { self.flags = value; },
+            {
+                self.flags = value;
+            },
             D(AccelerationStructureInstanceDesc, flags)
         )
         .def_rw(
@@ -242,7 +266,9 @@ SGL_PY_EXPORT(device_raytracing)
         .def(
             "__init__",
             [](AccelerationStructureBuildDesc* self, nb::dict dict)
-            { new (self) AccelerationStructureBuildDesc(dict_to_AccelerationStructureBuildDesc(dict)); }
+            {
+                new (self) AccelerationStructureBuildDesc(dict_to_AccelerationStructureBuildDesc(dict));
+            }
         )
         .def_rw("inputs", &AccelerationStructureBuildDesc::inputs, D(AccelerationStructureBuildDesc, inputs))
         .def_rw(
@@ -274,7 +300,9 @@ SGL_PY_EXPORT(device_raytracing)
         .def(
             "__init__",
             [](AccelerationStructureQueryDesc* self, nb::dict dict)
-            { new (self) AccelerationStructureQueryDesc(dict_to_AccelerationStructureQueryDesc(dict)); }
+            {
+                new (self) AccelerationStructureQueryDesc(dict_to_AccelerationStructureQueryDesc(dict));
+            }
         )
         .def_rw(
             "query_type",
@@ -298,7 +326,9 @@ SGL_PY_EXPORT(device_raytracing)
         .def(
             "__init__",
             [](AccelerationStructureDesc* self, nb::dict dict)
-            { new (self) AccelerationStructureDesc(dict_to_AccelerationStructureDesc(dict)); }
+            {
+                new (self) AccelerationStructureDesc(dict_to_AccelerationStructureDesc(dict));
+            }
         )
         .def_rw("size", &AccelerationStructureDesc::size, D(AccelerationStructureDesc, size))
         .def_rw("label", &AccelerationStructureDesc::label, D(AccelerationStructureDesc, label));
@@ -354,7 +384,10 @@ SGL_PY_EXPORT(device_raytracing)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](ShaderTableDesc* self, nb::dict dict) { new (self) ShaderTableDesc(dict_to_ShaderTableDesc(dict)); }
+            [](ShaderTableDesc* self, nb::dict dict)
+            {
+                new (self) ShaderTableDesc(dict_to_ShaderTableDesc(dict));
+            }
         )
         .def_rw("program", &ShaderTableDesc::program, D(ShaderTableDesc, program))
         .def_rw(

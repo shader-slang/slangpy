@@ -316,7 +316,10 @@ void DebugPrinter::flush()
         data,
         m_readback_buffer->size(),
         m_hashed_strings,
-        [](std::string_view str) { Logger::get().log(LogLevel::none, str); }
+        [](std::string_view str)
+        {
+            Logger::get().log(LogLevel::none, str);
+        }
     );
     m_readback_buffer->unmap();
 }

@@ -519,7 +519,10 @@ public:
         if (ImGui::ListBox(
                 m_label.c_str(),
                 &m_value,
-                [](void* user_data, int idx) { return static_cast<const ListBox*>(user_data)->m_items[idx].c_str(); },
+                [](void* user_data, int idx)
+                {
+                    return static_cast<const ListBox*>(user_data)->m_items[idx].c_str();
+                },
                 this,
                 int(m_items.size()),
                 m_height_in_items

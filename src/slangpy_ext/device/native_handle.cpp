@@ -21,13 +21,18 @@ SGL_PY_EXPORT(device_native_handle)
         .def(
             "__hash__",
             [](const NativeHandle& nh)
-            { return std::hash<uint64_t>()(static_cast<uint64_t>(nh.type())) ^ std::hash<uint64_t>()(nh.value()); }
+            {
+                return std::hash<uint64_t>()(static_cast<uint64_t>(nh.type())) ^ std::hash<uint64_t>()(nh.value());
+            }
         )
         .def(nb::self == nb::self)
         .def(nb::self != nb::self)
         .def_static(
             "from_cuda_stream",
-            [](uint64_t stream) { return NativeHandle(reinterpret_cast<CUstream>(stream)); },
+            [](uint64_t stream)
+            {
+                return NativeHandle(reinterpret_cast<CUstream>(stream));
+            },
             "stream"_a,
             D_NA(NativeHandle, from_cuda_stream)
         );

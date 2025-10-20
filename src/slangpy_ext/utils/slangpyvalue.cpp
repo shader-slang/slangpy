@@ -40,7 +40,10 @@ SGL_PY_EXPORT(utils_slangpy_value)
     nb::class_<NativeValueMarshall, NativeMarshall>(slangpy, "NativeValueMarshall") //
         .def(
             "__init__",
-            [](NativeValueMarshall& self) { new (&self) NativeValueMarshall(); },
+            [](NativeValueMarshall& self)
+            {
+                new (&self) NativeValueMarshall();
+            },
             D_NA(NativeValueMarshall, NativeValueMarshall)
         );
 }

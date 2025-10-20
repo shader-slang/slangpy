@@ -101,7 +101,13 @@ static bool run_and_verify(
         .data_size = sizeof(g_zeros),
     });
 
-    kernel->dispatch(uint3(1024, 1, 1), [&buffer](ShaderCursor cursor) { cursor["outbuffer"] = buffer; });
+    kernel->dispatch(
+        uint3(1024, 1, 1),
+        [&buffer](ShaderCursor cursor)
+        {
+            cursor["outbuffer"] = buffer;
+        }
+    );
 
     memset(g_results, 0, sizeof(g_results));
     buffer->get_data(g_results, sizeof(g_results));
