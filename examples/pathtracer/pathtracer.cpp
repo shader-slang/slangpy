@@ -765,9 +765,6 @@ struct App {
             .enable_debug_layers = true,
             .compiler_options = {
                 .include_paths = {EXAMPLE_DIR},
-                .defines = {
-                    {"USE_RAYTRACING_PIPELINE", USE_RAYTRACING_PIPELINE ? "1" : "0"},
-                },
             },
         });
         surface = device->create_surface(window);
