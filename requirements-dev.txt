@@ -1,12 +1,12 @@
-typing_extensions
-numpy >= 1.26.0
-pre-commit
-pytest
-pytest-xdist
-pytest-cov
-pyright
-deepdiff
-isort
-autoflake
-libcst
-pymongo
+typing_extensions==4.15.0
+numpy==2.2.6
+pre-commit==4.3.0
+pytest==8.4.2
+pytest-xdist==3.8.0
+pytest-cov==7.0.0
+pyright==1.1.406
+deepdiff==8.6.1
+isort==7.0.0
+autoflake==2.3.1
+libcst==1.8.5
+pymongo==4.14.1

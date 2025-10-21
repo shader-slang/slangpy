@@ -1,2 +1,2 @@
-typing_extensions
-numpy >= 1.26.0
+typing_extensions==4.15.0
+numpy==2.2.6
