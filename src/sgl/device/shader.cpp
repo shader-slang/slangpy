@@ -974,7 +974,14 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
                 // Check for duplicate ids within same interface type.
                 if (c.id >= 0) {
                     auto range = type_conformance_ids.equal_range(c.interface_name);
-                    if (std::any_of(range.first, range.second, [&c](const auto& pair) { return pair.second == c.id; }))
+                    if (std::any_of(
+                            range.first,
+                            range.second,
+                            [&c](const auto& pair)
+                            {
+                                return pair.second == c.id;
+                            }
+                        ))
                         SGL_THROW("Duplicate type id {} for interface type \"{}\"", c.id, c.interface_name);
                     type_conformance_ids.insert({c.interface_name, c.id});
                 }

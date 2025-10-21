@@ -13,8 +13,12 @@ HotReload::HotReload(ref<Device> device)
 {
     // Create file system monitor + hook up change event.
     m_file_system_watcher = make_ref<FileSystemWatcher>();
-    m_file_system_watcher->set_on_change([this](std::span<FileSystemWatchEvent> events)
-                                         { on_file_system_event(events); });
+    m_file_system_watcher->set_on_change(
+        [this](std::span<FileSystemWatchEvent> events)
+        {
+            on_file_system_event(events);
+        }
+    );
 }
 
 void HotReload::update()
@@ -27,7 +31,10 @@ void HotReload::update()
 void HotReload::on_file_system_event(std::span<FileSystemWatchEvent> events)
 {
     // Simple check to see if any events involved .slang files.
-    auto fn_check = [](const FileSystemWatchEvent& e) { return platform::has_extension(e.path, "slang"); };
+    auto fn_check = [](const FileSystemWatchEvent& e)
+    {
+        return platform::has_extension(e.path, "slang");
+    };
     bool has_slang_files = std::find_if(events.begin(), events.end(), fn_check) != events.end();
     if (!has_slang_files)
         return;

@@ -79,8 +79,8 @@ DST_TYPE fs_main(VSOut vs_out)
     : SV_Target
 {
     float2 uv = vs_out.uv;
-    let value = src.sample(sampler, uv);
-    return reinterpret<DST_TYPE>(value);
+    DST_TYPE value = src.sample(sampler, uv);
+    return value;
 }
 
 #endif // __TARGET_CUDA__

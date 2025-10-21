@@ -85,7 +85,9 @@ SGL_PY_EXPORT(device_shader)
         .def(
             "__init__",
             [](SlangCompilerOptions* self, nb::dict dict)
-            { new (self) SlangCompilerOptions(dict_to_SlangCompilerOptions(dict)); }
+            {
+                new (self) SlangCompilerOptions(dict_to_SlangCompilerOptions(dict));
+            }
         )
         .def_rw("include_paths", &SlangCompilerOptions::include_paths, D(SlangCompilerOptions, include_paths))
         .def_rw("defines", &SlangCompilerOptions::defines, D(SlangCompilerOptions, defines))
@@ -137,7 +139,10 @@ SGL_PY_EXPORT(device_shader)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](SlangLinkOptions* self, nb::dict dict) { new (self) SlangLinkOptions(dict_to_SlangLinkOptions(dict)); }
+            [](SlangLinkOptions* self, nb::dict dict)
+            {
+                new (self) SlangLinkOptions(dict_to_SlangLinkOptions(dict));
+            }
         )
         .def_rw(
             "floating_point_mode",
@@ -166,7 +171,10 @@ SGL_PY_EXPORT(device_shader)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](SlangSessionDesc* self, nb::dict dict) { new (self) SlangSessionDesc(dict_to_SlangSessionDesc(dict)); }
+            [](SlangSessionDesc* self, nb::dict dict)
+            {
+                new (self) SlangSessionDesc(dict_to_SlangSessionDesc(dict));
+            }
         )
         .def_rw("compiler_options", &SlangSessionDesc::compiler_options, D(SlangSessionDesc, compiler_options))
         .def_rw(

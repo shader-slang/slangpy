@@ -54,6 +54,8 @@ endif()
 
 set(NANOTHREAD_STATIC ON)
 add_subdirectory(nanothread)
+# Disable LTO for nanothread as this causes problems when linking with sgl.
+set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
 
 # lmdb
 
@@ -69,7 +71,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SLANG_VERSION "2025.19")
+set(SLANG_VERSION "2025.19.1")
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/slang-${SLANG_VERSION}")
 
 if(SGL_WINDOWS)
