@@ -6,7 +6,7 @@ requires = [
     "ninja",
     "typing_extensions==4.15.0",
     "libcst==1.8.5",
-    "numpy==2.2.6",
+    "numpy>=2.0.2",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -14,7 +14,7 @@ build-backend = "setuptools.build_meta"
 name = "slangpy"
 dynamic = ["version"]
 requires-python = ">=3.9"
-dependencies = ["typing_extensions==4.15.0", "numpy==2.2.6"]
+dependencies = ["typing_extensions==4.15.0", "numpy>=2.0.2"]
 authors = [
     { name = "Simon Kallweit", email = "skallweit@nvidia.com" },
     { name = "Chris Cummings", email = "chriscummings@nvidia.com" },
