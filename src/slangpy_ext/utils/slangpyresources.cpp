@@ -277,7 +277,7 @@ SGL_PY_EXPORT(utils_slangpy_resources)
         )
         .def("get_shape", &NativeDescriptorMarshall::get_shape, "value"_a, D_NA(NativeDescriptorMarshall, get_shape))
         .def_prop_ro("type", &sgl::slangpy::NativeDescriptorMarshall::type)
-        .def_prop_ro("slang_type", &sgl::slangpy::NativeDescriptorMarshall::type);
+        .def_prop_ro("slang_type", &sgl::slangpy::NativeDescriptorMarshall::slang_type);
 
     nb::class_<NativeTextureMarshall, NativeMarshall>(slangpy, "NativeTextureMarshall") //
         .def(
