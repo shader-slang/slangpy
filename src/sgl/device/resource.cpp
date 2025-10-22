@@ -433,17 +433,17 @@ Texture::Texture(ref<Device> device, TextureDesc desc)
             uint32_t mip = subresource % m_desc.mip_count;
 
             SubresourceData subresource_data = m_desc.data[subresource];
-            if (subresource_data.row_pitch == 0 && subresource_data.slice_pitch == 0 && subresource_data.size == 0) {
+            if (subresource_data.row_pitch == 0 && subresource_data.slice_pitch == 0) {
                 SubresourceLayout subresource_layout = get_subresource_layout(0, 1);
                 subresource_data.row_pitch = subresource_layout.row_pitch;
                 subresource_data.slice_pitch = subresource_layout.slice_pitch;
-                subresource_data.size = subresource_layout.size_in_bytes;
+                SGL_CHECK_EQ(subresource_data.size, subresource_layout.size_in_bytes);
             }
             SGL_CHECK(subresource_data.row_pitch > 0, "Invalid row pitch.");
             SGL_CHECK(subresource_data.slice_pitch > 0, "Invalid slice pitch.");
             SGL_CHECK(subresource_data.size > 0, "Invalid size.");
 
-            set_subresource_data(layer, mip, m_desc.data[subresource]);
+            set_subresource_data(layer, mip, subresource_data);
         }
         if (m_desc.mip_count > 1) {
             // TODO generate mip maps

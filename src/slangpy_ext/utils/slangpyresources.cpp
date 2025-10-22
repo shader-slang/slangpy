@@ -235,7 +235,9 @@ SGL_PY_EXPORT(utils_slangpy_resources)
         .def(
             "__init__",
             [](NativeBufferMarshall& self, ref<NativeSlangType> slang_type, BufferUsage usage)
-            { new (&self) NativeBufferMarshall(slang_type, usage); },
+            {
+                new (&self) NativeBufferMarshall(slang_type, usage);
+            },
             "slang_type"_a,
             "usage"_a,
             D_NA(NativeBufferMarshall, NativeBufferMarshall)
@@ -287,7 +289,9 @@ SGL_PY_EXPORT(utils_slangpy_resources)
                Format format,
                TextureUsage usage,
                int dims)
-            { new (&self) NativeTextureMarshall(slang_type, element_type, resource_shape, format, usage, dims); },
+            {
+                new (&self) NativeTextureMarshall(slang_type, element_type, resource_shape, format, usage, dims);
+            },
             "slang_type"_a,
             "element_type"_a,
             "resource_shape"_a,

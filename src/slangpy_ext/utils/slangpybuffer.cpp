@@ -263,7 +263,13 @@ nb::object NativeNumpyMarshall::create_output(CallContext* context, NativeBoundV
 
     size_t data_size = element_stride() * shape.element_count();
     void* data = new uint8_t[data_size];
-    nb::capsule owner(data, [](void* p) noexcept { delete[] reinterpret_cast<uint8_t*>(p); });
+    nb::capsule owner(
+        data,
+        [](void* p) noexcept
+        {
+            delete[] reinterpret_cast<uint8_t*>(p);
+        }
+    );
 
     std::vector<size_t> s(0, shape.size());
     for (auto sd : shape.as_vector()) {
@@ -309,7 +315,9 @@ SGL_PY_EXPORT(utils_slangpy_buffer)
                ref<NativeSlangType> slang_type,
                ref<NativeSlangType> slang_element_type,
                ref<TypeLayoutReflection> element_layout)
-            { new (&self) NativeNDBufferMarshall(dims, writable, slang_type, slang_element_type, element_layout); },
+            {
+                new (&self) NativeNDBufferMarshall(dims, writable, slang_type, slang_element_type, element_layout);
+            },
             "dims"_a,
             "writable"_a,
             "slang_type"_a,

@@ -52,7 +52,9 @@ SGL_PY_EXPORT(device_pipeline)
         .def(
             "__init__",
             [](ComputePipelineDesc* self, nb::dict dict)
-            { new (self) ComputePipelineDesc(dict_to_ComputePipelineDesc(dict)); }
+            {
+                new (self) ComputePipelineDesc(dict_to_ComputePipelineDesc(dict));
+            }
         )
         .def_rw("program", &ComputePipelineDesc::program, D(ComputePipelineDesc, program))
         .def_rw("label", &ComputePipelineDesc::label, D(ComputePipelineDesc, label));
@@ -67,7 +69,9 @@ SGL_PY_EXPORT(device_pipeline)
         .def(
             "__init__",
             [](RenderPipelineDesc* self, nb::dict dict)
-            { new (self) RenderPipelineDesc(dict_to_RenderPipelineDesc(dict)); }
+            {
+                new (self) RenderPipelineDesc(dict_to_RenderPipelineDesc(dict));
+            }
         )
         .def_rw("program", &RenderPipelineDesc::program, D(RenderPipelineDesc, program))
         .def_rw("input_layout", &RenderPipelineDesc::input_layout, D(RenderPipelineDesc, input_layout))
@@ -87,7 +91,13 @@ SGL_PY_EXPORT(device_pipeline)
 
     nb::class_<HitGroupDesc>(m, "HitGroupDesc", D(HitGroupDesc))
         .def(nb::init<>())
-        .def("__init__", [](HitGroupDesc* self, nb::dict dict) { new (self) HitGroupDesc(dict_to_HitGroupDesc(dict)); })
+        .def(
+            "__init__",
+            [](HitGroupDesc* self, nb::dict dict)
+            {
+                new (self) HitGroupDesc(dict_to_HitGroupDesc(dict));
+            }
+        )
         .def(
             nb::init<std::string, std::string, std::string, std::string>(),
             "hit_group_name"_a,
@@ -114,7 +124,9 @@ SGL_PY_EXPORT(device_pipeline)
         .def(
             "__init__",
             [](RayTracingPipelineDesc* self, nb::dict dict)
-            { new (self) RayTracingPipelineDesc(dict_to_RayTracingPipelineDesc(dict)); }
+            {
+                new (self) RayTracingPipelineDesc(dict_to_RayTracingPipelineDesc(dict));
+            }
         )
         .def_rw("program", &RayTracingPipelineDesc::program, D(RayTracingPipelineDesc, program))
         .def_ro(

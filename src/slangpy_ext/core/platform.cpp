@@ -12,14 +12,19 @@ SGL_PY_EXPORT(core_platform)
 #if SGL_WINDOWS
         .def(
             "__init__",
-            [](sgl::WindowHandle* self, uintptr_t hwnd) { new (self) sgl::WindowHandle{reinterpret_cast<HWND>(hwnd)}; },
+            [](sgl::WindowHandle* self, uintptr_t hwnd)
+            {
+                new (self) sgl::WindowHandle{reinterpret_cast<HWND>(hwnd)};
+            },
             "hwnd"_a
         )
 #elif SGL_LINUX
         .def(
             "__init__",
             [](sgl::WindowHandle* self, uintptr_t xdisplay, uint32_t xwindow)
-            { new (self) sgl::WindowHandle{reinterpret_cast<void*>(xdisplay), xwindow}; },
+            {
+                new (self) sgl::WindowHandle{reinterpret_cast<void*>(xdisplay), xwindow};
+            },
             "xdisplay"_a,
             "xwindow"_a
         )
@@ -27,7 +32,9 @@ SGL_PY_EXPORT(core_platform)
         .def(
             "__init__",
             [](sgl::WindowHandle* self, uintptr_t nswindow)
-            { new (self) sgl::WindowHandle{reinterpret_cast<void*>(nswindow)}; },
+            {
+                new (self) sgl::WindowHandle{reinterpret_cast<void*>(nswindow)};
+            },
             "nswindow"_a
         )
 #endif
@@ -44,13 +51,19 @@ SGL_PY_EXPORT(core_platform)
 
     platform.def(
         "open_file_dialog",
-        [](FileDialogFilterList filters) { return open_file_dialog(filters); },
+        [](FileDialogFilterList filters)
+        {
+            return open_file_dialog(filters);
+        },
         "filters"_a = FileDialogFilterList(),
         D(platform, open_file_dialog)
     );
     platform.def(
         "save_file_dialog",
-        [](FileDialogFilterList filters) { return save_file_dialog(filters); },
+        [](FileDialogFilterList filters)
+        {
+            return save_file_dialog(filters);
+        },
         "filters"_a = FileDialogFilterList(),
         D(platform, save_file_dialog)
     );

@@ -54,6 +54,8 @@ endif()
 
 set(NANOTHREAD_STATIC ON)
 add_subdirectory(nanothread)
+# Disable LTO for nanothread as this causes problems when linking with sgl.
+set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
 
 # lmdb
 
@@ -69,7 +71,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SLANG_VERSION "2025.19")
+set(SLANG_VERSION "2025.19.1")
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/slang-${SLANG_VERSION}")
 
 if(SGL_WINDOWS)
@@ -193,18 +195,6 @@ if(TARGET slang-rhi-agility-sdk)
     set(SGL_HAS_AGILITY_SDK ON PARENT_SCOPE)
 else()
     set(SGL_HAS_AGILITY_SDK OFF PARENT_SCOPE)
-endif()
-
-if(TARGET slang-rhi-optix)
-    get_target_property(OPTIX_DIR slang-rhi-optix INTERFACE_INCLUDE_DIRECTORIES)
-    sgl_copy_binary(${OPTIX_DIR}/optix.h optix)
-    sgl_copy_binary(${OPTIX_DIR}/optix_device.h optix)
-    sgl_copy_binary(${OPTIX_DIR}/optix_types.h optix)
-    sgl_copy_binary(${OPTIX_DIR}/internal/optix_device_impl.h optix/internal)
-    sgl_copy_binary(${OPTIX_DIR}/internal/optix_device_impl_transformations.h optix/internal)
-    set(SGL_HAS_OPTIX ON PARENT_SCOPE)
-else()
-    set(SGL_HAS_OPTIX OFF PARENT_SCOPE)
 endif()
 
 # imgui

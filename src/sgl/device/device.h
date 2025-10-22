@@ -187,6 +187,9 @@ struct DeviceInfo {
     /// The frequency of the timestamp counter.
     /// To resolve a timestamp to seconds, divide by this value.
     uint64_t timestamp_frequency;
+    /// The version of OptiX used by the device (0 if OptiX is not supported).
+    /// The format matches the OPTIX_VERSION macro, e.g. 90000 for version 9.0.0.
+    uint32_t optix_version;
     /// Limits of the device.
     DeviceLimits limits;
 };

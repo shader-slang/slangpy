@@ -240,6 +240,7 @@ Device::Device(const DeviceDesc& desc)
     m_info.adapter_name = rhi_device_info.adapterName;
     m_info.adapter_luid = from_rhi(rhi_device_info.adapterLUID);
     m_info.timestamp_frequency = rhi_device_info.timestampFrequency;
+    m_info.optix_version = rhi_device_info.optixVersion;
     m_info.limits.max_texture_dimension_1d = rhi_device_info.limits.maxTextureDimension1D;
     m_info.limits.max_texture_dimension_2d = rhi_device_info.limits.maxTextureDimension2D;
     m_info.limits.max_texture_dimension_3d = rhi_device_info.limits.maxTextureDimension3D;

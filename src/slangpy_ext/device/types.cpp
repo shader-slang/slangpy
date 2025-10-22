@@ -124,7 +124,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](DrawArguments* self, nb::dict dict) { new (self) DrawArguments(dict_to_DrawArguments(dict)); }
+            [](DrawArguments* self, nb::dict dict)
+            {
+                new (self) DrawArguments(dict_to_DrawArguments(dict));
+            }
         )
         .def_rw("vertex_count", &DrawArguments::vertex_count, D(DrawArguments, vertex_count))
         .def_rw("instance_count", &DrawArguments::instance_count, D(DrawArguments, instance_count))
@@ -139,7 +142,13 @@ SGL_PY_EXPORT(device_types)
 
     nb::class_<Viewport>(m, "Viewport", D(Viewport))
         .def(nb::init<>())
-        .def("__init__", [](Viewport* self, nb::dict dict) { new (self) Viewport(dict_to_Viewport(dict)); })
+        .def(
+            "__init__",
+            [](Viewport* self, nb::dict dict)
+            {
+                new (self) Viewport(dict_to_Viewport(dict));
+            }
+        )
         .def_static("from_size", &Viewport::from_size, "width"_a, "height"_a, D(Viewport, from_size))
         .def_rw("x", &Viewport::x, D(Viewport, x))
         .def_rw("y", &Viewport::y, D(Viewport, y))
@@ -152,7 +161,13 @@ SGL_PY_EXPORT(device_types)
 
     nb::class_<ScissorRect>(m, "ScissorRect", D(ScissorRect))
         .def(nb::init<>())
-        .def("__init__", [](ScissorRect* self, nb::dict dict) { new (self) ScissorRect(dict_to_ScissorRect(dict)); })
+        .def(
+            "__init__",
+            [](ScissorRect* self, nb::dict dict)
+            {
+                new (self) ScissorRect(dict_to_ScissorRect(dict));
+            }
+        )
         .def_static("from_size", &ScissorRect::from_size, "width"_a, "height"_a, D(ScissorRect, from_size))
         .def_rw("min_x", &ScissorRect::min_x, D(ScissorRect, min_x))
         .def_rw("min_y", &ScissorRect::min_y, D(ScissorRect, min_y))
@@ -178,7 +193,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](AspectBlendDesc* self, nb::dict dict) { new (self) AspectBlendDesc(dict_to_AspectBlendDesc(dict)); }
+            [](AspectBlendDesc* self, nb::dict dict)
+            {
+                new (self) AspectBlendDesc(dict_to_AspectBlendDesc(dict));
+            }
         )
         .def_rw("src_factor", &AspectBlendDesc::src_factor, D(AspectBlendDesc, src_factor))
         .def_rw("dst_factor", &AspectBlendDesc::dst_factor, D(AspectBlendDesc, dst_factor))
@@ -189,7 +207,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](ColorTargetDesc* self, nb::dict dict) { new (self) ColorTargetDesc(dict_to_ColorTargetDesc(dict)); }
+            [](ColorTargetDesc* self, nb::dict dict)
+            {
+                new (self) ColorTargetDesc(dict_to_ColorTargetDesc(dict));
+            }
         )
         .def_rw("format", &ColorTargetDesc::format, D(ColorTargetDesc, format))
         .def_rw("color", &ColorTargetDesc::color, D(ColorTargetDesc, color))
@@ -204,7 +225,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](MultisampleDesc* self, nb::dict dict) { new (self) MultisampleDesc(dict_to_MultisampleDesc(dict)); }
+            [](MultisampleDesc* self, nb::dict dict)
+            {
+                new (self) MultisampleDesc(dict_to_MultisampleDesc(dict));
+            }
         )
         .def_rw("sample_count", &MultisampleDesc::sample_count, D(MultisampleDesc, sample_count))
         .def_rw("sample_mask", &MultisampleDesc::sample_mask, D(MultisampleDesc, sample_mask))
@@ -221,7 +245,9 @@ SGL_PY_EXPORT(device_types)
         .def(
             "__init__",
             [](DepthStencilOpDesc* self, nb::dict dict)
-            { new (self) DepthStencilOpDesc(dict_to_DepthStencilOpDesc(dict)); }
+            {
+                new (self) DepthStencilOpDesc(dict_to_DepthStencilOpDesc(dict));
+            }
         )
         .def_rw("stencil_fail_op", &DepthStencilOpDesc::stencil_fail_op, D(DepthStencilOpDesc, stencil_fail_op))
         .def_rw(
@@ -237,7 +263,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](DepthStencilDesc* self, nb::dict dict) { new (self) DepthStencilDesc(dict_to_DepthStencilDesc(dict)); }
+            [](DepthStencilDesc* self, nb::dict dict)
+            {
+                new (self) DepthStencilDesc(dict_to_DepthStencilDesc(dict));
+            }
         )
         .def_rw("format", &DepthStencilDesc::format, D(DepthStencilDesc, format))
         .def_rw("depth_test_enable", &DepthStencilDesc::depth_test_enable, D(DepthStencilDesc, depth_test_enable))
@@ -254,7 +283,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](RasterizerDesc* self, nb::dict dict) { new (self) RasterizerDesc(dict_to_RasterizerDesc(dict)); }
+            [](RasterizerDesc* self, nb::dict dict)
+            {
+                new (self) RasterizerDesc(dict_to_RasterizerDesc(dict));
+            }
         )
         .def_rw("fill_mode", &RasterizerDesc::fill_mode, D(RasterizerDesc, fill_mode))
         .def_rw("cull_mode", &RasterizerDesc::cull_mode, D(RasterizerDesc, cull_mode))

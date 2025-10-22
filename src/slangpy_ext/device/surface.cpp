@@ -32,7 +32,10 @@ SGL_PY_EXPORT(device_surface)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](SurfaceConfig* self, nb::dict dict) { new (self) SurfaceConfig(dict_to_SurfaceConfig(dict)); }
+            [](SurfaceConfig* self, nb::dict dict)
+            {
+                new (self) SurfaceConfig(dict_to_SurfaceConfig(dict));
+            }
         )
         .def_rw("format", &SurfaceConfig::format, D(SurfaceConfig, format))
         .def_rw("usage", &SurfaceConfig::usage, D(SurfaceConfig, usage))
