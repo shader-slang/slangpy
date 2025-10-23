@@ -260,7 +260,9 @@ SGL_PY_EXPORT(utils_slangpy_resources)
         .def(
             "__init__",
             [](NativeDescriptorMarshall& self, ref<NativeSlangType> slang_type, DescriptorHandleType type)
-            { new (&self) NativeDescriptorMarshall(slang_type, type); },
+            {
+                new (&self) NativeDescriptorMarshall(slang_type, type);
+            },
             "slang_type"_a,
             "type"_a,
             D_NA(NativeDescriptorMarshall, NativeDescriptorMarshall)
