@@ -193,6 +193,13 @@ Device::Device(const DeviceDesc& desc)
         .highestShaderModel = 0,
     };
 
+    rhi::BindlessDesc bindless_desc{
+        .bufferCount = m_desc.bindless_options.buffer_count,
+        .textureCount = m_desc.bindless_options.texture_count,
+        .samplerCount = m_desc.bindless_options.sampler_count,
+        .accelerationStructureCount = m_desc.bindless_options.acceleration_structure_count,
+    };
+
     rhi::DeviceDesc rhi_desc{
         .next = &d3d12_extended_desc,
         .deviceType = static_cast<rhi::DeviceType>(m_desc.type),
@@ -215,6 +222,7 @@ Device::Device(const DeviceDesc& desc)
         .enableValidation = true,
         .debugCallback = &DebugLogger::get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
+        .bindless = bindless_desc,
     };
     log_debug(
         "Creating graphics device (type: {}, LUID: {}, shader_cache_path: {}).",
