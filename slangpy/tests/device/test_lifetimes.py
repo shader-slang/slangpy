@@ -6,6 +6,7 @@ import slangpy as spy
 from slangpy.testing import helpers
 
 
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_create_and_destroy_device_via_del(device_type: spy.DeviceType):
     device = helpers.get_device(device_type, use_cache=False)
@@ -13,6 +14,7 @@ def test_create_and_destroy_device_via_del(device_type: spy.DeviceType):
     del device
 
 
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_create_and_destroy_device_via_none(device_type: spy.DeviceType):
     device = helpers.get_device(device_type, use_cache=False)
@@ -20,6 +22,7 @@ def test_create_and_destroy_device_via_none(device_type: spy.DeviceType):
     device = None
 
 
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_load_module_and_cleanup_in_order(device_type: spy.DeviceType):
     device = helpers.get_device(device_type, use_cache=False)
@@ -39,6 +42,7 @@ def test_load_module_and_cleanup_in_order(device_type: spy.DeviceType):
     device = None
 
 
+@pytest.mark.memory_leak("Leaks logger", details={"Logger": 1})
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_load_module_and_cleanup_in_reverse_order(device_type: spy.DeviceType):
     device = helpers.get_device(device_type, use_cache=False)
