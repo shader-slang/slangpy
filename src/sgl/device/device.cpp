@@ -304,6 +304,21 @@ Device::Device(const DeviceDesc& desc)
     }
     log_debug("Supported features: {}", string::join(feature_names, ", "));
 
+    // Query capabilities.
+    {
+        uint32_t rhi_capability_count = 0;
+        SLANG_RHI_CALL(m_rhi_device->getCapabilities(&rhi_capability_count, nullptr));
+        std::vector<rhi::Capability> rhi_capabilities(rhi_capability_count);
+        SLANG_RHI_CALL(m_rhi_device->getCapabilities(&rhi_capability_count, rhi_capabilities.data()));
+        for (rhi::Capability rhi_capability : rhi_capabilities) {
+            std::string capability_name = rhi::getRHI()->getCapabilityName(rhi_capability);
+            SlangCapabilityID slang_capability = m_global_session->findCapability(capability_name.c_str());
+            if (slang_capability != SLANG_CAPABILITY_UNKNOWN)
+                m_slang_capabilities.push_back(slang_capability);
+            m_capabilities.push_back(std::move(capability_name));
+        }
+    }
+
     // Create graphics queue.
     SLANG_RHI_CALL(m_rhi_device->getQueue(rhi::QueueType::Graphics, m_rhi_graphics_queue.writeRef()));
 
@@ -385,6 +400,11 @@ ShaderCacheStats Device::shader_cache_stats() const
 bool Device::has_feature(Feature feature) const
 {
     return m_rhi_device->hasFeature(static_cast<rhi::Feature>(feature));
+}
+
+bool Device::has_capability(std::string_view capability) const
+{
+    return std::find(m_capabilities.begin(), m_capabilities.end(), capability) != m_capabilities.end();
 }
 
 FormatSupport Device::get_format_support(Format format) const
