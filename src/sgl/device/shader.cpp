@@ -329,6 +329,11 @@ void SlangSession::create_session(SlangSessionBuild& build)
         slang::CompilerOptionName::Capability,
         int(m_device->global_session()->findCapability("hlsl_nvapi"))
     );
+    // TODO: Pass all detected capabilities to the session.
+    // This currently leads to slang compilation errors and needs more investigation.
+    // for (SlangCapabilityID capability : m_device->_slang_capabilities()) {
+    //     session_options.add(slang::CompilerOptionName::Capability, int(capability));
+    // }
 
     // TODO: We enable loop inversion as it was the default in older versions of Slang,
     //       and leads to artifacts in one project using sgl.

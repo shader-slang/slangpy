@@ -243,6 +243,12 @@ public:
     /// Check if the device supports a given feature.
     bool has_feature(Feature feature) const;
 
+    /// List of slang capabilities supported by the device.
+    const std::vector<std::string>& capabilities() const { return m_capabilities; }
+
+    /// Check if the device supports a given capability.
+    bool has_capability(std::string_view capability) const;
+
     /// True if the device supports CUDA interoperability.
     bool supports_cuda_interop() const { return m_supports_cuda_interop; }
 
@@ -670,6 +676,8 @@ public:
 
     std::string to_string() const override;
 
+    const std::vector<SlangCapabilityID>& _slang_capabilities() const { return m_slang_capabilities; }
+
     Blitter* _blitter();
     HotReload* _hot_reload() { return m_hot_reload; }
 
@@ -701,6 +709,8 @@ private:
     ref<SlangSession> m_slang_session;
 
     std::vector<Feature> m_features;
+    std::vector<std::string> m_capabilities;
+    std::vector<SlangCapabilityID> m_slang_capabilities;
 
     ref<Fence> m_global_fence;
 

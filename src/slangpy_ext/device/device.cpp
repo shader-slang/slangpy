@@ -343,9 +343,11 @@ SGL_PY_EXPORT(device_device)
     device.def_prop_ro("shader_cache_stats", &Device::shader_cache_stats, D(Device, shader_cache_stats));
     device.def_prop_ro("supported_shader_model", &Device::supported_shader_model, D(Device, supported_shader_model));
     device.def_prop_ro("features", &Device::features, D(Device, features));
+    device.def_prop_ro("capabilities", &Device::capabilities, D_NA(Device, capabilities));
     device.def_prop_ro("supports_cuda_interop", &Device::supports_cuda_interop, D(Device, supports_cuda_interop));
     device.def_prop_ro("native_handles", &Device::native_handles, D(Device, native_handles));
     device.def("has_feature", &Device::has_feature, "feature"_a, D(Device, has_feature));
+    device.def("has_capability", &Device::has_capability, "capability"_a, D_NA(Device, has_capability));
     device.def("get_format_support", &Device::get_format_support, "format"_a, D(Device, get_format_support));
 
     device.def_prop_ro("slang_session", &Device::slang_session, D(Device, slang_session));
