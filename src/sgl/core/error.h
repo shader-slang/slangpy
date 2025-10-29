@@ -103,14 +103,29 @@ namespace detail {
 /// Helper for throwing an exception if a pointer is null.
 #define SGL_CHECK_NOT_NULL(arg) SGL_CHECK(arg != nullptr, "\"{}\" must not be null", #arg)
 
-#define SGL_CHECK_EQ(arg, value) SGL_CHECK(arg == value, "\"{}\" must be equal to {}", #arg, value)
-#define SGL_CHECK_NE(arg, value) SGL_CHECK(arg != value, "\"{}\" must not be equal to {}", #arg, value)
-#define SGL_CHECK_LT(arg, value) SGL_CHECK(arg < value, "\"{}\" must be less than {}", #arg, value)
-#define SGL_CHECK_LE(arg, value) SGL_CHECK(arg <= value, "\"{}\" must be less than or equal {}", #arg, value)
-#define SGL_CHECK_GT(arg, value) SGL_CHECK(arg > value, "\"{}\" must be greater than {}", #arg, value)
-#define SGL_CHECK_GE(arg, value) SGL_CHECK(arg >= value, "\"{}\" must be greater than or equal {}", #arg, value)
+#define SGL_CHECK_EQ(lhs, rhs)                                                                                         \
+    SGL_CHECK(lhs == rhs, "SGL_CHECK_EQ({}, {}) is NOT correct! Values: SGL_CHECK_EQ({}, {})", #lhs, #rhs, lhs, rhs)
+#define SGL_CHECK_NE(lhs, rhs)                                                                                         \
+    SGL_CHECK(lhs != rhs, "SGL_CHECK_NE({}, {}) is NOT correct! Values: SGL_CHECK_NE({}, {})", #lhs, #rhs, lhs, rhs)
+#define SGL_CHECK_LT(lhs, rhs)                                                                                         \
+    SGL_CHECK(lhs < rhs, "SGL_CHECK_LT({}, {}) is NOT correct! Values: SGL_CHECK_LT({}, {})", #lhs, #rhs, lhs, rhs)
+#define SGL_CHECK_LE(lhs, rhs)                                                                                         \
+    SGL_CHECK(lhs <= rhs, "SGL_CHECK_LE({}, {}) is NOT correct! Values: SGL_CHECK_LE({}, {})", #lhs, #rhs, lhs, rhs)
+#define SGL_CHECK_GT(lhs, rhs)                                                                                         \
+    SGL_CHECK(lhs > rhs, "SGL_CHECK_GT({}, {}) is NOT correct! Values: SGL_CHECK_GT({}, {})", #lhs, #rhs, lhs, rhs)
+#define SGL_CHECK_GE(lhs, rhs)                                                                                         \
+    SGL_CHECK(lhs >= rhs, "SGL_CHECK_GE({}, {}) is NOT correct! Values: SGL_CHECK_GE({}, {})", #lhs, #rhs, lhs, rhs)
 #define SGL_CHECK_BOUNDS(arg, min, max)                                                                                \
-    SGL_CHECK(arg >= min && arg < max, "\"{}\" must be in range [{}, {}]", #arg, min, max)
+    SGL_CHECK(                                                                                                         \
+        arg >= min && arg < max,                                                                                       \
+        "SGL_CHECK_BOUNDS({}, {}, {}) is NOT correct! Values: SGL_CHECK_BOUNDS({}, {}, {})",                           \
+        #arg,                                                                                                          \
+        #min,                                                                                                          \
+        #max,                                                                                                          \
+        arg,                                                                                                           \
+        min,                                                                                                           \
+        max                                                                                                            \
+    )
 
 /// Helper for marking unimplemented functions.
 #define SGL_UNIMPLEMENTED() SGL_THROW("Unimplemented")
