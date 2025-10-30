@@ -5,3 +5,18 @@ macro(ternary var boolean value1 value2)
         set(${var} ${value2})
     endif()
 endmacro()
+
+# Function to extract #define values from C/C++ headers
+function(extract_define_from_header header_file define_name output_var)
+    file(STRINGS "${header_file}" define_line REGEX "#define ${define_name}")
+
+    # Handle string defines: #define FOO "value"
+    if(define_line MATCHES "\"([^\"]*)\"")
+        set(${output_var} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+    # Handle numeric/unquoted defines: #define FOO 123
+    elseif(define_line MATCHES "#define[ \t]+${define_name}[ \t]+([^ \t\n]+)")
+        set(${output_var} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+    else()
+        set(${output_var} "" PARENT_SCOPE)
+    endif()
+endfunction()
