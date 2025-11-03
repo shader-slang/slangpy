@@ -26,7 +26,7 @@ struct Get20 : IVal {
 
 
 int getval() {
-    IVal val;
+    IVal val = createDynamicObject<IVal>(0, 0);
     return val.get();
 }
 """
