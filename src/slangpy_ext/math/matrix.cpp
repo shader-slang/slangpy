@@ -142,7 +142,10 @@ void bind_matrix_type(nb::module_& m, const char* name)
         }
     );
 
-    auto to_string_ = [](const T& self) { return to_string(self); };
+    auto to_string_ = [](const T& self)
+    {
+        return to_string(self);
+    };
     mat.def("__repr__", to_string_);
     mat.def("__str__", to_string_);
 
@@ -153,21 +156,61 @@ void bind_matrix_type(nb::module_& m, const char* name)
 
     // Intrinsics
 
-    m.def("transpose", [](const T& x) { return transpose(x); }, "x"_a);
+    m.def(
+        "transpose",
+        [](const T& x)
+        {
+            return transpose(x);
+        },
+        "x"_a
+    );
 
     if constexpr (rows == cols) {
-        m.def("determinant", [](const T& x) { return determinant(x); }, "x"_a);
-        m.def("inverse", [](const T& x) { return inverse(x); }, "x"_a);
+        m.def(
+            "determinant",
+            [](const T& x)
+            {
+                return determinant(x);
+            },
+            "x"_a
+        );
+        m.def(
+            "inverse",
+            [](const T& x)
+            {
+                return inverse(x);
+            },
+            "x"_a
+        );
     }
 
     m.def(
         "mul",
-        [](const matrix<value_type, rows, cols>& x, const matrix<value_type, cols, rows>& y) { return mul(x, y); },
+        [](const matrix<value_type, rows, cols>& x, const matrix<value_type, cols, rows>& y)
+        {
+            return mul(x, y);
+        },
         "x"_a,
         "y"_a
     );
-    m.def("mul", [](const T& x, const row_type& y) { return mul(x, y); }, "x"_a, "y"_a);
-    m.def("mul", [](const col_type& x, const T& y) { return mul(x, y); }, "x"_a, "y"_a);
+    m.def(
+        "mul",
+        [](const T& x, const row_type& y)
+        {
+            return mul(x, y);
+        },
+        "x"_a,
+        "y"_a
+    );
+    m.def(
+        "mul",
+        [](const col_type& x, const T& y)
+        {
+            return mul(x, y);
+        },
+        "x"_a,
+        "y"_a
+    );
 }
 
 inline void bind_matrix(nb::module_& m)
@@ -184,26 +227,96 @@ inline void bind_matrix(nb::module_& m)
     bind_matrix_type<float4x3>(m, "float4x3");
     bind_matrix_type<float4x4>(m, "float4x4");
 
-    m.def("transform_point", [](const float4x4& m, const float3& v) { return transform_point(m, v); }, "m"_a, "v"_a);
-    m.def("transform_vector", [](const float3x3& m, const float3& v) { return transform_vector(m, v); }, "m"_a, "v"_a);
-    m.def("transform_vector", [](const float4x4& m, const float3& v) { return transform_vector(m, v); }, "m"_a, "v"_a);
+    m.def(
+        "transform_point",
+        [](const float4x4& m, const float3& v)
+        {
+            return transform_point(m, v);
+        },
+        "m"_a,
+        "v"_a
+    );
+    m.def(
+        "transform_vector",
+        [](const float3x3& m, const float3& v)
+        {
+            return transform_vector(m, v);
+        },
+        "m"_a,
+        "v"_a
+    );
+    m.def(
+        "transform_vector",
+        [](const float4x4& m, const float3& v)
+        {
+            return transform_vector(m, v);
+        },
+        "m"_a,
+        "v"_a
+    );
 
-    m.def("translate", [](const float4x4& m, const float3& v) { return translate(m, v); }, "m"_a, "v"_a);
-    m.def("translate_2d", [](const float3x3& m, const float2& v) { return translate_2d(m, v); }, "m"_a, "v"_a);
+    m.def(
+        "translate",
+        [](const float4x4& m, const float3& v)
+        {
+            return translate(m, v);
+        },
+        "m"_a,
+        "v"_a
+    );
+    m.def(
+        "translate_2d",
+        [](const float3x3& m, const float2& v)
+        {
+            return translate_2d(m, v);
+        },
+        "m"_a,
+        "v"_a
+    );
     m.def(
         "rotate",
-        [](const float4x4& m, float angle, const float3& axis) { return rotate(m, angle, axis); },
+        [](const float4x4& m, float angle, const float3& axis)
+        {
+            return rotate(m, angle, axis);
+        },
         "m"_a,
         "angle"_a,
         "axis"_a
     );
-    m.def("rotate_2d", [](const float3x3& m, float angle) { return rotate_2d(m, angle); }, "m"_a, "angle"_a);
-    m.def("scale", [](const float4x4& m, const float3& v) { return scale(m, v); }, "m"_a, "v"_a);
-    m.def("scale_2d", [](const float3x3& m, const float2& v) { return scale_2d(m, v); }, "m"_a, "v"_a);
+    m.def(
+        "rotate_2d",
+        [](const float3x3& m, float angle)
+        {
+            return rotate_2d(m, angle);
+        },
+        "m"_a,
+        "angle"_a
+    );
+    m.def(
+        "scale",
+        [](const float4x4& m, const float3& v)
+        {
+            return scale(m, v);
+        },
+        "m"_a,
+        "v"_a
+    );
+    m.def(
+        "scale_2d",
+        [](const float3x3& m, const float2& v)
+        {
+            return scale_2d(m, v);
+        },
+        "m"_a,
+        "v"_a
+    );
 
     m.def(
         "perspective",
-        [](float fovy, float aspect, float z_near, float z_far) { return perspective(fovy, aspect, z_near, z_far); },
+        [](float fovy, float aspect, float z_near, float z_far)
+        {
+            return perspective(fovy, aspect, z_near, z_far);
+        },
         "fovy"_a,
         "aspect"_a,
         "z_near"_a,
@@ -212,7 +325,9 @@ inline void bind_matrix(nb::module_& m)
     m.def(
         "ortho",
         [](float left, float right, float bottom, float top, float z_near, float z_far)
-        { return ortho(left, right, bottom, top, z_near, z_far); },
+        {
+            return ortho(left, right, bottom, top, z_near, z_far);
+        },
         "left"_a,
         "right"_a,
         "bottom"_a,
@@ -221,46 +336,127 @@ inline void bind_matrix(nb::module_& m)
         "z_far"_a
     );
 
-    m.def("matrix_from_translation", [](const float3& v) { return matrix_from_translation(v); }, "v"_a);
-    m.def("matrix_from_translation_2d", [](const float2& v) { return matrix_from_translation_2d(v); }, "v"_a);
+    m.def(
+        "matrix_from_translation",
+        [](const float3& v)
+        {
+            return matrix_from_translation(v);
+        },
+        "v"_a
+    );
+    m.def(
+        "matrix_from_translation_2d",
+        [](const float2& v)
+        {
+            return matrix_from_translation_2d(v);
+        },
+        "v"_a
+    );
 
-    m.def("matrix_from_scaling", [](const float3& v) { return matrix_from_scaling(v); }, "v"_a);
-    m.def("matrix_from_scaling_2d", [](const float2& v) { return matrix_from_scaling_2d(v); }, "v"_a);
+    m.def(
+        "matrix_from_scaling",
+        [](const float3& v)
+        {
+            return matrix_from_scaling(v);
+        },
+        "v"_a
+    );
+    m.def(
+        "matrix_from_scaling_2d",
+        [](const float2& v)
+        {
+            return matrix_from_scaling_2d(v);
+        },
+        "v"_a
+    );
 
     m.def(
         "matrix_from_rotation",
-        [](float angle, const float3& axis) { return matrix_from_rotation(angle, axis); },
+        [](float angle, const float3& axis)
+        {
+            return matrix_from_rotation(angle, axis);
+        },
         "angle"_a,
         "axis"_a
     );
-    m.def("matrix_from_rotation_2d", [](float angle) { return matrix_from_rotation_2d(angle); }, "angle"_a);
+    m.def(
+        "matrix_from_rotation_2d",
+        [](float angle)
+        {
+            return matrix_from_rotation_2d(angle);
+        },
+        "angle"_a
+    );
 
-    m.def("matrix_from_rotation_x", [](float angle) { return matrix_from_rotation_x(angle); }, "angle"_a);
-    m.def("matrix_from_rotation_y", [](float angle) { return matrix_from_rotation_y(angle); }, "angle"_a);
-    m.def("matrix_from_rotation_z", [](float angle) { return matrix_from_rotation_z(angle); }, "angle"_a);
+    m.def(
+        "matrix_from_rotation_x",
+        [](float angle)
+        {
+            return matrix_from_rotation_x(angle);
+        },
+        "angle"_a
+    );
+    m.def(
+        "matrix_from_rotation_y",
+        [](float angle)
+        {
+            return matrix_from_rotation_y(angle);
+        },
+        "angle"_a
+    );
+    m.def(
+        "matrix_from_rotation_z",
+        [](float angle)
+        {
+            return matrix_from_rotation_z(angle);
+        },
+        "angle"_a
+    );
     m.def(
         "matrix_from_rotation_xyz",
-        [](float angle_x, float angle_y, float angle_z) { return matrix_from_rotation_xyz(angle_x, angle_y, angle_z); },
+        [](float angle_x, float angle_y, float angle_z)
+        {
+            return matrix_from_rotation_xyz(angle_x, angle_y, angle_z);
+        },
         "angle_x"_a,
         "angle_y"_a,
         "angle_z"_a
     );
     m.def(
         "matrix_from_rotation_xyz",
-        [](const float3& angles) { return matrix_from_rotation_xyz(angles); },
+        [](const float3& angles)
+        {
+            return matrix_from_rotation_xyz(angles);
+        },
         "angles"_a
     );
     m.def(
         "matrix_from_look_at",
         [](const float3& eye, const float3& center, const float3& up, Handedness handedness)
-        { return matrix_from_look_at(eye, center, up, handedness); },
+        {
+            return matrix_from_look_at(eye, center, up, handedness);
+        },
         "eye"_a,
         "center"_a,
         "up"_a,
         "handedness"_a = Handedness::right_handed
     );
-    m.def("matrix_from_quat", [](const quatf& q) { return matrix_from_quat(q); }, "q"_a);
-    m.def("matrix_4x4_from_3x4", [](const float3x4& m) { return matrix_4x4_from_3x4(m); }, "m"_a);
+    m.def(
+        "matrix_from_quat",
+        [](const quatf& q)
+        {
+            return matrix_from_quat(q);
+        },
+        "q"_a
+    );
+    m.def(
+        "matrix_4x4_from_3x4",
+        [](const float3x4& m)
+        {
+            return matrix_4x4_from_3x4(m);
+        },
+        "m"_a
+    );
     m.def(
         "decompose",
         [](const float4x4& model_matrix,
@@ -268,7 +464,10 @@ inline void bind_matrix(nb::module_& m)
            quatf& orientation,
            float3& translation,
            float3& skew,
-           float4& perspective) { return decompose(model_matrix, scale, orientation, translation, skew, perspective); },
+           float4& perspective)
+        {
+            return decompose(model_matrix, scale, orientation, translation, skew, perspective);
+        },
         "model_matrix"_a,
         "scale"_a,
         "orientation"_a,

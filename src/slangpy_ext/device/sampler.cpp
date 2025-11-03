@@ -29,7 +29,13 @@ SGL_PY_EXPORT(device_sampler)
 
     nb::class_<SamplerDesc>(m, "SamplerDesc", D(SamplerDesc))
         .def(nb::init<>())
-        .def("__init__", [](SamplerDesc* self, nb::dict dict) { new (self) SamplerDesc(dict_to_SamplerDesc(dict)); })
+        .def(
+            "__init__",
+            [](SamplerDesc* self, nb::dict dict)
+            {
+                new (self) SamplerDesc(dict_to_SamplerDesc(dict));
+            }
+        )
         .def_rw("min_filter", &SamplerDesc::min_filter, D(SamplerDesc, min_filter))
         .def_rw("mag_filter", &SamplerDesc::mag_filter, D(SamplerDesc, mag_filter))
         .def_rw("mip_filter", &SamplerDesc::mip_filter, D(SamplerDesc, mip_filter))

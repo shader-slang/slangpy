@@ -66,6 +66,47 @@ AccelerationStructureBuildDescConverter::AccelerationStructureBuildDescConverter
                 rhi_build_input.proceduralPrimitives.aabbBuffers[i]
                     = detail::to_rhi(proceduralPrimitives->aabb_buffers[i]);
             rhi_build_inputs.push_back(rhi_build_input);
+        } else if (auto* spheres = std::get_if<AccelerationStructureBuildInputSpheres>(&input)) {
+            rhi::AccelerationStructureBuildInput rhi_build_input{
+                .type = rhi::AccelerationStructureBuildInputType::Spheres,
+                .spheres{
+                    .vertexBufferCount = narrow_cast<uint32_t>(spheres->vertex_position_buffers.size()),
+                    .vertexCount = spheres->vertex_count,
+                    .vertexPositionFormat = static_cast<rhi::Format>(spheres->vertex_position_format),
+                    .vertexPositionStride = spheres->vertex_position_stride,
+                    .vertexRadiusFormat = static_cast<rhi::Format>(spheres->vertex_radius_format),
+                    .vertexRadiusStride = spheres->vertex_radius_stride,
+                    .indexBuffer = detail::to_rhi(spheres->index_buffer),
+                    .indexFormat = static_cast<rhi::IndexFormat>(spheres->index_format),
+                    .indexCount = spheres->index_count,
+                    .flags = static_cast<rhi::AccelerationStructureGeometryFlags>(spheres->flags),
+                },
+            };
+            for (size_t i = 0; i < spheres->vertex_position_buffers.size(); ++i)
+                rhi_build_input.spheres.vertexPositionBuffers[i] = detail::to_rhi(spheres->vertex_position_buffers[i]);
+            for (size_t i = 0; i < spheres->vertex_radius_buffers.size(); ++i)
+                rhi_build_input.spheres.vertexRadiusBuffers[i] = detail::to_rhi(spheres->vertex_radius_buffers[i]);
+            rhi_build_inputs.push_back(rhi_build_input);
+        } else if (auto* linearSweptSpheres = std::get_if<AccelerationStructureBuildInputLinearSweptSpheres>(&input)) {
+            rhi::AccelerationStructureBuildInput rhi_build_input{
+                .type = rhi::AccelerationStructureBuildInputType::LinearSweptSpheres,
+                .linearSweptSpheres{
+                    .vertexBufferCount = narrow_cast<uint32_t>(linearSweptSpheres->vertex_position_buffers.size()),
+                    .vertexCount = linearSweptSpheres->vertex_count,
+                    .primitiveCount = linearSweptSpheres->primitive_count,
+                    .vertexPositionFormat = static_cast<rhi::Format>(linearSweptSpheres->vertex_position_format),
+                    .vertexPositionStride = linearSweptSpheres->vertex_position_stride,
+                    .vertexRadiusFormat = static_cast<rhi::Format>(linearSweptSpheres->vertex_radius_format),
+                    .vertexRadiusStride = linearSweptSpheres->vertex_radius_stride,
+                },
+            };
+            for (size_t i = 0; i < linearSweptSpheres->vertex_position_buffers.size(); ++i)
+                rhi_build_input.linearSweptSpheres.vertexPositionBuffers[i]
+                    = detail::to_rhi(linearSweptSpheres->vertex_position_buffers[i]);
+            for (size_t i = 0; i < linearSweptSpheres->vertex_radius_buffers.size(); ++i)
+                rhi_build_input.linearSweptSpheres.vertexRadiusBuffers[i]
+                    = detail::to_rhi(linearSweptSpheres->vertex_radius_buffers[i]);
+            rhi_build_inputs.push_back(rhi_build_input);
         }
     }
 

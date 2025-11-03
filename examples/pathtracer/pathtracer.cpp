@@ -765,9 +765,6 @@ struct App {
             .enable_debug_layers = true,
             .compiler_options = {
                 .include_paths = {EXAMPLE_DIR},
-                .defines = {
-                    {"USE_RAYTRACING_PIPELINE", USE_RAYTRACING_PIPELINE ? "1" : "0"},
-                },
             },
         });
         surface = device->create_surface(window);
@@ -777,9 +774,24 @@ struct App {
             .vsync = false,
         });
 
-        window->set_on_keyboard_event([this](const KeyboardEvent& event) { on_keyboard_event(event); });
-        window->set_on_mouse_event([this](const MouseEvent& event) { on_mouse_event(event); });
-        window->set_on_resize([this](uint32_t width, uint32_t height) { on_resize(width, height); });
+        window->set_on_keyboard_event(
+            [this](const KeyboardEvent& event)
+            {
+                on_keyboard_event(event);
+            }
+        );
+        window->set_on_mouse_event(
+            [this](const MouseEvent& event)
+            {
+                on_mouse_event(event);
+            }
+        );
+        window->set_on_resize(
+            [this](uint32_t width, uint32_t height)
+            {
+                on_resize(width, height);
+            }
+        );
 
         stage = Stage::demo();
         scene = std::make_unique<Scene>(device, *stage);

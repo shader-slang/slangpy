@@ -329,6 +329,11 @@ void SlangSession::create_session(SlangSessionBuild& build)
         slang::CompilerOptionName::Capability,
         int(m_device->global_session()->findCapability("hlsl_nvapi"))
     );
+    // TODO: Pass all detected capabilities to the session.
+    // This currently leads to slang compilation errors and needs more investigation.
+    // for (SlangCapabilityID capability : m_device->_slang_capabilities()) {
+    //     session_options.add(slang::CompilerOptionName::Capability, int(capability));
+    // }
 
     // TODO: We enable loop inversion as it was the default in older versions of Slang,
     //       and leads to artifacts in one project using sgl.
@@ -974,7 +979,14 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
                 // Check for duplicate ids within same interface type.
                 if (c.id >= 0) {
                     auto range = type_conformance_ids.equal_range(c.interface_name);
-                    if (std::any_of(range.first, range.second, [&c](const auto& pair) { return pair.second == c.id; }))
+                    if (std::any_of(
+                            range.first,
+                            range.second,
+                            [&c](const auto& pair)
+                            {
+                                return pair.second == c.id;
+                            }
+                        ))
                         SGL_THROW("Duplicate type id {} for interface type \"{}\"", c.id, c.interface_name);
                     type_conformance_ids.insert({c.interface_name, c.id});
                 }
