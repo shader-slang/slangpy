@@ -159,13 +159,13 @@ function(sgl_add_library_slang)
             IMPORTED_IMPLIB ${SLANG_DIR}/lib/${slang_lib_base}.lib
             IMPORTED_LOCATION ${SLANG_DIR}/bin/${slang_lib_base}.dll
         )
-        sgl_copy_binary(${SLANG_DIR}/bin/slang.dll .)
+        sgl_copy_binary(${SLANG_DIR}/bin/${slang_lib_base}.dll .)
         sgl_copy_binary(${SLANG_DIR}/bin/slang-glslang.dll .)
         sgl_copy_binary(${SLANG_DIR}/bin/slang-glsl-module.dll .)
         sgl_copy_binary(${SLANG_DIR}/bin/slang-llvm.dll .)
         # Note: The downloaded debug-info archive has single top-level 'bin'
         # folder that is stripped out by FetchContent.
-        set(slang_resolved_debug_info "slang.pdb")
+        set(slang_resolved_debug_info "${slang_lib_base}.pdb")
     else()
         # Python wheels don't support symlinks, so we need to find the actual
         # library files.
