@@ -43,7 +43,13 @@ void bind_quaternion_type(nb::module_& m, const char* name)
             return self[i];
         }
     );
-    quat.def("__setitem__", [](T& self, int i, value_type v) { self[i] = v; });
+    quat.def(
+        "__setitem__",
+        [](T& self, int i, value_type v)
+        {
+            self[i] = v;
+        }
+    );
 
     quat.def_prop_ro(
         "shape",
@@ -65,7 +71,10 @@ void bind_quaternion_type(nb::module_& m, const char* name)
 
     // Conversion
 
-    auto to_string_ = [](const T& self) { return to_string(self); };
+    auto to_string_ = [](const T& self)
+    {
+        return to_string(self);
+    };
     quat.def("__repr__", to_string_);
     quat.def("__str__", to_string_);
 
@@ -92,21 +101,55 @@ void bind_quaternion_type(nb::module_& m, const char* name)
 
     // Multiplication
 
-    m.def("mul", [](const T& x, const T& y) { return mul(x, y); }, "x"_a, "y"_a);
-    m.def("mul", [](const T& x, const vector<value_type, 3>& y) { return mul(x, y); }, "x"_a, "y"_a);
+    m.def(
+        "mul",
+        [](const T& x, const T& y)
+        {
+            return mul(x, y);
+        },
+        "x"_a,
+        "y"_a
+    );
+    m.def(
+        "mul",
+        [](const T& x, const vector<value_type, 3>& y)
+        {
+            return mul(x, y);
+        },
+        "x"_a,
+        "y"_a
+    );
 
     m.def(
         "transform_vector",
-        [](const T& q, const vector<value_type, 3>& v) { return transform_vector(q, v); },
+        [](const T& q, const vector<value_type, 3>& v)
+        {
+            return transform_vector(q, v);
+        },
         "q"_a,
         "v"_a
     );
 
     // Intrinsics
 
-#define WRAP_INTRINSIC_X(name) [](const T& x) { return name(x); }, "x"_a
-#define WRAP_INTRINSIC_XY(name) [](const T& x, const T& y) { return name(x, y); }, "x"_a, "y"_a
-#define WRAP_INTRINSIC_XYS(name) [](const T& x, const T& y, value_type s) { return name(x, y, s); }, "x"_a, "y"_a, "s"_a
+#define WRAP_INTRINSIC_X(name)                                                                                         \
+    [](const T& x)                                                                                                     \
+    {                                                                                                                  \
+        return name(x);                                                                                                \
+    },                                                                                                                 \
+        "x"_a
+#define WRAP_INTRINSIC_XY(name)                                                                                        \
+    [](const T& x, const T& y)                                                                                         \
+    {                                                                                                                  \
+        return name(x, y);                                                                                             \
+    },                                                                                                                 \
+        "x"_a, "y"_a
+#define WRAP_INTRINSIC_XYS(name)                                                                                       \
+    [](const T& x, const T& y, value_type s)                                                                           \
+    {                                                                                                                  \
+        return name(x, y, s);                                                                                          \
+    },                                                                                                                 \
+        "x"_a, "y"_a, "s"_a
 
     m.def("isfinite", WRAP_INTRINSIC_X(isfinite));
     m.def("isinf", WRAP_INTRINSIC_X(isinf));
@@ -135,7 +178,10 @@ void bind_quaternion_type(nb::module_& m, const char* name)
 
     m.def(
         "quat_from_angle_axis",
-        [](value_type angle, const vector<value_type, 3>& axis) { return quat_from_angle_axis(angle, axis); },
+        [](value_type angle, const vector<value_type, 3>& axis)
+        {
+            return quat_from_angle_axis(angle, axis);
+        },
         "angle"_a,
         "axis"_a
     );
@@ -143,23 +189,37 @@ void bind_quaternion_type(nb::module_& m, const char* name)
     m.def(
         "quat_from_rotation_between_vectors",
         [](const vector<value_type, 3>& from, const vector<value_type, 3>& to)
-        { return quat_from_rotation_between_vectors(from, to); },
+        {
+            return quat_from_rotation_between_vectors(from, to);
+        },
         "from_"_a,
         "to"_a
     );
 
     m.def(
         "quat_from_euler_angles",
-        [](const vector<value_type, 3>& angles) { return quat_from_euler_angles(angles); },
+        [](const vector<value_type, 3>& angles)
+        {
+            return quat_from_euler_angles(angles);
+        },
         "angles"_a
     );
 
-    m.def("quat_from_matrix", [](const matrix<value_type, 3, 3>& m) { return quat_from_matrix(m); }, "m"_a);
+    m.def(
+        "quat_from_matrix",
+        [](const matrix<value_type, 3, 3>& m)
+        {
+            return quat_from_matrix(m);
+        },
+        "m"_a
+    );
 
     m.def(
         "quat_from_look_at",
         [](const vector<value_type, 3>& dir, const vector<value_type, 3>& up, Handedness handedness)
-        { return quat_from_look_at(dir, up, handedness); },
+        {
+            return quat_from_look_at(dir, up, handedness);
+        },
         "dir"_a,
         "up"_a,
         "handedness"_a = Handedness::right_handed

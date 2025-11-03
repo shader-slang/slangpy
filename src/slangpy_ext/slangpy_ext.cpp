@@ -179,5 +179,8 @@ NB_MODULE(slangpy_ext, m_)
     ));
 
     // Shutdown on module unload.
-    nanobind_module_def_slangpy_ext.m_free = [](void*) { sgl::static_shutdown(); };
+    nanobind_module_def_slangpy_ext.m_free = [](void*)
+    {
+        sgl::static_shutdown();
+    };
 }

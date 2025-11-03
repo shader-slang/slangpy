@@ -13,7 +13,13 @@ template<class ListT, class... Extra>
 void bind_list_type(nanobind::module_& m, const char* type_name, Extra&&... extra)
 {
     nb::class_<ListT>(m, type_name, std::forward<Extra>(extra)...)
-        .def("__len__", [](ListT& self) { return self.size(); })
+        .def(
+            "__len__",
+            [](ListT& self)
+            {
+                return self.size();
+            }
+        )
         .def(
             "__getitem__",
             [](ListT& self, Py_ssize_t index)
@@ -62,7 +68,13 @@ SGL_PY_EXPORT(device_reflection)
             "child_name"_a,
             D(DeclReflection, find_first_child_of_kind)
         )
-        .def("__len__", [](DeclReflection& self) { return self.child_count(); })
+        .def(
+            "__len__",
+            [](DeclReflection& self)
+            {
+                return self.child_count();
+            }
+        )
         .def(
             "__getitem__",
             [](DeclReflection& self, Py_ssize_t index)
@@ -262,7 +274,13 @@ SGL_PY_EXPORT(device_reflection)
         .def("has_element", &ReflectionCursor::has_element, "index"_a, D(ReflectionCursor, has_element))
         .def_prop_ro("type_layout", &ReflectionCursor::type_layout, D(ReflectionCursor, type_layout))
         .def_prop_ro("type", &ReflectionCursor::type, D(ReflectionCursor, type))
-        .def("__getitem__", [](ReflectionCursor& self, std::string_view name) { return self[name]; })
+        .def(
+            "__getitem__",
+            [](ReflectionCursor& self, std::string_view name)
+            {
+                return self[name];
+            }
+        )
         .def(
             "__getitem__",
             [](ReflectionCursor& self, int index)
@@ -273,6 +291,12 @@ SGL_PY_EXPORT(device_reflection)
                 // return self[index];
             }
         )
-        .def("__getattr__", [](ReflectionCursor& self, std::string_view name) { return self[name]; })
+        .def(
+            "__getattr__",
+            [](ReflectionCursor& self, std::string_view name)
+            {
+                return self[name];
+            }
+        )
         .def("__repr__", &ReflectionCursor::to_string);
 }

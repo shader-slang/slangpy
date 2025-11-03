@@ -75,7 +75,12 @@ FileSystemWatcher::FileSystemWatcher()
 #endif
 
 #if !SGL_LINUX
-    m_thread = std::thread([this]() { thread_func(); });
+    m_thread = std::thread(
+        [this]()
+        {
+            thread_func();
+        }
+    );
 #endif
 }
 
@@ -237,7 +242,10 @@ void FileSystemWatcher::update()
                 auto it = std::find_if(
                     m_watches.begin(),
                     m_watches.end(),
-                    [event](const auto& pair) { return pair.second->watch_descriptor == event->wd; }
+                    [event](const auto& pair)
+                    {
+                        return pair.second->watch_descriptor == event->wd;
+                    }
                 );
                 if (it != m_watches.end()) {
                     _notify_change(it->second.get(), path, change);

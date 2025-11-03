@@ -219,6 +219,14 @@ public struct BufferMarshall<T, let RW : bool>
 {
 }
 
+public struct DescriptorType<T : IOpaqueDescriptor>
+{
+    DescriptorHandle<T> value;
+
+    public void load(Context0D context, out DescriptorHandle<T> value) { value = this.value; }
+    public void store(Context0D context, in DescriptorHandle<T> value) {};
+}
+
 public struct StructuredBufferType<T>
     : IVectorizeToSelf<StructuredBuffer<T>>
 {
@@ -727,6 +735,15 @@ namespace impl
 
     // A python float can be passed to any slang float scalar type
     extension<T : __BuiltinFloatingPointType> T : IConvertibleFrom<float> {}
+
+    extension<T : IOpaqueDescriptor> T : IConvertibleFrom<ByteAddressBuffer> {}
+    extension<T : IOpaqueDescriptor> T : IConvertibleFrom<RWByteAddressBuffer> {}
+    extension<T : IOpaqueDescriptor> T : IConvertibleFrom<StructuredBuffer<Unknown>> {}
+    extension<T : IOpaqueDescriptor> T : IConvertibleFrom<RWStructuredBuffer<Unknown>> {}
+    extension<T : IOpaqueDescriptor> DescriptorHandle<T> : IConvertibleFrom<ByteAddressBuffer.Handle> {}
+    extension<T : IOpaqueDescriptor> DescriptorHandle<T> : IConvertibleFrom<RWByteAddressBuffer.Handle> {}
+    extension<T : IOpaqueDescriptor> DescriptorHandle<T> : IConvertibleFrom<StructuredBuffer<Unknown>.Handle> {}
+    extension<T : IOpaqueDescriptor> DescriptorHandle<T> : IConvertibleFrom<RWStructuredBuffer<Unknown>.Handle> {}
 
     // A python array can be passed to any slang array of the same length, as
     // long as their element types can be safely passed

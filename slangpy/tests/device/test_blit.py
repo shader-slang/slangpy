@@ -13,10 +13,6 @@ from slangpy.testing import helpers
 def test_generate_mips(device_type: spy.DeviceType, mode: str):
     if mode == "render" and device_type == spy.DeviceType.metal:
         pytest.skip("Currently fails on Metal, needs investigation.")
-    if mode == "compute" and device_type == spy.DeviceType.cuda and sys.platform == "linux":
-        pytest.skip(
-            "Currently fails on CUDA/Linux with CUDA_ERROR_MISALIGNED_ADDRESS when calling cuMemcpy3D to read back mip 0."
-        )
 
     device = helpers.get_device(device_type)
 

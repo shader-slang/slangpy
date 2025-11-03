@@ -12,6 +12,7 @@ from slangpy import (
     Device,
     NativeHandle,
     get_cuda_current_context_native_handles,
+    BindlessDesc,
 )
 from slangpy.reflection import SlangType, SlangProgramLayout
 import builtins
@@ -27,6 +28,7 @@ def create_device(
     enable_hot_reload: bool = True,
     enable_compilation_reports: bool = False,
     existing_device_handles: Optional[Sequence[NativeHandle]] = None,
+    bindless_options: Optional[BindlessDesc] = None,
 ):
     """
     Create a device with basic settings for SlangPy. For full control over device init,
@@ -60,6 +62,7 @@ def create_device(
         enable_hot_reload=enable_hot_reload,
         enable_compilation_reports=enable_compilation_reports,
         existing_device_handles=existing_device_handles,
+        bindless_options=bindless_options,
     )
 
     if is_running_in_jupyter():

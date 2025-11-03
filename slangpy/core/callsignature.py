@@ -15,6 +15,7 @@ from slangpy.bindings.boundvariable import (
 )
 from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.value import NoneMarshall, ValueMarshall
+from slangpy.builtin import StructMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
@@ -154,6 +155,20 @@ def specialize(
                     inputs.append(sl_et)
                 else:
                     inputs.append(python_arg.python)
+
+            elif (
+                slang_param.type.type_reflection.kind == TypeReflection.Kind.interface
+                and isinstance(python_arg.python, StructMarshall)
+                and python_arg.python.slang_type.name != "Unknown"
+                and not python_arg.explicitly_vectorized
+            ):
+                # HACK! If we're calling a function with an interface parameter,
+                # we need to have a concrete type to load data into. This Chris approved hack
+                # allows us to do that. Re-visit after the type resolution fixes are in.
+                # The other half of the hack i sin boundvariable.py, BoundVariable.bind
+                python_arg.vector_type = python_arg.python.slang_type
+                python_arg.explicitly_vectorized = True
+                inputs.append(slang_param.type)
             elif slang_param.type.type_reflection.kind != TypeReflection.Kind.none:
                 # If the type is fully resolved, use it
                 inputs.append(slang_param.type)

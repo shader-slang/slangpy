@@ -24,18 +24,36 @@ public:
     Context(ref<Device> device);
     ~Context();
 
+    /// The main screen widget.
     ref<Screen> screen() const { return m_screen; }
 
     ImFont* get_font(const char* name);
 
-    void new_frame(uint32_t width, uint32_t height);
-    void render(TextureView* texture_view, CommandEncoder* command_encoder);
-    void render(Texture* texture, CommandEncoder* command_encoder);
+    /// Begin a new ImGui frame and renders the main screen widget.
+    /// ImGui widget calls are generally only valid between `begin_frame` and `end_frame`.
+    /// \param width Render texture width
+    /// \param height Render texture height
+    void begin_frame(uint32_t width, uint32_t height);
 
+    /// End the ImGui frame and renders the UI to the provided texture.
+    /// \param texture_view Texture view to render to
+    /// \param command_encoder Command encoder to encode commands to
+    void end_frame(TextureView* texture_view, CommandEncoder* command_encoder);
+
+    /// End the ImGui frame and renders the UI to the provided texture.
+    /// \param texture Texture to render to
+    /// \param command_encoder Command encoder to encode commands to
+    void end_frame(Texture* texture, CommandEncoder* command_encoder);
+
+    /// Pass a keyboard event to the UI context.
+    /// \param event Keyboard event
+    /// \return Returns true if event was consumed.
     bool handle_keyboard_event(const KeyboardEvent& event);
-    bool handle_mouse_event(const MouseEvent& event);
 
-    void process_events();
+    /// Pass a mouse event to the UI context.
+    /// \param event Mouse event
+    /// \return Returns true if event was consumed.
+    bool handle_mouse_event(const MouseEvent& event);
 
 private:
     RenderPipeline* get_pipeline(Format format);

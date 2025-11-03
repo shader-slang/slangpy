@@ -192,22 +192,15 @@ Bitmap::~Bitmap()
 
 std::vector<ref<Bitmap>> Bitmap::read_multiple(std::span<std::filesystem::path> paths, FileFormat format)
 {
-    std::vector<std::future<ref<Bitmap>>> futures;
-    futures.reserve(paths.size());
-    for (const auto& path : paths)
-        futures.push_back(
-            thread::do_async(
-                [](const std::filesystem::path& path, FileFormat format) { return make_ref<Bitmap>(path, format); },
-                path,
-                format
-            )
-        );
-    std::vector<ref<Bitmap>> bitmaps;
-    bitmaps.reserve(paths.size());
-    for (auto& future : futures) {
-        future.wait();
-        bitmaps.push_back(future.get());
-    }
+    std::vector<ref<Bitmap>> bitmaps(paths.size());
+    thread::parallel_for(
+        thread::blocked_range<size_t>(0, paths.size()),
+        [&](const thread::blocked_range<size_t>& range)
+        {
+            size_t i = range.begin();
+            bitmaps[i] = make_ref<Bitmap>(paths[i], format);
+        }
+    );
     return bitmaps;
 }
 
@@ -284,7 +277,7 @@ void Bitmap::write_async(const std::filesystem::path& path, FileFormat format, i
 {
     // Increment reference count to ensure that the bitmap is not destroyed before written.
     this->inc_ref();
-    thread::do_async(
+    thread::global_task_group().do_async(
         [=, this]()
         {
             this->write(path, format, quality);
@@ -1624,7 +1617,10 @@ void Bitmap::read_exr(Stream* stream)
     std::sort(
         channels_sorted.begin(),
         channels_sorted.end(),
-        [&](const auto& v0, const auto& v1) { return channel_key(v0) < channel_key(v1); }
+        [&](const auto& v0, const auto& v1)
+        {
+            return channel_key(v0) < channel_key(v1);
+        }
     );
 
     // Create pixel struct.
@@ -2149,7 +2145,10 @@ void Bitmap::read_exr(Stream* stream)
     std::sort(
         channels_sorted.begin(),
         channels_sorted.end(),
-        [&](const auto& v0, const auto& v1) { return channel_key(v0) < channel_key(v1); }
+        [&](const auto& v0, const auto& v1)
+        {
+            return channel_key(v0) < channel_key(v1);
+        }
     );
 
     // Create pixel struct.
