@@ -9,7 +9,7 @@ on:
 
 env:
   CIBW_BUILD_VERBOSITY: 1
-  CIBW_SKIP: "*-musllinux* pp*"
+  CIBW_SKIP: "*-musllinux*"
   CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
   CIBW_ARCHS_WINDOWS: auto64
   CIBW_ARCHS_LINUX: auto64
@@ -71,6 +71,22 @@ jobs:
         run: |
           python -m cibuildwheel --output-dir wheelhouse
 
+      # Verify wheels before upload.
+      - name: Verify wheels before upload
+        run: |
+          python -c "
+          import zipfile
+          import glob
+          for wheel in glob.glob('./wheelhouse/*.whl'):
+              try:
+                  with zipfile.ZipFile(wheel, 'r') as zf:
+                      zf.testzip()
+                  print(f'✓ {wheel} is valid')
+              except Exception as e:
+                  print(f'✗ {wheel} is corrupted: {e}')
+                  exit(1)
+          "
+
       # Copy wheels to artifact.
       - name: Copy wheels to artifact
         uses: actions/upload-artifact@v4
@@ -92,6 +108,24 @@ jobs:
           pattern: wheels-*
           merge-multiple: true
           path: dist
+
+      # Verify downloaded wheels before upload.
+      - name: Verify downloaded wheels
+        run: |
+          python -c "
+          import zipfile
+          import glob
+          import os
+          for wheel in glob.glob('dist/*.whl'):
+              try:
+                  with zipfile.ZipFile(wheel, 'r') as zf:
+                      zf.testzip()
+                  size = os.path.getsize(wheel)
+                  print(f'✓ {wheel} is valid ({size:,} bytes)')
+              except Exception as e:
+                  print(f'✗ {wheel} is corrupted: {e}')
+                  exit(1)
+          "
 
       - uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
