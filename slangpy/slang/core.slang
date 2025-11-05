@@ -61,6 +61,7 @@ interface IVectorizeToElement<T> {}
 
 interface IVectorizeToVector<T> {}
 
+interface IVectorizeTo<T, let N: int> {}
 
 public struct Unknown {}
 
@@ -115,13 +116,21 @@ public struct NoneType
     public void store<T, let N : int>(ContextND<N> context, in T value) {};
 }
 
-public struct ValueType<T> : IVectorizeToSelf<T>
+public struct ValueType<T> : IVectorizeTo<T,0>
 {
     T value;
     public void load(Context0D context, out T value) { value = this.value; }
     public void store(Context0D context, in T value) {};
 }
 
+extension<To, let N : int, From : IVectorizeTo<To, N>> Vectorizer<From, To> {
+    typealias VectorType = To;
+}
+extension<To, let N : int, From : IVectorizeTo<To, N>> Vectorizer<From, Unknown> {
+    typealias VectorType = To;
+}
+
+/*
 extension<To, From : IVectorizeToSelf<To>> Vectorizer<From, To> {
     typealias VectorType = To;
 }
@@ -131,8 +140,10 @@ extension<To, From : IVectorizeToElement<To>> Vectorizer<From, To> {
 extension<To, From : IVectorizeToElement<To>> Vectorizer<From, Unknown> {
     typealias VectorType = To;
 }
+*/
 
 public struct VectorValueType<T, let N : int>
+    :  IVectorizeTo<T, 1>
 {
     typealias ElementType = T;
     typealias VectorTarget = vector<T,N>;
@@ -146,6 +157,15 @@ public struct VectorValueType<T, let N : int>
     public void store(Context1D context, in T value) {};
 }
 
+
+void test()
+{
+    Vectorizer<VectorValueType<int,1>, int> v;
+    v.VectorType x;
+
+}
+
+/*
 extension<T, let N : int> Vectorizer<VectorValueType<T, N>, vector<T, N>> {
     typealias VectorType = vector<T, N>;
 }
@@ -164,7 +184,7 @@ extension<T, let N : int> Vectorizer<VectorValueType<T, N>, T> {
 extension<T, let N : int> Vectorizer<VectorValueType<T, N>, Unknown> {
     typealias VectorType = T;
 }
-
+*/
 
 public struct Array1DValueType<T,let N: int>
 {
