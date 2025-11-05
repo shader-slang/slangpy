@@ -736,6 +736,8 @@ private:
         asmjit::x86::Compiler& c;
         bool has_avx;
         bool has_f16c;
+        bool has_sse4_1;
+        bool has_fma;
 
         // Each register can hold either a 64-bit integer or a 64-bit floating point value.
         struct Register {
@@ -751,6 +753,8 @@ private:
         {
             has_avx = runtime().cpuFeatures().x86().hasAVX();
             has_f16c = runtime().cpuFeatures().x86().hasF16C();
+            has_sse4_1 = runtime().cpuFeatures().x86().hasSSE4_1();
+            has_fma = runtime().cpuFeatures().x86().hasFMA();
         }
 
         Register& get_register(uint32_t reg)
@@ -863,7 +867,51 @@ private:
         template<typename X, typename Y>
         void roundsd(const X& x, const Y& y, asmjit::x86::RoundImm mode)
         {
-            has_avx ? c.vroundsd(x, x, y, mode) : c.roundsd(x, y, mode);
+            if (has_avx && has_sse4_1) {
+                c.vroundsd(x, x, y, mode);
+            } else if (has_sse4_1) {
+                c.roundsd(x, y, mode);
+            } else {
+                // Software fallback for SSE2-only CPUs
+                // This implements round-to-nearest-even for mode == kNearest
+                using namespace asmjit::x86;
+
+                // Check if value is in safe int64 range [-2^63, 2^63)
+                Xmm abs_threshold = c.newXmm();
+                movsd(abs_threshold, const_(9.223372036854776e18)); // 2^63
+
+                Xmm abs_y = c.newXmm();
+                movsd(abs_y, y);
+
+                // Clear sign bit to get absolute value
+                Gp sign_mask = c.newUInt64();
+                c.mov(sign_mask, asmjit::Imm(0x7FFFFFFFFFFFFFFFull));
+                Gp tmp_bits = c.newUInt64();
+                movq(tmp_bits, abs_y);
+                c.and_(tmp_bits, sign_mask);
+                movq(abs_y, tmp_bits);
+
+                // Compare |y| with 2^63
+                ucomisd(abs_y, abs_threshold);
+
+                asmjit::Label in_range = c.newLabel();
+                asmjit::Label done = c.newLabel();
+                c.jb(in_range); // Jump if |y| < 2^63
+
+                // Large value path: y is too large for cvtsd2si
+                // For values this large, they're already integers (or very close)
+                // Just copy the value (it's already effectively rounded)
+                movsd(x, y);
+                c.jmp(done);
+
+                // Normal range path: use fast integer conversion
+                c.bind(in_range);
+                Gp tmp_int = c.newInt64();
+                cvtsd2si(tmp_int, y);
+                cvtsi2sd(x, tmp_int);
+
+                c.bind(done);
+            }
         }
 
         /// Convert scalar double to signed integer.
@@ -891,11 +939,11 @@ private:
         template<typename X, typename Y, typename Z>
         void fmadd213sd(const X& x, const Y& y, const Z& z)
         {
-            if (has_avx) {
+            if (has_fma) {
                 c.vfmadd213sd(x, y, z);
             } else {
-                c.mulsd(x, y);
-                c.addsd(x, z);
+                has_avx ? c.vmulsd(x, x, y) : c.mulsd(x, y);
+                has_avx ? c.vaddsd(x, x, z) : c.addsd(x, z);
             }
         }
 
@@ -903,11 +951,11 @@ private:
         template<typename X, typename Y, typename Z>
         void fmadd231sd(const X& x, const Y& y, const Z& z)
         {
-            if (has_avx) {
+            if (has_fma) {
                 c.vfmadd231sd(x, y, z);
             } else {
-                c.mulsd(y, z);
-                c.addsd(x, y);
+                has_avx ? c.vmulsd(y, y, z) : c.mulsd(y, z);
+                has_avx ? c.vaddsd(x, x, y) : c.addsd(x, y);
             }
         }
 
