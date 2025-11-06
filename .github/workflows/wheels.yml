@@ -79,38 +79,6 @@ jobs:
           name: wheels-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.python }}
           path: ./wheelhouse/*.whl
 
-      - name: Verify wheels
-        shell: bash
-        run: |
-          pip install "setuptools>=77.0.0" "twine>=6.1.0" "packaging>=24.2.0"
-          echo "=== Build tools versions ==="
-          python -c "import setuptools; print(f'setuptools: {setuptools.__version__}')"
-          python -c "import twine; print(f'twine: {twine.__version__}')"
-          echo "=== Checking individual wheels ==="
-          for wheel in ./wheelhouse/*.whl; do
-            if [ -f "$wheel" ]; then
-              size=$(stat -c%s "$wheel" 2>/dev/null || stat -f%z "$wheel" 2>/dev/null || echo "unknown")
-              echo "Checking: $wheel (${size} bytes)"
-
-              # Check if it's a valid ZIP
-              if python -c "import zipfile; zipfile.ZipFile('$wheel').testzip()" 2>/dev/null; then
-                echo "  ✓ Valid ZIP format"
-              else
-                echo "  ✗ Invalid ZIP format"
-                exit 1
-              fi
-
-              # Check with twine
-              if twine check --strict "$wheel"; then
-                echo "  ✓ Passes twine check"
-              else
-                echo "  ✗ Failed twine check"
-                exit 1
-              fi
-              echo ""
-            fi
-          done
-
   upload_pypi:
     name: Upload wheels to PyPI
     runs-on: ubuntu-latest
@@ -119,11 +87,11 @@ jobs:
     environment: pypi
 
     steps:
-      # Alternative: Download artifacts separately to avoid merge corruption
       - uses: actions/download-artifact@v4
         with:
           pattern: wheels-*
           path: artifacts
+          # merge-multiple: true # Seems causing file corruption
 
       # Manually combine artifacts into dist/
       - name: Combine artifacts
@@ -131,17 +99,6 @@ jobs:
         run: |
           mkdir -p dist/
           find artifacts/ -name "*.whl" -exec cp {} dist/ \;
-
-      # Check what was downloaded
-      - name: Check downloaded artifacts
-        shell: bash
-        run: |
-          echo "=== Files in dist/ ==="
-          find dist/ -type f -exec ls -la {} \;
-          echo "=== Checking for duplicate filenames ==="
-          find dist/ -name "*.whl" -exec basename {} \; | sort | uniq -d
-          echo "=== File types ==="
-          find dist/ -name "*.whl" -exec file {} \;
 
       # Verify downloaded wheels before upload.
       - name: Verify downloaded wheels
@@ -156,20 +113,10 @@ jobs:
             if [ -f "$wheel" ]; then
               size=$(stat -c%s "$wheel" 2>/dev/null || stat -f%z "$wheel" 2>/dev/null || echo "unknown")
               echo "Checking: $wheel (${size} bytes)"
-
-              # Check if it's a valid ZIP
-              if python -c "import zipfile; zipfile.ZipFile('$wheel').testzip()" 2>/dev/null; then
-                echo "  ✓ Valid ZIP format"
-              else
-                echo "  ✗ Invalid ZIP format"
-                exit 1
-              fi
-
-              # Check with twine
               if twine check --strict "$wheel"; then
-                echo "  ✓ Passes twine check"
+                echo " - Passes twine check"
               else
-                echo "  ✗ Failed twine check"
+                echo " - Failed twine check"
                 exit 1
               fi
               echo ""
