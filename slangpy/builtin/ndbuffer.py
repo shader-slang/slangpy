@@ -29,6 +29,7 @@ from slangpy.reflection import (
     MatrixType,
     StructuredBufferType,
     PointerType,
+    ArrayType,
     UnknownType,
     is_matching_array_type,
     is_unknown,
@@ -130,14 +131,18 @@ def ndbuffer_resolve_type(
     # Default to just casting to itself (i.e. no implicit cast)
     return self.slang_type
 
+
 def get_ndbuffer_marshall_type(
     context: BindContext, element_type: SlangType, writable: bool, dims: int
 ) -> SlangType:
-    type_name = f"NDBufferMarshall<{element_type.full_name},{dims},{'true' if writable else 'false'}>"
+    type_name = (
+        f"NDBufferMarshall<{element_type.full_name},{dims},{'true' if writable else 'false'}>"
+    )
     slang_type = context.layout.find_type_by_name(type_name)
     if slang_type is None:
         raise ValueError(f"Could not find type {type_name} in program layout")
     return slang_type
+
 
 def get_ndbuffer_type(
     context: BindContext, element_type: SlangType, writable: bool, dims: int
@@ -149,6 +154,7 @@ def get_ndbuffer_type(
         raise ValueError(f"Could not find type {type_name} in program layout")
     return slang_type
 
+
 def get_structuredbuffer_type(
     context: BindContext, element_type: SlangType, writable: bool
 ) -> SlangType:
@@ -158,6 +164,7 @@ def get_structuredbuffer_type(
     if slang_type is None:
         raise ValueError(f"Could not find type {type_name} in program layout")
     return slang_type
+
 
 def ndbuffer_resolve_types(
     self: Union[NativeNDBufferMarshall, "BaseNDBufferMarshall"],
@@ -170,14 +177,19 @@ def ndbuffer_resolve_types(
     self_writable = self.writable
     results: list[SlangType] = []
 
-    # If the bound type is unknown, return a list of possible fully specialized types
-    if is_unknown(bound_type):
+    # Ambiguous case that vectorizer in slang cannot resolve on its own - could be element type or array of element type
+    # Add both options, and rely on later slang specialization to pick the correct one (or identify it as genuinely ambiguous)
+    if (
+        isinstance(self_element_type, ArrayType)
+        and isinstance(bound_type, ArrayType)
+        and isinstance(bound_type.element_type, UnknownType)
+    ):
         results.append(self_element_type)
-        results.append(get_ndbuffer_type(context, self_element_type, False, self_dims))
-        results.append(get_structuredbuffer_type(context, self_element_type, False))
-        if self_writable:
-            results.append(get_ndbuffer_type(context, self_element_type, True, self_dims))
-            results.append(get_structuredbuffer_type(context, self_element_type, True))
+        results.append(
+            context.layout.require_type_by_name(
+                f"{self_element_type.full_name}[{bound_type.num_elements}]"
+            )
+        )
         return results
 
     # Otherwise, attempt to use slang's typing system to map the bound type to the marshall

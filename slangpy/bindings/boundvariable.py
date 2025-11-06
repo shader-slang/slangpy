@@ -384,7 +384,9 @@ class BoundVariable:
         else:
             # neither specified, attempt to resolve type
             assert self.slang_type is not None
-            self.vector_type = cast(SlangType, self.python.resolve_type(context, self.slang_type))
+            self.vector_type = (
+                self.slang_type
+            )  # cast(SlangType, self.python.resolve_type(context, self.slang_type))
 
         # If we ended up with no valid type, use slang type. Currently this should
         # only happen for auto-allocated result buffers

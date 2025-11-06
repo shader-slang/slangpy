@@ -37,8 +37,8 @@ class StructMarshall(ValueMarshall):
     def is_writable(self) -> bool:
         return True
 
-    def resolve_type(self, context: BindContext, bound_type: "SlangType"):
-        return bound_type
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        return [bound_type]
 
     def resolve_dimensionality(
         self,

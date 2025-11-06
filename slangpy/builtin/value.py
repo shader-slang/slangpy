@@ -22,6 +22,7 @@ from slangpy.reflection.reflectiontypes import (
     SIGNED_INT_TYPES,
     UNSIGNED_INT_TYPES,
     SlangType,
+    vectorize_type,
 )
 from slangpy.core.utils import is_type_castable_on_host
 
@@ -111,13 +112,9 @@ class ValueMarshall(NativeValueMarshall):
     def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any) -> Any:
         return data
 
-    def resolve_type(self, context: BindContext, bound_type: "SlangType"):
-        # Check if we should replace our default slang type with the bound type
-        # This is to handle passing e.g. python ints, which are represented by
-        # a single type, to any of slangs integer types (uint16_t, int64_t, etc.)
-        if is_type_castable_on_host(self.slang_type, bound_type):
-            return bound_type
-        return self.slang_type
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        marshall = context.layout.require_type_by_name(f"ValueType<{self.slang_type.full_name}>")
+        return [vectorize_type(marshall, bound_type)]
 
     def reduce_type(self, context: "BindContext", dimensions: int):
         raise NotImplementedError()
@@ -244,6 +241,13 @@ class VectorMarshall(ValueMarshall):
         self.slang_type = layout.vector_type(scalar_type, num_elements)
         self.concrete_shape = self.slang_type.shape
 
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        st = cast(kfr.VectorType, self.slang_type)
+        marshall = context.layout.require_type_by_name(
+            f"VectorValueType<{st.element_type.full_name},{st.num_elements}>"
+        )
+        return [vectorize_type(marshall, bound_type)]
+
     def reduce_type(self, context: "BindContext", dimensions: int):
         self_type = self.slang_type
         if dimensions == 1:
@@ -252,11 +256,6 @@ class VectorMarshall(ValueMarshall):
             return self_type
         else:
             raise ValueError("Cannot reduce vector type by more than one dimension")
-
-    def resolve_type(self, context: BindContext, bound_type: "kfr.SlangType"):
-        if bound_type == self.slang_type.element_type:
-            return self.slang_type.element_type
-        return super().resolve_type(context, bound_type)
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
@@ -303,6 +302,13 @@ class MatrixMarshall(ValueMarshall):
             return self_type.element_type
         elif dimensions == 0:
             return self_type
+
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        st = cast(kfr.MatrixType, self.slang_type)
+        marshall = context.layout.require_type_by_name(
+            f"MatrixValueType<{st.element_type.full_name},{st.rows},{st.cols}>"
+        )
+        return [vectorize_type(marshall, bound_type)]
 
 
 # Point built in python types at their slang equivalents

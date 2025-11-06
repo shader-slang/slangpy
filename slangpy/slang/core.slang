@@ -44,11 +44,6 @@ public typealias Context5D = ContextND<5>;
 // call_data_len is a link-time constant declared in callshape.slang
 public typealias Context = ContextND<call_data_len>;
 
-// Types can extend this to describe how they can be vectorized from a marshall type
-// to a type argument for a slang function.
-struct Vectorizer<From, To> {
-
-}
 struct IntTrait<let N : int> {
     static const int Value = N;
 }
@@ -56,14 +51,6 @@ struct BoolTrait<let N : bool> {
     static const bool Value = N;
 }
 
-interface IVectorizeToSelf<T> {}
-interface IVectorizeToElement<T> {}
-
-interface IVectorizeToVector<T> {}
-
-interface IVectorizeTo<T, let N: int> {}
-
-public struct Unknown {}
 
 int _idx<let N : int>(int[N] index, int[N] stride) {
     int idx = 0;
@@ -116,34 +103,16 @@ public struct NoneType
     public void store<T, let N : int>(ContextND<N> context, in T value) {};
 }
 
-public struct ValueType<T> : IVectorizeTo<T,0>
+public struct ValueType<T> : IVectorizeToScalar<T>
 {
     T value;
     public void load(Context0D context, out T value) { value = this.value; }
     public void store(Context0D context, in T value) {};
 }
 
-extension<To, let N : int, From : IVectorizeTo<To, N>> Vectorizer<From, To> {
-    typealias VectorType = To;
-}
-extension<To, let N : int, From : IVectorizeTo<To, N>> Vectorizer<From, Unknown> {
-    typealias VectorType = To;
-}
-
-/*
-extension<To, From : IVectorizeToSelf<To>> Vectorizer<From, To> {
-    typealias VectorType = To;
-}
-extension<To, From : IVectorizeToElement<To>> Vectorizer<From, To> {
-    typealias VectorType = To;
-}
-extension<To, From : IVectorizeToElement<To>> Vectorizer<From, Unknown> {
-    typealias VectorType = To;
-}
-*/
-
 public struct VectorValueType<T, let N : int>
-    :  IVectorizeTo<T, 1>
+    : IVectorizeToVector<T, N>
+    , IVectorizeToScalar<T>
 {
     typealias ElementType = T;
     typealias VectorTarget = vector<T,N>;
@@ -157,36 +126,30 @@ public struct VectorValueType<T, let N : int>
     public void store(Context1D context, in T value) {};
 }
 
-
-void test()
+public struct MatrixValueType<T, let R : int, let C : int>
+    : IVectorizeToMatrix<T, R, C>
+    , IVectorizeToScalar<T>
 {
-    Vectorizer<VectorValueType<int,1>, int> v;
-    v.VectorType x;
+    typealias ElementType = T;
+    typealias MatrixTarget = matrix<T,R,C>;
 
-}
+    matrix<T, R, C> value;
 
-/*
-extension<T, let N : int> Vectorizer<VectorValueType<T, N>, vector<T, N>> {
-    typealias VectorType = vector<T, N>;
+    public void load(Context0D context, out matrix<T,R,C> value) { value = this.value; }
+    public void store(Context0D context, in matrix<T,R,C> value) {};
+
+    public void load(Context1D context, out vector<T, C> value) { value = this.value[context.call_id[0]]; }
+    public void store(Context1D context, in vector<T, C> value) {};
+
+    public void load(Context2D context, out T value) {
+        value = this.value[context.call_id[0]][context.call_id[1]];
+    }
+    public void store(Context2D context, in T value) {};
 }
-extension<T, let N : int> Vectorizer<VectorValueType<T, N>, vector<T, 0>> {
-    typealias VectorType = vector<T, N>;
-}
-extension<T, let N : int> Vectorizer<VectorValueType<T, N>, vector<Unknown, N>> {
-    typealias VectorType = vector<T, N>;
-}
-extension<T, let N : int> Vectorizer<VectorValueType<T, N>, vector<Unknown, 0>> {
-    typealias VectorType = vector<T, N>;
-}
-extension<T, let N : int> Vectorizer<VectorValueType<T, N>, T> {
-    typealias VectorType = T;
-}
-extension<T, let N : int> Vectorizer<VectorValueType<T, N>, Unknown> {
-    typealias VectorType = T;
-}
-*/
 
 public struct Array1DValueType<T,let N: int>
+    : IVectorizeToArray<T, N>
+    , IVectorizeToScalar<T>
 {
     Array<T, N> value;
 
@@ -197,29 +160,8 @@ public struct Array1DValueType<T,let N: int>
     public void store(Context1D context, in T value) {};
 }
 
-extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Array<T, N>> {
-    typealias VectorType = Array<T, N>;
-}
-extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Array<T, 0>> {
-    typealias VectorType = Array<T, N>;
-}
-extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Array<Unknown, N>> {
-    typealias VectorType = Array<T, N>;
-}
-extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Array<Unknown, 0>> {
-    typealias VectorType = Array<T, N>;
-}
-extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, T> {
-    typealias VectorType = T;
-}
-extension<T, let N : int> Vectorizer<Array1DValueType<T, N>, Unknown> {
-    typealias VectorType = T;
-}
-
-
-
 public struct RangeType
-    : IVectorizeToElement<int>
+    : IVectorizeToScalar<int>
 {
     int start;
     int stop;
@@ -227,17 +169,16 @@ public struct RangeType
     public void load(Context1D context, out int value) { value = this.start + context.call_id_vec.x * this.step; }
     public void store(Context1D context, in int value) {};
 }
-extension Vectorizer<RangeType, int> {
-    typealias VectorType = int;
-}
-extension Vectorizer<RangeType, Unknown> {
-    typealias VectorType = int;
-}
 
-
-public struct BufferMarshall<T, let RW : bool>
+public struct BufferMarshall<T, let RW : int>
+    : IVectorizeToStructuredBuffer<T>
+    , IVectorizeToByteAddressBuffer
 {
 }
+extension<T> BufferMarshall<T, 1>
+    : IVectorizeToRWStructuredBuffer<T>
+    , IVectorizeToRWByteAddressBuffer
+{}
 
 public struct DescriptorType<T : IOpaqueDescriptor>
 {
@@ -248,49 +189,27 @@ public struct DescriptorType<T : IOpaqueDescriptor>
 }
 
 public struct StructuredBufferType<T>
-    : IVectorizeToSelf<StructuredBuffer<T>>
 {
     StructuredBuffer<T> value;
 
     public void load(Context0D context, out StructuredBuffer<T> value) { value = this.value; }
     public void store(Context0D context, in StructuredBuffer<T> value) {};
 }
-extension<T, let RW : bool> Vectorizer<BufferMarshall<T, RW>, StructuredBuffer<T>> {
-    typealias VectorType = StructuredBuffer<T>;
-}
-extension<T, let RW : bool> Vectorizer<BufferMarshall<T, RW>, StructuredBuffer<Unknown>> {
-    typealias VectorType = StructuredBuffer<T>;
-}
-
-
 public struct RWStructuredBufferType<T>
-    : IVectorizeToSelf<RWStructuredBuffer<T>>
 {
     RWStructuredBuffer<T> value;
 
     public void load(Context0D context, out RWStructuredBuffer<T> value) { value = this.value; }
     public void store(Context0D context, in RWStructuredBuffer<T> value) {};
 }
-extension<T> Vectorizer<BufferMarshall<T, true>, RWStructuredBuffer<T>> {
-    typealias VectorType = RWStructuredBuffer<T>;
-}
-extension<T> Vectorizer<BufferMarshall<T, true>, RWStructuredBuffer<Unknown>> {
-    typealias VectorType = RWStructuredBuffer<T>;
-}
-
 
 public struct ByteAddressBufferType
-    : IVectorizeToSelf<ByteAddressBuffer>
 {
     ByteAddressBuffer value;
 
     public void load(Context0D context, out ByteAddressBuffer value) { value = this.value; }
     public void store(Context0D context, in ByteAddressBuffer value) {};
 }
-extension<T, let RW : bool> Vectorizer<BufferMarshall<T, RW>, ByteAddressBuffer> {
-    typealias VectorType = ByteAddressBuffer;
-}
-
 
 public struct RWByteAddressBufferType
     : IVectorizeToSelf<RWByteAddressBuffer>
@@ -299,9 +218,6 @@ public struct RWByteAddressBufferType
 
     public void load(Context0D context, out RWByteAddressBuffer value) { value = this.value; }
     public void store(Context0D context, in RWByteAddressBuffer value) {};
-}
-extension<T> Vectorizer<BufferMarshall<T, true>, RWByteAddressBufferType> {
-    typealias VectorType = RWByteAddressBufferType;
 }
 
 public struct Texture1DType<T : ITexelElement> {
@@ -474,8 +390,40 @@ public struct StridedLayout<let D : int>
 }
 
 
-struct NDBufferMarshall<T, let N : int, let RW : bool> {
+struct NDBufferMarshall<T, let N : int, let RW : int>
+    : IVectorizeToScalar<T>
+   , IVectorizeToUnsizedArray<T>
+{
 
+}
+
+// Add vector/matrix vectorizers for NDBufferMarshall for integer, float and bool types
+extension<T : __BuiltinIntegerType, let N : int, let RW : int> NDBufferMarshall<T, N, RW>
+    : IVectorizeToUnsizedVector<T>
+    , IVectorizeToUnsizedMatrix<T>
+{}
+extension<T : __BuiltinFloatingPointType, let N : int, let RW : int> NDBufferMarshall<T, N, RW>
+    : IVectorizeToUnsizedVector<T>
+    , IVectorizeToUnsizedMatrix<T>
+{}
+extension<let N : int, let RW : int> NDBufferMarshall<bool, N, RW>
+    : IVectorizeToUnsizedVector<bool>
+    , IVectorizeToUnsizedMatrix<bool>
+{}
+
+// Add support for generic vector/matrix types if the underlying element type is vector/matrix
+extension<VectorT, let VectorDim : int, let N : int, let RW : int> NDBufferMarshall<vector<VectorT,VectorDim>, N, RW>
+    : IVectorizeToGenericVector<VectorT, VectorDim>
+{}
+extension<MatrixT, let Rows : int, let Cols : int, let N : int, let RW : int> NDBufferMarshall<matrix<MatrixT, Rows, Cols>, N, RW>
+    : IVectorizeToGenericMatrix<MatrixT, Rows, Cols>
+{}
+
+// Arrays need special handling as it's not possible to distinguish between passing an unknown type, and an array of unknown types.
+// This extension enables passing arrays of the correct type but unknown size. Unknown types will pass due to the use of IVectorizeToUnsizedArray
+// but type resolution needs to happen in Python.
+extension<ArrayT, let ArrayDim : int, let N : int, let RW : int> Vectorizer<NDBufferMarshall<ArrayT[ArrayDim], N, RW>, Array<ArrayT, 0>> {
+    typealias VectorType = Array<ArrayT, ArrayDim>;
 }
 
 public struct NDBuffer<T, let N : int>
@@ -541,18 +489,18 @@ public struct NDBuffer<T, let N : int>
 
     public void store<let R : int, let C: int>(ContextND<N - 2> context, in matrix<T, R, C> value) {}
 }
-extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<T, N>> {
+extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<T, N>> {
     typealias VectorType = NDBuffer<T, N>;
 }
 
-extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<Unknown, N>> {
+extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<Unknown, N>> {
     typealias VectorType = NDBuffer<T, N>;
 }
-extension<T, let RW : bool> Vectorizer<NDBufferMarshall<T, 1, RW>, StorageTraits<T>.BufferType> {
+extension<T, let RW : int> Vectorizer<NDBufferMarshall<T, 1, RW>, StorageTraits<T>.BufferType> {
     typealias VectorType = StorageTraits<T>.BufferType;
 }
 
-extension<T, let RW : bool> Vectorizer<NDBufferMarshall<T, 1, RW>, StorageTraits<Unknown>.BufferType> {
+extension<T, let RW : int> Vectorizer<NDBufferMarshall<T, 1, RW>, StorageTraits<Unknown>.BufferType> {
     typealias VectorType = StorageTraits<T>.BufferType;
 }
 
@@ -659,52 +607,17 @@ public struct RWNDBuffer<T, let N : int>
         }
     }
 }
-extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, true>, RWNDBuffer<T, N>> {
+extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, RWNDBuffer<T, N>> {
     typealias VectorType = RWNDBuffer<T, N>;
 }
-extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, true>, RWNDBuffer<Unknown, N>> {
+extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, RWNDBuffer<Unknown, N>> {
     typealias VectorType = RWNDBuffer<T, N>;
 }
-extension<T> Vectorizer<NDBufferMarshall<T, 1, true>, StorageTraits<T>.RWBufferType> {
+extension<T> Vectorizer<NDBufferMarshall<T, 1, 1>, StorageTraits<T>.RWBufferType> {
     typealias VectorType = StorageTraits<T>.RWBufferType;
 }
-extension<T> Vectorizer<NDBufferMarshall<T, 1, true>, StorageTraits<Unknown>.RWBufferType> {
+extension<T> Vectorizer<NDBufferMarshall<T, 1, 1>, StorageTraits<Unknown>.RWBufferType> {
     typealias VectorType = StorageTraits<T>.RWBufferType;
-}
-
-// Conversions common to all NDBuffers
-// NDBuffer<T,N> -> T
-extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<T, N, RW>, T> {
-    typealias VectorType = T;
-}
-// NDBuffer<T,N> -> Unknown
-// Should we support this? The conversion is ambiguous
-//extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<T, N, RW>, Unknown> {
-//    typealias VectorType = T;
-//}
-// NDBuffer<T,N> -> vector<T,VN>
-extension<T, let N : int, let RW : bool, let VN : int> Vectorizer<NDBufferMarshall<T, N, RW>, vector<T, VN>> {
-    typealias VectorType = vector<T, VN>;
-}
-// NDBuffer<T,N> -> vector<Unknown,VN>
-extension<T, let N : int, let RW : bool, let VN : int> Vectorizer<NDBufferMarshall<T, N, RW>, vector<Unknown, VN>> {
-    typealias VectorType = vector<T, VN>;
-}
-// NDBuffer<T,N> -> matrix<T,MR,MC>
-extension<T, let N : int, let RW : bool, let MC : int, let MR : int> Vectorizer<NDBufferMarshall<T, N, RW>, matrix<T, MC, MR>> {
-    typealias VectorType = matrix<T, MC, MR>;
-}
-// NDBuffer<T,N> -> matrix<Unknown,MR,MC>
-extension<T, let N : int, let RW : bool, let MC : int, let MR : int> Vectorizer<NDBufferMarshall<T, N, RW>, matrix<Unknown, MC, MR>> {
-    typealias VectorType = matrix<T, MC, MR>;
-}
-// NDBuffer<T,N> -> T[] (dynamic array)
-extension<T, let N : int, let RW : bool, let ALen : int> Vectorizer<NDBufferMarshall<Array<T, ALen>, N, RW>, Array<T, 0>> {
-    typealias VectorType = Array<T, ALen>;
-}
-// NDBuffer<T,N> -> Unknown[] (dynamic array)
-extension<T, let N : int, let RW : bool, let ALen : int> Vectorizer<NDBufferMarshall<Array<T, ALen>, N, RW>, Array<Unknown, 0>> {
-    typealias VectorType = Array<T, ALen>;
 }
 
 // For common case that we create an NDBuffer of uint64_t pointers via a numpy array,
@@ -719,10 +632,9 @@ public extension<let N:int> RWNDBuffer<uint64_t,N>
     public void load<T>(ContextND<N> context, out Ptr<T> value) { value = Ptr<T>(get(context.call_id)); }
     public void store<T>(ContextND<N> context, in Ptr<T> value) { set(context.call_id, uint64_t(value)); };
 }
-extension<T, let N : int, let RW : bool> Vectorizer<NDBufferMarshall<uint64_t, N, RW>, Ptr<T>> {
+extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<uint64_t, N, RW>, Ptr<T>> {
     typealias VectorType = Ptr<T>;
 }
-
 
 // #pragma warning(push)
 // #pragma warning(disable: 30856)

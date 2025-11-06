@@ -252,7 +252,7 @@ class SlangType(NativeSlangType):
             assert res is not None
             return res
         else:
-            raise ValueError(f"Type {self.full_name} is not differentiable")
+            return None
 
     def _py_derivative(self):
         return self.derivative
@@ -363,6 +363,13 @@ class UnknownType(SlangType):
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl, element_type=self, local_shape=Shape())
+
+    def build_vector_type_name(self) -> str:
+        """
+        Rebuild a type name that can be used for type specialization handling mapping
+        generics to Unknown or generic integers to 0. Defaults to just returning the full name.
+        """
+        return "Unknown"
 
 
 class VoidType(SlangType):
@@ -516,6 +523,9 @@ class MatrixType(SlangType):
         """
         return self.scalar_type.slang_scalar_type
 
+    def build_vector_type_name(self):
+        return f"matrix<{self.element_type.vector_type_name},{self.rows},{self.cols}>"
+
 
 class ArrayType(SlangType):
     """
@@ -543,6 +553,9 @@ class ArrayType(SlangType):
         Number of elements in the array.
         """
         return self.shape[0]
+
+    def build_vector_type_name(self):
+        return f"Array<{self.element_type.vector_type_name},{self.num_elements}>"
 
 
 def is_matching_array_type(a: SlangType, b: SlangType, allow_generics: bool = True) -> bool:

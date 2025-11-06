@@ -5,7 +5,7 @@ from slangpy.core.native import Shape
 
 import slangpy.bindings.typeregistry as tr
 from slangpy.builtin.value import ValueMarshall
-from slangpy.reflection import SlangType, SlangProgramLayout
+from slangpy.reflection import SlangType, SlangProgramLayout, vectorize_type
 from slangpy.bindings import (
     PYTHON_SIGNATURES,
     PYTHON_TYPES,
@@ -48,14 +48,12 @@ class ArrayMarshall(ValueMarshall):
                 raise ValueError("Cannot reduce array type by more than one dimension")
             return self_type.element_type
 
-    def resolve_type(self, context: BindContext, bound_type: "kfr.SlangType"):
-        if bound_type == self.slang_type.element_type:
-            return self.slang_type.element_type
-        elif isinstance(bound_type, kfr.ArrayType):
-            if is_type_castable_on_host(self.element_type, bound_type.element_type):
-                return bound_type
-
-        return super().resolve_type(context, bound_type)
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        st = cast(kfr.VectorType, self.slang_type)
+        marshall = context.layout.require_type_by_name(
+            f"Array1DValueType<{st.element_type.full_name},{st.num_elements}>"
+        )
+        return [vectorize_type(marshall, bound_type)]
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):

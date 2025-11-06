@@ -17,8 +17,10 @@ from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.value import NoneMarshall, ValueMarshall
 from slangpy.builtin import StructMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
+from slangpy.reflection.typeresolution import resolve_function
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
+
 
 if TYPE_CHECKING:
     from slangpy.core.function import FunctionBuildInfo
@@ -64,6 +66,12 @@ def specialize(
     function: SlangFunction,
     this_type: Optional[SlangType] = None,
 ):
+    resolve_result = resolve_function(context, function, signature, this_type)
+    if not resolve_result:
+        return MismatchReason("Failed to resolve function.")
+    type_reflection = None if this_type is None else this_type.type_reflection
+    return context.layout.find_function(resolve_result.reflection, type_reflection)
+
     # Special case for constructors
     if function.is_overloaded and function.is_constructor:
         matches = [
@@ -220,6 +228,8 @@ def specialize(
 
 
 def validate_specialize(context: BindContext, signature: BoundCall, function: SlangFunction):
+    return
+
     # Get sorted list of root parameters for trampoline function
     root_params = [
         y
