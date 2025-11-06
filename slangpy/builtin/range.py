@@ -14,7 +14,7 @@ from slangpy.bindings import (
     BoundVariableRuntime,
     CodeGenBlock,
 )
-from slangpy.reflection import SlangProgramLayout, SlangType
+from slangpy.reflection import SlangProgramLayout, SlangType, vectorize_type
 
 
 class RangeMarshall(Marshall):
@@ -44,8 +44,9 @@ class RangeMarshall(Marshall):
         s = ((data.stop - data.start) // data.step,)
         return Shape(s)
 
-    def resolve_type(self, context: BindContext, bound_type: "SlangType"):
-        return context.layout.scalar_type(TypeReflection.ScalarType.int32)
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        marshall = context.layout.require_type_by_name(f"RangeType")
+        return [vectorize_type(marshall, bound_type)]
 
     def resolve_dimensionality(
         self,

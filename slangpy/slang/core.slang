@@ -103,7 +103,9 @@ public struct NoneType
     public void store<T, let N : int>(ContextND<N> context, in T value) {};
 }
 
-public struct ValueType<T> : IVectorizeToScalar<T>
+public struct ValueType<T>
+    : IVectorizeToScalar<T>
+    , IVectorizeToScalarConversions<T>
 {
     T value;
     public void load(Context0D context, out T value) { value = this.value; }
@@ -173,12 +175,13 @@ public struct RangeType
 public struct BufferMarshall<T, let RW : int>
     : IVectorizeToStructuredBuffer<T>
     , IVectorizeToByteAddressBuffer
+    , IVectorizeToPointer<T>
 {
 }
 extension<T> BufferMarshall<T, 1>
     : IVectorizeToRWStructuredBuffer<T>
     , IVectorizeToRWByteAddressBuffer
-{}
+{ }
 
 public struct DescriptorType<T : IOpaqueDescriptor>
 {
@@ -393,6 +396,7 @@ public struct StridedLayout<let D : int>
 struct NDBufferMarshall<T, let N : int, let RW : int>
     : IVectorizeToScalar<T>
    , IVectorizeToUnsizedArray<T>
+   , IVectorizeToPointer<T>
 {
 
 }

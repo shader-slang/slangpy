@@ -156,7 +156,7 @@ void testfunc<T>(GenericStruct<T> gs) {}
     check("int", "ValueType<bool>", "int")
     check("uint8_t", "ValueType<int>", "uint8_t")
     check("bool", "ValueType<int>", "bool")
-    check("float", "ValueType<int>", None)
+    check("float", "ValueType<int>", "float")
     check("float", "ValueType<float>", "float")
     check("half", "ValueType<float>", "half")
     check("double", "ValueType<float>", "double")
@@ -186,7 +186,7 @@ void testfunc<T>(GenericStruct<T> gs) {}
     check("double[3]", "Array1DValueType<float,3>", "double[3]")
     check("half[0]", "Array1DValueType<float,3>", "half[3]")
     check("float[4]", "Array1DValueType<float,3>", None)
-    check("int[3]", "Array1DValueType<float,3>", None)
+    check("int[3]", "Array1DValueType<float,3>", "int[3]")
 
     check(
         "StructuredBuffer<int>",
@@ -242,6 +242,11 @@ void testfunc<T>(GenericStruct<T> gs) {}
     check("NDBuffer<float,1>", "NDBufferMarshall<int,1,false>", None)
     check("RWNDBuffer<float,1>", "NDBufferMarshall<int,1,false>", None)
     check("RWNDBuffer<float,1>", "NDBufferMarshall<int,1,true>", None)
+    check(
+        "Ptr<int>",
+        "NDBufferMarshall<int,1,true>",
+        "Ptr<int, Access.ReadWrite, AddressSpace.Device>",
+    )
 
     check(
         "StructuredBuffer<int>",

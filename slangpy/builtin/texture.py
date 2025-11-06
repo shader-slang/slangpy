@@ -163,6 +163,9 @@ class TextureMarshall(NativeTextureMarshall):
         # Otherwise, use default behaviour from marshall
         return super().resolve_type(context, bound_type)
 
+    def resolve_types(self, context, bound_type):
+        return [self.resolve_type(context, bound_type)]
+
     # Texture is writable if it has unordered access view.
     @property
     def is_writable(self):

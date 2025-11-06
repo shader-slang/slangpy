@@ -8,6 +8,7 @@ from slangpy.reflection import (
     StructuredBufferType,
     ByteAddressBufferType,
     PointerType,
+    vectorize_type,
 )
 from slangpy import Buffer, BufferUsage
 from slangpy.bindings import (
@@ -31,13 +32,12 @@ class BufferMarshall(NativeBufferMarshall):
         super().__init__(st, usage)
         self.slang_type: SlangType
 
-    def resolve_type(self, context: BindContext, bound_type: SlangType):
-        if isinstance(bound_type, (StructuredBufferType, ByteAddressBufferType, PointerType)):
-            return bound_type
-        else:
-            raise ValueError(
-                "Raw buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type"
-            )
+    def resolve_types(self, context: BindContext, bound_type: SlangType):
+        rw = self.usage & BufferUsage.unordered_access != BufferUsage.none
+        marshall = context.layout.require_type_by_name(
+            f"BufferMarshall<Unknown,{'1' if rw else '0'}>"
+        )
+        return [vectorize_type(marshall, bound_type)]
 
     def resolve_dimensionality(
         self,

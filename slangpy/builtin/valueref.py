@@ -137,6 +137,9 @@ class ValueRefMarshall(Marshall):
         else:
             return bound_type
 
+    def resolve_types(self, context, bound_type):
+        return [self.resolve_type(context, bound_type)]
+
     def resolve_dimensionality(
         self,
         context: BindContext,

@@ -50,18 +50,31 @@ public extension<TargetType, From : IVectorizeToScalar<TargetType>> Vectorizer<F
     typealias VectorType = TargetType;
 }
 
-// IVectorizeTo for scalars that go translate:
+// IVectorizeTo for scalars that can translate:
 // - python floats -> additional slang float types
+// - python float -> slang int types
 // - python int -> additional slang int types
-// - python bool -> slang int (valid conversion to do at binding time)
-public extension<From : IVectorizeToScalar<float>, TargetType : INoneDefaultFloatingPointType> Vectorizer<From, TargetType> {
+// - python int -> any slang float types
+// - python bool -> slang int
+// - python int -> any pointer
+public interface IVectorizeToScalarConversions<TargetType> {}
+public extension<From : IVectorizeToScalarConversions<float>, TargetType : INoneDefaultFloatingPointType> Vectorizer<From, TargetType> {
     typealias VectorType = TargetType;
 }
-public extension<From : IVectorizeToScalar<int>, TargetType : INoneDefaultIntegerType> Vectorizer<From, TargetType> {
+public extension<From : IVectorizeToScalarConversions<float>, TargetType : __BuiltinIntegerType> Vectorizer<From, TargetType> {
     typealias VectorType = TargetType;
 }
-public extension<From : IVectorizeToScalar<bool>, TargetType : __BuiltinIntegerType> Vectorizer<From, TargetType> {
+public extension<From : IVectorizeToScalarConversions<int>, TargetType : INoneDefaultIntegerType> Vectorizer<From, TargetType> {
     typealias VectorType = TargetType;
+}
+public extension<From : IVectorizeToScalarConversions<int>, TargetType : __BuiltinFloatingPointType> Vectorizer<From, TargetType> {
+    typealias VectorType = TargetType;
+}
+public extension<From : IVectorizeToScalarConversions<bool>, TargetType : __BuiltinIntegerType> Vectorizer<From, TargetType> {
+    typealias VectorType = TargetType;
+}
+public extension<From : IVectorizeToScalarConversions<int>, TargetPtrType> Vectorizer<From, Ptr<TargetPtrType>> {
+    typealias VectorType = Ptr<TargetPtrType>;
 }
 
 
@@ -186,23 +199,35 @@ public extension<TargetElementType, let TargetDim : int, From : IVectorizeToUnsi
     typealias VectorType = Array<TargetElementType, TargetDim>;
 }
 
-// IVectorizeTo for arrays that are python floats, but need to support half/float/double
+// IVectorizeTo for arrays that are python floats, but need to support half/float/double or any int type
 public extension< TargetElementType : INoneDefaultFloatingPointType, let TargetDim : int, From : IVectorizeToArray<float,TargetDim>> Vectorizer<From, Array<TargetElementType, TargetDim>> {
     typealias VectorType = Array<TargetElementType, TargetDim>;
 }
 public extension< TargetElementType : INoneDefaultFloatingPointType, let TargetDim : int, From : IVectorizeToArray<float,TargetDim>> Vectorizer<From, Array<TargetElementType, 0>> {
     typealias VectorType = Array<TargetElementType, TargetDim>;
 }
+public extension< TargetElementType : __BuiltinIntegerType, let TargetDim : int, From : IVectorizeToArray<float, TargetDim>> Vectorizer<From, Array<TargetElementType, TargetDim>> {
+    typealias VectorType = Array<TargetElementType, TargetDim>;
+}
+public extension< TargetElementType : __BuiltinIntegerType, let TargetDim : int, From : IVectorizeToArray<float, TargetDim>> Vectorizer<From, Array<TargetElementType, 0>> {
+    typealias VectorType = Array<TargetElementType, TargetDim>;
+}
 
-// IVectorizeTo for arrays that are python ints, but need to support all the other int types
+// IVectorizeTo for arrays that are python ints, but need to support all the other int types or a float type
 public extension<TargetElementType : INoneDefaultIntegerType, let TargetDim : int, From : IVectorizeToArray<int,TargetDim>> Vectorizer<From, Array<TargetElementType, TargetDim>> {
+    typealias VectorType = Array<TargetElementType, TargetDim>;
+}
+public extension< TargetElementType : __BuiltinFloatingPointType, let TargetDim : int, From : IVectorizeToArray<int, TargetDim>> Vectorizer<From, Array<TargetElementType, TargetDim>> {
     typealias VectorType = Array<TargetElementType, TargetDim>;
 }
 public extension<TargetElementType : INoneDefaultIntegerType, let TargetDim : int, From : IVectorizeToArray<int,TargetDim>> Vectorizer<From, Array<TargetElementType, 0>> {
     typealias VectorType = Array<TargetElementType, TargetDim>;
 }
+public extension<TargetElementType : __BuiltinFloatingPointType, let TargetDim : int, From : IVectorizeToArray<int, TargetDim>> Vectorizer<From, Array<TargetElementType, 0>> {
+    typealias VectorType = Array<TargetElementType, TargetDim>;
+}
 
-// IVectorizeTo for StructuredBuffer<T>, where T can be unknown
+// IVectorizeTo for StructuredBuffer<T>, where T can be unknown in either the marshall or the target
 public interface IVectorizeToStructuredBuffer<TargetElementType> {}
 public extension<TargetElementType, From : IVectorizeToStructuredBuffer<TargetElementType>> Vectorizer<From, StructuredBuffer<TargetElementType>> {
     typealias VectorType = StructuredBuffer<TargetElementType>;
@@ -210,8 +235,12 @@ public extension<TargetElementType, From : IVectorizeToStructuredBuffer<TargetEl
 public extension<TargetElementType, From : IVectorizeToStructuredBuffer<TargetElementType>> Vectorizer<From, StructuredBuffer<Unknown>> {
     typealias VectorType = StructuredBuffer<TargetElementType>;
 }
+public extension<TargetElementType, From : IVectorizeToStructuredBuffer<Unknown>> Vectorizer<From, StructuredBuffer<TargetElementType>> {
+    typealias VectorType = StructuredBuffer<TargetElementType>;
+}
 
-// IVectorizeTo for RWStructuredBuffer<T>, where T can be unknown
+
+// IVectorizeTo for RWStructuredBuffer<T>, where T can be unknown in either the marshall or the target
 public interface IVectorizeToRWStructuredBuffer<TargetElementType> {}
 public extension<TargetElementType, From : IVectorizeToRWStructuredBuffer<TargetElementType>> Vectorizer<From, RWStructuredBuffer<TargetElementType>> {
     typealias VectorType = RWStructuredBuffer<TargetElementType>;
@@ -219,6 +248,22 @@ public extension<TargetElementType, From : IVectorizeToRWStructuredBuffer<Target
 public extension<TargetElementType, From : IVectorizeToRWStructuredBuffer<TargetElementType>> Vectorizer<From, RWStructuredBuffer<Unknown>> {
     typealias VectorType = RWStructuredBuffer<TargetElementType>;
 }
+public extension<TargetElementType, From : IVectorizeToRWStructuredBuffer<Unknown>> Vectorizer<From, RWStructuredBuffer<TargetElementType>> {
+    typealias VectorType = RWStructuredBuffer<TargetElementType>;
+}
+
+// IVectorizeTo for Ptr<T>, where T can be unknown in either the marshall or the target
+public interface IVectorizeToPointer<TargetElementType> {}
+public extension<TargetElementType, From : IVectorizeToPointer<TargetElementType>> Vectorizer<From, Ptr<TargetElementType>> {
+    typealias VectorType = Ptr<TargetElementType>;
+}
+public extension<TargetElementType, From : IVectorizeToPointer<TargetElementType>> Vectorizer<From, Ptr<Unknown>> {
+    typealias VectorType = Ptr<TargetElementType>;
+}
+public extension<TargetElementType, From : IVectorizeToPointer<Unknown>> Vectorizer<From, Ptr<TargetElementType>> {
+    typealias VectorType = Ptr<TargetElementType>;
+}
+
 
 // IVectorizeTo for ByteAddressBuffer
 public interface IVectorizeToByteAddressBuffer {}

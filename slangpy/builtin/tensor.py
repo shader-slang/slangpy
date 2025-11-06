@@ -232,6 +232,9 @@ class TensorMarshall(NativeTensorMarshall):
         # Default to casting to itself
         return self.slang_type
 
+    def resolve_types(self, context, bound_type):
+        return [self.resolve_type(context, bound_type)]
+
     def reduce_type(self, context: BindContext, dimensions: int):
         if dimensions == 0:
             return self.slang_type
