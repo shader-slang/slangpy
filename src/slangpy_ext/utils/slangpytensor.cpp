@@ -37,10 +37,9 @@ namespace {
     {
         std::vector<int> strides;
         strides.reserve(tensor.ndim()); // Pre-allocate
-        size_t itemsize = tensor.itemsize();
         for (size_t i = 0; i < tensor.ndim(); i++) {
             // Convert byte strides to element strides
-            strides.push_back(static_cast<int>(tensor.stride(i) / itemsize));
+            strides.push_back(static_cast<int>(tensor.stride(i)));
         }
         return strides;
     }
@@ -169,9 +168,37 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
     }
     auto& pytorch_tensor = pytorch_tensor_opt.value();
 
+    // Set last_access to track read/write operations for autograd
+    // This is critical for PyTorch's autograd system to identify input/output tensors
+    tensorref->set_last_access(binding->access());
+
     // Validation checks
     SGL_CHECK(pytorch_tensor.data() != nullptr, "PyTorch tensor has null data pointer");
-    SGL_CHECK(pytorch_tensor.ndim() > 0, "PyTorch tensor has zero dimensions");
+
+    // Validate tensor shape matches expected shape
+    std::vector<int> tensor_shape = extract_shape(pytorch_tensor);
+    const Shape& expected_shape = binding->vector_type()->shape();
+    const std::vector<int>& expected_shape_vec = expected_shape.as_vector();
+
+    // Check trailing dimensions match (like Python: shape[-len(expected):])
+    if (expected_shape_vec.size() > 0) {
+        size_t start_idx = tensor_shape.size() - expected_shape_vec.size();
+        for (size_t i = 0; i < expected_shape_vec.size(); i++) {
+            int expected_dim = expected_shape_vec[i];
+            int tensor_dim = tensor_shape[start_idx + i];
+            // -1 means any size is allowed
+            if (expected_dim != -1 && tensor_dim != expected_dim) {
+                throw nb::value_error(
+                    fmt::format(
+                        "Tensor shape ({}) does not match expected shape ({})",
+                        fmt::join(tensor_shape, ", "),
+                        fmt::join(expected_shape_vec, ", ")
+                    )
+                        .c_str()
+                );
+            }
+        }
+    }
 
     // Lambda helper for writing tensor data
     auto write_data = [&](ShaderCursor cursor,
@@ -301,7 +328,8 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
         TensorRef* tensorref;
         if (nb::try_cast(value, tensorref)) {
             auto pytorch_tensor_opt = tensorref->tensor();
-            if (pytorch_tensor_opt.has_value()) {
+            // Only use fast path for CUDA tensors - other backends need interop buffer
+            if (pytorch_tensor_opt.has_value() && context->device()->type() == DeviceType::cuda) {
                 ShaderCursor field = cursor[binding->variable_name()];
                 write_pytorch_tensor_fields(context, binding, field, tensorref, read_back);
                 return;
