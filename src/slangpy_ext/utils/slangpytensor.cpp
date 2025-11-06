@@ -31,14 +31,14 @@ namespace {
     }
 
     /// Helper function to extract strides from PyTorch tensor
-    /// Converts byte strides to element strides
+    /// Returns element strides directly (PyTorch stride() already returns element strides for nanobind)
     /// Pre-allocates vector to avoid repeated allocations
     std::vector<int> extract_strides(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
         std::vector<int> strides;
         strides.reserve(tensor.ndim()); // Pre-allocate
         for (size_t i = 0; i < tensor.ndim(); i++) {
-            // Convert byte strides to element strides
+            // nanobind's tensor.stride() returns element strides, not byte strides
             strides.push_back(static_cast<int>(tensor.stride(i)));
         }
         return strides;
@@ -211,8 +211,12 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
         cursor["buffer"].set_pointer(reinterpret_cast<uint64_t>(data_ptr));
 
         // Write shape
-        cursor["_shape"]
-            ._set_array_unsafe(&shape[0], shape.size() * 4, shape.size(), TypeReflection::ScalarType::int32);
+        cursor["_shape"]._set_array_unsafe(
+            shape.empty() ? nullptr : &shape[0],
+            shape.size() * 4,
+            shape.size(),
+            TypeReflection::ScalarType::int32
+        );
 
         // Apply broadcast stride zeroing
         std::vector<int> strides = strides_in;
@@ -227,8 +231,12 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
 
         // Write layout
         auto layout = cursor["layout"];
-        layout["strides"]
-            ._set_array_unsafe(&strides[0], strides.size() * 4, strides.size(), TypeReflection::ScalarType::int32);
+        layout["strides"]._set_array_unsafe(
+            strides.empty() ? nullptr : &strides[0],
+            strides.size() * 4,
+            strides.size(),
+            TypeReflection::ScalarType::int32
+        );
         layout["offset"] = offset;
     };
 
