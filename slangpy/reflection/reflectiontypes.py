@@ -606,6 +606,12 @@ class StructType(SlangType):
     def build_fields(self):
         return {field.name: field for field in self.type_reflection.fields}
 
+    def build_vector_type_name(self):
+        if "<" in self.full_name:
+            return "Unknown"
+        else:
+            return self.full_name
+
 
 class InterfaceType(SlangType):
     """
@@ -614,6 +620,9 @@ class InterfaceType(SlangType):
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl)
+
+    def build_vector_type_name(self):
+        return "Unknown"
 
 
 class ResourceType(SlangType):
@@ -1476,7 +1485,7 @@ def vectorize_type(
         elif isinstance(bound_type, SlangType):
             program = bound_type.program
     if isinstance(marshall_type, SlangType):
-        marshall_type = marshall_type.build_vector_type_name()
+        marshall_type = marshall_type.full_name
     if isinstance(bound_type, SlangType):
         bound_type = bound_type.build_vector_type_name()
     if program is None:

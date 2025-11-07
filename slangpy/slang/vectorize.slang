@@ -190,16 +190,6 @@ public extension<TargetElementType, let TargetDim : int, From : IVectorizeToArra
     typealias VectorType = Array<TargetElementType, TargetDim>;
 }
 
-// IVectorizeTo for arrays in which the size is not known at compile time, that handles the target array type 'unknown' and the dimensionality is always unknown
-public interface IVectorizeToUnsizedArray<TargetElementType> {}
-public extension<TargetElementType, let TargetDim : int, From : IVectorizeToUnsizedArray<TargetElementType>> Vectorizer<From, Array<TargetElementType, TargetDim>> {
-    typealias VectorType = Array<TargetElementType, TargetDim>;
-}
-public extension<TargetElementType, let TargetDim : int, From : IVectorizeToUnsizedArray<TargetElementType>> Vectorizer<From, Array<Unknown, TargetDim>> {
-    typealias VectorType = Array<TargetElementType, TargetDim>;
-}
-
-
 // IVectorizeTo for arrays that are python floats, but need to support half/float/double or any int type
 public extension< TargetElementType : INoneDefaultFloatingPointType, let TargetDim : int, From : IVectorizeToArray<float,TargetDim>> Vectorizer<From, Array<TargetElementType, TargetDim>> {
     typealias VectorType = Array<TargetElementType, TargetDim>;
@@ -276,44 +266,4 @@ public extension<From : IVectorizeToByteAddressBuffer> Vectorizer<From, ByteAddr
 public interface IVectorizeToRWByteAddressBuffer {}
 public extension<From : IVectorizeToRWByteAddressBuffer> Vectorizer<From, RWByteAddressBuffer> {
     typealias VectorType = RWByteAddressBuffer;
-}
-
-// A test marshall that can vectorize to a vector<int,1> when Dimensionality is 0,
-// and to int when Dimensionality is 1.
-struct TestMarshallType1
-    : IVectorizeToVector<int, 1>
-    , IVectorizeToScalar<int>
-{
-    // ...
-}
-
-// Exactly the same, but with the interfaces the other way around
-struct TestMarshallType2
-    : IVectorizeToScalar<int>
-    , IVectorizeToVector<int, 1>
-{
-    // ...
-}
-
-void test()
-{
-    // Compiles fine - 'x1' is vector<int,1>
-    Vectorizer<TestMarshallType1, vector<int, 0>> v1;
-    v1.VectorType x1;
-
-    // Doesn't compile - 'v2.VectorType' is undefined
-    Vectorizer<TestMarshallType1, int> v2;
-    v2.VectorType x2;
-
-    // Doesn't compile - 'v3.VectorType' is undefined
-    Vectorizer<TestMarshallType2, vector<int, 1>> v3;
-    v3.VectorType x3;
-
-    // Compiles fine - 'x3' is int
-    Vectorizer<TestMarshallType2, int> v4;
-    v4.VectorType x4;
-
-    // Compiles fine - 'x3' is int
-    Vectorizer<TestMarshallType2, Unknown> v5;
-    v5.VectorType x5;
 }

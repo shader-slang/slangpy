@@ -342,6 +342,23 @@ void test_func({params}) {{}}
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("param_count", [1, 3])
+def test_generic_value(device_type: spy.DeviceType, param_count: int):
+    device = helpers.get_device(type=device_type)
+    params = ", ".join([f"T p{i}" for i in range(param_count)])
+    module = helpers.create_module(
+        device,
+        f"""
+void test_func<T>({params}) {{}}
+""",
+    )
+    param_values = (0,) * param_count
+    param_types = (get_type(module, "int"),) * param_count
+    actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
+    check(actual_resolution, *param_types)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("param_count", [1, 3])
 def test_simple_vector_value(device_type: spy.DeviceType, param_count: int):
     device = helpers.get_device(type=device_type)
     params = ", ".join([f"vector<int,1> p{i}" for i in range(param_count)])
@@ -545,5 +562,83 @@ void test_func{sig_generic}({sig_params}) {{}}
         spy.NDBuffer.empty(device, (10,), dtype=get_type(module, "int[1]")),
     ) * param_count
     param_types = (get_type(module, "int[1][1]"),) * param_count
+    actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
+    check(actual_resolution, *param_types)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_typedef(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    code = f"""
+import slangpy;
+typedef int Foo;
+void test_func(Foo x) {{}}
+"""
+    module = helpers.create_module(device, code)
+
+    param_values = (spy.NDBuffer.empty(device, (10,), dtype=get_type(module, "int")),)
+    param_types = (get_type(module, "int"),)
+    actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
+    check(actual_resolution, *param_types)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_interface(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    code = f"""
+import slangpy;
+
+interface IFoo {{}}
+
+extension int: IFoo {{}}
+
+void test_func(IFoo x) {{}}
+"""
+    module = helpers.create_module(device, code)
+
+    param_values = (0,)
+    param_types = (get_type(module, "int"),)
+    actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
+    check(actual_resolution, *param_types)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_interface_generic(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    code = f"""
+import slangpy;
+
+interface IFoo {{}}
+
+extension int: IFoo {{}}
+
+void test_func<T: IFoo>(T x) {{}}
+"""
+    module = helpers.create_module(device, code)
+
+    param_values = (0,)
+    param_types = (get_type(module, "int"),)
+    actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
+    check(actual_resolution, *param_types)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_ndbufferarray_generic_struct(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    code = f"""
+import slangpy;
+
+struct Foo<T> {{ T value; }}
+
+void test_func<T>(Foo<T> p0) {{}}
+"""
+    module = helpers.create_module(device, code)
+
+    param_values = (spy.NDBuffer.empty(device, (10,), dtype=get_type(module, "Foo<int>")),)
+    param_types = (get_type(module, "Foo<int>"),)
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)

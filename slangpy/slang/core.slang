@@ -444,6 +444,15 @@ extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDB
     typealias VectorType = T[R][C];
 }
 
+/*
+interface IFoo {}
+extension int : IFoo {}
+
+extension<T>  Vectorizer<ValueType<T>, IFoo> {
+    typealias VectorType = T;
+}
+
+*/
 
 void testa()
 {
@@ -455,6 +464,9 @@ void testa()
     Vectorizer<NDBufferMarshall<float, 1, 1>, float [4][4]>.VectorType vt13;
     Vectorizer<NDBufferMarshall<float[2], 1, 1>, float[0]>.VectorType vt14;
     Vectorizer<NDBufferMarshall<float[2][3], 1, 1>, float[2][3]>.VectorType vt15;
+
+
+    //Vectorizer<ValueType<int>, IFoo>.VectorType vt16;
 }
 
 
