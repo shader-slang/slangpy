@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Optional, cast
-from slangpy.bindings import BindContext, BoundCall, BoundVariable
-from slangpy.reflection.reflectiontypes import SlangType, SlangFunction, SlangParameter
-from slangpy.core.native import CallMode, NativeMarshall
-from slangpy import FunctionReflection
+from typing import TYPE_CHECKING, Optional, cast
+from slangpy.core.native import CallMode
+
+if TYPE_CHECKING:
+    from slangpy.reflection.reflectiontypes import SlangType, SlangFunction, SlangParameter
+    from slangpy.bindings import BindContext, BoundCall, BoundVariable
+    from slangpy.core.native import NativeMarshall
 
 
 class ResolutionArg:
@@ -15,17 +17,17 @@ class ResolutionArg:
 
     def __init__(self):
         super().__init__()
-        self.slang: SlangType = None  # type: ignore
-        self.vector: Optional[SlangType] = None
-        self.python: Optional[NativeMarshall] = None
+        self.slang: "SlangType" = None  # type: ignore
+        self.vector: Optional["SlangType"] = None
+        self.python: Optional["NativeMarshall"] = None
 
 
-def create_arg(variable: Optional[BoundVariable], param: SlangParameter):
+def create_arg(variable: Optional["BoundVariable"], param: "SlangParameter"):
     arg = ResolutionArg()
     arg.slang = param.type
     if variable:
         arg.python = variable.python
-        arg.vector = None
+        arg.vector = variable.vector_type
     else:
         arg.python = None
         arg.vector = arg.slang
@@ -43,7 +45,7 @@ def clone_args(args: list[ResolutionArg]):
     return new_args
 
 
-def resolve_arguments(bind_context: BindContext, args: list[ResolutionArg]):
+def resolve_arguments(bind_context: "BindContext", args: list[ResolutionArg]):
     """
     Resolves the types of the given arguments by matching marshalls against argument
     types. Returns a list of possible resolutions, where each resolution is a list of
@@ -71,29 +73,44 @@ def resolve_arguments(bind_context: BindContext, args: list[ResolutionArg]):
                 continue
             for resolution in resolutions:
                 new_args = clone_args(resolution)
-                new_args[i].vector = cast(SlangType, potential_type)
+                new_args[i].vector = cast("SlangType", potential_type)
                 new_resolutions.append(new_args)
         resolutions = new_resolutions
 
     return resolutions
 
 
+class ResolvedParam:
+    def __init__(self, source_param: "SlangParameter", type: "SlangType"):
+        super().__init__()
+        self.source_param = source_param
+        self.type = type
+
+    @property
+    def name(self) -> str:
+        return self.source_param.name
+
+    @property
+    def modifiers(self):
+        return self.source_param.modifiers
+
+
 class ResolveResult:
     def __init__(self):
         super().__init__()
-        self.args: tuple[SlangType, ...] = ()
-        self.kwargs: dict[str, SlangType] = {}
-        self.slang: tuple[SlangType, ...] = ()
-        self.reflection: FunctionReflection = None  # type: ignore
+        self.args: tuple["SlangType", ...] = ()
+        self.kwargs: dict[str, "SlangType"] = {}
+        self.slang: tuple["SlangType", ...] = ()
+        self.function: "SlangFunction" = None  # type: ignore
+        self.params: list[ResolvedParam] = []
 
 
-def resolve_function(
-    bind_context: BindContext,
-    function: SlangFunction,
-    bindings: BoundCall,
-    this_type: Optional[SlangType] = None,
+def _resolve_function_internal(
+    bind_context: "BindContext",
+    function: "SlangFunction",
+    bindings: "BoundCall",
+    this_type: Optional["SlangType"] = None,
 ):
-
     assert not function.is_overloaded
     function_parameters = [x for x in function.parameters]
     signature_args = bindings.args
@@ -121,11 +138,11 @@ def resolve_function(
         signature_args = signature_args[:-1]
 
     # Build empty positional list of python arguments to correspond to each slang argument
-    positioned_args: list[Optional[BoundVariable]] = [None] * len(function_parameters)
+    positioned_args: list[Optional["BoundVariable"]] = [None] * len(function_parameters)
 
     # Populate the first N arguments from provided positional arguments
     if len(signature_args) > len(function_parameters):
-        return False
+        return None
     for i, arg in enumerate(signature_args):
         positioned_args[i] = arg
         arg.param_index = i
@@ -136,10 +153,10 @@ def resolve_function(
         if name == "_result":
             continue
         if name not in name_map:
-            return False
+            return None
         i = name_map[name]
         if positioned_args[i] is not None:
-            return False
+            return None
         positioned_args[i] = arg
         arg.param_index = i
 
@@ -162,7 +179,7 @@ def resolve_function(
     if len(resolved_args) != 1:
         specialized_args = []
         for ra in resolved_args:
-            slang_reflections = [cast(SlangType, arg.vector).type_reflection for arg in ra]
+            slang_reflections = [cast("SlangType", arg.vector).type_reflection for arg in ra]
             specialized = function.reflection.specialize_with_arg_types(slang_reflections)
             if specialized:
                 specialized_args.append(ra)
@@ -178,7 +195,7 @@ def resolve_function(
     # Output positional python arguments
     pos_arg_types = []
     for i, arg in enumerate(resolved_args):
-        pos_arg_types.append(cast(SlangType, arg.vector))
+        pos_arg_types.append(cast("SlangType", arg.vector))
     res.args = tuple(pos_arg_types)
 
     # Output keyword python arguments
@@ -186,15 +203,37 @@ def resolve_function(
         if name == "_result":
             continue
         i = name_map[name]
-        res.kwargs[name] = cast(SlangType, resolved_args[i].vector)
+        res.kwargs[name] = cast("SlangType", resolved_args[i].vector)
 
-    # Output positional slang arguments
-    res.slang = tuple([cast(SlangType, arg.vector) for arg in resolved_args])
-
-    # Re-specialize the function to let slang do a final check and get the final
-    # concrete reflection with a concrete return value.
-    slang_reflections = [arg.type_reflection for arg in res.slang]
+    # Build list of slang types, and then native type reflections, and specialize
+    slang_types = tuple([cast("SlangType", arg.vector) for arg in resolved_args])
+    slang_reflections = [arg.type_reflection for arg in slang_types]
     specialized = function.reflection.specialize_with_arg_types(slang_reflections)
-    res.reflection = specialized
+
+    # Also output the slangfunction
+    type_reflection = None if this_type is None else this_type.type_reflection
+    res.function = bind_context.layout.find_function(specialized, type_reflection)
+    res.params = [ResolvedParam(p, t) for p, t in zip(res.function.parameters, slang_types)]
 
     return res
+
+
+def resolve_function(
+    bind_context: "BindContext",
+    function: "SlangFunction",
+    bindings: "BoundCall",
+    this_type: Optional["SlangType"] = None,
+):
+    if function.is_overloaded:
+        resolutions = [
+            _resolve_function_internal(bind_context, f, bindings, this_type)
+            for f in function.overloads
+        ]
+    else:
+        resolutions = [_resolve_function_internal(bind_context, function, bindings, this_type)]
+
+    # Filter out any None resolutions
+    resolutions = [r for r in resolutions if r is not None]
+    if len(resolutions) != 1:
+        return None
+    return resolutions[0]

@@ -2,7 +2,7 @@
 implementing slangpy;
 
 // Represents an unknown type
-public struct Unknown { }
+public struct Unknown: IDifferentiable { }
 
 // This to describe how they can be vectorized from a marshall type
 // to a type argument for a slang function.
@@ -198,6 +198,7 @@ public extension<TargetElementType, let TargetDim : int, From : IVectorizeToUnsi
 public extension<TargetElementType, let TargetDim : int, From : IVectorizeToUnsizedArray<TargetElementType>> Vectorizer<From, Array<Unknown, TargetDim>> {
     typealias VectorType = Array<TargetElementType, TargetDim>;
 }
+
 
 // IVectorizeTo for arrays that are python floats, but need to support half/float/double or any int type
 public extension< TargetElementType : INoneDefaultFloatingPointType, let TargetDim : int, From : IVectorizeToArray<float,TargetDim>> Vectorizer<From, Array<TargetElementType, TargetDim>> {

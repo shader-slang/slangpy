@@ -19,6 +19,8 @@ from slangpy.reflection import (
     ArrayType,
     ScalarType,
     MatrixType,
+    UnknownType,
+    vectorize_type,
 )
 from slangpy.bindings import (
     PYTHON_TYPES,
@@ -27,6 +29,7 @@ from slangpy.bindings import (
     CodeGenBlock,
     ReturnContext,
 )
+from slangpy.builtin.ndbuffer import get_ndbuffer_marshall_type
 
 
 class ITensorType(SlangType):
@@ -232,8 +235,56 @@ class TensorMarshall(NativeTensorMarshall):
         # Default to casting to itself
         return self.slang_type
 
-    def resolve_types(self, context, bound_type):
-        return [self.resolve_type(context, bound_type)]
+    def resolve_types(self, context: BindContext, bound_type: SlangType):
+        self_element_type = cast(SlangType, self.slang_element_type)
+        self_dims = self.dims
+        self_writable = self.writable
+        results: list[SlangType] = []
+
+        # Trying to pass tensor to tensor - handle programmatically
+        if isinstance(bound_type, ITensorType):
+            if bound_type.writable and not self.writable:
+                raise ValueError("Can't pass a read-only tensor to a writable tensor")
+            if not types_equal(bound_type.dtype, self.slang_element_type):
+                raise ValueError(
+                    f"Can't convert tensor with element type {self.slang_element_type.full_name} "
+                    f"to tensor with element type {bound_type.dtype.full_name}"
+                )
+            if bound_type.name == "AtomicTensor":
+                return [bound_type]
+            else:
+                return [
+                    build_tensor_type(
+                        self.layout,
+                        bound_type.dtype,
+                        bound_type.dims,
+                        bound_type.writable,
+                        self.d_in is not None,
+                        self.d_out is not None,
+                    )
+                ]
+
+        # Ambiguous case that vectorizer in slang cannot resolve on its own - could be element type or array of element type
+        # Add both options, and rely on later slang specialization to pick the correct one (or identify it as genuinely ambiguous)
+        if (
+            isinstance(self_element_type, ArrayType)
+            and isinstance(bound_type, ArrayType)
+            and isinstance(bound_type.element_type, UnknownType)
+        ):
+            results.append(self_element_type)
+            results.append(
+                context.layout.require_type_by_name(
+                    f"{self_element_type.full_name}[{bound_type.num_elements}]"
+                )
+            )
+            return results
+
+        # Otherwise, attempt to use slang's typing system to map the bound type to the marshall
+        marshall = get_ndbuffer_marshall_type(context, self_element_type, self_writable, self_dims)
+        specialized = vectorize_type(marshall, bound_type)
+        if specialized is not None:
+            results.append(specialized)
+        return results
 
     def reduce_type(self, context: BindContext, dimensions: int):
         if dimensions == 0:

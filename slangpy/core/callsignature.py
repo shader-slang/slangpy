@@ -17,7 +17,7 @@ from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.value import NoneMarshall, ValueMarshall
 from slangpy.builtin import StructMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
-from slangpy.reflection.typeresolution import resolve_function
+from slangpy.reflection.typeresolution import resolve_function, ResolvedParam
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
 
@@ -69,8 +69,7 @@ def specialize(
     resolve_result = resolve_function(context, function, signature, this_type)
     if not resolve_result:
         return MismatchReason("Failed to resolve function.")
-    type_reflection = None if this_type is None else this_type.type_reflection
-    return context.layout.find_function(resolve_result.reflection, type_reflection)
+    return resolve_result
 
     # Special case for constructors
     if function.is_overloaded and function.is_constructor:
@@ -271,7 +270,9 @@ def validate_specialize(context: BindContext, signature: BoundCall, function: Sl
         )
 
 
-def bind(context: BindContext, signature: BoundCall, function: SlangFunction) -> BoundCall:
+def bind(
+    context: BindContext, signature: BoundCall, function: SlangFunction, params: list[ResolvedParam]
+) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
     to the signature nodes and performing other work that kicks in once
@@ -283,7 +284,7 @@ def bind(context: BindContext, signature: BoundCall, function: SlangFunction) ->
 
     for x in signature.args:
         b = x
-        if x.param_index == len(function.parameters):
+        if x.param_index == len(params):
             assert function.return_type is not None
             b.bind(function.return_type, {ModifierID.out}, "_result")
         elif x.param_index == -1:
@@ -294,7 +295,7 @@ def bind(context: BindContext, signature: BoundCall, function: SlangFunction) ->
                 "_this",
             )
         else:
-            b.bind(function.parameters[x.param_index])
+            b.bind(params[x.param_index])
 
     for k, v in signature.kwargs.items():
         b = v
@@ -309,7 +310,7 @@ def bind(context: BindContext, signature: BoundCall, function: SlangFunction) ->
                 "_this",
             )
         else:
-            b.bind(function.parameters[v.param_index])
+            b.bind(params[v.param_index])
 
     return res
 

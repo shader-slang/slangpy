@@ -395,7 +395,6 @@ public struct StridedLayout<let D : int>
 
 struct NDBufferMarshall<T, let N : int, let RW : int>
     : IVectorizeToScalar<T>
-   , IVectorizeToUnsizedArray<T>
    , IVectorizeToPointer<T>
 {
 
@@ -423,12 +422,41 @@ extension<MatrixT, let Rows : int, let Cols : int, let N : int, let RW : int> ND
     : IVectorizeToGenericMatrix<MatrixT, Rows, Cols>
 {}
 
-// Arrays need special handling as it's not possible to distinguish between passing an unknown type, and an array of unknown types.
-// This extension enables passing arrays of the correct type but unknown size. Unknown types will pass due to the use of IVectorizeToUnsizedArray
-// but type resolution needs to happen in Python.
-extension<ArrayT, let ArrayDim : int, let N : int, let RW : int> Vectorizer<NDBufferMarshall<ArrayT[ArrayDim], N, RW>, Array<ArrayT, 0>> {
-    typealias VectorType = Array<ArrayT, ArrayDim>;
+// Specifically add support for typed arrays. The case of generic typed arrays must be handled python
+// side as it is too ambigous to resolve with slang extension rules, due to the fact that a generic type,
+// T, could itself be an array type.
+extension<T, let N : int, let RW : int, let R: int> Vectorizer<NDBufferMarshall<T, N, RW>, T[R]> {
+    typealias VectorType = T[R];
 }
+extension<T, let N : int, let RW : int, let R : int, let C: int> Vectorizer<NDBufferMarshall<T, N, RW>, T[R][C]> {
+    typealias VectorType = T[R][C];
+}
+extension<T, let N : int, let RW : int, let R : int> Vectorizer<NDBufferMarshall<T[R], N, RW>, T[0]> {
+    typealias VectorType = T[R];
+}
+extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T[R][C], N, RW>, T[R][0]> {
+    typealias VectorType = T[R][C];
+}
+extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T[R][C], N, RW>, T[0][C]> {
+    typealias VectorType = T[R][C];
+}
+extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T[R][C], N, RW>, T[0][0]> {
+    typealias VectorType = T[R][C];
+}
+
+
+void testa()
+{
+    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float[4]>.VectorType vt5;
+    Vectorizer<NDBufferMarshall<int, 1, 1>, vector<Unknown, 1>>.VectorType vt9;
+    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float [4][2]>.VectorType vt10;
+    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float [4][4]>.VectorType vt11;
+    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float [4][4][4]>.VectorType vt12;
+    Vectorizer<NDBufferMarshall<float, 1, 1>, float [4][4]>.VectorType vt13;
+    Vectorizer<NDBufferMarshall<float[2], 1, 1>, float[0]>.VectorType vt14;
+    Vectorizer<NDBufferMarshall<float[2][3], 1, 1>, float[2][3]>.VectorType vt15;
+}
+
 
 public struct NDBuffer<T, let N : int>
 {
@@ -507,7 +535,6 @@ extension<T, let RW : int> Vectorizer<NDBufferMarshall<T, 1, RW>, StorageTraits<
 extension<T, let RW : int> Vectorizer<NDBufferMarshall<T, 1, RW>, StorageTraits<Unknown>.BufferType> {
     typealias VectorType = StorageTraits<T>.BufferType;
 }
-
 
 public struct RWNDBuffer<T, let N : int>
 {

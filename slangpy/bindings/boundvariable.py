@@ -9,6 +9,7 @@ from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.codegen import CodeGen
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import SlangField, SlangFunction, SlangParameter, SlangType
+from slangpy.reflection.typeresolution import ResolvedParam
 
 
 class BoundVariableException(Exception):
@@ -242,7 +243,7 @@ class BoundVariable:
 
     def bind(
         self,
-        slang: Union[SlangField, SlangParameter, SlangType],
+        slang: Union[SlangField, ResolvedParam, SlangType],
         modifiers: set[ModifierID] = set(),
         override_name: Optional[str] = None,
     ):

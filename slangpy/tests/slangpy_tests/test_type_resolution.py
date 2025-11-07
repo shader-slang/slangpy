@@ -305,8 +305,8 @@ void testfunc<T>(GenericStruct<T> gs) {}
     # This is an ambiguous case that could resolve to int[10] (i.e. the element type) or int[10][10] (i.e. loading array)
     # In practice, it needs resolving python side. Vectors/matrices don't suffer from this issue as it is not possible to have
     # a vector/matrix of vectors/matrices in slang.
-    check("Unknown[10]", "NDBufferMarshall<int[10],1,false>", "int[10][10]")
-    check("Unknown[0]", "NDBufferMarshall<int[10],1,false>", "int[10][0]")
+    check("Unknown[10]", "NDBufferMarshall<int[10],1,false>", None)
+    check("Unknown[0]", "NDBufferMarshall<int[10],1,false>", None)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

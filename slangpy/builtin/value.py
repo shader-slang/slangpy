@@ -306,7 +306,7 @@ class MatrixMarshall(ValueMarshall):
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
         st = cast(kfr.MatrixType, self.slang_type)
         marshall = context.layout.require_type_by_name(
-            f"MatrixValueType<{st.element_type.full_name},{st.rows},{st.cols}>"
+            f"MatrixValueType<{st.inner_element_type.full_name},{st.rows},{st.cols}>"
         )
         return [vectorize_type(marshall, bound_type)]
 

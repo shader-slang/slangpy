@@ -523,8 +523,17 @@ class MatrixType(SlangType):
         """
         return self.scalar_type.slang_scalar_type
 
+    @property
+    def inner_element_type(self) -> SlangType:
+        """
+        Inner scalar element type of the matrix.
+        """
+        # This works because the element type could be a vector or scalar (see constructor),
+        # but a scalar's element type is itself.
+        return self.element_type.element_type
+
     def build_vector_type_name(self):
-        return f"matrix<{self.element_type.vector_type_name},{self.rows},{self.cols}>"
+        return f"matrix<{self.inner_element_type.vector_type_name},{self.rows},{self.cols}>"
 
 
 class ArrayType(SlangType):
