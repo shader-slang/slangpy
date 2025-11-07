@@ -332,20 +332,23 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
                     "inout parameter gradients need separate buffers for inputs and outputs (see Tensor.with_grads)"
                 );
         }
-    } else {
-        TensorRef* tensorref;
-        if (nb::try_cast(value, tensorref)) {
-            auto pytorch_tensor_opt = tensorref->tensor();
-            // Only use fast path for CUDA tensors - other backends need interop buffer
-            if (pytorch_tensor_opt.has_value() && context->device()->type() == DeviceType::cuda) {
-                ShaderCursor field = cursor[binding->variable_name()];
-                write_pytorch_tensor_fields(context, binding, field, tensorref, read_back);
-                return;
-            }
-        }
-        // Fall back to base class
-        NativeMarshall::write_shader_cursor_pre_dispatch(context, binding, cursor, value, read_back);
+        return;
     }
+
+    // Check if we have a TensorRef with PyTorch tensor for fast path
+    TensorRef* tensorref;
+    if (nb::try_cast(value, tensorref)) {
+        auto pytorch_tensor_opt = tensorref->tensor();
+        // Only use fast path for CUDA tensors - other backends need interop buffer
+        if (pytorch_tensor_opt.has_value() && context->device()->type() == DeviceType::cuda) {
+            ShaderCursor field = cursor[binding->variable_name()];
+            write_pytorch_tensor_fields(context, binding, field, tensorref, read_back);
+            return;
+        }
+    }
+
+    // Fall back to base class for all other cases
+    NativeMarshall::write_shader_cursor_pre_dispatch(context, binding, cursor, value, read_back);
 }
 
 void NativeTensorMarshall::write_shader_cursor_fields(

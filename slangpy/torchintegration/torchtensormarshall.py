@@ -122,6 +122,8 @@ class TensorRefMarshall(TensorMarshall):
             )
         assert primal.is_cuda
 
+        # For CUDA tensors, the C++ fast path handles marshalling directly
+        # This Python method is only used for non-CUDA device interop
         if context.device.info.type != DeviceType.cuda:
 
             data_type = _torch_to_data_type[self.torch_dtype]
@@ -161,27 +163,13 @@ class TensorRefMarshall(TensorMarshall):
                     raise ValueError(
                         "inout parameter gradients need separate buffers for inputs and outputs (see Tensor.with_grads)"
                     )
+
+            return result
         else:
-            primal_calldata = {
-                "buffer": primal.data_ptr(),
-                "layout": {"offset": 0, "strides": strides},
-                "_shape": shape,
-            }
-
-            if not self.d_in and not self.d_out:
-                return primal_calldata
-
-            result = {"primal": primal_calldata}
-            if self.d_in is not None:
-                if data.grad_in is None:
-                    raise ValueError("Missing required input gradients")
-                result["d_in"] = self.d_in.create_calldata(context, binding, data.grad_in)
-            if self.d_out is not None:
-                if data.grad_out is None:
-                    raise ValueError("Missing tensor to hold output gradients")
-                result["d_out"] = self.d_out.create_calldata(context, binding, data.grad_out)
-
-        return result
+            # CUDA tensors are handled by C++ fast path - this should not be reached
+            raise RuntimeError(
+                "CUDA tensors should be handled by C++ fast path, not Python marshalling"
+            )
 
     def read_calldata(
         self,
