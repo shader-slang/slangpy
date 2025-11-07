@@ -699,6 +699,12 @@ struct X86Program : public Program {
 
     static std::unique_ptr<Program> compile(const DataStruct& src_struct, const DataStruct& dst_struct)
     {
+        // Require SSE4.1 as minimum for JIT compilation
+        // Pre-2008 CPUs without SSE4.1 will fall back to VM interpreter
+        if (!runtime().cpuFeatures().x86().hasSSE4_1()) {
+            return nullptr;
+        }
+
         asmjit::CodeHolder code;
         code.init(runtime().environment(), runtime().cpuFeatures());
 
@@ -736,6 +742,7 @@ private:
         asmjit::x86::Compiler& c;
         bool has_avx;
         bool has_f16c;
+        bool has_fma;
 
         // Each register can hold either a 64-bit integer or a 64-bit floating point value.
         struct Register {
@@ -749,8 +756,10 @@ private:
         Builder(asmjit::x86::Compiler& c)
             : c(c)
         {
+            // SSE4.1 is guaranteed at this point (checked in compile())
             has_avx = runtime().cpuFeatures().x86().hasAVX();
             has_f16c = runtime().cpuFeatures().x86().hasF16C();
+            has_fma = runtime().cpuFeatures().x86().hasFMA();
         }
 
         Register& get_register(uint32_t reg)
@@ -860,10 +869,15 @@ private:
         }
 
         /// Floating point rounding operation.
+        /// SSE4.1 is guaranteed to be available (checked in compile()).
         template<typename X, typename Y>
         void roundsd(const X& x, const Y& y, asmjit::x86::RoundImm mode)
         {
-            has_avx ? c.vroundsd(x, x, y, mode) : c.roundsd(x, y, mode);
+            if (has_avx) {
+                c.vroundsd(x, x, y, mode);
+            } else {
+                c.roundsd(x, y, mode);
+            }
         }
 
         /// Convert scalar double to signed integer.
@@ -891,11 +905,11 @@ private:
         template<typename X, typename Y, typename Z>
         void fmadd213sd(const X& x, const Y& y, const Z& z)
         {
-            if (has_avx) {
+            if (has_fma) {
                 c.vfmadd213sd(x, y, z);
             } else {
-                c.mulsd(x, y);
-                c.addsd(x, z);
+                has_avx ? c.vmulsd(x, x, y) : c.mulsd(x, y);
+                has_avx ? c.vaddsd(x, x, z) : c.addsd(x, z);
             }
         }
 
@@ -903,11 +917,11 @@ private:
         template<typename X, typename Y, typename Z>
         void fmadd231sd(const X& x, const Y& y, const Z& z)
         {
-            if (has_avx) {
+            if (has_fma) {
                 c.vfmadd231sd(x, y, z);
             } else {
-                c.mulsd(y, z);
-                c.addsd(x, y);
+                has_avx ? c.vmulsd(y, y, z) : c.mulsd(y, z);
+                has_avx ? c.vaddsd(x, x, y) : c.addsd(x, y);
             }
         }
 
