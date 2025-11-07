@@ -593,7 +593,9 @@ public:
 
     ref<TextureView> create_view(TextureViewDesc desc);
 
+    /// Get bindless descriptor handle for read access.
     DescriptorHandle descriptor_handle_ro() const;
+    /// Get bindless descriptor handle for read-write access.
     DescriptorHandle descriptor_handle_rw() const;
 
     /// Get the shared resource handle.
