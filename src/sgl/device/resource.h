@@ -593,6 +593,9 @@ public:
 
     ref<TextureView> create_view(TextureViewDesc desc);
 
+    DescriptorHandle descriptor_handle_ro() const;
+    DescriptorHandle descriptor_handle_rw() const;
+
     /// Get the shared resource handle.
     /// Note: Texture must be created with the \c TextureUsage::shared usage flag.
     NativeHandle shared_handle() const;

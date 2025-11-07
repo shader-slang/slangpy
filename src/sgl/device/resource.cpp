@@ -496,6 +496,20 @@ ref<TextureView> Texture::create_view(TextureViewDesc desc)
     return m_device->create_texture_view(this, std::move(desc));
 }
 
+DescriptorHandle Texture::descriptor_handle_ro() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture->getDefaultView()->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
+DescriptorHandle Texture::descriptor_handle_rw() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture->getDefaultView()->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
 NativeHandle Texture::shared_handle() const
 {
     rhi::NativeHandle rhi_handle = {};
