@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools",
+    "setuptools>=77.0.0",
     "wheel",
     "cmake==3.30.0",
     "ninja",
@@ -24,7 +24,8 @@ authors = [
 ]
 description = "Easily call Slang functions and integrate with PyTorch auto diff directly from Python."
 readme = "README.md"
-license="Apache-2.0"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 
 [project.urls]
 Homepage = "https://github.com/shader-slang/slangpy"
