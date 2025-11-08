@@ -62,7 +62,7 @@ while IFS= read -r -d $'\0' file_to_sign; do
   else
     echo "Skipping (not a file?): $file_to_sign"
   fi
-done < <(find "${RUNNER_TEMP}/${WHEEL_BASENAME%.whl}" \( -name '*.dylib' -o -name '*.so' \) -print0)
+done < <(find "${RUNNER_TEMP}/${WHEEL_BASENAME%.whl}" \( -name '*.dylib' -o -name '*.so' -o \( -name '*.so.*' -a ! -name '*.dwarf' \) \) -print0)
 
 echo "Found ${#binaries[@]} binaries to sign."
 echo "${binaries[@]}"

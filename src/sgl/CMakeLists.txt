@@ -134,7 +134,6 @@ target_sources(sgl PRIVATE
     device/types.h
 
     math/constants.h
-    math/constants.slang
     math/float16.cpp
     math/float16.h
     math/matrix_math.h
@@ -143,8 +142,6 @@ target_sources(sgl PRIVATE
     math/quaternion_math.h
     math/quaternion_types.h
     math/quaternion.h
-    math/ray.h
-    math/ray.slang
     math/scalar_math.h
     math/scalar_types.h
     math/vector_math.h
