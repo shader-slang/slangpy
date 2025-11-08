@@ -265,12 +265,6 @@ class BoundVariable:
             self.slang_modifiers = modifiers.union(slang.modifiers)
         self.variable_name = self.name
 
-        # HACK! Part of the hack in callsignature.py specialize,
-        # where structs written to interface inputs need to be explicitly
-        # specialized BEFORE binding.
-        if self.explicitly_vectorized and self.vector_type:
-            self.slang_type = self.vector_type
-
         if self.children is not None:
             for child in self.children.values():
                 if child.name not in self.slang_type.fields:
@@ -383,11 +377,9 @@ class BoundVariable:
             # result is inferred last
             pass
         else:
-            # neither specified, attempt to resolve type
+            # neither specified, use the resolved type of the slang parameter
             assert self.slang_type is not None
-            self.vector_type = (
-                self.slang_type
-            )  # cast(SlangType, self.python.resolve_type(context, self.slang_type))
+            self.vector_type = self.slang_type
 
         # If we ended up with no valid type, use slang type. Currently this should
         # only happen for auto-allocated result buffers
