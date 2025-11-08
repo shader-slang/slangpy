@@ -472,12 +472,14 @@ nb::object NativeCallData::exec(
         // Our check above should have already validated that
         // call_group_shape.size() > 0.
         if (call_group_shape.size() > cs.size()) {
-            throw std::runtime_error(fmt::format(
-                "call_group_shape dimensionality ({}) must be <= call_shape dimensionality ({}). "
-                "call_group_shape cannot have more dimensions than call_shape.",
-                call_group_shape.size(),
-                cs.size()
-            ));
+            throw std::runtime_error(
+                fmt::format(
+                    "call_group_shape dimensionality ({}) must be <= call_shape dimensionality ({}). "
+                    "call_group_shape cannot have more dimensions than call_shape.",
+                    call_group_shape.size(),
+                    cs.size()
+                )
+            );
         } else if (call_group_shape.size() < cs.size()) {
             // Call group shape size is less than the call shape size so we need to
             // pad the call group shape with 1's to account for the missing dimensions.
@@ -503,11 +505,13 @@ nb::object NativeCallData::exec(
         // Verify that all elements of call_group_shape are >= 1
         for (size_t i = 0; i < call_group_shape.size(); ++i) {
             if (call_group_shape[i] < 1) {
-                throw std::runtime_error(fmt::format(
-                    "call_group_shape[{}] = {} is invalid. All call_group_shape elements must be >= 1.",
-                    i,
-                    call_group_shape[i]
-                ));
+                throw std::runtime_error(
+                    fmt::format(
+                        "call_group_shape[{}] = {} is invalid. All call_group_shape elements must be >= 1.",
+                        i,
+                        call_group_shape[i]
+                    )
+                );
             }
         }
     } else {
@@ -1025,39 +1029,57 @@ SGL_PY_EXPORT(utils_slangpy)
 
     slangpy.def(
         "unpack_args",
-        [](nb::args args) { return unpack_args(args); },
+        [](nb::args args)
+        {
+            return unpack_args(args);
+        },
         "args"_a,
         D_NA(slangpy, unpack_args)
     );
     slangpy.def(
         "unpack_refs_and_args",
-        [](nb::list refs, nb::args args) { return unpack_args(args, refs); },
+        [](nb::list refs, nb::args args)
+        {
+            return unpack_args(args, refs);
+        },
         "refs"_a,
         "args"_a,
         D_NA(slangpy, unpack_args)
     );
     slangpy.def(
         "unpack_kwargs",
-        [](nb::kwargs kwargs) { return unpack_kwargs(kwargs); },
+        [](nb::kwargs kwargs)
+        {
+            return unpack_kwargs(kwargs);
+        },
         "kwargs"_a,
         D_NA(slangpy, unpack_kwargs)
     );
     slangpy.def(
         "unpack_refs_and_kwargs",
-        [](nb::list refs, nb::kwargs kwargs) { return unpack_kwargs(kwargs, refs); },
+        [](nb::list refs, nb::kwargs kwargs)
+        {
+            return unpack_kwargs(kwargs, refs);
+        },
         "refs"_a,
         "kwargs"_a,
         D_NA(slangpy, unpack_kwargs)
     );
     slangpy.def(
         "unpack_arg",
-        [](nb::object arg) { return unpack_arg(arg); },
+        [](nb::object arg)
+        {
+            return unpack_arg(arg);
+        },
         "arg"_a,
         D_NA(slangpy, unpack_arg)
     );
     slangpy.def(
         "pack_arg",
-        [](nb::object arg, nb::object unpacked_arg) { pack_arg(arg, unpacked_arg); },
+        [](nb::object arg, nb::object unpacked_arg)
+        {
+            pack_arg(arg, unpacked_arg);
+        },
         "arg"_a,
         "unpacked_arg"_a,
         D_NA(slangpy, pack_arg)
@@ -1093,7 +1115,10 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::class_<NativeObject, PyNativeObject, Object>(slangpy, "NativeObject") //
         .def(
             "__init__",
-            [](NativeObject& self) { new (&self) PyNativeObject(); },
+            [](NativeObject& self)
+            {
+                new (&self) PyNativeObject();
+            },
             D_NA(NativeObject, NativeObject)
         )
         .def_prop_rw("slangpy_signature", &NativeObject::slangpy_signature, &NativeObject::set_slangpy_signature)
@@ -1102,7 +1127,10 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::class_<NativeSlangType, PyNativeSlangType, Object>(slangpy, "NativeSlangType") //
         .def(
             "__init__",
-            [](NativeSlangType& self) { new (&self) PyNativeSlangType(); },
+            [](NativeSlangType& self)
+            {
+                new (&self) PyNativeSlangType();
+            },
             D_NA(NativeSlangType, NativeSlangType)
         )
         .def_prop_rw(
@@ -1122,7 +1150,10 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::class_<NativeMarshall, PyNativeMarshall, Object>(slangpy, "NativeMarshall") //
         .def(
             "__init__",
-            [](NativeMarshall& self) { new (&self) PyNativeMarshall(); },
+            [](NativeMarshall& self)
+            {
+                new (&self) PyNativeMarshall();
+            },
             D_NA(NativeMarshall, NativeMarshall)
         )
 
@@ -1325,7 +1356,10 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::class_<NativeCallData, PyNativeCallData, Object>(slangpy, "NativeCallData") //
         .def(
             "__init__",
-            [](NativeCallData& self) { new (&self) PyNativeCallData(); },
+            [](NativeCallData& self)
+            {
+                new (&self) PyNativeCallData();
+            },
             D_NA(NativeCallData, NativeCallData)
         )
         .def_prop_rw("device", &NativeCallData::device, &NativeCallData::set_device, D_NA(NativeCallData, device))
@@ -1434,7 +1468,10 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::class_<NativeCallDataCache, PyNativeCallDataCache, Object>(slangpy, "NativeCallDataCache")
         .def(
             "__init__",
-            [](NativeCallDataCache& self) { new (&self) PyNativeCallDataCache(); },
+            [](NativeCallDataCache& self)
+            {
+                new (&self) PyNativeCallDataCache();
+            },
             D_NA(NativeCallDataCache, NativeCallDataCache)
         )
         .def(
@@ -1501,7 +1538,10 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "__add__",
-            [](const Shape& self, const Shape& other) { return self + other; },
+            [](const Shape& self, const Shape& other)
+            {
+                return self + other;
+            },
             nb::is_operator(),
             D_NA(Shape, operator+)
         )
@@ -1533,7 +1573,10 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "as_list",
-            [](Shape& self) { return self.as_vector(); },
+            [](Shape& self)
+            {
+                return self.as_vector();
+            },
             nb::rv_policy::reference_internal,
             D_NA(Shape, as_list)
         )
@@ -1568,7 +1611,10 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def_prop_ro(
             "device",
-            [](const CallContext& self) -> Device* { return self.device(); },
+            [](const CallContext& self) -> Device*
+            {
+                return self.device();
+            },
             D_NA(CallContext, device)
         )
         .def_prop_ro(
@@ -1583,7 +1629,9 @@ SGL_PY_EXPORT(utils_slangpy)
         .def(
             "__init__",
             [](TensorRef& self, int id, nb::ndarray<nb::pytorch, nb::device::cuda> tensor)
-            { new (&self) TensorRef(id, tensor); },
+            {
+                new (&self) TensorRef(id, tensor);
+            },
             "id"_a,
             "tensor"_a,
             D_NA(TensorRef, TensorRef)

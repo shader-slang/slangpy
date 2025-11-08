@@ -143,7 +143,12 @@ const std::filesystem::path& executable_path()
 
 const std::filesystem::path& app_data_directory()
 {
-    static std::filesystem::path path([]() { return home_directory() / ".sgl"; }());
+    static std::filesystem::path path(
+        []()
+        {
+            return home_directory() / ".sgl";
+        }()
+    );
     return path;
 }
 
@@ -183,6 +188,15 @@ std::optional<std::string> get_environment_variable(const char* name)
 {
     const char* value = ::getenv(name);
     return value != nullptr ? std::string(value) : std::optional<std::string>{};
+}
+
+// -------------------------------------------------------------------------------------------------
+// Processes
+// -------------------------------------------------------------------------------------------------
+
+ProcessID current_process_id()
+{
+    return static_cast<ProcessID>(getpid());
 }
 
 // -------------------------------------------------------------------------------------------------

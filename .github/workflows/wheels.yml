@@ -9,7 +9,7 @@ on:
 
 env:
   CIBW_BUILD_VERBOSITY: 1
-  CIBW_SKIP: "*-musllinux* pp*"
+  CIBW_SKIP: "*-musllinux*"
   CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
   CIBW_ARCHS_WINDOWS: auto64
   CIBW_ARCHS_LINUX: auto64
@@ -27,15 +27,15 @@ env:
 jobs:
   wheels:
     runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 120
     strategy:
       matrix:
         os: [windows, linux, macos]
         platform: [x86_64, aarch64]
         python: [cp39, cp310, cp311, cp312, cp313]
         exclude:
-          # Exclude aarch64 for windows/linux
+          # Exclude aarch64 for windows
           - { os: windows, platform: aarch64 }
-          - { os: linux, platform: aarch64 }
           # Exclude x86_64 for macos
           - { os: macos, platform: x86_64 }
         include:
@@ -79,7 +79,6 @@ jobs:
           name: wheels-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.python }}
           path: ./wheelhouse/*.whl
 
-
   upload_pypi:
     name: Upload wheels to PyPI
     runs-on: ubuntu-latest
@@ -91,10 +90,41 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: wheels-*
-          merge-multiple: true
-          path: dist
+          path: artifacts
+          # merge-multiple: true # Seems causing file corruption
 
-      - uses: pypa/gh-action-pypi-publish@v1.5.1
+      # Manually combine artifacts into dist/
+      - name: Combine artifacts
+        shell: bash
+        run: |
+          mkdir -p dist/
+          find artifacts/ -name "*.whl" -exec cp {} dist/ \;
+
+      # Verify downloaded wheels before upload.
+      - name: Verify downloaded wheels
+        shell: bash
+        run: |
+          pip install "setuptools>=77.0.0" "twine>=6.1.0" "packaging>=24.2.0"
+          echo "=== Build tools versions ==="
+          python -c "import setuptools; print(f'setuptools: {setuptools.__version__}')"
+          python -c "import twine; print(f'twine: {twine.__version__}')"
+          echo "=== Checking downloaded wheels individually ==="
+          for wheel in dist/*.whl; do
+            if [ -f "$wheel" ]; then
+              size=$(stat -c%s "$wheel" 2>/dev/null || stat -f%z "$wheel" 2>/dev/null || echo "unknown")
+              echo "Checking: $wheel (${size} bytes)"
+              if twine check --strict "$wheel"; then
+                echo " - Passes twine check"
+              else
+                echo " - Failed twine check"
+                exit 1
+              fi
+              echo ""
+            fi
+          done
+
+      - uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}
+          verbose: true

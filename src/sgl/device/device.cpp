@@ -23,6 +23,7 @@
 #include "sgl/device/hot_reload.h"
 #include "sgl/device/debug_logger.h"
 #include "sgl/device/native_handle_traits.h"
+#include "sgl/device/persistent_cache.h"
 
 #include "sgl/core/file_system_watcher.h"
 #include "sgl/core/config.h"
@@ -89,6 +90,7 @@ Device::Device(const DeviceDesc& desc)
         if (m_shader_cache_path.is_relative())
             m_shader_cache_path = platform::app_data_directory() / m_shader_cache_path;
         std::filesystem::create_directories(m_shader_cache_path);
+        m_persistent_cache = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size);
     }
 
     // Invalidate CUDA interop if using CUDA
@@ -102,8 +104,10 @@ Device::Device(const DeviceDesc& desc)
         for (const auto& handle : m_desc.existing_device_handles) {
             if (handle.is_valid()) {
                 m_desc.adapter_luid.reset();
-                log_warn("Both adapter LUID and existing handles have been provided, which are both ways to "
-                         "specify the device. Adapter LUID will be ignored in favor of provided existing handles");
+                log_warn(
+                    "Both adapter LUID and existing handles have been provided, which are both ways to "
+                    "specify the device. Adapter LUID will be ignored in favor of provided existing handles"
+                );
                 break;
             }
         }
@@ -189,6 +193,13 @@ Device::Device(const DeviceDesc& desc)
         .highestShaderModel = 0,
     };
 
+    rhi::BindlessDesc bindless_desc{
+        .bufferCount = m_desc.bindless_options.buffer_count,
+        .textureCount = m_desc.bindless_options.texture_count,
+        .samplerCount = m_desc.bindless_options.sampler_count,
+        .accelerationStructureCount = m_desc.bindless_options.acceleration_structure_count,
+    };
+
     rhi::DeviceDesc rhi_desc{
         .next = &d3d12_extended_desc,
         .deviceType = static_cast<rhi::DeviceType>(m_desc.type),
@@ -202,12 +213,16 @@ Device::Device(const DeviceDesc& desc)
         .slang{
             .slangGlobalSession = m_global_session,
         },
+        // Shader and pipeline cache use the same persistent cache.
+        .persistentShaderCache = m_persistent_cache.get(),
+        .persistentPipelineCache = m_persistent_cache.get(),
         // This needs to match NV_SHADER_EXTN_SLOT set in shader.cpp
         .nvapiExtUavSlot = 999,
         // TODO(slang-rhi) make configurable but default to true
         .enableValidation = true,
         .debugCallback = &DebugLogger::get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
+        .bindless = bindless_desc,
     };
     log_debug(
         "Creating graphics device (type: {}, LUID: {}, shader_cache_path: {}).",
@@ -225,6 +240,7 @@ Device::Device(const DeviceDesc& desc)
     m_info.adapter_name = rhi_device_info.adapterName;
     m_info.adapter_luid = from_rhi(rhi_device_info.adapterLUID);
     m_info.timestamp_frequency = rhi_device_info.timestampFrequency;
+    m_info.optix_version = rhi_device_info.optixVersion;
     m_info.limits.max_texture_dimension_1d = rhi_device_info.limits.maxTextureDimension1D;
     m_info.limits.max_texture_dimension_2d = rhi_device_info.limits.maxTextureDimension2D;
     m_info.limits.max_texture_dimension_3d = rhi_device_info.limits.maxTextureDimension3D;
@@ -287,6 +303,21 @@ Device::Device(const DeviceDesc& desc)
         }
     }
     log_debug("Supported features: {}", string::join(feature_names, ", "));
+
+    // Query capabilities.
+    {
+        uint32_t rhi_capability_count = 0;
+        SLANG_RHI_CALL(m_rhi_device->getCapabilities(&rhi_capability_count, nullptr));
+        std::vector<rhi::Capability> rhi_capabilities(rhi_capability_count);
+        SLANG_RHI_CALL(m_rhi_device->getCapabilities(&rhi_capability_count, rhi_capabilities.data()));
+        for (rhi::Capability rhi_capability : rhi_capabilities) {
+            std::string capability_name = rhi::getRHI()->getCapabilityName(rhi_capability);
+            SlangCapabilityID slang_capability = m_global_session->findCapability(capability_name.c_str());
+            if (slang_capability != SLANG_CAPABILITY_UNKNOWN)
+                m_slang_capabilities.push_back(slang_capability);
+            m_capabilities.push_back(std::move(capability_name));
+        }
+    }
 
     // Create graphics queue.
     SLANG_RHI_CALL(m_rhi_device->getQueue(rhi::QueueType::Graphics, m_rhi_graphics_queue.writeRef()));
@@ -354,17 +385,26 @@ void Device::_release_rhi_resources()
 
 ShaderCacheStats Device::shader_cache_stats() const
 {
-    // TODO: revisit when we add a shader cache.
-    return {
-        .entry_count = 0,
-        .hit_count = 0,
-        .miss_count = 0,
-    };
+    if (m_persistent_cache) {
+        PersistentCacheStats stats = m_persistent_cache->stats();
+        return {
+            .entry_count = stats.entry_count,
+            .hit_count = stats.hit_count,
+            .miss_count = stats.miss_count,
+        };
+    } else {
+        return {};
+    }
 }
 
 bool Device::has_feature(Feature feature) const
 {
     return m_rhi_device->hasFeature(static_cast<rhi::Feature>(feature));
+}
+
+bool Device::has_capability(std::string_view capability) const
+{
+    return std::find(m_capabilities.begin(), m_capabilities.end(), capability) != m_capabilities.end();
 }
 
 FormatSupport Device::get_format_support(Format format) const
@@ -1037,8 +1077,10 @@ bool Device::enable_agility_sdk()
     D3D12GetInterfaceFn pD3D12GetInterface
         = handle ? (D3D12GetInterfaceFn)GetProcAddress(handle, "D3D12GetInterface") : nullptr;
     if (!pD3D12GetInterface) {
-        log_warn("Cannot enable D3D12 Agility SDK: "
-                 "Failed to get D3D12GetInterface.");
+        log_warn(
+            "Cannot enable D3D12 Agility SDK: "
+            "Failed to get D3D12GetInterface."
+        );
         return false;
     }
 
@@ -1049,15 +1091,19 @@ bool Device::enable_agility_sdk()
     _COM_SMARTPTR_TYPEDEF(ID3D12SDKConfiguration, __uuidof(ID3D12SDKConfiguration));
     ID3D12SDKConfigurationPtr pD3D12SDKConfiguration;
     if (!SUCCEEDED(pD3D12GetInterface(CLSID_D3D12SDKConfiguration__, IID_PPV_ARGS(&pD3D12SDKConfiguration)))) {
-        log_warn("Cannot enable D3D12 Agility SDK: "
-                 "Failed to get D3D12SDKConfiguration interface.");
+        log_warn(
+            "Cannot enable D3D12 Agility SDK: "
+            "Failed to get D3D12SDKConfiguration interface."
+        );
         return false;
     }
 
     // Set the SDK version and path.
     if (!SUCCEEDED(pD3D12SDKConfiguration->SetSDKVersion(SLANG_RHI_AGILITY_SDK_VERSION, rel_path.string().c_str()))) {
-        log_warn("Cannot enable D3D12 Agility SDK: "
-                 "Calling SetSDKVersion failed.");
+        log_warn(
+            "Cannot enable D3D12 Agility SDK: "
+            "Calling SetSDKVersion failed."
+        );
         return false;
     }
 

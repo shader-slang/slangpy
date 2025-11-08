@@ -118,11 +118,19 @@ SGL_PY_EXPORT(device_buffer_cursor)
                 return self[uint32_t(index)];
             }
         )
-        .def("__len__", [](BufferCursor& self) { return self.element_count(); })
+        .def(
+            "__len__",
+            [](BufferCursor& self)
+            {
+                return self.element_count();
+            }
+        )
         .def(
             "write_from_numpy",
             [](BufferCursor& self, nb::object data, bool unchecked_copy)
-            { detail::_writeconv.write_from_numpy(self, data, unchecked_copy); },
+            {
+                detail::_writeconv.write_from_numpy(self, data, unchecked_copy);
+            },
             "data"_a,
             "unchecked_copy"_a = true
         )
@@ -133,7 +141,13 @@ SGL_PY_EXPORT(device_buffer_cursor)
                 size_t data_size = self.size();
                 void* data = new uint8_t[data_size];
                 self.read_data(0, data, data_size);
-                nb::capsule owner(data, [](void* p) noexcept { delete[] reinterpret_cast<uint8_t*>(p); });
+                nb::capsule owner(
+                    data,
+                    [](void* p) noexcept
+                    {
+                        delete[] reinterpret_cast<uint8_t*>(p);
+                    }
+                );
                 size_t shape[1] = {data_size};
                 return nb::ndarray<
                     nb::numpy>(data, 1, shape, owner, nullptr, nb::dtype<uint8_t>(), nb::device::cpu::value);

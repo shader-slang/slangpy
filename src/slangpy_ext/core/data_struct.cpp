@@ -93,7 +93,9 @@ SGL_PY_EXPORT(core_data_struct)
         .def(
             "__init__",
             [](DataStructConverter* self, const DataStruct* src, const DataStruct* dst)
-            { new (self) DataStructConverter(ref<const DataStruct>(src), ref<const DataStruct>(dst)); },
+            {
+                new (self) DataStructConverter(ref<const DataStruct>(src), ref<const DataStruct>(dst));
+            },
             "src"_a,
             "dst"_a,
             D(DataStructConverter, DataStructConverter)

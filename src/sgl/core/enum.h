@@ -21,12 +21,8 @@ using EnumInfo = decltype(find_enum_info_adl(std::declval<T>()));
 
 template<typename T>
 concept is_enum_info = requires(T v) {
-    {
-        v.name
-    } -> std::same_as<const char* const&>;
-    {
-        v.items[0]
-    } -> std::same_as<const std::pair<typename T::enum_type, const char*>&>;
+    { v.name } -> std::same_as<const char* const&>;
+    { v.items[0] } -> std::same_as<const std::pair<typename T::enum_type, const char*>&>;
 };
 
 template<typename T>
@@ -39,7 +35,14 @@ template<has_enum_info T>
 inline std::string enum_to_string(T value)
 {
     const auto& items = EnumInfo<T>::items;
-    auto it = std::find_if(items.begin(), items.end(), [value](const auto& item) { return item.first == value; });
+    auto it = std::find_if(
+        items.begin(),
+        items.end(),
+        [value](const auto& item)
+        {
+            return item.first == value;
+        }
+    );
     if (it == items.end())
         return fmt::format("{}({})", EnumInfo<T>::name, std::underlying_type_t<T>(value));
     return it->second;
@@ -53,7 +56,14 @@ template<has_enum_info T>
 inline T string_to_enum(std::string_view name)
 {
     const auto& items = EnumInfo<T>::items;
-    auto it = std::find_if(items.begin(), items.end(), [name](const auto& item) { return item.second == name; });
+    auto it = std::find_if(
+        items.begin(),
+        items.end(),
+        [name](const auto& item)
+        {
+            return item.second == name;
+        }
+    );
     if (it == items.end())
         SGL_THROW("Invalid enum name \"{}\"", name);
     return it->first;
@@ -66,7 +76,14 @@ template<has_enum_info T>
 inline bool enum_has_value(std::string_view name)
 {
     const auto& items = EnumInfo<T>::items;
-    auto it = std::find_if(items.begin(), items.end(), [name](const auto& item) { return item.second == name; });
+    auto it = std::find_if(
+        items.begin(),
+        items.end(),
+        [name](const auto& item)
+        {
+            return item.second == name;
+        }
+    );
     return it != items.end();
 }
 

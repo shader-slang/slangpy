@@ -204,7 +204,7 @@ bool MemoryMappedFile::remap(uint64_t offset, size_t mapped_size)
         m_mapped_size = 0;
     m_mapped_size = mapped_size;
 #elif SGL_LINUX || SGL_MACOS
-        // Create new mapping.
+    // Create new mapping.
 #if SGL_LINUX
     m_mapped_data = ::mmap64(NULL, mapped_size, PROT_READ, MAP_SHARED, m_file, offset);
 #elif SGL_MACOS

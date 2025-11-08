@@ -139,7 +139,7 @@ class CodeGen:
         self.kernel = CodeGenBlock(self)
 
         #: Imports list
-        self.imports: set[str] = set()
+        self.imports: list[str] = []
 
         #: Trampoline function
         self.trampoline = CodeGenBlock(self)
@@ -167,7 +167,8 @@ class CodeGen:
         """
         Add an import to the kernel.
         """
-        self.imports.add(import_name)
+        if not import_name in self.imports:
+            self.imports.append(import_name)
 
     def add_parameter_block(self, type_name: str, var_name: str):
         self.parameter_blocks.append(f"ParameterBlock<{type_name}> {var_name};\n")

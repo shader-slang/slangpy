@@ -222,8 +222,12 @@ template<typename BaseCursor, typename TOffset>
 class SGL_API CursorReadWrappers {
     using BaseCursorOffset = TOffset;
 
-    void _get_array_or_vector(void* data, size_t size, TypeReflection::ScalarType cpu_scalar_type, size_t element_count)
-        const
+    void _get_array_or_vector(
+        void* data,
+        size_t size,
+        TypeReflection::ScalarType cpu_scalar_type,
+        size_t element_count
+    ) const
     {
         // CPU is assumed tightly packed, i.e., stride and size are the same value.
         size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);

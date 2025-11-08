@@ -102,14 +102,16 @@ public:
     void insert_cache_include(const std::filesystem::path& path, size_t index)
     {
         SGL_ASSERT(index <= m_entries.size());
-        m_entries.insert(m_entries.begin() + index,
+        m_entries.insert(
+            m_entries.begin() + index,
             {
-            .name = slang::CompilerOptionName::Include,
-            .value = {
-                .kind = slang::CompilerOptionValueKind::String,
-                .string0 = path.string(),
-            },
-        });
+                .name = slang::CompilerOptionName::Include,
+                .value = {
+                    .kind = slang::CompilerOptionValueKind::String,
+                    .string0 = path.string(),
+                },
+            }
+        );
     }
 
     std::vector<slang::CompilerOptionEntry> slang_entries() const
@@ -310,8 +312,12 @@ void SlangSession::create_session(SlangSessionBuild& build)
 
     // Set downstream argument for optix include path.
     if (device_type == DeviceType::cuda) {
-        auto optix_path = platform::runtime_directory() / "optix";
-        session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", "-I" + optix_path.string());
+        uint32_t optix_version = m_device->info().optix_version;
+        if (optix_version > 0) {
+            std::string version_tag = fmt::format("{}_{}", optix_version / 10000, (optix_version % 10000) / 100);
+            auto optix_path = platform::runtime_directory() / "optix" / version_tag;
+            session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", "-I" + optix_path.string());
+        }
     }
 
     // Set intermediate dump options.
@@ -323,6 +329,11 @@ void SlangSession::create_session(SlangSessionBuild& build)
         slang::CompilerOptionName::Capability,
         int(m_device->global_session()->findCapability("hlsl_nvapi"))
     );
+    // TODO: Pass all detected capabilities to the session.
+    // This currently leads to slang compilation errors and needs more investigation.
+    // for (SlangCapabilityID capability : m_device->_slang_capabilities()) {
+    //     session_options.add(slang::CompilerOptionName::Capability, int(capability));
+    // }
 
     // TODO: We enable loop inversion as it was the default in older versions of Slang,
     //       and leads to artifacts in one project using sgl.
@@ -987,7 +998,14 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
                 // Check for duplicate ids within same interface type.
                 if (c.id >= 0) {
                     auto range = type_conformance_ids.equal_range(c.interface_name);
-                    if (std::any_of(range.first, range.second, [&c](const auto& pair) { return pair.second == c.id; }))
+                    if (std::any_of(
+                            range.first,
+                            range.second,
+                            [&c](const auto& pair)
+                            {
+                                return pair.second == c.id;
+                            }
+                        ))
                         SGL_THROW("Duplicate type id {} for interface type \"{}\"", c.id, c.interface_name);
                     type_conformance_ids.insert({c.interface_name, c.id});
                 }

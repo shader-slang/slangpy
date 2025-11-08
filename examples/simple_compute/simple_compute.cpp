@@ -104,7 +104,13 @@ int main()
                 processor["c"] = buffer_c;
             }
 
-            kernel->dispatch(uint3{N, 1, 1}, [&](ShaderCursor cursor) { cursor["processor"] = processor_object; });
+            kernel->dispatch(
+                uint3{N, 1, 1},
+                [&](ShaderCursor cursor)
+                {
+                    cursor["processor"] = processor_object;
+                }
+            );
 
             std::vector<uint32_t> data_c = buffer_c->get_elements<uint>();
             log_info("{}", data_c);

@@ -42,6 +42,37 @@ SGL_DICT_TO_DESC_FIELD(primitive_count, uint32_t)
 SGL_DICT_TO_DESC_FIELD(flags, AccelerationStructureGeometryFlags)
 SGL_DICT_TO_DESC_END()
 
+SGL_DICT_TO_DESC_BEGIN(AccelerationStructureBuildInputSpheres)
+SGL_DICT_TO_DESC_FIELD(vertex_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD_LIST(vertex_position_buffers, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(vertex_position_format, Format)
+SGL_DICT_TO_DESC_FIELD(vertex_position_stride, uint32_t)
+SGL_DICT_TO_DESC_FIELD_LIST(vertex_radius_buffers, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(vertex_radius_format, Format)
+SGL_DICT_TO_DESC_FIELD(vertex_radius_stride, uint32_t)
+SGL_DICT_TO_DESC_FIELD(index_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(index_format, IndexFormat)
+SGL_DICT_TO_DESC_FIELD(index_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(flags, AccelerationStructureGeometryFlags)
+SGL_DICT_TO_DESC_END()
+
+SGL_DICT_TO_DESC_BEGIN(AccelerationStructureBuildInputLinearSweptSpheres)
+SGL_DICT_TO_DESC_FIELD(vertex_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(primitive_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD_LIST(vertex_position_buffers, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(vertex_position_format, Format)
+SGL_DICT_TO_DESC_FIELD(vertex_position_stride, uint32_t)
+SGL_DICT_TO_DESC_FIELD_LIST(vertex_radius_buffers, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(vertex_radius_format, Format)
+SGL_DICT_TO_DESC_FIELD(vertex_radius_stride, uint32_t)
+SGL_DICT_TO_DESC_FIELD(index_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(index_format, IndexFormat)
+SGL_DICT_TO_DESC_FIELD(index_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(indexing_mode, LinearSweptSpheresIndexingMode)
+SGL_DICT_TO_DESC_FIELD(end_caps_mode, LinearSweptSpheresEndCapsMode)
+SGL_DICT_TO_DESC_FIELD(flags, AccelerationStructureGeometryFlags)
+SGL_DICT_TO_DESC_END()
+
 SGL_DICT_TO_DESC_BEGIN(AccelerationStructureBuildInputMotionOptions)
 SGL_DICT_TO_DESC_FIELD(key_count, uint32_t)
 SGL_DICT_TO_DESC_FIELD(time_start, float)
@@ -95,7 +126,9 @@ SGL_PY_EXPORT(device_raytracing)
         .def(
             "__init__",
             [](AccelerationStructureInstanceDesc* self, nb::dict dict)
-            { new (self) AccelerationStructureInstanceDesc(dict_to_AccelerationStructureInstanceDesc(dict)); }
+            {
+                new (self) AccelerationStructureInstanceDesc(dict_to_AccelerationStructureInstanceDesc(dict));
+            }
         )
         .def_rw(
             "transform",
@@ -104,28 +137,50 @@ SGL_PY_EXPORT(device_raytracing)
         )
         .def_prop_rw(
             "instance_id",
-            [](AccelerationStructureInstanceDesc& self) { return self.instance_id; },
-            [](AccelerationStructureInstanceDesc& self, uint32_t value) { self.instance_id = value; },
+            [](AccelerationStructureInstanceDesc& self)
+            {
+                return self.instance_id;
+            },
+            [](AccelerationStructureInstanceDesc& self, uint32_t value)
+            {
+                self.instance_id = value;
+            },
             D(AccelerationStructureInstanceDesc, instance_id)
         )
         .def_prop_rw(
             "instance_mask",
-            [](AccelerationStructureInstanceDesc& self) { return self.instance_mask; },
-            [](AccelerationStructureInstanceDesc& self, uint32_t value) { self.instance_mask = value; },
+            [](AccelerationStructureInstanceDesc& self)
+            {
+                return self.instance_mask;
+            },
+            [](AccelerationStructureInstanceDesc& self, uint32_t value)
+            {
+                self.instance_mask = value;
+            },
             D(AccelerationStructureInstanceDesc, instance_mask)
         )
         .def_prop_rw(
             "instance_contribution_to_hit_group_index",
-            [](AccelerationStructureInstanceDesc& self) { return self.instance_contribution_to_hit_group_index; },
+            [](AccelerationStructureInstanceDesc& self)
+            {
+                return self.instance_contribution_to_hit_group_index;
+            },
             [](AccelerationStructureInstanceDesc& self, uint32_t value)
-            { self.instance_contribution_to_hit_group_index = value; },
+            {
+                self.instance_contribution_to_hit_group_index = value;
+            },
             D(AccelerationStructureInstanceDesc, instance_contribution_to_hit_group_index)
         )
         .def_prop_rw(
             "flags",
-            [](AccelerationStructureInstanceDesc& self) { return self.flags; },
+            [](AccelerationStructureInstanceDesc& self)
+            {
+                return self.flags;
+            },
             [](AccelerationStructureInstanceDesc& self, AccelerationStructureInstanceFlags value)
-            { self.flags = value; },
+            {
+                self.flags = value;
+            },
             D(AccelerationStructureInstanceDesc, flags)
         )
         .def_rw(
@@ -151,7 +206,8 @@ SGL_PY_EXPORT(device_raytracing)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](AccelerationStructureBuildInputInstances* self, nb::dict dict) {
+            [](AccelerationStructureBuildInputInstances* self, nb::dict dict)
+            {
                 new (self)
                     AccelerationStructureBuildInputInstances(dict_to_AccelerationStructureBuildInputInstances(dict));
             }
@@ -169,7 +225,8 @@ SGL_PY_EXPORT(device_raytracing)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](AccelerationStructureBuildInputTriangles* self, nb::dict dict) {
+            [](AccelerationStructureBuildInputTriangles* self, nb::dict dict)
+            {
                 new (self)
                     AccelerationStructureBuildInputTriangles(dict_to_AccelerationStructureBuildInputTriangles(dict));
             }
@@ -206,11 +263,65 @@ SGL_PY_EXPORT(device_raytracing)
         .def_rw("flags", &AccelerationStructureBuildInputProceduralPrimitives::flags);
     nb::implicitly_convertible<nb::dict, AccelerationStructureBuildInputProceduralPrimitives>();
 
-    // nb::class_<AccelerationStructureBuildInput>(
-    //     m,
-    //     "AccelerationStructureBuildInput",
-    //     D(AccelerationStructureBuildInput)
-    // );
+    nb::class_<AccelerationStructureBuildInputSpheres>(
+        m,
+        "AccelerationStructureBuildInputSpheres",
+        D_NA(AccelerationStructureBuildInputSpheres)
+    )
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](AccelerationStructureBuildInputSpheres* self, nb::dict dict)
+            {
+                new (self) AccelerationStructureBuildInputSpheres(dict_to_AccelerationStructureBuildInputSpheres(dict));
+            }
+        )
+        .def_rw("vertex_count", &AccelerationStructureBuildInputSpheres::vertex_count)
+        .def_rw("vertex_position_buffers", &AccelerationStructureBuildInputSpheres::vertex_position_buffers)
+        .def_rw("vertex_position_format", &AccelerationStructureBuildInputSpheres::vertex_position_format)
+        .def_rw("vertex_position_stride", &AccelerationStructureBuildInputSpheres::vertex_position_stride)
+        .def_rw("vertex_radius_buffers", &AccelerationStructureBuildInputSpheres::vertex_radius_buffers)
+        .def_rw("vertex_radius_format", &AccelerationStructureBuildInputSpheres::vertex_radius_format)
+        .def_rw("vertex_radius_stride", &AccelerationStructureBuildInputSpheres::vertex_radius_stride)
+        .def_rw("index_buffer", &AccelerationStructureBuildInputSpheres::index_buffer)
+        .def_rw("index_format", &AccelerationStructureBuildInputSpheres::index_format)
+        .def_rw("index_count", &AccelerationStructureBuildInputSpheres::index_count)
+        .def_rw("flags", &AccelerationStructureBuildInputSpheres::flags);
+    nb::implicitly_convertible<nb::dict, AccelerationStructureBuildInputSpheres>();
+
+    nb::sgl_enum<LinearSweptSpheresIndexingMode>(m, "LinearSweptSpheresIndexingMode");
+    nb::sgl_enum<LinearSweptSpheresEndCapsMode>(m, "LinearSweptSpheresEndCapsMode");
+
+    nb::class_<AccelerationStructureBuildInputLinearSweptSpheres>(
+        m,
+        "AccelerationStructureBuildInputLinearSweptSpheres",
+        D_NA(AccelerationStructureBuildInputLinearSweptSpheres)
+    )
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](AccelerationStructureBuildInputLinearSweptSpheres* self, nb::dict dict)
+            {
+                new (self) AccelerationStructureBuildInputLinearSweptSpheres(
+                    dict_to_AccelerationStructureBuildInputLinearSweptSpheres(dict)
+                );
+            }
+        )
+        .def_rw("vertex_count", &AccelerationStructureBuildInputLinearSweptSpheres::vertex_count)
+        .def_rw("primitive_count", &AccelerationStructureBuildInputLinearSweptSpheres::primitive_count)
+        .def_rw("vertex_position_buffers", &AccelerationStructureBuildInputLinearSweptSpheres::vertex_position_buffers)
+        .def_rw("vertex_position_format", &AccelerationStructureBuildInputLinearSweptSpheres::vertex_position_format)
+        .def_rw("vertex_position_stride", &AccelerationStructureBuildInputLinearSweptSpheres::vertex_position_stride)
+        .def_rw("vertex_radius_buffers", &AccelerationStructureBuildInputLinearSweptSpheres::vertex_radius_buffers)
+        .def_rw("vertex_radius_format", &AccelerationStructureBuildInputLinearSweptSpheres::vertex_radius_format)
+        .def_rw("vertex_radius_stride", &AccelerationStructureBuildInputLinearSweptSpheres::vertex_radius_stride)
+        .def_rw("index_buffer", &AccelerationStructureBuildInputLinearSweptSpheres::index_buffer)
+        .def_rw("index_format", &AccelerationStructureBuildInputLinearSweptSpheres::index_format)
+        .def_rw("index_count", &AccelerationStructureBuildInputLinearSweptSpheres::index_count)
+        .def_rw("indexing_mode", &AccelerationStructureBuildInputLinearSweptSpheres::indexing_mode)
+        .def_rw("end_caps_mode", &AccelerationStructureBuildInputLinearSweptSpheres::end_caps_mode)
+        .def_rw("flags", &AccelerationStructureBuildInputLinearSweptSpheres::flags);
+    nb::implicitly_convertible<nb::dict, AccelerationStructureBuildInputLinearSweptSpheres>();
 
     nb::class_<AccelerationStructureBuildInputMotionOptions>(
         m,
@@ -220,7 +331,8 @@ SGL_PY_EXPORT(device_raytracing)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](AccelerationStructureBuildInputMotionOptions* self, nb::dict dict) {
+            [](AccelerationStructureBuildInputMotionOptions* self, nb::dict dict)
+            {
                 new (self) AccelerationStructureBuildInputMotionOptions(
                     dict_to_AccelerationStructureBuildInputMotionOptions(dict)
                 );
@@ -239,7 +351,9 @@ SGL_PY_EXPORT(device_raytracing)
         .def(
             "__init__",
             [](AccelerationStructureBuildDesc* self, nb::dict dict)
-            { new (self) AccelerationStructureBuildDesc(dict_to_AccelerationStructureBuildDesc(dict)); }
+            {
+                new (self) AccelerationStructureBuildDesc(dict_to_AccelerationStructureBuildDesc(dict));
+            }
         )
         .def_rw("inputs", &AccelerationStructureBuildDesc::inputs, D(AccelerationStructureBuildDesc, inputs))
         .def_rw(
@@ -271,7 +385,9 @@ SGL_PY_EXPORT(device_raytracing)
         .def(
             "__init__",
             [](AccelerationStructureQueryDesc* self, nb::dict dict)
-            { new (self) AccelerationStructureQueryDesc(dict_to_AccelerationStructureQueryDesc(dict)); }
+            {
+                new (self) AccelerationStructureQueryDesc(dict_to_AccelerationStructureQueryDesc(dict));
+            }
         )
         .def_rw(
             "query_type",
@@ -295,7 +411,9 @@ SGL_PY_EXPORT(device_raytracing)
         .def(
             "__init__",
             [](AccelerationStructureDesc* self, nb::dict dict)
-            { new (self) AccelerationStructureDesc(dict_to_AccelerationStructureDesc(dict)); }
+            {
+                new (self) AccelerationStructureDesc(dict_to_AccelerationStructureDesc(dict));
+            }
         )
         .def_rw("size", &AccelerationStructureDesc::size, D(AccelerationStructureDesc, size))
         .def_rw("label", &AccelerationStructureDesc::label, D(AccelerationStructureDesc, label));
@@ -351,7 +469,10 @@ SGL_PY_EXPORT(device_raytracing)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](ShaderTableDesc* self, nb::dict dict) { new (self) ShaderTableDesc(dict_to_ShaderTableDesc(dict)); }
+            [](ShaderTableDesc* self, nb::dict dict)
+            {
+                new (self) ShaderTableDesc(dict_to_ShaderTableDesc(dict));
+            }
         )
         .def_rw("program", &ShaderTableDesc::program, D(ShaderTableDesc, program))
         .def_rw(

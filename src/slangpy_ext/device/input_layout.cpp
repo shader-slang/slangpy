@@ -36,7 +36,10 @@ SGL_PY_EXPORT(device_input_layout)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](InputElementDesc* self, nb::dict dict) { new (self) InputElementDesc(dict_to_InputElementDesc(dict)); }
+            [](InputElementDesc* self, nb::dict dict)
+            {
+                new (self) InputElementDesc(dict_to_InputElementDesc(dict));
+            }
         )
         .def_rw("semantic_name", &InputElementDesc::semantic_name, D(InputElementDesc, semantic_name))
         .def_rw("semantic_index", &InputElementDesc::semantic_index, D(InputElementDesc, semantic_index))
@@ -49,7 +52,10 @@ SGL_PY_EXPORT(device_input_layout)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](VertexStreamDesc* self, nb::dict dict) { new (self) VertexStreamDesc(dict_to_VertexStreamDesc(dict)); }
+            [](VertexStreamDesc* self, nb::dict dict)
+            {
+                new (self) VertexStreamDesc(dict_to_VertexStreamDesc(dict));
+            }
         )
         .def_rw("stride", &VertexStreamDesc::stride, D(VertexStreamDesc, stride))
         .def_rw("slot_class", &VertexStreamDesc::slot_class, D(VertexStreamDesc, slot_class))
@@ -64,7 +70,10 @@ SGL_PY_EXPORT(device_input_layout)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](InputLayoutDesc* self, nb::dict dict) { new (self) InputLayoutDesc(dict_to_InputLayoutDesc(dict)); }
+            [](InputLayoutDesc* self, nb::dict dict)
+            {
+                new (self) InputLayoutDesc(dict_to_InputLayoutDesc(dict));
+            }
         )
         .def_rw("input_elements", &InputLayoutDesc::input_elements, D(InputLayoutDesc, input_elements))
         .def_rw("vertex_streams", &InputLayoutDesc::vertex_streams, D(InputLayoutDesc, vertex_streams));

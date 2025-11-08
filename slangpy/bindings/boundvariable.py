@@ -264,6 +264,12 @@ class BoundVariable:
             self.slang_modifiers = modifiers.union(slang.modifiers)
         self.variable_name = self.name
 
+        # HACK! Part of the hack in callsignature.py specialize,
+        # where structs written to interface inputs need to be explicitly
+        # specialized BEFORE binding.
+        if self.explicitly_vectorized and self.vector_type:
+            self.slang_type = self.vector_type
+
         if self.children is not None:
             for child in self.children.values():
                 if child.name not in self.slang_type.fields:

@@ -13,11 +13,11 @@
 #include <vector>
 
 #if SGL_WINDOWS
-#define DECLARE_HANDLE(name)                                                                                           \
+#define SGL_DECLARE_HANDLE(name)                                                                                       \
     struct name##__;                                                                                                   \
     typedef struct name##__* name
-DECLARE_HANDLE(HWND);
-#undef DECLARE_HANDLE
+SGL_DECLARE_HANDLE(HWND);
+#undef SGL_DECLARE_HANDLE
 #endif
 
 namespace sgl {
@@ -35,6 +35,9 @@ struct WindowHandle {
 
 /// Shared library handle.
 using SharedLibraryHandle = void*;
+
+using ProcessID = int;
+
 } // namespace sgl
 
 namespace sgl::platform {
@@ -157,6 +160,13 @@ save_file_dialog(std::span<const FileDialogFilter> filters = {});
 
 /// Get the content of a system environment variable.
 [[nodiscard]] SGL_API std::optional<std::string> get_environment_variable(const char* name);
+
+// -------------------------------------------------------------------------------------------------
+// Processes
+// -------------------------------------------------------------------------------------------------
+
+/// Get the process ID of the current process.
+[[nodiscard]] SGL_API ProcessID current_process_id();
 
 // -------------------------------------------------------------------------------------------------
 // Memory

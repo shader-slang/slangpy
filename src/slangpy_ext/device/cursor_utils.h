@@ -84,16 +84,23 @@ concept IsSpecializationOfMatrix = requires {
 };
 
 #define scalar_case(c_type, scalar_type)                                                                               \
-    m_read_scalar[(int)TypeReflection::ScalarType::scalar_type]                                                        \
-        = [](const CursorType& self) { return _read_scalar<c_type>(self); };
+    m_read_scalar[(int)TypeReflection::ScalarType::scalar_type] = [](const CursorType& self)                           \
+    {                                                                                                                  \
+        return _read_scalar<c_type>(self);                                                                             \
+    };
 
 #define vector_case(c_type, scalar_type)                                                                               \
-    m_read_vector[(int)TypeReflection::ScalarType::scalar_type][c_type::dimension]                                     \
-        = [](const CursorType& self) { return _read_vector<c_type>(self); };
+    m_read_vector[(int)TypeReflection::ScalarType::scalar_type][c_type::dimension] = [](const CursorType& self)        \
+    {                                                                                                                  \
+        return _read_vector<c_type>(self);                                                                             \
+    };
 
 #define matrix_case(c_type, scalar_type)                                                                               \
     m_read_matrix[(int)TypeReflection::ScalarType::scalar_type][c_type::rows][c_type::cols]                            \
-        = [](const CursorType& self) { return _read_matrix<c_type>(self); };
+        = [](const CursorType& self)                                                                                   \
+    {                                                                                                                  \
+        return _read_matrix<c_type>(self);                                                                             \
+    };
 
 /// Table of converters based on slang scalar type and shape.
 template<typename CursorType>
@@ -102,7 +109,10 @@ public:
     ReadConverterTable()
     {
         // Initialize all entries to an error function that throws an exception.
-        auto read_err_func = [](const CursorType&) -> nb::object { SGL_THROW("Unsupported element type"); };
+        auto read_err_func = [](const CursorType&) -> nb::object
+        {
+            SGL_THROW("Unsupported element type");
+        };
         for (int i = 0; i < (int)TypeReflection::ScalarType::COUNT; i++) {
             m_read_scalar[i] = read_err_func;
             for (int j = 0; j < 5; ++j) {
@@ -265,32 +275,51 @@ private:
 #undef matrix_case
 
 #define scalar_case(c_type, scalar_type)                                                                               \
-    m_write_scalar[(int)TypeReflection::ScalarType::scalar_type]                                                       \
-        = [](CursorType& self, nb::object nbval) { _write_scalar<c_type>(self, nbval); };                              \
+    m_write_scalar[(int)TypeReflection::ScalarType::scalar_type] = [](CursorType& self, nb::object nbval)              \
+    {                                                                                                                  \
+        _write_scalar<c_type>(self, nbval);                                                                            \
+    };                                                                                                                 \
     m_write_scalar_from_numpy[(int)TypeReflection::ScalarType::scalar_type]                                            \
         = [](CursorType& self, const nb::ndarray<nb::numpy, nb::ro>& nbarray)                                          \
-    { _write_scalar_from_numpy<c_type>(self, nbarray); };
+    {                                                                                                                  \
+        _write_scalar_from_numpy<c_type>(self, nbarray);                                                               \
+    };
 
 #define vector_case(c_type, scalar_type)                                                                               \
     m_write_vector[(int)TypeReflection::ScalarType::scalar_type][c_type::dimension]                                    \
-        = [](CursorType& self, nb::object nbval) { _write_vector<c_type>(self, nbval); };                              \
+        = [](CursorType& self, nb::object nbval)                                                                       \
+    {                                                                                                                  \
+        _write_vector<c_type>(self, nbval);                                                                            \
+    };                                                                                                                 \
     m_write_vector_from_numpy[(int)TypeReflection::ScalarType::scalar_type][c_type::dimension]                         \
         = [](CursorType& self, const nb::ndarray<nb::numpy, nb::ro>& nbarray)                                          \
-    { _write_vector_from_numpy<c_type>(self, nbarray); };
+    {                                                                                                                  \
+        _write_vector_from_numpy<c_type>(self, nbarray);                                                               \
+    };
 
 #define bool_vector_case(c_type, scalar_type)                                                                          \
     m_write_vector[(int)TypeReflection::ScalarType::scalar_type][c_type::dimension]                                    \
-        = [](CursorType& self, nb::object nbval) { _write_bool_vector<c_type>(self, nbval); };                         \
+        = [](CursorType& self, nb::object nbval)                                                                       \
+    {                                                                                                                  \
+        _write_bool_vector<c_type>(self, nbval);                                                                       \
+    };                                                                                                                 \
     m_write_vector_from_numpy[(int)TypeReflection::ScalarType::scalar_type][c_type::dimension]                         \
         = [](CursorType& self, const nb::ndarray<nb::numpy, nb::ro>& nbarray)                                          \
-    { _write_bool_vector_from_numpy<c_type>(self, nbarray); };
+    {                                                                                                                  \
+        _write_bool_vector_from_numpy<c_type>(self, nbarray);                                                          \
+    };
 
 #define matrix_case(c_type, scalar_type)                                                                               \
     m_write_matrix[(int)TypeReflection::ScalarType::scalar_type][c_type::rows][c_type::cols]                           \
-        = [](CursorType& self, nb::object nbval) { _write_matrix<c_type>(self, nbval); };                              \
+        = [](CursorType& self, nb::object nbval)                                                                       \
+    {                                                                                                                  \
+        _write_matrix<c_type>(self, nbval);                                                                            \
+    };                                                                                                                 \
     m_write_matrix_from_numpy[(int)TypeReflection::ScalarType::scalar_type][c_type::rows][c_type::cols]                \
         = [](CursorType& self, const nb::ndarray<nb::numpy, nb::ro>& nbarray)                                          \
-    { _write_matrix_from_numpy<c_type>(self, nbarray); };
+    {                                                                                                                  \
+        _write_matrix_from_numpy<c_type>(self, nbarray);                                                               \
+    };
 
 /// Table of converters based on slang scalar type and shape.
 template<typename CursorType>
@@ -299,7 +328,10 @@ public:
     WriteConverterTable()
     {
         // Initialize all entries to an error function that throws an exception.
-        auto write_err_func = [](const CursorType&, nb::object) { SGL_THROW("Unsupported element type"); };
+        auto write_err_func = [](const CursorType&, nb::object)
+        {
+            SGL_THROW("Unsupported element type");
+        };
         for (int i = 0; i < (int)TypeReflection::ScalarType::COUNT; i++) {
             m_write_scalar[i] = write_err_func;
             for (int j = 0; j < 5; ++j) {
@@ -905,7 +937,13 @@ inline void bind_traversable_cursor(nanobind::class_<CursorType>& cursor)
         .def("find_element", &CursorType::find_element, "index"_a, D_NA(CursorType, find_element))
         .def("has_field", &CursorType::has_field, "name"_a, D_NA(CursorType, has_field))
         .def("has_element", &CursorType::has_element, "index"_a, D_NA(CursorType, has_element))
-        .def("__getitem__", [](CursorType& self, std::string_view name) { return self[name]; })
+        .def(
+            "__getitem__",
+            [](CursorType& self, std::string_view name)
+            {
+                return self[name];
+            }
+        )
         .def(
             "__getitem__",
             [](CursorType& self, Py_ssize_t index)
@@ -915,7 +953,13 @@ inline void bind_traversable_cursor(nanobind::class_<CursorType>& cursor)
             }
         )
         // note: __getattr__ should not except if field is not found
-        .def("__getattr__", [](CursorType& self, std::string_view name) { return self.find_field(name); });
+        .def(
+            "__getattr__",
+            [](CursorType& self, std::string_view name)
+            {
+                return self.find_field(name);
+            }
+        );
 }
 
 template<typename CursorType>
@@ -969,7 +1013,10 @@ inline void bind_writable_cursor(WriteConverterTable<CursorType>& table, nanobin
         )
         .def(
             "write",
-            [&table](CursorType& self, nb::object nbval) { table.write(self, nbval); },
+            [&table](CursorType& self, nb::object nbval)
+            {
+                table.write(self, nbval);
+            },
             "val"_a,
             D_NA(CursorType, write)
         );
@@ -983,7 +1030,10 @@ inline void bind_readable_cursor(ReadConverterTable<CursorType>& table, nanobind
     cursor //
         .def(
             "read",
-            [&table](CursorType& self) { return table.read(self); },
+            [&table](CursorType& self)
+            {
+                return table.read(self);
+            },
             D_NA(CursorType, read)
         );
 }
@@ -993,8 +1043,20 @@ template<typename CursorType>
 inline void bind_writable_cursor_basic_types(nanobind::class_<CursorType>& cursor)
 {
 #define def_setter(type)                                                                                               \
-    cursor.def("__setitem__", [](CursorType& self, std::string_view name, type value) { self[name] = value; });        \
-    cursor.def("__setattr__", [](CursorType& self, std::string_view name, type value) { self[name] = value; });
+    cursor.def(                                                                                                        \
+        "__setitem__",                                                                                                 \
+        [](CursorType& self, std::string_view name, type value)                                                        \
+        {                                                                                                              \
+            self[name] = value;                                                                                        \
+        }                                                                                                              \
+    );                                                                                                                 \
+    cursor.def(                                                                                                        \
+        "__setattr__",                                                                                                 \
+        [](CursorType& self, std::string_view name, type value)                                                        \
+        {                                                                                                              \
+            self[name] = value;                                                                                        \
+        }                                                                                                              \
+    );
 
     def_setter(bool);
     def_setter(bool1);
