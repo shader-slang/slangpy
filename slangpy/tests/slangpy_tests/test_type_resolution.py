@@ -585,7 +585,8 @@ void test_func(Foo x) {{}}
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_interface(device_type: spy.DeviceType):
-    device = helpers.get_device(type=device_type)
+    # Use unique device due to https://github.com/shader-slang/slang/issues/8954
+    device = helpers.get_device(type=device_type, use_cache=False)
 
     code = f"""
 import slangpy;
@@ -606,7 +607,8 @@ void test_func(IFoo x) {{}}
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_interface_generic(device_type: spy.DeviceType):
-    device = helpers.get_device(type=device_type)
+    # Use unique device due to https://github.com/shader-slang/slang/issues/8954
+    device = helpers.get_device(type=device_type, use_cache=False)
 
     code = f"""
 import slangpy;
