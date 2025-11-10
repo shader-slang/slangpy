@@ -242,7 +242,7 @@ def function_reflection(slang_function: Optional[FunctionReflection]):
     return "".join(text)
 
 
-def mismatch_info(call: "BoundCall", function: SlangFunction):
+def mismatch_info(call: "BoundCall", function: SlangFunction, diagnostics: Optional[str] = None):
     text: list[str] = []
 
     if function.is_overloaded:
@@ -253,8 +253,11 @@ def mismatch_info(call: "BoundCall", function: SlangFunction):
         text.append(f"Slang function:")
         text.append(f"  {function_reflection(function.reflection)}")
     text.append("")
+    text.append(f"Diagnostics:")
+    text.append(diagnostics if diagnostics is not None else "  <none>")
     text.append(f"Python arguments:")
     text.append(f"{bound_call_table(call)}")
+    text.append("")
     text.append(f"For help and support: https://khr.io/slangdiscord")
 
     return "\n".join(text)

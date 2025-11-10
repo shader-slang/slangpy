@@ -108,6 +108,7 @@ class CallData(NativeCallData):
             # These will be populated later
             bindings = None
             slang_function = None
+            diagnostics = ResolutionDiagnostic()
 
             # Read temps from function
             function = func
@@ -183,12 +184,12 @@ class CallData(NativeCallData):
 
             # Perform specialization to get a concrete function reflection
             resolve_result = specialize(
-                context, bindings, build_info.function, build_info.this_type
+                context, bindings, build_info.function, diagnostics, build_info.this_type
             )
-            if isinstance(resolve_result, MismatchReason):
+            if resolve_result is None:
                 raise ResolveException(
-                    f"Function signature mismatch: {resolve_result.reason}\n\n"
-                    f"{mismatch_info(bindings, build_info.function)}\n"
+                    f"Could not call function '{function.name}':\n\n"
+                    f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
                 )
             slang_function = resolve_result.function
 
@@ -196,7 +197,7 @@ class CallData(NativeCallData):
             if not resolve_result.function.differentiable and self.call_mode != CallMode.prim:
                 raise ResolveException(
                     f"Could not call function '{function.name}': Function is not differentiable\n\n"
-                    f"{mismatch_info(bindings, build_info.function)}\n"
+                    f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
                 )
 
             # Inject a dummy node into the Python signature if we need a result back

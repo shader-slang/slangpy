@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Optional, cast
 from slangpy.core.native import CallMode
+from slangpy.core.logging import function_reflection
 
 if TYPE_CHECKING:
     from slangpy.reflection.reflectiontypes import SlangType, SlangFunction, SlangParameter
@@ -20,6 +21,39 @@ class ResolutionArg:
         self.slang: "SlangType" = None  # type: ignore
         self.vector: Optional["SlangType"] = None
         self.python: Optional["NativeMarshall"] = None
+
+
+class ResolutionDiagnostic:
+    def __init__(self):
+        super().__init__()
+        self.summary_lines: list[str] = []
+        self.detail_lines: list[str] = []
+
+    def summary(self, txt: str):
+        self.summary_lines.append(txt)
+        self.detail_lines.append(txt)
+
+    def detail(self, txt: str):
+        self.detail_lines.append(txt)
+
+    def __str__(self):
+        text = []
+        text.append("Type Resolution Diagnostics:")
+        text.append("")
+        text.append("Summary:")
+        if len(self.summary_lines) == 0:
+            text.append("  <none>")
+        else:
+            for line in self.summary_lines:
+                text.append(f"  {line}")
+        text.append("")
+        text.append("Details:")
+        if len(self.detail_lines) == 0:
+            text.append("  <none>")
+        else:
+            for line in self.detail_lines:
+                text.append(f"  {line}")
+        return "\n".join(text)
 
 
 def create_arg(variable: Optional["BoundVariable"], param: "SlangParameter"):
@@ -45,7 +79,9 @@ def clone_args(args: list[ResolutionArg]):
     return new_args
 
 
-def resolve_arguments(bind_context: "BindContext", args: list[ResolutionArg]):
+def resolve_arguments(
+    bind_context: "BindContext", args: list[ResolutionArg], diagnostics: ResolutionDiagnostic
+):
     """
     Resolves the types of the given arguments by matching marshalls against argument
     types. Returns a list of possible resolutions, where each resolution is a list of
@@ -66,6 +102,11 @@ def resolve_arguments(bind_context: "BindContext", args: list[ResolutionArg]):
                 types = python.resolve_types(bind_context, slang)
             else:
                 types = [python.resolve_type(bind_context, slang)]
+
+        if len(types) == 0:
+            diagnostics.summary(
+                f"  Argument {i} could not be resolved: python type {python} does not match slang type {slang.full_name}."
+            )
 
         new_resolutions = []
         for potential_type in types:
@@ -109,8 +150,11 @@ def _resolve_function_internal(
     bind_context: "BindContext",
     function: "SlangFunction",
     bindings: "BoundCall",
+    diagnostics: ResolutionDiagnostic,
     this_type: Optional["SlangType"] = None,
 ):
+    diagnostics.summary(f"{function_reflection(function.reflection)}")
+
     assert not function.is_overloaded
     function_parameters = [x for x in function.parameters]
     signature_args = bindings.args
@@ -142,7 +186,11 @@ def _resolve_function_internal(
 
     # Populate the first N arguments from provided positional arguments
     if len(signature_args) > len(function_parameters):
+        diagnostics.summary(
+            f"  Too many arguments: expected {len(function_parameters)}, got {len(signature_args)}"
+        )
         return None
+
     for i, arg in enumerate(signature_args):
         positioned_args[i] = arg
         arg.param_index = i
@@ -160,6 +208,14 @@ def _resolve_function_internal(
         positioned_args[i] = arg
         arg.param_index = i
 
+    # Log argument info
+    diagnostics.detail(f"  Python arguments:")
+    for i, arg in enumerate(positioned_args):
+        if arg is not None:
+            diagnostics.detail(f"    {i}: {arg.python}")
+        else:
+            diagnostics.detail(f"    {i}: <missing>")
+
     # If we reach this point, all positional and keyword arguments have been matched to slang parameters
     # Now create a set of tuples that are [MarshallType, ParameterType, ResolvedType|None]
     current_args = [
@@ -167,11 +223,27 @@ def _resolve_function_internal(
     ]
 
     # Use resolve_arguments to try and find 1 or more possible resolutions
-    resolved_args = resolve_arguments(bind_context, current_args)
+    resolved_args = resolve_arguments(bind_context, current_args, diagnostics)
 
     # No valid resolutions for this function
     if len(resolved_args) == 0:
+        diagnostics.summary(f"  No vectorization canidates found.")
         return None
+    elif len(resolved_args) > 1:
+        diagnostics.detail(f"  Multiple vectorization canidates found:")
+        for ra in resolved_args:
+            diagnostics.detail(f"  Candidate:")
+            for i, arg in enumerate(ra):
+                diagnostics.detail(
+                    f"      {i}: {arg.slang.full_name} -> {arg.vector.full_name if arg.vector else '<unresolved>'}"
+                )
+
+    elif len(resolved_args) == 1:
+        diagnostics.detail(f"  Vectorization candidate found:")
+        for i, arg in enumerate(resolved_args[0]):
+            diagnostics.detail(
+                f"    {i}: {arg.slang.full_name} -> {arg.vector.full_name if arg.vector else '<unresolved>'}"
+            )
 
     # If we got more than 1 resolution, try using slang's specialization system to narrow it down,
     # as slang may be able to use more precise generic rules to eliminate candiates that python
@@ -183,7 +255,10 @@ def _resolve_function_internal(
             specialized = function.reflection.specialize_with_arg_types(slang_reflections)
             if specialized:
                 specialized_args.append(ra)
-        if len(specialized_args) != 1:
+        if len(specialized_args) > 1:
+            diagnostics.summary(
+                f"  Ambiguous call - Slang could not identify a unique candidate for vectorization."
+            )
             return None
         resolved_args = specialized_args
 
@@ -209,11 +284,20 @@ def _resolve_function_internal(
     slang_types = tuple([cast("SlangType", arg.vector) for arg in resolved_args])
     slang_reflections = [arg.type_reflection for arg in slang_types]
     specialized = function.reflection.specialize_with_arg_types(slang_reflections)
+    if specialized is None:
+        diagnostics.summary(
+            f"  Slang compiler could not match the function signature to the vectorization candidate:"
+        )
+        diagnostics.summary(f"    {', '.join([t.full_name for t in slang_types])}")
+        return None
 
     # Also output the slangfunction
     type_reflection = None if this_type is None else this_type.type_reflection
     res.function = bind_context.layout.find_function(specialized, type_reflection)
     res.params = [ResolvedParam(p, t) for p, t in zip(res.function.parameters, slang_types)]
+
+    diagnostics.detail(f"  Selected slang function signature:")
+    diagnostics.detail(f"    {function_reflection(res.function.reflection)}")
 
     return res
 
@@ -222,18 +306,22 @@ def resolve_function(
     bind_context: "BindContext",
     function: "SlangFunction",
     bindings: "BoundCall",
+    diagnostics: ResolutionDiagnostic,
     this_type: Optional["SlangType"] = None,
 ):
     if function.is_overloaded:
         resolutions = [
-            _resolve_function_internal(bind_context, f, bindings, this_type)
+            _resolve_function_internal(bind_context, f, bindings, diagnostics, this_type)
             for f in function.overloads
         ]
     else:
-        resolutions = [_resolve_function_internal(bind_context, function, bindings, this_type)]
+        resolutions = [
+            _resolve_function_internal(bind_context, function, bindings, diagnostics, this_type)
+        ]
 
     # Filter out any None resolutions
     resolutions = [r for r in resolutions if r is not None]
     if len(resolutions) != 1:
+        diagnostics.summary(f"Unable to resolve function.")
         return None
     return resolutions[0]

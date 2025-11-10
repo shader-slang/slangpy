@@ -15,7 +15,7 @@ from slangpy.bindings.boundvariable import (
 from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.value import NoneMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
-from slangpy.reflection.typeresolution import resolve_function, ResolvedParam
+from slangpy.reflection.typeresolution import resolve_function, ResolvedParam, ResolutionDiagnostic
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
 
@@ -62,12 +62,10 @@ def specialize(
     context: BindContext,
     signature: BoundCall,
     function: SlangFunction,
-    this_type: Optional[SlangType] = None,
+    diagnostics: ResolutionDiagnostic,
+    this_type: Optional[SlangType],
 ):
-    resolve_result = resolve_function(context, function, signature, this_type)
-    if not resolve_result:
-        return MismatchReason("Failed to resolve function.")
-    return resolve_result
+    return resolve_function(context, function, signature, diagnostics, this_type)
 
 
 def bind(

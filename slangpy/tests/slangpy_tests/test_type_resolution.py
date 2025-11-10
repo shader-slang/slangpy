@@ -56,8 +56,9 @@ def resolve(
             all_functions.append(func)
 
     resolutions: list[ResolveResult] = []
+    diagnostics: list[str] = []
     for func in all_functions:
-        resolution = resolve_function(bind_context, func, bindings)
+        resolution = resolve_function(bind_context, func, bindings, diagnostics)
         if resolution:
             resolutions.append(resolution)
 
@@ -71,8 +72,8 @@ def check(actual_resolution: ResolveResult, *args: spyr.SlangType, **kwargs: spy
             False
         ), f"Argument count mismatch: expected {len(actual_resolution.args)}, got {len(args)}"
     for i in range(len(actual_resolution.args)):
-        exp_type = actual_resolution.args[i]
-        act_type = args[i]
+        act_type = actual_resolution.args[i]
+        exp_type = args[i]
         assert (
             exp_type.full_name == act_type.full_name
         ), f"Argument {i} type mismatch: expected {exp_type.full_name}, got {act_type.full_name}"
@@ -83,8 +84,8 @@ def check(actual_resolution: ResolveResult, *args: spyr.SlangType, **kwargs: spy
         ), f"Keyword argument count mismatch: expected {len(actual_resolution.kwargs)}, got {len(kwargs)}"
     for name in actual_resolution.kwargs:
         assert name in kwargs, f"Keyword argument {name} missing in actual resolution"
-        exp_type = actual_resolution.kwargs[name]
-        act_type = kwargs[name]
+        act_type = actual_resolution.kwargs[name]
+        exp_type = kwargs[name]
         assert (
             exp_type.full_name == act_type.full_name
         ), f"Keyword argument {name} type mismatch: expected {exp_type.full_name}, got {act_type.full_name}"
@@ -644,3 +645,228 @@ void test_func<T>(Foo<T> p0) {{}}
     param_types = (get_type(module, "Foo<int>"),)
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
+
+
+def calc_usage(rw: bool) -> spy.BufferUsage:
+    usage = spy.BufferUsage.shader_resource
+    if rw:
+        usage |= spy.BufferUsage.unordered_access
+    return usage
+
+
+class _Buffer:
+    def __init__(self, element_count: int, struct_size: int, rw: bool):
+        super().__init__()
+        self.element_count = element_count
+        self.struct_size = struct_size
+        self.rw = rw
+
+    def __repr__(self) -> str:
+        return f"{'RW' if self.rw else ''}Buffer"
+
+    def __call__(self, module: spy.Module):
+        return module.device.create_buffer(
+            element_count=self.element_count,
+            struct_size=self.struct_size,
+            usage=calc_usage(self.rw),
+        )
+
+
+class _NDBuffer:
+    def __init__(self, base_type: str, dim: int, rw: bool):
+        super().__init__()
+        self.base_type = base_type
+        self.dim = dim
+        self.rw = rw
+
+    def __repr__(self) -> str:
+        return f"{'RW' if self.rw else ''}NDBuffer<{self.base_type},{self.dim}>)"
+
+    def __call__(self, module: spy.Module) -> spy.NDBuffer:
+        return spy.NDBuffer.empty(
+            module.device,
+            (3,) * self.dim,
+            dtype=module.layout.find_type_by_name(self.base_type),
+            usage=calc_usage(self.rw),
+        )
+
+
+class _Tensor:
+    def __init__(self, base_type: str, dim: int, rw: bool):
+        super().__init__()
+        self.base_type = base_type
+        self.dim = dim
+        self.rw = rw
+
+    def __repr__(self) -> str:
+        return f"{'RW' if self.rw else ''}Tensor<{self.base_type},{self.dim}>)"
+
+    def __call__(self, module: spy.Module) -> spy.Tensor:
+        return spy.Tensor.empty(
+            module.device,
+            (3,) * self.dim,
+            dtype=module.layout.find_type_by_name(self.base_type),
+            usage=calc_usage(self.rw),
+        )
+
+
+# fmt: off
+
+# List of simple tests, where each is a function, input argument value (or factor func + args), and expected resolved type / dimensionality.
+# Functions are in type_resolution.slang
+TESTS = [
+    # Standard scalar float tests
+    ("func_float", 0, "float", 0),
+    ("func_float", 1.5, "float", 0),
+    ("func_float", spy.float1(2.5), "float", 1),
+    ("func_float", spy.float3(3.5, 4.5, 5.5), "float", 3),
+    ("func_float", _NDBuffer("float", 1, False), "float", 1),
+    ("func_float", _NDBuffer("float", 2, True), "float", 2),
+    ("func_float", _Tensor("float", 1, False), "float", 1),
+    ("func_float", _Tensor("float", 2, True), "float", 2),
+
+    # These should fail as we don't implicit cast AND vectorize - its one or the other
+    ("func_float", spy.int3(0,0,0), None, None),
+    ("func_float", _NDBuffer("int", 1, False), None, None),
+    ("func_float", _Tensor("int", 1, False), None, None),
+
+    # Standard scalar int tests
+    ("func_int", 42, "int", 0),
+    ("func_int", 1.5, "int", 0), # Passes, as invalid fractional value has to be detected at runtime
+    ("func_int", spy.int1(2), "int", 1),
+    ("func_int", _NDBuffer("int", 1, False), "int", 1),
+
+    # None default numeric types
+    ("func_half", 1.0, "half", 0),
+    ("func_half", 2, "half", 0),
+    ("func_half", _Tensor("half", 1, False), "half", 1),
+    ("func_int8", 255, "int8_t", 0),
+    ("func_int64", 2**64 - 1, "int64_t", 0),
+    ("func_int64", _NDBuffer("int64_t", 2, True), "int64_t", 2),
+
+    # Fully generic, only unambiguous for types that can't be vectorized
+    ("func_generic", 3.5, "float", 0),
+    ("func_generic", 42, "int", 0),
+    ("func_generic", spy.float1(2.5), None, None),
+    ("func_generic", _NDBuffer("float", 3, False), None, None),
+    ("func_generic", _Tensor("int", 2, True), None, None),
+
+    # Generic constrained to built in integer allows vectorization
+    ("func_genericint", 42, "int", 0),
+    ("func_genericint", spy.int3(1,2,3), "int", 3),
+    ("func_genericint", _NDBuffer("int", 2, False), "int", 2),
+
+    # float3 tests
+    ("func_float3", spy.float3(1.0, 2.0, 3.0), "vector<float,3>", 3),
+    ("func_float3", _NDBuffer("float", 2, False), "vector<float,3>", 1),
+    ("func_float3", _Tensor("float", 2, True), "vector<float,3>", 1),
+    ("func_float3", _NDBuffer("float3", 1, False), "vector<float,3>", 1),
+    ("func_float3", _Tensor("float3", 1, True), "vector<float,3>", 1),
+    ("func_float3", _Tensor("float4", 1, True), None, None),
+
+    # slang arg defined as vector<float,3> to ensure identical resolution
+    ("func_vector_float3", spy.float3(1.0, 2.0, 3.0), "vector<float,3>", 3),
+    ("func_vector_float3", _NDBuffer("float", 2, False), "vector<float,3>", 1),
+    ("func_vector_float3", _Tensor("float", 2, True), "vector<float,3>", 1),
+
+    # Other vector types
+    ("func_int3", spy.int3(1, 2, 3), "vector<int,3>", 3),
+    ("func_int3", _NDBuffer("int", 2, False), "vector<int,3>", 1),
+    ("func_half3", _Tensor("half3", 1, True), "vector<half,3>", 1),
+
+    # We should potentially allow these implicit casts as there is no vectorizing
+    # happening, but for now we don't.
+    ("func_float3", 1.0, None, None),
+    ("func_half3", spy.float3(1.0, 2.0, 3.0), None, None),
+
+    # generic typed vector tests
+    ("func_vector3_generic", spy.float3(1.0, 2.0, 3.0), "vector<float,3>", 3),
+    ("func_vector3_generic", _NDBuffer("float", 2, False), "vector<float,3>", 1),
+    ("func_vector3_generic", _Tensor("float", 2, True), "vector<float,3>", 1),
+    ("func_vector3_generic", _NDBuffer("float3", 1, False), "vector<float,3>", 1),
+    ("func_vector3_generic", _Tensor("float3", 1, True), "vector<float,3>", 1),
+    ("func_vector3_generic", _Tensor("float4", 1, True), None, None),
+
+    # generic typed+dim vector tests
+    ("func_vectorN_generic", spy.float3(1.0, 2.0, 3.0), "vector<float,3>", 3),
+    ("func_vectorN_generic", _NDBuffer("float", 2, False), None, None),
+    ("func_vectorN_generic", _Tensor("float", 2, True), None, None),
+    ("func_vectorN_generic", _NDBuffer("float3", 1, False), "vector<float,3>", 1),
+    ("func_vectorN_generic", _Tensor("float3", 1, True), "vector<float,3>", 1),
+    ("func_vectorN_generic", _Tensor("float4", 1, True), "vector<float,4>", 1),
+
+    # generic dim float tests (similar, but verify incorrect element type fails)
+    ("func_floatN_generic", spy.float3(1.0, 2.0, 3.0), "vector<float,3>", 3),
+    ("func_floatN_generic", _NDBuffer("float", 2, False), None, None),
+    ("func_floatN_generic", _Tensor("float", 2, True), None, None),
+    ("func_floatN_generic", _NDBuffer("float3", 1, False), "vector<float,3>", 1),
+    ("func_floatN_generic", _Tensor("float3", 1, True), "vector<float,3>", 1),
+    ("func_floatN_generic", _NDBuffer("int3", 1, False), None, None),
+    ("func_floatN_generic", _Tensor("float4", 1, True), "vector<float,4>", 1),
+    ("func_floatN_generic", _NDBuffer("int4", 1, False), None, None),
+
+    # standard structured buffer of known element type
+    ("func_float_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_float_rwstructuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), None, None),
+    ("func_float_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=True), "StructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_float_rwstructuredbuffer", _Buffer(element_count=16, struct_size=4, rw=True), "RWStructuredBuffer<float,DefaultDataLayout>", 1),
+
+    # As we don't do any type, size or element checking for basic buffers, any other types should also work
+    ("func_half_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<half,DefaultDataLayout>", 1),
+    ("func_int_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<int,DefaultDataLayout>", 1),
+
+    # NDBuffer and Tensor can check types match
+    ("func_float_structuredbuffer", _NDBuffer("float", 16, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_float_rwstructuredbuffer", _NDBuffer("float", 16, False), None, None),
+    ("func_float_rwstructuredbuffer", _NDBuffer("float", 16, True), "RWStructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_half_structuredbuffer", _NDBuffer("half", 16, False), None, None),
+    ("func_int_structuredbuffer", _NDBuffer("int", 16, False), None, None),
+    ("func_float_structuredbuffer", _Tensor("float", 16, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_float_rwstructuredbuffer", _Tensor("float", 16, False), None, None),
+    ("func_float_rwstructuredbuffer", _Tensor("float", 16, True), "RWStructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_half_structuredbuffer", _Tensor("half", 16, False), None, None),
+
+    # Generic structured buffer can't be resolved with pure buffer (as it is typeless), but can
+    # be resolved with NDBuffer / Tensor which have known types
+    ("func_generic_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), None, None),
+    ("func_generic_structuredbuffer", _NDBuffer("float", 16, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_generic_structuredbuffer", _Tensor("float", 16, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
+
+]
+
+# fmt: on
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in TESTS],
+)
+def test_type_resolution_simple(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    device = helpers.get_device(type=device_type)
+    module = spy.Module.load_from_file(device, "type_resolution.slang")
+
+    if callable(arg_value):
+        arg = arg_value(module)
+    else:
+        arg = arg_value
+
+    try:
+        actual_resolution = build_and_resolve(module, func_name, spyn.CallMode.prim, arg)
+    except Exception as e:
+        if expected_type_name is None:
+            return
+        else:
+            raise e
+
+    assert expected_type_name is not None, "Expected resolution to fail but it succeeded"
+    expected_type = module.layout.find_type_by_name(expected_type_name)
+    assert expected_type is not None, f"Expected type {expected_type_name} not found"
+    check(actual_resolution, expected_type)
