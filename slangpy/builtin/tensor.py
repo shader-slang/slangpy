@@ -216,21 +216,19 @@ class TensorMarshall(NativeTensorMarshall):
             )
 
         # if implicit element casts enabled, allow conversion from type to element type
-        if context.options["implicit_element_casts"]:
-            if types_equal(self.slang_element_type, bound_type):
-                return bound_type
-            if is_matching_array_type(bound_type, self.slang_element_type):
-                return self.slang_element_type
+        if types_equal(self.slang_element_type, bound_type):
+            return bound_type
+        if is_matching_array_type(bound_type, self.slang_element_type):
+            return self.slang_element_type
 
         # if implicit tensor casts enabled, allow conversion from vector to element type
         # or array type
-        if context.options["implicit_tensor_casts"]:
-            # Be lenient and allow e.g. passing float to float[N] or float[M][N]
-            if types_equal(self.slang_element_type, innermost_type(bound_type)):
-                if is_nested_array(bound_type) and len(bound_type.shape) <= 2:
-                    return bound_type
-                if isinstance(bound_type, VectorType):
-                    return bound_type
+        # Be lenient and allow e.g. passing float to float[N] or float[M][N]
+        if types_equal(self.slang_element_type, innermost_type(bound_type)):
+            if is_nested_array(bound_type) and len(bound_type.shape) <= 2:
+                return bound_type
+            if isinstance(bound_type, VectorType):
+                return bound_type
 
         # Default to casting to itself
         return self.slang_type

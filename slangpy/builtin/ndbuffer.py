@@ -111,22 +111,20 @@ def ndbuffer_resolve_type(
         return bound_type
 
     # if implicit element casts enabled, allow conversion from type to element type
-    if context.options["implicit_element_casts"]:
-        if self.slang_element_type == bound_type:
-            return bound_type
-        if is_matching_array_type(bound_type, cast(SlangType, self.slang_element_type)):
-            return self.slang_element_type
-        # This is such a common conversion with numpy 64 bit arrays to ptrs that we handle it explicitly
-        # TODO: Use host casting test instead?
-        if self.slang_element_type.full_name == "uint64_t" and isinstance(bound_type, PointerType):
-            return bound_type
+    if self.slang_element_type == bound_type:
+        return bound_type
+    if is_matching_array_type(bound_type, cast(SlangType, self.slang_element_type)):
+        return self.slang_element_type
+    # This is such a common conversion with numpy 64 bit arrays to ptrs that we handle it explicitly
+    # TODO: Use host casting test instead?
+    if self.slang_element_type.full_name == "uint64_t" and isinstance(bound_type, PointerType):
+        return bound_type
 
     # if implicit tensor casts enabled, allow conversion from vector to element type
-    if context.options["implicit_tensor_casts"]:
-        if (
-            isinstance(bound_type, VectorType) or isinstance(bound_type, MatrixType)
-        ) and self.slang_element_type == bound_type.scalar_type:
-            return bound_type
+    if (
+        isinstance(bound_type, VectorType) or isinstance(bound_type, MatrixType)
+    ) and self.slang_element_type == bound_type.scalar_type:
+        return bound_type
 
     # Default to just casting to itself (i.e. no implicit cast)
     return self.slang_type
@@ -331,6 +329,9 @@ class NDBufferMarshall(NativeNDBufferMarshall):
         super().__init__(
             dims, writable, slang_buffer_type, slang_el_type, slang_el_layout.reflection
         )
+
+    def __repr__(self) -> str:
+        return f"NDBuffer[dtype={self.slang_type.full_name}, dims={self.dims}, writable={self.writable}]"
 
     @property
     def is_writable(self) -> bool:

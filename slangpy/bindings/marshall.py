@@ -83,6 +83,9 @@ class Marshall(NativeMarshall):
         #: The slang type the python value maps to. Should be set inside __init__
         self.slang_type: "SlangType"
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}[dtype={self.slang_type.full_name}]"
+
     @property
     def has_derivative(self) -> bool:
         """

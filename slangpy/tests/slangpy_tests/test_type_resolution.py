@@ -9,7 +9,7 @@ import slangpy.reflection as spyr
 import slangpy.core.native as spyn
 import slangpy.testing.helpers as helpers
 
-from slangpy.reflection.typeresolution import resolve_function, ResolveResult
+from slangpy.reflection.typeresolution import resolve_function, ResolveResult, ResolutionDiagnostic
 
 # Limit the device types tested here to just one, since these tests are not device specific.
 DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES[0:1]
@@ -33,8 +33,6 @@ def build_test_data(module: spy.Module, call_mode: spyn.CallMode, *args: Any, **
         call_mode,
         module.device_module,
         {
-            "implicit_element_casts": True,
-            "implicit_tensor_casts": True,
             "strict_broadcasting": False,
         },
         spyn.CallDataMode.global_data,
@@ -56,7 +54,7 @@ def resolve(
             all_functions.append(func)
 
     resolutions: list[ResolveResult] = []
-    diagnostics: list[str] = []
+    diagnostics = ResolutionDiagnostic()
     for func in all_functions:
         resolution = resolve_function(bind_context, func, bindings, diagnostics)
         if resolution:

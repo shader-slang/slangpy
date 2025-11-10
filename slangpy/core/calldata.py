@@ -410,7 +410,8 @@ class CallData(NativeCallData):
                     else build_info.function
                 )
                 raise ValueError(
-                    f"{e.message}\n\n" f"{bound_exception_info(bindings, ref, e.variable)}\n"
+                    f"{e.message}\n\n"
+                    f"{bound_exception_info(bindings, ref, e.variable, str(diagnostics))}\n"
                 ) from e
             else:
                 raise
@@ -424,7 +425,7 @@ class CallData(NativeCallData):
                 raise ValueError(
                     f"Slang compilation error: {e}\n. Use set_dump_generated_shaders to enable dump generated shader to .temp.\n"
                     f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n\n"
-                    f"{bound_exception_info(bindings, ref, None)}\n"
+                    f"{bound_exception_info(bindings, ref, None, str(diagnostics))}\n"
                 ) from e
             else:
                 raise
@@ -437,7 +438,7 @@ class CallData(NativeCallData):
                 )
                 raise ValueError(
                     f"Exception in kernel generation: {e.message}.\n\n"
-                    f"{bound_exception_info(bindings, ref, None)}\n"
+                    f"{bound_exception_info(bindings, ref, None, str(diagnostics))}\n"
                 ) from e
             else:
                 raise
@@ -453,7 +454,7 @@ class CallData(NativeCallData):
                 )
                 raise ValueError(
                     f"Exception in kernel generation: {e}.\n"
-                    f"{bound_exception_info(bindings, ref, None)}\n"
+                    f"{bound_exception_info(bindings, ref, None, str(diagnostics))}\n"
                 ) from e
             else:
                 raise

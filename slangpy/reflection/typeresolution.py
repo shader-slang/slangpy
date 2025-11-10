@@ -102,6 +102,7 @@ def resolve_arguments(
                 types = python.resolve_types(bind_context, slang)
             else:
                 types = [python.resolve_type(bind_context, slang)]
+        types = [t for t in types if t]
 
         if len(types) == 0:
             diagnostics.summary(
@@ -155,6 +156,16 @@ def _resolve_function_internal(
 ):
     diagnostics.summary(f"{function_reflection(function.reflection)}")
 
+    # Log argument info
+    if len(bindings.args) > 0:
+        diagnostics.detail(f"  Positional python arguments:")
+        for i, arg in enumerate(bindings.args):
+            diagnostics.detail(f"    {i}: {arg.python}")
+    if len(bindings.kwargs) > 0:
+        diagnostics.detail(f"  Named python arguments:")
+        for name, arg in bindings.kwargs.items():
+            diagnostics.detail(f"    {name}: {arg.python}")
+
     assert not function.is_overloaded
     function_parameters = [x for x in function.parameters]
     signature_args = bindings.args
@@ -201,20 +212,20 @@ def _resolve_function_internal(
         if name == "_result":
             continue
         if name not in name_map:
+            diagnostics.summary(f"  No parameter named '{name}'.")
             return None
         i = name_map[name]
         if positioned_args[i] is not None:
+            diagnostics.summary(f"  Parameter '{name}' specified multiple times.")
             return None
         positioned_args[i] = arg
         arg.param_index = i
 
-    # Log argument info
-    diagnostics.detail(f"  Python arguments:")
+    # Check all arguments resolved
     for i, arg in enumerate(positioned_args):
-        if arg is not None:
-            diagnostics.detail(f"    {i}: {arg.python}")
-        else:
-            diagnostics.detail(f"    {i}: <missing>")
+        if arg is None:
+            diagnostics.summary(f"  Parameter '{function_parameters[i].name}' not specified.")
+            return None
 
     # If we reach this point, all positional and keyword arguments have been matched to slang parameters
     # Now create a set of tuples that are [MarshallType, ParameterType, ResolvedType|None]
@@ -235,14 +246,14 @@ def _resolve_function_internal(
             diagnostics.detail(f"  Candidate:")
             for i, arg in enumerate(ra):
                 diagnostics.detail(
-                    f"      {i}: {arg.slang.full_name} -> {arg.vector.full_name if arg.vector else '<unresolved>'}"
+                    f"      {i}: {arg.python} -> {arg.vector.full_name if arg.vector else '<unresolved>'}"
                 )
 
     elif len(resolved_args) == 1:
         diagnostics.detail(f"  Vectorization candidate found:")
         for i, arg in enumerate(resolved_args[0]):
             diagnostics.detail(
-                f"    {i}: {arg.slang.full_name} -> {arg.vector.full_name if arg.vector else '<unresolved>'}"
+                f"    {i}: {arg.python} -> {arg.vector.full_name if arg.vector else '<unresolved>'}"
             )
 
     # If we got more than 1 resolution, try using slang's specialization system to narrow it down,
@@ -288,7 +299,7 @@ def _resolve_function_internal(
         diagnostics.summary(
             f"  Slang compiler could not match the function signature to the vectorization candidate:"
         )
-        diagnostics.summary(f"    {', '.join([t.full_name for t in slang_types])}")
+        diagnostics.summary(f"    {function.name}({', '.join([t.full_name for t in slang_types])})")
         return None
 
     # Also output the slangfunction

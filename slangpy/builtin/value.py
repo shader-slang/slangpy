@@ -72,6 +72,9 @@ class ValueMarshall(NativeValueMarshall):
         super().__init__()
         self.slang_type: "SlangType"
 
+    def __repr__(self) -> str:
+        return f"Value[dtype={self.slang_type.full_name}]"
+
     # Values don't store a derivative - they're just a value
     @property
     def has_derivative(self) -> bool:

@@ -156,9 +156,8 @@ class TextureMarshall(NativeTextureMarshall):
             return bound_type
 
         # If implicit element casts enabled, allow conversion from type to element type
-        if context.options["implicit_element_casts"]:
-            if self.slang_element_type == bound_type:
-                return bound_type
+        if self.slang_element_type == bound_type:
+            return bound_type
 
         # Otherwise, use default behaviour from marshall
         return super().resolve_type(context, bound_type)

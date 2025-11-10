@@ -253,11 +253,7 @@ def mismatch_info(call: "BoundCall", function: SlangFunction, diagnostics: Optio
         text.append(f"Slang function:")
         text.append(f"  {function_reflection(function.reflection)}")
     text.append("")
-    text.append(f"Diagnostics:")
     text.append(diagnostics if diagnostics is not None else "  <none>")
-    text.append(f"Python arguments:")
-    text.append(f"{bound_call_table(call)}")
-    text.append("")
     text.append(f"For help and support: https://khr.io/slangdiscord")
 
     return "\n".join(text)
@@ -267,6 +263,7 @@ def bound_exception_info(
     call: "BoundCall",
     concrete_function: SlangFunction,
     variable: Optional["BoundVariable"],
+    diagnostics: Optional[str] = None,
 ):
     text: list[str] = []
 
@@ -276,9 +273,8 @@ def bound_exception_info(
     if variable is not None and variable.name != "":
         text.append(f"Error caused by argument: {variable.name}")
         text.append("")
-    text.append(f"Python arguments:")
-    text.append(f"{bound_call_table(call, highlight=variable)}")
     text.append("")
+    text.append(diagnostics if diagnostics is not None else "  <none>")
     text.append(f"For help and support: https://khr.io/slangdiscord")
 
     return "\n".join(text)

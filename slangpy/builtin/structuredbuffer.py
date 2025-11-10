@@ -32,6 +32,9 @@ class BufferMarshall(NativeBufferMarshall):
         super().__init__(st, usage)
         self.slang_type: SlangType
 
+    def __repr__(self):
+        return f"Buffer[rw={self.usage & BufferUsage.unordered_access != 0}]"
+
     def resolve_types(self, context: BindContext, bound_type: SlangType):
         rw = self.usage & BufferUsage.unordered_access != BufferUsage.none
         marshall = context.layout.require_type_by_name(
