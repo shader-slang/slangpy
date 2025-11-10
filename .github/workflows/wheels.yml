@@ -2,8 +2,12 @@ name: wheels
 on:
   workflow_dispatch:
     inputs:
-      upload:
+      upload_to_pypi:
         description: 'Upload wheels to PyPI? (0: no, 1: yes)'
+        required: true
+        default: '0'
+      upload_to_release:
+        description: 'Upload wheels to github release page? (0: no, 1: yes)'
         required: true
         default: '0'
 
@@ -82,7 +86,7 @@ jobs:
   upload_pypi:
     name: Upload wheels to PyPI
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.upload == '1'}}
+    if: ${{ github.event.inputs.upload_to_pypi == '1'}}
     needs: [wheels]
     environment: pypi
 
@@ -100,7 +104,7 @@ jobs:
           mkdir -p dist/
           find artifacts/ -name "*.whl" -exec cp {} dist/ \;
 
-      # Verify downloaded wheels before upload.
+      # Verify downloaded wheels before upload to PyPI.
       - name: Verify downloaded wheels
         shell: bash
         run: |
@@ -128,3 +132,35 @@ jobs:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}
           verbose: true
+
+  upload_github_release:
+    name: Upload wheels to GitHub Release
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.upload_to_release == '1'}}
+    needs: [wheels]
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: artifacts
+          # merge-multiple: true # Seems causing file corruption
+
+      # Manually combine artifacts into dist/
+      - name: Combine artifacts
+        shell: bash
+        run: |
+          mkdir -p dist/
+          find artifacts/ -name "*.whl" -exec cp {} dist/ \;
+
+      - name: Upload wheels to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          draft: ${{contains(github.ref, 'draft')}}
+          prerelease: ${{contains(github.ref, 'draft')}}
+          files: dist/*.whl
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
