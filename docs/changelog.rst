@@ -7,9 +7,23 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Version 0.38.0 (November 3, 2025)
+Version 0.38.1 (November 10, 2025)
 -------
-
+- Update to Slang version 2025.21.2 with latest shader compilation improvements and bug fixes.
+- Optimize PyTorch tensor marshalling to significantly reduce CPU overhead and kernel launch latency when using PyTorch tensors with SlangPy.
+  (PR `#625 <https://github.com/shader-slang/slangpy/pull/625>`__)
+- Fix AccelerationStructureBuildDescConverter for improved ray tracing acceleration structure handling.
+  (PR `#626 <https://github.com/shader-slang/slangpy/pull/626>`__)
+- Fix asmjit usage on older x86_64 processors by improving detection and fallback paths for instruction generation.
+  (PR `#624 <https://github.com/shader-slang/slangpy/pull/624>`__)
+- Verify wheel builds before upload to PyPI to improve package quality and reliability.
+  (PR `#623 <https://github.com/shader-slang/slangpy/pull/623>`__)
+- Sign versioned .so files for improved security and deployment.
+  (PR `#621 <https://github.com/shader-slang/slangpy/pull/621>`__)
+- Update to Slang version 2025.21.1 with additional improvements.
+  (PR `#620 <https://github.com/shader-slang/slangpy/pull/620>`__)
+- Update slang-rhi submodule to latest version with improved stability.
+  (PR `#619 <https://github.com/shader-slang/slangpy/pull/619>`__)
 - Update to Slang version 2025.21 with latest shader compilation improvements and bug fixes.
   (PR `#615 <https://github.com/shader-slang/slangpy/pull/615>`__)
 - Update slang-rhi submodule to latest version with improved stability and performance.
@@ -50,6 +64,10 @@ Version 0.38.0 (November 3, 2025)
   (PR `#609 <https://github.com/shader-slang/slangpy/pull/609>`__)
 - Cleanup pathtracer example and improve code formatting standards.
   (PR `#590 <https://github.com/shader-slang/slangpy/pull/590>`__, PR `#589 <https://github.com/shader-slang/slangpy/pull/589>`__)
+
+Version 0.38.0 (November 3, 2025)
+-------
+- Yanked due to twine check failures.
 
 Version 0.37.0 (October 15, 2025)
 -------
