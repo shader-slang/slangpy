@@ -216,6 +216,13 @@ class SlangType(NativeSlangType):
         return self._cached_vector_type_name
 
     @property
+    def is_generic(self) -> bool:
+        """
+        Whether this type is generic.
+        """
+        return self.type_reflection.kind == TR.Kind.none
+
+    @property
     def element_type(self) -> Optional[SlangType]:
         """
         Element type for arrays, vectors, matrices, etc.
@@ -1493,6 +1500,10 @@ def vectorize_type(
 
     witness_name = f"Vectorizer<{marshall_type}, {bound_type}>.VectorType"
     witness = program.find_type_by_name(witness_name)
+    if witness is None:
+        return None
+    if witness.is_generic:
+        return None
 
     return witness
 

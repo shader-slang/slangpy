@@ -141,6 +141,13 @@ class Struct:
         """
         return self.struct.vector_type_name
 
+    @property
+    def is_generic(self) -> bool:
+        """
+        Whether this struct is generic.
+        """
+        return self.struct.is_generic
+
     def torch(self):
         """
         Returns a pytorch wrapper around this struct

@@ -457,7 +457,7 @@ def test_readslice_broadcast_slice(device_type: DeviceType):
         shapes,
         {
             "call_shape": [50],
-            "node_call_dims": [1, 0, 0],
+            "node_call_dims": [1, 0, 1],
             "node_transforms": [[0], [], [0]],
         },
     )

@@ -213,6 +213,13 @@ def ndbuffer_resolve_types(
     self_writable = self.writable
     results: list[SlangType] = []
 
+    # If target type is fully generic, allow buffer or element type
+    if bound_type.type_reflection.kind == TypeReflection.Kind.none:
+        buffer_type = get_ndbuffer_type(context, self_element_type, self_writable, self_dims)
+        results.append(buffer_type)
+        results.append(self_element_type)
+        return results
+
     # Ambiguous case that vectorizer in slang cannot resolve on its own - could be element type or array of element type
     # Add both options, and rely on later slang specialization to pick the correct one (or identify it as genuinely ambiguous)
     if isinstance(bound_type, ArrayType) and isinstance(bound_type.element_type, UnknownType):
@@ -237,6 +244,7 @@ def ndbuffer_resolve_types(
     specialized = vectorize_type(marshall, bound_type)
     if specialized is not None:
         results.append(specialized)
+
     return results
 
 

@@ -10,7 +10,7 @@ from slangpy.types.tensor import Tensor
 from slangpy.types.buffer import innermost_type
 from slangpy.core.native import NativeTensorMarshall, NativeTensor
 
-from slangpy import TypeReflection, ShaderObject, ShaderCursor
+from slangpy import TypeReflection, ShaderObject, ShaderCursor, BufferUsage
 from slangpy.reflection import (
     TYPE_OVERRIDES,
     SlangProgramLayout,
@@ -261,6 +261,19 @@ class TensorMarshall(NativeTensorMarshall):
                         self.d_out is not None,
                     )
                 ]
+        # If target type is fully generic, always add tensor type as option
+        if bound_type.type_reflection.kind == TypeReflection.Kind.none:
+            tensor_type = build_tensor_type(
+                self.layout,
+                self.slang_element_type,
+                self.dims,
+                self.writable,
+                self.d_in is not None,
+                self.d_out is not None,
+            )
+            results.append(tensor_type)
+            results.append(self.slang_element_type)
+            return results
 
         # Ambiguous case that vectorizer in slang cannot resolve on its own - could be element type or array of element type
         # Add both options, and rely on later slang specialization to pick the correct one (or identify it as genuinely ambiguous)
@@ -282,6 +295,7 @@ class TensorMarshall(NativeTensorMarshall):
         specialized = vectorize_type(marshall, bound_type)
         if specialized is not None:
             results.append(specialized)
+
         return results
 
     def reduce_type(self, context: BindContext, dimensions: int):
@@ -350,7 +364,12 @@ def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
         )
 
         return TensorMarshall(
-            layout, cast(SlangType, value.dtype), len(value.shape), True, d_in, d_out
+            layout,
+            cast(SlangType, value.dtype),
+            len(value.shape),
+            (value.usage & BufferUsage.unordered_access) != 0,
+            d_in,
+            d_out,
         )
     elif isinstance(value, ReturnContext):
         return TensorMarshall(

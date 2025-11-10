@@ -271,6 +271,11 @@ def _resolve_function_internal(
                 f"  Ambiguous call - Slang could not identify a unique candidate for vectorization."
             )
             return None
+        elif len(specialized_args) == 0:
+            diagnostics.summary(
+                f"  Slang compiler could not match the function signature to any vectorization candidate."
+            )
+            return None
         resolved_args = specialized_args
 
     # Should now have just 1 result

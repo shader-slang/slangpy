@@ -246,6 +246,14 @@ class VectorMarshall(ValueMarshall):
 
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
         st = cast(kfr.VectorType, self.slang_type)
+
+        # If target type is fully generic, allow element type or vector type
+        if bound_type.type_reflection.kind == TypeReflection.Kind.none:
+            results = []
+            results.append(st)
+            results.append(st.element_type)
+            return results
+
         marshall = context.layout.require_type_by_name(
             f"VectorValueType<{st.element_type.full_name},{st.num_elements}>"
         )
@@ -308,6 +316,14 @@ class MatrixMarshall(ValueMarshall):
 
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
         st = cast(kfr.MatrixType, self.slang_type)
+
+        # If target type is fully generic, allow element type or matrix type
+        if bound_type.type_reflection.kind == TypeReflection.Kind.none:
+            results = []
+            results.append(st)
+            results.append(st.element_type)
+            return results
+
         marshall = context.layout.require_type_by_name(
             f"MatrixValueType<{st.inner_element_type.full_name},{st.rows},{st.cols}>"
         )

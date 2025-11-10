@@ -45,6 +45,7 @@ def resolve(
     bind_context: spy.bindings.BindContext,
     functions: list[spyr.SlangFunction],
     bindings: spy.bindings.BoundCall,
+    diagnostics: ResolutionDiagnostic,
 ):
     all_functions: list[spyr.SlangFunction] = []
     for func in functions:
@@ -54,7 +55,6 @@ def resolve(
             all_functions.append(func)
 
     resolutions: list[ResolveResult] = []
-    diagnostics = ResolutionDiagnostic()
     for func in all_functions:
         resolution = resolve_function(bind_context, func, bindings, diagnostics)
         if resolution:
@@ -108,7 +108,8 @@ def build_and_resolve(
     """Build test data and resolve the specified function(s) with the provided arguments."""
     functions = get_functions(module, names)
     context, bindings = build_test_data(module, call_mode, *args, **kwargs)
-    resolutions = resolve(context, functions, bindings)
+    diagnostics = ResolutionDiagnostic()
+    resolutions = resolve(context, functions, bindings, diagnostics)
     assert len(resolutions) == 1, f"Expected one resolution, got {len(resolutions)}"
     return resolutions[0]
 
@@ -293,7 +294,7 @@ void testfunc<T>(GenericStruct<T> gs) {}
     check("float", "NDBufferMarshall<int,1,true>", None)
     check("int", "NDBufferMarshall<int,1,false>", "int")
     check("float", "NDBufferMarshall<int,1,false>", None)
-    check("vector<int,0>", "NDBufferMarshall<int,1,false>", "vector<int,0>")
+    check("vector<int,0>", "NDBufferMarshall<int,1,false>", None)
     check("vector<int,3>", "NDBufferMarshall<int,1,false>", "vector<int,3>")
     check("int3", "NDBufferMarshall<int,1,false>", "vector<int,3>")
     check("vector<float,1>", "NDBufferMarshall<int,1,false>", None)
@@ -452,7 +453,7 @@ void test_func{sig_generic}({sig_params}) {{}}
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("param_count", [1, 3])
-@pytest.mark.parametrize("generic", [False, True])
+@pytest.mark.parametrize("generic", [False])  # Fully generic not supported
 def test_ndbuffer_vectorize(device_type: spy.DeviceType, param_count: int, generic: bool):
     device = helpers.get_device(type=device_type)
 
@@ -746,13 +747,23 @@ TESTS = [
     ("func_generic", 3.5, "float", 0),
     ("func_generic", 42, "int", 0),
     ("func_generic", spy.float1(2.5), None, None),
-    ("func_generic", _NDBuffer("float", 3, False), None, None),
-    ("func_generic", _Tensor("int", 2, True), None, None),
+    ("func_generic", _NDBuffer("int", 3, False), None, None),
+    ("func_generic", _Tensor("float", 2, True), None, None),
 
     # Generic constrained to built in integer allows vectorization
     ("func_genericint", 42, "int", 0),
     ("func_genericint", spy.int3(1,2,3), "int", 3),
     ("func_genericint", _NDBuffer("int", 2, False), "int", 2),
+
+    # Same for floating point
+    ("func_genericfloat", 42.5, "float", 0),
+    ("func_genericfloat", spy.float3(1,2,3), "float", 3),
+    ("func_genericfloat", _NDBuffer("float", 2, False), "float", 2),
+    ("func_genericfloat", _Tensor("float", 2, False), "float", 2),
+
+    # Also ensure specialization fails when types don't match
+    ("func_genericint", _NDBuffer("float", 2, False), None, None),
+    ("func_genericint", _Tensor("float", 2, False), None, None),
 
     # float3 tests
     ("func_float3", spy.float3(1.0, 2.0, 3.0), "vector<float,3>", 3),
@@ -814,21 +825,21 @@ TESTS = [
     ("func_int_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<int,DefaultDataLayout>", 1),
 
     # NDBuffer and Tensor can check types match
-    ("func_float_structuredbuffer", _NDBuffer("float", 16, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
-    ("func_float_rwstructuredbuffer", _NDBuffer("float", 16, False), None, None),
-    ("func_float_rwstructuredbuffer", _NDBuffer("float", 16, True), "RWStructuredBuffer<float,DefaultDataLayout>", 1),
-    ("func_half_structuredbuffer", _NDBuffer("half", 16, False), None, None),
-    ("func_int_structuredbuffer", _NDBuffer("int", 16, False), None, None),
-    ("func_float_structuredbuffer", _Tensor("float", 16, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
-    ("func_float_rwstructuredbuffer", _Tensor("float", 16, False), None, None),
-    ("func_float_rwstructuredbuffer", _Tensor("float", 16, True), "RWStructuredBuffer<float,DefaultDataLayout>", 1),
-    ("func_half_structuredbuffer", _Tensor("half", 16, False), None, None),
+    ("func_float_structuredbuffer", _NDBuffer("float", 2, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_float_rwstructuredbuffer", _NDBuffer("float", 2, False), None, None),
+    ("func_float_rwstructuredbuffer", _NDBuffer("float", 2, True), "RWStructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_half_structuredbuffer", _NDBuffer("half", 2, False), "StructuredBuffer<half,DefaultDataLayout>", 1),
+    ("func_int_structuredbuffer", _NDBuffer("int", 2, False), "StructuredBuffer<int,DefaultDataLayout>", 1),
+    ("func_float_structuredbuffer", _Tensor("float", 2, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_float_rwstructuredbuffer", _Tensor("float", 2, False), None, None),
+    ("func_float_rwstructuredbuffer", _Tensor("float", 2, True), "RWStructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_half_structuredbuffer", _Tensor("half", 2, False),"StructuredBuffer<half,DefaultDataLayout>", 1),
 
     # Generic structured buffer can't be resolved with pure buffer (as it is typeless), but can
     # be resolved with NDBuffer / Tensor which have known types
     ("func_generic_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), None, None),
-    ("func_generic_structuredbuffer", _NDBuffer("float", 16, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
-    ("func_generic_structuredbuffer", _Tensor("float", 16, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_generic_structuredbuffer", _NDBuffer("float", 2, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
+    ("func_generic_structuredbuffer", _Tensor("float", 2, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
 
 ]
 

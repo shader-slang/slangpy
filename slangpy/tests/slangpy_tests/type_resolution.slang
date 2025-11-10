@@ -43,6 +43,12 @@ T func_genericint<T: __BuiltinIntegerType>(T a)
     return a;
 }
 
+// Same principle for float
+T func_genericfloat<T : __BuiltinFloatingPointType>(T a)
+{
+    return a;
+}
+
 // General vector types
 // - vector of correct type
 // - matrix of correct type (vectorizes across rows)
