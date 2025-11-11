@@ -6,6 +6,7 @@ from slangpy.core.native import AccessType, CallContext, NativeValueMarshall, un
 import slangpy
 from slangpy import TypeReflection
 import slangpy.reflection as kfr
+import slangpy.reflection.vectorize as spyvec
 from slangpy import math
 from slangpy.bindings import (
     PYTHON_SIGNATURES,
@@ -23,8 +24,57 @@ from slangpy.reflection.reflectiontypes import (
     UNSIGNED_INT_TYPES,
     SlangType,
     vectorize_type,
+    TypeReflection,
+    EXPERIMENTAL_VECTORIZATION,
 )
 from slangpy.core.utils import is_type_castable_on_host
+
+
+class TypedScalar:
+    """
+    Wrapper that stores a python value along explicit slang type information.
+    """
+
+    def __init__(self, value: Any, slang_type: TypeReflection.ScalarType):
+        super().__init__()
+        assert isinstance(value, (float, int))
+        self.value = value
+        self.scalar_type = slang_type
+
+    def __repr__(self) -> str:
+        return f"Scalar[{self.value},{self.scalar_type.name}]"
+
+    def slangpy_signature(self) -> str:
+        return self.scalar_type.name
+
+
+def asint64(value: Any):
+    """
+    Mark a value as an int64 typed scalar.
+    """
+    return TypedScalar(int(value), TypeReflection.ScalarType.int64)
+
+
+def asuint64(value: Any):
+    """
+    Mark a value as an uint64 typed scalar.
+    """
+    return TypedScalar(int(value), TypeReflection.ScalarType.uint64)
+
+
+def ashalf(value: Any):
+    """
+    Mark a value as a float16 typed scalar.
+    """
+    return TypedScalar(float(value), TypeReflection.ScalarType.float16)
+
+
+def asdouble(value: Any):
+    """
+    Mark a value as a float64 typed scalar.
+    """
+    return TypedScalar(float(value), TypeReflection.ScalarType.float64)
+
 
 """
 Common functionality for basic value types such as int, float, vector, matrix etc that aren't
@@ -116,8 +166,13 @@ class ValueMarshall(NativeValueMarshall):
         return data
 
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
-        marshall = context.layout.require_type_by_name(f"ValueType<{self.slang_type.full_name}>")
-        return [vectorize_type(marshall, bound_type)]
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"ValueType<{self.slang_type.full_name}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+        else:
+            return None
 
     def reduce_type(self, context: "BindContext", dimensions: int):
         raise NotImplementedError()
@@ -217,6 +272,21 @@ class ScalarMarshall(ValueMarshall):
             raise ValueError("Cannot reduce scalar type")
         return self.slang_type
 
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"ValueType<{self.slang_type.full_name}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+        else:
+            as_scalar = spyvec.scalar_to_scalar_convertable(self.slang_type, bound_type)
+            if as_scalar is not None:
+                return [as_scalar]
+            as_pointer = spyvec.scalar_to_pointer(self.slang_type, bound_type)
+            if as_pointer is not None:
+                return [as_pointer]
+            return None
+
 
 class NoneMarshall(ValueMarshall):
     def __init__(self, layout: kfr.SlangProgramLayout):
@@ -244,29 +314,41 @@ class VectorMarshall(ValueMarshall):
         self.slang_type = layout.vector_type(scalar_type, num_elements)
         self.concrete_shape = self.slang_type.shape
 
+    def reduce_type(self, context: "BindContext", dimensions: int):
+        st = cast(kfr.VectorType, self.slang_type)
+        if dimensions == 1:
+            return st.element_type
+        elif dimensions == 0:
+            return st
+        else:
+            raise ValueError("Cannot reduce vector type by more than one dimension")
+
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
         st = cast(kfr.VectorType, self.slang_type)
 
         # If target type is fully generic, allow element type or vector type
-        if bound_type.type_reflection.kind == TypeReflection.Kind.none:
+        if isinstance(bound_type, (kfr.UnknownType, kfr.InterfaceType)):
             results = []
             results.append(st)
             results.append(st.element_type)
             return results
 
-        marshall = context.layout.require_type_by_name(
-            f"VectorValueType<{st.element_type.full_name},{st.num_elements}>"
-        )
-        return [vectorize_type(marshall, bound_type)]
+        # Use experimental vectorizer if enabled
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"VectorValueType<{st.element_type.full_name},{st.num_elements}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
 
-    def reduce_type(self, context: "BindContext", dimensions: int):
-        self_type = self.slang_type
-        if dimensions == 1:
-            return self_type.element_type
-        elif dimensions == 0:
-            return self_type
-        else:
-            raise ValueError("Cannot reduce vector type by more than one dimension")
+        as_vector = spyvec.vector_to_vector(st, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        as_scalar = spyvec.scalar_to_scalar(st.element_type, bound_type)
+        if as_scalar is not None:
+            return [as_scalar]
+
+        return None
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
@@ -305,14 +387,13 @@ class MatrixMarshall(ValueMarshall):
         self.concrete_shape = self.slang_type.shape
 
     def reduce_type(self, context: "BindContext", dimensions: int):
-        self_type = self.slang_type
+        st = cast(kfr.MatrixType, self.slang_type)
         if dimensions == 2:
-            assert self_type.element_type is not None
-            return self_type.element_type.element_type
+            return st.inner_element_type
         elif dimensions == 1:
-            return self_type.element_type
+            return st.element_type
         elif dimensions == 0:
-            return self_type
+            return st
 
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
         st = cast(kfr.MatrixType, self.slang_type)
@@ -324,10 +405,22 @@ class MatrixMarshall(ValueMarshall):
             results.append(st.element_type)
             return results
 
-        marshall = context.layout.require_type_by_name(
-            f"MatrixValueType<{st.inner_element_type.full_name},{st.rows},{st.cols}>"
-        )
-        return [vectorize_type(marshall, bound_type)]
+        # Use experimental vectorizer if enabled
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"MatrixValueType<{st.inner_element_type.full_name},{st.rows},{st.cols}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+
+        # Fall back to just checking if binding to a matrix, vector or scalar
+        if isinstance(bound_type, kfr.MatrixType):
+            return [st]
+        if isinstance(bound_type, kfr.VectorType):
+            return [st.element_type]
+        elif isinstance(bound_type, kfr.ScalarType):
+            return [st.inner_element_type]
+        else:
+            return None
 
 
 # Point built in python types at their slang equivalents
@@ -337,6 +430,8 @@ PYTHON_TYPES[float] = lambda layout, pytype: ScalarMarshall(
     layout, TypeReflection.ScalarType.float32
 )
 PYTHON_TYPES[int] = lambda layout, pytype: ScalarMarshall(layout, TypeReflection.ScalarType.int32)
+PYTHON_TYPES[TypedScalar] = lambda layout, pytype: ScalarMarshall(layout, pytype.scalar_type)
+
 PYTHON_SIGNATURES[type(None)] = None
 PYTHON_SIGNATURES[bool] = None
 PYTHON_SIGNATURES[float] = None

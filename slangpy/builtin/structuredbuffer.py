@@ -9,6 +9,7 @@ from slangpy.reflection import (
     ByteAddressBufferType,
     PointerType,
     vectorize_type,
+    EXPERIMENTAL_VECTORIZATION,
 )
 from slangpy import Buffer, BufferUsage
 from slangpy.bindings import (
@@ -35,13 +36,6 @@ class BufferMarshall(NativeBufferMarshall):
     def __repr__(self):
         return f"Buffer[rw={self.usage & BufferUsage.unordered_access != 0}]"
 
-    def resolve_types(self, context: BindContext, bound_type: SlangType):
-        rw = self.usage & BufferUsage.unordered_access != BufferUsage.none
-        marshall = context.layout.require_type_by_name(
-            f"BufferMarshall<Unknown,{'1' if rw else '0'}>"
-        )
-        return [vectorize_type(marshall, bound_type)]
-
     def resolve_dimensionality(
         self,
         context: BindContext,
@@ -64,6 +58,23 @@ class BufferMarshall(NativeBufferMarshall):
             raise ValueError(
                 "Raw buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type"
             )
+
+    def resolve_types(self, context: BindContext, bound_type: SlangType):
+        rw = self.usage & BufferUsage.unordered_access != BufferUsage.none
+
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"BufferMarshall<Unknown,{'1' if rw else '0'}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+
+        if isinstance(bound_type, (PointerType)):
+            return [bound_type]
+        elif isinstance(bound_type, (StructuredBufferType, ByteAddressBufferType)):
+            if rw or not bound_type.writable:
+                return [bound_type]
+
+        return None
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):

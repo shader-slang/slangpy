@@ -106,6 +106,48 @@ vector<float, N> func_floatN_generic<let N : int>(vector<float, N> a)
     return a;
 }
 
+// 1D arrays of known type/size. Can be passed
+// - python list/tuple of correct type and length
+// - spy.NDBuffer/Tensor of ArrayType
+// - spy.NDBuffer/Tensor of ElementType
+float[4] func_float_array(float[4] a)
+{
+    return a;
+}
+Array<float,8> func_float_array2(Array<float,8> a)
+{
+    return a;
+}
+
+// Unsized arrays of known type.
+void func_float_unsized_array(float[] a)
+{
+    return;
+}
+
+// Generic arrays. These get more complex as T itself
+// could be an array type.
+void func_generic_array<T, let N: int>(T[N] a)
+{
+    return;
+}
+void func_generic_type_array<T>(T[4] a)
+{
+    return;
+}
+void func_generic_constrained_type_array<T: __BuiltinFloatingPointType>(T[4] a)
+{
+    return;
+}
+void func_generic_length_array<let N: int>(float[N] a)
+{
+    return;
+}
+void func_generic_unsized_array<T>(T[] a)
+{
+    return;
+}
+
 // StructuredBuffer and RWStructuredBuffer types. These can be passed
 // a slangpy Buffer, or an NDBuffer/Tensor of the correct element type.
 // - spy.Buffer

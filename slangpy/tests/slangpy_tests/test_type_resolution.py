@@ -723,6 +723,8 @@ TESTS = [
     ("func_float", _NDBuffer("float", 2, True), "float", 2),
     ("func_float", _Tensor("float", 1, False), "float", 1),
     ("func_float", _Tensor("float", 2, True), "float", 2),
+    ("func_float",[1.5], "float", 1),
+    ("func_float",[1], "float", 1),
 
     # These should fail as we don't implicit cast AND vectorize - its one or the other
     ("func_float", spy.int3(0,0,0), None, None),
@@ -735,18 +737,21 @@ TESTS = [
     ("func_int", spy.int1(2), "int", 1),
     ("func_int", _NDBuffer("int", 1, False), "int", 1),
 
-    # None default numeric types
+    # None default numeric types should be picked up correctly
     ("func_half", 1.0, "half", 0),
     ("func_half", 2, "half", 0),
-    ("func_half", _Tensor("half", 1, False), "half", 1),
     ("func_int8", 255, "int8_t", 0),
     ("func_int64", 2**64 - 1, "int64_t", 0),
+
+    # Buffer/tensor -> function
     ("func_int64", _NDBuffer("int64_t", 2, True), "int64_t", 2),
+    ("func_half", _Tensor("half", 1, False), "half", 1),
 
     # Fully generic, only unambiguous for types that can't be vectorized
     ("func_generic", 3.5, "float", 0),
     ("func_generic", 42, "int", 0),
     ("func_generic", spy.float1(2.5), None, None),
+    ("func_generic", [42], "int", 0),
     ("func_generic", _NDBuffer("int", 3, False), None, None),
     ("func_generic", _Tensor("float", 2, True), None, None),
 
@@ -813,6 +818,59 @@ TESTS = [
     ("func_floatN_generic", _NDBuffer("int3", 1, False), None, None),
     ("func_floatN_generic", _Tensor("float4", 1, True), "vector<float,4>", 1),
     ("func_floatN_generic", _NDBuffer("int4", 1, False), None, None),
+
+    # Basic float arrays
+    ("func_float_array", [1,2,3,4], "float[4]", 3),
+    ("func_float_array", _NDBuffer("float[4]",1,True), "float[4]", 3),
+    ("func_float_array", _Tensor("float[4]",1,False), "float[4]", 3),
+    ("func_float_array2", [1,2,3,4,5,6,7,8], "float[8]", 3),
+    ("func_float_array2", _NDBuffer("float[8]",1,True), "float[8]", 3),
+    ("func_float_array2", _Tensor("float[8]",1,False), "float[8]", 3),
+
+    # Incorrect sizes/types
+    ("func_float_array2", [1,2,3,4], None, None),
+    ("func_float_array2", _NDBuffer("int[8]",1,True), None, None),
+
+    # Unsized / generic arrays
+    ("func_float_unsized_array", [1,2,3,4], "float[4]", 3),
+    ("func_generic_array", [1,2,3,4], "int[4]", 3),
+    ("func_generic_array", _NDBuffer("float[4]",1,False), "float[4]", 3),
+    ("func_generic_array", _Tensor("float[4]",1,False), "float[4]", 3),
+    ("func_generic_type_array", [1.5,2.5,3.5,4.6], "float[4]", 3),
+    ("func_generic_length_array", [1.5,2.5,3.5,4.6], "float[4]", 3),
+    ("func_generic_length_array", _NDBuffer("float[4]",1,False), "float[4]", 3),
+    ("func_generic_length_array", _Tensor("float[4]",1,False), "float[4]", 3),
+    ("func_generic_unsized_array", [1.5,2.5,3.5,4.6], "float[4]", 3),
+    ("func_generic_unsized_array", _NDBuffer("float[4]",1,False), "float[4]", 3),
+    ("func_generic_unsized_array", _Tensor("float[4]",1,False), "float[4]", 3),
+
+    # These are ambiguous, as the function has T[4], so could resolve with T==float
+    # or T==float[4].
+    ("func_generic_type_array", _NDBuffer("float[4]",1,False), None, None),
+    ("func_generic_type_array", _Tensor("float[4]",1,False), None, None),
+
+    # Although dimension doesn't match (the function is T[4]), the fact that the
+    # array is completely generic means this can resolve with T==float[8]
+    ("func_generic_type_array", _NDBuffer("float[8]",1,False), "float[8][4]", 1),
+    ("func_generic_type_array", _Tensor("float[8]",1,False), "float[8][4]", 1),
+
+    # The constrained generic type (to __BuiltinFloatingPointType) means that
+    # T==float is the only valid resolution, so it is no longer ambiguous
+    ("func_generic_constrained_type_array", _NDBuffer("float[4]",1,False), "float[4]", 1),
+    ("func_generic_constrained_type_array", _Tensor("float[4]",1,False), "float[4]", 1),
+
+    # Generic array resolutions that should fail due to wrong size/type
+    ("func_generic_length_array", _NDBuffer("int[4]",1,False), None, None),
+
+    # Loading from container of floats to array of floats. As size can not
+    # be determined at compile time, none finite length arrays can't be resolved.
+    ("func_float_array", _NDBuffer("float",1,True), "float[4]", 3),
+    ("func_float_array2", _NDBuffer("float",1,True), "float[8]", 3),
+    ("func_float_unsized_array", _NDBuffer("float",1,False), None, None),
+    ("func_generic_array", _NDBuffer("float",1,False), None, None),
+    ("func_generic_type_array", _NDBuffer("float",1,False), "float[4]", 3),
+    ("func_generic_length_array", _NDBuffer("float",1,False), None, None),
+    ("func_generic_unsized_array", _NDBuffer("float",1,False), None, None),
 
     # standard structured buffer of known element type
     ("func_float_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<float,DefaultDataLayout>", 1),

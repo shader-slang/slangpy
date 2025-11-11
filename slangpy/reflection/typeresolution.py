@@ -102,6 +102,8 @@ def resolve_arguments(
                 types = python.resolve_types(bind_context, slang)
             else:
                 types = [python.resolve_type(bind_context, slang)]
+        if not types:
+            types = []
         types = [t for t in types if t]
 
         if len(types) == 0:

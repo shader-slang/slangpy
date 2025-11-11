@@ -590,6 +590,31 @@ class ArrayType(SlangType):
         """
         return self.shape[0]
 
+    @property
+    def array_shape(self) -> Shape:
+        all_dims = []
+        array = self
+        while isinstance(array, ArrayType):
+            all_dims.append(array.num_elements)
+            array = array.element_type
+        return Shape(tuple(all_dims))
+
+    @property
+    def any_generic_dims(self) -> bool:
+        """
+        Whether any array dimension is generic.
+        """
+        array = self
+        while isinstance(array, ArrayType):
+            if array.num_elements == 0:
+                return True
+            array = array.element_type
+        return False
+
+    @property
+    def array_dims(self) -> int:
+        return len(self.array_shape)
+
     def build_vector_type_name(self):
         return f"Array<{self.element_type.vector_type_name},{self.num_elements}>"
 

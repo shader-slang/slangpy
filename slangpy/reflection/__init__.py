@@ -32,6 +32,7 @@ from .reflectiontypes import (
     is_known_or_none,
     vectorize_type,
     SCALAR_TYPE_TO_NUMPY_TYPE,
+    EXPERIMENTAL_VECTORIZATION,
 )
 
 # Regularly needed for access to scalar type by slang type

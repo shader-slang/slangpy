@@ -47,6 +47,9 @@ from . import bindings
 # Trigger import of built in bindings so they get setup
 from . import builtin as internal_marshalls
 
+# Scalar type casters
+from .builtin.value import asint64, asuint64, ashalf, asdouble
+
 # Debug options for call data gen
 from .core.calldata import (
     set_dump_generated_shaders,

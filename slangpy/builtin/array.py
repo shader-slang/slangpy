@@ -18,6 +18,7 @@ from slangpy import ShaderCursor, ShaderObject
 from slangpy.core.native import AccessType, CallContext, NativeValueMarshall, unpack_arg
 from slangpy.core.utils import is_type_castable_on_host
 import slangpy.reflection as kfr
+import slangpy.reflection.vectorize as spyvec
 
 
 class ArrayMarshall(ValueMarshall):
@@ -37,6 +38,9 @@ class ArrayMarshall(ValueMarshall):
         self.element_type = element_type
         self.concrete_shape = shape
 
+    def __repr__(self):
+        return f"Array[{self.element_type.full_name}]"
+
     def reduce_type(self, context: "BindContext", dimensions: int):
         self_type = self.slang_type
         if dimensions == 0:
@@ -49,11 +53,26 @@ class ArrayMarshall(ValueMarshall):
             return self_type.element_type
 
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
-        st = cast(kfr.VectorType, self.slang_type)
-        marshall = context.layout.require_type_by_name(
-            f"Array1DValueType<{st.element_type.full_name},{st.num_elements}>"
-        )
-        return [vectorize_type(marshall, bound_type)]
+        st = cast(kfr.ArrayType, self.slang_type)
+        if kfr.EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"Array1DValueType<{st.element_type.full_name},{st.num_elements}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+
+        # Match element type exactly
+        if st.element_type.full_name == bound_type.full_name:
+            return [st.element_type]
+
+        as_array = spyvec.array_to_array_scalarconvertable(st, bound_type)
+        if as_array is not None:
+            return [as_array]
+
+        as_scalar = spyvec.scalar_to_scalar_convertable(st.element_type, bound_type)
+        if as_scalar is not None:
+            return [as_scalar]
+
+        return None
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):

@@ -25,6 +25,7 @@ from slangpy.reflection import (
     TYPE_OVERRIDES,
     SlangProgramLayout,
     SlangType,
+    ScalarType,
     VectorType,
     MatrixType,
     StructuredBufferType,
@@ -35,9 +36,11 @@ from slangpy.reflection import (
     is_unknown,
     is_known,
     vectorize_type,
+    EXPERIMENTAL_VECTORIZATION,
 )
 from slangpy.types import NDBuffer
 from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
+import slangpy.reflection.vectorize as spyvec
 
 
 class StopDebuggerException(Exception):
@@ -220,32 +223,94 @@ def ndbuffer_resolve_types(
         results.append(self_element_type)
         return results
 
-    # Ambiguous case that vectorizer in slang cannot resolve on its own - could be element type or array of element type
-    # Add both options, and rely on later slang specialization to pick the correct one (or identify it as genuinely ambiguous)
-    if isinstance(bound_type, ArrayType) and isinstance(bound_type.element_type, UnknownType):
-        if bound_type.num_dims >= 0:
-            results.append(self_element_type)
-        if bound_type.num_dims >= 1 and bound_type.shape[0] >= 1:
-            results.append(
-                context.layout.require_type_by_name(
-                    f"{self_element_type.full_name}[{bound_type.shape[0]}]"
+    # Otherwise, attempt to use slang's typing system to map the bound type to the marshall
+    if EXPERIMENTAL_VECTORIZATION:
+        # Ambiguous case that vectorizer in slang cannot resolve on its own - could be element type or array of element type
+        # Add both options, and rely on later slang specialization to pick the correct one (or identify it as genuinely ambiguous)
+        if isinstance(bound_type, ArrayType) and isinstance(bound_type.element_type, UnknownType):
+            if bound_type.num_dims >= 0:
+                results.append(self_element_type)
+            if bound_type.num_dims >= 1 and bound_type.shape[0] >= 1:
+                results.append(
+                    context.layout.require_type_by_name(
+                        f"{self_element_type.full_name}[{bound_type.shape[0]}]"
+                    )
                 )
-            )
-        if bound_type.num_dims >= 2 and bound_type.shape[0] >= 1 and bound_type.shape[1] >= 1:
-            results.append(
-                context.layout.require_type_by_name(
-                    f"{self_element_type.full_name}[{bound_type.shape[0]}][{bound_type.shape[1]}]"
+            if bound_type.num_dims >= 2 and bound_type.shape[0] >= 1 and bound_type.shape[1] >= 1:
+                results.append(
+                    context.layout.require_type_by_name(
+                        f"{self_element_type.full_name}[{bound_type.shape[0]}][{bound_type.shape[1]}]"
+                    )
                 )
-            )
+            return results
+
+        marshall = get_ndbuffer_marshall_type(context, self_element_type, self_writable, self_dims)
+        specialized = vectorize_type(marshall, bound_type)
+        if specialized is not None:
+            results.append(specialized)
+
+    # Target type is NDBuffer
+    if isinstance(bound_type, NDBufferType):
+        if bound_type.writable and not self_writable:
+            raise ValueError("Attempted to bind a writable buffer to a read-only buffer")
+        if bound_type.element_type != self_element_type:
+            raise ValueError("Attempted to bind a buffer with a different element type")
+        results.append(bound_type)
         return results
 
-    # Otherwise, attempt to use slang's typing system to map the bound type to the marshall
-    marshall = get_ndbuffer_marshall_type(context, self_element_type, self_writable, self_dims)
-    specialized = vectorize_type(marshall, bound_type)
-    if specialized is not None:
-        results.append(specialized)
+    # Match element type exactly
+    if self_element_type.full_name == bound_type.full_name:
+        return [self_element_type]
 
-    return results
+    # Match buffer container types
+    as_structuredbuffer_type = spyvec.container_to_structured_buffer(
+        self_element_type, self_writable, bound_type
+    )
+    if as_structuredbuffer_type is not None:
+        return [as_structuredbuffer_type]
+    as_byteaddressbuffer_type = spyvec.container_to_byte_address_buffer(
+        self_element_type, self_writable, bound_type
+    )
+    if as_byteaddressbuffer_type is not None:
+        return [as_byteaddressbuffer_type]
+
+    # Match pointers
+    as_pointer = spyvec.container_to_pointer(self_element_type, bound_type)
+    if as_pointer is not None:
+        return [as_pointer]
+
+    # NDBuffer of scalars can load vectors of known size
+    as_vector = spyvec.scalar_to_sized_vector(self_element_type, bound_type)
+    if as_vector is not None:
+        return [as_vector]
+
+    # Handle ambiguous case vectorizing against generic array type
+    as_generic_array_candidates = spyvec.container_to_generic_array_candidates(
+        self_element_type, bound_type
+    )
+    if as_generic_array_candidates is not None:
+        return as_generic_array_candidates
+
+    # NDBuffer of elements can load higher dimensional arrays of known size
+    as_sized_array = spyvec.container_to_sized_array(self_element_type, bound_type, self_dims)
+    if as_sized_array is not None:
+        return [as_sized_array]
+
+    # Support resolving generic array
+    as_array = spyvec.array_to_array(self_element_type, bound_type)
+    if as_array is not None:
+        return [as_array]
+
+    # Support resolving generic vector
+    as_vector = spyvec.vector_to_vector(self_element_type, bound_type)
+    if as_vector is not None:
+        return [as_vector]
+
+    # Support resolving generic scalar
+    as_scalar = spyvec.scalar_to_scalar(self_element_type, bound_type)
+    if as_scalar is not None:
+        return [as_scalar]
+    return None
 
 
 def ndbuffer_resolve_dimensionality(
