@@ -392,70 +392,6 @@ public struct StridedLayout<let D : int>
     }
 }
 
-
-struct NDBufferMarshall<T, let N : int, let RW : int>
-    : IVectorizeToScalar<T>
-   , IVectorizeToPointer<T>
-{
-
-}
-
-// Add vector/matrix vectorizers for NDBufferMarshall for integer, float and bool types
-extension<T : __BuiltinIntegerType, let N : int, let RW : int> NDBufferMarshall<T, N, RW>
-    : IVectorizeToUnsizedVector<T>
-    , IVectorizeToUnsizedMatrix<T>
-{}
-extension<T : __BuiltinFloatingPointType, let N : int, let RW : int> NDBufferMarshall<T, N, RW>
-    : IVectorizeToUnsizedVector<T>
-    , IVectorizeToUnsizedMatrix<T>
-{}
-extension<let N : int, let RW : int> NDBufferMarshall<bool, N, RW>
-    : IVectorizeToUnsizedVector<bool>
-    , IVectorizeToUnsizedMatrix<bool>
-{}
-
-// Add support for generic vector/matrix types if the underlying element type is vector/matrix
-extension<VectorT, let VectorDim : int, let N : int, let RW : int> NDBufferMarshall<vector<VectorT,VectorDim>, N, RW>
-    : IVectorizeToGenericVector<VectorT, VectorDim>
-{}
-extension<MatrixT, let Rows : int, let Cols : int, let N : int, let RW : int> NDBufferMarshall<matrix<MatrixT, Rows, Cols>, N, RW>
-    : IVectorizeToGenericMatrix<MatrixT, Rows, Cols>
-{}
-
-// Specifically add support for typed arrays. The case of generic typed arrays must be handled python
-// side as it is too ambigous to resolve with slang extension rules, due to the fact that a generic type,
-// T, could itself be an array type.
-extension<T, let N : int, let RW : int, let R: int> Vectorizer<NDBufferMarshall<T, N, RW>, T[R]> {
-    typealias VectorType = T[R];
-}
-extension<T, let N : int, let RW : int, let R : int, let C: int> Vectorizer<NDBufferMarshall<T, N, RW>, T[R][C]> {
-    typealias VectorType = T[R][C];
-}
-extension<T, let N : int, let RW : int, let R : int> Vectorizer<NDBufferMarshall<T[R], N, RW>, T[0]> {
-    typealias VectorType = T[R];
-}
-extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T[R][C], N, RW>, T[R][0]> {
-    typealias VectorType = T[R][C];
-}
-extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T[R][C], N, RW>, T[0][C]> {
-    typealias VectorType = T[R][C];
-}
-extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T[R][C], N, RW>, T[0][0]> {
-    typealias VectorType = T[R][C];
-}
-
-/*
-interface IFoo {}
-extension int : IFoo {}
-
-extension<T>  Vectorizer<ValueType<T>, IFoo> {
-    typealias VectorType = T;
-}
-
-*/
-
-
-
 public struct NDBuffer<T, let N : int>
 {
     typealias Storage = StorageTraits<T>.BufferType;
@@ -520,48 +456,7 @@ public struct NDBuffer<T, let N : int>
     public void store<let R : int, let C: int>(ContextND<N - 2> context, in matrix<T, R, C> value) {}
 }
 
-extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<T, N>> {
-    typealias VectorType = NDBuffer<T, N>;
-}
 
-extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<Unknown, N>> {
-    typealias VectorType = NDBuffer<T, N>;
-}
-
-#ifndef __TARGET_CUDA__
-// Storage is always a pointer on cuda, which is already handled
-extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, StorageTraits<T>.BufferType> {
-    typealias VectorType = StorageTraits<T>.BufferType;
-}
-
-extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, StorageTraits<Unknown>.BufferType> {
-    typealias VectorType = StorageTraits<T>.BufferType;
-}
-#endif
-
-void testa()
-{
-    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float[4]>.VectorType vt5;
-    Vectorizer<NDBufferMarshall<int, 1, 1>, vector<Unknown, 1>>.VectorType vt9;
-    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float [4][2]>.VectorType vt10;
-    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float [4][4]>.VectorType vt11;
-    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float [4][4][4]>.VectorType vt12;
-    Vectorizer<NDBufferMarshall<float, 1, 1>, float [4][4]>.VectorType vt13;
-    Vectorizer<NDBufferMarshall<float[2], 1, 1>, float[0]>.VectorType vt14;
-    Vectorizer<NDBufferMarshall<float [2][3], 1, 1>, float [2][3]>.VectorType vt15;
-
-#ifndef __TARGET_CUDA__
-    Vectorizer<NDBufferMarshall<float, 1, 0>, StructuredBuffer<float>>.VectorType vt17;
-    //Vectorizer<NDBufferMarshall<float, 1, 0>, RWStructuredBuffer<float>>.VectorType vt18;
-    Vectorizer<NDBufferMarshall<float, 1, 1>, StructuredBuffer<float>>.VectorType vt19;
-    Vectorizer<NDBufferMarshall<float, 1, 1>, RWStructuredBuffer<float>>.VectorType vt20;
-#endif
-
-#ifdef __TARGET_CUDA__
-    Vectorizer<NDBufferMarshall<float, 1, 0>, Ptr<float>>.VectorType vt17;
-    Vectorizer<NDBufferMarshall<float, 1, 1>, Ptr<float>>.VectorType vt19;
-#endif
-}
 
 
 public struct RWNDBuffer<T, let N : int>
@@ -666,22 +561,6 @@ public struct RWNDBuffer<T, let N : int>
         }
     }
 }
-extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, RWNDBuffer<T, N>> {
-    typealias VectorType = RWNDBuffer<T, N>;
-}
-extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, RWNDBuffer<Unknown, N>> {
-    typealias VectorType = RWNDBuffer<T, N>;
-}
-
-// Storage is always a pointer on cuda, which is already handled
-#ifndef __TARGET_CUDA__
-extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, StorageTraits<T>.RWBufferType> {
-    typealias VectorType = StorageTraits<T>.RWBufferType;
-}
-extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, StorageTraits<Unknown>.RWBufferType> {
-    typealias VectorType = StorageTraits<T>.RWBufferType;
-}
-#endif
 
 // For common case that we create an NDBuffer of uint64_t pointers via a numpy array,
 // these extensions add the ability to load/store pointer types from/to the uint64_t buffer.
@@ -694,9 +573,6 @@ public extension<let N:int> RWNDBuffer<uint64_t,N>
 {
     public void load<T>(ContextND<N> context, out Ptr<T> value) { value = Ptr<T>(get(context.call_id)); }
     public void store<T>(ContextND<N> context, in Ptr<T> value) { set(context.call_id, uint64_t(value)); };
-}
-extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<uint64_t, N, RW>, Ptr<T>> {
-    typealias VectorType = Ptr<T>;
 }
 
 // #pragma warning(push)

@@ -137,7 +137,6 @@ void func_generic_structuredbuffer<T>(StructuredBuffer<T> a)
     return;
 }
 
-#if defined(__TARGET_CUDA__) || defined(__TARGET_VULKAN__)
 // Pointer types obey effectively the same rules as structure buffers.
 // in both types and generic situations
 // - spy.Buffer
@@ -155,7 +154,6 @@ void func_generic_ptr<T>(Ptr<T> a)
 {
     return;
 }
-#endif
 
 // ByteAddressBuffer and RWByteAddressBuffer types. Obey same basic
 // rules as structure buffer without any generic element typing.

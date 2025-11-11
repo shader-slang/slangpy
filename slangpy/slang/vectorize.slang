@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 implementing slangpy;
 
+//--------------------------------------------------------------------------------------------
+// This file contains all the interfaces and extensions for the experimental slang based
+// vectorization system, that can be enabled with slangpy.set_experimental_vectorization(True).
+//--------------------------------------------------------------------------------------------
+
 // Represents an unknown type
 public struct Unknown: IDifferentiable { }
 
@@ -23,6 +28,11 @@ extension uint16_t : INoneDefaultIntegerType {}
 extension uint32_t : INoneDefaultIntegerType {}
 extension uint64_t : INoneDefaultIntegerType {}
 extension bool : INoneDefaultIntegerType {}
+
+//--------------------------------------------------------------------------------------------
+// These defines a set of interfaces that a marshall can inherit from to add some common
+// behaviours, such as the ability to vectorize to a specific target type.
+//--------------------------------------------------------------------------------------------
 
 // By inheriting from IVectorizeTo, a Vectorizer is automatically defined with the
 // correct type arguments. Due to slang bug with multiple interface extensions, we
@@ -266,4 +276,130 @@ public extension<From : IVectorizeToByteAddressBuffer> Vectorizer<From, ByteAddr
 public interface IVectorizeToRWByteAddressBuffer {}
 public extension<From : IVectorizeToRWByteAddressBuffer> Vectorizer<From, RWByteAddressBuffer> {
     typealias VectorType = RWByteAddressBuffer;
+}
+
+//--------------------------------------------------------------------------------------------
+// Bespoke vectorizers for specific marshall types
+//--------------------------------------------------------------------------------------------
+
+
+//--------------------------------------------------------------------------------------------
+// NDBufferMarshall<T,N,RW> represents a slangpy NDBuffer or Tensor marshall type.
+//--------------------------------------------------------------------------------------------
+
+struct NDBufferMarshall<T, let N : int, let RW : int>
+    : IVectorizeToScalar<T>
+   , IVectorizeToPointer<T>
+{
+
+}
+
+// Add vector/matrix vectorizers for NDBufferMarshall for integer, float and bool types
+extension<T : __BuiltinIntegerType, let N : int, let RW : int> NDBufferMarshall<T, N, RW>
+    : IVectorizeToUnsizedVector<T>
+    , IVectorizeToUnsizedMatrix<T>
+{}
+extension<T : __BuiltinFloatingPointType, let N : int, let RW : int> NDBufferMarshall<T, N, RW>
+    : IVectorizeToUnsizedVector<T>
+    , IVectorizeToUnsizedMatrix<T>
+{}
+extension<let N : int, let RW : int> NDBufferMarshall<bool, N, RW>
+    : IVectorizeToUnsizedVector<bool>
+    , IVectorizeToUnsizedMatrix<bool>
+{}
+
+// Add support for generic vector/matrix types if the underlying element type is vector/matrix
+extension<VectorT, let VectorDim : int, let N : int, let RW : int> NDBufferMarshall<vector<VectorT, VectorDim>, N, RW>
+    : IVectorizeToGenericVector<VectorT, VectorDim>
+{}
+extension<MatrixT, let Rows : int, let Cols : int, let N : int, let RW : int> NDBufferMarshall<matrix<MatrixT, Rows, Cols>, N, RW>
+    : IVectorizeToGenericMatrix<MatrixT, Rows, Cols>
+{}
+
+// Specifically add support for typed arrays. The case of generic typed arrays must be handled python
+// side as it is too ambigous to resolve with slang extension rules, due to the fact that a generic type,
+// T, could itself be an array type.
+extension<T, let N : int, let RW : int, let R : int> Vectorizer<NDBufferMarshall<T, N, RW>, T[R]> {
+    typealias VectorType = T[R];
+}
+extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T, N, RW>, T[R][C]> {
+    typealias VectorType = T[R][C];
+}
+extension<T, let N : int, let RW : int, let R : int> Vectorizer<NDBufferMarshall<T[R], N, RW>, T[0]> {
+    typealias VectorType = T[R];
+}
+extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T[R][C], N, RW>, T[R][0]> {
+    typealias VectorType = T[R][C];
+}
+extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T[R][C], N, RW>, T[0][C]> {
+    typealias VectorType = T[R][C];
+}
+extension<T, let N : int, let RW : int, let R : int, let C : int> Vectorizer<NDBufferMarshall<T[R][C], N, RW>, T[0][0]> {
+    typealias VectorType = T[R][C];
+}
+
+// NDBufferMarshall<T,N,RW> can vectorize to NDBuffer<T,N> or NDBuffer<Unknown,N>
+extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<T, N>> {
+    typealias VectorType = NDBuffer<T, N>;
+}
+extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, NDBuffer<Unknown, N>> {
+    typealias VectorType = NDBuffer<T, N>;
+}
+
+// NDBufferMarshall<T,N,true> can vectorize to RWNDBuffer<T,N> or RWNDBuffer<Unknown,N>
+extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, RWNDBuffer<T, N>> {
+    typealias VectorType = RWNDBuffer<T, N>;
+}
+extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, RWNDBuffer<Unknown, N>> {
+    typealias VectorType = RWNDBuffer<T, N>;
+}
+
+#ifndef __TARGET_CUDA__
+// NDBufferMarshall to its internal storage types.
+// Storage is always a pointer on cuda, which is already handled
+extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, StorageTraits<T>.BufferType> {
+    typealias VectorType = StorageTraits<T>.BufferType;
+}
+extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, StorageTraits<Unknown>.BufferType> {
+    typealias VectorType = StorageTraits<T>.BufferType;
+}
+extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<T, N, RW>, ByteAddressBuffer> {
+    typealias VectorType = ByteAddressBuffer;
+}
+extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, StorageTraits<T>.RWBufferType> {
+    typealias VectorType = StorageTraits<T>.RWBufferType;
+}
+extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, StorageTraits<Unknown>.RWBufferType> {
+    typealias VectorType = StorageTraits<T>.RWBufferType;
+}
+extension<T, let N : int> Vectorizer<NDBufferMarshall<T, N, 1>, RWByteAddressBuffer> {
+    typealias VectorType = RWByteAddressBuffer;
+}
+#endif
+
+// Buffer of uint64s can vectorize to pointer of known type
+extension<T, let N : int, let RW : int> Vectorizer<NDBufferMarshall<uint64_t, N, RW>, Ptr<T>> {
+    typealias VectorType = Ptr<T>;
+}
+
+void _ndbuffer_test()
+{
+    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float[4]>.VectorType vt5;
+    Vectorizer<NDBufferMarshall<int, 1, 1>, vector<Unknown, 1>>.VectorType vt9;
+    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float [4][2]>.VectorType vt10;
+    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float [4][4]>.VectorType vt11;
+    Vectorizer<NDBufferMarshall<float[4], 1, 1>, float [4][4][4]>.VectorType vt12;
+    Vectorizer<NDBufferMarshall<float, 1, 1>, float [4][4]>.VectorType vt13;
+    Vectorizer<NDBufferMarshall<float[2], 1, 1>, float[0]>.VectorType vt14;
+    Vectorizer<NDBufferMarshall<float [2][3], 1, 1>, float [2][3]>.VectorType vt15;
+#ifndef __TARGET_CUDA__
+    Vectorizer<NDBufferMarshall<float, 1, 0>, StructuredBuffer<float>>.VectorType vt17;
+    // Vectorizer<NDBufferMarshall<float, 1, 0>, RWStructuredBuffer<float>>.VectorType vt18;
+    Vectorizer<NDBufferMarshall<float, 1, 1>, StructuredBuffer<float>>.VectorType vt19;
+    Vectorizer<NDBufferMarshall<float, 1, 1>, RWStructuredBuffer<float>>.VectorType vt20;
+#endif
+    Vectorizer<NDBufferMarshall<float, 1, 0>, Ptr<float>>.VectorType vt21;
+    Vectorizer<NDBufferMarshall<float, 1, 1>, Ptr<float>>.VectorType vt22;
+    Vectorizer<NDBufferMarshall<float, 1, 0>, Ptr<Unknown>>.VectorType vt23;
+    Vectorizer<NDBufferMarshall<float, 1, 1>, Ptr<Unknown>>.VectorType vt24;
 }

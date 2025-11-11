@@ -20,6 +20,14 @@ from slangpy import TypeReflection
 from slangpy import TypeReflection as TR
 from slangpy import VariableReflection
 
+EXPERIMENTAL_VECTORIZATION = False
+
+
+def set_experimental_vectorization(enabled: bool):
+    global EXPERIMENTAL_VECTORIZATION
+    EXPERIMENTAL_VECTORIZATION = enabled
+
+
 scalar_names = {
     TR.ScalarType.none: "Unknown",
     TR.ScalarType.void: "void",
@@ -390,7 +398,9 @@ class VoidType(SlangType):
 
 class PointerType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        generics = program.get_resolved_generic_args(refl)
         super().__init__(program, refl, element_type=self, local_shape=Shape())
+        self.target_type = generics[0]
 
     @property
     def slang_scalar_type(self) -> TR.ScalarType:
@@ -398,6 +408,16 @@ class PointerType(SlangType):
         Pointers can map to 64bit uints
         """
         return TR.ScalarType.uint64
+
+    @property
+    def is_generic(self) -> bool:
+        """
+        Whether this type is generic.
+        """
+        return isinstance(self.target_type, UnknownType)
+
+    def build_vector_type_name(self):
+        return f"Ptr<{self.target_type.vector_type_name}>"
 
 
 class ScalarType(SlangType):
@@ -1486,6 +1506,9 @@ def vectorize_type(
     bound_type: Union[SlangType, str],
     program: Optional[SlangProgramLayout] = None,
 ) -> Optional[SlangType]:
+    if not EXPERIMENTAL_VECTORIZATION:
+        raise RuntimeError("vectorize_type is an experimental feature and is disabled")
+
     if program is None:
         if isinstance(marshall_type, SlangType):
             program = marshall_type.program

@@ -841,6 +841,42 @@ TESTS = [
     ("func_generic_structuredbuffer", _NDBuffer("float", 2, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
     ("func_generic_structuredbuffer", _Tensor("float", 2, False), "StructuredBuffer<float,DefaultDataLayout>", 1),
 
+    # ByteAddressBuffer / RWByteAddressBuffer for buffers of any type
+    ("func_bytebuffer", _Buffer(element_count=16, struct_size=4, rw=False), "ByteAddressBuffer", 1),
+    ("func_rwbytebuffer", _Buffer(element_count=16, struct_size=4, rw=False), None, None),
+    ("func_rwbytebuffer", _Buffer(element_count=16, struct_size=4, rw=True), "RWByteAddressBuffer", 1),
+    ("func_bytebuffer", _NDBuffer("float", 2, False), "ByteAddressBuffer", 1),
+    ("func_rwbytebuffer", _NDBuffer("float", 2, False), None, None),
+    ("func_rwbytebuffer", _NDBuffer("float", 2, True), "RWByteAddressBuffer", 1),
+    ("func_bytebuffer", _Tensor("float", 2, False), "ByteAddressBuffer", 1),
+    ("func_rwbytebuffer", _Tensor("float", 2, False), None, None),
+    ("func_rwbytebuffer", _Tensor("float", 2, True), "RWByteAddressBuffer", 1),
+
+    # Buffers as pointers
+    ("func_float_ptr", _Buffer(element_count=16, struct_size=4, rw=False), "Ptr<float>", 1),
+    ("func_float_ptr", _Buffer(element_count=16, struct_size=4, rw=True), "Ptr<float>", 1),
+    ("func_float_ptr", _NDBuffer("float", 2, False), "Ptr<float>", 1),
+    ("func_float_ptr", _NDBuffer("float", 2, True), "Ptr<float>", 1),
+    ("func_float_ptr", _Tensor("float", 2, False), "Ptr<float>", 1),
+    ("func_float_ptr", _Tensor("float", 2, True), "Ptr<float>", 1),
+    ("func_float_cptr", _Buffer(element_count=16, struct_size=4, rw=False), "Ptr<float>", 1),
+    ("func_float_cptr", _Buffer(element_count=16, struct_size=4, rw=True), "Ptr<float>", 1),
+    ("func_float_cptr", _NDBuffer("float", 2, False), "Ptr<float>", 1),
+    ("func_float_cptr", _NDBuffer("float", 2, True), "Ptr<float>", 1),
+    ("func_float_cptr", _Tensor("float", 2, False), "Ptr<float>", 1),
+    ("func_float_cptr", _Tensor("float", 2, True), "Ptr<float>", 1),
+
+    # Int or buffer of pointers/uints
+    ("func_float_ptr", 0, "Ptr<float>", 1),
+    ("func_float_ptr", _NDBuffer("Ptr<float>", 2, False), "Ptr<float>", 1),
+    ("func_float_ptr", _NDBuffer("uint64_t", 2, False), "Ptr<float>", 1),
+
+    # Generic pointers can be resolved with typed NDBuffer/Tensor
+    ("func_generic_ptr", _NDBuffer("float", 2, False), "Ptr<float>", 1),
+    ("func_generic_ptr", _NDBuffer("float", 2, True), "Ptr<float>", 1),
+    ("func_generic_ptr", _Tensor("float", 2, False), "Ptr<float>", 1),
+    ("func_generic_ptr", _Tensor("float", 2, True), "Ptr<float>", 1),
+
 ]
 
 # fmt: on
