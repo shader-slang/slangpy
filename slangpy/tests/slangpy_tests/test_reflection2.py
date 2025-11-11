@@ -371,9 +371,8 @@ struct MyStruct: IDifferentiable {
         compare_struct_values(refl_val, spy_val)
 
 
-# Limit the device types tested here to just one, since these tests are not device specific.
 @pytest.mark.skip(reason="FIXME: Enable after slang#8954 is fixed")
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES[0:1])
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("runa", [False,True])
 @pytest.mark.parametrize("runb", [False,True])
 def test_interface(device_type: DeviceType, runa: bool, runb: bool):
