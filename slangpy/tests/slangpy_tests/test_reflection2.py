@@ -373,8 +373,8 @@ struct MyStruct: IDifferentiable {
 
 @pytest.mark.skip(reason="FIXME: Enable after slang#8954 is fixed")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("runa", [False,True])
-@pytest.mark.parametrize("runb", [False,True])
+@pytest.mark.parametrize("runa", [False, True])
+@pytest.mark.parametrize("runb", [False, True])
 def test_interface(device_type: DeviceType, runa: bool, runb: bool):
 
     # Note: use_cache=False to avoid any caching effects interfering with separate test runs
@@ -390,7 +390,9 @@ def test_interface(device_type: DeviceType, runa: bool, runb: bool):
 
     # If enabled, attempt to specialize test_func with Foo
     if runa:
-        func = module1.layout.require_function_by_name("test_func").specialize_with_arg_types([module1.layout.require_type_by_name("Foo")])
+        func = module1.layout.require_function_by_name("test_func").specialize_with_arg_types(
+            [module1.layout.require_type_by_name("Foo")]
+        )
         assert func is not None, "Could not specialize function 1"
 
     # Create a 2nd similar module with IFoo2, Foo2, and test_func2. In this case, Foo2 implements IFoo2 via an extension.
@@ -405,7 +407,9 @@ def test_interface(device_type: DeviceType, runa: bool, runb: bool):
     # If enabled, attempt to specialize test_func2 with Foo2
     # This fails if runa is also True
     if runb:
-        func = module2.layout.require_function_by_name("test_func2").specialize_with_arg_types([module2.layout.require_type_by_name("Foo2")])
+        func = module2.layout.require_function_by_name("test_func2").specialize_with_arg_types(
+            [module2.layout.require_type_by_name("Foo2")]
+        )
         assert func is not None, "Could not specialize function 2"
 
 
