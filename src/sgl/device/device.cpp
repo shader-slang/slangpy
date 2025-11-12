@@ -83,9 +83,16 @@ Device::Device(const DeviceDesc& desc)
 #endif
     }
 
+    // Setup module cache.
+    if (m_desc.module_cache_path) {
+        m_module_cache_path = *m_desc.module_cache_path;
+        if (m_module_cache_path.is_relative())
+            m_module_cache_path = platform::app_data_directory() / m_module_cache_path;
+        std::filesystem::create_directories(m_module_cache_path);
+    }
+
     // Setup shader cache.
     if (m_desc.shader_cache_path) {
-        m_shader_cache_enabled = true;
         m_shader_cache_path = *m_desc.shader_cache_path;
         if (m_shader_cache_path.is_relative())
             m_shader_cache_path = platform::app_data_directory() / m_shader_cache_path;
@@ -224,12 +231,7 @@ Device::Device(const DeviceDesc& desc)
         .enableCompilationReports = m_desc.enable_compilation_reports,
         .bindless = bindless_desc,
     };
-    log_debug(
-        "Creating graphics device (type: {}, LUID: {}, shader_cache_path: {}).",
-        m_desc.type,
-        m_desc.adapter_luid,
-        m_shader_cache_path
-    );
+    log_debug("Creating graphics device (type: {}, LUID: {}).", m_desc.type, m_desc.adapter_luid);
     if (SLANG_FAILED(rhi::getRHI()->createDevice(rhi_desc, m_rhi_device.writeRef())))
         SGL_THROW("Failed to create device!");
 
@@ -350,7 +352,7 @@ Device::Device(const DeviceDesc& desc)
     m_slang_session = create_slang_session({
         .compiler_options = m_desc.compiler_options,
         .add_default_include_paths = true,
-        .cache_path = m_shader_cache_enabled ? std::optional(m_shader_cache_path) : std::nullopt,
+        .cache_path = !m_module_cache_path.empty() ? std::optional(m_module_cache_path) : std::nullopt,
     });
 
     // Add device to global device list.
@@ -1125,7 +1127,7 @@ std::string Device::to_string() const
         "  enable_hot_reload = {},\n"
         "  enable_compilation_reports = {},\n"
         "  supported_shader_model = {},\n"
-        "  shader_cache_enabled = {},\n"
+        "  module_cache_path = \"{}\",\n"
         "  shader_cache_path = \"{}\"\n"
         ")",
         m_info.type,
@@ -1137,7 +1139,7 @@ std::string Device::to_string() const
         m_desc.enable_hot_reload,
         m_desc.enable_compilation_reports,
         m_supported_shader_model,
-        m_shader_cache_enabled,
+        m_module_cache_path,
         m_shader_cache_path
     );
 }

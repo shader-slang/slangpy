@@ -340,7 +340,8 @@ void SlangSession::create_session(SlangSessionBuild& build)
     session_options.add(slang::CompilerOptionName::LoopInversion, true);
 
     // Only use up to date binary modules (required for caching to work properly).
-    session_options.add(slang::CompilerOptionName::UseUpToDateBinaryModule, true);
+    if (m_desc.cache_path)
+        session_options.add(slang::CompilerOptionName::UseUpToDateBinaryModule, true);
 
     slang::SessionDesc session_desc{};
 
