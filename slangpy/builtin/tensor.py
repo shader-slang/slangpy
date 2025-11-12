@@ -20,6 +20,8 @@ from slangpy.reflection import (
     ScalarType,
     MatrixType,
     UnknownType,
+    ITensorType,
+    TensorType,
     vectorize_type,
     EXPERIMENTAL_VECTORIZATION,
 )
@@ -32,47 +34,6 @@ from slangpy.bindings import (
 )
 from slangpy.builtin.ndbuffer import get_ndbuffer_marshall_type
 import slangpy.reflection.vectorize as spyvec
-
-
-class ITensorType(SlangType):
-    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-        args = program.get_resolved_generic_args(refl)
-        assert args is not None
-        assert len(args) == 2
-        assert isinstance(args[0], SlangType)
-        assert isinstance(args[1], int)
-        super().__init__(program, refl, element_type=args[0], local_shape=Shape((-1,) * args[1]))
-        self.element_type: SlangType
-        self._writable = refl.name in (
-            "IRWTensor",
-            "RWTensor",
-            "GradInTensor",
-            "GradInOutTensor",
-            "AtomicTensor",
-        )
-        self._dims = args[1]
-
-    @property
-    def writable(self) -> bool:
-        return self._writable
-
-    @property
-    def dims(self) -> int:
-        return self._dims
-
-    @property
-    def dtype(self) -> SlangType:
-        return self.element_type
-
-
-TYPE_OVERRIDES["ITensor"] = ITensorType
-TYPE_OVERRIDES["IRWTensor"] = ITensorType
-TYPE_OVERRIDES["Tensor"] = ITensorType
-TYPE_OVERRIDES["RWTensor"] = ITensorType
-TYPE_OVERRIDES["GradInTensor"] = ITensorType
-TYPE_OVERRIDES["GradOutTensor"] = ITensorType
-TYPE_OVERRIDES["GradInOutTensor"] = ITensorType
-TYPE_OVERRIDES["AtomicTensor"] = ITensorType
 
 
 def types_equal(a: SlangType, b: SlangType):
@@ -94,39 +55,6 @@ def is_nested_array(a: SlangType):
         if a.element_type is None:
             return False
         a = a.element_type
-
-
-def build_tensor_name(
-    element_type: SlangType,
-    dims: int,
-    writable: bool,
-    has_grad_in: bool,
-    has_grad_out: bool,
-) -> str:
-    if not has_grad_in and not has_grad_out:
-        prefix = "RW" if writable else ""
-    else:
-        prefix = "Grad"
-        if has_grad_in:
-            # assert writable
-            prefix += "In"
-        if has_grad_out:
-            prefix += "Out"
-    return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
-
-
-def build_tensor_type(
-    layout: SlangProgramLayout,
-    element_type: SlangType,
-    dims: int,
-    writable: bool,
-    has_grad_in: bool,
-    has_grad_out: bool,
-) -> SlangType:
-    tensor_name = build_tensor_name(element_type, dims, writable, has_grad_in, has_grad_out)
-    slang_type = layout.find_type_by_name(tensor_name)
-    assert slang_type is not None, f"Failed to look up tensor type {tensor_name}"
-    return slang_type
 
 
 class TensorMarshall(NativeTensorMarshall):
@@ -171,8 +99,13 @@ class TensorMarshall(NativeTensorMarshall):
                     "Supplying input gradients is only allowed if the primal tensor is writable"
                 )
 
-        slang_type = build_tensor_type(
-            layout, element_type, dims, writable, d_in is not None, d_out is not None
+        slang_type = layout.tensor_type(
+            element_type=element_type,
+            dims=dims,
+            writable=writable,
+            tensor_type=TensorType.tensor,
+            has_grad_in=d_in is not None,
+            has_grad_out=d_out is not None,
         )
 
         super().__init__(
@@ -184,6 +117,9 @@ class TensorMarshall(NativeTensorMarshall):
             d_in=d_in,
             d_out=d_out,
         )
+
+    def __repr__(self) -> str:
+        return f"Tensor[dtype={self.slang_element_type.full_name}, dims={self.dims}, writable={self.writable}]"
 
     @property
     def has_derivative(self):
@@ -204,17 +140,17 @@ class TensorMarshall(NativeTensorMarshall):
                     f"to tensor with element type {bound_type.dtype.full_name}"
                 )
 
-            # Atomic tensors are special, they must be passed as-is
-            if bound_type.name == "AtomicTensor":
-                return bound_type
+            tensor_type = (
+                TensorType.atomic if bound_type.name == "AtomicTensor" else TensorType.tensor
+            )
 
-            return build_tensor_type(
-                self.layout,
-                bound_type.dtype,
-                bound_type.dims,
-                bound_type.writable,
-                self.d_in is not None,
-                self.d_out is not None,
+            return self.layout.tensor_type(
+                element_type=bound_type.dtype,
+                dims=bound_type.dims,
+                writable=bound_type.writable,
+                tensor_type=tensor_type,
+                has_grad_in=self.d_in is not None,
+                has_grad_out=self.d_out is not None,
             )
 
         # if implicit element casts enabled, allow conversion from type to element type
@@ -249,31 +185,26 @@ class TensorMarshall(NativeTensorMarshall):
                     f"Can't convert tensor with element type {self.slang_element_type.full_name} "
                     f"to tensor with element type {bound_type.dtype.full_name}"
                 )
-            if bound_type.name == "AtomicTensor":
-                return [bound_type]
-            else:
-                return [
-                    build_tensor_type(
-                        self.layout,
-                        bound_type.dtype,
-                        bound_type.dims,
-                        bound_type.writable,
-                        self.d_in is not None,
-                        self.d_out is not None,
-                    )
-                ]
+
+            tensor_type = (
+                TensorType.atomic if bound_type.name == "AtomicTensor" else TensorType.tensor
+            )
+
+            return [
+                self.layout.tensor_type(
+                    element_type=bound_type.dtype,
+                    dims=bound_type.dims,
+                    writable=bound_type.writable,
+                    tensor_type=tensor_type,
+                    has_grad_in=self.d_in is not None,
+                    has_grad_out=self.d_out is not None,
+                )
+            ]
+
         # If target type is fully generic, always add tensor type as option
         if bound_type.type_reflection.kind == TypeReflection.Kind.none:
             results: list[SlangType] = []
-            tensor_type = build_tensor_type(
-                self.layout,
-                self.slang_element_type,
-                self.dims,
-                self.writable,
-                self.d_in is not None,
-                self.d_out is not None,
-            )
-            results.append(tensor_type)
+            results.append(self.slang_type)
             results.append(self.slang_element_type)
             return results
 
@@ -320,6 +251,11 @@ class TensorMarshall(NativeTensorMarshall):
         if as_pointer is not None:
             return [as_pointer]
 
+        # NDBuffer of scalars can load matrices of known size
+        as_matrix = spyvec.scalar_to_sized_matrix(self_element_type, bound_type)
+        if as_matrix is not None:
+            return [as_matrix]
+
         # NDBuffer of scalars can load vectors of known size
         as_vector = spyvec.scalar_to_sized_vector(self_element_type, bound_type)
         if as_vector is not None:
@@ -341,6 +277,11 @@ class TensorMarshall(NativeTensorMarshall):
         as_array = spyvec.array_to_array(self_element_type, bound_type)
         if as_array is not None:
             return [as_array]
+
+        # Support resolving generic matrix
+        as_matrix = spyvec.matrix_to_matrix(self_element_type, bound_type)
+        if as_matrix is not None:
+            return [as_matrix]
 
         # Support resolving generic vector
         as_vector = spyvec.vector_to_vector(self_element_type, bound_type)
@@ -382,17 +323,18 @@ class TensorMarshall(NativeTensorMarshall):
         else:
             writable = binding.access[0] in (AccessType.write, AccessType.readwrite)
 
-        # Atomic tensors are special, they must be passed as-is
-        if binding.vector_type.name == "AtomicTensor":
-            type_name = binding.vector_type.full_name
-        else:
-            type_name = build_tensor_name(
-                self.slang_element_type,
-                self.dims,
-                writable,
-                self.d_in is not None,
-                self.d_out is not None,
-            )
+        type_name = ITensorType.build_tensor_name(
+            element_type=self.slang_element_type,
+            dims=self.dims,
+            writable=writable,
+            tensor_type=(
+                TensorType.atomic
+                if binding.vector_type.name == "AtomicTensor"
+                else TensorType.tensor
+            ),
+            has_grad_in=self.d_in is not None,
+            has_grad_out=self.d_out is not None,
+        )
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
     def build_shader_object(self, context: "BindContext", data: Any) -> "ShaderObject":

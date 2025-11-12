@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Any, Optional, cast
+from typing import Any, List, Optional, Tuple, cast
 import pytest
 import deepdiff
 
@@ -110,7 +110,10 @@ def build_and_resolve(
     context, bindings = build_test_data(module, call_mode, *args, **kwargs)
     diagnostics = ResolutionDiagnostic()
     resolutions = resolve(context, functions, bindings, diagnostics)
-    assert len(resolutions) == 1, f"Expected one resolution, got {len(resolutions)}"
+    if len(resolutions) != 1:
+        raise AssertionError(
+            f"Expected one resolution, got {len(resolutions)}, diagnostics:\n" + str(diagnostics)
+        )
     return resolutions[0]
 
 
@@ -737,6 +740,11 @@ TESTS = [
     ("func_int", spy.int1(2), "int", 1),
     ("func_int", _NDBuffer("int", 1, False), "int", 1),
 
+    # Python ranges to ints but not floats
+    ("func_int", range(3), "int", 3),
+    ("func_float", range(3), None, None),
+    ("func_generic", range(3), "int", 3),
+
     # None default numeric types should be picked up correctly
     ("func_half", 1.0, "half", 0),
     ("func_half", 2, "half", 0),
@@ -819,6 +827,49 @@ TESTS = [
     ("func_floatN_generic", _Tensor("float4", 1, True), "vector<float,4>", 1),
     ("func_floatN_generic", _NDBuffer("int4", 1, False), None, None),
 
+    # Load vectors from matrices
+    ("func_float3", spy.float3x3.identity(), "vector<float,3>", 2),
+    ("func_vector_float3", spy.float3x3.identity(), "vector<float,3>", 2),
+    ("func_vector3_generic", spy.float3x3.identity(), "vector<float,3>", 2),
+    ("func_vectorN_generic", spy.float3x3.identity(), "vector<float,3>", 2),
+    ("func_floatN_generic", spy.float3x3.identity(), "vector<float,3>", 2),
+
+    # Basic matrix types
+    ("func_float3x3", spy.float3x3.identity(), "matrix<float,3,3>", 2),
+    ("func_float3x3", _NDBuffer("float", 2, False), "matrix<float,3,3>", 1),
+    ("func_float3x3", _Tensor("float", 2, True), "matrix<float,3,3>", 1),
+    ("func_float3x3", _NDBuffer("float3x3", 1, False), "matrix<float,3,3>", 1),
+    ("func_float3x3", _Tensor("float3x3", 1, True), "matrix<float,3,3>", 1),
+    ("func_float3x3", _Tensor("float4x4", 1, True), None, None),
+    ("func_float3x4", spy.float3x4.identity(), "matrix<float,3,4>", 2),
+    ("func_matrix_float3x3", spy.float3x3.identity(), "matrix<float,3,3>", 2),
+    ("func_matrix_generic", spy.float3x3.identity(), "matrix<float,3,3>", 2),
+    ("func_matrix_generic33", spy.float3x3.identity(), "matrix<float,3,3>", 2),
+    ("func_matrix_floatRC_generic", spy.float3x3.identity(), "matrix<float,3,3>", 2),
+    ("func_matrix_floatR3_generic", spy.float3x3.identity(), "matrix<float,3,3>", 2),
+    ("func_matrix_float3C_generic", spy.float3x3.identity(), "matrix<float,3,3>", 2),
+
+    # Loading matrices from buffers/tensors of scalars require known dimensions but can resolve type
+    ("func_matrix_generic", _NDBuffer("float", 2, False), None, None),
+    ("func_matrix_generic33", _NDBuffer("float", 2, False), "matrix<float,3,3>", 2),
+    ("func_matrix_floatRC_generic", _NDBuffer("float", 2, False), None, None),
+    ("func_matrix_floatR3_generic", _NDBuffer("float", 2, False), None, None),
+    ("func_matrix_float3C_generic", _NDBuffer("float", 2, False), None, None),
+
+    # Loading generic matrices from buffers/tensors of matrices
+    ("func_matrix_generic", _NDBuffer("float3x3", 1, False), "matrix<float,3,3>", 1),
+    ("func_matrix_generic33", _NDBuffer("float3x3", 1, False), "matrix<float,3,3>", 1),
+    ("func_matrix_floatRC_generic", _NDBuffer("float3x4", 1, False), "matrix<float,3,4>", 1),
+    ("func_matrix_floatR3_generic", _NDBuffer("float3x3", 1, False), "matrix<float,3,3>", 1),
+    ("func_matrix_float3C_generic", _NDBuffer("float4x3", 1, False), None, None),
+    ("func_matrix_float3C_generic", _NDBuffer("float3x4", 1, False), "matrix<float,3,4>", 1),
+    ("func_matrix_generic", _Tensor("float3x3", 1, True), "matrix<float,3,3>", 1),
+    ("func_matrix_generic33", _Tensor("float3x3", 1, True), "matrix<float,3,3>", 1),
+    ("func_matrix_floatRC_generic", _Tensor("float3x4", 1, True), "matrix<float,3,4>", 1),
+    ("func_matrix_floatR3_generic", _Tensor("float3x3", 1, True), "matrix<float,3,3>", 1),
+    ("func_matrix_float3C_generic", _Tensor("float4x3", 1, True), None, None),
+    ("func_matrix_float3C_generic", _Tensor("float3x4", 1, True), "matrix<float,3,4>", 1),
+
     # Basic float arrays
     ("func_float_array", [1,2,3,4], "float[4]", 3),
     ("func_float_array", _NDBuffer("float[4]",1,True), "float[4]", 3),
@@ -871,6 +922,26 @@ TESTS = [
     ("func_generic_type_array", _NDBuffer("float",1,False), "float[4]", 3),
     ("func_generic_length_array", _NDBuffer("float",1,False), None, None),
     ("func_generic_unsized_array", _NDBuffer("float",1,False), None, None),
+
+    # 2D float arrays
+    ("func_float_array2d", _NDBuffer("float[8][5]",1,True), "float[8][5]", 3),
+    ("func_float_array2d", _Tensor("float[8][5]",1,False), "float[8][5]", 3),
+    ("func_float_array2d_full", _NDBuffer("float[8][5]",1,True), "float[8][5]", 3),
+    ("func_float_array2d_full", _Tensor("float[8][5]",1,False), "float[8][5]", 3),
+    ("func_float_array2d", _NDBuffer("float",2,True), "float[8][5]", 3),
+    ("func_float_array2d", _Tensor("float",2,False), "float[8][5]", 3),
+    ("func_float_array2d_full", _NDBuffer("float",2,True), "float[8][5]", 3),
+    ("func_float_array2d_full", _Tensor("float",2,False), "float[8][5]", 3),
+
+    # Tensor of 1D arrays that can map to the 2D array
+    ("func_float_array2d", _NDBuffer("float[8]",1,True), "float[8][5]", 3),
+    ("func_float_array2d", _Tensor("float[8]",1,False), "float[8][5]", 3),
+
+    # Failure cases due to incorrect sizes/types
+    ("func_float_array2d", _NDBuffer("float[5][8]",1,True), None, None),
+    ("func_float_array2d", _Tensor("float[5][8]",1,False), None, None),
+    ("func_float_array2d", _NDBuffer("float[5]",1,True), None, None),
+    ("func_float_array2d", _Tensor("float[5]",1,False), None, None),
 
     # standard structured buffer of known element type
     ("func_float_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<float,DefaultDataLayout>", 1),
@@ -940,13 +1011,7 @@ TESTS = [
 # fmt: on
 
 
-@pytest.mark.parametrize("device_type", DEVICE_TYPES)
-@pytest.mark.parametrize(
-    "func_name, arg_value, expected_type_name, expected_dim",
-    TESTS,
-    ids=[f"{fn}_{av}" for fn, av, etn, ed in TESTS],
-)
-def test_type_resolution_simple(
+def run_type_resolution_test(
     device_type: spy.DeviceType,
     func_name: str,
     arg_value: Any,
@@ -955,12 +1020,10 @@ def test_type_resolution_simple(
 ):
     device = helpers.get_device(type=device_type)
     module = spy.Module.load_from_file(device, "type_resolution.slang")
-
     if callable(arg_value):
         arg = arg_value(module)
     else:
         arg = arg_value
-
     try:
         actual_resolution = build_and_resolve(module, func_name, spyn.CallMode.prim, arg)
     except Exception as e:
@@ -968,8 +1031,169 @@ def test_type_resolution_simple(
             return
         else:
             raise e
-
     assert expected_type_name is not None, "Expected resolution to fail but it succeeded"
     expected_type = module.layout.find_type_by_name(expected_type_name)
     assert expected_type is not None, f"Expected type {expected_type_name} not found"
     check(actual_resolution, expected_type)
+
+
+def filter_tests(
+    tests: List[Tuple[str, Any, Optional[str], Optional[int]]], types: Tuple[type, ...]
+):
+    a = []
+    b = []
+    for test in tests:
+        # Exclude tests that use Tensor on non-supporting devices
+        if isinstance(test[1], types):
+            a.append(test)
+        else:
+            b.append(test)
+    return a, b
+
+
+SIMPLE_TESTS, TESTS = filter_tests(
+    TESTS,
+    types=(int, float),
+)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    SIMPLE_TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in SIMPLE_TESTS],
+)
+def test_type_resolution_simple(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)
+
+
+TENSOR_TESTS, TESTS = filter_tests(
+    TESTS,
+    types=(_Tensor,),
+)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    TENSOR_TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in TENSOR_TESTS],
+)
+def test_type_resolution_tensor(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)
+
+
+BUFFER_TESTS, TESTS = filter_tests(
+    TESTS,
+    types=(_Buffer,),
+)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    BUFFER_TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in BUFFER_TESTS],
+)
+def test_type_resolution_buffer(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)
+
+
+NDBUFFER_TESTS, TESTS = filter_tests(
+    TESTS,
+    types=(_NDBuffer,),
+)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    NDBUFFER_TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in NDBUFFER_TESTS],
+)
+def test_type_resolution_ndbuffer(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)
+
+
+VECTOR_TESTS, TESTS = filter_tests(
+    TESTS,
+    types=(spy.int1, spy.float1, spy.int2, spy.float2, spy.int3, spy.float3, spy.float4),
+)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    VECTOR_TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in VECTOR_TESTS],
+)
+def test_type_resolution_vector(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)
+
+
+MATRIX_TESTS, TESTS = filter_tests(
+    TESTS,
+    types=(spy.float3x3, spy.float3x4, spy.float4x3, spy.float4x4),
+)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    MATRIX_TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in MATRIX_TESTS],
+)
+def test_type_resolution_matrix(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in TESTS],
+)
+def test_type_resolution_other(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)

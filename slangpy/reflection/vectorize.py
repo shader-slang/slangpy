@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Tuple, Union
 import slangpy.reflection.reflectiontypes as rt
 
 
@@ -53,8 +54,10 @@ def _array_shapes_match(array_1: rt.ArrayType, array_2: rt.ArrayType):
     return True
 
 
-def _array_type_name(element_type: rt.SlangType, shape: rt.Shape):
-    return element_type.full_name + "".join(f"[{x}]" for x in shape.as_tuple())
+def _array_type_name(element_type: rt.SlangType, shape: Union[rt.Shape, Tuple[int, ...]]):
+    if isinstance(shape, rt.Shape):
+        shape = shape.as_tuple()
+    return element_type.full_name + "".join(f"[{x}]" for x in reversed(shape))
 
 
 def array_to_array(marshall_type: rt.SlangType, target_type: rt.SlangType):
@@ -131,12 +134,50 @@ def scalar_to_sized_vector(marshall_element_type: rt.SlangType, target_type: rt.
     return None
 
 
+def matrix_to_matrix(marshall_type: rt.SlangType, target_type: rt.SlangType):
+    """Attempt to match marshall matrix type to target matrix type, allowing for generic element/dims"""
+    if not isinstance(marshall_type, rt.MatrixType):
+        return None
+    if isinstance(target_type, rt.MatrixType):
+        if (
+            isinstance(target_type.inner_element_type, rt.ScalarType)
+            and marshall_type.inner_element_type.slang_scalar_type
+            != target_type.inner_element_type.slang_scalar_type
+        ):
+            return None
+        if target_type.cols > 0 and marshall_type.cols != target_type.cols:
+            return None
+        if target_type.rows > 0 and marshall_type.rows != target_type.rows:
+            return None
+        return marshall_type
+    return None
+
+
+def scalar_to_sized_matrix(marshall_element_type: rt.SlangType, target_type: rt.SlangType):
+    """Attempt to create a matrix type from marshall scalar type to match target matrix type. Used by
+    containers that can hold a scalar and load matrices."""
+    if not isinstance(marshall_element_type, rt.ScalarType):
+        return None
+    if isinstance(target_type, rt.MatrixType):
+        if (
+            isinstance(target_type.element_type, rt.ScalarType)
+            and marshall_element_type.slang_scalar_type != target_type.slang_scalar_type
+        ):
+            return None
+        if target_type.cols == 0 or target_type.rows == 0:
+            return None
+        return marshall_element_type.program.matrix_type(
+            marshall_element_type.slang_scalar_type, target_type.rows, target_type.cols
+        )
+    return None
+
+
 def container_to_generic_array_candidates(
     marshall_element_type: rt.SlangType, target_type: rt.SlangType
 ):
     results = []
     if isinstance(target_type, rt.ArrayType) and isinstance(
-        target_type.element_type, rt.UnknownType
+        target_type.inner_element_type, rt.UnknownType
     ):
         array_shape = target_type.array_shape.as_tuple()
         results.append(marshall_element_type)
@@ -144,7 +185,7 @@ def container_to_generic_array_candidates(
             array_name = f"{marshall_element_type.full_name}[{array_shape[0]}]"
             results.append(marshall_element_type.program.find_type_by_name(array_name))
         if len(array_shape) >= 2 and array_shape[0] >= 1 and array_shape[1] >= 1:
-            array_name = f"{marshall_element_type.full_name}[{array_shape[0]}][{array_shape[1]}]"
+            array_name = f"{marshall_element_type.full_name}[{array_shape[1]}][{array_shape[0]}]"
             results.append(marshall_element_type.program.find_type_by_name(array_name))
     results = [r for r in results if r]
     if len(results) == 0:
@@ -153,19 +194,44 @@ def container_to_generic_array_candidates(
 
 
 def container_to_sized_array(
-    marshall_element_type: rt.SlangType, target_type: rt.SlangType, max_dims: int
+    container_element_type: rt.SlangType, target_type: rt.SlangType, max_dims: int
 ):
     """Attempt to create a vector type from marshall scalar type to match target vector type. Used by
-    containers that can hold a scalar and load arrays."""
+    containers that can hold an element and load arrays. This has to handle the fact that the container
+    itself could contain an array type as element type."""
+
+    # Handle container element type being an array itself by unwrapping it into
+    # its inner element type and shape
+    if isinstance(container_element_type, rt.ArrayType):
+        container_array_shape = container_element_type.array_shape.as_tuple()
+        container_element_type = container_element_type.inner_element_type
+    else:
+        container_array_shape = ()
+
     if isinstance(target_type, rt.ArrayType):
-        array_shape = target_type.array_shape
-        if len(array_shape) > max_dims:
+        target_array_shape = target_type.array_shape.as_tuple()
+        target_array_element_type = target_type.inner_element_type
+        target_dims = len(target_array_shape)
+        container_dims = len(container_array_shape)
+
+        # Match up element types and dimensions
+        if container_element_type.full_name != target_array_element_type.full_name:
             return None
-        for dim in array_shape.as_tuple():
+        if target_dims - container_dims > max_dims:
+            return None
+        for dimidx in range(container_dims):
+            ts = target_array_shape[target_dims - dimidx - 1]
+            cs = container_array_shape[container_dims - dimidx - 1]
+            if ts > 0 and ts != cs:
+                return None
+
+        # Build final shape and check not generic
+        final_shape = target_array_shape[: target_dims - container_dims] + container_array_shape
+        for dim in final_shape:
             if dim == 0:
                 return None
-        array_name = _array_type_name(marshall_element_type, array_shape)
-        return marshall_element_type.program.find_type_by_name(array_name)
+        array_name = _array_type_name(container_element_type, final_shape)
+        return container_element_type.program.find_type_by_name(array_name)
 
     return None
 

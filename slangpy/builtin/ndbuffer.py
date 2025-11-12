@@ -32,6 +32,7 @@ from slangpy.reflection import (
     PointerType,
     ArrayType,
     UnknownType,
+    ITensorType,
     is_matching_array_type,
     is_unknown,
     is_known,
@@ -57,29 +58,6 @@ def _calc_broadcast(context: CallContext, binding: BoundVariableRuntime):
     return broadcast
 
 
-class NDBufferType(SlangType):
-    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-        args = program.get_resolved_generic_args(refl)
-        assert args is not None
-        assert len(args) == 2
-        assert isinstance(args[0], SlangType)
-        assert isinstance(args[1], int)
-        super().__init__(program, refl, element_type=args[0], local_shape=Shape((-1,) * args[1]))
-        self._writable = self.type_reflection.full_name.startswith("RW")
-
-    @property
-    def writable(self) -> bool:
-        return self._writable
-
-    def build_vector_type_name(self) -> str:
-        prefix = "RW" if self.writable else ""
-        return f"{prefix}NDBuffer<{self.element_type.vector_type_name},{len(self.shape)}>"
-
-
-TYPE_OVERRIDES["NDBuffer"] = NDBufferType
-TYPE_OVERRIDES["RWNDBuffer"] = NDBufferType
-
-
 def ndbuffer_reduce_type(
     self: Union[NativeNDBufferMarshall, "BaseNDBufferMarshall"],
     context: BindContext,
@@ -103,7 +81,7 @@ def ndbuffer_resolve_type(
     bound_type: "SlangType",
 ):
 
-    if isinstance(bound_type, NDBufferType) or isinstance(bound_type, StructuredBufferType):
+    if isinstance(bound_type, ITensorType) or isinstance(bound_type, StructuredBufferType):
         # If the bound type is an NDBuffer, verify properties match then just use it
         if bound_type.writable and not self.writable:
             raise ValueError("Attempted to bind a writable buffer to a read-only buffer")
@@ -250,7 +228,7 @@ def ndbuffer_resolve_types(
             results.append(specialized)
 
     # Target type is NDBuffer
-    if isinstance(bound_type, NDBufferType):
+    if isinstance(bound_type, ITensorType):
         if bound_type.writable and not self_writable:
             raise ValueError("Attempted to bind a writable buffer to a read-only buffer")
         if bound_type.element_type != self_element_type:
@@ -279,6 +257,11 @@ def ndbuffer_resolve_types(
     if as_pointer is not None:
         return [as_pointer]
 
+    # NDBuffer of scalars can load matrices of known size
+    as_matrix = spyvec.scalar_to_sized_matrix(self_element_type, bound_type)
+    if as_matrix is not None:
+        return [as_matrix]
+
     # NDBuffer of scalars can load vectors of known size
     as_vector = spyvec.scalar_to_sized_vector(self_element_type, bound_type)
     if as_vector is not None:
@@ -300,6 +283,11 @@ def ndbuffer_resolve_types(
     as_array = spyvec.array_to_array(self_element_type, bound_type)
     if as_array is not None:
         return [as_array]
+
+    # Support resolving generic matrix
+    as_matrix = spyvec.matrix_to_matrix(self_element_type, bound_type)
+    if as_matrix is not None:
+        return [as_matrix]
 
     # Support resolving generic vector
     as_vector = spyvec.vector_to_vector(self_element_type, bound_type)
@@ -333,10 +321,10 @@ def ndbuffer_gen_calldata(
     assert access[0] != AccessType.none
     assert access[1] == AccessType.none
     writable = access[0] != AccessType.read
-    if isinstance(binding.vector_type, NDBufferType):
+    if isinstance(binding.vector_type, ITensorType):
         # If passing to NDBuffer, just use the NDBuffer type
         assert access[0] == AccessType.read
-        assert isinstance(binding.vector_type, NDBufferType)
+        assert isinstance(binding.vector_type, ITensorType)
         cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
     else:
         # If we pass to a structured buffer, check the writable flag from the type
@@ -404,7 +392,7 @@ class NDBufferMarshall(NativeNDBufferMarshall):
         )
 
     def __repr__(self) -> str:
-        return f"NDBuffer[dtype={self.slang_type.full_name}, dims={self.dims}, writable={self.writable}]"
+        return f"NDBuffer[dtype={self.slang_element_type.full_name}, dims={self.dims}, writable={self.writable}]"
 
     @property
     def is_writable(self) -> bool:
@@ -532,10 +520,10 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
         access = binding.access
         name = binding.variable_name
 
-        if isinstance(binding.vector_type, NDBufferType):
+        if isinstance(binding.vector_type, ITensorType):
             # If passing to NDBuffer, just use the NDBuffer type
             assert access[0] == AccessType.read
-            assert isinstance(binding.vector_type, NDBufferType)
+            assert isinstance(binding.vector_type, ITensorType)
             cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
         else:
 
@@ -588,7 +576,7 @@ class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
         binding: "BoundVariableRuntime",
         data: NDDifferentiableBuffer,
     ) -> Any:
-        if isinstance(binding.vector_type, NDBufferType):
+        if isinstance(binding.vector_type, ITensorType):
             return {
                 "buffer": data.storage,
                 "_shape": data.shape.as_tuple(),

@@ -21,6 +21,8 @@ from .reflectiontypes import (
     RaytracingAccelerationStructureType,
     SamplerStateType,
     UnhandledType,
+    ITensorType,
+    TensorType,
     SlangFunction,
     SlangField,
     SlangParameter,

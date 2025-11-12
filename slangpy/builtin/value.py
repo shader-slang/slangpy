@@ -415,12 +415,20 @@ class MatrixMarshall(ValueMarshall):
         # Fall back to just checking if binding to a matrix, vector or scalar
         if isinstance(bound_type, kfr.MatrixType):
             return [st]
-        if isinstance(bound_type, kfr.VectorType):
-            return [st.element_type]
-        elif isinstance(bound_type, kfr.ScalarType):
-            return [st.inner_element_type]
-        else:
-            return None
+
+        as_matrix = spyvec.matrix_to_matrix(st, bound_type)
+        if as_matrix is not None:
+            return [as_matrix]
+
+        as_vector = spyvec.vector_to_vector(st.element_type, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        as_scalar = spyvec.scalar_to_scalar(st.inner_element_type, bound_type)
+        if as_scalar is not None:
+            return [as_scalar]
+
+        return None
 
 
 # Point built in python types at their slang equivalents

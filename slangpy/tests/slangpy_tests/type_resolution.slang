@@ -106,6 +106,48 @@ vector<float, N> func_floatN_generic<let N : int>(vector<float, N> a)
     return a;
 }
 
+// Matrix types
+float3x3 func_float3x3(float3x3 a)
+{
+    return a;
+}
+float4x4 func_float4x4(float4x4 a)
+{
+    return a;
+}
+float3x4 func_float3x4(float3x4 a)
+{
+    return a;
+}
+matrix<float,3,3> func_matrix_float3x3(matrix<float,3,3> a)
+{
+    return a;
+}
+int3x3 func_int3x3(int3x3 a)
+{
+    return a;
+}
+matrix<T,R,C> func_matrix_generic<T, let R: int, let C: int>(matrix<T,R,C> a)
+{
+    return a;
+}
+matrix<T, 3, 3> func_matrix_generic33<T>(matrix<T, 3, 3> a)
+{
+    return a;
+}
+matrix<float,R,C> func_matrix_floatRC_generic<let R: int, let C: int>(matrix<float,R,C> a)
+{
+    return a;
+}
+matrix<float,R,3> func_matrix_floatR3_generic<let R: int>(matrix<float,R,3> a)
+{
+    return a;
+}
+matrix<float,3,C> func_matrix_float3C_generic<let C: int>(matrix<float,3,C> a)
+{
+    return a;
+}
+
 // 1D arrays of known type/size. Can be passed
 // - python list/tuple of correct type and length
 // - spy.NDBuffer/Tensor of ArrayType
@@ -146,6 +188,15 @@ void func_generic_length_array<let N: int>(float[N] a)
 void func_generic_unsized_array<T>(T[] a)
 {
     return;
+}
+
+float [8][5] func_float_array2d(float [8][5] a)
+{
+    return a;
+}
+float [8][5] func_float_array2d_full(Array<Array<float,8>, 5> a)
+{
+    return a;
 }
 
 // StructuredBuffer and RWStructuredBuffer types. These can be passed

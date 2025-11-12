@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Callable, Optional, Union, Sequence, cast
 
 import numpy as np
@@ -612,6 +613,16 @@ class ArrayType(SlangType):
         return False
 
     @property
+    def inner_element_type(self) -> SlangType:
+        """
+        Inner scalar element type of the array.
+        """
+        array = self
+        while isinstance(array, ArrayType):
+            array = array.element_type
+        return cast(SlangType, array)
+
+    @property
     def array_dims(self) -> int:
         return len(self.array_shape)
 
@@ -836,6 +847,92 @@ class SamplerStateType(SlangType):
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl, local_shape=Shape())
+
+
+class TensorType(Enum):
+    tensor = (0,)
+    atomic = (1,)
+    ndbuffer = (2,)
+    interface = (3,)
+
+
+_TENSOR_NAME_TO_TYPE = {
+    "Tensor": TensorType.tensor,
+    "RWTensor": TensorType.tensor,
+    "GradInTensor": TensorType.tensor,
+    "GradOutTensor": TensorType.tensor,
+    "GradInOutTensor": TensorType.tensor,
+    "ITensor": TensorType.interface,
+    "IRWTensor": TensorType.interface,
+    "AtomicTensor": TensorType.atomic,
+    "NDBuffer": TensorType.ndbuffer,
+    "RWNDBuffer": TensorType.ndbuffer,
+}
+
+
+class ITensorType(SlangType):
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        args = program.get_resolved_generic_args(refl)
+        assert args is not None
+        assert len(args) == 2
+        assert isinstance(args[0], SlangType)
+        assert isinstance(args[1], int)
+        super().__init__(program, refl, element_type=args[0], local_shape=Shape((-1,) * args[1]))
+        self.element_type: SlangType
+        self._writable = refl.name in (
+            "IRWTensor",
+            "RWTensor",
+            "RWNDBuffer" "GradInTensor",
+            "GradInOutTensor",
+            "AtomicTensor",
+        )
+        self._dims = args[1]
+
+    @property
+    def writable(self) -> bool:
+        return self._writable
+
+    @property
+    def dims(self) -> int:
+        return self._dims
+
+    @property
+    def dtype(self) -> SlangType:
+        return self.element_type
+
+    @property
+    def tensor_type(self) -> TensorType:
+        return _TENSOR_NAME_TO_TYPE[self.type_reflection.name]
+
+    @staticmethod
+    def build_tensor_name(
+        element_type: SlangType,
+        dims: int,
+        writable: bool = True,
+        tensor_type: TensorType = TensorType.tensor,
+        has_grad_in: bool = False,
+        has_grad_out: bool = False,
+    ) -> str:
+        if tensor_type == TensorType.interface:
+            prefix = "IRW" if writable else "I"
+            return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
+        elif tensor_type == TensorType.atomic:
+            return f"AtomicTensor<{element_type.full_name}, {dims}>"
+        elif tensor_type == TensorType.ndbuffer:
+            prefix = "RW" if writable else ""
+            return f"{prefix}NDBuffer<{element_type.full_name}, {dims}>"
+        elif tensor_type == TensorType.tensor:
+            if not has_grad_in and not has_grad_out:
+                prefix = "RW" if writable else ""
+            else:
+                prefix = "Grad"
+                if has_grad_in:
+                    prefix += "In"
+                if has_grad_out:
+                    prefix += "Out"
+            return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
+        else:
+            raise ValueError("Invalid tensor type")
 
 
 class UnhandledType(SlangType):
@@ -1338,6 +1435,21 @@ class SlangProgramLayout:
         else:
             return cast(ArrayType, self.find_type_by_name(f"{element_type.full_name}[]"))
 
+    def tensor_type(
+        self,
+        element_type: SlangType,
+        dims: int,
+        writable: bool = True,
+        tensor_type: TensorType = TensorType.tensor,
+        has_grad_in: bool = False,
+        has_grad_out: bool = False,
+    ) -> SlangType:
+        tensor_name = ITensorType.build_tensor_name(
+            element_type, dims, writable, tensor_type, has_grad_in, has_grad_out
+        )
+        slang_type = self.find_type_by_name(tensor_name)
+        return cast(ITensorType, slang_type)
+
     def _get_or_create_type(self, refl: TypeReflection):
         existing = self._types_by_reflection.get(refl)
         if existing is not None:
@@ -1573,3 +1685,13 @@ def create_unknown_type(layout: SlangProgramLayout, refl: TypeReflection) -> Sla
 
 TYPE_OVERRIDES["DifferentialPair"] = create_differential_pair
 TYPE_OVERRIDES["Unknown"] = create_unknown_type
+TYPE_OVERRIDES["ITensor"] = ITensorType
+TYPE_OVERRIDES["IRWTensor"] = ITensorType
+TYPE_OVERRIDES["Tensor"] = ITensorType
+TYPE_OVERRIDES["RWTensor"] = ITensorType
+TYPE_OVERRIDES["GradInTensor"] = ITensorType
+TYPE_OVERRIDES["GradOutTensor"] = ITensorType
+TYPE_OVERRIDES["GradInOutTensor"] = ITensorType
+TYPE_OVERRIDES["AtomicTensor"] = ITensorType
+TYPE_OVERRIDES["NDBuffer"] = ITensorType
+TYPE_OVERRIDES["RWNDBuffer"] = ITensorType
