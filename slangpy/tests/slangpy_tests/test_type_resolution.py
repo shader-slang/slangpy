@@ -694,22 +694,38 @@ class _NDBuffer:
 
 
 class _Tensor:
-    def __init__(self, base_type: str, dim: int, rw: bool):
+    def __init__(
+        self, base_type: str, dim: int, rw: bool, gradin: bool = False, gradout: bool = False
+    ):
         super().__init__()
         self.base_type = base_type
         self.dim = dim
         self.rw = rw
+        self.gradin = gradin
+        self.gradout = gradout
 
     def __repr__(self) -> str:
-        return f"{'RW' if self.rw else ''}Tensor<{self.base_type},{self.dim}>)"
+        txt = f"{'RW' if self.rw else ''}Tensor<{self.base_type},{self.dim}"
+        if self.gradin:
+            txt += ", gradin"
+        if self.gradout:
+            txt += ", gradout"
+        txt += ">"
+        return txt
 
     def __call__(self, module: spy.Module) -> spy.Tensor:
-        return spy.Tensor.empty(
+        t = spy.Tensor.empty(
             module.device,
             (3,) * self.dim,
             dtype=module.layout.find_type_by_name(self.base_type),
             usage=calc_usage(self.rw),
         )
+        if self.gradin or self.gradout:
+            t = t.with_grads(
+                grad_in=spy.Tensor.empty_like(t) if self.gradin else None,
+                grad_out=spy.Tensor.empty_like(t) if self.gradout else None,
+            )
+        return t
 
 
 # fmt: off
@@ -943,6 +959,47 @@ TESTS = [
     ("func_float_array2d", _NDBuffer("float[5]",1,True), None, None),
     ("func_float_array2d", _Tensor("float[5]",1,False), None, None),
 
+    # Generic types array here can't work, as could end up with float[8][5]
+    # or float[5][8][5] or float[5][8][5][8]!!!
+    ("func_generic_type_array2d", _NDBuffer("float[8][5]",1,True), None, None),
+    ("func_generic_type_array2d", _Tensor("float[8][5]",1,True), None, None),
+
+    # For the same reason, these are ambiguous
+    ("func_generic_type_array2d", _NDBuffer("float[8]",1,True), None, None),
+    ("func_generic_type_array2d", _Tensor("float[8]",1,True), None, None),
+
+    # These can succeed, as the function is constrained to require T is floating point
+    ("func_generic_type_constrained_array2d", _NDBuffer("float[8][5]",1,True), "float[8][5]", 1),
+    ("func_generic_type_constrained_array2d", _Tensor("float[8][5]",1,True), "float[8][5]", 1),
+
+    # These can succeed, as the different dimensions means only T==float[3][4][8][5] works!
+    ("func_generic_type_array2d", _NDBuffer("float[3][4]",1,True), "float[3][4][8][5]", 3),
+    ("func_generic_type_array2d", _Tensor("float[3][4]",1,True), "float[3][4][8][5]", 3),
+
+    # As there is only 1 solution to matching up types, these are not ambiguous
+    ("func_generic_type_array2d", _NDBuffer("float",1,True), "float[8][5]", 1),
+    ("func_generic_type_array2d", _Tensor("float",1,True), "float[8][5]", 1),
+    ("func_generic_type_array2d", _Tensor("float[3]",1,True), "float[3][8][5]", 1),
+    ("func_generic_type_array2d", _Tensor("float[3]",1,True), "float[3][8][5]", 1),
+
+    # Resolve dimensions of generically sized arrays
+    ("func_generic_size_array2d_R", _NDBuffer("float[8][5]",1,True), "float[8][5]", 1),
+    ("func_generic_size_array2d_R", _Tensor("float[8][5]",1,True), "float[8][5]", 1),
+    ("func_generic_size_array2d_C", _NDBuffer("float[8][5]",1,True), "float[8][5]", 1),
+    ("func_generic_size_array2d_C", _Tensor("float[8][5]",1,True), "float[8][5]", 1),
+    ("func_generic_size_array2d_RC", _NDBuffer("float[8][5]",1,True), "float[8][5]", 1),
+    ("func_generic_size_array2d_RC", _Tensor("float[8][5]",1,True), "float[8][5]", 1),
+
+    # With just R undefined, the system has a known C, so it can take the R from
+    # the element type and the C from the function signature. With C or RC undefined
+    # there is no way to resolve C, so those fail.
+    ("func_generic_size_array2d_R", _NDBuffer("float[8]",1,True), "float[8][5]", 1),
+    ("func_generic_size_array2d_R", _Tensor("float[8]",1,True), "float[8][5]", 1),
+    ("func_generic_size_array2d_C", _NDBuffer("float[8]",1,True), None, None),
+    ("func_generic_size_array2d_C", _Tensor("float[8]",1,True), None, None),
+    ("func_generic_size_array2d_RC", _NDBuffer("float[8]",1,True), None, None),
+    ("func_generic_size_array2d_RC", _Tensor("float[8]",1,True), None, None),
+
     # standard structured buffer of known element type
     ("func_float_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<float,DefaultDataLayout>", 1),
     ("func_float_rwstructuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), None, None),
@@ -1005,6 +1062,31 @@ TESTS = [
     ("func_generic_ptr", _NDBuffer("float", 2, True), "Ptr<float>", 1),
     ("func_generic_ptr", _Tensor("float", 2, False), "Ptr<float>", 1),
     ("func_generic_ptr", _Tensor("float", 2, True), "Ptr<float>", 1),
+
+    # Basic passing of NDBuffer/Tensor to the internal NDBuffer/Tensor types
+    ("func_itensor", _Tensor("float", 2, False), "Tensor<float,2>", 2),
+    ("func_irwtensor", _Tensor("float", 2, True), "RWTensor<float,2>", 2),
+    ("func_tensor", _Tensor("float", 2, False), "Tensor<float,2>", 2),
+    ("func_rwtensor", _Tensor("float", 2, True), "RWTensor<float,2>", 2),
+    ("func_ndbuffer", _Tensor("float", 2, False), "NDBuffer<float,2>", 2),
+    ("func_rwndbuffer", _Tensor("float", 2, True), "RWNDBuffer<float,2>", 2),
+    ("func_atomictensor", _Tensor("float", 2, True), "AtomicTensor<float,2>", 2),
+    ("func_gradintensor", _Tensor("float", 2, True, True, False), "GradInTensor<float,2>", 2),
+    ("func_gradouttensor", _Tensor("float", 2, False, False, True), "GradOutTensor<float,2>", 2),
+    ("func_gradinouttensor", _Tensor("float", 2, True, True, True), "GradInOutTensor<float,2>", 2),
+    ("func_ndbuffer", _NDBuffer("float", 2, False), "NDBuffer<float,2>", 2),
+    ("func_rwndbuffer", _NDBuffer("float", 2, True), "RWNDBuffer<float,2>", 2),
+
+    # Verify writable buffer/tensor can be passed to read-only parameters
+    ("func_itensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
+    ("func_tensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
+    ("func_ndbuffer", _Tensor("float", 2, True), "NDBuffer<float,2>", 2),
+    ("func_ndbuffer", _NDBuffer("float", 2, True), "NDBuffer<float,2>", 2),
+    ("func_gradouttensor", _Tensor("float", 2, True, False, True), "GradOutTensor<float,2>", 2),
+
+    # Verify tensors with both grads handle being passed to in-only or out-only params
+    ("func_gradintensor", _Tensor("float", 2, True, True, True), "GradInTensor<float,2>", 2),
+    ("func_gradouttensor", _Tensor("float", 2, True, True, True), "GradOutTensor<float,2>", 2),
 
 ]
 

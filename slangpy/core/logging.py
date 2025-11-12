@@ -224,7 +224,10 @@ def function_reflection(slang_function: Optional[FunctionReflection]):
         for m in ModifierID:
             if val.has_modifier(m):
                 mods.append(m.name)
-        return " ".join(mods)
+        res = " ".join(mods)
+        if res != "":
+            res += " "
+        return res
 
     text: list[str] = []
     if slang_function.return_type is not None:

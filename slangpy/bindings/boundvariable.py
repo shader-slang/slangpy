@@ -217,7 +217,7 @@ class BoundVariable:
                 self.python = get_or_create_type(context.layout, type(value), value)
             except Exception as e:
                 raise BoundVariableException(
-                    f"Failed to create type marshall for argument {self.debug_name}: {value} with error {e}",
+                    f"Failed to create type marshall for argument {self.debug_name}: {value} with error:\n{e}",
                     self,
                 ) from e
             self.create_param_block = False
@@ -487,7 +487,10 @@ you can find more information in the Mapping section of the documentation (https
             args.append(self)
 
     def __repr__(self):
-        return self.python.__repr__()
+        if self.python is not None:
+            return f"BoundVariable({self.python.__repr__()})"
+        else:
+            return f"BoundVariable({self.name})"
 
     def _calculate_differentiability(self, mode: CallMode):
         """

@@ -198,6 +198,26 @@ float [8][5] func_float_array2d_full(Array<Array<float,8>, 5> a)
 {
     return a;
 }
+T[8][5] func_generic_type_array2d<T>(T [8][5] a)
+{
+    return a;
+}
+T[8][5] func_generic_type_constrained_array2d<T : __BuiltinFloatingPointType>(T[8][5] a)
+{
+    return a;
+}
+float [R][5] func_generic_size_array2d_R<let R : int>(float[R][5] a)
+{
+    return a;
+}
+float [8][C] func_generic_size_array2d_C<let C : int>(float [8][C] a)
+{
+    return a;
+}
+float [R][C] func_generic_size_array2d_RC<let R : int, let C : int>(float [R][C] a)
+{
+    return a;
+}
 
 // StructuredBuffer and RWStructuredBuffer types. These can be passed
 // a slangpy Buffer, or an NDBuffer/Tensor of the correct element type.
@@ -258,6 +278,48 @@ void func_bytebuffer(ByteAddressBuffer a)
     return;
 }
 void func_rwbytebuffer(RWByteAddressBuffer a)
+{
+    return;
+}
+
+// Passing NDBuffers and Tensors
+void func_itensor(ITensor<float, 2> a)
+{
+    return;
+}
+void func_irwtensor(IRWTensor<float, 2> a)
+{
+    return;
+}
+void func_tensor(Tensor<float, 2> a)
+{
+    return;
+}
+void func_rwtensor(RWTensor<float, 2> a)
+{
+    return;
+}
+void func_ndbuffer(NDBuffer<float, 2> a)
+{
+    return;
+}
+void func_rwndbuffer(RWNDBuffer<float, 2> a)
+{
+    return;
+}
+void func_atomictensor(AtomicTensor<float, 2> a)
+{
+    return;
+}
+void func_gradintensor(GradInTensor<float, 2> a)
+{
+    return;
+}
+void func_gradouttensor(GradOutTensor<float, 2> a)
+{
+    return;
+}
+void func_gradinouttensor(GradInOutTensor<float, 2> a)
 {
     return;
 }

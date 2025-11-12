@@ -882,11 +882,14 @@ class ITensorType(SlangType):
         self._writable = refl.name in (
             "IRWTensor",
             "RWTensor",
-            "RWNDBuffer" "GradInTensor",
+            "RWNDBuffer",
+            "GradInTensor",
             "GradInOutTensor",
             "AtomicTensor",
         )
         self._dims = args[1]
+        self.has_grad_in = refl.name in ("GradInTensor", "GradInOutTensor")
+        self.has_grad_out = refl.name in ("GradOutTensor", "GradInOutTensor")
 
     @property
     def writable(self) -> bool:
