@@ -121,11 +121,15 @@ struct DeviceDesc {
 
     BindlessDesc bindless_options;
 
-    /// Path to the shader cache directory (optional).
+    /// Path to the module cache directory (optional).
+    /// If a relative path is used, the cache is stored in the application data directory.
+    std::optional<std::filesystem::path> module_cache_path;
+
+    /// Path to the shader and pipeline cache directory (optional).
     /// If a relative path is used, the cache is stored in the application data directory.
     std::optional<std::filesystem::path> shader_cache_path;
 
-    /// Maximum size of the persistent shader cache used to cache both shaders and pipelines.
+    /// Maximum size of the persistent cache used to cache both shaders and pipelines.
     uint64_t shader_cache_size{128 * 1024 * 1024};
 
     /// Native device handles for initializing with externally created device. Currenlty
@@ -698,7 +702,7 @@ private:
 
     bool m_closed{false};
 
-    bool m_shader_cache_enabled{false};
+    std::filesystem::path m_module_cache_path;
     std::filesystem::path m_shader_cache_path;
     ref<PersistentCache> m_persistent_cache;
 

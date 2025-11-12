@@ -141,6 +141,14 @@ private:
         NativeTensor* value,
         nb::list read_back
     ) const;
+
+    void write_pytorch_tensor_fields(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        ShaderCursor field,
+        TensorRef* tensorref,
+        nb::list read_back
+    ) const;
 };
 
 /// Bare minimum overridable functions to allow python marshall

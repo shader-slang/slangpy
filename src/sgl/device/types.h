@@ -772,6 +772,8 @@ enum class RayTracingPipelineFlags : uint8_t {
     none = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::None),
     skip_triangles = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::SkipTriangles),
     skip_procedurals = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::SkipProcedurals),
+    enable_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableSpheres),
+    enable_linear_swept_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableLinearSweptSpheres),
 };
 
 SGL_ENUM_CLASS_OPERATORS(RayTracingPipelineFlags);
@@ -781,6 +783,8 @@ SGL_ENUM_INFO(
         {RayTracingPipelineFlags::none, "none"},
         {RayTracingPipelineFlags::skip_triangles, "skip_triangles"},
         {RayTracingPipelineFlags::skip_procedurals, "skip_procedurals"},
+        {RayTracingPipelineFlags::enable_spheres, "enable_spheres"},
+        {RayTracingPipelineFlags::enable_linear_swept_spheres, "enable_linear_swept_spheres"},
     }
 );
 SGL_ENUM_REGISTER(RayTracingPipelineFlags);

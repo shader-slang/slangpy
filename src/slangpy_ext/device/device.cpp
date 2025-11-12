@@ -29,7 +29,9 @@ SGL_DICT_TO_DESC_FIELD(enable_hot_reload, bool)
 SGL_DICT_TO_DESC_FIELD(enable_compilation_reports, bool)
 SGL_DICT_TO_DESC_FIELD(adapter_luid, AdapterLUID)
 SGL_DICT_TO_DESC_FIELD(compiler_options, SlangCompilerOptions)
+SGL_DICT_TO_DESC_FIELD(module_cache_path, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(shader_cache_path, std::filesystem::path)
+SGL_DICT_TO_DESC_FIELD(shader_cache_size, size_t)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_FIELD(bindless_options, BindlessDesc)
 SGL_DICT_TO_DESC_END()
@@ -188,7 +190,9 @@ SGL_PY_EXPORT(device_device)
         .def_rw("adapter_luid", &DeviceDesc::adapter_luid, D(DeviceDesc, adapter_luid))
         .def_rw("compiler_options", &DeviceDesc::compiler_options, D(DeviceDesc, compiler_options))
         .def_rw("bindless_options", &DeviceDesc::bindless_options, D_NA(DeviceDesc, bindless_options))
+        .def_rw("module_cache_path", &DeviceDesc::module_cache_path, D_NA(DeviceDesc, module_cache_path))
         .def_rw("shader_cache_path", &DeviceDesc::shader_cache_path, D(DeviceDesc, shader_cache_path))
+        .def_rw("shader_cache_size", &DeviceDesc::shader_cache_size, D_NA(DeviceDesc, shader_cache_size))
         .def_rw(
             "existing_device_handles",
             &DeviceDesc::existing_device_handles,
@@ -303,7 +307,9 @@ SGL_PY_EXPORT(device_device)
            bool enable_compilation_reports,
            std::optional<AdapterLUID> adapter_luid,
            std::optional<SlangCompilerOptions> compiler_options,
+           std::optional<std::filesystem::path> module_cache_path,
            std::optional<std::filesystem::path> shader_cache_path,
+           size_t shader_cache_size,
            std::optional<std::array<NativeHandle, 3>> existing_device_handles,
            std::optional<BindlessDesc> bindless_options,
            std::string label = "")
@@ -318,7 +324,9 @@ SGL_PY_EXPORT(device_device)
                  .adapter_luid = adapter_luid,
                  .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
                  .bindless_options = bindless_options.value_or(BindlessDesc{}),
+                 .module_cache_path = module_cache_path,
                  .shader_cache_path = shader_cache_path,
+                 .shader_cache_size = shader_cache_size,
                  .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
                  .label = label}
             );
@@ -331,7 +339,9 @@ SGL_PY_EXPORT(device_device)
         "enable_compilation_reports"_a = DeviceDesc().enable_compilation_reports,
         "adapter_luid"_a.none() = nb::none(),
         "compiler_options"_a.none() = nb::none(),
+        "module_cache_path"_a.none() = nb::none(),
         "shader_cache_path"_a.none() = nb::none(),
+        "shader_cache_size"_a = DeviceDesc().shader_cache_size,
         "existing_device_handles"_a.none() = nb::none(),
         "bindless_options"_a.none() = nb::none(),
         "label"_a = DeviceDesc().label,
