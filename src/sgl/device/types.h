@@ -51,6 +51,7 @@ enum class Feature : uint32_t {
     custom_border_color = static_cast<uint32_t>(rhi::Feature::CustomBorderColor),
     fragment_shading_rate = static_cast<uint32_t>(rhi::Feature::FragmentShadingRate),
     sampler_feedback = static_cast<uint32_t>(rhi::Feature::SamplerFeedback),
+    combined_texture_sampler = static_cast<uint32_t>(rhi::Feature::CombinedTextureSampler),
     // Ray tracing features
     acceleration_structure = static_cast<uint32_t>(rhi::Feature::AccelerationStructure),
     acceleration_structure_spheres = static_cast<uint32_t>(rhi::Feature::AccelerationStructureSpheres),
@@ -122,6 +123,7 @@ SGL_ENUM_INFO(
         {Feature::custom_border_color, "custom_border_color"},
         {Feature::fragment_shading_rate, "fragment_shading_rate"},
         {Feature::sampler_feedback, "sampler_feedback"},
+        {Feature::combined_texture_sampler, "combined_texture_sampler"},
         {Feature::acceleration_structure, "acceleration_structure"},
         {Feature::acceleration_structure_spheres, "acceleration_structure_spheres"},
         {Feature::acceleration_structure_linear_swept_spheres, "acceleration_structure_linear_swept_spheres"},
@@ -770,6 +772,8 @@ enum class RayTracingPipelineFlags : uint8_t {
     none = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::None),
     skip_triangles = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::SkipTriangles),
     skip_procedurals = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::SkipProcedurals),
+    enable_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableSpheres),
+    enable_linear_swept_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableLinearSweptSpheres),
 };
 
 SGL_ENUM_CLASS_OPERATORS(RayTracingPipelineFlags);
@@ -779,6 +783,8 @@ SGL_ENUM_INFO(
         {RayTracingPipelineFlags::none, "none"},
         {RayTracingPipelineFlags::skip_triangles, "skip_triangles"},
         {RayTracingPipelineFlags::skip_procedurals, "skip_procedurals"},
+        {RayTracingPipelineFlags::enable_spheres, "enable_spheres"},
+        {RayTracingPipelineFlags::enable_linear_swept_spheres, "enable_linear_swept_spheres"},
     }
 );
 SGL_ENUM_REGISTER(RayTracingPipelineFlags);

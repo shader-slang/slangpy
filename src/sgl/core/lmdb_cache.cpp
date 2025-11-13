@@ -273,7 +273,10 @@ void LMDBCache::evict()
     }
 
     // Create heap based on last access time (oldest first).
-    auto cmp = [](const Entry& a, const Entry& b) { return a.last_access > b.last_access; };
+    auto cmp = [](const Entry& a, const Entry& b)
+    {
+        return a.last_access > b.last_access;
+    };
     std::make_heap(entries.begin(), entries.end(), cmp);
 
     // Evict entries until we are below the target size.
@@ -321,7 +324,10 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
     auto it = std::find_if(
         s_db_cache.begin(),
         s_db_cache.end(),
-        [pid, &abs_path](const DBCacheItem& e) { return e.pid == pid && e.path == abs_path; }
+        [pid, &abs_path](const DBCacheItem& e)
+        {
+            return e.pid == pid && e.path == abs_path;
+        }
     );
     if (it != s_db_cache.end()) {
         it->ref_count++;
@@ -371,7 +377,10 @@ void LMDBCache::close_db(DB db)
     auto it = std::find_if(
         s_db_cache.begin(),
         s_db_cache.end(),
-        [&db](const DBCacheItem& item) { return item.db.env == db.env; }
+        [&db](const DBCacheItem& item)
+        {
+            return item.db.env == db.env;
+        }
     );
     SGL_ASSERT(it != s_db_cache.end());
     SGL_ASSERT(it->pid == pid);

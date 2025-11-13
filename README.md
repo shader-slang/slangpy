@@ -49,7 +49,6 @@ SlangPy depends on the following third-party libraries, which have their own lic
 
 - [argparse](https://github.com/p-ranav/argparse) (MIT)
 - [AsmJit](https://github.com/asmjit/asmjit) (Zlib)
-- [BS::thread-pool](https://github.com/bshoshany/thread-pool) (MIT)
 - [Dear ImGui](https://github.com/ocornut/imgui) (MIT)
 - [doctest](https://github.com/doctest/doctest) (MIT)
 - [fmt](https://fmt.dev/latest/index.html) (MIT)
@@ -84,7 +83,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
     title = {SlangPy},
     author = {Simon Kallweit and Chris Cummings and Benedikt Bitterli and Sai Bangaru and Yong He},
     note = {https://github.com/shader-slang/slangpy},
-    version = {0.36.0},
+    version = {0.38.1},
     year = 2025
 }
 ```

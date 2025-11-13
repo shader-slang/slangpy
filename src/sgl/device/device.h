@@ -86,6 +86,13 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(DeviceType);
 
+struct BindlessDesc {
+    uint32_t buffer_count{1024};
+    uint32_t texture_count{1024};
+    uint32_t sampler_count{128};
+    uint32_t acceleration_structure_count{128};
+};
+
 struct DeviceDesc {
     /// The type of the device.
     DeviceType type{DeviceType::automatic};
@@ -112,11 +119,17 @@ struct DeviceDesc {
     /// Compiler options (used for default slang session).
     SlangCompilerOptions compiler_options;
 
-    /// Path to the shader cache directory (optional).
+    BindlessDesc bindless_options;
+
+    /// Path to the module cache directory (optional).
+    /// If a relative path is used, the cache is stored in the application data directory.
+    std::optional<std::filesystem::path> module_cache_path;
+
+    /// Path to the shader and pipeline cache directory (optional).
     /// If a relative path is used, the cache is stored in the application data directory.
     std::optional<std::filesystem::path> shader_cache_path;
 
-    /// Maximum size of the persistent shader cache used to cache both shaders and pipelines.
+    /// Maximum size of the persistent cache used to cache both shaders and pipelines.
     uint64_t shader_cache_size{128 * 1024 * 1024};
 
     /// Native device handles for initializing with externally created device. Currenlty
@@ -178,6 +191,9 @@ struct DeviceInfo {
     /// The frequency of the timestamp counter.
     /// To resolve a timestamp to seconds, divide by this value.
     uint64_t timestamp_frequency;
+    /// The version of OptiX used by the device (0 if OptiX is not supported).
+    /// The format matches the OPTIX_VERSION macro, e.g. 90000 for version 9.0.0.
+    uint32_t optix_version;
     /// Limits of the device.
     DeviceLimits limits;
 };
@@ -230,6 +246,12 @@ public:
 
     /// Check if the device supports a given feature.
     bool has_feature(Feature feature) const;
+
+    /// List of slang capabilities supported by the device.
+    const std::vector<std::string>& capabilities() const { return m_capabilities; }
+
+    /// Check if the device supports a given capability.
+    bool has_capability(std::string_view capability) const;
 
     /// True if the device supports CUDA interoperability.
     bool supports_cuda_interop() const { return m_supports_cuda_interop; }
@@ -658,6 +680,8 @@ public:
 
     std::string to_string() const override;
 
+    const std::vector<SlangCapabilityID>& _slang_capabilities() const { return m_slang_capabilities; }
+
     Blitter* _blitter();
     HotReload* _hot_reload() { return m_hot_reload; }
 
@@ -678,7 +702,7 @@ private:
 
     bool m_closed{false};
 
-    bool m_shader_cache_enabled{false};
+    std::filesystem::path m_module_cache_path;
     std::filesystem::path m_shader_cache_path;
     ref<PersistentCache> m_persistent_cache;
 
@@ -689,6 +713,8 @@ private:
     ref<SlangSession> m_slang_session;
 
     std::vector<Feature> m_features;
+    std::vector<std::string> m_capabilities;
+    std::vector<SlangCapabilityID> m_slang_capabilities;
 
     ref<Fence> m_global_fence;
 

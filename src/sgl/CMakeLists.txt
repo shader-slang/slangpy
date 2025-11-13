@@ -48,7 +48,6 @@ target_sources(sgl PRIVATE
     core/lmdb_cache.cpp
     core/lmdb_cache.h
     core/platform_linux.cpp
-    core/platform_macos.cpp
     core/platform_windows.cpp
     core/platform.cpp
     core/platform.h
@@ -137,7 +136,6 @@ target_sources(sgl PRIVATE
     device/types.h
 
     math/constants.h
-    math/constants.slang
     math/float16.cpp
     math/float16.h
     math/matrix_math.h
@@ -146,8 +144,6 @@ target_sources(sgl PRIVATE
     math/quaternion_math.h
     math/quaternion_types.h
     math/quaternion.h
-    math/ray.h
-    math/ray.slang
     math/scalar_math.h
     math/scalar_types.h
     math/vector_math.h
@@ -185,6 +181,18 @@ target_sources(sgl PRIVATE
 )
 
 target_include_directories(sgl PUBLIC ../ ${SGL_IMGUI_DIR})
+
+# Add macOS Objective-C++ source and find dependencies (only on macOS)
+if(SGL_MACOS)
+    target_sources(sgl PRIVATE core/platform_macos.mm)
+    # Enable ARC for Objective-C++ source
+    set_source_files_properties(core/platform_macos.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    find_library(SGL_APPKIT_FRAMEWORK AppKit REQUIRED)
+    find_library(SGL_FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    find_library(SGL_UTI_FRAMEWORK UniformTypeIdentifiers REQUIRED)
+    add_library(sgl_macos_deps INTERFACE)
+    target_link_libraries(sgl_macos_deps INTERFACE ${SGL_APPKIT_FRAMEWORK} ${SGL_FOUNDATION_FRAMEWORK} ${SGL_UTI_FRAMEWORK})
+endif()
 
 target_compile_features(sgl PUBLIC cxx_std_20)
 
@@ -374,6 +382,8 @@ target_link_libraries(sgl
         # $<$<PLATFORM_ID:Windows>:setupapi.lib>  # Used in MonitorInfo
         # Linux system libraries.
         # $<$<PLATFORM_ID:Linux>:gtk3>
+        # macOS system libraries.
+        $<$<PLATFORM_ID:Darwin>:sgl_macos_deps>
 )
 
 set_target_properties(sgl PROPERTIES

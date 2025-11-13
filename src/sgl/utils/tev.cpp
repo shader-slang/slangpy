@@ -34,7 +34,10 @@ public:
             auto it = std::find_if(
                 m_clients.begin(),
                 m_clients.end(),
-                [&](const auto& c) { return c->getHostname() == host && c->getPort() == port; }
+                [&](const auto& c)
+                {
+                    return c->getHostname() == host && c->getPort() == port;
+                }
             );
             if (it != m_clients.end()) {
                 client = std::move(*it);
@@ -180,7 +183,7 @@ void show_async(const Bitmap* bitmap, std::string name, std::string host, uint16
 
     bitmap->inc_ref();
 
-    thread::do_async(
+    thread::global_task_group().do_async(
         [=]()
         {
             static std::counting_semaphore semaphore{8};

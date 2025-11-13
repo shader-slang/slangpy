@@ -158,13 +158,19 @@ SGL_PY_EXPORT(core_bitmap)
         )
         .def(
             "__init__",
-            [](Bitmap* self, const std::filesystem::path& path) { new (self) Bitmap(path); },
+            [](Bitmap* self, const std::filesystem::path& path)
+            {
+                new (self) Bitmap(path);
+            },
             "path"_a,
             D(Bitmap, Bitmap, 3)
         )
         .def_static(
             "load_from_file",
-            [](const std::filesystem::path& path) { return make_ref<Bitmap>(path); },
+            [](const std::filesystem::path& path)
+            {
+                return make_ref<Bitmap>(path);
+            },
             "path"_a,
             D_NA(Bitmap, load_from_file)
         )

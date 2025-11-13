@@ -7,6 +7,7 @@
 #include "sgl/core/error.h"
 #include "sgl/core/format.h"
 #include "sgl/core/logger.h"
+#include "sgl/core/string.h"
 
 #include <signal.h>
 #include <limits.h>
@@ -22,6 +23,12 @@
 #include <regex>
 #include <iostream>
 #include <fstream>
+
+#import <AppKit/AppKit.h>
+#import <Foundation/Foundation.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <dispatch/dispatch.h>
+#import <Availability.h>
 
 namespace sgl::platform {
 
@@ -86,21 +93,147 @@ void set_keyboard_interrupt_handler(std::function<void()> handler)
 // File dialogs
 // -------------------------------------------------------------------------------------------------
 
+/*
+ Parse file dialog filters like:
+   "*.png;*.jpg" or "*.txt"
+
+   - Split on ';' (Windows-style multi pattern separator)
+   - Trim whitespace
+   - Strip leading '*' and '.'
+   - Lowercase result
+   - Collect unique extensions (no dot)
+*/
+static std::vector<std::string> parse_extensions_from_filters(std::span<const FileDialogFilter> filters)
+{
+    std::vector<std::string> exts;
+    for (const auto& filter : filters) {
+        for (const auto& pattern : string::split(filter.pattern, ";")) {
+            std::string ext = string::to_lower(string::remove_leading_whitespace(pattern, " \n\r\t.*"));
+            if (std::find(exts.begin(), exts.end(), ext) == exts.end())
+                exts.push_back(std::move(ext));
+        }
+    }
+    return exts;
+}
+
+static void ensure_app_activation()
+{
+    if (NSApp == nil) {
+        [NSApplication sharedApplication];
+    }
+    // Use accessory policy to avoid creating a full dock menu for library usage.
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+    [NSApp activateIgnoringOtherApps:YES];
+    NSRunningApplication* app = [NSRunningApplication currentApplication];
+    [app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+}
+
 std::optional<std::filesystem::path> open_file_dialog(std::span<const FileDialogFilter> filters)
 {
-    SGL_UNUSED(filters);
-    SGL_UNIMPLEMENTED();
+    __block std::optional<std::filesystem::path> resultPath;
+    auto work = ^{
+        @autoreleasepool {
+            ensure_app_activation();
+            NSOpenPanel* panel = [NSOpenPanel openPanel];
+            [panel setCanChooseFiles:YES];
+            [panel setCanChooseDirectories:NO];
+            [panel setAllowsMultipleSelection:NO];
+
+            auto exts = parse_extensions_from_filters(filters);
+            if (!exts.empty()) {
+                NSMutableArray<UTType*>* types = [NSMutableArray arrayWithCapacity:exts.size()];
+                for (const auto& e : exts) {
+                    NSString* ext = [NSString stringWithUTF8String:e.c_str()];
+                    UTType* ut = [UTType typeWithFilenameExtension:ext];
+                    if (ut)
+                        [types addObject:ut];
+                }
+                [panel setAllowedContentTypes:types];
+            }
+
+            NSInteger response = [panel runModal];
+            if (response == NSModalResponseOK) {
+                NSURL* url = [panel URL];
+                if (url) {
+                    std::string path = [[url path] UTF8String];
+                    resultPath = std::filesystem::path(path);
+                }
+            }
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return resultPath;
 }
 
 std::optional<std::filesystem::path> save_file_dialog(std::span<const FileDialogFilter> filters)
 {
-    SGL_UNUSED(filters);
-    SGL_UNIMPLEMENTED();
+    __block std::optional<std::filesystem::path> resultPath;
+    auto work = ^{
+        @autoreleasepool {
+            ensure_app_activation();
+            NSSavePanel* panel = [NSSavePanel savePanel];
+
+            auto exts = parse_extensions_from_filters(filters);
+            if (!exts.empty()) {
+                NSMutableArray<UTType*>* types = [NSMutableArray arrayWithCapacity:exts.size()];
+                for (const auto& e : exts) {
+                    NSString* ext = [NSString stringWithUTF8String:e.c_str()];
+                    UTType* ut = [UTType typeWithFilenameExtension:ext];
+                    if (ut)
+                        [types addObject:ut];
+                }
+                [panel setAllowedContentTypes:types];
+            }
+
+            NSInteger response = [panel runModal];
+            if (response == NSModalResponseOK) {
+                NSURL* url = [panel URL];
+                if (url) {
+                    std::string path = [[url path] UTF8String];
+                    resultPath = std::filesystem::path(path);
+                }
+            }
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return resultPath;
 }
 
 std::optional<std::filesystem::path> choose_folder_dialog()
 {
-    SGL_UNIMPLEMENTED();
+    __block std::optional<std::filesystem::path> resultPath;
+    auto work = ^{
+        @autoreleasepool {
+            ensure_app_activation();
+            NSOpenPanel* panel = [NSOpenPanel openPanel];
+            [panel setCanChooseFiles:NO];
+            [panel setCanChooseDirectories:YES];
+            [panel setAllowsMultipleSelection:NO];
+
+            NSInteger response = [panel runModal];
+            if (response == NSModalResponseOK) {
+                NSURL* url = [panel URL];
+                if (url) {
+                    std::string path = [[url path] UTF8String];
+                    resultPath = std::filesystem::path(path);
+                }
+            }
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return resultPath;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -146,7 +279,12 @@ const std::filesystem::path& executable_path()
 
 const std::filesystem::path& app_data_directory()
 {
-    static std::filesystem::path path([]() { return home_directory() / ".sgl"; }());
+    static std::filesystem::path path(
+        []()
+        {
+            return home_directory() / ".sgl";
+        }()
+    );
     return path;
 }
 

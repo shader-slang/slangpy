@@ -17,6 +17,34 @@ extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
 
 namespace sgl::slangpy {
 
+namespace {
+    /// Helper function to extract shape from PyTorch tensor
+    /// Pre-allocates vector to avoid repeated allocations
+    std::vector<int> extract_shape(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
+    {
+        std::vector<int> shape;
+        shape.reserve(tensor.ndim()); // Pre-allocate
+        for (size_t i = 0; i < tensor.ndim(); i++) {
+            shape.push_back(static_cast<int>(tensor.shape(i)));
+        }
+        return shape;
+    }
+
+    /// Helper function to extract strides from PyTorch tensor
+    /// Returns element strides directly (PyTorch stride() already returns element strides for nanobind)
+    /// Pre-allocates vector to avoid repeated allocations
+    std::vector<int> extract_strides(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
+    {
+        std::vector<int> strides;
+        strides.reserve(tensor.ndim()); // Pre-allocate
+        for (size_t i = 0; i < tensor.ndim(); i++) {
+            // nanobind's tensor.stride() returns element strides, not byte strides
+            strides.push_back(static_cast<int>(tensor.stride(i)));
+        }
+        return strides;
+    }
+} // anonymous namespace
+
 NativeTensor::NativeTensor(
     NativeTensorDesc desc,
     const ref<Buffer>& storage,
@@ -123,6 +151,149 @@ Shape NativeTensorMarshall::get_shape(nb::object data) const
     return buffer->shape();
 }
 
+void NativeTensorMarshall::write_pytorch_tensor_fields(
+    CallContext* context,
+    NativeBoundVariableRuntime* binding,
+    ShaderCursor field,
+    TensorRef* tensorref,
+    nb::list read_back
+) const
+{
+    SGL_UNUSED(read_back);
+
+    // Extract PyTorch tensor from TensorRef
+    auto pytorch_tensor_opt = tensorref->tensor();
+    if (!pytorch_tensor_opt.has_value()) {
+        SGL_THROW("TensorRef does not contain a PyTorch tensor");
+    }
+    auto& pytorch_tensor = pytorch_tensor_opt.value();
+
+    // Set last_access to track read/write operations for autograd
+    // This is critical for PyTorch's autograd system to identify input/output tensors
+    tensorref->set_last_access(binding->access());
+
+    // Validation checks
+    SGL_CHECK(pytorch_tensor.data() != nullptr, "PyTorch tensor has null data pointer");
+
+    // Validate tensor shape matches expected shape
+    std::vector<int> tensor_shape = extract_shape(pytorch_tensor);
+    const Shape& expected_shape = binding->vector_type()->shape();
+    const std::vector<int>& expected_shape_vec = expected_shape.as_vector();
+
+    // Check trailing dimensions match (like Python: shape[-len(expected):])
+    if (expected_shape_vec.size() > 0) {
+        size_t start_idx = tensor_shape.size() - expected_shape_vec.size();
+        for (size_t i = 0; i < expected_shape_vec.size(); i++) {
+            int expected_dim = expected_shape_vec[i];
+            int tensor_dim = tensor_shape[start_idx + i];
+            // -1 means any size is allowed
+            if (expected_dim != -1 && tensor_dim != expected_dim) {
+                throw nb::value_error(
+                    fmt::format(
+                        "Tensor shape ({}) does not match expected shape ({})",
+                        fmt::join(tensor_shape, ", "),
+                        fmt::join(expected_shape_vec, ", ")
+                    )
+                        .c_str()
+                );
+            }
+        }
+    }
+
+    // Lambda helper for writing tensor data
+    auto write_data = [&](ShaderCursor cursor,
+                          void* data_ptr,
+                          const std::vector<int>& shape,
+                          const std::vector<int>& strides_in,
+                          int offset)
+    {
+        // Write buffer pointer
+        cursor["buffer"].set_pointer(reinterpret_cast<uint64_t>(data_ptr));
+
+        // Write shape
+        cursor["_shape"]._set_array_unsafe(
+            shape.empty() ? nullptr : &shape[0],
+            shape.size() * 4,
+            shape.size(),
+            TypeReflection::ScalarType::int32
+        );
+
+        // Apply broadcast stride zeroing
+        std::vector<int> strides = strides_in;
+        const std::vector<int>& transform = binding->transform().as_vector();
+        const std::vector<int>& call_shape = context->call_shape().as_vector();
+        for (size_t i = 0; i < transform.size(); i++) {
+            int csidx = transform[i];
+            if (call_shape[csidx] != shape[i]) {
+                strides[i] = 0;
+            }
+        }
+
+        // Write layout
+        auto layout = cursor["layout"];
+        layout["strides"]._set_array_unsafe(
+            strides.empty() ? nullptr : &strides[0],
+            strides.size() * 4,
+            strides.size(),
+            TypeReflection::ScalarType::int32
+        );
+        layout["offset"] = offset;
+    };
+
+    // Write primal tensor
+    if (!has_derivative()) {
+        write_data(
+            field,
+            pytorch_tensor.data(),
+            extract_shape(pytorch_tensor),
+            extract_strides(pytorch_tensor),
+            0 // offset is 0 for direct tensor access
+        );
+    } else {
+        write_data(
+            field["primal"],
+            pytorch_tensor.data(),
+            extract_shape(pytorch_tensor),
+            extract_strides(pytorch_tensor),
+            0 // offset is 0 for direct tensor access
+        );
+
+        // Handle grad_in
+        if (m_d_in) {
+            ref<TensorRef> grad_in_ref = tensorref->grad_in();
+            SGL_CHECK(grad_in_ref, "Missing required input gradients");
+            auto grad_in_tensor_opt = grad_in_ref->tensor();
+            if (grad_in_tensor_opt.has_value()) {
+                auto& grad_in_tensor = grad_in_tensor_opt.value();
+                write_data(
+                    field["d_in"],
+                    grad_in_tensor.data(),
+                    extract_shape(grad_in_tensor),
+                    extract_strides(grad_in_tensor),
+                    0 // offset is 0 for direct tensor access
+                );
+            }
+        }
+
+        // Handle grad_out
+        if (m_d_out) {
+            ref<TensorRef> grad_out_ref = tensorref->grad_out();
+            SGL_CHECK(grad_out_ref, "Missing required output gradients");
+            auto grad_out_tensor_opt = grad_out_ref->tensor();
+            if (grad_out_tensor_opt.has_value()) {
+                auto& grad_out_tensor = grad_out_tensor_opt.value();
+                write_data(
+                    field["d_out"],
+                    grad_out_tensor.data(),
+                    extract_shape(grad_out_tensor),
+                    extract_strides(grad_out_tensor),
+                    0 // offset is 0 for direct tensor access
+                );
+            }
+        }
+    }
+}
+
 void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
@@ -161,9 +332,23 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
                     "inout parameter gradients need separate buffers for inputs and outputs (see Tensor.with_grads)"
                 );
         }
-    } else {
-        NativeMarshall::write_shader_cursor_pre_dispatch(context, binding, cursor, value, read_back);
+        return;
     }
+
+    // Check if we have a TensorRef with PyTorch tensor for fast path
+    TensorRef* tensorref;
+    if (nb::try_cast(value, tensorref)) {
+        auto pytorch_tensor_opt = tensorref->tensor();
+        // Only use fast path for CUDA tensors - other backends need interop buffer
+        if (pytorch_tensor_opt.has_value() && context->device()->type() == DeviceType::cuda) {
+            ShaderCursor field = cursor[binding->variable_name()];
+            write_pytorch_tensor_fields(context, binding, field, tensorref, read_back);
+            return;
+        }
+    }
+
+    // Fall back to base class for all other cases
+    NativeMarshall::write_shader_cursor_pre_dispatch(context, binding, cursor, value, read_back);
 }
 
 void NativeTensorMarshall::write_shader_cursor_fields(

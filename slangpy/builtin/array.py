@@ -16,6 +16,7 @@ from slangpy.bindings import (
 )
 from slangpy import ShaderCursor, ShaderObject
 from slangpy.core.native import AccessType, CallContext, NativeValueMarshall, unpack_arg
+from slangpy.core.utils import is_type_castable_on_host
 import slangpy.reflection as kfr
 
 
@@ -33,6 +34,7 @@ class ArrayMarshall(ValueMarshall):
         for dim in reversed(shape.as_tuple()):
             st = layout.array_type(st, dim)
         self.slang_type = st
+        self.element_type = element_type
         self.concrete_shape = shape
 
     def reduce_type(self, context: "BindContext", dimensions: int):
@@ -49,6 +51,10 @@ class ArrayMarshall(ValueMarshall):
     def resolve_type(self, context: BindContext, bound_type: "kfr.SlangType"):
         if bound_type == self.slang_type.element_type:
             return self.slang_type.element_type
+        elif isinstance(bound_type, kfr.ArrayType):
+            if is_type_castable_on_host(self.element_type, bound_type.element_type):
+                return bound_type
+
         return super().resolve_type(context, bound_type)
 
     # Call data can only be read access to primal, and simply declares it as a variable
