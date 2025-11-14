@@ -31,7 +31,9 @@ SGL_PY_EXPORT(utils_texture_loader)
         .def(
             "__init__",
             [](TextureLoader::Options* self, nb::dict dict)
-            { new (self) TextureLoader::Options(dict_to_TextureLoaderOptions(dict)); }
+            {
+                new (self) TextureLoader::Options(dict_to_TextureLoaderOptions(dict));
+            }
         )
         .def_rw(
             "load_as_normalized",

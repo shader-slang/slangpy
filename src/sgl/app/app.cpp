@@ -84,11 +84,36 @@ AppWindow::AppWindow(AppWindowDesc desc)
 
     m_ui_context = make_ref<ui::Context>(ref(m_device));
 
-    m_window->set_on_resize([this](uint32_t width, uint32_t height) { handle_resize(width, height); });
-    m_window->set_on_keyboard_event([this](const KeyboardEvent& event) { handle_keyboard_event(event); });
-    m_window->set_on_mouse_event([this](const MouseEvent& event) { handle_mouse_event(event); });
-    m_window->set_on_gamepad_event([this](const GamepadEvent& event) { handle_gamepad_event(event); });
-    m_window->set_on_drop_files([this](std::span<const char*> files) { handle_drop_files(files); });
+    m_window->set_on_resize(
+        [this](uint32_t width, uint32_t height)
+        {
+            handle_resize(width, height);
+        }
+    );
+    m_window->set_on_keyboard_event(
+        [this](const KeyboardEvent& event)
+        {
+            handle_keyboard_event(event);
+        }
+    );
+    m_window->set_on_mouse_event(
+        [this](const MouseEvent& event)
+        {
+            handle_mouse_event(event);
+        }
+    );
+    m_window->set_on_gamepad_event(
+        [this](const GamepadEvent& event)
+        {
+            handle_gamepad_event(event);
+        }
+    );
+    m_window->set_on_drop_files(
+        [this](std::span<const char*> files)
+        {
+            handle_drop_files(files);
+        }
+    );
 
     m_app->_add_window(this);
 }
@@ -114,13 +139,14 @@ void AppWindow::on_keyboard_event(const KeyboardEvent& event)
 void AppWindow::_run_frame()
 {
     m_window->process_events();
-    m_ui_context->process_events();
 
     if (!m_surface->config())
         return;
     ref<Texture> texture = m_surface->acquire_next_image();
     if (!texture)
         return;
+
+    m_ui_context->begin_frame(texture->width(), texture->height());
 
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
 
@@ -136,11 +162,9 @@ void AppWindow::_run_frame()
 
     render(render_context);
 
-    m_ui_context->new_frame(texture->width(), texture->height());
-
     render_ui();
 
-    m_ui_context->render(texture, command_encoder);
+    m_ui_context->end_frame(texture, command_encoder);
 
     m_device->submit_command_buffer(command_encoder->finish());
 

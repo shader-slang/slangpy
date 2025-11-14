@@ -29,8 +29,11 @@ SGL_DICT_TO_DESC_FIELD(enable_hot_reload, bool)
 SGL_DICT_TO_DESC_FIELD(enable_compilation_reports, bool)
 SGL_DICT_TO_DESC_FIELD(adapter_luid, AdapterLUID)
 SGL_DICT_TO_DESC_FIELD(compiler_options, SlangCompilerOptions)
+SGL_DICT_TO_DESC_FIELD(module_cache_path, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(shader_cache_path, std::filesystem::path)
+SGL_DICT_TO_DESC_FIELD(shader_cache_size, size_t)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
+SGL_DICT_TO_DESC_FIELD(bindless_options, BindlessDesc)
 SGL_DICT_TO_DESC_END()
 
 // Utility functions for doing CoopVec conversions between ndarrays
@@ -128,11 +131,52 @@ SGL_PY_EXPORT(device_device)
         .def_ro("luid", &AdapterInfo::luid, D(AdapterInfo, luid))
         .def("__repr__", &AdapterInfo::to_string);
 
+    nb::class_<BindlessDesc>(m, "BindlessDesc", D_NA(BindlessDesc))
+        .def_rw("buffer_count", &BindlessDesc::buffer_count, D_NA(BindlessDesc, buffer_count))
+        .def_rw("texture_count", &BindlessDesc::texture_count, D_NA(BindlessDesc, texture_count))
+        .def_rw("sampler_count", &BindlessDesc::sampler_count, D_NA(BindlessDesc, sampler_count))
+        .def_rw(
+            "acceleration_structure_count",
+            &BindlessDesc::acceleration_structure_count,
+            D_NA(BindlessDesc, acceleration_structure_count)
+        )
+        .def(
+            "__init__",
+            [](BindlessDesc* self,
+               std::optional<uint32_t> buffer_count,
+               std::optional<uint32_t> texture_count,
+               std::optional<uint32_t> sampler_count,
+               std::optional<uint32_t> acceleration_structure_count)
+            {
+                new (self) BindlessDesc();
+                if (buffer_count)
+                    self->buffer_count = *buffer_count;
+                if (texture_count)
+                    self->texture_count = *texture_count;
+                if (sampler_count)
+                    self->sampler_count = *sampler_count;
+                if (acceleration_structure_count)
+                    self->acceleration_structure_count = *acceleration_structure_count;
+            },
+            "buffer_count"_a = nb::none(),
+            "texture_count"_a = nb::none(),
+            "sampler_count"_a = nb::none(),
+            "acceleration_structure_count"_a = nb::none(),
+            D_NA(BindlessDesc, BindlessDesc)
+        );
+
+
     nb::sgl_enum<DeviceType>(m, "DeviceType");
 
     nb::class_<DeviceDesc>(m, "DeviceDesc", D(DeviceDesc))
         .def(nb::init<>())
-        .def("__init__", [](DeviceDesc* self, nb::dict dict) { new (self) DeviceDesc(dict_to_DeviceDesc(dict)); })
+        .def(
+            "__init__",
+            [](DeviceDesc* self, nb::dict dict)
+            {
+                new (self) DeviceDesc(dict_to_DeviceDesc(dict));
+            }
+        )
         .def_rw("type", &DeviceDesc::type, D(DeviceDesc, type))
         .def_rw("enable_debug_layers", &DeviceDesc::enable_debug_layers, D(DeviceDesc, enable_debug_layers))
         .def_rw("enable_cuda_interop", &DeviceDesc::enable_cuda_interop, D(DeviceDesc, enable_cuda_interop))
@@ -145,7 +189,10 @@ SGL_PY_EXPORT(device_device)
         )
         .def_rw("adapter_luid", &DeviceDesc::adapter_luid, D(DeviceDesc, adapter_luid))
         .def_rw("compiler_options", &DeviceDesc::compiler_options, D(DeviceDesc, compiler_options))
+        .def_rw("bindless_options", &DeviceDesc::bindless_options, D_NA(DeviceDesc, bindless_options))
+        .def_rw("module_cache_path", &DeviceDesc::module_cache_path, D_NA(DeviceDesc, module_cache_path))
         .def_rw("shader_cache_path", &DeviceDesc::shader_cache_path, D(DeviceDesc, shader_cache_path))
+        .def_rw("shader_cache_size", &DeviceDesc::shader_cache_size, D_NA(DeviceDesc, shader_cache_size))
         .def_rw(
             "existing_device_handles",
             &DeviceDesc::existing_device_handles,
@@ -230,6 +277,7 @@ SGL_PY_EXPORT(device_device)
         .def_ro("api_name", &DeviceInfo::api_name, D(DeviceInfo, api_name))
         .def_ro("adapter_name", &DeviceInfo::adapter_name, D(DeviceInfo, adapter_name))
         .def_ro("timestamp_frequency", &DeviceInfo::timestamp_frequency, D(DeviceInfo, timestamp_frequency))
+        .def_ro("optix_version", &DeviceInfo::optix_version, D_NA(DeviceInfo, optix_version))
         .def_ro("limits", &DeviceInfo::limits, D(DeviceInfo, limits));
 
     nb::class_<ShaderCacheStats>(m, "ShaderCacheStats", D(ShaderCacheStats))
@@ -259,8 +307,11 @@ SGL_PY_EXPORT(device_device)
            bool enable_compilation_reports,
            std::optional<AdapterLUID> adapter_luid,
            std::optional<SlangCompilerOptions> compiler_options,
+           std::optional<std::filesystem::path> module_cache_path,
            std::optional<std::filesystem::path> shader_cache_path,
+           size_t shader_cache_size,
            std::optional<std::array<NativeHandle, 3>> existing_device_handles,
+           std::optional<BindlessDesc> bindless_options,
            std::string label = "")
         {
             new (self) Device(
@@ -272,7 +323,10 @@ SGL_PY_EXPORT(device_device)
                  .enable_compilation_reports = enable_compilation_reports,
                  .adapter_luid = adapter_luid,
                  .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                 .bindless_options = bindless_options.value_or(BindlessDesc{}),
+                 .module_cache_path = module_cache_path,
                  .shader_cache_path = shader_cache_path,
+                 .shader_cache_size = shader_cache_size,
                  .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
                  .label = label}
             );
@@ -285,8 +339,11 @@ SGL_PY_EXPORT(device_device)
         "enable_compilation_reports"_a = DeviceDesc().enable_compilation_reports,
         "adapter_luid"_a.none() = nb::none(),
         "compiler_options"_a.none() = nb::none(),
+        "module_cache_path"_a.none() = nb::none(),
         "shader_cache_path"_a.none() = nb::none(),
+        "shader_cache_size"_a = DeviceDesc().shader_cache_size,
         "existing_device_handles"_a.none() = nb::none(),
+        "bindless_options"_a.none() = nb::none(),
         "label"_a = DeviceDesc().label,
         D(Device, Device)
     );
@@ -296,22 +353,30 @@ SGL_PY_EXPORT(device_device)
     device.def_prop_ro("shader_cache_stats", &Device::shader_cache_stats, D(Device, shader_cache_stats));
     device.def_prop_ro("supported_shader_model", &Device::supported_shader_model, D(Device, supported_shader_model));
     device.def_prop_ro("features", &Device::features, D(Device, features));
+    device.def_prop_ro("capabilities", &Device::capabilities, D_NA(Device, capabilities));
     device.def_prop_ro("supports_cuda_interop", &Device::supports_cuda_interop, D(Device, supports_cuda_interop));
     device.def_prop_ro("native_handles", &Device::native_handles, D(Device, native_handles));
     device.def("has_feature", &Device::has_feature, "feature"_a, D(Device, has_feature));
+    device.def("has_capability", &Device::has_capability, "capability"_a, D_NA(Device, has_capability));
     device.def("get_format_support", &Device::get_format_support, "format"_a, D(Device, get_format_support));
 
     device.def_prop_ro("slang_session", &Device::slang_session, D(Device, slang_session));
     device.def("close", &Device::close, D(Device, close));
     device.def(
         "create_surface",
-        [](Device* self, ref<Window> window) { return self->create_surface(window); },
+        [](Device* self, ref<Window> window)
+        {
+            return self->create_surface(window);
+        },
         "window"_a,
         D(Device, create_surface)
     );
     device.def(
         "create_surface",
-        [](Device* self, WindowHandle window_handle) { return self->create_surface(window_handle); },
+        [](Device* self, WindowHandle window_handle)
+        {
+            return self->create_surface(window_handle);
+        },
         "window_handle"_a,
         D(Device, create_surface, 2)
     );
@@ -391,7 +456,10 @@ SGL_PY_EXPORT(device_device)
     );
     device.def(
         "create_buffer",
-        [](Device* self, const BufferDesc& desc) { return self->create_buffer(desc); },
+        [](Device* self, const BufferDesc& desc)
+        {
+            return self->create_buffer(desc);
+        },
         "desc"_a,
         D(Device, create_buffer)
     );
@@ -465,7 +533,10 @@ SGL_PY_EXPORT(device_device)
     );
     device.def(
         "create_texture",
-        [](Device* self, const TextureDesc& desc) { return self->create_texture(desc); },
+        [](Device* self, const TextureDesc& desc)
+        {
+            return self->create_texture(desc);
+        },
         "desc"_a,
         D(Device, create_texture)
     );
@@ -526,7 +597,9 @@ SGL_PY_EXPORT(device_device)
     device.def(
         "create_fence",
         [](Device* self, uint64_t initial_value, bool shared)
-        { return self->create_fence({.initial_value = initial_value, .shared = shared}); },
+        {
+            return self->create_fence({.initial_value = initial_value, .shared = shared});
+        },
         "initial_value"_a = FenceDesc().initial_value,
         "shared"_a = FenceDesc().shared,
         D(Device, create_fence)
@@ -536,7 +609,9 @@ SGL_PY_EXPORT(device_device)
     device.def(
         "create_query_pool",
         [](Device* self, QueryType type, uint32_t count)
-        { return self->create_query_pool({.type = type, .count = count}); },
+        {
+            return self->create_query_pool({.type = type, .count = count});
+        },
         "type"_a,
         "count"_a,
         D(Device, create_query_pool)
@@ -589,13 +664,19 @@ SGL_PY_EXPORT(device_device)
         .def("wait_for_idle", &Device::wait_for_idle, "queue"_a = CommandQueueType::graphics, D(Device, wait_for_idle));
     device.def(
         "sync_to_cuda",
-        [](Device* self, uint64_t cuda_stream) { self->sync_to_cuda(reinterpret_cast<void*>(cuda_stream)); },
+        [](Device* self, uint64_t cuda_stream)
+        {
+            self->sync_to_cuda(reinterpret_cast<void*>(cuda_stream));
+        },
         "cuda_stream"_a = 0,
         D(Device, sync_to_cuda)
     );
     device.def(
         "sync_to_device",
-        [](Device* self, uint64_t cuda_stream) { self->sync_to_device(reinterpret_cast<void*>(cuda_stream)); },
+        [](Device* self, uint64_t cuda_stream)
+        {
+            self->sync_to_device(reinterpret_cast<void*>(cuda_stream));
+        },
         "cuda_stream"_a = 0,
         D(Device, sync_to_device)
     );
@@ -608,7 +689,9 @@ SGL_PY_EXPORT(device_device)
     device.def(
         "create_acceleration_structure",
         [](Device* self, size_t size, std::string label)
-        { return self->create_acceleration_structure({.size = size, .label = std::move(label)}); },
+        {
+            return self->create_acceleration_structure({.size = size, .label = std::move(label)});
+        },
         "size"_a = AccelerationStructureDesc().size,
         "label"_a = AccelerationStructureDesc().label,
         D(Device, create_acceleration_structure)
@@ -706,7 +789,10 @@ SGL_PY_EXPORT(device_device)
     );
     device.def(
         "create_shader_object",
-        [](Device* self, ref<TypeLayoutReflection> type_layout) { return self->create_shader_object(type_layout); },
+        [](Device* self, ref<TypeLayoutReflection> type_layout)
+        {
+            return self->create_shader_object(type_layout);
+        },
         "type_layout"_a,
         D(Device, create_shader_object)
     );
@@ -816,7 +902,9 @@ SGL_PY_EXPORT(device_device)
     device.def(
         "create_compute_kernel",
         [](Device* self, ref<ShaderProgram> program)
-        { return self->create_compute_kernel({.program = std::move(program)}); },
+        {
+            return self->create_compute_kernel({.program = std::move(program)});
+        },
         "program"_a,
         D(Device, create_compute_kernel)
     );
@@ -840,7 +928,9 @@ SGL_PY_EXPORT(device_device)
     device.def(
         "coopvec_query_matrix_size",
         [](Device* self, uint32_t rows, uint32_t cols, CoopVecMatrixLayout layout, DataType element_type)
-        { return self->get_or_create_coop_vec()->query_matrix_size(rows, cols, layout, element_type); },
+        {
+            return self->get_or_create_coop_vec()->query_matrix_size(rows, cols, layout, element_type);
+        },
         "rows"_a,
         "cols"_a,
         "layout"_a,
@@ -849,7 +939,9 @@ SGL_PY_EXPORT(device_device)
     device.def(
         "coopvec_create_matrix_desc",
         [](Device* self, uint32_t rows, uint32_t cols, CoopVecMatrixLayout layout, DataType element_type, size_t offset)
-        { return self->get_or_create_coop_vec()->create_matrix_desc(rows, cols, layout, element_type, offset); },
+        {
+            return self->get_or_create_coop_vec()->create_matrix_desc(rows, cols, layout, element_type, offset);
+        },
         "rows"_a,
         "cols"_a,
         "layout"_a,
@@ -872,7 +964,9 @@ SGL_PY_EXPORT(device_device)
            const ref<Buffer>& dst,
            CoopVecMatrixDesc dstDesc,
            CommandEncoder* encoder)
-        { return self->get_or_create_coop_vec()->convert_matrix_device(src, srcDesc, dst, dstDesc, encoder); },
+        {
+            return self->get_or_create_coop_vec()->convert_matrix_device(src, srcDesc, dst, dstDesc, encoder);
+        },
         "src"_a,
         "src_desc"_a,
         "dst"_a,
@@ -887,7 +981,9 @@ SGL_PY_EXPORT(device_device)
            const ref<Buffer>& dst,
            const std::vector<CoopVecMatrixDesc>& dstDesc,
            CommandEncoder* encoder)
-        { return self->get_or_create_coop_vec()->convert_matrix_device(src, srcDesc, dst, dstDesc, encoder); },
+        {
+            return self->get_or_create_coop_vec()->convert_matrix_device(src, srcDesc, dst, dstDesc, encoder);
+        },
         "src"_a,
         "src_desc"_a,
         "dst"_a,
@@ -896,21 +992,37 @@ SGL_PY_EXPORT(device_device)
     );
     device.def(
         "coopvec_align_matrix_offset",
-        [](Device* self, size_t offset) { return self->get_or_create_coop_vec()->align_matrix_offset(offset); },
+        [](Device* self, size_t offset)
+        {
+            return self->get_or_create_coop_vec()->align_matrix_offset(offset);
+        },
         "offset"_a
     );
     device.def(
         "coopvec_align_vector_offset",
-        [](Device* self, size_t offset) { return self->get_or_create_coop_vec()->align_vector_offset(offset); },
+        [](Device* self, size_t offset)
+        {
+            return self->get_or_create_coop_vec()->align_vector_offset(offset);
+        },
         "offset"_a
     );
     device.def(
         "set_hot_reload_delay",
-        [](Device* self, uint32_t delay_ms) { self->_hot_reload()->set_auto_detect_delay(delay_ms); },
+        [](Device* self, uint32_t delay_ms)
+        {
+            self->_hot_reload()->set_auto_detect_delay(delay_ms);
+        },
         "timeout_ms"_a,
         D_NA(Device, set_hot_reload_delay)
     );
-    device.def("hot_reload_check", [](Device* self) { self->_hot_reload()->update(); }, D_NA(Device, hot_reload_check));
+    device.def(
+        "hot_reload_check",
+        [](Device* self)
+        {
+            self->_hot_reload()->update();
+        },
+        D_NA(Device, hot_reload_check)
+    );
 
     device.def_static(
         "enumerate_adapters",

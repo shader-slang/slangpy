@@ -282,6 +282,13 @@ Context::Context(ref<Device> device)
     setup_style();
     ImGui::GetStyle().ScaleAllSizes(scale_factor);
 
+    // Skip initializing rasterizer if device does not support rasterization.
+    // TODO: This will be fixed later when adding sw rasterizer (wip).
+    if (!m_device->has_feature(Feature::rasterization)) {
+        log_warn("Rasterization is not available and UI will not be rendered!");
+        return;
+    }
+
     // Setup sampler.
     m_sampler = m_device->create_sampler({
         .min_filter = TextureFilteringMode::linear,
@@ -347,7 +354,7 @@ ImFont* Context::get_font(const char* name)
     return it == m_fonts.end() ? nullptr : it->second;
 }
 
-void Context::new_frame(uint32_t width, uint32_t height)
+void Context::begin_frame(uint32_t width, uint32_t height)
 {
     ImGui::SetCurrentContext(m_imgui_context);
 
@@ -357,18 +364,23 @@ void Context::new_frame(uint32_t width, uint32_t height)
     m_frame_timer.reset();
 
     ImGui::NewFrame();
+
+    m_screen->render();
 }
 
-void Context::render(TextureView* texture_view, CommandEncoder* command_encoder)
+void Context::end_frame(TextureView* texture_view, CommandEncoder* command_encoder)
 {
     ImGui::SetCurrentContext(m_imgui_context);
     ImGuiIO& io = ImGui::GetIO();
 
     bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
 
-    m_screen->render();
-
     ImGui::Render();
+
+    // Skip actual rendering device does not support it.
+    if (!m_device->has_feature(Feature::rasterization))
+        return;
+
     ImDrawData* draw_data = ImGui::GetDrawData();
 
     if (draw_data->CmdListsCount > 0) {
@@ -472,10 +484,10 @@ void Context::render(TextureView* texture_view, CommandEncoder* command_encoder)
     }
 }
 
-void Context::render(Texture* texture, CommandEncoder* command_encoder)
+void Context::end_frame(Texture* texture, CommandEncoder* command_encoder)
 {
     // TODO(slang-rhi) use default_view once it is available
-    render(texture->create_view({}), command_encoder);
+    end_frame(texture->create_view({}), command_encoder);
 }
 
 bool Context::handle_keyboard_event(const KeyboardEvent& event)
@@ -525,11 +537,6 @@ bool Context::handle_mouse_event(const MouseEvent& event)
     }
 
     return io.WantCaptureMouse;
-}
-
-void Context::process_events()
-{
-    m_screen->dispatch_events();
 }
 
 RenderPipeline* Context::get_pipeline(Format format)
