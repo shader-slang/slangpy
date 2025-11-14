@@ -23,6 +23,7 @@ from slangpy import (
     uint3,
     uint4,
     bool4,
+    math,
 )
 
 
@@ -52,6 +53,14 @@ def test_float4_fields():
 
 def test_float4_str():
     assert str(float4(1, 2, 3, 4)) == "{1, 2, 3, 4}"
+
+
+def test_float4_select():
+    b = bool4(True, False, True, False)
+    a = float4(1.0, 2.0, 3.0, 4.0)
+    c = float4(10.0, 20.0, 30.0, 40.0)
+    r = float4(1.0, 20.0, 3.0, 40.0)
+    assert eq(math.select(b, a, c), r)
 
 
 def test_float4_unary_ops():
