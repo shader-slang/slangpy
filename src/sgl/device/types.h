@@ -6,6 +6,7 @@
 
 #include "sgl/core/macros.h"
 #include "sgl/core/enum.h"
+#include "sgl/core/data_type.h"
 
 #include "sgl/math/vector_types.h"
 #include "sgl/math/matrix_types.h"
@@ -788,6 +789,44 @@ SGL_ENUM_INFO(
     }
 );
 SGL_ENUM_REGISTER(RayTracingPipelineFlags);
+
+// ----------------------------------------------------------------------------
+// Cooperative Vectors
+// ----------------------------------------------------------------------------
+
+enum class CoopVecMatrixLayout {
+    row_major = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::RowMajor),
+    column_major = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::ColumnMajor),
+    inferencing_optimal = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::InferencingOptimal),
+    training_optimal = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::TrainingOptimal),
+};
+SGL_ENUM_INFO(
+    CoopVecMatrixLayout,
+    {
+        {CoopVecMatrixLayout::row_major, "row_major"},
+        {CoopVecMatrixLayout::column_major, "column_major"},
+        {CoopVecMatrixLayout::inferencing_optimal, "inferencing_optimal"},
+        {CoopVecMatrixLayout::training_optimal, "training_optimal"},
+    }
+);
+SGL_ENUM_REGISTER(CoopVecMatrixLayout);
+
+struct CoopVecMatrixDesc {
+    uint32_t rows{0};
+    uint32_t cols{0};
+    DataType element_type{DataType::void_};
+    CoopVecMatrixLayout layout{CoopVecMatrixLayout::row_major};
+    /// Size (in bytes) of the matrix.
+    size_t size{0};
+    /// Offset (in bytes) from start of buffer.
+    size_t offset{0};
+    /// Stride (in bytes) between rows or columns.
+    size_t row_col_stride{0};
+};
+
+// ----------------------------------------------------------------------------
+// Heap
+// ----------------------------------------------------------------------------
 
 /// Report information for a memory heap.
 struct HeapReport {

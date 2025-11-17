@@ -83,7 +83,7 @@ struct type_caster<std::span<T>> {
 
     using Caster = make_caster<T>;
 
-    std::vector<T> vec;
+    std::vector<std::remove_cv_t<T>> vec;
 
     bool from_python(handle src, uint8_t flags, cleanup_list* cleanup) noexcept
     {

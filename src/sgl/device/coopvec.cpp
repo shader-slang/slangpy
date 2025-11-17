@@ -47,56 +47,20 @@ static size_t get_element_size(DataType dtype)
     }
 }
 
-static rhi::CooperativeVectorComponentType get_rhi_component_type(DataType dtype)
-{
-    switch (dtype) {
-    case DataType::float16:
-        return rhi::CooperativeVectorComponentType::Float16;
-    case DataType::float32:
-        return rhi::CooperativeVectorComponentType::Float32;
-    case DataType::float64:
-        return rhi::CooperativeVectorComponentType::Float64;
-    case DataType::int8:
-        return rhi::CooperativeVectorComponentType::Sint8;
-    case DataType::int16:
-        return rhi::CooperativeVectorComponentType::Sint16;
-    case DataType::int32:
-        return rhi::CooperativeVectorComponentType::Sint32;
-    case DataType::uint8:
-        return rhi::CooperativeVectorComponentType::Uint8;
-    case DataType::uint16:
-        return rhi::CooperativeVectorComponentType::Uint16;
-    case DataType::uint32:
-        return rhi::CooperativeVectorComponentType::Uint32;
-    case DataType::uint64:
-        return rhi::CooperativeVectorComponentType::Uint64;
-    default:
-        SGL_THROW("\"%s\" is not a valid component type for cooperative vector matrix", dtype);
-    }
-}
-
 size_t CoopVec::query_matrix_size(uint32_t rows, uint32_t cols, CoopVecMatrixLayout layout, DataType element_type)
 {
     SGL_CHECK(rows > 0 && rows <= 128, "Number of rows must be 1..128.");
     SGL_CHECK(cols > 0 && cols <= 128, "Number of columns must be 1..128.");
 
     size_t required_size = 0;
-
-    rhi::ConvertCooperativeVectorMatrixDesc desc = {};
-    desc.srcSize = 0;
-    desc.srcData.hostAddress = nullptr;
-    desc.dstSize = &required_size;
-    desc.dstData.hostAddress = nullptr;
-    desc.srcComponentType = get_rhi_component_type(element_type);
-    desc.dstComponentType = get_rhi_component_type(element_type);
-    desc.rowCount = rows;
-    desc.colCount = cols;
-    desc.srcLayout = static_cast<rhi::CooperativeVectorMatrixLayout>(layout);
-    desc.srcStride = calc_element_stride(rows, cols, layout) * get_element_size(element_type);
-    desc.dstLayout = static_cast<rhi::CooperativeVectorMatrixLayout>(layout);
-    desc.dstStride = calc_element_stride(rows, cols, layout) * get_element_size(element_type);
-
-    SLANG_RHI_CALL(m_device->rhi_device()->convertCooperativeVectorMatrix(&desc, 1));
+    SLANG_RHI_CALL(m_device->rhi_device()->computeCooperativeVectorMatrixSize(
+        rows,
+        cols,
+        get_rhi_component_type(element_type),
+        static_cast<rhi::CooperativeVectorMatrixLayout>(layout),
+        calc_element_stride(rows, cols, layout) * get_element_size(element_type),
+        &required_size
+    ));
     SGL_CHECK(required_size > 0, "Expected matrix size to be larger than zero.");
 
     return required_size;
@@ -168,21 +132,19 @@ static rhi::ConvertCooperativeVectorMatrixDesc build_rhi_matrix_desc(
     return desc;
 }
 
-size_t CoopVec::convert_matrix_host(const void* src, CoopVecMatrixDesc src_desc, void* dst, CoopVecMatrixDesc dst_desc)
+void CoopVec::convert_matrix_host(
+    const void* src,
+    size_t src_size,
+    CoopVecMatrixDesc src_desc,
+    void* dst,
+    size_t dst_size,
+    CoopVecMatrixDesc dst_desc
+)
 {
-    rhi::DeviceOrHostAddressConst rhi_src;
-    rhi_src.hostAddress = reinterpret_cast<const uint8_t*>(src) + src_desc.offset;
-    rhi::DeviceOrHostAddress rhi_dst;
-    rhi_dst.hostAddress = reinterpret_cast<uint8_t*>(dst) + dst_desc.offset;
-
-    size_t actual_size;
-    rhi::ConvertCooperativeVectorMatrixDesc desc
-        = build_rhi_matrix_desc(rhi_src, src_desc, rhi_dst, dst_desc, &actual_size);
-
-    SLANG_RHI_CALL(m_device->rhi_device()->convertCooperativeVectorMatrix(&desc, 1));
-    SGL_CHECK(actual_size > 0, "Expected matrix size to be larger than zero.");
-
-    return actual_size;
+    rhi::CooperativeVectorMatrixDesc rhi_src_desc = get_rhi_desc(src_desc);
+    rhi::CooperativeVectorMatrixDesc rhi_dst_desc = get_rhi_desc(dst_desc);
+    SLANG_RHI_CALL(m_device->rhi_device()
+                       ->convertCooperativeVectorMatrix(dst, dst_size, &rhi_dst_desc, src, src_size, &rhi_src_desc, 1));
 }
 
 void CoopVec::convert_matrix_device(

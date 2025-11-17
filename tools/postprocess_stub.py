@@ -28,6 +28,7 @@ DESCRIPTOR_CONVERT_TYPES = {
     "BufferOffsetPair": True,
     "ColorTargetDesc": True,
     "ComputePipelineDesc": True,
+    "CoopVecMatrixDesc": True,
     "DepthStencilDesc": True,
     "DepthStencilOpDesc": True,
     "DeviceDesc": True,

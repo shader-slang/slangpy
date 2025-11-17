@@ -74,8 +74,6 @@ target_sources(sgl PRIVATE
     device/buffer_cursor.h
     device/command.cpp
     device/command.h
-    device/coopvec.h
-    device/coopvec.cpp
     device/cuda_interop.cpp
     device/cuda_interop.h
     device/cuda_utils.cpp

@@ -9,39 +9,85 @@
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
 #include "sgl/core/data_type.h"
-#include "sgl/core/platform.h"
 
 #include <vector>
 #include <slang-rhi.h>
 
 namespace sgl {
 
-enum class CoopVecMatrixLayout {
-    row_major = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::RowMajor),
-    column_major = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::ColumnMajor),
-    inferencing_optimal = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::InferencingOptimal),
-    training_optimal = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::TrainingOptimal),
-};
 
-SGL_ENUM_INFO(
-    CoopVecMatrixLayout,
-    {
-        {CoopVecMatrixLayout::row_major, "row_major"},
-        {CoopVecMatrixLayout::column_major, "column_major"},
-        {CoopVecMatrixLayout::inferencing_optimal, "inferencing_optimal"},
-        {CoopVecMatrixLayout::training_optimal, "training_optimal"},
+inline rhi::CooperativeVectorComponentType get_rhi_component_type(DataType dtype)
+{
+    switch (dtype) {
+    case DataType::float16:
+        return rhi::CooperativeVectorComponentType::Float16;
+    case DataType::float32:
+        return rhi::CooperativeVectorComponentType::Float32;
+    case DataType::float64:
+        return rhi::CooperativeVectorComponentType::Float64;
+    case DataType::int8:
+        return rhi::CooperativeVectorComponentType::Sint8;
+    case DataType::int16:
+        return rhi::CooperativeVectorComponentType::Sint16;
+    case DataType::int32:
+        return rhi::CooperativeVectorComponentType::Sint32;
+    case DataType::uint8:
+        return rhi::CooperativeVectorComponentType::Uint8;
+    case DataType::uint16:
+        return rhi::CooperativeVectorComponentType::Uint16;
+    case DataType::uint32:
+        return rhi::CooperativeVectorComponentType::Uint32;
+    case DataType::uint64:
+        return rhi::CooperativeVectorComponentType::Uint64;
+    default:
+        SGL_THROW("\"%s\" is not a valid component type for cooperative vector matrix", dtype);
     }
-);
-SGL_ENUM_REGISTER(CoopVecMatrixLayout);
+}
 
-struct CoopVecMatrixDesc {
-    uint32_t rows{0};
-    uint32_t cols{0};
-    DataType element_type{DataType::void_};
-    CoopVecMatrixLayout layout{CoopVecMatrixLayout::row_major};
-    size_t size{0};   // Size (in bytes) of the matrix
-    size_t offset{0}; // Offset (in bytes) from start of buffer
+inline uint32_t calc_element_stride(uint32_t rows, uint32_t cols, CoopVecMatrixLayout layout)
+{
+    if (layout == CoopVecMatrixLayout::row_major)
+        return cols;
+    else if (layout == CoopVecMatrixLayout::column_major)
+        return rows;
+    return 0ull;
 };
+
+inline size_t get_element_size(DataType dtype)
+{
+    switch (dtype) {
+    case DataType::int8:
+    case DataType::uint8:
+        return 1;
+    case DataType::float16:
+    case DataType::int16:
+    case DataType::uint16:
+        return 2;
+    case DataType::float32:
+    case DataType::int32:
+    case DataType::uint32:
+        return 4;
+    case DataType::float64:
+    case DataType::uint64:
+        return 8;
+    default:
+        SGL_THROW("\"%s\" is not a valid component type for cooperative vector matrix", dtype);
+    }
+}
+
+inline rhi::CooperativeVectorMatrixDesc get_rhi_desc(CoopVecMatrixDesc desc)
+{
+    rhi::CooperativeVectorMatrixDesc rhi_desc = {};
+    rhi_desc.rowCount = desc.rows;
+    rhi_desc.colCount = desc.cols;
+    rhi_desc.componentType = get_rhi_component_type(desc.element_type);
+    rhi_desc.layout = static_cast<rhi::CooperativeVectorMatrixLayout>(desc.layout);
+    rhi_desc.size = desc.size;
+    rhi_desc.offset = desc.offset;
+    rhi_desc.rowColumnStride = desc.row_col_stride;
+    return rhi_desc;
+}
+
 
 class SGL_API CoopVec : public Object {
     SGL_OBJECT(CoopVec)
@@ -63,7 +109,14 @@ public:
     );
 
     // Host-to-host conversion
-    size_t convert_matrix_host(const void* src, CoopVecMatrixDesc src_desc, void* dst, CoopVecMatrixDesc dst_desc);
+    void convert_matrix_host(
+        const void* src,
+        size_t src_size,
+        CoopVecMatrixDesc src_desc,
+        void* dst,
+        size_t dst_size,
+        CoopVecMatrixDesc dst_desc
+    );
     // Device-to-device conversion of single matrix
     void convert_matrix_device(
         const Buffer* src,
