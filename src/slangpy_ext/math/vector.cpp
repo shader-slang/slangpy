@@ -270,6 +270,19 @@ void bind_vector_type(nb::module_& m, const char* name)
             m.def("none", WRAP_INTRINSIC_X(none));
         }
 
+        // Selection
+
+        m.def(
+            "select",
+            [](const vector<bool, dimension>& condition, const T& true_value, const T& false_value)
+            {
+                return select(condition, true_value, false_value);
+            },
+            "condition"_a,
+            "true_value"_a,
+            "false_value"_a
+        );
+
         // Basic functions
 
         if constexpr (arithmetic<value_type>) {
