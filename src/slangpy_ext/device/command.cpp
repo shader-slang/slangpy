@@ -519,6 +519,24 @@ SGL_PY_EXPORT(device_command)
             D(CommandEncoder, deserialize_acceleration_structure)
         )
         .def(
+            "convert_coop_vec_matrices",
+            &CommandEncoder::convert_coop_vec_matrices,
+            "dst"_a,
+            "dst_descs"_a,
+            "src"_a,
+            "src_descs"_a,
+            D_NA(CommandEncoder::convert_coop_vec_matrices)
+        )
+        .def(
+            "convert_coop_vec_matrix",
+            &CommandEncoder::convert_coop_vec_matrix,
+            "dst"_a,
+            "dst_desc"_a,
+            "src"_a,
+            "src_desc"_a,
+            D_NA(CommandEncoder::convert_coop_vec_matrix)
+        )
+        .def(
             "set_buffer_state",
             &CommandEncoder::set_buffer_state,
             "buffer"_a,
