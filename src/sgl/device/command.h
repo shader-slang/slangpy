@@ -8,7 +8,6 @@
 #include "sgl/device/resource.h"
 #include "sgl/device/shader_object.h"
 #include "sgl/device/raytracing.h"
-#include "sgl/device/coopvec.h"
 
 #include "sgl/core/object.h"
 #include "sgl/core/static_vector.h"

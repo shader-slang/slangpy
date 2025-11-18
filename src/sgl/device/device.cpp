@@ -444,7 +444,6 @@ void Device::close()
 
     m_slang_session.reset();
     m_hot_reload.reset();
-    m_coop_vec.reset();
 
     if (m_cuda_device) {
         SGL_CU_SCOPE(this);
@@ -554,16 +553,102 @@ ref<ShaderTable> Device::create_shader_table(ShaderTableDesc desc)
     return make_ref<ShaderTable>(ref<Device>(this), std::move(desc));
 }
 
-/*size_t Device::query_coopvec_matrix_size(uint32_t rows, uint32_t columns, CoopVecMatrixLayout layout)
+size_t Device::get_coop_vec_matrix_size(
+    uint32_t rows,
+    uint32_t cols,
+    CoopVecMatrixLayout layout,
+    DataType element_type,
+    size_t row_col_stride
+)
 {
-    return m_coop_vec->query_matrix_size(rows, columns, layout);
-}*/
+    size_t size = 0;
+    SLANG_RHI_CALL(m_rhi_device->getCooperativeVectorMatrixSize(
+        rows,
+        cols,
+        detail::to_rhi_cooperative_vector_component_type(element_type),
+        static_cast<rhi::CooperativeVectorMatrixLayout>(layout),
+        row_col_stride,
+        &size
+    ));
+    return size;
+}
 
-ref<CoopVec> Device::get_or_create_coop_vec()
+CoopVecMatrixDesc Device::create_coop_vec_matrix_desc(
+    uint32_t rows,
+    uint32_t cols,
+    CoopVecMatrixLayout layout,
+    DataType element_type,
+    size_t offset,
+    size_t row_col_stride
+)
 {
-    if (!m_coop_vec)
-        m_coop_vec.reset(new CoopVec(ref<Device>(this)));
-    return m_coop_vec;
+    if (row_col_stride == 0)
+        row_col_stride = detail::compute_coop_vec_row_col_stride(rows, cols, element_type, layout);
+
+    CoopVecMatrixDesc result;
+    result.rows = rows;
+    result.cols = cols;
+    result.layout = layout;
+    result.element_type = element_type;
+    result.size = get_coop_vec_matrix_size(rows, cols, layout, element_type, row_col_stride);
+    result.offset = offset;
+    result.row_col_stride = row_col_stride;
+    return result;
+}
+
+void Device::convert_coop_vec_matrices(
+    void* dst,
+    size_t dst_size,
+    std::span<const CoopVecMatrixDesc> dst_descs,
+    const void* src,
+    size_t src_size,
+    std::span<const CoopVecMatrixDesc> src_descs
+)
+{
+    SGL_CHECK_NOT_NULL(dst);
+    SGL_CHECK_GT(dst_size, 0);
+    SGL_CHECK_NOT_NULL(src);
+    SGL_CHECK_GT(src_size, 0);
+    SGL_CHECK(src_descs.size() == dst_descs.size(), "Source and destination desc count must match.");
+
+    short_vector<rhi::CooperativeVectorMatrixDesc, 8> rhi_dst_descs;
+    rhi_dst_descs.reserve(dst_descs.size());
+    for (const CoopVecMatrixDesc& desc : dst_descs)
+        rhi_dst_descs.push_back(detail::to_rhi(desc));
+
+    short_vector<rhi::CooperativeVectorMatrixDesc, 8> rhi_src_descs;
+    rhi_src_descs.reserve(src_descs.size());
+    for (const CoopVecMatrixDesc& desc : src_descs)
+        rhi_src_descs.push_back(detail::to_rhi(desc));
+
+    SLANG_RHI_CALL(m_rhi_device->convertCooperativeVectorMatrix(
+        dst,
+        dst_size,
+        rhi_dst_descs.data(),
+        src,
+        src_size,
+        rhi_src_descs.data(),
+        narrow_cast<uint32_t>(rhi_dst_descs.size())
+    ));
+}
+
+void Device::convert_coop_vec_matrix(
+    void* dst,
+    size_t dst_size,
+    const CoopVecMatrixDesc& dst_desc,
+    const void* src,
+    size_t src_size,
+    const CoopVecMatrixDesc& src_desc
+)
+{
+    convert_coop_vec_matrices(
+        dst,
+        dst_size,
+        std::span<const CoopVecMatrixDesc>(&dst_desc, 1),
+        src,
+        src_size,
+        std::span<const CoopVecMatrixDesc>(&src_desc, 1)
+    );
 }
 
 ref<SlangSession> Device::create_slang_session(SlangSessionDesc desc)

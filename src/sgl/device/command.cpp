@@ -777,12 +777,12 @@ void CommandEncoder::convert_coop_vec_matrices(
     short_vector<rhi::CooperativeVectorMatrixDesc, 8> rhi_dst_descs;
     rhi_dst_descs.reserve(dst_descs.size());
     for (const CoopVecMatrixDesc& desc : dst_descs)
-        rhi_dst_descs.push_back(get_rhi_desc(desc));
+        rhi_dst_descs.push_back(detail::to_rhi(desc));
 
     short_vector<rhi::CooperativeVectorMatrixDesc, 8> rhi_src_descs;
     rhi_src_descs.reserve(src_descs.size());
     for (const CoopVecMatrixDesc& desc : src_descs)
-        rhi_src_descs.push_back(get_rhi_desc(desc));
+        rhi_src_descs.push_back(detail::to_rhi(desc));
 
     m_rhi_command_encoder->convertCooperativeVectorMatrix(
         dst->rhi_buffer(),
