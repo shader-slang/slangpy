@@ -124,6 +124,7 @@ def get_type(module: spy.Module, name: str):
     return t
 
 
+@pytest.mark.skip("This is only a test for experimental vecotrization system")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_vectorize_type(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)

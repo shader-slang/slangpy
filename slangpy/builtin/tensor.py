@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, cast
 
-from slangpy.core.native import AccessType, Shape
+from slangpy.core.native import AccessType, Shape, CallMode
 
 from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorType
 from slangpy.types.tensor import Tensor
@@ -195,11 +195,14 @@ class TensorMarshall(NativeTensorMarshall):
             if bound_type.has_grad_out and self.d_out is None:
                 return None
 
-            tensor_type = (
-                TensorType.tensor
-                if bound_type.tensor_type == TensorType.interface
-                else bound_type.tensor_type
-            )
+            if bound_type.tensor_type == TensorType.interface:
+                tensor_type = TensorType.tensor
+                has_grad_in = context.call_mode == CallMode.bwds and self.d_in is not None
+                has_grad_out = context.call_mode == CallMode.bwds and self.d_out is not None
+            else:
+                tensor_type = bound_type.tensor_type
+                has_grad_in = bound_type.has_grad_in
+                has_grad_out = bound_type.has_grad_out
 
             return [
                 self.layout.tensor_type(
@@ -207,8 +210,8 @@ class TensorMarshall(NativeTensorMarshall):
                     dims=bound_type.dims,
                     writable=bound_type.writable,
                     tensor_type=tensor_type,
-                    has_grad_in=bound_type.has_grad_in,
-                    has_grad_out=bound_type.has_grad_out,
+                    has_grad_in=has_grad_in,
+                    has_grad_out=has_grad_out,
                 )
             ]
 
