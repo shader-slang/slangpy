@@ -492,8 +492,8 @@ SGL_PY_EXPORT(device_command)
         .def(
             "copy_acceleration_structure",
             &CommandEncoder::copy_acceleration_structure,
-            "src"_a,
             "dst"_a,
+            "src"_a,
             "mode"_a,
             D(CommandEncoder, copy_acceleration_structure)
         )
