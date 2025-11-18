@@ -25,7 +25,7 @@
 namespace sgl {
 
 namespace detail {
-    rhi::SubresourceRange rhi_subresource_range(const Texture* texture, uint32_t subresource_index)
+    inline rhi::SubresourceRange rhi_subresource_range(const Texture* texture, uint32_t subresource_index)
     {
         return rhi::SubresourceRange{
             .layer = subresource_index / texture->mip_count(),
@@ -35,7 +35,7 @@ namespace detail {
         };
     }
 
-    rhi::SubresourceRange to_rhi(const SubresourceRange& range)
+    inline rhi::SubresourceRange to_rhi(const SubresourceRange& range)
     {
         return rhi::SubresourceRange{
             .layer = range.layer,
@@ -45,15 +45,7 @@ namespace detail {
         };
     }
 
-    rhi::BufferOffsetPair to_rhi(const BufferOffsetPair& buffer_with_offset)
-    {
-        return rhi::BufferOffsetPair(
-            buffer_with_offset.buffer ? buffer_with_offset.buffer->rhi_buffer() : nullptr,
-            buffer_with_offset.offset
-        );
-    }
-
-    rhi::DrawArguments to_rhi(const DrawArguments& draw_args)
+    inline rhi::DrawArguments to_rhi(const DrawArguments& draw_args)
     {
         return rhi::DrawArguments{
             .vertexCount = draw_args.vertex_count,
