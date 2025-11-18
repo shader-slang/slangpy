@@ -109,8 +109,8 @@ namespace detail {
 #define SGL_CHECK_LE(arg, value) SGL_CHECK(arg <= value, "\"{}\" must be less than or equal {}", #arg, value)
 #define SGL_CHECK_GT(arg, value) SGL_CHECK(arg > value, "\"{}\" must be greater than {}", #arg, value)
 #define SGL_CHECK_GE(arg, value) SGL_CHECK(arg >= value, "\"{}\" must be greater than or equal {}", #arg, value)
-#define SGL_CHECK_BOUNDS(arg, min, max)                                                                                \
-    SGL_CHECK(arg >= min && arg < max, "\"{}\" must be in range [{}, {}]", #arg, min, max)
+#define SGL_CHECK_RANGE(arg, min, max)                                                                                 \
+    SGL_CHECK(arg >= min && arg <= max, "\"{}\" must be in range [{}, {}]", #arg, min, max)
 
 /// Helper for marking unimplemented functions.
 #define SGL_UNIMPLEMENTED() SGL_THROW("Unimplemented")
