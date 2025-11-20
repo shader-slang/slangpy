@@ -148,7 +148,7 @@ SGL_ENUM_INFO(
         {Feature::sm_6_8, "sm_6_8"},
         {Feature::sm_6_9, "sm_6_9"},
         {Feature::half, "half"},
-        {Feature::double_, "double_"},
+        {Feature::double_, "double"},
         {Feature::int16, "int16"},
         {Feature::int64, "int64"},
         {Feature::atomic_float, "atomic_float"},
