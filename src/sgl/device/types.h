@@ -62,6 +62,7 @@ enum class Feature : uint32_t {
     ray_query = static_cast<uint32_t>(rhi::Feature::RayQuery),
     shader_execution_reordering = static_cast<uint32_t>(rhi::Feature::ShaderExecutionReordering),
     ray_tracing_validation = static_cast<uint32_t>(rhi::Feature::RayTracingValidation),
+    cluster_acceleration_structure = static_cast<uint32_t>(rhi::Feature::ClusterAccelerationStructure),
     // Other features
     timestamp_query = static_cast<uint32_t>(rhi::Feature::TimestampQuery),
     realtime_clock = static_cast<uint32_t>(rhi::Feature::RealtimeClock),
@@ -132,6 +133,7 @@ SGL_ENUM_INFO(
         {Feature::ray_query, "ray_query"},
         {Feature::shader_execution_reordering, "shader_execution_reordering"},
         {Feature::ray_tracing_validation, "ray_tracing_validation"},
+        {Feature::cluster_acceleration_structure, "cluster_acceleration_structure"},
         {Feature::timestamp_query, "timestamp_query"},
         {Feature::realtime_clock, "realtime_clock"},
         {Feature::cooperative_vector, "cooperative_vector"},
