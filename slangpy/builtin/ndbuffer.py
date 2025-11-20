@@ -230,15 +230,19 @@ def ndbuffer_resolve_types(
     # Target type is NDBuffer
     if isinstance(bound_type, ITensorType):
         if bound_type.writable and not self_writable:
-            raise ValueError("Attempted to bind a writable buffer to a read-only buffer")
-        if bound_type.element_type == self_element_type:
-            return [bound_type]
-        elif isinstance(bound_type.element_type, UnknownType):
-            return [
-                get_ndbuffer_type(context, self_element_type, bound_type.writable, bound_type.dims)
-            ]
-        else:
             return None
+        bound_element_type = bound_type.element_type
+        if isinstance(bound_element_type, UnknownType) or bound_element_type.is_generic:
+            el_type = self_element_type
+        else:
+            el_type = bound_element_type
+        if bound_type.dims == 0:
+            dims = self_dims
+        else:
+            dims = bound_type.dims
+        if el_type.full_name != self_element_type.full_name:
+            return None
+        return [get_ndbuffer_type(context, el_type, bound_type.writable, dims)]
 
     # Match element type exactly
     if self_element_type.full_name == bound_type.full_name:

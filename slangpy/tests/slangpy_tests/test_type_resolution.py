@@ -657,6 +657,13 @@ def calc_usage(rw: bool) -> spy.BufferUsage:
     return usage
 
 
+def calc_tex_usage(rw: bool) -> spy.TextureUsage:
+    usage = spy.TextureUsage.shader_resource
+    if rw:
+        usage |= spy.TextureUsage.unordered_access
+    return usage
+
+
 class _Buffer:
     def __init__(self, element_count: int, struct_size: int, rw: bool):
         super().__init__()
@@ -727,6 +734,68 @@ class _Tensor:
                 grad_out=spy.Tensor.empty_like(t) if self.gradout else None,
             )
         return t
+
+
+class _Texture:
+    def __init__(
+        self,
+        type: spy.TextureType = spy.TextureType.texture_2d,
+        format: spy.Format = spy.Format.undefined,
+        rw: bool = False,
+    ):
+        super().__init__()
+        self.texture_type = type
+        self.format = format
+        self.width = 16
+        self.height = (
+            16
+            if type
+            in (
+                spy.TextureType.texture_2d,
+                spy.TextureType.texture_2d_array,
+                spy.TextureType.texture_cube,
+                spy.TextureType.texture_cube_array,
+            )
+            else 1
+        )
+        self.depth = 16 if type == spy.TextureType.texture_3d else 1
+        self.array_length = (
+            4
+            if type
+            in (
+                spy.TextureType.texture_1d_array,
+                spy.TextureType.texture_2d_array,
+                spy.TextureType.texture_cube_array,
+            )
+            else 1
+        )
+        self.rw = rw
+
+    def __repr__(self) -> str:
+        name_map = {
+            spy.TextureType.texture_1d: "Texture1D",
+            spy.TextureType.texture_2d: "Texture2D",
+            spy.TextureType.texture_3d: "Texture3D",
+            spy.TextureType.texture_cube: "TextureCube",
+            spy.TextureType.texture_1d_array: "Texture1DArray",
+            spy.TextureType.texture_2d_array: "Texture2DArray",
+            spy.TextureType.texture_cube_array: "TextureCubeArray",
+        }
+        return (
+            f"{'RW' if self.rw else ''}{name_map.get(self.texture_type, 'Texture')}<{self.format}>"
+        )
+
+    def __call__(self, module: spy.Module) -> spy.Texture:
+
+        return module.device.create_texture(
+            type=self.texture_type,
+            format=self.format,
+            width=self.width,
+            height=self.height,
+            depth=self.depth,
+            array_length=self.array_length,
+            usage=calc_tex_usage(self.rw),
+        )
 
 
 # fmt: off
@@ -1085,10 +1154,63 @@ TESTS = [
     ("func_ndbuffer", _NDBuffer("float", 2, True), "NDBuffer<float,2>", 2),
     ("func_gradouttensor", _Tensor("float", 2, True, False, True), "GradOutTensor<float,2>", 2),
 
+    ("func_generic_element_ndbuffer", _NDBuffer("float", 2, True), "NDBuffer<float,2>", 2),
+    ("func_generic_dims_ndbuffer", _NDBuffer("float", 2, True), "NDBuffer<float,2>", 2),
+    ("func_generic_ndbuffer", _NDBuffer("float", 2, True), "NDBuffer<float,2>", 2),
+    ("func_generic_element_ndbuffer", _Tensor("float", 2, True), "NDBuffer<float,2>", 2),
+    ("func_generic_dims_ndbuffer", _Tensor("float", 2, True), "NDBuffer<float,2>", 2),
+    ("func_generic_ndbuffer", _Tensor("float", 2, True), "NDBuffer<float,2>", 2),
+
+    ("func_generic_element_tensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
+    ("func_generic_dims_tensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
+    ("func_generic_tensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
+
+
     # Verify tensors with both grads handle being passed to in-only or out-only params
     ("func_gradintensor", _Tensor("float", 2, True, True, True), "GradInTensor<float,2>", 2),
     ("func_gradouttensor", _Tensor("float", 2, True, True, True), "GradOutTensor<float,2>", 2),
 
+    # Float texture loading into floats/vectors
+    ("func_float", _Texture(spy.TextureType.texture_1d, spy.Format.r32_float, False), "float", 2),
+    ("func_genericfloat", _Texture(spy.TextureType.texture_1d, spy.Format.r32_float, False), "float", 2),
+    ("func_float3", _Texture(spy.TextureType.texture_1d, spy.Format.rgb32_float, False), "vector<float,3>", 2),
+    ("func_floatN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.r32_float, False), "vector<float,1>", 2),
+    ("func_floatN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rg32_float, False), "vector<float,2>", 2),
+    ("func_floatN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgb32_float, False), "vector<float,3>", 2),
+    ("func_vector3_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgb32_float, False), "vector<float,3>", 2),
+    ("func_floatN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, False), "vector<float,4>", 2),
+    ("func_vectorN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, False), "vector<float,4>", 2),
+
+    # Int texture loading into ints/vectors
+    ("func_int", _Texture(spy.TextureType.texture_1d, spy.Format.r32_sint, False), "int", 2),
+    ("func_genericint", _Texture(spy.TextureType.texture_1d, spy.Format.r32_sint, False), "int", 2),
+    ("func_int3", _Texture(spy.TextureType.texture_1d, spy.Format.rgb32_sint, False), "vector<int,3>", 2),
+    ("func_vector3_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgb32_sint, False), "vector<int,3>", 2),
+    ("func_vectorN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_sint, False), "vector<int,4>", 2),
+
+    # Various texture types
+    ("func_texture1d", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, False), "Texture1D<float4>", 0),
+    ("func_rwtexture1d", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, False), None, None),
+    ("func_rwtexture1d", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, True), "RWTexture1D<float4>", 0),
+    ("func_texture2d", _Texture(spy.TextureType.texture_2d, spy.Format.rgba32_float, False), "Texture2D<float4>", 0),
+    ("func_rwtexture2d", _Texture(spy.TextureType.texture_2d, spy.Format.rgba32_float, False), None, None),
+    ("func_rwtexture2d", _Texture(spy.TextureType.texture_2d, spy.Format.rgba32_float, True), "RWTexture2D<float4>", 0),
+    ("func_texture3d", _Texture(spy.TextureType.texture_3d, spy.Format.rgba32_float, False), "Texture3D<float4>", 0),
+    ("func_rwtexture3d", _Texture(spy.TextureType.texture_3d, spy.Format.rgba32_float, False), None, None),
+    ("func_rwtexture3d", _Texture(spy.TextureType.texture_3d, spy.Format.rgba32_float, True), "RWTexture3D<float4>", 0),
+    ("func_texture1darray", _Texture(spy.TextureType.texture_1d_array, spy.Format.rgba32_float, False), "Texture1DArray<float4>", 0),
+    ("func_rwtexture1darray", _Texture(spy.TextureType.texture_1d_array, spy.Format.rgba32_float, False), None, None),
+    ("func_rwtexture1darray", _Texture(spy.TextureType.texture_1d_array, spy.Format.rgba32_float, True), "RWTexture1DArray<float4>", 0),
+    ("func_texture2darray", _Texture(spy.TextureType.texture_2d_array, spy.Format.rgba32_float, False), "Texture2DArray<float4>", 0),
+    ("func_rwtexture2darray", _Texture(spy.TextureType.texture_2d_array, spy.Format.rgba32_float, False), None, None),
+    ("func_rwtexture2darray", _Texture(spy.TextureType.texture_2d_array, spy.Format.rgba32_float, True), "RWTexture2DArray<float4>", 0),
+
+    # Generic texture types
+    ("func_texture2d_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, False), None, None),
+    ("func_texture2d_generic", _Texture(spy.TextureType.texture_2d, spy.Format.r32_float, False), "Texture2D<float1>", 0),
+    ("func_texture2d_generic", _Texture(spy.TextureType.texture_2d, spy.Format.rgba32_float, False), "Texture2D<float4>", 0),
+    ("func_rwtexture2d_generic", _Texture(spy.TextureType.texture_2d, spy.Format.rgba32_float, False), None, None),
+    ("func_rwtexture2d_generic", _Texture(spy.TextureType.texture_2d, spy.Format.rgba32_float, True), "RWTexture2D<float4>", 0),
 ]
 
 # fmt: on
@@ -1257,6 +1379,28 @@ MATRIX_TESTS, TESTS = filter_tests(
     ids=[f"{fn}_{av}" for fn, av, etn, ed in MATRIX_TESTS],
 )
 def test_type_resolution_matrix(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)
+
+
+TEXTURE_TESTS, TESTS = filter_tests(
+    TESTS,
+    types=(_Texture,),
+)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    TEXTURE_TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in TEXTURE_TESTS],
+)
+def test_type_resolution_texture(
     device_type: spy.DeviceType,
     func_name: str,
     arg_value: Any,

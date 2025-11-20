@@ -249,6 +249,7 @@ public struct Texture2DType<T : ITexelElement> {
     public void load(Context0D context, out Texture2D<T> value) { value = this.value; }
     public void store(Context0D context, in Texture2D<T> value) {};
 }
+
 public struct RWTexture2DType<T : ITexelElement> {
     RWTexture2D<T> value;
     public void load(Context2D context, out T value) { value = this.value[context.call_id_vec]; }
@@ -270,6 +271,7 @@ public struct Texture1DArrayType<T : ITexelElement> {
     public void load(Context0D context, out Texture1DArray<T> value) { value = this.value; }
     public void store(Context0D context, in Texture1DArray<T> value) {};
 }
+
 public struct RWTexture1DArrayType<T : ITexelElement> {
     // Map with the first index as the x coordinate and the second index as the array slice
     int2 toidx(Context2D context) { return context.call_id_vec; }
@@ -290,6 +292,7 @@ public struct Texture3DType<T : ITexelElement> {
     public void load(Context0D context, out Texture3D<T> value) { value = this.value; }
     public void store(Context0D context, in Texture3D<T> value) {};
 }
+
 public struct RWTexture3DType<T : ITexelElement> {
     RWTexture3D<T> value;
     public void load(Context3D context, out T value) { value = this.value[context.call_id_vec]; }
@@ -310,6 +313,7 @@ public struct Texture2DArrayType<T : ITexelElement> {
     public void load(Context0D context, out Texture2DArray<T> value) { value = this.value; }
     public void store(Context0D context, in Texture2DArray<T> value) {};
 }
+
 public struct RWTexture2DArrayType<T : ITexelElement> {
     // slice is 0, xy are 1,2
     int3 toidx(Context3D context) { return context.call_id_vec; }
@@ -320,6 +324,58 @@ public struct RWTexture2DArrayType<T : ITexelElement> {
 
     public void load(Context0D context, out RWTexture2DArray<T> value) { value = this.value; }
     public void store(Context0D context, in RWTexture2DArray<T> value) {};
+}
+
+// Set of extensions to let single component textures load scalar values
+public extension<T> Texture1DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context1D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context1D context, in T value) {};
+}
+public extension<T> RWTexture1DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context1D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context1D context, in T value) { this.value[context.call_id_vec] = value; };
+}
+public extension<T> Texture2DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context2D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context2D context, in T value) {};
+}
+public extension<T> RWTexture2DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context2D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context2D context, in T value) { this.value[context.call_id_vec] = value; };
+}
+public extension<T> Texture1DArrayType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context2D context, out T value) { value = this.value[toidx(context)].x; }
+    public void store(Context2D context, in T value) {};
+}
+public extension<T> RWTexture1DArrayType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context2D context, out T value) { value = this.value[toidx(context)].x; }
+    public void store(Context2D context, in T value) { this.value[toidx(context)] = value; };
+}
+public extension<T> Texture3DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context3D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context3D context, in T value) { };
+}
+public extension<T> RWTexture3DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context3D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context3D context, in T value) { this.value[context.call_id_vec] = value; };
+}
+public extension<T> Texture2DArrayType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context3D context, out T value) { value = this.value[toidx(context)].x; }
+    public void store(Context3D context, in T value) {};
+}
+public extension<T> RWTexture2DArrayType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context3D context, out T value) { value = this.value[toidx(context)].x; }
+    public void store(Context3D context, in T value) { this.value[toidx(context)] = value; };
 }
 
 public struct RaytracingAccelerationStructureType

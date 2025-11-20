@@ -188,8 +188,6 @@ class TensorMarshall(NativeTensorMarshall):
         if isinstance(bound_type, ITensorType):
             if bound_type.writable and not self.writable:
                 return None
-            if not types_equal(bound_type.dtype, self.slang_element_type):
-                return None
             if bound_type.has_grad_in and self.d_in is None:
                 return None
             if bound_type.has_grad_out and self.d_out is None:
@@ -204,10 +202,22 @@ class TensorMarshall(NativeTensorMarshall):
                 has_grad_in = bound_type.has_grad_in
                 has_grad_out = bound_type.has_grad_out
 
+            bound_element_type = bound_type.element_type
+            if isinstance(bound_element_type, UnknownType) or bound_element_type.is_generic:
+                el_type = self_element_type
+            else:
+                el_type = bound_element_type
+            if bound_type.dims == 0:
+                dims = self_dims
+            else:
+                dims = bound_type.dims
+            if not types_equal(el_type, self_element_type):
+                return None
+
             return [
                 self.layout.tensor_type(
-                    element_type=bound_type.dtype,
-                    dims=bound_type.dims,
+                    element_type=el_type,
+                    dims=dims,
                     writable=bound_type.writable,
                     tensor_type=tensor_type,
                     has_grad_in=has_grad_in,

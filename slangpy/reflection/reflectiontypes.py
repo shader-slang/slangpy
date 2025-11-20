@@ -876,8 +876,16 @@ class ITensorType(SlangType):
         assert args is not None
         assert len(args) == 2
         assert isinstance(args[0], SlangType)
-        assert isinstance(args[1], int)
-        super().__init__(program, refl, element_type=args[0], local_shape=Shape((-1,) * args[1]))
+
+        if isinstance(args[1], UnknownType):
+            shape = Shape()
+            self._dims = 0
+        else:
+            assert isinstance(args[1], int)
+            shape = Shape((-1,) * args[1])
+            self._dims = args[1]
+
+        super().__init__(program, refl, element_type=args[0], local_shape=shape)
         self.element_type: SlangType
         self._writable = refl.name in (
             "IRWTensor",
@@ -887,7 +895,7 @@ class ITensorType(SlangType):
             "GradInOutTensor",
             "AtomicTensor",
         )
-        self._dims = args[1]
+
         self.has_grad_in = refl.name in ("GradInTensor", "GradInOutTensor")
         self.has_grad_out = refl.name in ("GradOutTensor", "GradInOutTensor")
 
@@ -906,6 +914,14 @@ class ITensorType(SlangType):
     @property
     def tensor_type(self) -> TensorType:
         return _TENSOR_NAME_TO_TYPE[self.type_reflection.name]
+
+    @property
+    def is_generic(self) -> bool:
+        return (
+            isinstance(self.element_type, UnknownType)
+            or self.element_type.is_generic
+            or self.dims == 0
+        )
 
     @staticmethod
     def build_tensor_name(

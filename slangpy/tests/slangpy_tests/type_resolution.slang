@@ -323,3 +323,81 @@ void func_gradinouttensor(GradInOutTensor<float, 2> a)
 {
     return;
 }
+
+void func_generic_element_ndbuffer<T>(NDBuffer<T, 2> a)
+{
+    return;
+}
+void func_generic_dims_ndbuffer<let N: int>(NDBuffer<float, N> a)
+{
+    return;
+}
+void func_generic_ndbuffer<T, let N: int>(NDBuffer<T, N> a)
+{
+    return;
+}
+
+void func_generic_element_tensor<T: IDifferentiable>(Tensor<T, 2> a)
+{
+    return;
+}
+void func_generic_dims_tensor<let N: int>(Tensor<float, N> a)
+{
+    return;
+}
+void func_generic_tensor<T : IDifferentiable, let N: int>(Tensor<T, N> a)
+{
+    return;
+}
+
+
+// Passing textures
+void func_texture1d(Texture1D<float4> a)
+{
+    return;
+}
+void func_rwtexture1d(RWTexture1D<float4> a)
+{
+    return;
+}
+void func_texture2d(Texture2D<float4> a)
+{
+    return;
+}
+void func_rwtexture2d(RWTexture2D<float4> a)
+{
+    return;
+}
+void func_texture3d(Texture3D<float4> a)
+{
+    return;
+}
+void func_rwtexture3d(RWTexture3D<float4> a)
+{
+    return;
+}
+void func_texture1darray(Texture1DArray<float4> a)
+{
+    return;
+}
+void func_rwtexture1darray(RWTexture1DArray<float4> a)
+{
+    return;
+}
+void func_texture2darray(Texture2DArray<float4> a)
+{
+    return;
+}
+void func_rwtexture2darray(RWTexture2DArray<float4> a)
+{
+    return;
+}
+
+void func_texture2d_generic<T: ITexelElement>(Texture2D<T> a)
+{
+    return;
+}
+void func_rwtexture2d_generic<T : ITexelElement>(RWTexture2D<T> a)
+{
+    return;
+}
