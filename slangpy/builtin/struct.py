@@ -5,7 +5,7 @@ from slangpy.core.native import Shape, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
 from slangpy.bindings import PYTHON_TYPES, BindContext, BoundVariable
-from slangpy.reflection import SlangProgramLayout, SlangType, UnknownType, StructType
+from slangpy.reflection import SlangProgramLayout, SlangType, UnknownType, StructType, InterfaceType
 
 from .value import ValueMarshall
 import slangpy.reflection.vectorize as spyvec
@@ -39,10 +39,13 @@ class StructMarshall(ValueMarshall):
         return True
 
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
-        # Support this struct being of unknown type, but the binding being fully resolved struct type.
+        # Support this struct being of unknown type, which like a scalar, just means
+        # we're attempting to bind the value as is. This is especially important
+        # for structs, as they may be SOA types with fields that need to be
+        # bound individually.
         if (
             isinstance(self.slang_type, UnknownType)
-            and isinstance(bound_type, StructType)
+            and not isinstance(bound_type, (UnknownType, InterfaceType))
             and not bound_type.is_generic
         ):
             return [bound_type]

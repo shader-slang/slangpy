@@ -666,12 +666,12 @@ class StructType(SlangType):
         # An opaque struct has no element type, but like a normal scalar has a 0D local shape
         super().__init__(program, refl, local_shape=Shape())
         args = program.get_resolved_generic_args(refl)
-        self.generic_args = args
+        self._generic_args = args
 
     @property
     def is_generic(self) -> bool:
-        return self.generic_args is not None and any(
-            isinstance(arg, UnknownType) for arg in self.generic_args
+        return self._generic_args is not None and any(
+            isinstance(arg, UnknownType) for arg in self._generic_args
         )
 
     def build_fields(self):
