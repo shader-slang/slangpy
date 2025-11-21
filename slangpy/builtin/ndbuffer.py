@@ -32,6 +32,7 @@ from slangpy.reflection import (
     PointerType,
     ArrayType,
     UnknownType,
+    InterfaceType,
     ITensorType,
     is_matching_array_type,
     is_unknown,
@@ -195,7 +196,7 @@ def ndbuffer_resolve_types(
     results: list[SlangType] = []
 
     # If target type is fully generic, allow buffer or element type
-    if bound_type.type_reflection.kind == TypeReflection.Kind.none:
+    if isinstance(bound_type, (UnknownType, InterfaceType)):
         buffer_type = get_ndbuffer_type(context, self_element_type, self_writable, self_dims)
         results.append(buffer_type)
         results.append(self_element_type)
@@ -286,6 +287,11 @@ def ndbuffer_resolve_types(
     as_sized_array = spyvec.container_to_sized_array(self_element_type, bound_type, self_dims)
     if as_sized_array is not None:
         return [as_sized_array]
+
+    # Support resolving generic struct
+    as_struct = spyvec.struct_to_struct(self_element_type, bound_type)
+    if as_struct is not None:
+        return [as_struct]
 
     # Support resolving generic array
     as_array = spyvec.array_to_array(self_element_type, bound_type)

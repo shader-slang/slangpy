@@ -11,7 +11,7 @@ def scalar_to_scalar(marshall_type: rt.SlangType, target_type: rt.SlangType):
     if isinstance(target_type, rt.ScalarType):
         if marshall_type.slang_scalar_type == target_type.slang_scalar_type:
             return marshall_type
-    if isinstance(target_type, rt.UnknownType):
+    if isinstance(target_type, (rt.UnknownType, rt.InterfaceType)):
         return marshall_type
     return None
 
@@ -22,7 +22,7 @@ def scalar_to_scalar_convertable(marshall_type: rt.SlangType, target_type: rt.Sl
         return None
     if isinstance(target_type, rt.ScalarType):
         return target_type
-    if isinstance(target_type, rt.UnknownType):
+    if isinstance(target_type, (rt.UnknownType, rt.InterfaceType)):
         return marshall_type
     return None
 
@@ -169,6 +169,20 @@ def scalar_to_sized_matrix(marshall_element_type: rt.SlangType, target_type: rt.
         return marshall_element_type.program.matrix_type(
             marshall_element_type.slang_scalar_type, target_type.rows, target_type.cols
         )
+    return None
+
+
+def struct_to_struct(marshall_type: rt.SlangType, target_type: rt.SlangType):
+    """Attempt to match marshall struct type to target struct type, allowing for target being generic."""
+    if not isinstance(marshall_type, rt.StructType):
+        return None
+    if isinstance(target_type, rt.StructType):
+        if marshall_type.full_name == target_type.full_name:
+            return marshall_type
+        if target_type.is_generic and marshall_type.name == target_type.name:
+            return marshall_type
+    if isinstance(target_type, (rt.UnknownType, rt.InterfaceType)):
+        return marshall_type
     return None
 
 

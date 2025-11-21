@@ -20,6 +20,7 @@ from slangpy.reflection import (
     ScalarType,
     MatrixType,
     UnknownType,
+    InterfaceType,
     ITensorType,
     TensorType,
     vectorize_type,
@@ -226,7 +227,7 @@ class TensorMarshall(NativeTensorMarshall):
             ]
 
         # If target type is fully generic, always add tensor type as option
-        if bound_type.type_reflection.kind == TypeReflection.Kind.none:
+        if isinstance(bound_type, (UnknownType, InterfaceType)):
             results: list[SlangType] = []
             results.append(self.slang_type)
             results.append(self.slang_element_type)
@@ -296,6 +297,11 @@ class TensorMarshall(NativeTensorMarshall):
         as_sized_array = spyvec.container_to_sized_array(self_element_type, bound_type, self_dims)
         if as_sized_array is not None:
             return [as_sized_array]
+
+        # Support resolving generic struct
+        as_struct = spyvec.struct_to_struct(self_element_type, bound_type)
+        if as_struct is not None:
+            return [as_struct]
 
         # Support resolving generic array
         as_array = spyvec.array_to_array(self_element_type, bound_type)

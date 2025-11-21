@@ -399,7 +399,7 @@ class MatrixMarshall(ValueMarshall):
         st = cast(kfr.MatrixType, self.slang_type)
 
         # If target type is fully generic, allow element type or matrix type
-        if bound_type.type_reflection.kind == TypeReflection.Kind.none:
+        if isinstance(bound_type, (kfr.UnknownType, kfr.InterfaceType)):
             results = []
             results.append(st)
             results.append(st.element_type)

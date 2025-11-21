@@ -401,3 +401,40 @@ void func_rwtexture2d_generic<T : ITexelElement>(RWTexture2D<T> a)
 {
     return;
 }
+
+
+struct Foo: IDifferentiable
+{
+    float a;
+    int b;
+};
+Foo func_struct(Foo f)
+{
+    return f;
+}
+
+struct GenericFoo<T> : IDifferentiable
+{
+    T a;
+    int b;
+};
+GenericFoo<T> func_generic_struct<T>(GenericFoo<T> f)
+{
+    return f;
+}
+GenericFoo<int> func_generic_struct_int(GenericFoo<int> f)
+{
+    return f;
+}
+
+interface IBar {}
+
+struct Bar: IBar, IDifferentiable
+{
+    float a;
+};
+
+void func_interface(IBar b)
+{
+    return;
+}

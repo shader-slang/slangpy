@@ -845,7 +845,7 @@ TESTS = [
     ("func_generic", 3.5, "float", 0),
     ("func_generic", 42, "int", 0),
     ("func_generic", spy.float1(2.5), None, None),
-    ("func_generic", [42], "int", 0),
+    ("func_generic", [42], None, None),
     ("func_generic", _NDBuffer("int", 3, False), None, None),
     ("func_generic", _Tensor("float", 2, True), None, None),
 
@@ -1211,6 +1211,44 @@ TESTS = [
     ("func_texture2d_generic", _Texture(spy.TextureType.texture_2d, spy.Format.rgba32_float, False), "Texture2D<float4>", 0),
     ("func_rwtexture2d_generic", _Texture(spy.TextureType.texture_2d, spy.Format.rgba32_float, False), None, None),
     ("func_rwtexture2d_generic", _Texture(spy.TextureType.texture_2d, spy.Format.rgba32_float, True), "RWTexture2D<float4>", 0),
+
+    # Basic struct tests
+    ("func_struct", {}, "Foo", 0),
+    ("func_struct", {"_type": "Foo"}, "Foo", 0),
+    ("func_struct", {"_type": "NotFoo"}, None, None),
+    ("func_generic_struct", {}, None, None),
+    ("func_generic_struct", {"_type": "GenericFoo<int>"}, "GenericFoo<int>", 0),
+    ("func_generic_struct", {"_type": "GenericFoo<float>"}, "GenericFoo<float>", 0),
+    ("func_generic_struct_int", {}, "GenericFoo<int>", 0),
+    ("func_generic_struct_int", {"_type": "GenericFoo<int>"}, "GenericFoo<int>", 0),
+    ("func_generic_struct_int", {"_type": "GenericFoo<float>"}, None, None),
+
+    # NDBuffer/ Tensor of structs
+    ("func_struct", _NDBuffer("Foo", 2, False), "Foo", 2),
+    ("func_struct", _Tensor("Foo", 2, False), "Foo", 2),
+    ("func_generic_struct", _NDBuffer("GenericFoo<int>", 2, False), "GenericFoo<int>", 2),
+    ("func_generic_struct", _Tensor("GenericFoo<int>", 2, False), "GenericFoo<int>", 2),
+    ("func_generic_struct_int", _NDBuffer("GenericFoo<int>", 2, False), "GenericFoo<int>", 2),
+    ("func_generic_struct_int", _Tensor("GenericFoo<int>", 2, False), "GenericFoo<int>", 2),
+    ("func_generic_struct_int", _NDBuffer("GenericFoo<float>", 2, False), None, None),
+    ("func_generic_struct_int", _Tensor("GenericFoo<float>", 2, False), None, None),
+
+    # Array of structs
+    ("func_struct", [{}], "Foo", 1),
+    ("func_struct", [{"_type": "Foo"}], "Foo", 1),
+    ("func_struct", [{"_type": "NotFoo"}], None, None),
+
+    # Interfaces
+    ("func_interface", {}, None, None),
+    ("func_interface", {"_type": "Bar"}, "Bar", 0),
+    ("func_interface", {"_type": "Foo"}, None, None),
+    ("func_interface", [{}], None, None),
+    ("func_interface", [{"_type": "Bar"}], "Bar", 0),
+    ("func_interface", [{"_type": "Foo"}], None, None),
+    ("func_interface", _NDBuffer("Bar", 2, True), "Bar", 2),
+    ("func_interface", _Tensor("Bar", 2, True), "Bar", 2),
+
+
 ]
 
 # fmt: on

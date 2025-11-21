@@ -53,12 +53,21 @@ class ArrayMarshall(ValueMarshall):
             return self_type.element_type
 
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        self_element_type = cast(SlangType, self.slang_type.element_type)
+
         st = cast(kfr.ArrayType, self.slang_type)
         if kfr.EXPERIMENTAL_VECTORIZATION:
             marshall = context.layout.require_type_by_name(
                 f"Array1DValueType<{st.element_type.full_name},{st.num_elements}>"
             )
             return [vectorize_type(marshall, bound_type)]
+
+        # If target type is fully generic, allow element type or matrix type
+        if isinstance(bound_type, (kfr.UnknownType, kfr.InterfaceType)):
+            results = []
+            results.append(st)
+            results.append(st.element_type)
+            return results
 
         # Match element type exactly
         if st.element_type.full_name == bound_type.full_name:
@@ -68,7 +77,31 @@ class ArrayMarshall(ValueMarshall):
         if as_array is not None:
             return [as_array]
 
-        as_scalar = spyvec.scalar_to_scalar_convertable(st.element_type, bound_type)
+        # Support element being of unknown type, but binding to a known struct type.
+        if (
+            isinstance(self_element_type, kfr.UnknownType)
+            and isinstance(bound_type, kfr.StructType)
+            and not bound_type.is_generic
+        ):
+            return [bound_type]
+
+        # Support resolving element as struct
+        as_struct = spyvec.struct_to_struct(self_element_type, bound_type)
+        if as_struct is not None:
+            return [as_struct]
+
+        # Support resolving generic matrix
+        as_matrix = spyvec.matrix_to_matrix(self_element_type, bound_type)
+        if as_matrix is not None:
+            return [as_matrix]
+
+        # Support resolving generic vector
+        as_vector = spyvec.vector_to_vector(self_element_type, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        # Support resolving element as scalar
+        as_scalar = spyvec.scalar_to_scalar_convertable(self_element_type, bound_type)
         if as_scalar is not None:
             return [as_scalar]
 

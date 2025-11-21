@@ -5,9 +5,10 @@ from slangpy.core.native import Shape, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
 from slangpy.bindings import PYTHON_TYPES, BindContext, BoundVariable
-from slangpy.reflection import SlangProgramLayout, SlangType
+from slangpy.reflection import SlangProgramLayout, SlangType, UnknownType, StructType
 
 from .value import ValueMarshall
+import slangpy.reflection.vectorize as spyvec
 
 
 class StructMarshall(ValueMarshall):
@@ -38,7 +39,19 @@ class StructMarshall(ValueMarshall):
         return True
 
     def resolve_types(self, context: BindContext, bound_type: "SlangType"):
-        return [bound_type]
+        # Support this struct being of unknown type, but the binding being fully resolved struct type.
+        if (
+            isinstance(self.slang_type, UnknownType)
+            and isinstance(bound_type, StructType)
+            and not bound_type.is_generic
+        ):
+            return [bound_type]
+
+        # Support resolving generic struct
+        as_struct = spyvec.struct_to_struct(self.slang_type, bound_type)
+        if as_struct is not None:
+            return [as_struct]
+        return None
 
     def resolve_dimensionality(
         self,
