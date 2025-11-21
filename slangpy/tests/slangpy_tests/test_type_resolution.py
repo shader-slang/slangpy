@@ -866,11 +866,18 @@ TESTS = [
 
     # float3 tests
     ("func_float3", spy.float3(1.0, 2.0, 3.0), "vector<float,3>", 3),
+    ("func_float3", [1.0, 2.0, 3.0], "vector<float,3>", 3),
     ("func_float3", _NDBuffer("float", 2, False), "vector<float,3>", 1),
     ("func_float3", _Tensor("float", 2, True), "vector<float,3>", 1),
     ("func_float3", _NDBuffer("float3", 1, False), "vector<float,3>", 1),
     ("func_float3", _Tensor("float3", 1, True), "vector<float,3>", 1),
     ("func_float3", _Tensor("float4", 1, True), None, None),
+
+    # Implicit scalar -> vector cast, as it is so useful, binds as the scalar type
+    # and relies on slang to do the upcast.
+    ("func_float3", 1.0, "float", 0),
+    ("func_int3", 1.0, "int", 0),
+    ("func_half3", 1.0, "half", 0),
 
     # slang arg defined as vector<float,3> to ensure identical resolution
     ("func_vector_float3", spy.float3(1.0, 2.0, 3.0), "vector<float,3>", 3),
@@ -884,7 +891,6 @@ TESTS = [
 
     # We should potentially allow these implicit casts as there is no vectorizing
     # happening, but for now we don't.
-    ("func_float3", 1.0, None, None),
     ("func_half3", spy.float3(1.0, 2.0, 3.0), None, None),
 
     # generic typed vector tests
@@ -905,6 +911,7 @@ TESTS = [
 
     # generic dim float tests (similar, but verify incorrect element type fails)
     ("func_floatN_generic", spy.float3(1.0, 2.0, 3.0), "vector<float,3>", 3),
+    ("func_floatN_generic", [1.0, 2.0, 3.0], "vector<float,3>", 3),
     ("func_floatN_generic", _NDBuffer("float", 2, False), None, None),
     ("func_floatN_generic", _Tensor("float", 2, True), None, None),
     ("func_floatN_generic", _NDBuffer("float3", 1, False), "vector<float,3>", 1),

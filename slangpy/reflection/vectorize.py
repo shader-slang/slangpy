@@ -27,6 +27,20 @@ def scalar_to_scalar_convertable(marshall_type: rt.SlangType, target_type: rt.Sl
     return None
 
 
+def scalar_to_vector_convertable(marshall_type: rt.SlangType, target_type: rt.SlangType):
+    """Allows for the implicit conversion of a scalar type to a vector type. In most cases we avoid
+    any implicit work, but for scalars to vectors this is so common that we allow it. The implicit
+    conversion works by binding the vector element type and relying on slangpy's binding code to do
+    the scalar conversion, and the slang compiler to do the upcast."""
+    if not isinstance(marshall_type, rt.ScalarType):
+        return None
+    if not isinstance(target_type, rt.VectorType):
+        return None
+    if target_type.is_generic:
+        return None
+    return target_type.element_type
+
+
 def scalar_to_pointer(marshall_type: rt.SlangType, target_type: rt.SlangType):
     """Looser version of to_scalar that allows for implicit conversions, used by pure scalar marshallers."""
     if not isinstance(marshall_type, rt.ScalarType):
@@ -77,7 +91,7 @@ def array_to_array(marshall_type: rt.SlangType, target_type: rt.SlangType):
 
 
 def array_to_array_scalarconvertable(marshall_type: rt.SlangType, target_type: rt.SlangType):
-    """Attempt to match marshall vector type to target vector type, allowing for generic element/dims.
+    """Attempt to match marshall array type to array type, allowing for generic element/dims.
     This looser version allows for conversions of scalar element types to support passing python lists
     of numbers. To do so, when 2 scalar element types are found, a new array type is constructed with
     the target scalar type as element type and the shape of the marshall type."""
@@ -96,6 +110,24 @@ def array_to_array_scalarconvertable(marshall_type: rt.SlangType, target_type: r
             or marshall_type.element_type.full_name == target_type.element_type.full_name
         ):
             return marshall_type
+    return None
+
+
+def array_to_vector_scalarconvertable(marshall_type: rt.SlangType, target_type: rt.SlangType):
+    """Attempt to match marshall array type to vector type, allowing for generic dims. The vector
+    element type can not be inferred if generic, however its element count can."""
+    if not isinstance(marshall_type, rt.ArrayType):
+        return None
+    if isinstance(target_type, rt.VectorType):
+        if target_type.num_elements > 0 and marshall_type.num_elements != target_type.num_elements:
+            return None
+        if not isinstance(target_type.element_type, rt.ScalarType):
+            return None
+        if not isinstance(marshall_type.element_type, rt.ScalarType):
+            return None
+        return marshall_type.program.vector_type(
+            target_type.slang_scalar_type, marshall_type.num_elements
+        )
     return None
 
 
