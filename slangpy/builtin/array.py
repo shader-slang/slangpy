@@ -85,6 +85,10 @@ class ArrayMarshall(ValueMarshall):
         ):
             return [bound_type]
 
+        # SlangPy can bind python array to vector type directly
+        if isinstance(bound_type, kfr.VectorType) and not bound_type.is_generic:
+            return [bound_type]
+
         # Support resolving element as struct
         as_struct = spyvec.struct_to_struct(self_element_type, bound_type)
         if as_struct is not None:

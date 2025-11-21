@@ -279,6 +279,10 @@ class ScalarMarshall(ValueMarshall):
             )
             return [vectorize_type(marshall, bound_type)]
         else:
+            if isinstance(bound_type, kfr.VectorType):
+                bound_vector_type = cast(kfr.VectorType, bound_type)
+                if not bound_vector_type.is_generic:
+                    return [bound_type.element_type]
             as_scalar = spyvec.scalar_to_scalar_convertable(self.slang_type, bound_type)
             if as_scalar is not None:
                 return [as_scalar]
