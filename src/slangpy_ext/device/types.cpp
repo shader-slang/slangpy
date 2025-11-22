@@ -86,6 +86,16 @@ SGL_DICT_TO_DESC_FIELD(enable_conservative_rasterization, bool)
 SGL_DICT_TO_DESC_FIELD(forced_sample_count, uint32_t)
 SGL_DICT_TO_DESC_END()
 
+SGL_DICT_TO_DESC_BEGIN(CoopVecMatrixDesc)
+SGL_DICT_TO_DESC_FIELD(rows, uint32_t)
+SGL_DICT_TO_DESC_FIELD(cols, uint32_t)
+SGL_DICT_TO_DESC_FIELD(element_type, DataType)
+SGL_DICT_TO_DESC_FIELD(layout, CoopVecMatrixLayout)
+SGL_DICT_TO_DESC_FIELD(size, size_t)
+SGL_DICT_TO_DESC_FIELD(offset, size_t)
+SGL_DICT_TO_DESC_FIELD(row_col_stride, size_t)
+SGL_DICT_TO_DESC_END()
+
 } // namespace sgl
 
 SGL_PY_EXPORT(device_types)
@@ -325,4 +335,29 @@ SGL_PY_EXPORT(device_types)
     // ------------------------------------------------------------------------
 
     nb::sgl_enum_flags<RayTracingPipelineFlags>(m, "RayTracingPipelineFlags");
+
+    // ------------------------------------------------------------------------
+    // Cooperative Vectors
+    // ------------------------------------------------------------------------
+
+    nb::sgl_enum<CoopVecMatrixLayout>(m, "CoopVecMatrixLayout", D(CoopVecMatrixLayout));
+
+    nb::class_<CoopVecMatrixDesc>(m, "CoopVecMatrixDesc", D(CoopVecMatrixDesc))
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](CoopVecMatrixDesc* self, nb::dict dict)
+            {
+                new (self) CoopVecMatrixDesc(dict_to_CoopVecMatrixDesc(dict));
+            }
+        )
+        .def_rw("rows", &CoopVecMatrixDesc::rows, D(CoopVecMatrixDesc, rows))
+        .def_rw("cols", &CoopVecMatrixDesc::cols, D(CoopVecMatrixDesc, cols))
+        .def_rw("element_type", &CoopVecMatrixDesc::element_type, D(CoopVecMatrixDesc, element_type))
+        .def_rw("layout", &CoopVecMatrixDesc::layout, D(CoopVecMatrixDesc, layout))
+        .def_rw("size", &CoopVecMatrixDesc::size, D(CoopVecMatrixDesc, size))
+        .def_rw("offset", &CoopVecMatrixDesc::offset, D(CoopVecMatrixDesc, offset))
+        .def_rw("row_col_stride", &CoopVecMatrixDesc::row_col_stride, D_NA(CoopVecMatrixDesc, row_col_stride));
+
+    nb::implicitly_convertible<nb::dict, CoopVecMatrixDesc>();
 }

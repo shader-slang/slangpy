@@ -8,7 +8,6 @@
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/raytracing.h"
-#include "sgl/device/coopvec.h"
 
 #include "sgl/core/fwd.h"
 #include "sgl/core/config.h"
@@ -413,11 +412,40 @@ public:
 
     ref<ShaderTable> create_shader_table(ShaderTableDesc desc);
 
-    /**
-     * Get coop vec instance
-     */
-    ref<CoopVec> get_or_create_coop_vec();
+    size_t get_coop_vec_matrix_size(
+        uint32_t rows,
+        uint32_t cols,
+        CoopVecMatrixLayout layout,
+        DataType element_type,
+        size_t row_col_stride = 0
+    );
 
+    CoopVecMatrixDesc create_coop_vec_matrix_desc(
+        uint32_t rows,
+        uint32_t cols,
+        CoopVecMatrixLayout layout,
+        DataType element_type,
+        size_t offset = 0,
+        size_t row_col_stride = 0
+    );
+
+    void convert_coop_vec_matrices(
+        void* dst,
+        size_t dst_size,
+        std::span<const CoopVecMatrixDesc> dst_descs,
+        const void* src,
+        size_t src_size,
+        std::span<const CoopVecMatrixDesc> src_descs
+    );
+
+    void convert_coop_vec_matrix(
+        void* dst,
+        size_t dst_size,
+        const CoopVecMatrixDesc& dst_desc,
+        const void* src,
+        size_t src_size,
+        const CoopVecMatrixDesc& src_desc
+    );
 
     /**
      * \brief Create a new slang session.
@@ -728,7 +756,6 @@ private:
 
     ref<Blitter> m_blitter;
     ref<HotReload> m_hot_reload;
-    ref<CoopVec> m_coop_vec;
 
     bool m_supports_cuda_interop{false};
     ref<cuda::Device> m_cuda_device;
