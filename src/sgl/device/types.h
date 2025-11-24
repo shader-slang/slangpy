@@ -836,6 +836,10 @@ namespace detail {
             return rhi::CooperativeVectorComponentType::Float32;
         case DataType::float64:
             return rhi::CooperativeVectorComponentType::Float64;
+        case DataType::float8_e4m3:
+            return rhi::CooperativeVectorComponentType::FloatE4M3;
+        case DataType::float8_e5m2:
+            return rhi::CooperativeVectorComponentType::FloatE5M2;
         case DataType::int8:
             return rhi::CooperativeVectorComponentType::Sint8;
         case DataType::int16:

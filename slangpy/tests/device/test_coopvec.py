@@ -21,6 +21,10 @@ SIZE_CHECKS = [
     (4, 4, spy.DataType.float16, 64),  # rounded up to 64 from 32
     (4, 8, spy.DataType.float16, 64),
     (8, 4, spy.DataType.float16, 64),
+    (4, 4, spy.DataType.float8_e4m3, 64),  # rounded up to 64 from 16
+    (8, 16, spy.DataType.float8_e4m3, 128),
+    (4, 4, spy.DataType.float8_e5m2, 64),  # rounded up to 64 from 16
+    (16, 8, spy.DataType.float8_e5m2, 128),
 ]
 
 
