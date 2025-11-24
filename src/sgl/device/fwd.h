@@ -142,10 +142,8 @@ class Blitter;
 class TextureLoader;
 
 // hot_reload.h
-class HotReload;
 
-// coopvec.h
-class CoopVec;
+class HotReload;
 
 // cuda_interop.h
 

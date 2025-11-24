@@ -448,6 +448,16 @@ struct SGL_API BufferOffsetPair {
     }
 };
 
+namespace detail {
+    inline rhi::BufferOffsetPair to_rhi(const BufferOffsetPair& buffer_with_offset)
+    {
+        return rhi::BufferOffsetPair(
+            buffer_with_offset.buffer ? buffer_with_offset.buffer->rhi_buffer() : nullptr,
+            buffer_with_offset.offset
+        );
+    }
+} // namespace detail
+
 struct SubresourceData {
     const void* data{nullptr};
     size_t size{0};
