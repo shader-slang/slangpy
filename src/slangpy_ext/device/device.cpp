@@ -82,19 +82,20 @@ coopvec_get_ndarray_matrix_desc(const nb::ndarray<Args...>& array, std::optional
     desc.element_type = dtype_to_data_type(array.dtype());
     desc.rows = array.ndim() > 0 ? uint32_t(array.shape(0)) : 0;
     desc.cols = array.ndim() > 1 ? uint32_t(array.shape(1)) : 0;
+    desc.row_col_stride = detail::compute_coop_vec_row_col_stride(desc.rows, desc.cols, desc.element_type, desc.layout);
     return desc;
 }
 
-inline size_t coopvec_convert_matrix_host_to_host(
+inline void convert_coop_vec_matrix_ndarray(
     Device* self,
-    nb::ndarray<nb::device::cpu> src,
     nb::ndarray<nb::device::cpu> dst,
-    std::optional<CoopVecMatrixLayout> src_layout,
-    std::optional<CoopVecMatrixLayout> dst_layout
+    nb::ndarray<nb::device::cpu> src,
+    std::optional<CoopVecMatrixLayout> dst_layout,
+    std::optional<CoopVecMatrixLayout> src_layout
 )
 {
-    CoopVecMatrixDesc src_desc = coopvec_get_ndarray_matrix_desc(src, src_layout);
     CoopVecMatrixDesc dst_desc = coopvec_get_ndarray_matrix_desc(dst, dst_layout);
+    CoopVecMatrixDesc src_desc = coopvec_get_ndarray_matrix_desc(src, src_layout);
 
     if (src.ndim() == 2 && dst.ndim() == 2) {
         SGL_CHECK(
@@ -115,7 +116,7 @@ inline size_t coopvec_convert_matrix_host_to_host(
         SGL_THROW("At least one of src or dst must be a 2D array");
     }
 
-    return self->get_or_create_coop_vec()->convert_matrix_host(src.data(), src_desc, dst.data(), dst_desc);
+    self->convert_coop_vec_matrix(dst.data(), dst.nbytes(), dst_desc, src.data(), src.nbytes(), src_desc);
 }
 
 } // namespace sgl
@@ -734,6 +735,67 @@ SGL_PY_EXPORT(device_device)
     );
     device.def("create_shader_table", &Device::create_shader_table, "desc"_a, D(Device, create_shader_table));
     device.def(
+        "get_coop_vec_matrix_size",
+        &Device::get_coop_vec_matrix_size,
+        "rows"_a,
+        "cols"_a,
+        "layout"_a,
+        "element_type"_a,
+        "row_col_stride"_a = 0,
+        D_NA(Device, get_coop_vec_matrix_size)
+    );
+    device.def(
+        "create_coop_vec_matrix_desc",
+        &Device::create_coop_vec_matrix_desc,
+        "rows"_a,
+        "cols"_a,
+        "layout"_a,
+        "element_type"_a,
+        "offset"_a = 0,
+        "row_col_stride"_a = 0,
+        D_NA(Device, create_coop_vec_matrix_desc)
+    );
+    device.def(
+        "convert_coop_vec_matrices",
+        [](Device* self,
+           nb::bytearray dst,
+           std::span<CoopVecMatrixDesc> dst_descs,
+           nb::bytes src,
+           std::span<CoopVecMatrixDesc> src_descs)
+        {
+            self->convert_coop_vec_matrices(dst.data(), dst.size(), dst_descs, src.data(), src.size(), src_descs);
+        },
+        "dst"_a,
+        "dst_descs"_a,
+        "src"_a,
+        "src_descs"_a,
+        D_NA(Device, convert_coop_vec_matrices)
+    );
+    device.def(
+        "convert_coop_vec_matrix",
+        [](Device* self,
+           nb::bytearray dst,
+           const CoopVecMatrixDesc& dst_desc,
+           nb::bytes src,
+           const CoopVecMatrixDesc& src_desc)
+        {
+            self->convert_coop_vec_matrix(dst.data(), dst.size(), dst_desc, src.data(), src.size(), src_desc);
+        },
+        "dst"_a,
+        "dst_descs"_a,
+        "src"_a,
+        "src_descs"_a,
+        D_NA(Device, convert_coop_vec_matrices)
+    );
+    device.def(
+        "convert_coop_vec_matrix",
+        &convert_coop_vec_matrix_ndarray,
+        "dst"_a,
+        "src"_a,
+        "dst_layout"_a = nb::none(),
+        "src_layout"_a = nb::none()
+    );
+    device.def(
         "create_slang_session",
         [](Device* self,
            std::optional<SlangCompilerOptions> compiler_options,
@@ -924,87 +986,6 @@ SGL_PY_EXPORT(device_device)
         &Device::register_device_close_callback,
         "callback"_a,
         D(Device, register_device_close_callback)
-    );
-    device.def(
-        "coopvec_query_matrix_size",
-        [](Device* self, uint32_t rows, uint32_t cols, CoopVecMatrixLayout layout, DataType element_type)
-        {
-            return self->get_or_create_coop_vec()->query_matrix_size(rows, cols, layout, element_type);
-        },
-        "rows"_a,
-        "cols"_a,
-        "layout"_a,
-        "element_type"_a
-    );
-    device.def(
-        "coopvec_create_matrix_desc",
-        [](Device* self, uint32_t rows, uint32_t cols, CoopVecMatrixLayout layout, DataType element_type, size_t offset)
-        {
-            return self->get_or_create_coop_vec()->create_matrix_desc(rows, cols, layout, element_type, offset);
-        },
-        "rows"_a,
-        "cols"_a,
-        "layout"_a,
-        "element_type"_a,
-        "offset"_a = 0
-    );
-    device.def(
-        "coopvec_convert_matrix_host",
-        &coopvec_convert_matrix_host_to_host,
-        "src"_a,
-        "dst"_a,
-        "src_layout"_a = nb::none(),
-        "dst_layout"_a = nb::none()
-    );
-    device.def(
-        "coopvec_convert_matrix_device",
-        [](Device* self,
-           const ref<Buffer>& src,
-           CoopVecMatrixDesc srcDesc,
-           const ref<Buffer>& dst,
-           CoopVecMatrixDesc dstDesc,
-           CommandEncoder* encoder)
-        {
-            return self->get_or_create_coop_vec()->convert_matrix_device(src, srcDesc, dst, dstDesc, encoder);
-        },
-        "src"_a,
-        "src_desc"_a,
-        "dst"_a,
-        "dst_desc"_a,
-        "encoder"_a = nullptr
-    );
-    device.def(
-        "coopvec_convert_matrix_device",
-        [](Device* self,
-           const ref<Buffer>& src,
-           const std::vector<CoopVecMatrixDesc>& srcDesc,
-           const ref<Buffer>& dst,
-           const std::vector<CoopVecMatrixDesc>& dstDesc,
-           CommandEncoder* encoder)
-        {
-            return self->get_or_create_coop_vec()->convert_matrix_device(src, srcDesc, dst, dstDesc, encoder);
-        },
-        "src"_a,
-        "src_desc"_a,
-        "dst"_a,
-        "dst_desc"_a,
-        "encoder"_a = nullptr
-    );
-    device.def(
-        "coopvec_align_matrix_offset",
-        [](Device* self, size_t offset)
-        {
-            return self->get_or_create_coop_vec()->align_matrix_offset(offset);
-        },
-        "offset"_a
-    );
-    device.def(
-        "coopvec_align_vector_offset",
-        [](Device* self, size_t offset)
-        {
-            return self->get_or_create_coop_vec()->align_vector_offset(offset);
-        },
-        "offset"_a
     );
     device.def(
         "set_hot_reload_delay",

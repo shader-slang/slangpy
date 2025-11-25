@@ -371,7 +371,6 @@ struct MyStruct: IDifferentiable {
         compare_struct_values(refl_val, spy_val)
 
 
-@pytest.mark.skip(reason="FIXME: Enable after slang#8954 is fixed")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("runa", [False, True])
 @pytest.mark.parametrize("runb", [False, True])
