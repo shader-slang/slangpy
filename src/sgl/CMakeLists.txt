@@ -116,6 +116,7 @@ target_sources(sgl PRIVATE
     device/reflection.h
     device/resource.cpp
     device/resource.h
+    device/rhi.slang
     device/sampler.cpp
     device/sampler.h
     device/shader_cursor.cpp
