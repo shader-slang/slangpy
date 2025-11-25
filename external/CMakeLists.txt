@@ -210,6 +210,9 @@ set(SLANG_RHI_SLANG_INCLUDE_DIR ${SLANG_INCLUDE_DIR} CACHE STRING "" FORCE)
 set(SLANG_RHI_SLANG_BINARY_DIR ${SLANG_DIR} CACHE STRING "" FORCE)
 add_subdirectory(slang-rhi)
 
+# Copy shared slang-rhi-device.h header to shaders directory (wrapped in sgl/device/rhi.slang)
+sgl_copy_shader_file(${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi/include/slang-rhi-device.h slang-rhi)
+
 if(TARGET slang-rhi-nvapi)
     get_target_property(NVAPI_DIR slang-rhi-nvapi INTERFACE_INCLUDE_DIRECTORIES)
     sgl_copy_shader_file(${NVAPI_DIR}/nvHLSLExtns.h nvapi)
