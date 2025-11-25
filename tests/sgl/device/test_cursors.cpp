@@ -65,7 +65,8 @@ struct TestStruct
         auto element_type = layout->find_type_by_name("TestStruct");
         auto element_type_layout = layout->get_type_layout(element_type);
 
-        size_t element_size = element_type_layout->size();
+        // This is how much we actually use in the memory for one element.
+        size_t element_size = element_type_layout->stride();
 
         std::vector<uint8_t> from_direct(element_size, 0);
         auto direct_buffer_cursor = make_ref<sgl::BufferCursor>(
