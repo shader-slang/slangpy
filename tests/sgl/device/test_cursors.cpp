@@ -15,7 +15,7 @@ struct NestedTestStruct {
     uint32_t data = 123;
 
     template<typename TCursor>
-    void to_cursor(TCursor& cursor) const
+    void write_to_cursor(TCursor& cursor) const
     {
         cursor["data"] = data;
     }
@@ -26,7 +26,7 @@ struct TestStruct {
     NestedTestStruct nested;
 
     template<typename TCursor>
-    void to_cursor(TCursor& cursor) const
+    void write_to_cursor(TCursor& cursor) const
     {
         cursor["f0"] = f0;
         cursor["nested"] = nested;
@@ -37,7 +37,7 @@ struct TestStruct {
 
 TEST_SUITE_BEGIN("cursors");
 
-TEST_CASE_GPU("to_cursor")
+TEST_CASE_GPU("write_to_cursor")
 {
 
     auto shader = R"SHADER(

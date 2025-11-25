@@ -84,14 +84,14 @@ public:
     }
 
     template<typename T>
-        requires(HasToCursor<T, BufferElementCursor>)
+        requires(HasWriteToCursor<T, BufferElementCursor>)
     void set(const T& value)
     {
-        value.to_cursor(*this);
+        value.write_to_cursor(*this);
     }
 
     template<typename T>
-        requires(!HasToCursor<T, BufferElementCursor>)
+        requires(!HasWriteToCursor<T, BufferElementCursor>)
     void set(const T& value) const;
 
     void _set_array_unsafe(
