@@ -1254,8 +1254,6 @@ TESTS = [
     ("func_interface", [{"_type": "Foo"}], None, None),
     ("func_interface", _NDBuffer("Bar", 2, True), "Bar", 2),
     ("func_interface", _Tensor("Bar", 2, True), "Bar", 2),
-
-
 ]
 
 # fmt: on

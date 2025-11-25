@@ -137,7 +137,7 @@ class ValueRefMarshall(Marshall):
         else:
             return bound_type
 
-    def resolve_types(self, context, bound_type):
+    def resolve_types(self, context: BindContext, bound_type: "kfr.SlangType"):
         return [self.resolve_type(context, bound_type)]
 
     def resolve_dimensionality(

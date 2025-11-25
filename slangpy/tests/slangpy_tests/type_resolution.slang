@@ -438,3 +438,13 @@ void func_interface(IBar b)
 {
     return;
 }
+
+void func_float_out(out float a)
+{
+    a = 1.0;
+}
+
+func func_float_inout(inout float a)
+{
+    a = a + 1.0;
+}
