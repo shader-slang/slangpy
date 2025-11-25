@@ -68,15 +68,23 @@ struct TestStruct
         size_t element_size = element_type_layout->size();
 
         std::vector<uint8_t> from_direct(element_size, 0);
-        auto direct_buffer_cursor
-            = make_ref<sgl::BufferCursor>(ctx.device->type(), element_type_layout, from_direct.data(), false);
+        auto direct_buffer_cursor = make_ref<sgl::BufferCursor>(
+            ctx.device->type(),
+            element_type_layout,
+            from_direct.data(),
+            from_direct.size()
+        );
 
         (*direct_buffer_cursor)[0]["f0"] = cpu_struct.f0;
         (*direct_buffer_cursor)[0]["nested"]["data"] = cpu_struct.nested.data;
 
         std::vector<uint8_t> from_tocursor(element_size, 0);
-        auto tocursor_cursor
-            = make_ref<sgl::BufferCursor>(ctx.device->type(), element_type_layout, from_tocursor.data(), false);
+        auto tocursor_cursor = make_ref<sgl::BufferCursor>(
+            ctx.device->type(),
+            element_type_layout,
+            from_tocursor.data(),
+            from_tocursor.size()
+        );
 
         (*tocursor_cursor)[0] = cpu_struct;
 
