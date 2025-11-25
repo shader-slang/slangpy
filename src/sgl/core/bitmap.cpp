@@ -106,6 +106,7 @@ SGL_DIAGNOSTIC_POP
 #endif
 
 #include <algorithm>
+#include <numeric>
 #include <map>
 #include <mutex>
 
@@ -2288,10 +2289,28 @@ void Bitmap::write_exr(Stream* stream, int quality) const
         string::copy_to_cstr(channel.name, sizeof(EXRChannelInfo::name), m_pixel_struct->operator[](i).name);
     }
 
+    // For maximum compatibility, sort the channels into ABGR (alphabetical) order.
+    // ord[i] is the source index of the ith output channel
+    std::vector<size_t> ord(channel_count());
+    std::iota(ord.begin(), ord.end(), 0);
+    std::stable_sort(
+        ord.begin(),
+        ord.end(),
+        [&](size_t a, size_t b)
+        {
+            return std::string(channels[a].name) < std::string(channels[b].name);
+        }
+    );
+
+    std::vector<EXRChannelInfo> channels_sorted(channel_count());
+    for (size_t i = 0; i < channel_count(); ++i) {
+        channels_sorted[i] = channels[ord[i]];
+    }
+
     std::vector<int> pixel_types(channel_count(), pixel_type);
 
     header.num_channels = channel_count();
-    header.channels = channels.data();
+    header.channels = channels_sorted.data();
     header.pixel_types = pixel_types.data();
     header.requested_pixel_types = pixel_types.data();
 
@@ -2303,10 +2322,11 @@ void Bitmap::write_exr(Stream* stream, int quality) const
 
     std::vector<std::unique_ptr<uint8_t[]>> images(channel_count());
     std::vector<uint8_t*> image_ptrs(channel_count());
+
     for (size_t i = 0; i < channel_count(); ++i) {
         images[i] = std::unique_ptr<uint8_t[]>(new uint8_t[plane_size]);
         image_ptrs[i] = images[i].get();
-        const uint8_t* src = uint8_data() + i * component_size;
+        const uint8_t* src = uint8_data() + ord[i] * component_size;
         uint8_t* dst = images[i].get();
         if (component_size == 2) {
             for (size_t j = 0; j < m_width * m_height; ++j) {

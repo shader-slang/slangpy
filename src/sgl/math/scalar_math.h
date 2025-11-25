@@ -27,6 +27,16 @@ template<typename T>
 }
 
 // ----------------------------------------------------------------------------
+// Selection
+// ----------------------------------------------------------------------------
+
+template<typename T>
+[[nodiscard]] constexpr T select(bool condition, T true_value, T false_value) noexcept
+{
+    return condition ? true_value : false_value;
+}
+
+// ----------------------------------------------------------------------------
 // Basic functions
 // ----------------------------------------------------------------------------
 

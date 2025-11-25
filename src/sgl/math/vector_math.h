@@ -32,6 +32,33 @@ namespace sgl::math {
 // clang-format on
 
 // ----------------------------------------------------------------------------
+// Selection
+// ----------------------------------------------------------------------------
+
+template<typename T, int N>
+[[nodiscard]] constexpr vector<T, N>
+select(vector<bool, N> condition, vector<T, N> true_value, vector<T, N> false_value) noexcept
+{
+    if constexpr (N == 1)
+        return vector<T, N>{condition.x ? true_value.x : false_value.x};
+    else if constexpr (N == 2)
+        return vector<T, N>{condition.x ? true_value.x : false_value.x, condition.y ? true_value.y : false_value.y};
+    else if constexpr (N == 3)
+        return vector<T, N>{
+            condition.x ? true_value.x : false_value.x,
+            condition.y ? true_value.y : false_value.y,
+            condition.z ? true_value.z : false_value.z
+        };
+    else
+        return vector<T, N>{
+            condition.x ? true_value.x : false_value.x,
+            condition.y ? true_value.y : false_value.y,
+            condition.z ? true_value.z : false_value.z,
+            condition.w ? true_value.w : false_value.w
+        };
+}
+
+// ----------------------------------------------------------------------------
 // Unary operators
 // ----------------------------------------------------------------------------
 

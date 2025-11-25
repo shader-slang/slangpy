@@ -13,11 +13,6 @@
 
 namespace sgl {
 
-namespace detail {
-    // TODO(slang-rhi) this is also in command.cpp and should be shared
-    rhi::BufferOffsetPair to_rhi(const BufferOffsetPair& buffer_with_offset);
-} // namespace detail
-
 AccelerationStructureBuildDescConverter::AccelerationStructureBuildDescConverter(
     const AccelerationStructureBuildDesc& desc
 )

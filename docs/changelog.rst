@@ -11,6 +11,29 @@ Next
 -------
 - Significant rewrite of type inference system for better handling of generics and complex types.
 
+Version 0.39.0 (November 17, 2025)
+-------
+- Update to Slang version 2025.22.1 with latest shader compilation improvements and bug fixes.
+  (PR `#642 <https://github.com/shader-slang/slangpy/pull/642>`__)
+- Add scalar and vector ``select`` intrinsic functions for conditional value selection.
+  (PR `#641 <https://github.com/shader-slang/slangpy/pull/641>`__)
+- Add support for precompiled modules to enable faster shader loading and compilation.
+  (PR `#637 <https://github.com/shader-slang/slangpy/pull/637>`__)
+- Update to Slang version 2025.22 with CUDA 12.2 support and improved platform compatibility.
+  (PR `#640 <https://github.com/shader-slang/slangpy/pull/640>`__)
+- Add separate module cache from shader cache for improved caching and compilation performance.
+  (PR `#635 <https://github.com/shader-slang/slangpy/pull/635>`__)
+- Add test for extension cache update issue to ensure proper module extension handling.
+  (PR `#631 <https://github.com/shader-slang/slangpy/pull/631>`__)
+- Add ``Texture::descriptor_handle`` getters based on default texture views for improved bindless texture support.
+  (PR `#627 <https://github.com/shader-slang/slangpy/pull/627>`__)
+- Update ``RayTracingPipelineFlags`` with new flag values for enhanced ray tracing configuration.
+  (PR `#634 <https://github.com/shader-slang/slangpy/pull/634>`__)
+- Update slang-rhi submodule to latest version with improved stability.
+  (PR `#633 <https://github.com/shader-slang/slangpy/pull/633>`__)
+- Add GitHub release upload capability to wheels workflow for automated release artifact distribution.
+  (PR `#618 <https://github.com/shader-slang/slangpy/pull/618>`__)
+
 Version 0.38.1 (November 10, 2025)
 -------
 - Update to Slang version 2025.21.2 with latest shader compilation improvements and bug fixes.
