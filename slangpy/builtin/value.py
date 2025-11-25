@@ -27,54 +27,6 @@ from slangpy.reflection.reflectiontypes import (
     TypeReflection,
     EXPERIMENTAL_VECTORIZATION,
 )
-from slangpy.core.utils import is_type_castable_on_host
-
-
-class TypedScalar:
-    """
-    Wrapper that stores a python value along explicit slang type information.
-    """
-
-    def __init__(self, value: Any, slang_type: TypeReflection.ScalarType):
-        super().__init__()
-        assert isinstance(value, (float, int))
-        self.value = value
-        self.scalar_type = slang_type
-
-    def __repr__(self) -> str:
-        return f"Scalar[{self.value},{self.scalar_type.name}]"
-
-    def slangpy_signature(self) -> str:
-        return self.scalar_type.name
-
-
-def asint64(value: Any):
-    """
-    Mark a value as an int64 typed scalar.
-    """
-    return TypedScalar(int(value), TypeReflection.ScalarType.int64)
-
-
-def asuint64(value: Any):
-    """
-    Mark a value as an uint64 typed scalar.
-    """
-    return TypedScalar(int(value), TypeReflection.ScalarType.uint64)
-
-
-def ashalf(value: Any):
-    """
-    Mark a value as a float16 typed scalar.
-    """
-    return TypedScalar(float(value), TypeReflection.ScalarType.float16)
-
-
-def asdouble(value: Any):
-    """
-    Mark a value as a float64 typed scalar.
-    """
-    return TypedScalar(float(value), TypeReflection.ScalarType.float64)
-
 
 """
 Common functionality for basic value types such as int, float, vector, matrix etc that aren't
@@ -441,7 +393,6 @@ PYTHON_TYPES[float] = lambda layout, pytype: ScalarMarshall(
     layout, TypeReflection.ScalarType.float32
 )
 PYTHON_TYPES[int] = lambda layout, pytype: ScalarMarshall(layout, TypeReflection.ScalarType.int32)
-PYTHON_TYPES[TypedScalar] = lambda layout, pytype: ScalarMarshall(layout, pytype.scalar_type)
 
 PYTHON_SIGNATURES[type(None)] = None
 PYTHON_SIGNATURES[bool] = None

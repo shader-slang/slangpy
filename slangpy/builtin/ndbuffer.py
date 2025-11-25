@@ -146,44 +146,6 @@ def get_structuredbuffer_type(
     return slang_type
 
 
-def ndbuffer_resolve_array_type(
-    self: Union[NativeNDBufferMarshall, "BaseNDBufferMarshall"],
-    context: BindContext,
-    bound_type: "ArrayType",
-):
-    # An ND Buffer can load:
-    # - its element
-    # - an array of its element type
-    # - a 2D array of its element type
-
-    # If the bound type is none-generic, this is never ambiguous:
-    # - NDBuffer<float,2> + float[4] -> load float[4]  (array load)
-    # - NDBuffer<float[4],2> + float[4] -> load float[4] (element load)
-    # - NDBuffer<float,2> + float[4][5] -> load float[4][5] (2d array load)
-
-    # If the bound type is a generic, there are various resolvable and ambiguous cases:
-    # - NDBuffer<float,2> + Unknown[4] -> load float[4]
-    # - NDBuffer<float,2> + float[N] -> infinite possibilities as N is undefined
-    # - NDBuffer<float[2],2> + float[N] -> load float[2]
-    # - NDBuffer<float[2],2> + Unknown[4] -> load float[2][4]
-    # - NDBuffer<float[4],2> + Unknown[4] -> load float[4] or float[4][4]
-
-    # This is easiest to handle by first checking if the element type is unknown
-
-    results: list[SlangType] = []
-    self_element_type = cast(SlangType, self.slang_element_type)
-    self_dims = self.dims
-    self_writable = self.writable
-
-    if is_matching_array_type(bound_type, self_element_type):
-        array_type = get_ndbuffer_marshall_type(
-            context, self_element_type, self_writable, self_dims
-        )
-        results.append(array_type)
-
-    return results
-
-
 def ndbuffer_resolve_types(
     self: Union[NativeNDBufferMarshall, "BaseNDBufferMarshall"],
     context: BindContext,
