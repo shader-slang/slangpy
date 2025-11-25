@@ -115,4 +115,10 @@ concept WritableCursor
           { obj._set_matrix(data, size, scalar_type, 0, 0) } -> std::same_as<void>;
       };
 
+// Concept to detect if T has write_to_cursor method
+template<typename T, typename TCursor>
+concept HasWriteToCursor = requires(const T& obj, TCursor& cursor) {
+    { obj.template write_to_cursor<TCursor>(cursor) };
+};
+
 } // namespace sgl
