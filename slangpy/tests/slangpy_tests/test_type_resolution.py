@@ -1456,6 +1456,12 @@ def test_type_resolution_texture(
     expected_type_name: Optional[str],
     expected_dim: Optional[int],
 ):
+    if isinstance(arg_value, _Texture):
+        if (
+            arg_value.texture_type == spy.TextureType.texture_1d
+            and device_type == spy.DeviceType.metal
+        ):
+            pytest.skip("Metal crashes testing 1D textures")
     run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)
 
 
