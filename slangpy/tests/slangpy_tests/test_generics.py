@@ -32,21 +32,15 @@ def do_generic_test(
 
     if container_type == "buffer":
         buffer = NDBuffer(device, dtype=buffertype, shape=shape)
-        if buffer.cursor().element_type_layout.kind == TypeReflection.Kind.vector:
-            helpers.write_ndbuffer_from_numpy(
-                buffer,
-                np.random.random(int(buffer.storage.size / 4)).astype(np.float32),
-            )
-        else:
-            buffer.copy_from_numpy(
-                np.random.random(int(buffer.storage.size / 4)).astype(np.float32)
-            )
+        buffer.copy_from_numpy(np.random.random(int(buffer.storage.size / 4)).astype(np.float32))
 
         results = module.get(buffer)
         assert results.dtype == buffer.dtype
         assert np.all(buffer.to_numpy() == results.to_numpy())
     elif container_type == "tensor":
         tensor = Tensor.empty(device, dtype=buffertype, shape=shape)
+        tensor.copy_from_numpy(np.random.random(int(tensor.storage.size / 4)).astype(np.float32))
+
         results = module.get(tensor, _result="tensor")
         assert results.dtype == tensor.dtype
         src_numpy = tensor.to_numpy()
