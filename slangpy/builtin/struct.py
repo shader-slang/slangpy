@@ -54,6 +54,13 @@ class StructMarshall(ValueMarshall):
         as_struct = spyvec.struct_to_struct(self.slang_type, bound_type)
         if as_struct is not None:
             return [as_struct]
+
+        # Support resolving generic vector (occurs if user attempts to provide a vector
+        # by specifying a dictionary with x,y,z... fields)
+        as_vector = spyvec.vector_to_vector(self.slang_type, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
         return None
 
     def resolve_dimensionality(

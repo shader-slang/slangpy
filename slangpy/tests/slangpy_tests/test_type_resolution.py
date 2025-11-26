@@ -1245,6 +1245,12 @@ TESTS = [
     ("func_struct", [{"_type": "Foo"}], "Foo", 1),
     ("func_struct", [{"_type": "NotFoo"}], None, None),
 
+    # Dictionary to vector
+    ("func_float3", {"x":1.0, "y":2.0, "z":3.0}, "vector<float,3>", 0),
+    ("func_vector3_generic", {"_type":"float3", "x":1.0, "y":2.0, "z":3.0}, "vector<float,3>", 2),
+    ("func_floatN_generic", {"_type":"float3", "x":1.0, "y":2.0, "z":3.0}, "vector<float,3>", 2),
+    ("func_vectorN_generic", {"_type":"float3", "x":1.0, "y":2.0, "z":3.0}, "vector<float,3>", 2),
+
     # Interfaces
     ("func_interface", {}, None, None),
     ("func_interface", {"_type": "Bar"}, "Bar", 0),
