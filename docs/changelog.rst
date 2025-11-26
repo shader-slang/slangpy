@@ -7,6 +7,10 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Next
+-------
+- Significant rewrite of type inference system for better handling of generics and complex types.
+
 Version 0.39.0 (November 17, 2025)
 -------
 - Update to Slang version 2025.22.1 with latest shader compilation improvements and bug fixes.

@@ -1,24 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.native import AccessType, CallMode, CallDataMode, NativeMarshall
+from slangpy.core.native import AccessType, CallMode, CallDataMode
 from slangpy.core.function import PipelineType
 
 import slangpy.bindings.typeregistry as tr
-import slangpy.reflection as slr
 from slangpy import ModifierID, TypeReflection
-from slangpy.bindings.marshall import Marshall, BindContext, ReturnContext
+from slangpy.bindings.marshall import BindContext, ReturnContext
 from slangpy.bindings.boundvariable import (
     BoundCall,
     BoundVariable,
     BoundVariableException,
 )
 from slangpy.bindings.codegen import CodeGen
-from slangpy.builtin.value import NoneMarshall, ValueMarshall
-from slangpy.builtin import StructMarshall
+from slangpy.builtin.value import NoneMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
+from slangpy.reflection.typeresolution import resolve_function, ResolvedParam, ResolutionDiagnostic
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
+
 
 if TYPE_CHECKING:
     from slangpy.core.function import FunctionBuildInfo
@@ -62,206 +62,15 @@ def specialize(
     context: BindContext,
     signature: BoundCall,
     function: SlangFunction,
-    this_type: Optional[SlangType] = None,
+    diagnostics: ResolutionDiagnostic,
+    this_type: Optional[SlangType],
 ):
-    # Special case for constructors
-    if function.is_overloaded and function.is_constructor:
-        matches = [
-            x for x in function.overloads if len(x.parameters) == signature.num_function_args
-        ]
-        if len(matches) != 1:
-            return MismatchReason(
-                "Overloaded functions are currently only supported if they have different argument counts."
-            )
-        function = matches[0]
-
-    # Expecting 'this' argument as first parameter of none-static member functions (except for constructors)
-    first_arg_is_this = (
-        this_type is not None and not function.static and not function.is_constructor
-    )
-
-    # Require '_result' argument for derivative calls, either as '_result' named parameter or last positional argument
-    last_arg_is_retval = (
-        function.return_type is not None
-        and function.return_type.name != "void"
-        and not "_result" in signature.kwargs
-        and context.call_mode != CallMode.prim
-    )
-
-    # Select the positional arguments we need to match against
-    signature_args = signature.args
-    if first_arg_is_this:
-        signature_args[0].param_index = -1
-        signature_args = signature_args[1:]
-    if last_arg_is_retval:
-        signature_args[-1].param_index = len(function.parameters)
-        signature_args = signature_args[:-1]
-
-    if signature.num_function_kwargs > 0 or signature.has_implicit_args:
-        if function.is_overloaded:
-            return MismatchReason(
-                f"Calling an overloaded function with named or implicit arguments is not currently supported."
-            )
-
-        function_parameters = [x for x in function.parameters]
-
-        # Build empty positional list of python arguments to correspond to each slang argument
-        positioned_args: list[Optional[BoundVariable]] = [None] * len(function_parameters)
-
-        # Populate the first N arguments from provided positional arguments
-        if len(signature_args) > len(function_parameters):
-            return MismatchReason("Too many positional arguments.")
-        for i, arg in enumerate(signature_args):
-            positioned_args[i] = arg
-            arg.param_index = i
-
-        # Attempt to populate the remaining arguments from keyword arguments
-        name_map = {param.name: i for i, param in enumerate(function_parameters)}
-        for name, arg in signature.kwargs.items():
-            if name == "_result":
-                continue
-            if name not in name_map:
-                return MismatchReason(f"No parameter named '{name}'")
-            i = name_map[name]
-            if positioned_args[i] is not None:
-                return MismatchReason(
-                    f"Parameter '{name}' is already specified as a positional argument."
-                )
-            positioned_args[i] = arg
-            arg.param_index = i
-
-        # Ensure all parameters are assigned
-        if not all(x is not None for x in positioned_args):
-            return MismatchReason(
-                "To use named or implicit arguments, all parameters must be specified."
-            )
-
-        # Choose either explicit vector type or slang type for specialization
-        inputs: list[Any] = []
-        for i, python_arg in enumerate(positioned_args):
-            slang_param = function_parameters[i]
-            assert python_arg is not None
-            if python_arg.vector_type is not None:
-                # Always take explicit vector types if provided
-                inputs.append(python_arg.vector_type)
-            elif (
-                isinstance(slang_param.type, (slr.VectorType, slr.MatrixType, slr.ArrayType))
-                and slang_param.type.is_generic
-            ):
-                # HACK! Let types with a 'slang_element_type' try to resolve known generic types
-                # Failing that, fall back to python marshall
-                sl_et = getattr(python_arg.python, "slang_element_type", None)
-                if isinstance(sl_et, type(slang_param.type)):
-                    inputs.append(sl_et)
-                else:
-                    inputs.append(python_arg.python)
-
-            elif (
-                slang_param.type.type_reflection.kind == TypeReflection.Kind.interface
-                and isinstance(python_arg.python, StructMarshall)
-                and python_arg.python.slang_type.name != "Unknown"
-                and not python_arg.explicitly_vectorized
-            ):
-                # HACK! If we're calling a function with an interface parameter,
-                # we need to have a concrete type to load data into. This Chris approved hack
-                # allows us to do that. Re-visit after the type resolution fixes are in.
-                # The other half of the hack i sin boundvariable.py, BoundVariable.bind
-                python_arg.vector_type = python_arg.python.slang_type
-                python_arg.explicitly_vectorized = True
-                inputs.append(slang_param.type)
-            elif slang_param.type.type_reflection.kind != TypeReflection.Kind.none:
-                # If the type is fully resolved, use it
-                inputs.append(slang_param.type)
-            elif (
-                isinstance(python_arg.python, ValueMarshall)
-                and python_arg.python.slang_type.name != "Unknown"
-            ):
-                # If passing basic type to generic, resolve from its python type
-                inputs.append(python_arg.python)
-            else:
-                return MismatchReason(
-                    f"Parameter {i} is a generic or interface, so must either be passed a value type or have an explicit vector type."
-                )
-    else:
-        # If no named or implicit arguments, just use explicit vector types for specialization
-        inputs: list[Any] = [x.vector_type for x in signature_args]
-        for i, arg in enumerate(signature_args):
-            arg.param_index = i
-
-    def to_type_reflection(input: Any) -> TypeReflection:
-        if isinstance(input, NativeMarshall):
-            return input.slang_type.type_reflection
-        elif isinstance(input, TypeReflection):
-            return input
-        elif isinstance(input, str):
-            return context.device_module.layout.find_type_by_name(input)
-        elif isinstance(input, SlangType):
-            return input.type_reflection
-        else:
-            raise KernelGenException(
-                f"Cannot convert {input} to a TypeReflection for overload resolution."
-            )
-
-    input_types = [to_type_reflection(x) for x in inputs]
-    if any(x is None for x in input_types):
-        raise KernelGenException(
-            "Unable to resolve all Slang types for specialization overload resolution."
-        )
-
-    specialized = function.reflection.specialize_with_arg_types(input_types)
-    if specialized is None:
-        return MismatchReason(
-            "No Slang overload found that matches the provided Python argument types."
-        )
-
-    type_reflection = None if this_type is None else this_type.type_reflection
-
-    return context.layout.find_function(specialized, type_reflection)
+    return resolve_function(context, function, signature, diagnostics, this_type)
 
 
-def validate_specialize(context: BindContext, signature: BoundCall, function: SlangFunction):
-    # Get sorted list of root parameters for trampoline function
-    root_params = [
-        y
-        for y in sorted(
-            signature.args + list(signature.kwargs.values()),
-            key=lambda x: x.param_index,
-        )
-        if y.param_index >= 0 and y.param_index < len(function.parameters)
-    ]
-
-    def to_type_reflection(input: Any) -> TypeReflection:
-        if isinstance(input, Marshall):
-            return input.slang_type.type_reflection
-        elif isinstance(input, TypeReflection):
-            return input
-        elif isinstance(input, str):
-            return context.device_module.layout.find_type_by_name(input)
-        elif isinstance(input, SlangType):
-            return input.type_reflection
-        else:
-            raise KernelGenException(
-                f"After implicit casting, cannot convert {input} to TypeReflection."
-            )
-
-    types = [to_type_reflection(x.vector_type) for x in root_params]
-    for type, param in zip(types, root_params):
-        if type is None:
-            raise KernelGenException(
-                f"After implicit casting, unable to find reflection data for {param.variable_name}"
-                "This typically suggests the binding system has attempted to generate an invalid Slang type."
-            )
-
-    specialized = function.reflection.specialize_with_arg_types(types)
-    if specialized is None:
-        raise KernelGenException(
-            "After implicit casting, no Slang overload found that matches the provided Python argument types. "
-            "This typically suggests SlangPy selected an overload to call, but couldn't find a valid "
-            "way to pass your Python arguments to it."
-        )
-
-
-def bind(context: BindContext, signature: BoundCall, function: SlangFunction) -> BoundCall:
+def bind(
+    context: BindContext, signature: BoundCall, function: SlangFunction, params: list[ResolvedParam]
+) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
     to the signature nodes and performing other work that kicks in once
@@ -273,7 +82,7 @@ def bind(context: BindContext, signature: BoundCall, function: SlangFunction) ->
 
     for x in signature.args:
         b = x
-        if x.param_index == len(function.parameters):
+        if x.param_index == len(params):
             assert function.return_type is not None
             b.bind(function.return_type, {ModifierID.out}, "_result")
         elif x.param_index == -1:
@@ -284,7 +93,7 @@ def bind(context: BindContext, signature: BoundCall, function: SlangFunction) ->
                 "_this",
             )
         else:
-            b.bind(function.parameters[x.param_index])
+            b.bind(params[x.param_index])
 
     for k, v in signature.kwargs.items():
         b = v
@@ -299,7 +108,7 @@ def bind(context: BindContext, signature: BoundCall, function: SlangFunction) ->
                 "_this",
             )
         else:
-            b.bind(function.parameters[v.param_index])
+            b.bind(params[v.param_index])
 
     return res
 

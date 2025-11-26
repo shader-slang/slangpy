@@ -5,7 +5,7 @@ from slangpy.core.native import Shape
 
 import slangpy.bindings.typeregistry as tr
 from slangpy.builtin.value import ValueMarshall
-from slangpy.reflection import SlangType, SlangProgramLayout
+from slangpy.reflection import SlangType, SlangProgramLayout, vectorize_type
 from slangpy.bindings import (
     PYTHON_SIGNATURES,
     PYTHON_TYPES,
@@ -18,6 +18,7 @@ from slangpy import ShaderCursor, ShaderObject
 from slangpy.core.native import AccessType, CallContext, NativeValueMarshall, unpack_arg
 from slangpy.core.utils import is_type_castable_on_host
 import slangpy.reflection as kfr
+import slangpy.reflection.vectorize as spyvec
 
 
 class ArrayMarshall(ValueMarshall):
@@ -37,6 +38,9 @@ class ArrayMarshall(ValueMarshall):
         self.element_type = element_type
         self.concrete_shape = shape
 
+    def __repr__(self):
+        return f"Array[{self.element_type.full_name}]"
+
     def reduce_type(self, context: "BindContext", dimensions: int):
         self_type = self.slang_type
         if dimensions == 0:
@@ -48,14 +52,65 @@ class ArrayMarshall(ValueMarshall):
                 raise ValueError("Cannot reduce array type by more than one dimension")
             return self_type.element_type
 
-    def resolve_type(self, context: BindContext, bound_type: "kfr.SlangType"):
-        if bound_type == self.slang_type.element_type:
-            return self.slang_type.element_type
-        elif isinstance(bound_type, kfr.ArrayType):
-            if is_type_castable_on_host(self.element_type, bound_type.element_type):
-                return bound_type
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        self_element_type = cast(SlangType, self.slang_type.element_type)
 
-        return super().resolve_type(context, bound_type)
+        st = cast(kfr.ArrayType, self.slang_type)
+        if kfr.EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"Array1DValueType<{st.element_type.full_name},{st.num_elements}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+
+        # If target type is fully generic, allow element type or matrix type
+        if isinstance(bound_type, (kfr.UnknownType, kfr.InterfaceType)):
+            results = []
+            results.append(st)
+            results.append(st.element_type)
+            return results
+
+        # Match element type exactly
+        if st.element_type.full_name == bound_type.full_name:
+            return [st.element_type]
+
+        as_array = spyvec.array_to_array_scalarconvertable(st, bound_type)
+        if as_array is not None:
+            return [as_array]
+
+        # Support element being of unknown type, but binding to a known struct type.
+        if (
+            isinstance(self_element_type, kfr.UnknownType)
+            and isinstance(bound_type, kfr.StructType)
+            and not bound_type.is_generic
+        ):
+            return [bound_type]
+
+        # SlangPy can bind python array to vector type directly
+        as_vector = spyvec.array_to_vector_scalarconvertable(st, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        # Support resolving element as struct
+        as_struct = spyvec.struct_to_struct(self_element_type, bound_type)
+        if as_struct is not None:
+            return [as_struct]
+
+        # Support resolving generic matrix
+        as_matrix = spyvec.matrix_to_matrix(self_element_type, bound_type)
+        if as_matrix is not None:
+            return [as_matrix]
+
+        # Support resolving generic vector
+        as_vector = spyvec.vector_to_vector(self_element_type, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        # Support resolving element as scalar
+        as_scalar = spyvec.scalar_to_scalar_convertable(self_element_type, bound_type)
+        if as_scalar is not None:
+            return [as_scalar]
+
+        return None
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):

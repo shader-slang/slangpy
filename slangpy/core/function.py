@@ -637,10 +637,6 @@ class Function(FunctionNode):
 
         # Calc hash of input options for signature
         self._options = options.copy()
-        if not "implicit_element_casts" in self._options:
-            self._options["implicit_element_casts"] = True
-        if not "implicit_tensor_casts" in self._options:
-            self._options["implicit_tensor_casts"] = True
         if not "strict_broadcasting" in self._options:
             self._options["strict_broadcasting"] = False
 

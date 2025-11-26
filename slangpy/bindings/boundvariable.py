@@ -9,6 +9,7 @@ from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.codegen import CodeGen
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import SlangField, SlangFunction, SlangParameter, SlangType
+from slangpy.reflection.typeresolution import ResolvedParam
 
 
 class BoundVariableException(Exception):
@@ -216,7 +217,7 @@ class BoundVariable:
                 self.python = get_or_create_type(context.layout, type(value), value)
             except Exception as e:
                 raise BoundVariableException(
-                    f"Failed to create type marshall for argument {self.debug_name}: {value} with error {e}",
+                    f"Failed to create type marshall for argument {self.debug_name}: {value} with error:\n{e}",
                     self,
                 ) from e
             self.create_param_block = False
@@ -242,7 +243,7 @@ class BoundVariable:
 
     def bind(
         self,
-        slang: Union[SlangField, SlangParameter, SlangType],
+        slang: Union[SlangField, ResolvedParam, SlangType],
         modifiers: set[ModifierID] = set(),
         override_name: Optional[str] = None,
     ):
@@ -263,12 +264,6 @@ class BoundVariable:
             self.slang_type = slang.type
             self.slang_modifiers = modifiers.union(slang.modifiers)
         self.variable_name = self.name
-
-        # HACK! Part of the hack in callsignature.py specialize,
-        # where structs written to interface inputs need to be explicitly
-        # specialized BEFORE binding.
-        if self.explicitly_vectorized and self.vector_type:
-            self.slang_type = self.vector_type
 
         if self.children is not None:
             for child in self.children.values():
@@ -382,9 +377,9 @@ class BoundVariable:
             # result is inferred last
             pass
         else:
-            # neither specified, attempt to resolve type
+            # neither specified, use the resolved type of the slang parameter
             assert self.slang_type is not None
-            self.vector_type = cast(SlangType, self.python.resolve_type(context, self.slang_type))
+            self.vector_type = self.slang_type
 
         # If we ended up with no valid type, use slang type. Currently this should
         # only happen for auto-allocated result buffers
@@ -492,7 +487,10 @@ you can find more information in the Mapping section of the documentation (https
             args.append(self)
 
     def __repr__(self):
-        return self.python.__repr__()
+        if self.python is not None:
+            return f"BoundVariable({self.python.__repr__()})"
+        else:
+            return f"BoundVariable({self.name})"
 
     def _calculate_differentiability(self, mode: CallMode):
         """
