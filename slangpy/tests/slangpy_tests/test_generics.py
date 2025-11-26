@@ -49,7 +49,14 @@ def do_generic_test(
         tensor = Tensor.empty(device, dtype=buffertype, shape=shape)
         results = module.get(tensor, _result="tensor")
         assert results.dtype == tensor.dtype
-        assert np.all(tensor.to_numpy() == results.to_numpy())
+        src_numpy = tensor.to_numpy()
+        dst_numpy = results.to_numpy()
+        if not np.all(src_numpy == dst_numpy):
+            print("Source:", src_numpy)
+            print("Dest:", dst_numpy)
+            print("Close:", np.allclose(src_numpy, dst_numpy))
+            print("Diff:", src_numpy - dst_numpy)
+            assert np.all(src_numpy == dst_numpy)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
