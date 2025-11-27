@@ -239,6 +239,7 @@ target_compile_options(sgl
             -Wno-self-assign-overloaded
             -Wno-deprecated-copy
             -Wno-microsoft-cast
+            -Wno-cast-function-type-mismatch
 
             # this is for ImGUI only
             -Wno-nontrivial-memcall
