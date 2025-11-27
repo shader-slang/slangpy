@@ -62,6 +62,9 @@ set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE
 add_library(lmdb STATIC)
 target_include_directories(lmdb INTERFACE lmdb)
 target_sources(lmdb PRIVATE lmdb/mdb.c lmdb/midl.c)
+target_compile_definitions(lmdb PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_compile_options(lmdb PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4333 /wd4172>)
+target_compile_options(lmdb PRIVATE $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wno-deprecated-declarations>)
 
 # slang
 
