@@ -380,7 +380,7 @@ def generate_code(
                     else f"call_data.{x.variable_name}"
                 )
             cg.trampoline.append_statement(
-                f"{data_name}.load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
+                f"{data_name}.__slangpy_load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )
 
     cg.trampoline.append_indent()
@@ -429,7 +429,7 @@ def generate_code(
                     else f"call_data.{x.variable_name}"
                 )
             cg.trampoline.append_statement(
-                f"{data_name}.store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
+                f"{data_name}.__slangpy_store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )
 
     cg.trampoline.end_block()

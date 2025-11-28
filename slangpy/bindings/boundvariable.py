@@ -552,7 +552,7 @@ you can find more information in the Mapping section of the documentation (https
             cgb.begin_block()
             for field, var in self.children.items():
                 cgb.append_statement(
-                    f"{var.variable_name}.load(context.map(_m_{var.variable_name}),value.{field})"
+                    f"{var.variable_name}.__slangpy_load(context.map(_m_{var.variable_name}),value.{field})"
                 )
             cgb.end_block()
 
@@ -562,7 +562,7 @@ you can find more information in the Mapping section of the documentation (https
                 cgb.begin_block()
                 for field, var in self.children.items():
                     cgb.append_statement(
-                        f"{var.variable_name}.store(context.map(_m_{var.variable_name}),value.{field})"
+                        f"{var.variable_name}.__slangpy_store(context.map(_m_{var.variable_name}),value.{field})"
                     )
                 cgb.end_block()
 

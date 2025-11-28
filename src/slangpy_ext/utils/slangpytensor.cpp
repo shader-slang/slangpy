@@ -364,7 +364,7 @@ void NativeTensorMarshall::write_shader_cursor_fields(
     SGL_UNUSED(read_back);
 
     // Write the buffer storage.
-    field["buffer"] = buffer->storage();
+    field["_data"] = buffer->storage();
 
     // Write shape vector as an array of ints.
     const std::vector<int>& shape_vec = buffer->shape().as_vector();
@@ -384,14 +384,13 @@ void NativeTensorMarshall::write_shader_cursor_fields(
     }
 
     // Write the strides vector as an array of ints.
-    auto layout_field = field["layout"];
-    layout_field["strides"]._set_array_unsafe(
+    field["_strides"]._set_array_unsafe(
         &strides_vec[0],
         strides_vec.size() * 4,
         strides_vec.size(),
         TypeReflection::ScalarType::int32
     );
-    layout_field["offset"] = buffer->offset();
+    field["_offset"] = buffer->offset();
 }
 
 void NativeTensorMarshall::read_calldata(

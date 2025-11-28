@@ -874,6 +874,8 @@ class TensorType(Enum):
 
 _TENSOR_NAME_TO_TYPE = {
     "Tensor": TensorType.tensor,
+    "ROTensor": TensorType.tensor,
+    "WOTensor": TensorType.tensor,
     "RWTensor": TensorType.tensor,
     "GradInTensor": TensorType.tensor,
     "GradOutTensor": TensorType.tensor,
@@ -1723,6 +1725,8 @@ TYPE_OVERRIDES["Unknown"] = create_unknown_type
 TYPE_OVERRIDES["ITensor"] = ITensorType
 TYPE_OVERRIDES["IRWTensor"] = ITensorType
 TYPE_OVERRIDES["Tensor"] = ITensorType
+TYPE_OVERRIDES["ROTensor"] = ITensorType
+TYPE_OVERRIDES["WOTensor"] = ITensorType
 TYPE_OVERRIDES["RWTensor"] = ITensorType
 TYPE_OVERRIDES["GradInTensor"] = ITensorType
 TYPE_OVERRIDES["GradOutTensor"] = ITensorType
