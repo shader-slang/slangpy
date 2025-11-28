@@ -14,7 +14,7 @@ to work, but unreliably - sometimes it'll be fine, othertimes reflection system
 won't pick it up. I've not figured out which.
 */
 
-#if 1
+#if 0
 
 int _idx<I: IInteger, let N : int>(I[N] indices, uint stride[N], uint offset)
 {

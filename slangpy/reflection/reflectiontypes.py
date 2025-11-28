@@ -881,6 +881,8 @@ _TENSOR_NAME_TO_TYPE = {
     "GradOutTensor": TensorType.tensor,
     "GradInOutTensor": TensorType.tensor,
     "ITensor": TensorType.interface,
+    "IROTensor": TensorType.interface,
+    "IWOTensor": TensorType.interface,
     "IRWTensor": TensorType.interface,
     "AtomicTensor": TensorType.atomic,
     "NDBuffer": TensorType.ndbuffer,
@@ -906,7 +908,9 @@ class ITensorType(SlangType):
         super().__init__(program, refl, element_type=args[0], local_shape=shape)
         self.element_type: SlangType
         self._writable = refl.name in (
+            "IWOTensor",
             "IRWTensor",
+            "WOTensor",
             "RWTensor",
             "RWNDBuffer",
             "GradInTensor",
@@ -1723,6 +1727,8 @@ def create_unknown_type(layout: SlangProgramLayout, refl: TypeReflection) -> Sla
 TYPE_OVERRIDES["DifferentialPair"] = create_differential_pair
 TYPE_OVERRIDES["Unknown"] = create_unknown_type
 TYPE_OVERRIDES["ITensor"] = ITensorType
+TYPE_OVERRIDES["IROTensor"] = ITensorType
+TYPE_OVERRIDES["IWOTensor"] = ITensorType
 TYPE_OVERRIDES["IRWTensor"] = ITensorType
 TYPE_OVERRIDES["Tensor"] = ITensorType
 TYPE_OVERRIDES["ROTensor"] = ITensorType
