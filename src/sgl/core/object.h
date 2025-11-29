@@ -10,6 +10,7 @@
 #include <utility>
 #include <string>
 #include <cstdint>
+#include <mutex>
 
 extern "C" {
 struct _object;
@@ -47,6 +48,14 @@ static constexpr bool SGL_TRACK_ALL_REFS{false};
 
 
 namespace sgl {
+
+class Object;
+
+struct WeakAuxiliary {
+    std::atomic<uint32_t> ref_count{1};
+    Object* object{nullptr};
+    std::mutex mutex;
+};
 
 /**
  * \brief Object base class with intrusive reference counting
@@ -90,17 +99,10 @@ namespace sgl {
  */
 class SGL_API Object {
 public:
-#if SGL_ENABLE_OBJECT_TRACKING
     /// Default constructor.
     Object();
     /// Destructor.
     virtual ~Object();
-#else
-    /// Default constructor.
-    Object() = default;
-    /// Destructor.
-    virtual ~Object() = default;
-#endif
 
     /// Copy constructor.
     /// Note: We don't copy the reference counter, so that the new object
@@ -141,6 +143,9 @@ public:
     /// This is used for debugging purposes.
     virtual std::string to_string() const;
 
+    /// Return the weak reference auxiliary object (creating it if necessary).
+    WeakAuxiliary* get_weak_aux() const;
+
 #if SGL_ENABLE_OBJECT_TRACKING
     /// Reports current set of live objects.
     static void report_live_objects();
@@ -159,6 +164,7 @@ public:
 
 private:
     mutable std::atomic<uintptr_t> m_state{1};
+    mutable std::atomic<WeakAuxiliary*> m_weak_aux{nullptr};
 
 #if SGL_ENABLE_REF_TRACKING
     struct RefTracker {
@@ -572,6 +578,236 @@ static_assert(std::is_same_v<remove_ref<const ref<Object>>::type, Object> == tru
 
 
 /**
+ * \brief Weak reference smart pointer.
+ *
+ * Holds a weak reference to an Object. Can be promoted to a strong reference (ref<T>)
+ * using the lock() method.
+ */
+template<typename T>
+class weak_ref {
+public:
+    /// Default constructor.
+    weak_ref() = default;
+
+    /// Construct a weak reference from a nullptr.
+    weak_ref(std::nullptr_t) { }
+
+    /// Construct a weak reference from a strong reference.
+    weak_ref(const ref<T>& r)
+    {
+        if (r) {
+            m_aux = r->get_weak_aux();
+            inc_weak();
+        }
+    }
+
+    /// Construct a weak reference from a convertible strong reference.
+    template<typename T2>
+    weak_ref(const ref<T2>& r)
+    {
+        static_assert(std::is_convertible_v<T2*, T*>, "Cannot create weak_ref from incompatible ref type.");
+        if (r) {
+            m_aux = r->get_weak_aux();
+            inc_weak();
+        }
+    }
+
+    /// Copy constructor.
+    weak_ref(const weak_ref& other)
+        : m_aux(other.m_aux)
+    {
+        inc_weak();
+    }
+
+    /// Construct a weak reference from a convertible weak reference.
+    template<typename T2>
+    weak_ref(const weak_ref<T2>& other)
+        : m_aux(other.m_aux)
+    {
+        static_assert(std::is_convertible_v<T2*, T*>, "Cannot create weak_ref from incompatible weak_ref type.");
+        inc_weak();
+    }
+
+    /// Move constructor.
+    weak_ref(weak_ref&& other) noexcept
+        : m_aux(other.m_aux)
+    {
+        other.m_aux = nullptr;
+    }
+
+    /// Construct a weak reference by moving from a convertible weak reference.
+    template<typename T2>
+    weak_ref(weak_ref<T2>&& other) noexcept
+        : m_aux(other.m_aux)
+    {
+        static_assert(std::is_convertible_v<T2*, T*>, "Cannot create weak_ref from incompatible weak_ref type.");
+        other.m_aux = nullptr;
+    }
+
+    /// Destructor.
+    ~weak_ref() { dec_weak(); }
+
+    /// Assign another weak reference into the current one.
+    weak_ref& operator=(const weak_ref& other) noexcept
+    {
+        if (m_aux != other.m_aux) {
+            dec_weak();
+            m_aux = other.m_aux;
+            inc_weak();
+        }
+        return *this;
+    }
+
+    /// Assign another convertible weak reference into the current one.
+    template<typename T2>
+    weak_ref& operator=(const weak_ref<T2>& other) noexcept
+    {
+        static_assert(std::is_convertible_v<T2*, T*>, "Cannot assign incompatible weak_ref type.");
+        if (m_aux != other.m_aux) {
+            dec_weak();
+            m_aux = other.m_aux;
+            inc_weak();
+        }
+        return *this;
+    }
+
+    /// Move another weak reference into the current one.
+    weak_ref& operator=(weak_ref&& other) noexcept
+    {
+        if (this != &other) {
+            dec_weak();
+            m_aux = other.m_aux;
+            other.m_aux = nullptr;
+        }
+        return *this;
+    }
+
+    /// Move another convertible weak reference into the current one.
+    template<typename T2>
+    weak_ref& operator=(weak_ref<T2>&& other) noexcept
+    {
+        static_assert(std::is_convertible_v<T2*, T*>, "Cannot assign incompatible weak_ref type.");
+        if (static_cast<void*>(&other) != this) {
+            dec_weak();
+            m_aux = other.m_aux;
+            other.m_aux = nullptr;
+        }
+        return *this;
+    }
+
+    /// Assign a strong reference into the current weak reference.
+    weak_ref& operator=(const ref<T>& r)
+    {
+        WeakAuxiliary* new_aux = r ? r->get_weak_aux() : nullptr;
+        if (m_aux != new_aux) {
+            dec_weak();
+            m_aux = new_aux;
+            inc_weak();
+        }
+        return *this;
+    }
+
+    /// Assign a convertible strong reference into the current weak reference.
+    template<typename T2>
+    weak_ref& operator=(const ref<T2>& r)
+    {
+        static_assert(std::is_convertible_v<T2*, T*>, "Cannot assign incompatible ref type.");
+        WeakAuxiliary* new_aux = r ? r->get_weak_aux() : nullptr;
+        if (m_aux != new_aux) {
+            dec_weak();
+            m_aux = new_aux;
+            inc_weak();
+        }
+        return *this;
+    }
+
+    /// Clear this weak reference.
+    void reset() noexcept
+    {
+        dec_weak();
+        m_aux = nullptr;
+    }
+
+    /// Swap this weak reference with another.
+    void swap(weak_ref& r) noexcept
+    {
+        std::swap(m_aux, r.m_aux);
+    }
+
+    /// Try to obtain a strong reference to the object.
+    ref<T> lock() const
+    {
+        if (!m_aux)
+            return nullptr;
+        // We need to lock the mutex to ensure that the object is not deleted
+        // while we are trying to acquire a strong reference to it.
+        std::lock_guard<std::mutex> lock(m_aux->mutex);
+        if (m_aux->object) {
+            return ref<T>(static_cast<T*>(m_aux->object));
+        }
+        return nullptr;
+    }
+
+    /// Check if the referenced object has been deleted.
+    bool expired() const
+    {
+        if (!m_aux)
+            return true;
+        std::lock_guard<std::mutex> lock(m_aux->mutex);
+        return m_aux->object == nullptr;
+    }
+
+    /// Compare this weak reference to another.
+    template<typename T2 = T>
+    bool operator==(const weak_ref<T2>& r) const
+    {
+        return m_aux == r.m_aux;
+    }
+
+    /// Compare this weak reference to another.
+    template<typename T2 = T>
+    bool operator!=(const weak_ref<T2>& r) const
+    {
+        return m_aux != r.m_aux;
+    }
+
+    /// Compare this weak reference to another.
+    template<typename T2 = T>
+    bool operator<(const weak_ref<T2>& r) const
+    {
+        return m_aux < r.m_aux;
+    }
+
+    /// Compare this weak reference to a null pointer.
+    bool operator==(std::nullptr_t) const { return m_aux == nullptr; }
+
+    /// Compare this weak reference to a null pointer.
+    bool operator!=(std::nullptr_t) const { return m_aux != nullptr; }
+
+    /// Compare this weak reference to a null pointer.
+    bool operator<(std::nullptr_t) const { return m_aux < nullptr; }
+
+private:
+    void inc_weak()
+    {
+        if (m_aux)
+            m_aux->ref_count.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void dec_weak()
+    {
+        if (m_aux && m_aux->ref_count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+            delete m_aux;
+        }
+    }
+
+    WeakAuxiliary* m_aux{nullptr};
+
+    template<typename T2>
+    friend class weak_ref;
+};
+
+/**
  * \brief Breakable reference counting helper for avoding reference cycles.
  *
  * This helper represents a strong reference (ref<T>) that can be broken.
@@ -679,8 +915,19 @@ void swap(::sgl::ref<T>& x, ::sgl::ref<T>& y) noexcept
 }
 
 template<typename T>
+void swap(::sgl::weak_ref<T>& x, ::sgl::weak_ref<T>& y) noexcept
+{
+    return x.swap(y);
+}
+
+template<typename T>
 struct less<::sgl::ref<T>> {
     bool operator()(const ::sgl::ref<T>& a, const ::sgl::ref<T>& b) const { return a.get() < b.get(); }
+};
+
+template<typename T>
+struct less<::sgl::weak_ref<T>> {
+    bool operator()(const ::sgl::weak_ref<T>& a, const ::sgl::weak_ref<T>& b) const { return a < b; }
 };
 
 template<typename T>
