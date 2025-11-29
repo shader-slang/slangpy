@@ -20,18 +20,51 @@ static std::mutex s_tracked_objects_mutex;
 static std::set<const Object*> s_tracked_objects;
 #endif
 
-#if SGL_ENABLE_OBJECT_TRACKING
 Object::Object()
 {
+#if SGL_ENABLE_OBJECT_TRACKING
     std::lock_guard<std::mutex> lock(s_tracked_objects_mutex);
     s_tracked_objects.insert(this);
+#endif
 }
+
 Object::~Object()
 {
-    std::lock_guard<std::mutex> lock(s_tracked_objects_mutex);
-    s_tracked_objects.erase(this);
-}
+#if SGL_ENABLE_OBJECT_TRACKING
+    {
+        std::lock_guard<std::mutex> lock(s_tracked_objects_mutex);
+        s_tracked_objects.erase(this);
+    }
 #endif
+    WeakAuxiliary* aux = m_weak_aux.load(std::memory_order_acquire);
+    if (aux) {
+        {
+            std::lock_guard<std::mutex> lock(aux->mutex);
+            aux->object = nullptr;
+        }
+        if (aux->ref_count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+            delete aux;
+        }
+    }
+}
+
+WeakAuxiliary* Object::get_weak_aux() const
+{
+    WeakAuxiliary* aux = m_weak_aux.load(std::memory_order_acquire);
+    if (!aux) {
+        WeakAuxiliary* new_aux = new WeakAuxiliary();
+        new_aux->object = const_cast<Object*>(this);
+        WeakAuxiliary* expected = nullptr;
+        if (m_weak_aux
+                .compare_exchange_strong(expected, new_aux, std::memory_order_release, std::memory_order_acquire)) {
+            aux = new_aux;
+        } else {
+            delete new_aux;
+            aux = expected;
+        }
+    }
+    return aux;
+}
 
 
 void Object::inc_ref() const noexcept
@@ -60,6 +93,31 @@ void Object::dec_ref(bool dealloc) const noexcept
                 fprintf(stderr, "Object::dec_ref(%p): reference count underflow!", this);
                 abort();
             } else if (value == 3) {
+                // The reference count is 1 (value 3 means ref count 1 because of the bit shift).
+                // We are about to delete the object.
+                // However, there might be a weak reference trying to lock the object concurrently.
+                WeakAuxiliary* aux = m_weak_aux.load(std::memory_order_acquire);
+                if (aux) {
+                    // Acquire the mutex to synchronize with weak_ref::lock().
+                    std::lock_guard<std::mutex> lock(aux->mutex);
+
+                    // Check if the reference count has changed while we were waiting for the mutex.
+                    // If weak_ref::lock() succeeded, it would have incremented the reference count.
+                    if (m_state.load(std::memory_order_relaxed) != 3) {
+                        value = m_state.load(std::memory_order_relaxed);
+                        continue;
+                    }
+
+                    // If we are here, it means no weak reference was able to lock the object,
+                    // and we hold the lock, so no new weak reference can lock it now.
+                    // We can safely mark the object as destroyed in the auxiliary structure.
+                    aux->object = nullptr;
+                }
+                // If aux is null, it is impossible for another thread to concurrently create it.
+                // Creating the auxiliary object (via get_weak_aux()) requires holding a strong reference
+                // to the object. If we are here (ref count == 1, which is ours), no other thread
+                // holds a strong reference, so no other thread can call get_weak_aux().
+
                 if (dealloc) {
                     delete this;
                 } else {
