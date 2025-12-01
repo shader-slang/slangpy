@@ -61,7 +61,7 @@ class Module:
         #: The slangpy device module.
         self.slangpy_device_module = device_module.session.load_module("slangpy")
 
-        # Extract linked modules
+        # Extract linked modules, dict.fromkeys is used to remove duplicates while preserving order.
         self.link = list(dict.fromkeys([x.module if isinstance(x, Module) else x for x in link]))
 
         #: Reflection / layout information for the module.
