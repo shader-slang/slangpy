@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Callable, Optional, Union, Sequence, cast
 
 import numpy as np
@@ -20,7 +21,16 @@ from slangpy import TypeReflection
 from slangpy import TypeReflection as TR
 from slangpy import VariableReflection
 
+EXPERIMENTAL_VECTORIZATION = False
+
+
+def set_experimental_vectorization(enabled: bool):
+    global EXPERIMENTAL_VECTORIZATION
+    EXPERIMENTAL_VECTORIZATION = enabled
+
+
 scalar_names = {
+    TR.ScalarType.none: "Unknown",
     TR.ScalarType.void: "void",
     TR.ScalarType.bool: "bool",
     TR.ScalarType.int8: "int8_t",
@@ -160,6 +170,7 @@ class SlangType(NativeSlangType):
         self._cached_differential: Optional[SlangType] = None
         self._cached_uniform_layout: Optional[SlangLayout] = None
         self._cached_buffer_layout: Optional[SlangLayout] = None
+        self._cached_vector_type_name: Optional[str] = None
 
         # Native shape storage
         if self._element_type == self:
@@ -179,6 +190,7 @@ class SlangType(NativeSlangType):
         self._cached_differential = None
         self._cached_uniform_layout = None
         self._cached_buffer_layout = None
+        self._cached_vector_type_name = None
 
     @property
     def program(self) -> SlangProgramLayout:
@@ -201,6 +213,23 @@ class SlangType(NativeSlangType):
         Fully qualified name of this type.
         """
         return self.type_reflection.full_name
+
+    @property
+    def vector_type_name(self) -> str:
+        """
+        Type name suitable for use in vector type specializations.
+        This should map generics to Unknown and generic integers to 0.
+        """
+        if self._cached_vector_type_name is None:
+            self._cached_vector_type_name = self.build_vector_type_name()
+        return self._cached_vector_type_name
+
+    @property
+    def is_generic(self) -> bool:
+        """
+        Whether this type is generic.
+        """
+        return self.type_reflection.kind == TR.Kind.none
 
     @property
     def element_type(self) -> Optional[SlangType]:
@@ -239,7 +268,7 @@ class SlangType(NativeSlangType):
             assert res is not None
             return res
         else:
-            raise ValueError(f"Type {self.full_name} is not differentiable")
+            return None
 
     def _py_derivative(self):
         return self.derivative
@@ -306,6 +335,13 @@ class SlangType(NativeSlangType):
         """
         return {}
 
+    def build_vector_type_name(self) -> str:
+        """
+        Rebuild a type name that can be used for type specialization handling mapping
+        generics to Unknown or generic integers to 0. Defaults to just returning the full name.
+        """
+        return self.full_name
+
     def _get_differential(self) -> Optional[SlangType]:
         if self._cached_differential is None:
             self._cached_differential = self.build_differential_type()
@@ -336,6 +372,22 @@ class SlangType(NativeSlangType):
         return f"SlangType(name='{self.full_name}', kind={self.type_reflection.kind}, shape={self.shape})"
 
 
+class UnknownType(SlangType):
+    """
+    Represents an unknown type.
+    """
+
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        super().__init__(program, refl, element_type=self, local_shape=Shape())
+
+    def build_vector_type_name(self) -> str:
+        """
+        Rebuild a type name that can be used for type specialization handling mapping
+        generics to Unknown or generic integers to 0. Defaults to just returning the full name.
+        """
+        return "Unknown"
+
+
 class VoidType(SlangType):
     """
     Represents the void type.
@@ -347,7 +399,9 @@ class VoidType(SlangType):
 
 class PointerType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        generics = program.get_resolved_generic_args(refl)
         super().__init__(program, refl, element_type=self, local_shape=Shape())
+        self.target_type = generics[0]
 
     @property
     def slang_scalar_type(self) -> TR.ScalarType:
@@ -355,6 +409,16 @@ class PointerType(SlangType):
         Pointers can map to 64bit uints
         """
         return TR.ScalarType.uint64
+
+    @property
+    def is_generic(self) -> bool:
+        """
+        Whether this type is generic.
+        """
+        return isinstance(self.target_type, UnknownType)
+
+    def build_vector_type_name(self):
+        return f"Ptr<{self.target_type.vector_type_name}>"
 
 
 class ScalarType(SlangType):
@@ -424,6 +488,9 @@ class VectorType(SlangType):
         names = ["x", "y", "z", "w"]
         return {names[i]: self.scalar_type for i in range(self.num_elements)}
 
+    def build_vector_type_name(self):
+        return f"vector<{self.element_type.vector_type_name},{self.num_elements}>"
+
 
 class MatrixType(SlangType):
     """
@@ -484,6 +551,18 @@ class MatrixType(SlangType):
         """
         return self.scalar_type.slang_scalar_type
 
+    @property
+    def inner_element_type(self) -> SlangType:
+        """
+        Inner scalar element type of the matrix.
+        """
+        # This works because the element type could be a vector or scalar (see constructor),
+        # but a scalar's element type is itself.
+        return self.element_type.element_type
+
+    def build_vector_type_name(self):
+        return f"matrix<{self.inner_element_type.vector_type_name},{self.rows},{self.cols}>"
+
 
 class ArrayType(SlangType):
     """
@@ -512,18 +591,66 @@ class ArrayType(SlangType):
         """
         return self.shape[0]
 
+    @property
+    def array_shape(self) -> Shape:
+        all_dims = []
+        array = self
+        while isinstance(array, ArrayType):
+            all_dims.append(array.num_elements)
+            array = array.element_type
+        return Shape(tuple(all_dims))
 
-def is_matching_array_type(a: SlangType, b: SlangType) -> bool:
+    @property
+    def any_generic_dims(self) -> bool:
+        """
+        Whether any array dimension is generic.
+        """
+        array = self
+        while isinstance(array, ArrayType):
+            if array.num_elements == 0:
+                return True
+            array = array.element_type
+        return False
+
+    @property
+    def inner_element_type(self) -> SlangType:
+        """
+        Inner scalar element type of the array.
+        """
+        array = self
+        while isinstance(array, ArrayType):
+            array = array.element_type
+        return cast(SlangType, array)
+
+    @property
+    def array_dims(self) -> int:
+        return len(self.array_shape)
+
+    def build_vector_type_name(self):
+        return f"Array<{self.element_type.vector_type_name},{self.num_elements}>"
+
+
+def is_matching_array_type(a: SlangType, b: SlangType, allow_generics: bool = True) -> bool:
     """
     Helper to check if 2 array types are compatible. This handles
     the situation in which one or both of the array types have
     unknown dimensions. In this case, the dimensions are considered
     compatible.
+
+    If `allow_generics` is False, the element types must match exactly. If True,
+    generic element types are considered compatible with any known element type.
     """
     if not isinstance(a, ArrayType) or not isinstance(b, ArrayType):
         return False
-    if a.element_type != b.element_type:
-        return False
+
+    if allow_generics:
+        if is_known(a.element_type) and is_known(b.element_type):
+            if a.element_type != b.element_type:
+                return False
+    else:
+        if a.element_type != b.element_type:
+            return False
+
     if a.num_elements > 0 and b.num_elements > 0:
         return a.num_elements == b.num_elements
     return True
@@ -538,9 +665,23 @@ class StructType(SlangType):
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         # An opaque struct has no element type, but like a normal scalar has a 0D local shape
         super().__init__(program, refl, local_shape=Shape())
+        args = program.get_resolved_generic_args(refl)
+        self._generic_args = args
+
+    @property
+    def is_generic(self) -> bool:
+        return self._generic_args is not None and any(
+            isinstance(arg, UnknownType) for arg in self._generic_args
+        )
 
     def build_fields(self):
         return {field.name: field for field in self.type_reflection.fields}
+
+    def build_vector_type_name(self):
+        if "<" in self.full_name:
+            return "Unknown"
+        else:
+            return self.full_name
 
 
 class InterfaceType(SlangType):
@@ -550,6 +691,17 @@ class InterfaceType(SlangType):
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl)
+        args = program.get_resolved_generic_args(refl)
+        self.generic_args = args
+
+    @property
+    def is_generic(self) -> bool:
+        return self.generic_args is not None and any(
+            isinstance(arg, UnknownType) for arg in self.generic_args
+        )
+
+    def build_vector_type_name(self):
+        return "Unknown"
 
 
 class ResourceType(SlangType):
@@ -622,11 +774,14 @@ class StructuredBufferType(ResourceType):
     """
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-
+        if refl.resource_result_type.kind == TR.Kind.none:
+            element_type = program.find_type_by_name("Unknown")
+        else:
+            element_type = program.find_type(refl.resource_result_type)
         super().__init__(
             program,
             refl,
-            element_type=program.find_type(refl.resource_result_type),
+            element_type=element_type,
             local_shape=Shape((-1,)),
         )
 
@@ -639,6 +794,9 @@ class StructuredBufferType(ResourceType):
             return BufferUsage.unordered_access
         else:
             return BufferUsage.shader_resource
+
+    def build_vector_type_name(self) -> str:
+        return f"{self.name}<{self.element_type.full_name}>"
 
 
 class ByteAddressBufferType(ResourceType):
@@ -705,6 +863,111 @@ class SamplerStateType(SlangType):
 
     def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
         super().__init__(program, refl, local_shape=Shape())
+
+
+class TensorType(Enum):
+    tensor = (0,)
+    atomic = (1,)
+    ndbuffer = (2,)
+    interface = (3,)
+
+
+_TENSOR_NAME_TO_TYPE = {
+    "Tensor": TensorType.tensor,
+    "RWTensor": TensorType.tensor,
+    "GradInTensor": TensorType.tensor,
+    "GradOutTensor": TensorType.tensor,
+    "GradInOutTensor": TensorType.tensor,
+    "ITensor": TensorType.interface,
+    "IRWTensor": TensorType.interface,
+    "AtomicTensor": TensorType.atomic,
+    "NDBuffer": TensorType.ndbuffer,
+    "RWNDBuffer": TensorType.ndbuffer,
+}
+
+
+class ITensorType(SlangType):
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        args = program.get_resolved_generic_args(refl)
+        assert args is not None
+        assert len(args) == 2
+        assert isinstance(args[0], SlangType)
+
+        if isinstance(args[1], UnknownType):
+            shape = Shape()
+            self._dims = 0
+        else:
+            assert isinstance(args[1], int)
+            shape = Shape((-1,) * args[1])
+            self._dims = args[1]
+
+        super().__init__(program, refl, element_type=args[0], local_shape=shape)
+        self.element_type: SlangType
+        self._writable = refl.name in (
+            "IRWTensor",
+            "RWTensor",
+            "RWNDBuffer",
+            "GradInTensor",
+            "GradInOutTensor",
+            "AtomicTensor",
+        )
+
+        self.has_grad_in = refl.name in ("GradInTensor", "GradInOutTensor")
+        self.has_grad_out = refl.name in ("GradOutTensor", "GradInOutTensor")
+
+    @property
+    def writable(self) -> bool:
+        return self._writable
+
+    @property
+    def dims(self) -> int:
+        return self._dims
+
+    @property
+    def dtype(self) -> SlangType:
+        return self.element_type
+
+    @property
+    def tensor_type(self) -> TensorType:
+        return _TENSOR_NAME_TO_TYPE[self.type_reflection.name]
+
+    @property
+    def is_generic(self) -> bool:
+        return (
+            isinstance(self.element_type, UnknownType)
+            or self.element_type.is_generic
+            or self.dims == 0
+        )
+
+    @staticmethod
+    def build_tensor_name(
+        element_type: SlangType,
+        dims: int,
+        writable: bool = True,
+        tensor_type: TensorType = TensorType.tensor,
+        has_grad_in: bool = False,
+        has_grad_out: bool = False,
+    ) -> str:
+        if tensor_type == TensorType.interface:
+            prefix = "IRW" if writable else "I"
+            return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
+        elif tensor_type == TensorType.atomic:
+            return f"AtomicTensor<{element_type.full_name}, {dims}>"
+        elif tensor_type == TensorType.ndbuffer:
+            prefix = "RW" if writable else ""
+            return f"{prefix}NDBuffer<{element_type.full_name}, {dims}>"
+        elif tensor_type == TensorType.tensor:
+            if not has_grad_in and not has_grad_out:
+                prefix = "RW" if writable else ""
+            else:
+                prefix = "Grad"
+                if has_grad_in:
+                    prefix += "In"
+                if has_grad_out:
+                    prefix += "Out"
+            return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
+        else:
+            raise ValueError("Invalid tensor type")
 
 
 class UnhandledType(SlangType):
@@ -1207,6 +1470,21 @@ class SlangProgramLayout:
         else:
             return cast(ArrayType, self.find_type_by_name(f"{element_type.full_name}[]"))
 
+    def tensor_type(
+        self,
+        element_type: SlangType,
+        dims: int,
+        writable: bool = True,
+        tensor_type: TensorType = TensorType.tensor,
+        has_grad_in: bool = False,
+        has_grad_out: bool = False,
+    ) -> SlangType:
+        tensor_name = ITensorType.build_tensor_name(
+            element_type, dims, writable, tensor_type, has_grad_in, has_grad_out
+        )
+        slang_type = self.find_type_by_name(tensor_name)
+        return cast(ITensorType, slang_type)
+
     def _get_or_create_type(self, refl: TypeReflection):
         existing = self._types_by_reflection.get(refl)
         if existing is not None:
@@ -1249,6 +1527,8 @@ class SlangProgramLayout:
             return SamplerStateType(self, refl)
         elif refl.kind == TR.Kind.pointer:
             return PointerType(self, refl)
+        elif refl.kind == TR.Kind.none:
+            return UnknownType(self, refl)
 
         # It's not any of the fundamental types. Check if a custom handler was defined,
         # giving precedence to handlers that match the fully specialized name
@@ -1357,6 +1637,8 @@ class SlangProgramLayout:
                 x = int(piece)
             else:
                 x = self.find_type_by_name(piece)
+                if x is None:
+                    x = self.require_type_by_name("Unknown")
             result.append(x)
 
         return tuple(result)
@@ -1375,6 +1657,52 @@ def can_convert_to_int(value: Any):
         return False
 
 
+def is_unknown(slang_type: Optional[Union[SlangType, NativeSlangType]]) -> bool:
+    return isinstance(slang_type, UnknownType)
+
+
+def is_known(slang_type: Optional[Union[SlangType, NativeSlangType]]) -> bool:
+    if slang_type is None:
+        raise ValueError("Type is None")
+    return not is_unknown(slang_type)
+
+
+def is_known_or_none(slang_type: Optional[Union[SlangType, NativeSlangType]]) -> bool:
+    if slang_type is None:
+        return True
+    return not is_unknown(slang_type)
+
+
+def vectorize_type(
+    marshall_type: Union[SlangType, str],
+    bound_type: Union[SlangType, str],
+    program: Optional[SlangProgramLayout] = None,
+) -> Optional[SlangType]:
+    if not EXPERIMENTAL_VECTORIZATION:
+        raise RuntimeError("vectorize_type is an experimental feature and is disabled")
+
+    if program is None:
+        if isinstance(marshall_type, SlangType):
+            program = marshall_type.program
+        elif isinstance(bound_type, SlangType):
+            program = bound_type.program
+    if isinstance(marshall_type, SlangType):
+        marshall_type = marshall_type.full_name
+    if isinstance(bound_type, SlangType):
+        bound_type = bound_type.build_vector_type_name()
+    if program is None:
+        raise ValueError("Program must be provided or inferable from from_type or to_type")
+
+    witness_name = f"Vectorizer<{marshall_type}, {bound_type}>.VectorType"
+    witness = program.find_type_by_name(witness_name)
+    if witness is None:
+        return None
+    if witness.is_generic:
+        return None
+
+    return witness
+
+
 TGenericArgs = Optional[tuple[Union[int, SlangType], ...]]
 
 #: Mapping from a type name to a callable that creates a SlangType from a TypeReflection.
@@ -1386,4 +1714,19 @@ def create_differential_pair(layout: SlangProgramLayout, refl: TypeReflection) -
     return DifferentialPairType(layout, refl)
 
 
+def create_unknown_type(layout: SlangProgramLayout, refl: TypeReflection) -> SlangType:
+    return UnknownType(layout, refl)
+
+
 TYPE_OVERRIDES["DifferentialPair"] = create_differential_pair
+TYPE_OVERRIDES["Unknown"] = create_unknown_type
+TYPE_OVERRIDES["ITensor"] = ITensorType
+TYPE_OVERRIDES["IRWTensor"] = ITensorType
+TYPE_OVERRIDES["Tensor"] = ITensorType
+TYPE_OVERRIDES["RWTensor"] = ITensorType
+TYPE_OVERRIDES["GradInTensor"] = ITensorType
+TYPE_OVERRIDES["GradOutTensor"] = ITensorType
+TYPE_OVERRIDES["GradInOutTensor"] = ITensorType
+TYPE_OVERRIDES["AtomicTensor"] = ITensorType
+TYPE_OVERRIDES["NDBuffer"] = ITensorType
+TYPE_OVERRIDES["RWNDBuffer"] = ITensorType

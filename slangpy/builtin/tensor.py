@@ -3,14 +3,14 @@ from __future__ import annotations
 
 from typing import Any, Optional, cast
 
-from slangpy.core.native import AccessType, Shape
+from slangpy.core.native import AccessType, Shape, CallMode
 
 from slangpy.reflection.reflectiontypes import is_matching_array_type, VectorType
 from slangpy.types.tensor import Tensor
 from slangpy.types.buffer import innermost_type
 from slangpy.core.native import NativeTensorMarshall, NativeTensor
 
-from slangpy import TypeReflection, ShaderObject, ShaderCursor
+from slangpy import TypeReflection, ShaderObject, ShaderCursor, BufferUsage
 from slangpy.reflection import (
     TYPE_OVERRIDES,
     SlangProgramLayout,
@@ -19,6 +19,12 @@ from slangpy.reflection import (
     ArrayType,
     ScalarType,
     MatrixType,
+    UnknownType,
+    InterfaceType,
+    ITensorType,
+    TensorType,
+    vectorize_type,
+    EXPERIMENTAL_VECTORIZATION,
 )
 from slangpy.bindings import (
     PYTHON_TYPES,
@@ -27,47 +33,8 @@ from slangpy.bindings import (
     CodeGenBlock,
     ReturnContext,
 )
-
-
-class ITensorType(SlangType):
-    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-        args = program.get_resolved_generic_args(refl)
-        assert args is not None
-        assert len(args) == 2
-        assert isinstance(args[0], SlangType)
-        assert isinstance(args[1], int)
-        super().__init__(program, refl, element_type=args[0], local_shape=Shape((-1,) * args[1]))
-        self.element_type: SlangType
-        self._writable = refl.name in (
-            "IRWTensor",
-            "RWTensor",
-            "GradInTensor",
-            "GradInOutTensor",
-            "AtomicTensor",
-        )
-        self._dims = args[1]
-
-    @property
-    def writable(self) -> bool:
-        return self._writable
-
-    @property
-    def dims(self) -> int:
-        return self._dims
-
-    @property
-    def dtype(self) -> SlangType:
-        return self.element_type
-
-
-TYPE_OVERRIDES["ITensor"] = ITensorType
-TYPE_OVERRIDES["IRWTensor"] = ITensorType
-TYPE_OVERRIDES["Tensor"] = ITensorType
-TYPE_OVERRIDES["RWTensor"] = ITensorType
-TYPE_OVERRIDES["GradInTensor"] = ITensorType
-TYPE_OVERRIDES["GradOutTensor"] = ITensorType
-TYPE_OVERRIDES["GradInOutTensor"] = ITensorType
-TYPE_OVERRIDES["AtomicTensor"] = ITensorType
+from slangpy.builtin.ndbuffer import get_ndbuffer_marshall_type
+import slangpy.reflection.vectorize as spyvec
 
 
 def types_equal(a: SlangType, b: SlangType):
@@ -89,39 +56,6 @@ def is_nested_array(a: SlangType):
         if a.element_type is None:
             return False
         a = a.element_type
-
-
-def build_tensor_name(
-    element_type: SlangType,
-    dims: int,
-    writable: bool,
-    has_grad_in: bool,
-    has_grad_out: bool,
-) -> str:
-    if not has_grad_in and not has_grad_out:
-        prefix = "RW" if writable else ""
-    else:
-        prefix = "Grad"
-        if has_grad_in:
-            # assert writable
-            prefix += "In"
-        if has_grad_out:
-            prefix += "Out"
-    return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
-
-
-def build_tensor_type(
-    layout: SlangProgramLayout,
-    element_type: SlangType,
-    dims: int,
-    writable: bool,
-    has_grad_in: bool,
-    has_grad_out: bool,
-) -> SlangType:
-    tensor_name = build_tensor_name(element_type, dims, writable, has_grad_in, has_grad_out)
-    slang_type = layout.find_type_by_name(tensor_name)
-    assert slang_type is not None, f"Failed to look up tensor type {tensor_name}"
-    return slang_type
 
 
 class TensorMarshall(NativeTensorMarshall):
@@ -166,8 +100,13 @@ class TensorMarshall(NativeTensorMarshall):
                     "Supplying input gradients is only allowed if the primal tensor is writable"
                 )
 
-        slang_type = build_tensor_type(
-            layout, element_type, dims, writable, d_in is not None, d_out is not None
+        slang_type = layout.tensor_type(
+            element_type=element_type,
+            dims=dims,
+            writable=writable,
+            tensor_type=TensorType.tensor,
+            has_grad_in=d_in is not None,
+            has_grad_out=d_out is not None,
         )
 
         super().__init__(
@@ -179,6 +118,9 @@ class TensorMarshall(NativeTensorMarshall):
             d_in=d_in,
             d_out=d_out,
         )
+
+    def __repr__(self) -> str:
+        return f"Tensor[dtype={self.slang_element_type.full_name}, dims={self.dims}, writable={self.writable}]"
 
     @property
     def has_derivative(self):
@@ -198,39 +140,189 @@ class TensorMarshall(NativeTensorMarshall):
                     f"Can't convert tensor with element type {self.slang_element_type.full_name} "
                     f"to tensor with element type {bound_type.dtype.full_name}"
                 )
+            if bound_type.has_grad_in and self.d_in is None:
+                raise ValueError("Can't pass tensor without input gradient to one that requires it")
+            if bound_type.has_grad_out and self.d_out is None:
+                raise ValueError(
+                    "Can't pass tensor without output gradient to one that requires it"
+                )
 
-            # Atomic tensors are special, they must be passed as-is
-            if bound_type.name == "AtomicTensor":
-                return bound_type
+            tensor_type = (
+                TensorType.tensor
+                if bound_type.tensor_type == TensorType.interface
+                else bound_type.tensor_type
+            )
 
-            return build_tensor_type(
-                self.layout,
-                bound_type.dtype,
-                bound_type.dims,
-                bound_type.writable,
-                self.d_in is not None,
-                self.d_out is not None,
+            return self.layout.tensor_type(
+                element_type=bound_type.dtype,
+                dims=bound_type.dims,
+                writable=bound_type.writable,
+                tensor_type=tensor_type,
+                has_grad_in=bound_type.has_grad_in,
+                has_grad_out=bound_type.has_grad_out,
             )
 
         # if implicit element casts enabled, allow conversion from type to element type
-        if context.options["implicit_element_casts"]:
-            if types_equal(self.slang_element_type, bound_type):
-                return bound_type
-            if is_matching_array_type(bound_type, self.slang_element_type):
-                return self.slang_element_type
+        if types_equal(self.slang_element_type, bound_type):
+            return bound_type
+        if is_matching_array_type(bound_type, self.slang_element_type):
+            return self.slang_element_type
 
         # if implicit tensor casts enabled, allow conversion from vector to element type
         # or array type
-        if context.options["implicit_tensor_casts"]:
-            # Be lenient and allow e.g. passing float to float[N] or float[M][N]
-            if types_equal(self.slang_element_type, innermost_type(bound_type)):
-                if is_nested_array(bound_type) and len(bound_type.shape) <= 2:
-                    return bound_type
-                if isinstance(bound_type, VectorType):
-                    return bound_type
+        # Be lenient and allow e.g. passing float to float[N] or float[M][N]
+        if types_equal(self.slang_element_type, innermost_type(bound_type)):
+            if is_nested_array(bound_type) and len(bound_type.shape) <= 2:
+                return bound_type
+            if isinstance(bound_type, VectorType):
+                return bound_type
 
         # Default to casting to itself
         return self.slang_type
+
+    def resolve_types(self, context: BindContext, bound_type: SlangType):
+        self_element_type = cast(SlangType, self.slang_element_type)
+        self_dims = self.dims
+        self_writable = self.writable
+
+        # Trying to pass tensor to tensor - handle programmatically
+        if isinstance(bound_type, ITensorType):
+            if bound_type.writable and not self.writable:
+                return None
+            if bound_type.has_grad_in and self.d_in is None:
+                return None
+            if bound_type.has_grad_out and self.d_out is None:
+                return None
+
+            if bound_type.tensor_type == TensorType.interface:
+                tensor_type = TensorType.tensor
+                has_grad_in = context.call_mode == CallMode.bwds and self.d_in is not None
+                has_grad_out = context.call_mode == CallMode.bwds and self.d_out is not None
+            else:
+                tensor_type = bound_type.tensor_type
+                has_grad_in = bound_type.has_grad_in
+                has_grad_out = bound_type.has_grad_out
+
+            bound_element_type = bound_type.element_type
+            if isinstance(bound_element_type, UnknownType) or bound_element_type.is_generic:
+                el_type = self_element_type
+            else:
+                el_type = bound_element_type
+            if bound_type.dims == 0:
+                dims = self_dims
+            else:
+                dims = bound_type.dims
+            if not types_equal(el_type, self_element_type):
+                return None
+
+            return [
+                self.layout.tensor_type(
+                    element_type=el_type,
+                    dims=dims,
+                    writable=bound_type.writable,
+                    tensor_type=tensor_type,
+                    has_grad_in=has_grad_in,
+                    has_grad_out=has_grad_out,
+                )
+            ]
+
+        # If target type is fully generic, always add tensor type as option
+        if isinstance(bound_type, (UnknownType, InterfaceType)):
+            results: list[SlangType] = []
+            results.append(self.slang_type)
+            results.append(self.slang_element_type)
+            return results
+
+        if EXPERIMENTAL_VECTORIZATION:
+            # Ambiguous case that vectorizer in slang cannot resolve on its own - could be element type or array of element type
+            # Add both options, and rely on later slang specialization to pick the correct one (or identify it as genuinely ambiguous)
+            if (
+                isinstance(self_element_type, ArrayType)
+                and isinstance(bound_type, ArrayType)
+                and isinstance(bound_type.element_type, UnknownType)
+            ):
+                results: list[SlangType] = []
+                results.append(self_element_type)
+                results.append(
+                    context.layout.require_type_by_name(
+                        f"{self_element_type.full_name}[{bound_type.num_elements}]"
+                    )
+                )
+                return results
+            marshall = get_ndbuffer_marshall_type(
+                context, self_element_type, self_writable, self_dims
+            )
+            specialized = vectorize_type(marshall, bound_type)
+            return [specialized]
+
+        # Match element type exactly
+        if self_element_type.full_name == bound_type.full_name:
+            return [self_element_type]
+
+        # Match buffer container types
+        as_structuredbuffer_type = spyvec.container_to_structured_buffer(
+            self_element_type, self_writable, bound_type
+        )
+        if as_structuredbuffer_type is not None:
+            return [as_structuredbuffer_type]
+        as_byteaddressbuffer_type = spyvec.container_to_byte_address_buffer(
+            self_element_type, self_writable, bound_type
+        )
+        if as_byteaddressbuffer_type is not None:
+            return [as_byteaddressbuffer_type]
+
+        # Match pointers
+        as_pointer = spyvec.container_to_pointer(self_element_type, bound_type)
+        if as_pointer is not None:
+            return [as_pointer]
+
+        # NDBuffer of scalars can load matrices of known size
+        as_matrix = spyvec.scalar_to_sized_matrix(self_element_type, bound_type)
+        if as_matrix is not None:
+            return [as_matrix]
+
+        # NDBuffer of scalars can load vectors of known size
+        as_vector = spyvec.scalar_to_sized_vector(self_element_type, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        # Handle ambiguous case vectorizing against generic array type
+        as_generic_array_candidates = spyvec.container_to_generic_array_candidates(
+            self_element_type, bound_type
+        )
+        if as_generic_array_candidates is not None:
+            return as_generic_array_candidates
+
+        # NDBuffer of elements can load higher dimensional arrays of known size
+        as_sized_array = spyvec.container_to_sized_array(self_element_type, bound_type, self_dims)
+        if as_sized_array is not None:
+            return [as_sized_array]
+
+        # Support resolving generic struct
+        as_struct = spyvec.struct_to_struct(self_element_type, bound_type)
+        if as_struct is not None:
+            return [as_struct]
+
+        # Support resolving generic array
+        as_array = spyvec.array_to_array(self_element_type, bound_type)
+        if as_array is not None:
+            return [as_array]
+
+        # Support resolving generic matrix
+        as_matrix = spyvec.matrix_to_matrix(self_element_type, bound_type)
+        if as_matrix is not None:
+            return [as_matrix]
+
+        # Support resolving generic vector
+        as_vector = spyvec.vector_to_vector(self_element_type, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        # Support resolving generic scalar
+        as_scalar = spyvec.scalar_to_scalar(self_element_type, bound_type)
+        if as_scalar is not None:
+            return [as_scalar]
+        return None
 
     def reduce_type(self, context: BindContext, dimensions: int):
         if dimensions == 0:
@@ -257,20 +349,23 @@ class TensorMarshall(NativeTensorMarshall):
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         if isinstance(binding.vector_type, ITensorType):
-            writable = binding.vector_type.writable
+            type_name = ITensorType.build_tensor_name(
+                element_type=self.slang_element_type,
+                dims=self.dims,
+                writable=binding.vector_type.writable,
+                tensor_type=binding.vector_type.tensor_type,
+                has_grad_in=binding.vector_type.has_grad_in,
+                has_grad_out=binding.vector_type.has_grad_out,
+            )
         else:
             writable = binding.access[0] in (AccessType.write, AccessType.readwrite)
-
-        # Atomic tensors are special, they must be passed as-is
-        if binding.vector_type.name == "AtomicTensor":
-            type_name = binding.vector_type.full_name
-        else:
-            type_name = build_tensor_name(
-                self.slang_element_type,
-                self.dims,
-                writable,
-                self.d_in is not None,
-                self.d_out is not None,
+            type_name = ITensorType.build_tensor_name(
+                element_type=self.slang_element_type,
+                dims=self.dims,
+                writable=writable,
+                tensor_type=TensorType.tensor,
+                has_grad_in=self.d_in is not None,
+                has_grad_out=self.d_out is not None,
             )
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
@@ -298,7 +393,12 @@ def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
         )
 
         return TensorMarshall(
-            layout, cast(SlangType, value.dtype), len(value.shape), True, d_in, d_out
+            layout,
+            cast(SlangType, value.dtype),
+            len(value.shape),
+            (value.usage & BufferUsage.unordered_access) != 0,
+            d_in,
+            d_out,
         )
     elif isinstance(value, ReturnContext):
         return TensorMarshall(

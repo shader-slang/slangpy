@@ -19,12 +19,7 @@ def test_buffer_to_torch(device_type: spy.DeviceType):
     except ImportError:
         pytest.skip("torch is not installed")
 
-    device = spy.Device(
-        type=device_type,
-        enable_debug_layers=True,
-        enable_cuda_interop=True,
-        compiler_options={"include_paths": [Path(__file__).parent]},
-    )
+    device = helpers.get_torch_device(device_type)
 
     if not device.supports_cuda_interop:
         pytest.skip(f"CUDA interop is not supported on this device type {device_type}")
@@ -61,12 +56,7 @@ def test_torch_interop(device_type: spy.DeviceType):
     except ImportError:
         pytest.skip("torch is not installed")
 
-    device = spy.Device(
-        type=device_type,
-        enable_debug_layers=True,
-        enable_cuda_interop=True,
-        compiler_options={"include_paths": [Path(__file__).parent]},
-    )
+    device = helpers.get_torch_device(device_type)
 
     if not device.supports_cuda_interop:
         pytest.skip(f"CUDA interop is not supported on this device type {device_type}")

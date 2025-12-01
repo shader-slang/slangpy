@@ -241,7 +241,8 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
     };
 
     // Write primal tensor
-    if (!has_derivative()) {
+    ShaderCursor primal_field = field.find_field("primal");
+    if (!primal_field.is_valid()) {
         write_data(
             field,
             pytorch_tensor.data(),
@@ -251,7 +252,7 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
         );
     } else {
         write_data(
-            field["primal"],
+            primal_field,
             pytorch_tensor.data(),
             extract_shape(pytorch_tensor),
             extract_strides(pytorch_tensor),
@@ -308,14 +309,15 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     NativeTensor* primal;
     if (nb::try_cast(value, primal)) {
         ShaderCursor field = cursor[binding->variable_name()];
+        ShaderCursor primal_field = field.find_field("primal");
 
         const ref<NativeTensor>& grad_in = primal->grad_in();
         const ref<NativeTensor>& grad_out = primal->grad_out();
 
-        if (!has_derivative()) {
+        if (!primal_field.is_valid()) {
             write_shader_cursor_fields(context, binding, field, primal, read_back);
         } else {
-            write_shader_cursor_fields(context, binding, field["primal"], primal, read_back);
+            write_shader_cursor_fields(context, binding, primal_field, primal, read_back);
             if (m_d_in) {
                 SGL_CHECK(grad_in, "Missing required input gradients");
                 write_shader_cursor_fields(context, binding, field["d_in"], grad_in.get(), read_back);

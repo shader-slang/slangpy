@@ -82,6 +82,7 @@ class Tensor(NativeTensor):
         desc.dtype = dtype
         desc.offset = offset
         desc.element_layout = dtype.buffer_layout.reflection
+        desc.usage = storage.desc.usage
         super().__init__(desc, storage, grad_in, grad_out)
 
         # Fix up some typing info
