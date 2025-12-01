@@ -62,7 +62,7 @@ class Module:
         self.slangpy_device_module = device_module.session.load_module("slangpy")
 
         # Extract linked modules
-        self.link = list(set([x.module if isinstance(x, Module) else x for x in link]))
+        self.link = list(dict.fromkeys([x.module if isinstance(x, Module) else x for x in link]))
 
         #: Reflection / layout information for the module.
         # Link the user- and device module together so we can reflect combined types
