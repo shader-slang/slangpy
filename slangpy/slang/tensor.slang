@@ -41,35 +41,6 @@ void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], 
         new_offset += stride[i] * idx[i];
 }
 
-// Internal base interface for tensor
-public interface IBaseTensor<T, let D : int>
-{
-    public property shape : uint[D];
-}
-
-// Interfaace to represent any readable tensor.
-public interface IROTensor<T, let D : int> : IBaseTensor<T, D>
-{
-    public T read_buffer(int idx);
-    public T load<I : IInteger>(I idx[D]);
-    public T load<I : IInteger>(vector<I, D> idx);
-    public T load<each I : IInteger>(expand each I indices);
-}
-public typealias ITensor<T, let D : int> = IROTensor<T, D>;
-
-// Interfaace to represent any writable tensor.
-public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
-{
-    public void write_buffer(int idx, T value);
-    public void store<I : IInteger>(I idx[D], T value);
-    public void store<I : IInteger>(vector<I, D> idx, T value);
-    public void store<each I : IInteger>(expand each I indices, T value);
-}
-
-// Interface to represent any read-write tensor.
-public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
-{
-}
 
 #define _SLANGPY_COMMON_TENSOR_IMPL \
     private uint[D] _shape;\
@@ -230,6 +201,40 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
             }\
         }
 
+// Internal base interface for tensor
+public interface IBaseTensor<T, let D : int>
+{
+    public property shape : uint[D];
+}
+
+// Interfaace to represent any readable tensor.
+public interface IROTensor<T, let D : int> : IBaseTensor<T, D>
+{
+    public T read_buffer(int idx);
+    public T load<I : IInteger>(I idx[D]);
+    public T load<I : IInteger>(vector<I, D> idx);
+    public T load<each I : IInteger>(expand each I indices);
+
+    _SLANGPY_TENSOR_LOAD_IMPL
+}
+public typealias ITensor<T, let D : int> = IROTensor<T, D>;
+
+// Interfaace to represent any writable tensor.
+public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
+{
+    public void write_buffer(int idx, T value);
+    public void store<I : IInteger>(I idx[D], T value);
+    public void store<I : IInteger>(vector<I, D> idx, T value);
+    public void store<each I : IInteger>(expand each I indices, T value);
+
+    _SLANGPY_TENSOR_STORE_IMPL
+}
+
+// Interface to represent any read-write tensor.
+public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
+{
+}
+
 // A read only tensor
 public struct ROTensor<T, let D : int> : IROTensor<T, D>
 {
@@ -243,7 +248,6 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
 
     _SLANGPY_COMMON_TENSOR_IMPL
     _SLANGPY_DATA_LOAD_IMPL
-    _SLANGPY_TENSOR_LOAD_IMPL
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
@@ -288,7 +292,6 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
 
     _SLANGPY_COMMON_TENSOR_IMPL
     _SLANGPY_DATA_STORE_IMPL
-    _SLANGPY_TENSOR_STORE_IMPL
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
@@ -333,9 +336,9 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
 
     _SLANGPY_COMMON_TENSOR_IMPL
     _SLANGPY_DATA_LOAD_IMPL
-    _SLANGPY_TENSOR_LOAD_IMPL
+    //_SLANGPY_TENSOR_LOAD_IMPL
     _SLANGPY_DATA_STORE_IMPL
-    _SLANGPY_TENSOR_STORE_IMPL
+    //_SLANGPY_TENSOR_STORE_IMPL
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
@@ -383,9 +386,9 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
 
     _SLANGPY_COMMON_TENSOR_IMPL
     _SLANGPY_DATA_LOAD_IMPL
-    _SLANGPY_TENSOR_LOAD_IMPL
+    //_SLANGPY_TENSOR_LOAD_IMPL
     _SLANGPY_DATA_STORE_IMPL
-    _SLANGPY_TENSOR_STORE_IMPL
+    //_SLANGPY_TENSOR_STORE_IMPL
 
 
     public void add<I : IInteger>(I idx[D], T value)
