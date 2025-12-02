@@ -23,6 +23,7 @@ from .reflectiontypes import (
     UnhandledType,
     ITensorType,
     TensorType,
+    TensorAccess,
     SlangFunction,
     SlangField,
     SlangParameter,

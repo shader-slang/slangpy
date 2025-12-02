@@ -47,7 +47,15 @@ public interface IBaseTensor<T, let D : int>
     public property shape : uint[D];
 }
 
-// Interfaace to represent any readable tensor.
+// Internal base interface for tensor
+public interface IBaseTensor<T, let D : int>
+{
+    public property shape : uint[D];
+}
+
+// Interface for a readable tensor.
+// This can be used as an argument to a function or as a constraint to
+// indicate any type of read-only tensor.
 public interface IROTensor<T, let D : int> : IBaseTensor<T, D>
 {
     public T read_buffer(int idx);
@@ -55,9 +63,13 @@ public interface IROTensor<T, let D : int> : IBaseTensor<T, D>
     public T load<I : IInteger>(vector<I, D> idx);
     public T load<each I : IInteger>(expand each I indices);
 }
+
+// Type alias for a read only tensor.
 public typealias ITensor<T, let D : int> = IROTensor<T, D>;
 
-// Interfaace to represent any writable tensor.
+// Interface for a writable tensor.
+// This can be used as an argument to a function or as a constraint to
+// indicate any type of write-only tensor.
 public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
 {
     public void write_buffer(int idx, T value);
@@ -66,19 +78,21 @@ public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
     public void store<each I : IInteger>(expand each I indices, T value);
 }
 
-// Interface to represent any read-write tensor.
+// Interface for a read-write tensor.
+// This can be used as an argument to a function or as a constraint to
+// indicate any type of read-write tensor.
 public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
 {
 }
 
-#define _SLANGPY_COMMON_TENSOR_IMPL \
+#define _SLANGPY_TENSOR_COMMON_FIELDS \
     private uint[D] _shape;\
     private uint[D] _strides;\
     private uint _offset;\
     public property shape : uint[D] { get { return _shape; } }
 
 
-#define _SLANGPY_DATA_STORE_IMPL \
+#define _SLANGPY_TENSOR_STORE \
     public void store<I : IInteger>(I idx[D], T value)\
     {\
         write_buffer(_idx(idx, _strides, _offset), value);\
@@ -91,8 +105,13 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
     {\
         write_buffer(_idx(expand each indices, _strides, _offset), value);\
     }
+    __generic<I : IInteger>
+    __subscript(ISizedArray<I, D> indices)->T
+    {
+        [BackwardDifferentiable] get { return get(impl::makeIndex<D, I>(indices)); }
+    }
 
-#define _SLANGPY_DATA_LOAD_IMPL \
+#define _SLANGPY_TENSOR_LOAD \
     public T load<I : IInteger>(I idx[D])\
     {\
         return read_buffer(_idx(idx, _strides, _offset));\
@@ -106,7 +125,7 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
         return read_buffer(_idx(expand each indices, _strides, _offset));\
     }
 
-#define _SLANGPY_TENSOR_STORE_IMPL \
+#define _SLANGPY_TENSOR_SLANGPYSTORE \
     public void __slangpy_store(ContextND<D> context, in T value)\
     {\
         this.store(context.call_id, value);\
@@ -168,7 +187,7 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
         }\
     }
 
-#define _SLANGPY_TENSOR_LOAD_IMPL \
+#define _SLANGPY_TENSOR_SLANGPYLOAD \
         public void __slangpy_load(ContextND<D> context, out T value)\
         {\
             value = this.load(context.call_id);\
@@ -229,8 +248,9 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
                 }\
             }\
         }
+    }
 
-// A read only tensor
+// Read only tensor
 public struct ROTensor<T, let D : int> : IROTensor<T, D>
 {
     // Underlying data storage
@@ -241,9 +261,9 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
         return _data[idx];
     }
 
-    _SLANGPY_COMMON_TENSOR_IMPL
-    _SLANGPY_DATA_LOAD_IMPL
-    _SLANGPY_TENSOR_LOAD_IMPL
+    _SLANGPY_TENSOR_COMMON_FIELDS
+    _SLANGPY_TENSOR_LOAD
+    _SLANGPY_TENSOR_SLANGPYLOAD
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
@@ -276,6 +296,7 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
 // Type alias for a read only tensor.
 public typealias Tensor<T, let D : int> = ROTensor<T, D>;
 
+// Write only tensor
 public struct WOTensor<T, let D : int> : IWOTensor<T, D>
 {
     // Underlying data storage
@@ -286,9 +307,9 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
         _data[idx] = value;
     }
 
-    _SLANGPY_COMMON_TENSOR_IMPL
-    _SLANGPY_DATA_STORE_IMPL
-    _SLANGPY_TENSOR_STORE_IMPL
+    _SLANGPY_TENSOR_COMMON_FIELDS
+    _SLANGPY_TENSOR_STORE
+    _SLANGPY_TENSOR_SLANGPYSTORE
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
@@ -317,6 +338,7 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
     }
 }
 
+// Read-write tensor
 public struct RWTensor<T, let D : int> : IRWTensor<T, D>
 {
     // Underlying data storage
@@ -331,11 +353,11 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
         _data[idx] = value;
     }
 
-    _SLANGPY_COMMON_TENSOR_IMPL
-    _SLANGPY_DATA_LOAD_IMPL
-    _SLANGPY_TENSOR_LOAD_IMPL
-    _SLANGPY_DATA_STORE_IMPL
-    _SLANGPY_TENSOR_STORE_IMPL
+    _SLANGPY_TENSOR_COMMON_FIELDS
+    _SLANGPY_TENSOR_LOAD
+    _SLANGPY_TENSOR_SLANGPYLOAD
+    _SLANGPY_TENSOR_STORE
+    _SLANGPY_TENSOR_SLANGPYSTORE
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
@@ -367,6 +389,8 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
     }
 }
 
+// Atomic read-write tensor, that also supports atomic add operations
+// that are typically used for accumulating gradients.
 public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
 {
     // Underlying data storage
@@ -381,11 +405,11 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
         StorageTraits<T>::atomicStore(_data, idx, value);
     }
 
-    _SLANGPY_COMMON_TENSOR_IMPL
-    _SLANGPY_DATA_LOAD_IMPL
-    _SLANGPY_TENSOR_LOAD_IMPL
-    _SLANGPY_DATA_STORE_IMPL
-    _SLANGPY_TENSOR_STORE_IMPL
+    _SLANGPY_TENSOR_COMMON_FIELDS
+    _SLANGPY_TENSOR_LOAD
+    _SLANGPY_TENSOR_SLANGPYLOAD
+    _SLANGPY_TENSOR_STORE
+    _SLANGPY_TENSOR_SLANGPYSTORE
 
 
     public void add<I : IInteger>(I idx[D], T value)

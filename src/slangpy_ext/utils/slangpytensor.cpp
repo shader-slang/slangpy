@@ -309,7 +309,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     NativeTensor* primal;
     if (nb::try_cast(value, primal)) {
         ShaderCursor field = cursor[binding->variable_name()];
-        ShaderCursor primal_field = field.find_field("primal");
+        ShaderCursor primal_field = field.find_field("_primal");
 
         const ref<NativeTensor>& grad_in = primal->grad_in();
         const ref<NativeTensor>& grad_out = primal->grad_out();
@@ -320,11 +320,11 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
             write_shader_cursor_fields(context, binding, primal_field, primal, read_back);
             if (m_d_in) {
                 SGL_CHECK(grad_in, "Missing required input gradients");
-                write_shader_cursor_fields(context, binding, field["d_in"], grad_in.get(), read_back);
+                write_shader_cursor_fields(context, binding, field["_grad_in"], grad_in.get(), read_back);
             }
             if (m_d_out) {
                 SGL_CHECK(grad_out, "Missing required input gradients");
-                write_shader_cursor_fields(context, binding, field["d_out"], grad_out.get(), read_back);
+                write_shader_cursor_fields(context, binding, field["_grad_out"], grad_out.get(), read_back);
             }
         }
 

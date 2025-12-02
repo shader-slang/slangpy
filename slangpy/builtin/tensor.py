@@ -23,6 +23,7 @@ from slangpy.reflection import (
     InterfaceType,
     ITensorType,
     TensorType,
+    TensorAccess,
     vectorize_type,
     EXPERIMENTAL_VECTORIZATION,
 )
@@ -103,10 +104,12 @@ class TensorMarshall(NativeTensorMarshall):
         slang_type = layout.tensor_type(
             element_type=element_type,
             dims=dims,
-            writable=writable,
-            tensor_type=TensorType.tensor,
-            has_grad_in=d_in is not None,
-            has_grad_out=d_out is not None,
+            access=TensorAccess.read_write if writable else TensorAccess.read,
+            tensor_type=(
+                TensorType.difftensor
+                if (d_in is not None or d_out is not None)
+                else TensorType.tensor
+            ),
         )
 
         super().__init__(
@@ -188,20 +191,24 @@ class TensorMarshall(NativeTensorMarshall):
         # Trying to pass tensor to tensor - handle programmatically
         if isinstance(bound_type, ITensorType):
             if bound_type.writable and not self.writable:
-                return None
+                raise TypeError(
+                    f"Can't pass a read-only tensor to a writable tensor ({bound_type.full_name})"
+                )
             if bound_type.has_grad_in and self.d_in is None:
-                return None
+                raise TypeError(
+                    f"Can't pass tensor without input gradient to one that requires it ({bound_type.full_name})"
+                )
             if bound_type.has_grad_out and self.d_out is None:
-                return None
+                raise TypeError(
+                    f"Can't pass tensor without output gradient to one that requires it ({bound_type.full_name})"
+                )
 
-            if bound_type.tensor_type == TensorType.interface:
+            if bound_type.tensor_type == TensorType.itensor:
                 tensor_type = TensorType.tensor
-                has_grad_in = context.call_mode == CallMode.bwds and self.d_in is not None
-                has_grad_out = context.call_mode == CallMode.bwds and self.d_out is not None
+            elif bound_type.tensor_type == TensorType.idifftensor:
+                tensor_type = TensorType.difftensor
             else:
                 tensor_type = bound_type.tensor_type
-                has_grad_in = bound_type.has_grad_in
-                has_grad_out = bound_type.has_grad_out
 
             bound_element_type = bound_type.element_type
             if isinstance(bound_element_type, UnknownType) or bound_element_type.is_generic:
@@ -213,16 +220,16 @@ class TensorMarshall(NativeTensorMarshall):
             else:
                 dims = bound_type.dims
             if not types_equal(el_type, self_element_type):
-                return None
+                raise TypeError(
+                    f"Can't convert tensor with element type {self_element_type.full_name} to tensor with element type {el_type.full_name} ({bound_type.full_name})"
+                )
 
             return [
                 self.layout.tensor_type(
                     element_type=el_type,
                     dims=dims,
-                    writable=bound_type.writable,
+                    access=bound_type.access,
                     tensor_type=tensor_type,
-                    has_grad_in=has_grad_in,
-                    has_grad_out=has_grad_out,
                 )
             ]
 
@@ -352,20 +359,16 @@ class TensorMarshall(NativeTensorMarshall):
             type_name = ITensorType.build_tensor_name(
                 element_type=self.slang_element_type,
                 dims=self.dims,
-                writable=binding.vector_type.writable,
+                access=binding.vector_type.access,
                 tensor_type=binding.vector_type.tensor_type,
-                has_grad_in=binding.vector_type.has_grad_in,
-                has_grad_out=binding.vector_type.has_grad_out,
             )
         else:
             writable = binding.access[0] in (AccessType.write, AccessType.readwrite)
             type_name = ITensorType.build_tensor_name(
                 element_type=self.slang_element_type,
                 dims=self.dims,
-                writable=writable,
+                access=TensorAccess.read_write if writable else TensorAccess.read,
                 tensor_type=TensorType.tensor,
-                has_grad_in=self.d_in is not None,
-                has_grad_out=self.d_out is not None,
             )
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 

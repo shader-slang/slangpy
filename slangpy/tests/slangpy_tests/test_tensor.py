@@ -46,9 +46,15 @@ def compare_tensors(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]):
         "copy_tensor_each_index",
         "copy_tensor_array_index",
         "copy_tensor_vector_index",
-        # "copy_tensor_each_loadstore",  # IGNORE
+        # "copy_tensor_each_loadstore",  # IGNORE (store-each doesn't work)
         "copy_tensor_array_loadstore",
         "copy_tensor_vector_loadstore",
+        "copy_difftensor_each_index",
+        "copy_difftensor_array_index",
+        "copy_difftensor_vector_index",
+        # "copy_difftensor_each_loadstore",  # IGNORE (store-each doesn't work)
+        "copy_difftensor_array_loadstore",
+        "copy_difftensor_vector_loadstore",
     ],
 )
 def test_simple_copy(device_type: DeviceType, func_name: str):
@@ -59,6 +65,10 @@ def test_simple_copy(device_type: DeviceType, func_name: str):
     din = np.random.randn(1000, 3).astype(np.float32)
     tin = Tensor.from_numpy(device, din)
     tout = Tensor.empty_like(tin)
+
+    if "difftensor" in func_name:
+        tin = tin.with_grads(None, Tensor.empty_like(tin))
+        tout = tout.with_grads(Tensor.empty_like(tout), None)
 
     func(grid(tin.shape), tin, tout)
 
