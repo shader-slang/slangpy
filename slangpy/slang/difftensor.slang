@@ -50,8 +50,6 @@ public interface IRODiffTensor<T : IDifferentiable, let D : int>
     public T load<I : IInteger>(I idx[D]);
     [Differentiable]
     public T load<I : IInteger>(vector<I, D> idx);
-
-    //NOTE: These prevent things compiling - can't resolve them for some reason
     //[Differentiable]
     //public T load<each I : IInteger>(expand each I indices);
 
@@ -72,8 +70,6 @@ public interface IWODiffTensor<T : IDifferentiable, let D : int>
     public void store<I : IInteger>(I idx[D], T value);
     [Differentiable]
     public void store<I : IInteger>(vector<I, D> idx, T value);
-
-    // NOTE: These prevent things compiling - can't resolve them for some reason
     //[Differentiable]
     //public void store<each I : IInteger>(expand each I indices, T value);
 
@@ -87,7 +83,7 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
 {
 }
 
-#define _SLANGPY_COMMON_DIFFTENSOR_IMPL \
+#define _SLANGPY_DIFFTENSOR_COMMON \
     public property shape : uint[D] { get { return _primal.shape; } }
 
     /*
@@ -125,7 +121,7 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
         return read_buffer(_idx(expand each indices, _strides, _offset));                                              \
     }*/
 
-#define _SLANGPY_DIFFTENSOR_STORE_IMPL                                                                                 \
+#define _SLANGPY_DIFFTENSOR_SLANGPYSTORE                                                                                 \
     [Differentiable]                                                                                                   \
     public void __slangpy_store(ContextND<D> context, in T value)                                                      \
     {                                                                                                                  \
@@ -192,7 +188,7 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
         }                                                                                                              \
     }
 
-#define _SLANGPY_DIFFTENSOR_LOAD_IMPL                                                                                  \
+#define _SLANGPY_DIFFTENSOR_SLANGPYLOAD                                                                                  \
     [Differentiable]                                                                                                   \
     public void __slangpy_load(ContextND<D> context, out T value)                                                      \
     {                                                                                                                  \
@@ -266,8 +262,8 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
     private ROTensor<T, D> _primal;
     private AtomicTensor<T.Differential, D> _grad_out;
 
-    _SLANGPY_COMMON_DIFFTENSOR_IMPL
-    _SLANGPY_DIFFTENSOR_LOAD_IMPL
+    _SLANGPY_DIFFTENSOR_COMMON
+    _SLANGPY_DIFFTENSOR_SLANGPYLOAD
 
     [Differentiable]
     [BackwardDerivative(_load_bwd_array)]
@@ -282,15 +278,16 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
         return _primal.load(idx);
     }
 
-    //NOTE: Can't get bwds pattern to match - I != I or something!
-    /*
+    //NOTE: I'm not certain it's possible to create a bwds signature for this, so resorted
+    //to building array internally and just calling through to array load.
     [Differentiable]
-    [BackwardDerivative(_load_bwd_expand)]
     public T load<each I : IInteger>(expand each I indices)
     {
-        return _primal.load(expand each indices);
+        int idx = 0;
+        int arr[D];
+        expand arr[idx++] = (each indices).toUInt();
+        return load(arr);
     }
-    */
 
     void _load_bwd_array<I : IInteger>(I idx[D], T.Differential grad)
     {
@@ -301,29 +298,19 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
         _grad_out.add(idx, grad);
     }
 
-    /*
-    void _load_bwd_expand<each I : IInteger>(expand each I indices, T.Differential grad)
-    {
-        _grad_out.add(expand each indices, grad);
-    }
-    */
-
-
     public __subscript<I : IInteger>(I indices[D])->T
     {
-        [BackwardDifferentiable] get { return load(indices); }
+        [Differentiable] get { return load(indices); }
     }
      public __subscript<I : IInteger>(vector<I, D> indices)->T
-    {
-        [BackwardDifferentiable] get { return load(indices); }
+     {
+         [Differentiable] get { return load(indices); }
     }
 
-    /*
     public __subscript<each I : IInteger>(expand each I indices)->T
     {
-        get { return load(expand each indices); }
+        [Differentiable] get { return load(expand each indices); }
     }
-    */
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -346,8 +333,8 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
     private RWTensor<T, D> _primal;
     private ROTensor<T.Differential, D> _grad_in;
 
-    _SLANGPY_COMMON_DIFFTENSOR_IMPL
-    _SLANGPY_DIFFTENSOR_STORE_IMPL
+    _SLANGPY_DIFFTENSOR_COMMON
+    _SLANGPY_DIFFTENSOR_SLANGPYSTORE
 
     [Differentiable]
     [BackwardDerivative(_store_bwd_array)]
@@ -362,14 +349,16 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
         _primal.store(idx, value);
     }
 
-    // NOTE: Can't get bwds pattern to match - I != I or something!
-    /*
+    // NOTE: I'm not certain it's possible to create a bwds signature for this, so resorted
+    // to building array internally and just calling through to array store.
     [Differentiable]
     public void store<each I : IInteger>(expand each I indices, T value)
     {
-        _primal.store(expand each indices, value);
+        int idx = 0;
+        int arr[D];
+        expand arr[idx++] = (each indices).toUInt();
+        store(arr, value);
     }
-    */
 
     public void _store_bwd_array<I : IInteger>(I idx[D], inout DifferentialPair<T> grad)
     {
@@ -382,19 +371,17 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
-        [BackwardDifferentiable] set { return store(indices, newValue); }
+        [Differentiable] set { return store(indices, newValue); }
     }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
+    public __subscript<I : IInteger>(vector<I, D> indices)->T
     {
-        [BackwardDifferentiable] set { return store(indices, newValue); }
+        [Differentiable] set { return store(indices, newValue); }
     }
-
-    /*
     public __subscript<each I : IInteger>(expand each I indices)->T
     {
-        set { return store(expand each indices, newValue); }
+        [Differentiable] set { return store(expand each indices, newValue); }
     }
-    */
+
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -413,9 +400,9 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     private ROTensor<T.Differential, D> _grad_in;
     private AtomicTensor<T.Differential, D> _grad_out;
 
-    _SLANGPY_COMMON_DIFFTENSOR_IMPL
-    _SLANGPY_DIFFTENSOR_LOAD_IMPL
-    _SLANGPY_DIFFTENSOR_STORE_IMPL
+    _SLANGPY_DIFFTENSOR_COMMON
+    _SLANGPY_DIFFTENSOR_SLANGPYLOAD
+    _SLANGPY_DIFFTENSOR_SLANGPYSTORE
 
     [Differentiable]
     public T load<I : IInteger>(I idx[D])
@@ -427,13 +414,18 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     {
         return _primal.load(idx);
     }
-    /*
+
+    // NOTE: I'm not certain it's possible to create a bwds signature for this, so resorted
+    // to building array internally and just calling through to array load.
     [Differentiable]
     public T load<each I : IInteger>(expand each I indices)
     {
-        return _primal.load(expand each indices);
+        int idx = 0;
+        int arr[D];
+        expand arr[idx++] = (each indices).toUInt();
+        return load(arr);
     }
-    */
+
     [Differentiable]
     public void store<I : IInteger>(I idx[D], T value)
     {
@@ -444,39 +436,45 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     {
         _primal.store(idx, value);
     }
-    /*
+
+    // NOTE: I'm not certain it's possible to create a bwds signature for this, so resorted
+    // to building array internally and just calling through to array store.
     [Differentiable]
     public void store<each I : IInteger>(expand each I indices, T value)
     {
-        _primal.store(expand each indices, value);
+        int idx = 0;
+        int arr[D];
+        expand arr[idx++] = (each indices).toUInt();
+        store(arr, value);
     }
-    */
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
-        get { return load(indices); }
-        set { return store(indices, newValue); }
+        [Differentiable] get { return load(indices); }
+        [Differentiable] set { return store(indices, newValue); }
     }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
+    public __subscript<I : IInteger>(vector<I, D> indices)->T
     {
-        get { return load(indices); }
-        set { return store(indices, newValue); }
+        [Differentiable] get { return load(indices); }
+        [Differentiable] set { return store(indices, newValue); }
     }
-
-    /*
     public __subscript<each I : IInteger>(expand each I indices)->T
     {
-        get { return load(expand each indices); }
-        set { return store(expand each indices, newValue); }
+        [Differentiable] get { return load(expand each indices); }
+        [Differentiable] set { return store(expand each indices, newValue); }
     }
-    */
 
+    public void __slangpy_load(Context0D context, out This value)
+    {
+        value = this;
+    }
     public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out RWDiffTensor<T, SliceD> value)
     {
         _primal.__slangpy_load<SliceD>(ctx, value._primal);
         _grad_in.__slangpy_load<SliceD>(ctx, value._grad_in);
         _grad_out.__slangpy_load<SliceD>(ctx, value._grad_out);
     }
+
 }
 
 #endif

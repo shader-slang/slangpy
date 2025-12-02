@@ -18,6 +18,6 @@ __include "callidarg.slang";
 __include "atomics.slang";
 __include "staticarray.slang";
 __include "tensor.slang";
-//__include "difftensor.slang";
+__include "difftensor.slang";
 __include "gridarg.slang";
 __include "callshape.slang";
