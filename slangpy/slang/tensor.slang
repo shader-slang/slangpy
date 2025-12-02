@@ -41,40 +41,32 @@ void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], 
         new_offset += stride[i] * idx[i];
 }
 
-// Public interface for a read only tensor. This can be used as the argument
-// to a function (or a generic constraint) to indicate it should take any
-// type of read-only tensor.
-public interface IROTensor<T, let D : int>
+// Internal base interface for tensor
+public interface IBaseTensor<T, let D : int>
 {
-    public T read_buffer(int idx);
-    public T load<I : IInteger>(I idx[D]);
-    public T load<I: IInteger>(vector<I, D> idx);
-    public T load<each I : IInteger>(expand each I indices);
-
     public property shape : uint[D];
 }
 
-// Type alias for a read only tensor interface This can be used as the argument
-// to a function (or a generic constraint) to indicate it should take any
-// type of read-only tensor.
+// Interfaace to represent any readable tensor.
+public interface IROTensor<T, let D : int> : IBaseTensor<T, D>
+{
+    public T read_buffer(int idx);
+    public T load<I : IInteger>(I idx[D]);
+    public T load<I : IInteger>(vector<I, D> idx);
+    public T load<each I : IInteger>(expand each I indices);
+}
 public typealias ITensor<T, let D : int> = IROTensor<T, D>;
 
-// Public interface for a write only tensor. This can be used as the argument
-// to a function (or a generic constraint) to indicate it should take any
-// type of write-only tensor.
-public interface IWOTensor<T, let D : int>
+// Interfaace to represent any writable tensor.
+public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
 {
     public void write_buffer(int idx, T value);
     public void store<I : IInteger>(I idx[D], T value);
     public void store<I : IInteger>(vector<I, D> idx, T value);
     public void store<each I : IInteger>(expand each I indices, T value);
-
-    public property shape : uint[D];
 }
 
-// Public interface for a read-write tensor. This can be used as the argument
-// to a function (or a generic constraint) to indicate it should take any
-// type of read-write tensor.
+// Interface to represent any read-write tensor.
 public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
 {
 }
