@@ -47,12 +47,6 @@ public interface IBaseTensor<T, let D : int>
     public property shape : uint[D];
 }
 
-// Internal base interface for tensor
-public interface IBaseTensor<T, let D : int>
-{
-    public property shape : uint[D];
-}
-
 // Interface for a readable tensor.
 // This can be used as an argument to a function or as a constraint to
 // indicate any type of read-only tensor.
@@ -104,11 +98,6 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
     public void store<each I : IInteger>(expand each I indices, T value)\
     {\
         write_buffer(_idx(expand each indices, _strides, _offset), value);\
-    }
-    __generic<I : IInteger>
-    __subscript(ISizedArray<I, D> indices)->T
-    {
-        [BackwardDifferentiable] get { return get(impl::makeIndex<D, I>(indices)); }
     }
 
 #define _SLANGPY_TENSOR_LOAD \
@@ -248,7 +237,7 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
                 }\
             }\
         }
-    }
+
 
 // Read only tensor
 public struct ROTensor<T, let D : int> : IROTensor<T, D>
