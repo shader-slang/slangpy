@@ -261,35 +261,41 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
 
         // Handle grad_in
         if (m_d_in) {
-            ref<TensorRef> grad_in_ref = tensorref->grad_in();
-            SGL_CHECK(grad_in_ref, "Missing required input gradients");
-            auto grad_in_tensor_opt = grad_in_ref->tensor();
-            if (grad_in_tensor_opt.has_value()) {
-                auto& grad_in_tensor = grad_in_tensor_opt.value();
-                write_data(
-                    field["d_in"],
-                    grad_in_tensor.data(),
-                    extract_shape(grad_in_tensor),
-                    extract_strides(grad_in_tensor),
-                    0 // offset is 0 for direct tensor access
-                );
+            ShaderCursor grad_in_field = field.find_field("_grad_in");
+            if (grad_in_field.is_valid()) {
+                ref<TensorRef> grad_in_ref = tensorref->grad_in();
+                SGL_CHECK(grad_in_ref, "Missing required input gradients");
+                auto grad_in_tensor_opt = grad_in_ref->tensor();
+                if (grad_in_tensor_opt.has_value()) {
+                    auto& grad_in_tensor = grad_in_tensor_opt.value();
+                    write_data(
+                        grad_in_field,
+                        grad_in_tensor.data(),
+                        extract_shape(grad_in_tensor),
+                        extract_strides(grad_in_tensor),
+                        0 // offset is 0 for direct tensor access
+                    );
+                }
             }
         }
 
         // Handle grad_out
         if (m_d_out) {
-            ref<TensorRef> grad_out_ref = tensorref->grad_out();
-            SGL_CHECK(grad_out_ref, "Missing required output gradients");
-            auto grad_out_tensor_opt = grad_out_ref->tensor();
-            if (grad_out_tensor_opt.has_value()) {
-                auto& grad_out_tensor = grad_out_tensor_opt.value();
-                write_data(
-                    field["d_out"],
-                    grad_out_tensor.data(),
-                    extract_shape(grad_out_tensor),
-                    extract_strides(grad_out_tensor),
-                    0 // offset is 0 for direct tensor access
-                );
+            ShaderCursor grad_out_field = field.find_field("_grad_out");
+            if (grad_out_field.is_valid()) {
+                ref<TensorRef> grad_out_ref = tensorref->grad_out();
+                SGL_CHECK(grad_out_ref, "Missing required output gradients");
+                auto grad_out_tensor_opt = grad_out_ref->tensor();
+                if (grad_out_tensor_opt.has_value()) {
+                    auto& grad_out_tensor = grad_out_tensor_opt.value();
+                    write_data(
+                        grad_out_field,
+                        grad_out_tensor.data(),
+                        extract_shape(grad_out_tensor),
+                        extract_strides(grad_out_tensor),
+                        0 // offset is 0 for direct tensor access
+                    );
+                }
             }
         }
     }
@@ -318,13 +324,21 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
             write_shader_cursor_fields(context, binding, field, primal, read_back);
         } else {
             write_shader_cursor_fields(context, binding, primal_field, primal, read_back);
+
             if (m_d_in) {
-                SGL_CHECK(grad_in, "Missing required input gradients");
-                write_shader_cursor_fields(context, binding, field["_grad_in"], grad_in.get(), read_back);
+                ShaderCursor grad_in_field = field.find_field("_grad_in");
+                if (grad_in_field.is_valid()) {
+                    SGL_CHECK(grad_in, "Missing required input gradients");
+                    write_shader_cursor_fields(context, binding, grad_in_field, grad_in.get(), read_back);
+                }
             }
+
             if (m_d_out) {
-                SGL_CHECK(grad_out, "Missing required input gradients");
-                write_shader_cursor_fields(context, binding, field["_grad_out"], grad_out.get(), read_back);
+                ShaderCursor grad_out_field = field.find_field("_grad_out");
+                if (grad_out_field.is_valid()) {
+                    SGL_CHECK(grad_out, "Missing required input gradients");
+                    write_shader_cursor_fields(context, binding, grad_out_field, grad_out.get(), read_back);
+                }
             }
         }
 

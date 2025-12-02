@@ -158,9 +158,40 @@ float[5] matrix_vector_interfaces(ITensor<float, 2> weights, ITensor<float, 1> b
     return result;
 }
 
+[Differentiable]
+float[5] matrix_vector_interfaces_diff(DiffTensor<float, 2> weights, DiffTensor<float, 1> biases, float[8] x)
+{
+    float[5] result;
+    for (int r = 0; r < 5; ++r)
+    {
+        float y = biases.load(r); // Workaround for slang bug #5921: Have to avoid [] operator, or derivatives vanish
+        for (int c = 0; c < 8; ++c)
+            y += weights.load(r, c) * x[c];
+
+        result[r] = y;
+    }
+    return result;
+}
+
+
+float[FanOut] matrix_vector_generic<let FanIn : int, let FanOut : int>(ITensor<float, 2> weights, ITensor<float, 1> biases, float[FanIn] x)
+{
+    float[FanOut] result;
+    [ForceUnroll]
+    for (int r = 0; r < FanOut; ++r)
+    {
+        float y = biases.load(r);
+        [ForceUnroll]
+        for (int c = 0; c < FanIn; ++c)
+            y += weights.load(r, c) * x[c];
+
+        result[r] = y;
+    }
+    return result;
+}
 
 [Differentiable]
-float[FanOut] matrix_vector_generic<let FanIn : int, let FanOut : int>(ITensor<float, 2> weights, ITensor<float, 1> biases, float[FanIn] x)
+float[FanOut] matrix_vector_generic_diff<let FanIn : int, let FanOut : int>( DiffTensor<float, 2> weights, DiffTensor<float, 1> biases, float[FanIn] x )
 {
     float[FanOut] result;
     [ForceUnroll]

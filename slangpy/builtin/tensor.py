@@ -363,12 +363,31 @@ class TensorMarshall(NativeTensorMarshall):
                 tensor_type=binding.vector_type.tensor_type,
             )
         else:
-            writable = binding.access[0] in (AccessType.write, AccessType.readwrite)
+            if context.call_mode == CallMode.prim or binding.access[0] != AccessType.none:
+                if binding.access[0] == AccessType.read:
+                    access = TensorAccess.read
+                elif binding.access[0] == AccessType.write:
+                    access = TensorAccess.write
+                else:
+                    access = TensorAccess.read_write
+            else:
+                if binding.access[1] == AccessType.read:
+                    access = TensorAccess.write
+                elif binding.access[1] == AccessType.write:
+                    access = TensorAccess.read
+                else:
+                    access = TensorAccess.read_write
+
+            if context.call_mode == CallMode.prim or binding.access[1] == AccessType.none:
+                tensor_type = TensorType.tensor
+            else:
+                tensor_type = TensorType.difftensor
+
             type_name = ITensorType.build_tensor_name(
                 element_type=self.slang_element_type,
                 dims=self.dims,
-                access=TensorAccess.read_write if writable else TensorAccess.read,
-                tensor_type=TensorType.tensor,
+                access=access,
+                tensor_type=tensor_type,
             )
         cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 

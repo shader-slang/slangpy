@@ -50,6 +50,8 @@ public interface IRODiffTensor<T : IDifferentiable, let D : int>
     public T load<I : IInteger>(I idx[D]);
     [Differentiable]
     public T load<I : IInteger>(vector<I, D> idx);
+
+    //NOTE: This can not be resolved if I enable it - the interfaces below fail to compile
     //[Differentiable]
     //public T load<each I : IInteger>(expand each I indices);
 
@@ -70,6 +72,8 @@ public interface IWODiffTensor<T : IDifferentiable, let D : int>
     public void store<I : IInteger>(I idx[D], T value);
     [Differentiable]
     public void store<I : IInteger>(vector<I, D> idx, T value);
+
+    // NOTE: This can not be resolved if I enable it - the interfaces below fail to compile
     //[Differentiable]
     //public void store<each I : IInteger>(expand each I indices, T value);
 
