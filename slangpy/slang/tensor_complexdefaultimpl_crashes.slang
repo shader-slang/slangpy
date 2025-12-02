@@ -11,7 +11,7 @@ from properties, as well as using the more complex default implementations.
 NOTE: This version crashes on complication.
 */
 
-#if 0
+#if 1
 
 int _idx<I: IInteger, let N : int>(I[N] indices, uint stride[N], uint offset)
 {
