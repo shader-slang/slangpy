@@ -208,7 +208,7 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
                           int offset)
     {
         // Write buffer pointer
-        cursor["buffer"].set_pointer(reinterpret_cast<uint64_t>(data_ptr));
+        cursor["_data"].set_pointer(reinterpret_cast<uint64_t>(data_ptr));
 
         // Write shape
         cursor["_shape"]._set_array_unsafe(
@@ -230,18 +230,17 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
         }
 
         // Write layout
-        auto layout = cursor["layout"];
-        layout["strides"]._set_array_unsafe(
+        cursor["_strides"]._set_array_unsafe(
             strides.empty() ? nullptr : &strides[0],
             strides.size() * 4,
             strides.size(),
             TypeReflection::ScalarType::int32
         );
-        layout["offset"] = offset;
+        cursor["_offset"] = offset;
     };
 
     // Write primal tensor
-    ShaderCursor primal_field = field.find_field("primal");
+    ShaderCursor primal_field = field.find_field("_primal");
     if (!primal_field.is_valid()) {
         write_data(
             field,
@@ -460,12 +459,10 @@ nb::object NativeTensorMarshall::create_dispatchdata(nb::object data) const
     // Cast value to buffer, and get the cursor field to write to.
     auto buffer = nb::cast<NativeTensor*>(data);
     nb::dict res;
-    res["buffer"] = buffer->storage();
+    res["_data"] = buffer->storage();
     res["_shape"] = buffer->shape().as_vector();
-    nb::dict layout;
-    layout["offset"] = buffer->offset();
-    layout["strides"] = buffer->strides().as_vector();
-    res["layout"] = layout;
+    res["_offset"] = buffer->offset();
+    res["_strides"] = buffer->strides().as_vector();
     return res;
 }
 

@@ -22,7 +22,7 @@ void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, RWTensor<float, 2> res)
     for (int i = 0; i < a.shape[0]; i++)
         [MaxIters(8)]
         for (int j = 0; j < a.shape[1]; j++)
-            res.set({i, j}, a[i,j] + b[i, j]);
+            res[i,j] = a[i,j] + b[i, j];
 }
 
 [Differentiable]

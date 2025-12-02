@@ -361,8 +361,8 @@ def test_pass_buffer_to_buffer(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-int add_numbers(NDBuffer<int,1> a, NDBuffer<int,1> b) {
-    return a[{0}]+b[{0}];
+int add_numbers(Tensor<int,1> a, Tensor<int,1> b) {
+    return a[0]+b[0];
 }
 """,
     )

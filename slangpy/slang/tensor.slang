@@ -55,7 +55,7 @@ public interface IROTensor<T, let D : int> : IBaseTensor<T, D>
     public T read_buffer(int idx);
     public T load<I : IInteger>(I idx[D]);
     public T load<I : IInteger>(vector<I, D> idx);
-    public T load<each I : IInteger>(expand each I indices);
+    //public T load<each I : IInteger>(expand each I indices);
 }
 
 // Type alias for a read only tensor.
@@ -69,7 +69,7 @@ public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
     public void write_buffer(int idx, T value);
     public void store<I : IInteger>(I idx[D], T value);
     public void store<I : IInteger>(vector<I, D> idx, T value);
-    public void store<each I : IInteger>(expand each I indices, T value);
+    //public void store<each I : IInteger>(expand each I indices, T value);
 }
 
 // Interface for a read-write tensor.
@@ -77,6 +77,126 @@ public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
 // indicate any type of read-write tensor.
 public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
 {
+}
+
+
+public extension<T, TensorType : IROTensor<T, 1>> TensorType
+{
+    [Differentiable]
+    public T load(int i0)
+    {
+        return load(int[1](i0));
+    }
+}
+public extension<T, TensorType : IROTensor<T, 2>> TensorType
+{
+    [Differentiable]
+    public T load(int i0, int i1)
+    {
+        return load(int[2](i0, i1));
+    }
+}
+public extension<T, TensorType : IROTensor<T, 3>> TensorType
+{
+    [Differentiable]
+    public T load(int i0, int i1, int i2)
+    {
+        return load(int[3](i0, i1, i2));
+    }
+}
+
+public extension<T, TensorType : IWOTensor<T, 1>> TensorType
+{
+    [Differentiable]
+    public void store(int i0, T value)
+    {
+        store(int[1](i0), value);
+    }
+}
+public extension<T, TensorType : IWOTensor<T, 2>> TensorType
+{
+    [Differentiable]
+    public void store(int i0, int i1, T value)
+    {
+        store(int[2](i0, i1), value);
+    }
+}
+public extension<T, TensorType : IWOTensor<T, 3>> TensorType
+{
+    [Differentiable]
+    public void store(int i0, int i1, int i2, T value)
+    {
+        store(int[3](i0, i1, i2), value);
+    }
+}
+
+public extension<T> ROTensor<T, 1>
+{
+    public __subscript(int i0)->T
+    {
+        get { return load(i0); }
+    }
+}
+public extension<T> ROTensor<T, 2>
+{
+    public __subscript(int i0, int i1)->T
+    {
+        get { return load(i0, i1); }
+    }
+}
+public extension<T> ROTensor<T, 3>
+{
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        get { return load(i0, i1, i2); }
+    }
+}
+
+public extension<T> WOTensor<T, 1>
+{
+    public __subscript(int i0)->T
+    {
+        set { store(i0, newValue); }
+    }
+}
+public extension<T> WOTensor<T, 2>
+{
+    public __subscript(int i0, int i1)->T
+    {
+        set { store(i0, i1, newValue); }
+    }
+}
+public extension<T> WOTensor<T, 3>
+{
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        set { store(i0, i1, i2, newValue); }
+    }
+}
+
+public extension<T> RWTensor<T, 1>
+{
+    public __subscript(int i0)->T
+    {
+        get { return load(i0); }
+        set { store(i0, newValue); }
+    }
+}
+public extension<T> RWTensor<T, 2>
+{
+    public __subscript(int i0, int i1)->T
+    {
+        get { return load(i0, i1); }
+        set { store(i0, i1, newValue); }
+    }
+}
+public extension<T> RWTensor<T, 3>
+{
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        get { return load(i0, i1, i2); }
+        set { store(i0, i1, i2, newValue); }
+    }
 }
 
 #define _SLANGPY_TENSOR_COMMON_FIELDS \
@@ -94,10 +214,6 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
     public void store<I : IInteger>(vector<I, D> idx, T value)\
     {\
         write_buffer(_idx(idx, _strides, _offset), value);\
-    }\
-    public void store<each I : IInteger>(expand each I indices, T value)\
-    {\
-        write_buffer(_idx(expand each indices, _strides, _offset), value);\
     }
 
 #define _SLANGPY_TENSOR_LOAD \
@@ -108,10 +224,6 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
     public T load<I : IInteger>(vector<I, D> idx)\
     {\
         return read_buffer(_idx(idx, _strides, _offset));\
-    }\
-    public T load<each I : IInteger>(expand each I indices)\
-    {\
-        return read_buffer(_idx(expand each indices, _strides, _offset));\
     }
 
 #define _SLANGPY_TENSOR_SLANGPYSTORE \
@@ -243,7 +355,7 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
 public struct ROTensor<T, let D : int> : IROTensor<T, D>
 {
     // Underlying data storage
-    private StorageTraits<T>::BufferType _data;
+    public StorageTraits<T>::BufferType _data;
 
     public T read_buffer(int idx)
     {
@@ -262,10 +374,6 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
     {
         get { return load(indices); }
     }
-     public __subscript<each I : IInteger>(expand each I indices)->T
-    {
-        get { return load(expand each indices); }
-    }
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -279,7 +387,6 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }
-
 }
 
 // Type alias for a read only tensor.
@@ -289,7 +396,7 @@ public typealias Tensor<T, let D : int> = ROTensor<T, D>;
 public struct WOTensor<T, let D : int> : IWOTensor<T, D>
 {
     // Underlying data storage
-    private StorageTraits<T>::RWBufferType _data;
+    public StorageTraits<T>::RWBufferType _data;
 
     public void write_buffer(int idx, T value)
     {
@@ -307,10 +414,6 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
      public __subscript<I : IInteger>(vector<I, D> indices)->T
     {
         set { return store(indices, newValue); }
-    }
-     public __subscript<each I : IInteger>(expand each I indices)->T
-    {
-        set { return store(expand each indices, newValue); }
     }
 
     public void __slangpy_load(Context0D context, out This value)
@@ -331,7 +434,7 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
 public struct RWTensor<T, let D : int> : IRWTensor<T, D>
 {
     // Underlying data storage
-    private StorageTraits<T>::RWBufferType _data;
+    public StorageTraits<T>::RWBufferType _data;
 
     public T read_buffer(int idx)
     {
@@ -357,11 +460,6 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
     {
         get { return load(indices); }
         set { return store(indices, newValue); }
-    }
-     public __subscript<each I : IInteger>(expand each I indices)->T
-    {
-        get { return load(expand each indices); }
-        set { return store(expand each indices, newValue); }
     }
 
     public void __slangpy_load(Context0D context, out This value)
@@ -383,7 +481,7 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
 public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
 {
     // Underlying data storage
-    private StorageTraits<T>::AtomicBufferType _data;
+    public StorageTraits<T>::AtomicBufferType _data;
 
     public T read_buffer(int idx)
     {
@@ -424,11 +522,6 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
         get { return load(indices); }
         set { return store(indices, newValue); }
     }
-    public __subscript<each I : IInteger>(expand each I indices)->T
-    {
-        get { return load(expand each indices); }
-        set { return store(expand each indices, newValue); }
-    }
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -444,5 +537,58 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     }
 }
 
+
+// Bespoke load/store for accessing pointers from a uint64 tensor
+public extension<let D : int, TensorType : IROTensor<uint64_t, D>> TensorType
+{
+    public void __slangpy_load<PtrT>(ContextND<D> context, out Ptr<PtrT> value)
+    {
+        uint64_t rawPtr = this.load(context.call_id);
+        value = (Ptr<PtrT>)rawPtr;
+    }
+    public void __slangpy_load<PtrT>(ContextND<D> context, out ImmutablePtr<PtrT> value)
+    {
+        uint64_t rawPtr = this.load(context.call_id);
+        value = (ImmutablePtr<PtrT>)rawPtr;
+    }
+}
+public extension<let D : int, TensorType : IWOTensor<uint64_t, D>> TensorType
+{
+    public void __slangpy_store<PtrT>(ContextND<D> context, Ptr<PtrT> value)
+    {
+        uint64_t rawPtr = (uint64_t)value;
+        this.store(context.call_id, rawPtr);
+    }
+    public void __slangpy_store<PtrT>(ContextND<D> context, ImmutablePtr<PtrT> value)
+    {
+        uint64_t rawPtr = (uint64_t)value;
+        this.store(context.call_id, rawPtr);
+    }
+}
+
+// Bespoke loads for directly reading underlying structured buffers from tensor
+#ifndef __TARGET_CUDA__
+public extension<T, let D: int> ROTensor<T, D>
+{
+    public void __slangpy_load(Context0D context, out StructuredBuffer<T> value)
+    {
+        value = this._data;
+    }
+}
+public extension<T, let D : int> WOTensor<T, D>
+{
+    public void __slangpy_load(Context0D context, out RWStructuredBuffer<T> value)
+    {
+        value = this._data;
+    }
+}
+public extension<T, let D : int> RWTensor<T, D>
+{
+    public void __slangpy_load(Context0D context, out RWStructuredBuffer<T> value)
+    {
+        value = this._data;
+    }
+}
+#endif
 
 #endif

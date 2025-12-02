@@ -155,12 +155,10 @@ nb::object NativeNDBufferMarshall::create_dispatchdata(nb::object data) const
     // Cast value to buffer, and get the cursor field to write to.
     auto buffer = nb::cast<NativeNDBuffer*>(data);
     nb::dict res;
-    res["buffer"] = buffer->storage();
+    res["_data"] = buffer->storage();
     res["_shape"] = buffer->shape().as_vector();
-    nb::dict layout;
-    layout["offset"] = buffer->offset();
-    layout["strides"] = buffer->strides().as_vector();
-    res["layout"] = layout;
+    res["_offset"] = buffer->offset();
+    res["_strides"] = buffer->strides().as_vector();
     return res;
 }
 

@@ -282,8 +282,12 @@ void func_rwbytebuffer(RWByteAddressBuffer a)
     return;
 }
 
-// Passing NDBuffers and Tensors
-void func_itensor(ITensor<float, 2> a)
+// Passing Tensors and DiffTensors
+void func_irotensor(IROTensor<float, 2> a)
+{
+    return;
+}
+void func_iwotensor(IWOTensor<float, 2> a)
 {
     return;
 }
@@ -291,7 +295,11 @@ void func_irwtensor(IRWTensor<float, 2> a)
 {
     return;
 }
-void func_tensor(Tensor<float, 2> a)
+void func_rotensor(ROTensor<float, 2> a)
+{
+    return;
+}
+void func_wotensor(WOTensor<float, 2> a)
 {
     return;
 }
@@ -299,45 +307,38 @@ void func_rwtensor(RWTensor<float, 2> a)
 {
     return;
 }
-void func_ndbuffer(NDBuffer<float, 2> a)
-{
-    return;
-}
-void func_rwndbuffer(RWNDBuffer<float, 2> a)
-{
-    return;
-}
 void func_atomictensor(AtomicTensor<float, 2> a)
 {
     return;
 }
-void func_gradintensor(GradInTensor<float, 2> a)
+
+void func_irodiff_tensor(IRODiffTensor<float, 2> a)
 {
     return;
 }
-void func_gradouttensor(GradOutTensor<float, 2> a)
+void func_iwodiff_tensor(IWODiffTensor<float, 2> a)
 {
     return;
 }
-void func_gradinouttensor(GradInOutTensor<float, 2> a)
+void func_irwdiff_tensor(IRWDiffTensor<float, 2> a)
+{
+    return;
+}
+void func_rodiff_tensor(RODiffTensor<float, 2> a)
+{
+    return;
+}
+void func_wodiff_tensor(WODiffTensor<float, 2> a)
+{
+    return;
+}
+void func_rwdiff_tensor(RWDiffTensor<float, 2> a)
 {
     return;
 }
 
-void func_generic_element_ndbuffer<T>(NDBuffer<T, 2> a)
-{
-    return;
-}
-void func_generic_dims_ndbuffer<let N: int>(NDBuffer<float, N> a)
-{
-    return;
-}
-void func_generic_ndbuffer<T, let N: int>(NDBuffer<T, N> a)
-{
-    return;
-}
 
-void func_generic_element_tensor<T: IDifferentiable>(Tensor<T, 2> a)
+void func_generic_element_tensor<T>(Tensor<T, 2> a)
 {
     return;
 }
@@ -345,11 +346,23 @@ void func_generic_dims_tensor<let N: int>(Tensor<float, N> a)
 {
     return;
 }
-void func_generic_tensor<T : IDifferentiable, let N: int>(Tensor<T, N> a)
+void func_generic_tensor<T, let N: int>(Tensor<T, N> a)
 {
     return;
 }
 
+void func_generic_element_difftensor<T : IDifferentiable>(DiffTensor<T, 2> a) where T.Differential : IAtomicAddable
+{
+    return;
+}
+void func_generic_dims_difftensor<let N : int>(DiffTensor<float, N> a)
+{
+    return;
+}
+void func_generic_difftensor<T : IDifferentiable, let N : int>(DiffTensor<T, N> a) where T.Differential : IAtomicAddable
+{
+    return;
+}
 
 // Passing textures
 void func_texture1d(Texture1D<float4> a)

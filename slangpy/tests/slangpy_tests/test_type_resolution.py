@@ -421,7 +421,7 @@ def test_ndbuffer_none_vectorize(device_type: spy.DeviceType, param_count: int, 
 
     sig_generic = "" if not generic else "<T>"
     sig_param_type = "int" if not generic else "T"
-    sig_params = ", ".join([f"NDBuffer<{sig_param_type},1> p{i}" for i in range(param_count)])
+    sig_params = ", ".join([f"Tensor<{sig_param_type},1> p{i}" for i in range(param_count)])
     code = f"""
 import slangpy;
 void test_func{sig_generic}({sig_params}) {{}}
@@ -429,7 +429,7 @@ void test_func{sig_generic}({sig_params}) {{}}
     module = helpers.create_module(device, code)
 
     param_values = (spy.NDBuffer.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
-    param_types = (get_type(module, "NDBuffer<int,1>"),) * param_count
+    param_types = (get_type(module, "Tensor<int,1>"),) * param_count
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
 

@@ -382,8 +382,8 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
 public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     // Underlying data storage
-    private ROTensor<T, D> _primal;
-    private AtomicTensor<T.Differential, D> _grad_out;
+    public ROTensor<T, D> _primal;
+    public AtomicTensor<T.Differential, D> _grad_out;
 
     _SLANGPY_DIFFTENSOR_COMMON
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
@@ -458,8 +458,8 @@ public typealias DiffTensor<T : IDifferentiable, let D : int> where T.Differenti
 public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, D>
 {
     // Underlying data storage
-    private RWTensor<T, D> _primal;
-    private ROTensor<T.Differential, D> _grad_in;
+    public RWTensor<T, D> _primal;
+    public ROTensor<T.Differential, D> _grad_in;
 
     _SLANGPY_DIFFTENSOR_COMMON
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
@@ -528,9 +528,9 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
 
 public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, D> where T.Differential : IAtomicAddable
 {
-    private RWTensor<T, D> _primal;
-    private ROTensor<T.Differential, D> _grad_in;
-    private AtomicTensor<T.Differential, D> _grad_out;
+    public RWTensor<T, D> _primal;
+    public ROTensor<T.Differential, D> _grad_in;
+    public AtomicTensor<T.Differential, D> _grad_out;
 
     _SLANGPY_DIFFTENSOR_COMMON
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
@@ -618,5 +618,30 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     }
 
 }
+
+// Bespoke loads for directly reading underlying structured buffers from tensor
+#ifndef __TARGET_CUDA__
+public extension<T: IDifferentiable, let D : int> RODiffTensor<T, D> where T.Differential : IAtomicAddable
+{
+    public void __slangpy_load(Context0D context, out StructuredBuffer<T> value)
+    {
+        this._primal.__slangpy_load(context, value);
+    }
+}
+public extension<T: IDifferentiable, let D : int> WODiffTensor<T, D> where T.Differential : IAtomicAddable
+{
+    public void __slangpy_load(Context0D context, out RWStructuredBuffer<T> value)
+    {
+        this._primal.__slangpy_load(context, value);
+    }
+}
+public extension<T: IDifferentiable, let D : int> RWDiffTensor<T, D> where T.Differential : IAtomicAddable
+{
+    public void __slangpy_load(Context0D context, out RWStructuredBuffer<T> value)
+    {
+        this._primal.__slangpy_load(context, value);
+    }
+}
+#endif
 
 #endif
