@@ -34,6 +34,8 @@ from slangpy.reflection import (
     UnknownType,
     InterfaceType,
     ITensorType,
+    TensorAccess,
+    TensorType,
     is_matching_array_type,
     is_unknown,
     is_known,
@@ -41,7 +43,6 @@ from slangpy.reflection import (
     EXPERIMENTAL_VECTORIZATION,
 )
 from slangpy.types import NDBuffer
-from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
 import slangpy.reflection.vectorize as spyvec
 
 
@@ -124,17 +125,6 @@ def get_ndbuffer_marshall_type(
     return slang_type
 
 
-def get_ndbuffer_type(
-    context: BindContext, element_type: SlangType, writable: bool, dims: int
-) -> SlangType:
-    prefix = "RW" if writable else ""
-    type_name = f"{prefix}NDBuffer<{element_type.full_name},{dims}>"
-    slang_type = context.layout.find_type_by_name(type_name)
-    if slang_type is None:
-        raise ValueError(f"Could not find type {type_name} in program layout")
-    return slang_type
-
-
 def get_structuredbuffer_type(
     context: BindContext, element_type: SlangType, writable: bool
 ) -> SlangType:
@@ -159,7 +149,12 @@ def ndbuffer_resolve_types(
 
     # If target type is fully generic, allow buffer or element type
     if isinstance(bound_type, (UnknownType, InterfaceType)):
-        buffer_type = get_ndbuffer_type(context, self_element_type, self_writable, self_dims)
+        buffer_type = bound_type.program.tensor_type(
+            self_element_type,
+            self_dims,
+            TensorAccess.read_write if self_writable else TensorAccess.read,
+            TensorType.tensor,
+        )
         results.append(buffer_type)
         results.append(self_element_type)
         return results
@@ -205,7 +200,14 @@ def ndbuffer_resolve_types(
             dims = bound_type.dims
         if el_type.full_name != self_element_type.full_name:
             return None
-        return [get_ndbuffer_type(context, el_type, bound_type.writable, dims)]
+        return [
+            bound_type.program.tensor_type(
+                el_type,
+                dims,
+                TensorAccess.read_write if bound_type.writable else TensorAccess.read,
+                TensorType.tensor,
+            )
+        ]
 
     # Match element type exactly
     if self_element_type.full_name == bound_type.full_name:
@@ -310,9 +312,9 @@ def ndbuffer_gen_calldata(
         # If broadcasting to an element, use the type of this buffer for code gen\
         et = cast(SlangType, self.slang_element_type)
         if writable:
-            cgb.type_alias(f"_t_{name}", f"RWNDBuffer<{et.full_name},{self.dims}>")
+            cgb.type_alias(f"_t_{name}", f"RWTensor<{et.full_name},{self.dims}>")
         else:
-            cgb.type_alias(f"_t_{name}", f"NDBuffer<{et.full_name},{self.dims}>")
+            cgb.type_alias(f"_t_{name}", f"Tensor<{et.full_name},{self.dims}>")
 
 
 class BaseNDBufferMarshall(Marshall):
@@ -336,7 +338,7 @@ class BaseNDBufferMarshall(Marshall):
         self.slang_element_type = slet
 
         slt = layout.find_type_by_name(
-            f"{prefix}NDBuffer<{self.slang_element_type.full_name},{self.dims}>"
+            f"{prefix}Tensor<{self.slang_element_type.full_name},{self.dims}>"
         )
         assert slt is not None
         self.slang_type = slt
@@ -359,7 +361,7 @@ class NDBufferMarshall(NativeNDBufferMarshall):
 
         prefix = "RW" if writable else ""
         slang_buffer_type = layout.find_type_by_name(
-            f"{prefix}NDBuffer<{slang_el_type.full_name},{dims}>"
+            f"{prefix}Tensor<{slang_el_type.full_name},{dims}>"
         )
         assert slang_buffer_type is not None
 
@@ -421,215 +423,3 @@ def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
 
 PYTHON_TYPES[NativeNDBuffer] = create_vr_type_for_value
 PYTHON_TYPES[NDBuffer] = create_vr_type_for_value
-
-
-def generate_differential_buffer(
-    name: str,
-    context: str,
-    primal_storage: str,
-    deriv_storage: str,
-    primal_target: str,
-    deriv_target: Optional[str],
-):
-    assert primal_storage
-    assert deriv_storage
-    assert primal_target
-    if deriv_target is None:
-        deriv_target = primal_target
-
-    DIFF_PAIR_CODE = f"""
-struct _t_{name}
-{{
-    {primal_storage} primal;
-    {deriv_storage} derivative;
-
-    [Differentiable, BackwardDerivative(load_bwd)]
-    void load({context} context, out {primal_target} value) {{ primal.load(context, value); }}
-    void load_bwd({context} context, {deriv_target} value) {{ derivative.store(context, value); }}
-
-    [Differentiable, BackwardDerivative(store_bwd)]
-    void store({context} context, {primal_target} value) {{ primal.store(context, value); }}
-    void store_bwd({context} context, inout DifferentialPair<{primal_target}> value) {{
-        {deriv_target} grad;
-        derivative.load(context, grad);
-        value = diffPair(value.p, grad);
-    }}
-}}
-"""
-    return DIFF_PAIR_CODE
-
-
-class NDDifferentiableBufferMarshall(BaseNDBufferMarshall):
-
-    def __init__(
-        self,
-        layout: SlangProgramLayout,
-        element_type: SlangType,
-        dims: int,
-        writable: bool,
-    ):
-        super().__init__(layout, element_type, dims, writable)
-
-        if not element_type.differentiable:
-            raise ValueError(f"Elements of differentiable buffer must be differentiable.")
-
-    @property
-    def has_derivative(self) -> bool:
-        return True
-
-    def reduce_type(self, context: BindContext, dimensions: int):
-        return ndbuffer_reduce_type(self, context, dimensions)
-
-    def resolve_type(self, context: BindContext, bound_type: "SlangType"):
-        return ndbuffer_resolve_type(self, context, bound_type)
-
-    def resolve_dimensionality(
-        self,
-        context: BindContext,
-        binding: BoundVariable,
-        vector_target_type: "SlangType",
-    ):
-        return ndbuffer_resolve_dimensionality(self, context, binding, vector_target_type)
-
-    # Call data can only be read access to primal, and simply declares it as a variable
-    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
-        access = binding.access
-        name = binding.variable_name
-
-        if isinstance(binding.vector_type, ITensorType):
-            # If passing to NDBuffer, just use the NDBuffer type
-            assert access[0] == AccessType.read
-            assert isinstance(binding.vector_type, ITensorType)
-            cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
-        else:
-
-            if (
-                context.call_mode != CallMode.prim
-                and self.writable
-                and access[0] == AccessType.none
-            ):
-                access = (AccessType.write, access[1])
-
-            # If broadcasting to an element, use full diff pair logic
-            prim_el = self.slang_element_type.full_name
-            deriv_el = prim_el + ".Differential"
-            dim = self.dims
-
-            if access[0] == AccessType.none:
-                primal_storage = f"NoneType"
-            elif access[0] == AccessType.read:
-                primal_storage = f"NDBuffer<{prim_el},{dim}>"
-            else:
-                primal_storage = f"RWNDBuffer<{prim_el},{dim}>"
-
-            if access[1] == AccessType.none:
-                deriv_storage = f"NoneType"
-            elif access[1] == AccessType.read:
-                deriv_storage = f"NDBuffer<{deriv_el},{dim}>"
-            else:
-                deriv_storage = f"RWNDBuffer<{deriv_el},{dim}>"
-
-            assert binding.vector_type is not None
-            primal_target = binding.vector_type.full_name
-            deriv_target = binding.vector_type.full_name + ".Differential"
-
-            slang_context = f"ContextND<{binding.call_dimensionality}>"
-
-            cgb.append_code_indented(
-                generate_differential_buffer(
-                    name,
-                    slang_context,
-                    primal_storage,
-                    deriv_storage,
-                    primal_target,
-                    deriv_target,
-                )
-            )
-
-    def create_calldata(
-        self,
-        context: CallContext,
-        binding: "BoundVariableRuntime",
-        data: NDDifferentiableBuffer,
-    ) -> Any:
-        if isinstance(binding.vector_type, ITensorType):
-            return {
-                "buffer": data.storage,
-                "_shape": data.shape.as_tuple(),
-                "layout": {"strides": data.strides, "offset": data.offset},
-            }
-        else:
-            broadcast = _calc_broadcast(context, binding)
-            access = binding.access
-            assert binding.transform is not None
-            res = {}
-            for prim in PrimType:
-                prim_name = prim.name
-                prim_access = access[prim.value]
-                if prim_access != AccessType.none:
-                    ndbuffer = data if prim == PrimType.primal else data.grad
-                    assert ndbuffer is not None
-                    value = ndbuffer.storage if prim == PrimType.primal else ndbuffer.storage
-                    res[prim_name] = {
-                        "buffer": value,
-                        "_shape": ndbuffer.shape.as_tuple(),
-                        "layout": {
-                            "strides": [
-                                ndbuffer.strides[i] if not broadcast[i] else 0
-                                for i in range(len(ndbuffer.strides))
-                            ],
-                            "offset": ndbuffer.offset,
-                        },
-                    }
-            return res
-
-    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
-        return NDDifferentiableBuffer(
-            context.device,
-            self.slang_element_type,
-            shape=context.call_shape,
-            requires_grad=True,
-            usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
-        )
-
-    def read_output(
-        self,
-        context: CallContext,
-        binding: BoundVariableRuntime,
-        data: NDDifferentiableBuffer,
-    ) -> Any:
-        return data
-
-    def create_dispatchdata(self, data: NDDifferentiableBuffer) -> Any:
-        return data.uniforms()
-
-    def get_shape(self, value: Optional[NDBuffer] = None) -> Shape:
-        if value is not None:
-            return value.shape + self.slang_element_type.shape
-        else:
-            return Shape((-1,) * self.dims) + self.slang_element_type.shape
-
-    @property
-    def is_writable(self) -> bool:
-        return self.writable
-
-
-def create_gradvr_type_for_value(layout: SlangProgramLayout, value: Any):
-    if isinstance(value, NDDifferentiableBuffer):
-        return NDDifferentiableBufferMarshall(
-            layout,
-            value.dtype,
-            len(value.shape),
-            (value.usage & BufferUsage.unordered_access) != 0,
-        )
-    elif isinstance(value, ReturnContext):
-        return NDDifferentiableBufferMarshall(
-            layout, value.slang_type, value.bind_context.call_dimensionality, True
-        )
-    else:
-        raise ValueError(
-            f"Unexpected type {type(value)} attempting to create NDDifferentiableBuffer marshall"
-        )
-
-
-PYTHON_TYPES[NDDifferentiableBuffer] = create_gradvr_type_for_value

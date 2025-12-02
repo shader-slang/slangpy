@@ -25,6 +25,7 @@ from slangpy import (
     Logger,
     LogLevel,
     NativeHandle,
+    Tensor,
 )
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
@@ -309,7 +310,7 @@ def create_function_from_module(
     return cast(Function, function)
 
 
-def read_ndbuffer_from_numpy(buffer: NDBuffer) -> np.ndarray:
+def read_ndbuffer_from_numpy(buffer: Union[NDBuffer, Tensor]) -> np.ndarray:
     cursor = buffer.cursor()
     data = np.array([])
     shape = np.prod(np.array(buffer.shape))
@@ -322,7 +323,9 @@ def read_ndbuffer_from_numpy(buffer: NDBuffer) -> np.ndarray:
     return data
 
 
-def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count: int = 0):
+def write_ndbuffer_from_numpy(
+    buffer: Union[NDBuffer, Tensor], data: np.ndarray, element_count: int = 0
+):
     cursor = buffer.cursor()
     shape = np.prod(np.array(buffer.shape))
 

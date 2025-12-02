@@ -191,7 +191,7 @@ float[FanOut] matrix_vector_generic<let FanIn : int, let FanOut : int>(ITensor<f
 }
 
 [Differentiable]
-float[FanOut] matrix_vector_generic_diff<let FanIn : int, let FanOut : int>( DiffTensor<float, 2> weights, DiffTensor<float, 1> biases, float[FanIn] x )
+float[FanOut] matrix_vector_generic_diff<let FanIn : int, let FanOut : int>( IDiffTensor<float, 2> weights, IDiffTensor<float, 1> biases, float[FanIn] x )
 {
     float[FanOut] result;
     [ForceUnroll]

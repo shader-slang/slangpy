@@ -112,6 +112,12 @@ class TensorMarshall(NativeTensorMarshall):
             ),
         )
 
+        if not slang_type:
+            raise ValueError(
+                f"Failed to find tensor type to contain element {element_type.full_name}. If using differentiable tensors, this can imply\
+                             that the element type does not support both the IDifferentiable and IAtomicAddable interfaces."
+            )
+
         super().__init__(
             dims=dims,
             writable=writable,

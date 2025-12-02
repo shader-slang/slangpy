@@ -41,9 +41,7 @@ class NumpyMarshall(NativeNumpyMarshall):
 
         slang_el_layout = slang_el_type.buffer_layout
 
-        slang_buffer_type = layout.find_type_by_name(
-            f"RWNDBuffer<{slang_el_type.full_name},{dims}>"
-        )
+        slang_buffer_type = layout.find_type_by_name(f"RWTensor<{slang_el_type.full_name},{dims}>")
         assert slang_buffer_type is not None
 
         super().__init__(dims, slang_buffer_type, slang_el_type, slang_el_layout.reflection, dtype)

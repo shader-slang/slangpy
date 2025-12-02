@@ -58,6 +58,125 @@ public interface IRODiffTensor<T : IDifferentiable, let D : int>
     public property shape : uint[D];
 }
 
+public extension <T: IDifferentiable, TensorType: IRODiffTensor<T,1>> TensorType
+{
+    [Differentiable]
+    public T load(int i0)
+    {
+        return load(int[1](i0));
+    }
+}
+public extension<T : IDifferentiable, TensorType : IRODiffTensor<T, 2>> TensorType
+{
+    [Differentiable]
+    public T load(int i0, int i1)
+    {
+        return load(int[2](i0, i1));
+    }
+}
+public extension<T : IDifferentiable, TensorType : IRODiffTensor<T, 3>> TensorType
+{
+    [Differentiable]
+    public T load(int i0, int i1, int i2)
+    {
+        return load(int[3](i0, i1, i2));
+    }
+}
+
+public extension<T : IDifferentiable, TensorType : IWODiffTensor<T, 1>> TensorType
+{
+    [Differentiable]
+    public void store(int i0, T value)
+    {
+        store(int[1](i0), value);
+    }
+}
+public extension<T : IDifferentiable, TensorType : IWODiffTensor<T, 2>> TensorType
+{
+    [Differentiable]
+    public void store(int i0, int i1, T value)
+    {
+        store(int[2](i0, i1), value);
+    }
+}
+public extension<T : IDifferentiable, TensorType : IWODiffTensor<T, 3>> TensorType
+{
+    [Differentiable]
+    public void store(int i0, int i1, int i2, T value)
+    {
+        store(int[3](i0, i1, i2), value);
+    }
+}
+
+public extension<T: IDifferentiable> RODiffTensor<T, 1> where T.Differential : IAtomicAddable
+{
+    public __subscript(int i0)->T
+    {
+        [Differentiable] get { return load(i0); }
+    }
+}
+public extension<T : IDifferentiable> RODiffTensor<T, 2> where T.Differential : IAtomicAddable
+{
+    public __subscript(int i0, int i1)->T
+    {
+        [Differentiable] get { return load(i0, i1); }
+    }
+}
+public extension<T : IDifferentiable> RODiffTensor<T, 3> where T.Differential : IAtomicAddable
+{
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2); }
+    }
+}
+
+public extension<T : IDifferentiable> WODiffTensor<T, 1> where T.Differential : IAtomicAddable
+{
+    public __subscript(int i0)->T
+    {
+        [Differentiable] set { store(i0, newValue); }
+    }
+}
+public extension<T : IDifferentiable> WODiffTensor<T, 2> where T.Differential : IAtomicAddable
+{
+    public __subscript(int i0, int i1)->T
+    {
+        [Differentiable] set { store(i0, i1, newValue); }
+    }
+}
+public extension<T : IDifferentiable> WODiffTensor<T, 3> where T.Differential : IAtomicAddable
+{
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        [Differentiable] set { store(i0, i1, i2, newValue); }
+    }
+}
+
+public extension<T : IDifferentiable> RWDiffTensor<T, 1> where T.Differential : IAtomicAddable
+{
+    public __subscript(int i0)->T
+    {
+        [Differentiable] get { return load(i0); }
+        [Differentiable] set { store(i0, newValue); }
+    }
+}
+public extension<T : IDifferentiable> RWDiffTensor<T, 2> where T.Differential : IAtomicAddable
+{
+    public __subscript(int i0, int i1)->T
+    {
+        [Differentiable] get { return load(i0, i1); }
+        [Differentiable] set { store(i0, i1, newValue); }
+    }
+}
+public extension<T : IDifferentiable> RWDiffTensor<T, 3> where T.Differential : IAtomicAddable
+{
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2); }
+        [Differentiable] set { store(i0, i1, i2, newValue); }
+    }
+}
+
 // Type alias for a read only tensor interface This can be used as the argument
 // to a function (or a generic constraint) to indicate it should take any
 // type of read-only tensor.
@@ -282,6 +401,8 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
         return _primal.load(idx);
     }
 
+    /*
+
     //NOTE: I'm not certain it's possible to create a bwds signature for this, so resorted
     //to building array internally and just calling through to array load.
     [Differentiable]
@@ -292,6 +413,7 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
         expand arr[idx++] = (each indices).toUInt();
         return load(arr);
     }
+        */
 
     void _load_bwd_array<I : IInteger>(I idx[D], T.Differential grad)
     {
@@ -311,10 +433,12 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
          [Differentiable] get { return load(indices); }
     }
 
+    /*
     public __subscript<each I : IInteger>(expand each I indices)->T
     {
         [Differentiable] get { return load(expand each indices); }
     }
+        */
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -353,6 +477,7 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
         _primal.store(idx, value);
     }
 
+    /*
     // NOTE: I'm not certain it's possible to create a bwds signature for this, so resorted
     // to building array internally and just calling through to array store.
     [Differentiable]
@@ -363,6 +488,7 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
         expand arr[idx++] = (each indices).toUInt();
         store(arr, value);
     }
+        */
 
     public void _store_bwd_array<I : IInteger>(I idx[D], inout DifferentialPair<T> grad)
     {
@@ -381,10 +507,12 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
     {
         [Differentiable] set { return store(indices, newValue); }
     }
+
+    /*
     public __subscript<each I : IInteger>(expand each I indices)->T
     {
         [Differentiable] set { return store(expand each indices, newValue); }
-    }
+    }*/
 
 
     public void __slangpy_load(Context0D context, out This value)
@@ -419,6 +547,8 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
         return _primal.load(idx);
     }
 
+    /*
+
     // NOTE: I'm not certain it's possible to create a bwds signature for this, so resorted
     // to building array internally and just calling through to array load.
     [Differentiable]
@@ -429,6 +559,7 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
         expand arr[idx++] = (each indices).toUInt();
         return load(arr);
     }
+*/
 
     [Differentiable]
     public void store<I : IInteger>(I idx[D], T value)
@@ -441,6 +572,8 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
         _primal.store(idx, value);
     }
 
+    /*
+
     // NOTE: I'm not certain it's possible to create a bwds signature for this, so resorted
     // to building array internally and just calling through to array store.
     [Differentiable]
@@ -451,6 +584,7 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
         expand arr[idx++] = (each indices).toUInt();
         store(arr, value);
     }
+        */
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
@@ -462,11 +596,15 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
         [Differentiable] get { return load(indices); }
         [Differentiable] set { return store(indices, newValue); }
     }
+
+    /*
+
     public __subscript<each I : IInteger>(expand each I indices)->T
     {
         [Differentiable] get { return load(expand each indices); }
         [Differentiable] set { return store(expand each indices, newValue); }
     }
+        */
 
     public void __slangpy_load(Context0D context, out This value)
     {

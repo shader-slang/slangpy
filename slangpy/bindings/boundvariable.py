@@ -548,7 +548,7 @@ you can find more information in the Mapping section of the documentation (https
             prefix = "[Differentiable]" if self.access[1] != AccessType.none else ""
 
             cgb.empty_line()
-            cgb.append_line(f"{prefix} void load({context_decl}, out {value_decl})")
+            cgb.append_line(f"{prefix} void __slangpy_load({context_decl}, out {value_decl})")
             cgb.begin_block()
             for field, var in self.children.items():
                 cgb.append_statement(
@@ -558,7 +558,7 @@ you can find more information in the Mapping section of the documentation (https
 
             if self.access[0] in (AccessType.write, AccessType.readwrite):
                 cgb.empty_line()
-                cgb.append_line(f"{prefix} void store({context_decl}, in {value_decl})")
+                cgb.append_line(f"{prefix} void __slangpy_store({context_decl}, in {value_decl})")
                 cgb.begin_block()
                 for field, var in self.children.items():
                     cgb.append_statement(

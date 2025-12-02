@@ -91,7 +91,7 @@ def read_slice(
     function = helpers.create_function_from_module(
         device,
         "read_slice",
-        r"""import "slangpy"; float read_slice(int2 index, NDBuffer<float,2> texture) { return texture[{index.x,index.y}]; }""",
+        r"""import "slangpy"; float read_slice(int2 index, Tensor<float,2> texture) { return texture[index.x,index.y]; }""",
     )
 
     if transforms is not None:

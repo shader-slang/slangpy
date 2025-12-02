@@ -2,9 +2,8 @@
 
 import pytest
 import numpy as np
-from slangpy import Module
+from slangpy import Module, Tensor
 from slangpy import DeviceType, float3
-from slangpy.experimental.diffbuffer import NDDifferentiableBuffer
 from slangpy.testing import helpers
 
 
@@ -23,9 +22,9 @@ def test_command_buffer(device_type: DeviceType, use_arg: bool):
 
     command_encoder = m.device.create_command_encoder()
 
-    a = NDDifferentiableBuffer(m.device, float3, 10, requires_grad=True)
-    b = NDDifferentiableBuffer(m.device, float3, 10, requires_grad=True)
-    res = NDDifferentiableBuffer(m.device, float3, 10, requires_grad=True)
+    a = Tensor.empty(m.device, (10,), dtype=float3).with_grads()
+    b = Tensor.empty(m.device, (10,), dtype=float3).with_grads()
+    res = Tensor.empty(m.device, (10,), dtype=float3).with_grads()
     assert a.grad is not None
     assert b.grad is not None
     assert res.grad is not None
