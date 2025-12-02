@@ -46,6 +46,7 @@ void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], 
 // type of read-only tensor.
 public interface IROTensor<T, let D : int>
 {
+    public T read_buffer(int idx);
     public T load<I : IInteger>(I idx[D]);
     public T load<I: IInteger>(vector<I, D> idx);
     public T load<each I : IInteger>(expand each I indices);
@@ -63,6 +64,7 @@ public typealias ITensor<T, let D : int> = IROTensor<T, D>;
 // type of write-only tensor.
 public interface IWOTensor<T, let D : int>
 {
+    public void write_buffer(int idx, T value);
     public void store<I : IInteger>(I idx[D], T value);
     public void store<I : IInteger>(vector<I, D> idx, T value);
     public void store<each I : IInteger>(expand each I indices, T value);
@@ -87,29 +89,29 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
 #define _SLANGPY_DATA_STORE_IMPL \
     public void store<I : IInteger>(I idx[D], T value)\
     {\
-        _data[_idx(idx, _strides, _offset)] = value;\
+        write_buffer(_idx(idx, _strides, _offset), value);\
     }\
     public void store<I : IInteger>(vector<I, D> idx, T value)\
     {\
-        _data[_idx(idx, _strides, _offset)] = value;\
+        write_buffer(_idx(idx, _strides, _offset), value);\
     }\
     public void store<each I : IInteger>(expand each I indices, T value)\
     {\
-        _data[_idx(expand each indices, _strides, _offset)] = value;\
+        write_buffer(_idx(expand each indices, _strides, _offset), value);\
     }
 
 #define _SLANGPY_DATA_LOAD_IMPL \
     public T load<I : IInteger>(I idx[D])\
     {\
-        return _data[(_idx(idx, _strides, _offset))];\
+        return read_buffer(_idx(idx, _strides, _offset));\
     }\
     public T load<I : IInteger>(vector<I, D> idx)\
     {\
-        return _data[(_idx(idx, _strides, _offset))];\
+        return read_buffer(_idx(idx, _strides, _offset));\
     }\
     public T load<each I : IInteger>(expand each I indices)\
     {\
-        return _data[(_idx(expand each indices, _strides, _offset))];\
+        return read_buffer(_idx(expand each indices, _strides, _offset));\
     }
 
 #define _SLANGPY_TENSOR_STORE_IMPL \
@@ -240,7 +242,12 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
 public struct ROTensor<T, let D : int> : IROTensor<T, D>
 {
     // Underlying data storage
-    private StructuredBuffer<T> _data;
+    private StorageTraits<T>::BufferType _data;
+
+    public T read_buffer(int idx)
+    {
+        return _data[idx];
+    }
 
     _SLANGPY_COMMON_TENSOR_IMPL
     _SLANGPY_DATA_LOAD_IMPL
@@ -259,6 +266,10 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
         get { return load(expand each indices); }
     }
 
+    public void __slangpy_load(Context0D context, out This value)
+    {
+        value = this;
+    }
     public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out ROTensor<T, SliceD> value)
     {
         value._data = _data;
@@ -276,7 +287,12 @@ public typealias Tensor<T, let D : int> = ROTensor<T, D>;
 public struct WOTensor<T, let D : int> : IWOTensor<T, D>
 {
     // Underlying data storage
-    private RWStructuredBuffer<T> _data;
+    private StorageTraits<T>::RWBufferType _data;
+
+    public void write_buffer(int idx, T value)
+    {
+        _data[idx] = value;
+    }
 
     _SLANGPY_COMMON_TENSOR_IMPL
     _SLANGPY_DATA_STORE_IMPL
@@ -295,6 +311,10 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
         set { return store(expand each indices, newValue); }
     }
 
+    public void __slangpy_load(Context0D context, out This value)
+    {
+        value = this;
+    }
     public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WOTensor<T, SliceD> value)
     {
         value._data = _data;
@@ -305,12 +325,19 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
     }
 }
 
-// NOTE: By not using default implementations or fancy extensions, RWTensor
-// duplicates all the code for loading / storing.
 public struct RWTensor<T, let D : int> : IRWTensor<T, D>
 {
     // Underlying data storage
-    private RWStructuredBuffer<T> _data;
+    private StorageTraits<T>::RWBufferType _data;
+
+    public T read_buffer(int idx)
+    {
+        return _data[idx];
+    }
+    public void write_buffer(int idx, T value)
+    {
+        _data[idx] = value;
+    }
 
     _SLANGPY_COMMON_TENSOR_IMPL
     _SLANGPY_DATA_LOAD_IMPL
@@ -334,6 +361,10 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
         set { return store(expand each indices, newValue); }
     }
 
+    public void __slangpy_load(Context0D context, out This value)
+    {
+        value = this;
+    }
     public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out RWTensor<T, SliceD> value)
     {
         value._data = _data;
@@ -343,5 +374,70 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
             value._shape[i] = _shape[D - SliceD + i];
     }
 }
+
+public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
+{
+    // Underlying data storage
+    private StorageTraits<T>::AtomicBufferType _data;
+
+    public T read_buffer(int idx)
+    {
+        return StorageTraits<T>::atomicLoad(_data, idx);
+    }
+    public void write_buffer(int idx, T value)
+    {
+        StorageTraits<T>::atomicStore(_data, idx, value);
+    }
+
+    _SLANGPY_COMMON_TENSOR_IMPL
+    _SLANGPY_DATA_LOAD_IMPL
+    _SLANGPY_TENSOR_LOAD_IMPL
+    _SLANGPY_DATA_STORE_IMPL
+    _SLANGPY_TENSOR_STORE_IMPL
+
+
+    public void add<I : IInteger>(I idx[D], T value)
+    {
+        StorageTraits<T>::atomicAdd(_data, _idx(idx, _strides, _offset), value);
+    }
+    public void add<I : IInteger>(vector<I, D> idx, T value)
+    {
+        StorageTraits<T>::atomicAdd(_data, _idx(idx, _strides, _offset), value);
+    }
+    public void add<each I : IInteger>(expand each I indices, T value)
+    {
+        StorageTraits<T>::atomicAdd(_data, _idx(expand each indices, _strides, _offset), value);
+    }
+
+    public __subscript<I : IInteger>(I indices[D])->T
+    {
+        get { return load(indices); }
+        set { return store(indices, newValue); }
+    }
+    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    {
+        get { return load(indices); }
+        set { return store(indices, newValue); }
+    }
+    public __subscript<each I : IInteger>(expand each I indices)->T
+    {
+        get { return load(expand each indices); }
+        set { return store(expand each indices, newValue); }
+    }
+
+    public void __slangpy_load(Context0D context, out This value)
+    {
+        value = this;
+    }
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out AtomicTensor<T, SliceD> value)
+    {
+        value._data = _data;
+        _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
+        [ForceUnroll]
+        for (int i = 0; i < SliceD; ++i)
+            value._shape[i] = _shape[D - SliceD + i];
+    }
+}
+
 
 #endif
