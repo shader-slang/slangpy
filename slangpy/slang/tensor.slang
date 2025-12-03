@@ -20,14 +20,6 @@ int _idx<I : IInteger, let N : int>(vector<I, N> indices, uint stride[N], uint o
     for (int i = 0; i < N; i++) { idx += indices[end - i].toUInt() * stride[i]; }
     return idx + offset;
 }
-int _idx<each I : IInteger, let N : int>(expand each I indices, uint stride[N], uint offset)
-{
-    // NOTE: Can probably optimize this to avoid the intermediate array allocation
-    uint[N] idxVec;
-    int i = 0;
-    expand idxVec[i++] = (each indices).toUInt();
-    return _idx(idxVec, stride, offset);
-}
 
 void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], uint offset, out uint new_stride[SliceD], out uint new_offset)
 {
@@ -55,7 +47,6 @@ public interface IROTensor<T, let D : int> : IBaseTensor<T, D>
     public T read_buffer(int idx);
     public T load<I : IInteger>(I idx[D]);
     public T load<I : IInteger>(vector<I, D> idx);
-    //public T load<each I : IInteger>(expand each I indices);
 }
 
 // Type alias for a read only tensor.
@@ -69,7 +60,6 @@ public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
     public void write_buffer(int idx, T value);
     public void store<I : IInteger>(I idx[D], T value);
     public void store<I : IInteger>(vector<I, D> idx, T value);
-    //public void store<each I : IInteger>(expand each I indices, T value);
 }
 
 // Interface for a read-write tensor.
@@ -79,130 +69,10 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
 {
 }
 
-
-public extension<T, TensorType : IROTensor<T, 1>> TensorType
-{
-    [Differentiable]
-    public T load(int i0)
-    {
-        return load(int[1](i0));
-    }
-}
-public extension<T, TensorType : IROTensor<T, 2>> TensorType
-{
-    [Differentiable]
-    public T load(int i0, int i1)
-    {
-        return load(int[2](i0, i1));
-    }
-}
-public extension<T, TensorType : IROTensor<T, 3>> TensorType
-{
-    [Differentiable]
-    public T load(int i0, int i1, int i2)
-    {
-        return load(int[3](i0, i1, i2));
-    }
-}
-
-public extension<T, TensorType : IWOTensor<T, 1>> TensorType
-{
-    [Differentiable]
-    public void store(int i0, T value)
-    {
-        store(int[1](i0), value);
-    }
-}
-public extension<T, TensorType : IWOTensor<T, 2>> TensorType
-{
-    [Differentiable]
-    public void store(int i0, int i1, T value)
-    {
-        store(int[2](i0, i1), value);
-    }
-}
-public extension<T, TensorType : IWOTensor<T, 3>> TensorType
-{
-    [Differentiable]
-    public void store(int i0, int i1, int i2, T value)
-    {
-        store(int[3](i0, i1, i2), value);
-    }
-}
-
-public extension<T> ROTensor<T, 1>
-{
-    public __subscript(int i0)->T
-    {
-        get { return load(i0); }
-    }
-}
-public extension<T> ROTensor<T, 2>
-{
-    public __subscript(int i0, int i1)->T
-    {
-        get { return load(i0, i1); }
-    }
-}
-public extension<T> ROTensor<T, 3>
-{
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        get { return load(i0, i1, i2); }
-    }
-}
-
-public extension<T> WOTensor<T, 1>
-{
-    public __subscript(int i0)->T
-    {
-        set { store(i0, newValue); }
-    }
-}
-public extension<T> WOTensor<T, 2>
-{
-    public __subscript(int i0, int i1)->T
-    {
-        set { store(i0, i1, newValue); }
-    }
-}
-public extension<T> WOTensor<T, 3>
-{
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        set { store(i0, i1, i2, newValue); }
-    }
-}
-
-public extension<T> RWTensor<T, 1>
-{
-    public __subscript(int i0)->T
-    {
-        get { return load(i0); }
-        set { store(i0, newValue); }
-    }
-}
-public extension<T> RWTensor<T, 2>
-{
-    public __subscript(int i0, int i1)->T
-    {
-        get { return load(i0, i1); }
-        set { store(i0, i1, newValue); }
-    }
-}
-public extension<T> RWTensor<T, 3>
-{
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        get { return load(i0, i1, i2); }
-        set { store(i0, i1, i2, newValue); }
-    }
-}
-
 #define _SLANGPY_TENSOR_COMMON_FIELDS \
-    private uint[D] _shape;\
-    private uint[D] _strides;\
-    private uint _offset;\
+    public uint[D] _shape;\
+    public uint[D] _strides;\
+    public uint _offset;\
     public property shape : uint[D] { get { return _shape; } }
 
 
@@ -506,10 +376,6 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     public void add<I : IInteger>(vector<I, D> idx, T value)
     {
         StorageTraits<T>::atomicAdd(_data, _idx(idx, _strides, _offset), value);
-    }
-    public void add<each I : IInteger>(expand each I indices, T value)
-    {
-        StorageTraits<T>::atomicAdd(_data, _idx(expand each indices, _strides, _offset), value);
     }
 
     public __subscript<I : IInteger>(I indices[D])->T
