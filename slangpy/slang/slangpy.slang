@@ -19,6 +19,7 @@ __include "atomics.slang";
 __include "staticarray.slang";
 __include "tensor.slang";
 __include "difftensor.slang";
-__include "tensor_indices_generated.slang";
+//__include "tensor_indices_generated.slang";
+__include "tensor_indices_each.slang";
 __include "gridarg.slang";
 __include "callshape.slang";
