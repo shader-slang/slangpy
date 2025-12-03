@@ -1394,6 +1394,447 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 8>> TensorTyp
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value);
 }
 
+public extension<T: IDifferentiable> ROPrimalTensor<T, 0> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load()
+    {
+        int idx = _idx(this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    public __subscript()->T
+    {
+        get { return load(); }
+    }
+}
+
+public extension<T: IDifferentiable> ROPrimalTensor<T, 1> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0)
+    {
+        int idx = _idx(i0, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    public __subscript(int i0)->T
+    {
+        get { return load(i0); }
+    }
+}
+
+public extension<T: IDifferentiable> ROPrimalTensor<T, 2> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1)
+    {
+        int idx = _idx(i0, i1, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    public __subscript(int i0, int i1)->T
+    {
+        get { return load(i0, i1); }
+    }
+}
+
+public extension<T: IDifferentiable> ROPrimalTensor<T, 3> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2)
+    {
+        int idx = _idx(i0, i1, i2, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        get { return load(i0, i1, i2); }
+    }
+}
+
+public extension<T: IDifferentiable> ROPrimalTensor<T, 4> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3)
+    {
+        int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    public __subscript(int i0, int i1, int i2, int i3)->T
+    {
+        get { return load(i0, i1, i2, i3); }
+    }
+}
+
+public extension<T: IDifferentiable> ROPrimalTensor<T, 5> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3, int i4)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
+    {
+        get { return load(i0, i1, i2, i3, i4); }
+    }
+}
+
+public extension<T: IDifferentiable> ROPrimalTensor<T, 6> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3, int i4, int i5)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5); }
+    }
+}
+
+public extension<T: IDifferentiable> ROPrimalTensor<T, 7> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5, i6); }
+    }
+}
+
+public extension<T: IDifferentiable> ROPrimalTensor<T, 8> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
+    }
+}
+
+public extension<T: IDifferentiable> WOPrimalTensor<T, 0> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public void store(T value)
+    {
+        int idx = _idx(this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript()->T
+    {
+        set { store(newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> WOPrimalTensor<T, 1> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public void store(int i0, T value)
+    {
+        int idx = _idx(i0, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0)->T
+    {
+        set { store(i0, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> WOPrimalTensor<T, 2> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, T value)
+    {
+        int idx = _idx(i0, i1, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1)->T
+    {
+        set { store(i0, i1, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> WOPrimalTensor<T, 3> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, T value)
+    {
+        int idx = _idx(i0, i1, i2, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        set { store(i0, i1, i2, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> WOPrimalTensor<T, 4> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3)->T
+    {
+        set { store(i0, i1, i2, i3, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> WOPrimalTensor<T, 5> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, int i4, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
+    {
+        set { store(i0, i1, i2, i3, i4, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> WOPrimalTensor<T, 6> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
+    {
+        set { store(i0, i1, i2, i3, i4, i5, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> WOPrimalTensor<T, 7> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
+    {
+        set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> WOPrimalTensor<T, 8> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
+    {
+        set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> RWPrimalTensor<T, 0> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load()
+    {
+        int idx = _idx(this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    [TreatAsDifferentiable]
+    public void store(T value)
+    {
+        int idx = _idx(this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript()->T
+    {
+        get { return load(); }
+        set { store(newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> RWPrimalTensor<T, 1> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0)
+    {
+        int idx = _idx(i0, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    [TreatAsDifferentiable]
+    public void store(int i0, T value)
+    {
+        int idx = _idx(i0, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0)->T
+    {
+        get { return load(i0); }
+        set { store(i0, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> RWPrimalTensor<T, 2> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1)
+    {
+        int idx = _idx(i0, i1, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, T value)
+    {
+        int idx = _idx(i0, i1, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1)->T
+    {
+        get { return load(i0, i1); }
+        set { store(i0, i1, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> RWPrimalTensor<T, 3> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2)
+    {
+        int idx = _idx(i0, i1, i2, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, T value)
+    {
+        int idx = _idx(i0, i1, i2, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        get { return load(i0, i1, i2); }
+        set { store(i0, i1, i2, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> RWPrimalTensor<T, 4> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3)
+    {
+        int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3)->T
+    {
+        get { return load(i0, i1, i2, i3); }
+        set { store(i0, i1, i2, i3, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> RWPrimalTensor<T, 5> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3, int i4)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, int i4, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
+    {
+        get { return load(i0, i1, i2, i3, i4); }
+        set { store(i0, i1, i2, i3, i4, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> RWPrimalTensor<T, 6> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3, int i4, int i5)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5); }
+        set { store(i0, i1, i2, i3, i4, i5, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> RWPrimalTensor<T, 7> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5, i6); }
+        set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
+    }
+}
+
+public extension<T: IDifferentiable> RWPrimalTensor<T, 8> where T.Differential : IAtomicAddable
+{
+    [TreatAsDifferentiable]
+    public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
+        return this.read_buffer(idx);
+    }
+    [TreatAsDifferentiable]
+    public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)
+    {
+        int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
+        set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
+    }
+}
+
 public extension<T> AtomicTensor<T, 0> where T : IAtomicAddable
 {
     public T load()

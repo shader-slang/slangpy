@@ -384,7 +384,7 @@ def generate_tensor_extensions():
                 code.append("}\n")
                 code.append("\n")
 
-    if False:
+    if True:
         for tensor_type in tensor_types:
             for dim in dimensions:
                 # Struct extensions

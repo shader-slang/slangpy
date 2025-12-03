@@ -46,15 +46,21 @@ def compare_tensors(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]):
         "copy_tensor_each_index",
         "copy_tensor_array_index",
         "copy_tensor_vector_index",
-        # "copy_tensor_each_loadstore",  # IGNORE (store-each doesn't work)
+        "copy_tensor_each_loadstore",
         "copy_tensor_array_loadstore",
         "copy_tensor_vector_loadstore",
         "copy_difftensor_each_index",
         "copy_difftensor_array_index",
         "copy_difftensor_vector_index",
-        # "copy_difftensor_each_loadstore",  # IGNORE (store-each doesn't work)
+        "copy_difftensor_each_loadstore",
         "copy_difftensor_array_loadstore",
         "copy_difftensor_vector_loadstore",
+        "copy_primaltensor_each_index",
+        "copy_primaltensor_array_index",
+        "copy_primaltensor_vector_index",
+        "copy_primaltensor_each_loadstore",
+        "copy_primaltensor_array_loadstore",
+        "copy_primaltensor_vector_loadstore",
     ],
 )
 def test_simple_copy(device_type: DeviceType, func_name: str):
