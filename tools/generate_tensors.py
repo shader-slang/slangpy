@@ -72,7 +72,7 @@ def cg_load_decl(dimensions: int, differentiable: bool = False):
 """
 
 
-def cg_load(dimensions: int, differentiable: bool = False):
+def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False):
     if differentiable:
         if dimensions == 0:
             return f"""\
@@ -101,6 +101,28 @@ def cg_load(dimensions: int, differentiable: bool = False):
     void _load_bwd_indices({args}, T.Differential grad)
     {{
         _grad_out.add({idx_args}, grad);
+    }}
+"""
+    elif primal:
+        if dimensions == 0:
+            return f"""\
+    [TreatAsDifferentiable]
+    public T load()
+    {{
+        int idx = _idx(this._strides, this._offset);
+        return this.read_buffer(idx);
+    }}
+"""
+        else:
+            args = ", ".join([f"int i{i}" for i in range(dimensions)])
+            idx_args = ", ".join([f"i{i}" for i in range(dimensions)])
+
+            return f"""\
+    [TreatAsDifferentiable]
+    public T load({args})
+    {{
+        int idx = _idx({idx_args}, this._strides, this._offset);
+        return this.read_buffer(idx);
     }}
 """
     else:
@@ -139,7 +161,7 @@ def cg_store_decl(dimensions: int, differentiable: bool = False):
 """
 
 
-def cg_store(dimensions: int, differentiable: bool = False):
+def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False):
     if differentiable:
         if dimensions == 0:
             return f"""\
@@ -168,6 +190,28 @@ def cg_store(dimensions: int, differentiable: bool = False):
     void _store_bwd_indices({args}, inout DifferentialPair<T> grad)
     {{
         grad = diffPair(grad.p, _grad_in.load({idx_args}));
+    }}
+"""
+    elif primal:
+        if dimensions == 0:
+            return f"""\
+    [TreatAsDifferentiable]
+    public void store(T value)
+    {{
+        int idx = _idx(this._strides, this._offset);
+        this.write_buffer(idx, value);
+    }}
+"""
+        else:
+            args = ", ".join([f"int i{i}" for i in range(dimensions)])
+            idx_args = ", ".join([f"i{i}" for i in range(dimensions)])
+
+            return f"""\
+    [TreatAsDifferentiable]
+    public void store({args}, T value)
+    {{
+        int idx = _idx({idx_args}, this._strides, this._offset);
+        this.write_buffer(idx, value);
     }}
 """
     else:
@@ -260,13 +304,22 @@ def cg_subscript_extension(
 """
 
 
-def cg_tensor_name(tensor_type: str, dimensions: int, differentiable: bool = False):
-    diff = "Diff" if differentiable else ""
+def cg_tensor_name(
+    tensor_type: str, dimensions: int, differentiable: bool = False, primal: bool = False
+):
+    if differentiable:
+        diff = "Diff"
+    elif primal:
+        diff = "Primal"
+    else:
+        diff = ""
     return f"{tensor_type}{diff}Tensor<T, {dimensions}>"
 
 
-def cg_interface_extension_header(tensor_type: str, dimensions: int, differentiable: bool = False):
-    tensor_name = cg_tensor_name(tensor_type, dimensions, differentiable)
+def cg_interface_extension_header(
+    tensor_type: str, dimensions: int, differentiable: bool = False, primal: bool = False
+):
+    tensor_name = cg_tensor_name(tensor_type, dimensions, differentiable, primal)
     diff_constraint = ": IDifferentiable" if differentiable else ""
     code = f"public extension<T{diff_constraint}, TensorType : I{tensor_name}> TensorType"
     if differentiable:
@@ -274,11 +327,13 @@ def cg_interface_extension_header(tensor_type: str, dimensions: int, differentia
     return code
 
 
-def cg_struct_extension_header(tensor_type: str, dimensions: int, differentiable: bool = False):
-    tensor_name = cg_tensor_name(tensor_type, dimensions, differentiable)
-    diff_constraint = ": IDifferentiable" if differentiable else ""
+def cg_struct_extension_header(
+    tensor_type: str, dimensions: int, differentiable: bool = False, primal: bool = False
+):
+    tensor_name = cg_tensor_name(tensor_type, dimensions, differentiable, primal)
+    diff_constraint = ": IDifferentiable" if differentiable or primal else ""
     code = f"public extension<T{diff_constraint}> {tensor_name}"
-    if differentiable:
+    if differentiable or primal:
         code += " where T.Differential : IAtomicAddable"
     return code
 
@@ -329,16 +384,32 @@ def generate_tensor_extensions():
                 code.append("}\n")
                 code.append("\n")
 
+    for tensor_type in tensor_types:
+        for dim in dimensions:
+            # Struct extensions
+            code.append(cg_struct_extension_header(tensor_type, dim, primal=True))
+            code.append("\n{\n")
+            getter = False
+            setter = False
+            if "R" in tensor_type:
+                code.append(cg_load(dim, primal=True))
+                getter = True
+            if "W" in tensor_type:
+                code.append(cg_store(dim, primal=True))
+                setter = True
+            code.append(cg_subscript_extension(getter, setter, dim))
+            code.append("}\n")
+            code.append("\n")
+
     for dim in dimensions:
         # Struct extensions
         tensor_type = "Atomic"
-        differentiable = False
         code.append(cg_atomic_extension_header(tensor_type, dim))
         code.append("\n{\n")
-        code.append(cg_load(dim, differentiable))
-        code.append(cg_store(dim, differentiable))
+        code.append(cg_load(dim))
+        code.append(cg_store(dim))
         code.append(cg_atomic_add(dim))
-        code.append(cg_subscript_extension(True, True, dim, differentiable))
+        code.append(cg_subscript_extension(True, True, dim))
         code.append("}\n")
         code.append("\n")
 

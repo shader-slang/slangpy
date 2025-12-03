@@ -212,7 +212,10 @@ class TensorMarshall(NativeTensorMarshall):
             if bound_type.tensor_type == TensorType.itensor:
                 tensor_type = TensorType.tensor
             elif bound_type.tensor_type == TensorType.idifftensor:
-                tensor_type = TensorType.difftensor
+                if context.call_mode == CallMode.prim:
+                    tensor_type = TensorType.primaltensor
+                else:
+                    tensor_type = TensorType.difftensor
             else:
                 tensor_type = bound_type.tensor_type
 
