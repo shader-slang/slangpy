@@ -219,7 +219,7 @@ public struct ROPrimalTensor<T: IDifferentiable, let D : int> : IRODiffTensor<T,
         value = this;
     }
 
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out ROTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out ROPrimalTensor<T, SliceD> value)
     {
         value._data = _data;
         _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
@@ -262,7 +262,7 @@ public struct WOPrimalTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WOTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WOPrimalTensor<T, SliceD> value)
     {
         value._data = _data;
         _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
@@ -310,7 +310,7 @@ public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out RWTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out RWPrimalTensor<T, SliceD> value)
     {
         value._data = _data;
         _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);

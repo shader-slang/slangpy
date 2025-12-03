@@ -891,7 +891,7 @@ _TENSOR_NAME_TO_TYPE = {
     "RWDiffTensor": TensorType.difftensor,
     "PrimalTensor": TensorType.primaltensor,
     "ROPrimalTensor": TensorType.primaltensor,
-    "WORimalTensor": TensorType.primaltensor,
+    "WOPrimalTensor": TensorType.primaltensor,
     "RWPrimalTensor": TensorType.primaltensor,
     "ITensor": TensorType.itensor,
     "IROTensor": TensorType.itensor,

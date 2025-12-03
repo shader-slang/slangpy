@@ -1140,42 +1140,78 @@ TESTS = [
     ("func_generic_ptr", _Tensor("float", 2, False), "Ptr<float>", 1),
     ("func_generic_ptr", _Tensor("float", 2, True), "Ptr<float>", 1),
 
-    # Basic passing of NDBuffer/Tensor to the internal NDBuffer/Tensor types
-    ("func_itensor", _Tensor("float", 2, False), "Tensor<float,2>", 2),
+    # Basic passing of Tensor to the internal Tensor types
+    ("func_irotensor", _Tensor("float", 2, False), "ROTensor<float,2>", 2),
+    ("func_irotensor", _Tensor("float", 2, True), "ROTensor<float,2>", 2),
+    ("func_iwotensor", _Tensor("float", 2, False), None, None),
+    ("func_iwotensor", _Tensor("float", 2, True), "WOTensor<float,2>", 2),
+    ("func_irwtensor", _Tensor("float", 2, False), None, None),
     ("func_irwtensor", _Tensor("float", 2, True), "RWTensor<float,2>", 2),
-    ("func_tensor", _Tensor("float", 2, False), "Tensor<float,2>", 2),
+
+    ("func_rotensor", _Tensor("float", 2, False), "ROTensor<float,2>", 2),
+    ("func_rotensor", _Tensor("float", 2, True), "ROTensor<float,2>", 2),
+    ("func_wotensor", _Tensor("float", 2, False), None, None),
+    ("func_wotensor", _Tensor("float", 2, True), "WOTensor<float,2>", 2),
+    ("func_rwtensor", _Tensor("float", 2, False), None, None),
     ("func_rwtensor", _Tensor("float", 2, True), "RWTensor<float,2>", 2),
-    ("func_ndbuffer", _Tensor("float", 2, False), "NDBuffer<float,2>", 2),
-    ("func_rwndbuffer", _Tensor("float", 2, True), "RWNDBuffer<float,2>", 2),
+
+    ("func_atomictensor", _Tensor("float", 2, False), None, None),
     ("func_atomictensor", _Tensor("float", 2, True), "AtomicTensor<float,2>", 2),
-    ("func_gradintensor", _Tensor("float", 2, True, True, False), "GradInTensor<float,2>", 2),
-    ("func_gradouttensor", _Tensor("float", 2, False, False, True), "GradOutTensor<float,2>", 2),
-    ("func_gradinouttensor", _Tensor("float", 2, True, True, True), "GradInOutTensor<float,2>", 2),
-    ("func_ndbuffer", _NDBuffer("float", 2, False), "NDBuffer<float,2>", 2),
-    ("func_rwndbuffer", _NDBuffer("float", 2, True), "RWNDBuffer<float,2>", 2),
 
-    # Verify writable buffer/tensor can be passed to read-only parameters
-    ("func_itensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
-    ("func_tensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
-    ("func_ndbuffer", _Tensor("float", 2, True), "NDBuffer<float,2>", 2),
-    ("func_ndbuffer", _NDBuffer("float", 2, True), "NDBuffer<float,2>", 2),
-    ("func_gradouttensor", _Tensor("float", 2, True, False, True), "GradOutTensor<float,2>", 2),
+    # Diff tensor interfaces should work without grads and map to primal tensors,
+    # because these tests are run for the primal pass.
+    ("func_irodifftensor", _Tensor("float", 2, False), "ROPrimalTensor<float,2>", 2),
+    ("func_irodifftensor", _Tensor("float", 2, True), "ROPrimalTensor<float,2>", 2),
+    ("func_iwodifftensor", _Tensor("float", 2, False), None, None),
+    ("func_iwodifftensor", _Tensor("float", 2, True), "WOPrimalTensor<float,2>", 2),
+    ("func_irwdifftensor", _Tensor("float", 2, False), None, None),
+    ("func_irwdifftensor", _Tensor("float", 2, True), "RWPrimalTensor<float,2>", 2),
+    ("func_irodifftensor", _Tensor("float", 2, True, True, True), "ROPrimalTensor<float,2>", 2),
+    ("func_iwodifftensor", _Tensor("float", 2, True, True, True), "WOPrimalTensor<float,2>", 2),
+    ("func_irwdifftensor", _Tensor("float", 2, True, True, True), "RWPrimalTensor<float,2>", 2),
 
-    ("func_generic_element_ndbuffer", _NDBuffer("float", 2, True), "NDBuffer<float,2>", 2),
-    ("func_generic_dims_ndbuffer", _NDBuffer("float", 2, True), "NDBuffer<float,2>", 2),
-    ("func_generic_ndbuffer", _NDBuffer("float", 2, True), "NDBuffer<float,2>", 2),
-    ("func_generic_element_ndbuffer", _Tensor("float", 2, True), "NDBuffer<float,2>", 2),
-    ("func_generic_dims_ndbuffer", _Tensor("float", 2, True), "NDBuffer<float,2>", 2),
-    ("func_generic_ndbuffer", _Tensor("float", 2, True), "NDBuffer<float,2>", 2),
+    # Primal tensors are the same, and should work with / without grads
+    ("func_roprimaltensor", _Tensor("float", 2, False), "ROPrimalTensor<float,2>", 2),
+    ("func_roprimaltensor", _Tensor("float", 2, True), "ROPrimalTensor<float,2>", 2),
+    ("func_woprimaltensor", _Tensor("float", 2, False), None, None),
+    ("func_woprimaltensor", _Tensor("float", 2, True), "WOPrimalTensor<float,2>", 2),
+    ("func_rwprimaltensor", _Tensor("float", 2, False), None, None),
+    ("func_rwprimaltensor", _Tensor("float", 2, True), "RWPrimalTensor<float,2>", 2),
+    ("func_roprimaltensor", _Tensor("float", 2, True, True, True), "ROPrimalTensor<float,2>", 2),
+    ("func_woprimaltensor", _Tensor("float", 2, True, True, True), "WOPrimalTensor<float,2>", 2),
+    ("func_rwprimaltensor", _Tensor("float", 2, True, True, True), "RWPrimalTensor<float,2>", 2),
 
-    ("func_generic_element_tensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
-    ("func_generic_dims_tensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
-    ("func_generic_tensor", _Tensor("float", 2, True), "Tensor<float,2>", 2),
+    # Any differentiable tensors require differentiable types
+    ("func_irodifftensor", _Tensor("int", 2, False), None, None),
+    ("func_irodifftensor", _Tensor("int", 2, True), None, None),
+    ("func_iwodifftensor", _Tensor("int", 2, False), None, None),
+    ("func_iwodifftensor", _Tensor("int", 2, True), None, None),
+    ("func_irwdifftensor", _Tensor("int", 2, False), None, None),
+    ("func_irwdifftensor", _Tensor("int", 2, True), None, None),
 
+    # Diff tensors require grads so these should all fail
+    ("func_rodifftensor", _Tensor("float", 2, False), None, None),
+    ("func_rodifftensor", _Tensor("float", 2, True), None, None),
+    ("func_wodifftensor", _Tensor("float", 2, False), None, None),
+    ("func_wodifftensor", _Tensor("float", 2, True), None, None),
+    ("func_rwdifftensor", _Tensor("float", 2, False), None, None),
+    ("func_rwdifftensor", _Tensor("float", 2, True), None, None),
 
-    # Verify tensors with both grads handle being passed to in-only or out-only params
-    ("func_gradintensor", _Tensor("float", 2, True, True, True), "GradInTensor<float,2>", 2),
-    ("func_gradouttensor", _Tensor("float", 2, True, True, True), "GradOutTensor<float,2>", 2),
+    # Diff tensors with the wrong grads should also fail!
+    ("func_rodifftensor", _Tensor("float", 2, True, True, False), None, None),
+    ("func_wodifftensor", _Tensor("float", 2, True, False, True), None, None),
+    ("func_rwdifftensor", _Tensor("float", 2, True, False, True), None, None),
+    ("func_rwdifftensor", _Tensor("float", 2, True, True, False), None, None),
+
+    # Diff tensors with the correct grads should also pass!
+    ("func_rodifftensor", _Tensor("float", 2, True, False, True), "RODiffTensor<float,2>", 2),
+    ("func_wodifftensor", _Tensor("float", 2, True, True, False), "WODiffTensor<float,2>", 2),
+    ("func_rwdifftensor", _Tensor("float", 2, True, True, True), "RWDiffTensor<float,2>", 2),
+
+    # Generic typed tensors
+    ("func_generic_element_tensor", _Tensor("float", 2, True), "ROTensor<float,2>", 2),
+    ("func_generic_dims_tensor", _Tensor("float", 2, True), "ROTensor<float,2>", 2),
+    ("func_generic_tensor", _Tensor("float", 2, True), "ROTensor<float,2>", 2),
 
     # Float texture loading into floats/vectors
     ("func_float", _Texture(spy.TextureType.texture_1d, spy.Format.r32_float, False), "float", 2),

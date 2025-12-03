@@ -312,27 +312,39 @@ void func_atomictensor(AtomicTensor<float, 2> a)
     return;
 }
 
-void func_irodiff_tensor(IRODiffTensor<float, 2> a)
+void func_irodifftensor(IRODiffTensor<float, 2> a)
 {
     return;
 }
-void func_iwodiff_tensor(IWODiffTensor<float, 2> a)
+void func_iwodifftensor(IWODiffTensor<float, 2> a)
 {
     return;
 }
-void func_irwdiff_tensor(IRWDiffTensor<float, 2> a)
+void func_irwdifftensor(IRWDiffTensor<float, 2> a)
 {
     return;
 }
-void func_rodiff_tensor(RODiffTensor<float, 2> a)
+void func_rodifftensor(RODiffTensor<float, 2> a)
 {
     return;
 }
-void func_wodiff_tensor(WODiffTensor<float, 2> a)
+void func_wodifftensor(WODiffTensor<float, 2> a)
 {
     return;
 }
-void func_rwdiff_tensor(RWDiffTensor<float, 2> a)
+void func_rwdifftensor(RWDiffTensor<float, 2> a)
+{
+    return;
+}
+void func_roprimaltensor(ROPrimalTensor<float, 2> a)
+{
+    return;
+}
+void func_woprimaltensor(WOPrimalTensor<float, 2> a)
+{
+    return;
+}
+void func_rwprimaltensor(RWPrimalTensor<float, 2> a)
 {
     return;
 }
