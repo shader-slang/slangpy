@@ -33,102 +33,42 @@ void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], 
         new_offset += stride[i] * idx[i];
 }
 
-// Public interface for a read only tensor. This can be used as the argument
-// to a function (or a generic constraint) to indicate it should take any
-// type of read-only tensor.
-public interface IRODiffTensor<T : IDifferentiable, let D : int>
-{
-    [Differentiable]
-    public T load<I : IInteger>(I idx[D]);
-    [Differentiable]
-    public T load<I : IInteger>(vector<I, D> idx);
+#define _SLANGPY_PRIMALTENSOR_COMMON_FIELDS \
+    public uint[D] _shape;\
+    public uint[D] _strides;\
+    public uint _offset;\
+    public property shape : uint[D] { get { return _shape; } }
 
-    public property shape : uint[D];
-}
 
-// Type alias for a read only tensor differentiable interface This can be used as the argument
-// to a function (or a generic constraint) to indicate it should take any
-// type of read-only tensor.
-public typealias IDiffTensor<T : IDifferentiable, let D : int> = IRODiffTensor<T, D>;
-
-// Public interface for a write only differentiable tensor. This can be used as the argument
-// to a function (or a generic constraint) to indicate it should take any
-// type of write-only tensor.
-public interface IWODiffTensor<T : IDifferentiable, let D : int>
-{
-    [Differentiable]
-    public void store<I : IInteger>(I idx[D], T value);
-    [Differentiable]
-    public void store<I : IInteger>(vector<I, D> idx, T value);
-
-    public property shape : uint[D];
-}
-
-// Public interface for a read-write differentiable tensor. This can be used as the argument
-// to a function (or a generic constraint) to indicate it should take any
-// type of read-write tensor.
-public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, D>, IWODiffTensor<T, D>
-{
-}
-
-#define _SLANGPY_DIFFTENSOR_COMMON \
-    public property shape : uint[D] { get { return _primal.shape; } }
-
-#define _SLANGPY_DIFFTENSOR_LOAD \
-    [Differentiable]\
-    [BackwardDerivative(_load_bwd_array)]\
-    public T load<I : IInteger>(I idx[D])\
-    {\
-        return _primal.load(idx);\
-    }\
-    [Differentiable]\
-    [BackwardDerivative(_load_bwd_vector)]\
-    public T load<I : IInteger>(vector<I, D> idx)\
-    {\
-        return _primal.load(idx);\
+#define _SLANGPY_PRIMALTENSOR_STORE                                                                                          \
+    [TreatAsDifferentiable]                                                                                            \
+    public void store<I : IInteger>(I idx[D], T value)                                                                 \
+    {                                                                                                                  \
+        write_buffer(_idx(idx, _strides, _offset), value);                                                             \
+    }                                                                                                                  \
+    [TreatAsDifferentiable]                                                                                            \
+    public void store<I : IInteger>(vector<I, D> idx, T value)                                                         \
+    {                                                                                                                  \
+        write_buffer(_idx(idx, _strides, _offset), value);                                                             \
     }
 
-#define _SLANGPY_DIFFTENSOR_LOAD_BWD \
-    void _load_bwd_array<I : IInteger>(I idx[D], T.Differential grad)\
-    {\
-        _grad_out.add(idx, grad);\
-    }\
-    void _load_bwd_vector<I : IInteger>(vector<I, D> idx, T.Differential grad)\
-    {\
-        _grad_out.add(idx, grad);\
+#define _SLANGPY_PRIMALTENSOR_LOAD                                                                                           \
+    [TreatAsDifferentiable]                                                                                            \
+    public T load<I : IInteger>(I idx[D])                                                                              \
+    {                                                                                                                  \
+        return read_buffer(_idx(idx, _strides, _offset));                                                              \
+    }                                                                                                                  \
+    [TreatAsDifferentiable]                                                                                            \
+    public T load<I : IInteger>(vector<I, D> idx)                                                                      \
+    {                                                                                                                  \
+        return read_buffer(_idx(idx, _strides, _offset));                                                              \
     }
 
-#define _SLANGPY_DIFFTENSOR_STORE_BWD \
-    void _store_bwd_array<I : IInteger>(I idx[D], inout DifferentialPair<T> grad)\
-    {\
-        grad = diffPair(grad.p, _grad_in.load(idx));\
-    }\
-    void _store_bwd_vector<I : IInteger>(vector<I, D> idx, inout DifferentialPair<T> grad)\
-    {\
-        grad = diffPair(grad.p, _grad_in.load(idx));\
-    }
-
-#define _SLANGPY_DIFFTENSOR_STORE \
-    [Differentiable]\
-    [BackwardDerivative(_store_bwd_array)]\
-    public void store<I : IInteger>(I idx[D], T value)\
-    {\
-        _primal.store(idx, value);\
-    }\
-    [Differentiable]\
-    [BackwardDerivative(_store_bwd_vector)]\
-    public void store<I : IInteger>(vector<I, D> idx, T value)\
-    {\
-        _primal.store(idx, value);\
-    }
-
-#define _SLANGPY_DIFFTENSOR_SLANGPYSTORE                                                                               \
-    [Differentiable]                                                                                                   \
+#define _SLANGPY_PRIMALTENSOR_SLANGPYSTORE                                                                                   \
     public void __slangpy_store(ContextND<D> context, in T value)                                                      \
     {                                                                                                                  \
         this.store(context.call_id, value);                                                                            \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
     public void __slangpy_store<let N : int>(ContextND<D - 1> context, in T[N] value)                                  \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -141,7 +81,6 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
             this.store(idx, value[i]);                                                                                 \
         }                                                                                                              \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
     public void __slangpy_store<let N : int>(ContextND<D - 1> context, in vector<T, N> value)                          \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -154,7 +93,6 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
             this.store(idx, value[i]);                                                                                 \
         }                                                                                                              \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
     public void __slangpy_store<let M : int, let N : int>(ContextND<D - 2> context, in T value[M][N])                  \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -171,7 +109,6 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
     public void __slangpy_store<let M : int, let N : int>(ContextND<D - 2> context, in matrix<T, M, N> value)          \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -189,13 +126,11 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
         }                                                                                                              \
     }
 
-#define _SLANGPY_DIFFTENSOR_SLANGPYLOAD                                                                                  \
-    [Differentiable]                                                                                                   \
+#define _SLANGPY_PRIMALTENSOR_SLANGPYLOAD                                                                                    \
     public void __slangpy_load(ContextND<D> context, out T value)                                                      \
     {                                                                                                                  \
         value = this.load(context.call_id);                                                                            \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
     public void __slangpy_load<let N : int>(ContextND<D - 1> ctx, out T[N] value)                                      \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -208,7 +143,6 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
             value[i] = this.load(idx);                                                                                 \
         }                                                                                                              \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
     public void __slangpy_load<let N : int>(ContextND<D - 1> ctx, out vector<T, N> value)                              \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -221,7 +155,6 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
             value[i] = this.load(idx);                                                                                 \
         }                                                                                                              \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
     public void __slangpy_load<let M : int, let N : int>(ContextND<D - 2> context, out T value[M][N])                  \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -238,7 +171,6 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
     public void __slangpy_load<let M : int, let N : int>(ContextND<D - 2> context, out matrix<T, M, N> value)          \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -256,137 +188,162 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
         }                                                                                                              \
     }
 
-// A read only differentiable tensor, that internally contains a primal tensor, and a gradient output tensor.
-public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, D> where T.Differential : IAtomicAddable
+
+// A read only tensor that is compatible with the IRODiffTensor interface but doesn't store
+// any gradients. This is typically used in generated slangpy code to pass tensors to functions
+// that expect an IRODiffTensor type during the forward pass, when gradients are not needed.
+public struct ROPrimalTensor<T: IDifferentiable, let D : int> : IRODiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     // Underlying data storage
-    public ROTensor<T, D> _primal;
-    public AtomicTensor<T.Differential, D> _grad_out;
+    public StorageTraits<T>::BufferType _data;
 
-    _SLANGPY_DIFFTENSOR_COMMON
-    _SLANGPY_DIFFTENSOR_LOAD
-    _SLANGPY_DIFFTENSOR_LOAD_BWD
-    _SLANGPY_DIFFTENSOR_SLANGPYLOAD
+    public T read_buffer(int idx)
+    {
+        return _data[idx];
+    }
+
+    _SLANGPY_PRIMALTENSOR_COMMON_FIELDS
+    _SLANGPY_PRIMALTENSOR_LOAD
+    _SLANGPY_PRIMALTENSOR_SLANGPYLOAD
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
-        [Differentiable] get { return load(indices); }
+        get { return load(indices); }
     }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
-     {
-         [Differentiable] get { return load(indices); }
+    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    {
+        get { return load(indices); }
     }
 
     public void __slangpy_load(Context0D context, out This value)
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out RODiffTensor<T, SliceD> value)
-    {
-        _primal.__slangpy_load<SliceD>(ctx, value._primal);
-        _grad_out.__slangpy_load<SliceD>(ctx, value._grad_out);
-    }
 
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out ROTensor<T, SliceD> value)
+    {
+        value._data = _data;
+        _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
+        [ForceUnroll]
+        for (int i = 0; i < SliceD; ++i)
+            value._shape[i] = _shape[D - SliceD + i];
+    }
 }
 
 // Type alias for a read only tensor.
-public typealias DiffTensor<T : IDifferentiable, let D : int> where T.Differential : IAtomicAddable = RODiffTensor<T, D> ;
+public typealias Tensor<T, let D : int> = ROTensor<T, D>;
 
-// A write only differentiable tensor, that internally contains a primal tensor, and a gradient input tensor.
-public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, D>
+// Write only tensor that is compatible with the IWODiffTensor interface but doesn't store
+// any gradients. This is typically used in generated slangpy code to pass tensors to functions
+// that expect an IWODiffTensor type during the forward pass, when gradients are not needed.
+public struct WOPrimalTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     // Underlying data storage
-    public RWTensor<T, D> _primal;
-    public ROTensor<T.Differential, D> _grad_in;
+    public StorageTraits<T>::RWBufferType _data;
 
-    _SLANGPY_DIFFTENSOR_COMMON
-    _SLANGPY_DIFFTENSOR_STORE
-    _SLANGPY_DIFFTENSOR_STORE_BWD
-    _SLANGPY_DIFFTENSOR_SLANGPYSTORE
+    public void write_buffer(int idx, T value)
+    {
+        _data[idx] = value;
+    }
 
+    _SLANGPY_PRIMALTENSOR_COMMON_FIELDS
+    _SLANGPY_PRIMALTENSOR_STORE
+    _SLANGPY_PRIMALTENSOR_SLANGPYSTORE
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
-        [Differentiable] set { return store(indices, newValue); }
+        set { return store(indices, newValue); }
     }
     public __subscript<I : IInteger>(vector<I, D> indices)->T
     {
-        [Differentiable] set { return store(indices, newValue); }
+        set { return store(indices, newValue); }
     }
 
     public void __slangpy_load(Context0D context, out This value)
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WODiffTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WOTensor<T, SliceD> value)
     {
-        _primal.__slangpy_load<SliceD>(ctx, value._primal);
-        _grad_in.__slangpy_load<SliceD>(ctx, value._grad_in);
+        value._data = _data;
+        _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
+        [ForceUnroll]
+        for (int i = 0; i < SliceD; ++i)
+            value._shape[i] = _shape[D - SliceD + i];
     }
 }
 
-// A read-write differentiable tensor, that internally contains a primal tensor, and both gradient tensors.
-public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, D> where T.Differential : IAtomicAddable
+// Read-write tensor that is compatible with the IRWDiffTensor interface but doesn't store
+// any gradients. This is typically used in generated slangpy code to pass tensors to functions
+// that expect an IRWDiffTensor type during the forward pass, when gradients are not needed.
+public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, D> where T.Differential : IAtomicAddable
 {
-    public RWTensor<T, D> _primal;
-    public ROTensor<T.Differential, D> _grad_in;
-    public AtomicTensor<T.Differential, D> _grad_out;
+    // Underlying data storage
+    public StorageTraits<T>::RWBufferType _data;
 
-    _SLANGPY_DIFFTENSOR_COMMON
-    _SLANGPY_DIFFTENSOR_LOAD
-    _SLANGPY_DIFFTENSOR_LOAD_BWD
-    _SLANGPY_DIFFTENSOR_STORE
-    _SLANGPY_DIFFTENSOR_STORE_BWD
-    _SLANGPY_DIFFTENSOR_SLANGPYLOAD
-    _SLANGPY_DIFFTENSOR_SLANGPYSTORE
+    public T read_buffer(int idx)
+    {
+        return _data[idx];
+    }
+    public void write_buffer(int idx, T value)
+    {
+        _data[idx] = value;
+    }
+
+    _SLANGPY_PRIMALTENSOR_COMMON_FIELDS
+    _SLANGPY_PRIMALTENSOR_LOAD
+    _SLANGPY_PRIMALTENSOR_SLANGPYLOAD
+    _SLANGPY_PRIMALTENSOR_STORE
+    _SLANGPY_PRIMALTENSOR_SLANGPYSTORE
 
     public __subscript<I : IInteger>(I indices[D])->T
     {
-        [Differentiable] get { return load(indices); }
-        [Differentiable] set { return store(indices, newValue); }
+        get { return load(indices); }
+        set { return store(indices, newValue); }
     }
     public __subscript<I : IInteger>(vector<I, D> indices)->T
     {
-        [Differentiable] get { return load(indices); }
-        [Differentiable] set { return store(indices, newValue); }
+        get { return load(indices); }
+        set { return store(indices, newValue); }
     }
 
     public void __slangpy_load(Context0D context, out This value)
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out RWDiffTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out RWTensor<T, SliceD> value)
     {
-        _primal.__slangpy_load<SliceD>(ctx, value._primal);
-        _grad_in.__slangpy_load<SliceD>(ctx, value._grad_in);
-        _grad_out.__slangpy_load<SliceD>(ctx, value._grad_out);
+        value._data = _data;
+        _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
+        [ForceUnroll]
+        for (int i = 0; i < SliceD; ++i)
+            value._shape[i] = _shape[D - SliceD + i];
     }
 }
 
 // Bespoke loads for directly reading underlying structured buffers from tensor
 #ifndef __TARGET_CUDA__
-public extension<T: IDifferentiable, let D : int> RODiffTensor<T, D> where T.Differential : IAtomicAddable
+public extension<T : IDifferentiable, let D : int> ROPrimalTensor<T, D> where T.Differential : IAtomicAddable
 {
     public void __slangpy_load(Context0D context, out StructuredBuffer<T> value)
     {
-        this._primal.__slangpy_load(context, value);
+        value = this._data;
     }
 }
-public extension<T: IDifferentiable, let D : int> WODiffTensor<T, D> where T.Differential : IAtomicAddable
+public extension<T : IDifferentiable, let D : int> WOPrimalTensor<T, D> where T.Differential : IAtomicAddable
 {
     public void __slangpy_load(Context0D context, out RWStructuredBuffer<T> value)
     {
-        this._primal.__slangpy_load(context, value);
+        value = this._data;
     }
 }
-public extension<T: IDifferentiable, let D : int> RWDiffTensor<T, D> where T.Differential : IAtomicAddable
+public extension<T : IDifferentiable, let D : int> RWPrimalTensor<T, D> where T.Differential : IAtomicAddable
 {
     public void __slangpy_load(Context0D context, out RWStructuredBuffer<T> value)
     {
-        this._primal.__slangpy_load(context, value);
+        value = this._data;
     }
 }
 #endif
-
 
 #endif

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 implementing slangpy;
 
+#if 0
 
 void _idx_accumulate_helper<let D : int, I : __BuiltinIntegerType>(I value, inout int dest, inout int dim, uint stride[D])
 {
@@ -200,3 +201,5 @@ public extension<T, let D: int> AtomicTensor<T, D> where T : IAtomicAddable
         set { store(expand each i, newValue); }
     }
 }
+
+#endif
