@@ -267,17 +267,19 @@ def cg_tensor_name(tensor_type: str, dimensions: int, differentiable: bool = Fal
 
 def cg_interface_extension_header(tensor_type: str, dimensions: int, differentiable: bool = False):
     tensor_name = cg_tensor_name(tensor_type, dimensions, differentiable)
-    code = f"public extension<T, TensorType : I{tensor_name}> TensorType"
+    diff_constraint = ": IDifferentiable" if differentiable else ""
+    code = f"public extension<T{diff_constraint}, TensorType : I{tensor_name}> TensorType"
     if differentiable:
-        code += " where T : IDifferentiable where T.Differential : IAtomicAddable"
+        code += " where T.Differential : IAtomicAddable"
     return code
 
 
 def cg_struct_extension_header(tensor_type: str, dimensions: int, differentiable: bool = False):
     tensor_name = cg_tensor_name(tensor_type, dimensions, differentiable)
-    code = f"public extension<T> {tensor_name}"
+    diff_constraint = ": IDifferentiable" if differentiable else ""
+    code = f"public extension<T{diff_constraint}> {tensor_name}"
     if differentiable:
-        code += " where T : IDifferentiable where T.Differential : IAtomicAddable"
+        code += " where T.Differential : IAtomicAddable"
     return code
 
 
