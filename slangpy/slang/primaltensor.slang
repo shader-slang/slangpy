@@ -3,8 +3,6 @@
 implementing slangpy;
 
 
-#if 1
-
 int _idx<I: IInteger, let N : int>(I[N] indices, uint stride[N], uint offset)
 {
     int idx = 0;
@@ -189,6 +187,7 @@ void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], 
     }
 
 
+
 // A read only tensor that is compatible with the IRODiffTensor interface but doesn't store
 // any gradients. This is typically used in generated slangpy code to pass tensors to functions
 // that expect an IRODiffTensor type during the forward pass, when gradients are not needed.
@@ -231,7 +230,7 @@ public struct ROPrimalTensor<T: IDifferentiable, let D : int> : IRODiffTensor<T,
 }
 
 // Type alias for a read only tensor.
-public typealias Tensor<T, let D : int> = ROTensor<T, D>;
+public typealias PrimalTensor<T : IDifferentiable, let D : int> where T.Differential : IAtomicAddable = ROPrimalTensor<T, D>;
 
 // Write only tensor that is compatible with the IWODiffTensor interface but doesn't store
 // any gradients. This is typically used in generated slangpy code to pass tensors to functions
@@ -344,6 +343,4 @@ public extension<T : IDifferentiable, let D : int> RWPrimalTensor<T, D> where T.
         value = this._data;
     }
 }
-#endif
-
 #endif

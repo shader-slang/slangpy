@@ -384,22 +384,23 @@ def generate_tensor_extensions():
                 code.append("}\n")
                 code.append("\n")
 
-    for tensor_type in tensor_types:
-        for dim in dimensions:
-            # Struct extensions
-            code.append(cg_struct_extension_header(tensor_type, dim, primal=True))
-            code.append("\n{\n")
-            getter = False
-            setter = False
-            if "R" in tensor_type:
-                code.append(cg_load(dim, primal=True))
-                getter = True
-            if "W" in tensor_type:
-                code.append(cg_store(dim, primal=True))
-                setter = True
-            code.append(cg_subscript_extension(getter, setter, dim))
-            code.append("}\n")
-            code.append("\n")
+    if False:
+        for tensor_type in tensor_types:
+            for dim in dimensions:
+                # Struct extensions
+                code.append(cg_struct_extension_header(tensor_type, dim, primal=True))
+                code.append("\n{\n")
+                getter = False
+                setter = False
+                if "R" in tensor_type:
+                    code.append(cg_load(dim, primal=True))
+                    getter = True
+                if "W" in tensor_type:
+                    code.append(cg_store(dim, primal=True))
+                    setter = True
+                code.append(cg_subscript_extension(getter, setter, dim))
+                code.append("}\n")
+                code.append("\n")
 
     for dim in dimensions:
         # Struct extensions

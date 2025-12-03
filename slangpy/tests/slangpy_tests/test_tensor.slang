@@ -159,7 +159,7 @@ float[5] matrix_vector_interfaces(ITensor<float, 2> weights, ITensor<float, 1> b
 }
 
 [Differentiable]
-float[5] matrix_vector_interfaces_diff(DiffTensor<float, 2> weights, DiffTensor<float, 1> biases, float[8] x)
+float[5] matrix_vector_interfaces_diff(IDiffTensor<float, 2> weights, IDiffTensor<float, 1> biases, float[8] x)
 {
     float[5] result;
     for (int r = 0; r < 5; ++r)

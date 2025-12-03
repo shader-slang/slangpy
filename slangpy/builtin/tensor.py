@@ -200,14 +200,21 @@ class TensorMarshall(NativeTensorMarshall):
                 raise TypeError(
                     f"Can't pass a read-only tensor to a writable tensor ({bound_type.full_name})"
                 )
-            if bound_type.has_grad_in and self.d_in is None:
-                raise TypeError(
-                    f"Can't pass tensor without input gradient to one that requires it ({bound_type.full_name})"
-                )
-            if bound_type.has_grad_out and self.d_out is None:
-                raise TypeError(
-                    f"Can't pass tensor without output gradient to one that requires it ({bound_type.full_name})"
-                )
+
+            # Gradients need binding if using a DiffTensorr, or an IDiffTensor in non-primitive pass
+            grads_used = bound_type.tensor_type == TensorType.difftensor or (
+                bound_type.tensor_type == TensorType.idifftensor
+                and context.call_mode != CallMode.prim
+            )
+            if grads_used:
+                if bound_type.has_grad_in and self.d_in is None:
+                    raise TypeError(
+                        f"Can't pass tensor without input gradient to one that requires it ({bound_type.full_name})"
+                    )
+                if bound_type.has_grad_out and self.d_out is None:
+                    raise TypeError(
+                        f"Can't pass tensor without output gradient to one that requires it ({bound_type.full_name})"
+                    )
 
             if bound_type.tensor_type == TensorType.itensor:
                 tensor_type = TensorType.tensor
