@@ -165,7 +165,11 @@ function(sgl_add_library_slang)
         sgl_copy_binary(${SLANG_DIR}/bin/${slang_lib_base}.dll .)
         sgl_copy_binary(${SLANG_DIR}/bin/slang-glslang.dll .)
         sgl_copy_binary(${SLANG_DIR}/bin/slang-glsl-module.dll .)
-        sgl_copy_binary(${SLANG_DIR}/bin/slang-llvm.dll .)
+        # slang-llvm.dll is available in x64 prebuilt packages but not in ARM64 packages.
+        # Use conditional copy to support both architectures.
+        if(EXISTS ${SLANG_DIR}/bin/slang-llvm.dll)
+            sgl_copy_binary(${SLANG_DIR}/bin/slang-llvm.dll .)
+        endif()
         # Note: The downloaded debug-info archive has single top-level 'bin'
         # folder that is stripped out by FetchContent.
         set(slang_resolved_debug_info "${slang_lib_base}.pdb")
