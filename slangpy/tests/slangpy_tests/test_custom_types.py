@@ -62,7 +62,7 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
     kernel_output_values(thread_id(dims), _result=results)
 
     # Should get out the thread ids
-    data = helpers.read_ndbuffer_from_numpy(results).reshape((-1, elements))
+    data = helpers.read_tensor_from_numpy(results).reshape((-1, elements))
 
     if elements == 1:
         expected = [[i] for i in range(128)]
@@ -121,7 +121,7 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: 
     kernel_output_values(call_id(dims), _result=results)
 
     # Should get out the thread ids
-    data = helpers.read_ndbuffer_from_numpy(results).reshape((-1, elements))
+    data = helpers.read_tensor_from_numpy(results).reshape((-1, elements))
     expected = np.indices((16,) * elements).reshape(elements, -1).T
 
     # Reverse order of components in last dimension of expected
@@ -183,7 +183,7 @@ uint3 wang_hashes(uint3 input) {
     expected = np.stack((expected_d0, expected_d1, expected_d2), axis=-1)
 
     # Should get out the following precalculated wang hashes
-    data = helpers.read_ndbuffer_from_numpy(results).reshape((-1, 3))
+    data = helpers.read_tensor_from_numpy(results).reshape((-1, 3))
     assert np.allclose(data, expected)
 
 
@@ -222,7 +222,7 @@ uint wang_hashes(uint input) {
     expected = calc_wang_hash_numpy(thread_hash ^ np_seeds)
 
     # Should get out matching hashes
-    data = helpers.read_ndbuffer_from_numpy(results)
+    data = helpers.read_tensor_from_numpy(results)
     assert np.allclose(data, expected)
 
 
@@ -339,7 +339,7 @@ float3 rand_float(float3 input) {
     values = 1.0 + 2.0 * u
 
     # Should get random numbers
-    data = helpers.read_ndbuffer_from_numpy(results).reshape((-1, 3))
+    data = helpers.read_tensor_from_numpy(results).reshape((-1, 3))
     assert np.allclose(data, values)
 
 
@@ -420,7 +420,7 @@ Particle rand_float_soa(Particle input) {
     )
 
     # Should get random numbers
-    data = helpers.read_ndbuffer_from_numpy(results)
+    data = helpers.read_tensor_from_numpy(results)
     print(data)
 
     pos = np.array([item["pos"] for item in data])

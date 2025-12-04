@@ -26,6 +26,7 @@ from slangpy.reflection import (
     TensorAccess,
     vectorize_type,
     EXPERIMENTAL_VECTORIZATION,
+    ResourceType,
 )
 from slangpy.bindings import (
     PYTHON_TYPES,
@@ -294,12 +295,12 @@ class TensorMarshall(NativeTensorMarshall):
         if as_pointer is not None:
             return [as_pointer]
 
-        # NDBuffer of scalars can load matrices of known size
+        # Tensor of scalars can load matrices of known size
         as_matrix = spyvec.scalar_to_sized_matrix(self_element_type, bound_type)
         if as_matrix is not None:
             return [as_matrix]
 
-        # NDBuffer of scalars can load vectors of known size
+        # Tensor of scalars can load vectors of known size
         as_vector = spyvec.scalar_to_sized_vector(self_element_type, bound_type)
         if as_vector is not None:
             return [as_vector]
@@ -311,7 +312,7 @@ class TensorMarshall(NativeTensorMarshall):
         if as_generic_array_candidates is not None:
             return as_generic_array_candidates
 
-        # NDBuffer of elements can load higher dimensional arrays of known size
+        # Tensor of elements can load higher dimensional arrays of known size
         as_sized_array = spyvec.container_to_sized_array(self_element_type, bound_type, self_dims)
         if as_sized_array is not None:
             return [as_sized_array]
@@ -379,7 +380,13 @@ class TensorMarshall(NativeTensorMarshall):
                 tensor_type=binding.vector_type.tensor_type,
             )
         else:
-            if context.call_mode == CallMode.prim or binding.access[0] != AccessType.none:
+            if isinstance(binding.vector_type, ResourceType):
+                access = (
+                    TensorAccess.read
+                    if not binding.vector_type.writable
+                    else TensorAccess.read_write
+                )
+            elif context.call_mode == CallMode.prim or binding.access[0] != AccessType.none:
                 if binding.access[0] == AccessType.read:
                     access = TensorAccess.read
                 elif binding.access[0] == AccessType.write:

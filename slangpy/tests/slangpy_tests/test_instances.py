@@ -81,7 +81,7 @@ def test_this_interface(device_type: DeviceType):
     Particle_reset(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = helpers.read_ndbuffer_from_numpy(buffer)
+    data = helpers.read_tensor_from_numpy(buffer)
 
     # position
     positions = np.array([item["position"] for item in data])
@@ -152,7 +152,7 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     instance.construct(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = helpers.read_ndbuffer_from_numpy(buffer)
+    data = helpers.read_tensor_from_numpy(buffer)
     positions = np.array([item["position"] for item in data])
     assert np.all(positions == [1.0, 2.0])
     velocity = np.array([item["velocity"] for item in data])
@@ -165,7 +165,7 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     instance.update_position(1.0)
 
     # Check the buffer has been correctly updated
-    data = helpers.read_ndbuffer_from_numpy(buffer)
+    data = helpers.read_tensor_from_numpy(buffer)
     positions = np.array([item["position"] for item in data])
     assert np.all(positions == [0.0, 1.0])
     velocity = np.array([item["velocity"] for item in data])
@@ -263,7 +263,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     # assigning each a constant starting position and a random velocity
     particles.construct(position=float2(10, 10), velocity=RandFloatArg(min=-1, max=1, dim=2))
 
-    expected_particles = helpers.read_ndbuffer_from_numpy(particles._data)
+    expected_particles = helpers.read_tensor_from_numpy(particles._data)
     expected_particles = flatten_ndarray(expected_particles)
 
     # Call the slang function 'Particle::update_position' to update them
@@ -272,7 +272,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     particle_update_positions(expected_particles, 1.0 / 60.0)
 
     # Check the numpy buffer and the slang buffer are the same
-    particle_data = helpers.read_ndbuffer_from_numpy(particles._data)
+    particle_data = helpers.read_tensor_from_numpy(particles._data)
     particle_data = flatten_ndarray(particle_data)
     assert np.allclose(particle_data, expected_particles)
 
@@ -320,7 +320,7 @@ def test_pass_nested_instance_to_function(device_type: DeviceType):
     particles.construct(position=float2(10, 10), velocity=float2(0, 0))
 
     # Check colors are white and emission is black!
-    material_data = helpers.read_ndbuffer_from_numpy(particles._data["material"]._data)
+    material_data = helpers.read_tensor_from_numpy(particles._data["material"]._data)
     material_data = np.array(
         [list(item["color"]) + list(item["emission"]) for item in material_data]
     )
@@ -440,7 +440,7 @@ def test_backwards_diff(device_type: DeviceType):
     next_positions = next_positions.with_grads()
 
     # Init the gradients of next positions to 1 for the backwards pass
-    helpers.write_ndbuffer_from_numpy(
+    helpers.write_tensor_from_numpy(
         next_positions.grad, np.ones((particle_count * 2), dtype=np.float32), 2
     )
 
@@ -452,14 +452,14 @@ def test_backwards_diff(device_type: DeviceType):
     particles.calc_next_position.bwds(dt=dts, _result=next_positions)
 
     # Read back all primals and gradients we ended up with into numpy arrays
-    particle_primals = helpers.read_ndbuffer_from_numpy(particles.buffer)
+    particle_primals = helpers.read_tensor_from_numpy(particles.buffer)
     particle_primals = flatten_ndarray(particle_primals).reshape(-1, 11)
 
-    particle_grads = helpers.read_ndbuffer_from_numpy(particles.buffer.grad)
+    particle_grads = helpers.read_tensor_from_numpy(particles.buffer.grad)
     particle_grads = flatten_ndarray(particle_grads).reshape(-1, 11)
 
-    dt_grads = helpers.read_ndbuffer_from_numpy(dts.grad)
-    next_positions = helpers.read_ndbuffer_from_numpy(next_positions).reshape(-1, 2)
+    dt_grads = helpers.read_tensor_from_numpy(dts.grad)
+    next_positions = helpers.read_tensor_from_numpy(next_positions).reshape(-1, 2)
 
     for particle_idx in range(0, len(particle_primals)):
         pos = particle_primals[particle_idx][0:2]

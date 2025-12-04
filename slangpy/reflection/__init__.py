@@ -15,6 +15,7 @@ from .reflectiontypes import (
     TextureType,
     PointerType,
     UnknownType,
+    ResourceType,
     StructuredBufferType,
     ByteAddressBufferType,
     DifferentialPairType,

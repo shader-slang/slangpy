@@ -17,11 +17,11 @@ works with major SlangPy components.
   - Matrix multiplication with call group-based transformations
   - Tensor aggregation operations across different call group configurations
 
-### 2. NDBuffer Integration
+### 2. Tensor Integration
 - **Purpose**: Ensures call groups work with structured data buffers
-- **Features**: 2D/3D buffer processing, vector operations, data transformations
+- **Features**: 2D/3D tensor processing, vector operations, data transformations
 - **Tests**:
-  - 2D buffer processing with call group coordinate mapping
+  - 2D tensor processing with call group coordinate mapping
   - Vector operations (float3) with call group offsets
   - 3D reduction operations using call group information
 
@@ -67,7 +67,7 @@ from slangpy.testing import helpers
 import os
 
 
-def get_tensor_test_module(device: Device):
+def get_tensor_autodiff_test_module(device: Device):
     """
     Create a SlangPy module for tensor autodiff integration tests.
 
@@ -137,17 +137,17 @@ float tensor_aggregation_with_groups(
     return helpers.create_module(device, kernel_source)
 
 
-def get_ndbuffer_test_module(device: Device):
+def get_tensor_test_module(device: Device):
     """
-    Create a SlangPy module for NDBuffer integration tests.
+    Create a SlangPy module for Tensor integration tests.
 
-    This module contains Slang functions that work with NDBuffer data structures
+    This module contains Slang functions that work with Tensor data structures
     while utilizing call group functionality for coordinate-based processing.
 
     Functions provided:
-    - ndbuffer_process_with_groups: 2D buffer processing with call group transformations
-    - ndbuffer_vector_ops_with_groups: Vector (float3) operations with call group offsets
-    - ndbuffer_reduce_with_groups: 3D reduction operations using call group coordinates
+    - tensor_process_with_groups: 2D tensor processing with call group transformations
+    - tensor_vector_ops_with_groups: Vector (float3) operations with call group offsets
+    - tensor_reduce_with_groups: 3D reduction operations using call group coordinates
 
     These functions demonstrate how call groups can be used to process structured
     data with spatial awareness and coordinate-based transformations.
@@ -161,7 +161,7 @@ def get_ndbuffer_test_module(device: Device):
     kernel_source = """
 import "slangpy";
 
-float ndbuffer_process_with_groups(
+float tensor_process_with_groups(
     float input,
     out float output,
     uint2 grid_cell
@@ -178,7 +178,7 @@ float ndbuffer_process_with_groups(
     return input;
 }
 
-float3 ndbuffer_vector_ops_with_groups(
+float3 tensor_vector_ops_with_groups(
     float3 vector_input,
     uint grid_cell
 ) {
@@ -195,7 +195,7 @@ float3 ndbuffer_vector_ops_with_groups(
     return vector_input + group_offset;
 }
 
-int ndbuffer_reduce_with_groups(
+int tensor_reduce_with_groups(
     int data_input,
     uint3 grid_cell
 ) {
@@ -406,7 +406,7 @@ def test_tensor_autodiff_with_call_groups(device_type: DeviceType):
         device_type: Backend device type (D3D12/Vulkan) for parameterized testing
     """
     device = helpers.get_device(device_type)
-    module = get_tensor_test_module(device)
+    module = get_tensor_autodiff_test_module(device)
 
     # Create test tensors with gradients
     np.random.seed(42)
@@ -445,7 +445,7 @@ def test_tensor_autodiff_with_call_groups(device_type: DeviceType):
 def test_tensor_matrix_ops_with_call_groups(device_type: DeviceType):
     """Test tensor matrix operations with call groups."""
     device = helpers.get_device(device_type)
-    module = get_tensor_test_module(device)
+    module = get_tensor_autodiff_test_module(device)
 
     # Create test tensors
     weights_data = np.random.randn(4, 3).astype(np.float32)
@@ -470,7 +470,7 @@ def test_tensor_matrix_ops_with_call_groups(device_type: DeviceType):
 def test_tensor_aggregation_with_call_groups(device_type: DeviceType):
     """Test tensor aggregation operations with call groups."""
     device = helpers.get_device(device_type)
-    module = get_tensor_test_module(device)
+    module = get_tensor_autodiff_test_module(device)
 
     # Test with different call group configurations
     test_cases = [
@@ -491,57 +491,57 @@ def test_tensor_aggregation_with_call_groups(device_type: DeviceType):
         assert np.all(np.isfinite(result))
 
 
-# NDBuffer Integration Tests
+# Tensor Integration Tests
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_ndbuffer_2d_with_call_groups(device_type: DeviceType):
-    """Test 2D NDBuffer processing with call groups."""
+def test_tensor_2d_with_call_groups(device_type: DeviceType):
+    """Test 2D Tensor processing with call groups."""
     device = helpers.get_device(device_type)
-    module = get_ndbuffer_test_module(device)
+    module = get_tensor_test_module(device)
 
-    # Create test NDBuffers
+    # Create test Tensors
     shape = (8, 6)
     input_data = np.random.randn(*shape).astype(np.float32)
 
     input_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
     output_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
 
-    helpers.write_ndbuffer_from_numpy(input_buffer, input_data.flatten(), 1)
+    helpers.write_tensor_from_numpy(input_buffer, input_data.flatten(), 1)
 
     # Test with call group shape
     call_group_shape = (2, 3)
 
-    func = module.ndbuffer_process_with_groups.call_group_shape(Shape(call_group_shape))
+    func = module.tensor_process_with_groups.call_group_shape(Shape(call_group_shape))
     result = func(input_buffer, output_buffer, spy.grid(shape), _result="numpy")
 
     # Verify results
     assert result.shape == shape
 
     # Read back output buffer and verify
-    output_data = helpers.read_ndbuffer_from_numpy(output_buffer).reshape(shape)
+    output_data = helpers.read_tensor_from_numpy(output_buffer).reshape(shape)
     assert np.all(np.isfinite(output_data))
     assert not np.array_equal(input_data, output_data)  # Should be modified
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_ndbuffer_vector_ops_with_call_groups(device_type: DeviceType):
-    """Test NDBuffer vector operations with call groups."""
+def test_tensor_vector_ops_with_call_groups(device_type: DeviceType):
+    """Test Tensor vector operations with call groups."""
     device = helpers.get_device(device_type)
-    module = get_ndbuffer_test_module(device)
+    module = get_tensor_test_module(device)
 
     # Create test vector buffer
     vector_count = 12
     vector_data = np.random.randn(vector_count, 3).astype(np.float32)
 
     vector_buffer = Tensor.empty(device=device, shape=(vector_count,), dtype=spy.float3)
-    helpers.write_ndbuffer_from_numpy(vector_buffer, vector_data.flatten(), 3)
+    helpers.write_tensor_from_numpy(vector_buffer, vector_data.flatten(), 3)
 
     # Test with 1D call groups
     call_shape = (vector_count,)
     call_group_shape = (4,)
 
-    func = module.ndbuffer_vector_ops_with_groups.call_group_shape(Shape(call_group_shape))
+    func = module.tensor_vector_ops_with_groups.call_group_shape(Shape(call_group_shape))
     result = func(vector_buffer, spy.grid(call_shape), _result="numpy")
 
     # Verify results
@@ -550,22 +550,22 @@ def test_ndbuffer_vector_ops_with_call_groups(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_ndbuffer_3d_reduce_with_call_groups(device_type: DeviceType):
-    """Test 3D NDBuffer reduction with call groups."""
+def test_tensor_3d_reduce_with_call_groups(device_type: DeviceType):
+    """Test 3D Tensor reduction with call groups."""
     device = helpers.get_device(device_type)
-    module = get_ndbuffer_test_module(device)
+    module = get_tensor_test_module(device)
 
     # Create 3D test data
     shape = (4, 4, 2)
     data = np.random.randint(0, 10, shape).astype(np.int32)
 
     data_buffer = Tensor.empty(device=device, shape=shape, dtype=int)
-    helpers.write_ndbuffer_from_numpy(data_buffer, data.flatten(), 1)
+    helpers.write_tensor_from_numpy(data_buffer, data.flatten(), 1)
 
     # Test with 3D call groups
     call_group_shape = (2, 2, 2)
 
-    func = module.ndbuffer_reduce_with_groups.call_group_shape(Shape(call_group_shape))
+    func = module.tensor_reduce_with_groups.call_group_shape(Shape(call_group_shape))
     result = func(data_buffer, spy.grid(shape), _result="numpy")
 
     # Verify results
@@ -742,7 +742,7 @@ def test_transforms_with_call_groups(device_type: DeviceType):
     input_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
     output_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
 
-    helpers.write_ndbuffer_from_numpy(input_buffer, input_data.flatten(), 1)
+    helpers.write_tensor_from_numpy(input_buffer, input_data.flatten(), 1)
 
     # Test transform with call groups
     call_group_shape = (3, 4)
@@ -755,7 +755,7 @@ def test_transforms_with_call_groups(device_type: DeviceType):
     assert np.all(np.isfinite(result))
 
     # Verify output buffer was modified
-    output_data = helpers.read_ndbuffer_from_numpy(output_buffer).reshape(shape)
+    output_data = helpers.read_tensor_from_numpy(output_buffer).reshape(shape)
     assert not np.array_equal(input_data, output_data)
 
 
@@ -807,7 +807,7 @@ def test_transforms_with_mapping_and_call_groups(device_type: DeviceType):
     vector_data = np.random.randn(*shape, 3).astype(np.float32)
 
     vector_buffer = Tensor.empty(device=device, shape=shape, dtype=spy.float3)
-    helpers.write_ndbuffer_from_numpy(vector_buffer, vector_data.flatten(), 3)
+    helpers.write_tensor_from_numpy(vector_buffer, vector_data.flatten(), 3)
 
     # Test with both mapping and call groups
     call_group_shape = (2, 3)
@@ -833,7 +833,7 @@ def test_transforms_with_mapping_and_call_groups(device_type: DeviceType):
 def test_call_groups_with_large_buffers(device_type: DeviceType):
     """Test call groups with larger buffer sizes."""
     device = helpers.get_device(device_type)
-    module = get_ndbuffer_test_module(device)
+    module = get_tensor_test_module(device)
 
     # Create larger test case
     shape = (64, 32)
@@ -842,7 +842,7 @@ def test_call_groups_with_large_buffers(device_type: DeviceType):
     input_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
     output_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
 
-    helpers.write_ndbuffer_from_numpy(input_buffer, input_data.flatten(), 1)
+    helpers.write_tensor_from_numpy(input_buffer, input_data.flatten(), 1)
 
     # Test with various call group sizes
     test_cases = [
@@ -853,7 +853,7 @@ def test_call_groups_with_large_buffers(device_type: DeviceType):
     ]
 
     for call_group_shape in test_cases:
-        func = module.ndbuffer_process_with_groups.call_group_shape(Shape(call_group_shape))
+        func = module.tensor_process_with_groups.call_group_shape(Shape(call_group_shape))
         result = func(input_buffer, output_buffer, spy.grid(shape), _result="numpy")
 
         assert result.shape == shape
@@ -864,7 +864,7 @@ def test_call_groups_with_large_buffers(device_type: DeviceType):
 def test_call_groups_misaligned_shapes(device_type: DeviceType):
     """Test call groups with misaligned shapes (shape not divisible by group size)."""
     device = helpers.get_device(device_type)
-    module = get_ndbuffer_test_module(device)
+    module = get_tensor_test_module(device)
 
     # Create misaligned test case
     shape = (7, 11)  # Prime numbers to ensure misalignment
@@ -873,12 +873,12 @@ def test_call_groups_misaligned_shapes(device_type: DeviceType):
     input_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
     output_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
 
-    helpers.write_ndbuffer_from_numpy(input_buffer, input_data.flatten(), 1)
+    helpers.write_tensor_from_numpy(input_buffer, input_data.flatten(), 1)
 
     # Test with call group size that doesn't divide evenly
     call_group_shape = (4, 3)
 
-    func = module.ndbuffer_process_with_groups.call_group_shape(Shape(call_group_shape))
+    func = module.tensor_process_with_groups.call_group_shape(Shape(call_group_shape))
     result = func(input_buffer, output_buffer, spy.grid(shape), _result="numpy")
 
     assert result.shape == shape

@@ -10,7 +10,7 @@ from slangpy import (
     TypeReflection,
 )
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy.types import Tensor, NativeNDBuffer
+from slangpy.types.buffer import NDBuffer, NativeNDBuffer
 from slangpy.types.tensor import Tensor, NativeTensor
 
 from IPython.core.getipython import get_ipython  # type: ignore

@@ -60,7 +60,7 @@ def test_init_particle(device_type: DeviceType):
     # Call constructor, which returns particles
     Particle.__init(float2(1.0, 2.0), float2(3.0, 4.0), _result=buffer)
 
-    data = helpers.read_ndbuffer_from_numpy(buffer)
+    data = helpers.read_tensor_from_numpy(buffer)
     print(data)
 
     # position
