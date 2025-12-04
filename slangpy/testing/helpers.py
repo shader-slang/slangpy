@@ -26,8 +26,9 @@ from slangpy import (
     LogLevel,
     NativeHandle,
     Tensor,
+    NDBuffer,
 )
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.core.function import Function
 
 # Global variables for device isolation. If SELECTED_DEVICE_TYPES is None, no restriction.

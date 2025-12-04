@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from slangpy import Device, DeviceType, float3
-from slangpy.types import NDBuffer
+from slangpy.types import Tensor
 from slangpy.types.diffpair import diffPair, floatDiffPair
 from slangpy.types.valueref import intRef
 from slangpy.testing import helpers
@@ -205,22 +205,22 @@ void add_numbers(int a, int b, out int c) {
         out_buffer_size = max(in_buffer_0_size, in_buffer_1_size)
 
     # Setup input buffers
-    in_buffer_0: Union[int, NDBuffer]
+    in_buffer_0: Union[int, Tensor]
     if in_buffer_0_size == 0:
         in_buffer_0 = int(rand_array_of_ints(1)[0])
     else:
-        in_buffer_0 = NDBuffer(
+        in_buffer_0 = Tensor.empty(
             element_count=in_buffer_0_size,
             device=device,
             dtype=int,
         )
         in_buffer_0.storage.copy_from_numpy(rand_array_of_ints(in_buffer_0.element_count))
 
-    in_buffer_1: Union[int, NDBuffer]
+    in_buffer_1: Union[int, Tensor]
     if in_buffer_1_size == 0:
         in_buffer_1 = int(rand_array_of_ints(1)[0])
     else:
-        in_buffer_1 = NDBuffer(
+        in_buffer_1 = Tensor.empty(
             element_count=in_buffer_1_size,
             device=device,
             dtype=int,
@@ -228,7 +228,7 @@ void add_numbers(int a, int b, out int c) {
         in_buffer_1.storage.copy_from_numpy(rand_array_of_ints(in_buffer_1.element_count))
 
     # Setup output buffer
-    out_buffer = NDBuffer(
+    out_buffer = Tensor.empty(
         element_count=out_buffer_size,
         device=device,
         dtype=int,
@@ -291,21 +291,21 @@ void add_numbers_remap(int a, int b, out int c) {
 """,
     )
 
-    a = NDBuffer(
+    a = Tensor.empty(
         element_count=100,
         device=device,
         dtype=int,
     )
     a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
-    b = NDBuffer(
+    b = Tensor.empty(
         element_count=50,
         device=device,
         dtype=int,
     )
     b.storage.copy_from_numpy(rand_array_of_ints(b.element_count))
 
-    c = NDBuffer(
+    c = Tensor.empty(
         shape=(50, 100),
         device=device,
         dtype=int,
@@ -329,14 +329,14 @@ int add_numbers(int a, int b) {
 """,
     )
 
-    a = NDBuffer(
+    a = Tensor.empty(
         element_count=50,
         device=device,
         dtype=int,
     )
     a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
-    b = NDBuffer(
+    b = Tensor.empty(
         element_count=50,
         device=device,
         dtype=int,
@@ -344,7 +344,7 @@ int add_numbers(int a, int b) {
     b.storage.copy_from_numpy(rand_array_of_ints(b.element_count))
 
     # just verify it can be called with no exceptions
-    res: NDBuffer = function(a, b)
+    res: Tensor = function(a, b)
 
     a_data = a.storage.to_numpy().view(np.int32)
     b_data = b.storage.to_numpy().view(np.int32)
@@ -367,14 +367,14 @@ int add_numbers(Tensor<int,1> a, Tensor<int,1> b) {
 """,
     )
 
-    a = NDBuffer(
+    a = Tensor.empty(
         element_count=1,
         device=device,
         dtype=int,
     )
     a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
-    b = NDBuffer(
+    b = Tensor.empty(
         element_count=1,
         device=device,
         dtype=int,
@@ -404,14 +404,14 @@ Foo create_foo(int x) { return { x }; }
 """,
     )
 
-    x = NDBuffer(
+    x = Tensor.empty(
         element_count=1,
         device=device,
         dtype=int,
     )
     x.storage.copy_from_numpy(rand_array_of_ints(x.element_count))
 
-    result: NDBuffer = module.create_foo(x)
+    result: Tensor = module.create_foo(x)
 
     assert result.shape == (1,)
 
@@ -512,14 +512,14 @@ void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
 """,
     )
 
-    a = NDBuffer(
+    a = Tensor.empty(
         element_count=1,
         device=device,
         dtype=int,
     )
     a.storage.copy_from_numpy(np.array([42], dtype=np.float32))
 
-    b = NDBuffer(
+    b = Tensor.empty(
         element_count=1,
         device=device,
         dtype=int,

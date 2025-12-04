@@ -88,7 +88,7 @@ class NumpyMarshall(NativeNumpyMarshall):
                 raise ValueError(
                     f"{binding.variable_name}: Element shape mismatch: val={el_shape}, expected={vec_shape}")
 
-        buffer = NDBuffer(context.device, dtype=self.slang_element_type, shape=shape)
+        buffer = Tensor.empty(context.device, dtype=self.slang_element_type, shape=shape)
         buffer.copy_from_numpy(data)
         return super().create_calldata(context, binding, buffer)
 

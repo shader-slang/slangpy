@@ -71,9 +71,9 @@ def run():
 
     compute_kernel = device.create_compute_kernel(sgl_program)
 
-    a = spy.NDBuffer(device, spy_module.float, 10000000)
-    b = spy.NDBuffer(device, spy_module.float, 10000000)
-    res = spy.NDBuffer(device, spy_module.float, 10000000)
+    a = spy.Tensor.empty(device, spy_module.float, 10000000)
+    b = spy.Tensor.empty(device, spy_module.float, 10000000)
+    res = spy.Tensor.empty(device, spy_module.float, 10000000)
 
     a_data = np.random.rand(10000000).astype(np.float32)
     b_data = np.random.rand(10000000).astype(np.float32)
@@ -85,9 +85,9 @@ def run():
     expected = (a_data + b_data)[0:1000]
     assert np.allclose(res_data, expected)
 
-    a_small = spy.NDBuffer(device, spy_module.float, 1000)
-    b_small = spy.NDBuffer(device, spy_module.float, 1000)
-    res_small = spy.NDBuffer(device, spy_module.float, 1000)
+    a_small = spy.Tensor.empty(device, spy_module.float, 1000)
+    b_small = spy.Tensor.empty(device, spy_module.float, 1000)
+    res_small = spy.Tensor.empty(device, spy_module.float, 1000)
     a.copy_from_numpy(a_data[0:1000])
     b.copy_from_numpy(b_data[0:1000])
 
@@ -171,11 +171,11 @@ def run_for_profiling():
 
     a_data = np.random.rand(size).astype(np.float32)
     b_data = np.random.rand(size).astype(np.float32)
-    a_small = spy.NDBuffer(device, spy_module.float, size)
+    a_small = spy.Tensor.empty(device, spy_module.float, size)
     a_small.copy_from_numpy(a_data)
-    b_small = spy.NDBuffer(device, spy_module.float, size)
+    b_small = spy.Tensor.empty(device, spy_module.float, size)
     b_small.copy_from_numpy(b_data)
-    res_small = spy.NDBuffer(device, spy_module.float, size)
+    res_small = spy.Tensor.empty(device, spy_module.float, size)
 
     a_texture = device.create_texture(
         format=spy.Format.r32_float, width=size, usage=spy.TextureUsage.shader_resource
@@ -370,8 +370,8 @@ def run_torch_comparison():
     buffer_size = 1000000
     iterations = 10000
 
-    val = spy.NDBuffer(device, spy_module.float, buffer_size)
-    total = spy.NDBuffer(device, spy_module.float, buffer_size)
+    val = spy.Tensor.empty(device, spy_module.float, buffer_size)
+    total = spy.Tensor.empty(device, spy_module.float, buffer_size)
 
     val_data = np.random.rand(buffer_size).astype(np.float32)
     total_data = np.zeros_like(val_data)
@@ -439,11 +439,11 @@ def run_for_sig_test():
     a_data = np.random.rand(1000).astype(np.float32)
     b_data = np.random.rand(1000).astype(np.float32)
 
-    a_small = spy.NDBuffer(device, spy_module.float, 1000)
+    a_small = spy.Tensor.empty(device, spy_module.float, 1000)
     a_small.copy_from_numpy(a_data)
-    b_small = spy.NDBuffer(device, spy_module.float, 1000)
+    b_small = spy.Tensor.empty(device, spy_module.float, 1000)
     b_small.copy_from_numpy(b_data)
-    res_small = spy.NDBuffer(device, spy_module.float, 1000)
+    res_small = spy.Tensor.empty(device, spy_module.float, 1000)
 
     iterations = 5
 

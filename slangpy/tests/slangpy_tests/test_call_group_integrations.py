@@ -62,7 +62,7 @@ import numpy as np
 import slangpy as spy
 from slangpy import DeviceType, Device, TextureDesc, TextureUsage, Format, TextureType
 from slangpy.slangpy import Shape
-from slangpy.types import NDBuffer, Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 import os
 
@@ -504,8 +504,8 @@ def test_ndbuffer_2d_with_call_groups(device_type: DeviceType):
     shape = (8, 6)
     input_data = np.random.randn(*shape).astype(np.float32)
 
-    input_buffer = NDBuffer(device=device, shape=shape, dtype=float)
-    output_buffer = NDBuffer(device=device, shape=shape, dtype=float)
+    input_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
+    output_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
 
     helpers.write_ndbuffer_from_numpy(input_buffer, input_data.flatten(), 1)
 
@@ -534,7 +534,7 @@ def test_ndbuffer_vector_ops_with_call_groups(device_type: DeviceType):
     vector_count = 12
     vector_data = np.random.randn(vector_count, 3).astype(np.float32)
 
-    vector_buffer = NDBuffer(device=device, shape=(vector_count,), dtype=spy.float3)
+    vector_buffer = Tensor.empty(device=device, shape=(vector_count,), dtype=spy.float3)
     helpers.write_ndbuffer_from_numpy(vector_buffer, vector_data.flatten(), 3)
 
     # Test with 1D call groups
@@ -559,7 +559,7 @@ def test_ndbuffer_3d_reduce_with_call_groups(device_type: DeviceType):
     shape = (4, 4, 2)
     data = np.random.randint(0, 10, shape).astype(np.int32)
 
-    data_buffer = NDBuffer(device=device, shape=shape, dtype=int)
+    data_buffer = Tensor.empty(device=device, shape=shape, dtype=int)
     helpers.write_ndbuffer_from_numpy(data_buffer, data.flatten(), 1)
 
     # Test with 3D call groups
@@ -739,8 +739,8 @@ def test_transforms_with_call_groups(device_type: DeviceType):
     shape = (6, 8)
     input_data = np.random.randn(*shape).astype(np.float32)
 
-    input_buffer = NDBuffer(device=device, shape=shape, dtype=float)
-    output_buffer = NDBuffer(device=device, shape=shape, dtype=float)
+    input_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
+    output_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
 
     helpers.write_ndbuffer_from_numpy(input_buffer, input_data.flatten(), 1)
 
@@ -806,7 +806,7 @@ def test_transforms_with_mapping_and_call_groups(device_type: DeviceType):
     shape = (4, 6)
     vector_data = np.random.randn(*shape, 3).astype(np.float32)
 
-    vector_buffer = NDBuffer(device=device, shape=shape, dtype=spy.float3)
+    vector_buffer = Tensor.empty(device=device, shape=shape, dtype=spy.float3)
     helpers.write_ndbuffer_from_numpy(vector_buffer, vector_data.flatten(), 3)
 
     # Test with both mapping and call groups
@@ -839,8 +839,8 @@ def test_call_groups_with_large_buffers(device_type: DeviceType):
     shape = (64, 32)
     input_data = np.random.randn(*shape).astype(np.float32)
 
-    input_buffer = NDBuffer(device=device, shape=shape, dtype=float)
-    output_buffer = NDBuffer(device=device, shape=shape, dtype=float)
+    input_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
+    output_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
 
     helpers.write_ndbuffer_from_numpy(input_buffer, input_data.flatten(), 1)
 
@@ -870,8 +870,8 @@ def test_call_groups_misaligned_shapes(device_type: DeviceType):
     shape = (7, 11)  # Prime numbers to ensure misalignment
     input_data = np.random.randn(*shape).astype(np.float32)
 
-    input_buffer = NDBuffer(device=device, shape=shape, dtype=float)
-    output_buffer = NDBuffer(device=device, shape=shape, dtype=float)
+    input_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
+    output_buffer = Tensor.empty(device=device, shape=shape, dtype=float)
 
     helpers.write_ndbuffer_from_numpy(input_buffer, input_data.flatten(), 1)
 

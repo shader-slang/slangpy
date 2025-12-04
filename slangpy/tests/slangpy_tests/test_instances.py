@@ -14,11 +14,11 @@ from slangpy import (
     math,
     Buffer,
     InstanceList,
-    InstanceBuffer,
+    InstanceTensor,
     Module,
 )
 from slangpy.core.struct import Struct
-from slangpy.types import NDBuffer, Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.types.randfloatarg import RandFloatArg
 from slangpy.types.valueref import ValueRef, floatRef
 from slangpy.experimental.diffinstancelist import InstanceDifferentiableBuffer
@@ -71,7 +71,7 @@ def test_this_interface(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Allocate a buffer
-    buffer = NDBuffer(m.device, Particle, 1)
+    buffer = Tensor.empty(m.device, dtype=Particle, element_count=1)
 
     # Create a tiny wrapper around the buffer to provide the this interface
     this = ThisType(buffer)
@@ -116,7 +116,7 @@ def test_this_interface_soa(device_type: DeviceType):
     # Create a tiny wrapper around the buffer to provide the this interface
     this = ThisType(
         {
-            "position": NDBuffer(m.device, float2, 1),
+            "position": Tensor.empty(m.device, dtype=float2, element_count=1),
             "velocity": float2(1, 0),
             "size": 0.5,
             "material": {"color": float3(1, 1, 1), "emission": float3(0, 0, 0)},
@@ -144,8 +144,8 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     assert Particle is not None
     assert isinstance(Particle, Struct)
 
-    # Sllocate a buffer
-    buffer = NDBuffer(m.device, Particle, 1)
+    # Allocate a buffer
+    buffer = Tensor.empty(m.device, dtype=Particle, element_count=1)
 
     # Create a tiny wrapper around the buffer to provide the this interface
     instance = InstanceList(Particle, buffer)
@@ -186,7 +186,7 @@ def test_loose_instance_soa(device_type: DeviceType):
     instance = InstanceList(
         Particle,
         {
-            "position": NDBuffer(m.device, float2, 1),
+            "position": Tensor.empty(m.device, dtype=float2, element_count=1),
             "velocity": ValueRef(float2(9999)),
             "size": floatRef(9999),
             "material": {
@@ -257,7 +257,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create storage for particles in a simple buffer
-    particles = InstanceBuffer(Particle, shape=(1000,))
+    particles = InstanceTensor(Particle, shape=(1000,))
 
     # Call the slang constructor on all particles in the buffer,
     # assigning each a constant starting position and a random velocity
@@ -279,7 +279,7 @@ def test_pass_instance_to_function(device_type: DeviceType):
     # Define a 'Quad' type which is just an array of float2s, and make a buffer for them
     Quad = m["float2[4]"]
     assert isinstance(Quad, Struct)
-    quads = InstanceBuffer(Quad, particles.shape)
+    quads = InstanceTensor(Quad, particles.shape)
 
     # Call the slang function 'get_particle_quad' which takes particles and returns quads
     m.get_particle_quad(particles, _result=quads)
@@ -308,10 +308,10 @@ def test_pass_nested_instance_to_function(device_type: DeviceType):
     particles = InstanceList(
         Particle,
         {
-            "position": NDBuffer(m.device, float2, 1000),
+            "position": Tensor.empty(m.device, dtype=float2, element_count=1000),
             "velocity": float2(0, 0),
             "size": 0.5,
-            "material": InstanceBuffer(Material, shape=(1000,)),
+            "material": InstanceTensor(Material, shape=(1000,)),
         },
     )
 
@@ -342,7 +342,7 @@ class CustomInstanceList:
         self.data = data
 
     def get_this(self) -> Any:
-        buffer = NDBuffer(self.device, float2, len(self.data))
+        buffer = Tensor.empty(self.device, dtype=float2, element_count=len(self.data))
         np_data = np.array([[v.x, v.y] for v in self.data], dtype=np.float32)
         buffer.copy_from_numpy(np_data)
         return buffer
@@ -383,8 +383,8 @@ def test_custom_instance_list(device_type: DeviceType):
 class ExtendedInstanceList(InstanceList):
     def __init__(self, struct: Struct):
         super().__init__(struct)
-        self.position = NDBuffer(struct.device, float2, 1000)
-        self.velocity = NDBuffer(struct.device, float2, 1000)
+        self.position = Tensor.empty(struct.device, dtype=float2, element_count=1000)
+        self.velocity = Tensor.empty(struct.device, dtype=float2, element_count=1000)
         self.size = 0.5
         self.material = {"color": float3(1, 1, 1), "emission": float3(0, 0, 0)}
 

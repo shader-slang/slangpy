@@ -16,7 +16,7 @@ from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.value import NoneMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
 from slangpy.reflection.typeresolution import resolve_function, ResolvedParam, ResolutionDiagnostic
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.types.valueref import ValueRef
 
 
@@ -184,7 +184,7 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
         if context.call_dimensionality == 0:
             return_type = ValueRef
         else:
-            return_type = NDBuffer
+            return_type = Tensor
 
     return_ctx = ReturnContext(node.vector_type, context)
     python_type = tr.get_or_create_type(context.layout, return_type, return_ctx)

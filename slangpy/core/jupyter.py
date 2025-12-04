@@ -10,7 +10,7 @@ from slangpy import (
     TypeReflection,
 )
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy.types.buffer import NDBuffer, NativeNDBuffer
+from slangpy.types import Tensor, NativeNDBuffer
 from slangpy.types.tensor import Tensor, NativeTensor
 
 from IPython.core.getipython import get_ipython  # type: ignore
@@ -208,7 +208,7 @@ def format_struct(m: Struct, p: pretty.RepresentationPrinter, cycle: bool):
 
 
 def format_ndbuffer(buf: NativeNDBuffer, p: pretty.RepresentationPrinter, cycle: bool):
-    pprint_all(p, ("NDBuffer(shape=", buf.shape, ", dtype=", buf.dtype.type_reflection, ")"))
+    pprint_all(p, ("Tensor.empty(shape=", buf.shape, ", dtype=", buf.dtype.type_reflection, ")"))
 
 
 def format_tensor(t: NativeTensor, p: pretty.RepresentationPrinter, cycle: bool):

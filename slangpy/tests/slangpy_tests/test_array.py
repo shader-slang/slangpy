@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 from slangpy import DeviceType, BufferUsage, Tensor
-from slangpy.types import NDBuffer
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 

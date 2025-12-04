@@ -77,11 +77,6 @@ class TensorMarshall(NativeTensorMarshall):
 
         self.layout = layout
 
-        if not element_type.differentiable:
-            raise ValueError(
-                f"Tensor element types must be differentiable (received {element_type.full_name})"
-            )
-
         if d_in is not None or d_out is not None:
             grad_type = element_type.derivative
 
@@ -352,6 +347,11 @@ class TensorMarshall(NativeTensorMarshall):
             return self.slang_type
         elif dimensions == self.dims:
             return self.slang_element_type
+        elif dimensions < self.dims:
+            # Not sure how to handle this yet - what do we want if reducing by some dimensions
+            # Should this return a smaller buffer? How does that end up being cast to, eg, vector.
+            # By returning None, this just falls back to the slang argument type.
+            return None
         else:
             raise ValueError("Cannot reduce dimensions of Tensor")
 

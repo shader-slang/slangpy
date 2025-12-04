@@ -11,10 +11,10 @@ from slangpy import (
     TextureUsage,
     Texture,
     ALL_MIPS,
-    InstanceBuffer,
+    InstanceTensor,
     Module,
 )
-from slangpy.types import NDBuffer
+from slangpy.types import Tensor
 from slangpy.reflection import ScalarType
 from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
 from slangpy.types.buffer import _slang_to_numpy
@@ -188,7 +188,7 @@ def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, typ
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
     dims = len(grid_coords_data.shape) - 1
-    grid_coords = InstanceBuffer(
+    grid_coords = InstanceTensor(
         struct=getattr(m, f"int{dims}").as_struct(), shape=grid_coords_data.shape[0:-1]
     )
     grid_coords.copy_from_numpy(grid_coords_data)
@@ -241,7 +241,7 @@ def test_read_write_texture_with_resource_views(
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
     dims = len(grid_coords_data.shape) - 1
-    grid_coords = InstanceBuffer(
+    grid_coords = InstanceTensor(
         struct=getattr(m, f"int{dims}").as_struct(), shape=grid_coords_data.shape[0:-1]
     )
     grid_coords.copy_from_numpy(grid_coords_data)
@@ -470,7 +470,7 @@ def texture_return_value_impl(
     data = data.astype(np_dtype)
 
     dtype = texel_name if channels == 1 else f"{texel_name}{channels}"
-    buffer = NDBuffer(m.device, dtype, shape=shape)
+    buffer = Tensor.empty(m.device, dtype=dtype, shape=shape)
     buffer.copy_from_numpy(data)
 
     result = m.passthru.map(buffer.dtype)(buffer, _result=return_type)

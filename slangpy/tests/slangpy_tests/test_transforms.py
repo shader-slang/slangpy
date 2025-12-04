@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, float3, Logger, LogLevel, float2x3, Module
-from slangpy.types import NDBuffer, Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
 from typing import Any
@@ -25,8 +25,8 @@ def test_copy_values_basic_input_transform(device_type: DeviceType):
     m = load_test_module(device_type)
 
     # Create input+output buffers
-    a = NDBuffer(device=m.device, shape=(2, 2), dtype=float)
-    b = NDBuffer(device=m.device, shape=(2, 2), dtype=float)
+    a = Tensor.empty(device=m.device, shape=(2, 2), dtype=float)
+    b = Tensor.empty(device=m.device, shape=(2, 2), dtype=float)
 
     # Populate input
     a_data = np.array([[1, 2], [3, 4]], dtype=np.float32)
@@ -56,8 +56,8 @@ def test_add_vectors_matrix_basic_input_transform(device_type: DeviceType, data_
     type = data_type[0]
     shape = data_type[1]
 
-    a = NDBuffer(device=m.device, shape=(2, 3), dtype=type)
-    b = NDBuffer(device=m.device, shape=(3, 2), dtype=type)
+    a = Tensor.empty(device=m.device, shape=(2, 3), dtype=type)
+    b = Tensor.empty(device=m.device, shape=(3, 2), dtype=type)
 
     a_data = np.random.rand(2, 3, *shape).astype(np.float32)
     b_data = np.random.rand(3, 2, *shape).astype(np.float32)
@@ -105,8 +105,8 @@ def test_add_vectors_matrix_vecindex_inputcontainer_input_transform(
     type = data_type[0]
     shape = data_type[1]
 
-    a = NDBuffer(device=m.device, shape=(2, 3, *shape), dtype=float)
-    b = NDBuffer(device=m.device, shape=(3, 2), dtype=type)
+    a = Tensor.empty(device=m.device, shape=(2, 3, *shape), dtype=float)
+    b = Tensor.empty(device=m.device, shape=(3, 2), dtype=type)
     a_data = np.random.rand(2, 3, *shape).astype(np.float32)
     b_data = np.random.rand(3, 2, *shape).astype(np.float32)
 
@@ -118,7 +118,7 @@ def test_add_vectors_matrix_vecindex_inputcontainer_input_transform(
     else:
         func = m.add_matrix.map((1, 0))
 
-    res: NDBuffer = func(a, b)
+    res: Tensor = func(a, b)
     assert res.shape == (3, 2)
 
     res_data = helpers.read_ndbuffer_from_numpy(res).reshape(3, 2, *shape)
@@ -152,8 +152,8 @@ def test_copy_data_vecindex_inputcontainer_input_transform(device_type: DeviceTy
 
     # inn is a 4D buffer of floats to represent a 2x3 float2x3 matrix
 
-    inn = NDBuffer(device=m.device, shape=(2, 3, *shape), dtype=float)
-    out = NDBuffer(device=m.device, shape=(3, 2), dtype=type)
+    inn = Tensor.empty(device=m.device, shape=(2, 3, *shape), dtype=float)
+    out = Tensor.empty(device=m.device, shape=(3, 2), dtype=type)
     inn_data = np.random.rand(2, 3, *shape).astype(np.float32)
 
     helpers.write_ndbuffer_from_numpy(inn, inn_data.flatten())
@@ -183,8 +183,8 @@ def test_copy_vectors_vecindex_outputcontainer_input_transform(device_type: Devi
     # instead of 2D buffer of float3s. In this case, the remapping
     # involves only the lower 2 dimensions (i.e. those of the container)
 
-    inn = NDBuffer(device=m.device, shape=(2, 3, 3), dtype=float)
-    out = NDBuffer(device=m.device, shape=(3, 2), dtype=float3)
+    inn = Tensor.empty(device=m.device, shape=(2, 3, 3), dtype=float)
+    out = Tensor.empty(device=m.device, shape=(3, 2), dtype=float3)
 
     inn_data = np.random.rand(2, 3, 3).astype(np.float32)
     helpers.write_ndbuffer_from_numpy(inn, inn_data.flatten(), 1)
@@ -213,8 +213,8 @@ def test_add_vectors_matrix_basic_output_transform(device_type: DeviceType, data
     type = data_type[0]
     shape = data_type[1]
 
-    a = NDBuffer(device=m.device, shape=(5,), dtype=type)
-    b = NDBuffer(device=m.device, shape=(10,), dtype=type)
+    a = Tensor.empty(device=m.device, shape=(5,), dtype=type)
+    b = Tensor.empty(device=m.device, shape=(10,), dtype=type)
 
     a_data = np.random.rand(a.shape[0], *shape).astype(np.float32)
     b_data = np.random.rand(b.shape[0], *shape).astype(np.float32)
@@ -253,8 +253,8 @@ def test_add_vectors_matrix_broadcast_from_buffer(device_type: DeviceType, data_
     type = data_type[0]
     shape = data_type[1]
 
-    a = NDBuffer(device=m.device, shape=(1,), dtype=type)
-    b = NDBuffer(device=m.device, shape=(10,), dtype=type)
+    a = Tensor.empty(device=m.device, shape=(1,), dtype=type)
+    b = Tensor.empty(device=m.device, shape=(10,), dtype=type)
 
     a_data = np.random.rand(a.shape[0], *shape).astype(np.float32)
     b_data = np.random.rand(b.shape[0], *shape).astype(np.float32)
@@ -290,8 +290,8 @@ def test_add_vectors_matrix_broadcast_from_buffer_2(device_type: DeviceType, dat
     type = data_type[0]
     shape = data_type[1]
 
-    a = NDBuffer(device=m.device, shape=(1, 5), dtype=type)
-    b = NDBuffer(device=m.device, shape=(10, 5), dtype=type)
+    a = Tensor.empty(device=m.device, shape=(1, 5), dtype=type)
+    b = Tensor.empty(device=m.device, shape=(10, 5), dtype=type)
 
     a_data = np.random.rand(a.shape[0], a.shape[1], *shape).astype(np.float32)
     b_data = np.random.rand(b.shape[0], b.shape[1], *shape).astype(np.float32)
@@ -329,7 +329,7 @@ def test_add_vectors_matrix_broadcast_from_diff_buffer(device_type: DeviceType, 
     shape = data_type[1]
 
     a = Tensor.empty(device=m.device, shape=(1, 5), dtype=type)
-    b = NDBuffer(device=m.device, shape=(10, 5), dtype=type)
+    b = Tensor.empty(device=m.device, shape=(10, 5), dtype=type)
 
     a_data = np.random.rand(a.shape[0], a.shape[1], *shape).astype(np.float32)
     b_data = np.random.rand(b.shape[0], b.shape[1], *shape).astype(np.float32)

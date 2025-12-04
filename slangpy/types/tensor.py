@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 from os import PathLike
+import warnings
 
 from slangpy import (
     Device,
@@ -50,7 +51,7 @@ _sgl_to_numpy = {y: x for x, y in _numpy_to_sgl.items()}
 class Tensor(NativeTensor):
     """
     Represents an N-D view of an underlying buffer with given shape and element type,
-    and has optional gradient information attached. Element type must be differentiable.
+    and has optional gradient information attached.
 
     Strides and offset can optionally be specified and are given in terms of elements, not bytes.
     If omitted, a dense N-D grid is assumed (row-major).
@@ -211,11 +212,12 @@ class Tensor(NativeTensor):
     @staticmethod
     def empty(
         device: Device,
-        shape: TShapeOrTuple,
-        dtype: Any,
+        shape: TShapeOrTuple = (),
+        dtype: Any = None,
         usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None,
+        element_count: Optional[int] = None,
     ) -> Tensor:
         """
         Creates a tensor with the requested shape and element type without attempting to initialize the data.
@@ -224,6 +226,19 @@ class Tensor(NativeTensor):
         if not isinstance(dtype, SlangType):
             program_layout = resolve_program_layout(device, dtype, program_layout)
             dtype = resolve_element_type(program_layout, dtype)
+
+        if element_count is not None:
+            warnings.warn(
+                "element_count parameter is deprecated; use shape instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            shape = (element_count,)
+
+        if dtype is None:
+            raise ValueError("Element type (dtype) must be specified")
+        if shape == ():
+            raise ValueError("Cannot create a tensor with zero dimensions")
 
         shape_tuple = shape if isinstance(shape, tuple) else shape.as_tuple()
         num_elems = math.prod(shape_tuple)
