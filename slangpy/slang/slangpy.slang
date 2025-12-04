@@ -9,6 +9,7 @@ module slangpy;
 // Edit: Even this workaround isn't reliable, so we currently disable the warning globally in shader.cpp
 #pragma warning(disable: 30856)
 
+__include "vectorize.slang";
 __include "core.slang";
 __include "randfloatarg.slang";
 __include "wanghasharg.slang";

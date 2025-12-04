@@ -38,7 +38,7 @@ a tensor to fill in:
 
 .. code-block:: python
 
-    result = spy.Tensor(device, element_type=module.float, shape=(4,))
+    result = spy.Tensor.empty(device, shape=(4,), dtype=module.float)
     module.polynomial(a=2, b=8, c=-1, x=x, _result=result)
 
 Or we could have used the ``return_type`` modifier:

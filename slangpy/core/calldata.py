@@ -108,6 +108,7 @@ class CallData(NativeCallData):
             # These will be populated later
             bindings = None
             slang_function = None
+            diagnostics = ResolutionDiagnostic()
 
             # Read temps from function
             function = func
@@ -182,34 +183,35 @@ class CallData(NativeCallData):
             apply_explicit_vectorization(context, bindings, positional_mapping, keyword_mapping)
 
             # Perform specialization to get a concrete function reflection
-            slang_function = specialize(
-                context, bindings, build_info.function, build_info.this_type
+            resolve_result = specialize(
+                context, bindings, build_info.function, diagnostics, build_info.this_type
             )
-            if isinstance(slang_function, MismatchReason):
+            if resolve_result is None:
                 raise ResolveException(
-                    f"Function signature mismatch: {slang_function.reason}\n\n"
-                    f"{mismatch_info(bindings, build_info.function)}\n"
+                    f"Could not call function '{function.name}':\n\n"
+                    f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
                 )
+            slang_function = resolve_result.function
 
             # Check for differentiability error
-            if not slang_function.differentiable and self.call_mode != CallMode.prim:
+            if not resolve_result.function.differentiable and self.call_mode != CallMode.prim:
                 raise ResolveException(
                     f"Could not call function '{function.name}': Function is not differentiable\n\n"
-                    f"{mismatch_info(bindings, build_info.function)}\n"
+                    f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
                 )
 
             # Inject a dummy node into the Python signature if we need a result back
             if (
                 self.call_mode == CallMode.prim
                 and not "_result" in kwargs
-                and slang_function.return_type is not None
-                and slang_function.return_type.full_name != "void"
+                and resolve_result.function.return_type is not None
+                and resolve_result.function.return_type.full_name != "void"
             ):
                 rvalnode = BoundVariable(context, None, None, "_result")
                 bindings.kwargs["_result"] = rvalnode
 
             # Create bound variable information now that we have concrete data for path sides
-            bindings = bind(context, bindings, slang_function)
+            bindings = bind(context, bindings, resolve_result.function, resolve_result.params)
 
             # Run Python side implicit vectorization to do any remaining type resolution
             apply_implicit_vectorization(context, bindings)
@@ -230,9 +232,6 @@ class CallData(NativeCallData):
 
             # Should no longer have any unresolved mappings for anything.
             assert not bindings.has_implicit_mappings
-
-            # Validate the arguments we're going to pass to slang before trying to make code.
-            validate_specialize(context, bindings, slang_function)
 
             # Calculate differentiability of all variables.
             calculate_differentiability(context, bindings)
@@ -411,7 +410,8 @@ class CallData(NativeCallData):
                     else build_info.function
                 )
                 raise ValueError(
-                    f"{e.message}\n\n" f"{bound_exception_info(bindings, ref, e.variable)}\n"
+                    f"{e.message}\n\n"
+                    f"{bound_exception_info(bindings, ref, e.variable, str(diagnostics))}\n"
                 ) from e
             else:
                 raise
@@ -425,7 +425,7 @@ class CallData(NativeCallData):
                 raise ValueError(
                     f"Slang compilation error: {e}\n. Use set_dump_generated_shaders to enable dump generated shader to .temp.\n"
                     f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n\n"
-                    f"{bound_exception_info(bindings, ref, None)}\n"
+                    f"{bound_exception_info(bindings, ref, None, str(diagnostics))}\n"
                 ) from e
             else:
                 raise
@@ -438,7 +438,7 @@ class CallData(NativeCallData):
                 )
                 raise ValueError(
                     f"Exception in kernel generation: {e.message}.\n\n"
-                    f"{bound_exception_info(bindings, ref, None)}\n"
+                    f"{bound_exception_info(bindings, ref, None, str(diagnostics))}\n"
                 ) from e
             else:
                 raise
@@ -454,7 +454,7 @@ class CallData(NativeCallData):
                 )
                 raise ValueError(
                     f"Exception in kernel generation: {e}.\n"
-                    f"{bound_exception_info(bindings, ref, None)}\n"
+                    f"{bound_exception_info(bindings, ref, None, str(diagnostics))}\n"
                 ) from e
             else:
                 raise

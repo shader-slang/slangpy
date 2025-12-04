@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any
+from typing import Any, cast
 
 from slangpy.core.native import AccessType, CallContext, Shape, NativeTextureMarshall
 from slangpy import TypeReflection
+import slangpy.reflection.vectorize as spyvec
 
 from slangpy import (
     FormatType,
@@ -135,33 +136,45 @@ class TextureMarshall(NativeTextureMarshall):
 
         super().__init__(st, element_type, resource_shape, format, usage, tex_dims)
 
+    def __repr__(self) -> str:
+        return f"Texture[dtype={self.slang_element_type.full_name}, dims={self.texture_dims}, writable={self.is_writable}]"
+
     def reduce_type(self, context: BindContext, dimensions: int):
         return super().reduce_type(context, dimensions)
 
     def resolve_type(self, context: BindContext, bound_type: refl.SlangType):
+        pass
+
+    def resolve_types(self, context: BindContext, bound_type: refl.SlangType):
+        self_element_type = cast(refl.SlangType, self.slang_element_type)
+
         # Handle being passed to a texture
         if isinstance(bound_type, refl.TextureType):
             if self.usage & bound_type.usage == 0:
-                raise ValueError(
-                    f"Cannot bind texture view {self.slang_type.name} with usage {bound_type.usage}"
-                )
+                return None
             if self.resource_shape != bound_type.resource_shape:
-                raise ValueError(
-                    f"Cannot bind texture view {self.slang_type.name} with different shape {bound_type.resource_shape}"
-                )
-            # TODO: Check element types match
-            # if self.element_type.name != bound_type.element_type.name:
-            #    raise ValueError(
-            #        f"Cannot bind texture view {self.name} with different element type {bound_type.element_type.name}")
-            return bound_type
+                return None
+            bound_element_type = cast(refl.SlangType, bound_type.element_type)
+            if isinstance(bound_element_type, refl.UnknownType) or bound_element_type.is_generic:
+                el_type = self_element_type
+            else:
+                el_type = bound_element_type
+            return [self.build_type(bound_type.usage, el_type)]
 
-        # If implicit element casts enabled, allow conversion from type to element type
-        if context.options["implicit_element_casts"]:
-            if self.slang_element_type == bound_type:
-                return bound_type
+        # Support resolving generic vector
+        as_vector = spyvec.vector_to_vector(self_element_type, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        # If texture element is 1D vector, support resolving to scalar type
+        if isinstance(self_element_type, refl.VectorType) and self_element_type.num_elements == 1:
+            assert self_element_type.element_type is not None
+            as_scalar = spyvec.scalar_to_scalar(self_element_type.element_type, bound_type)
+            if as_scalar is not None:
+                return [as_scalar]
 
         # Otherwise, use default behaviour from marshall
-        return super().resolve_type(context, bound_type)
+        return None
 
     # Texture is writable if it has unordered access view.
     @property
@@ -171,6 +184,10 @@ class TextureMarshall(NativeTextureMarshall):
     # Generate the slang type name (eg Texture2D<float4>).
     def build_type_name(self, usage: TextureUsage, el_type: refl.SlangType):
         return f"{prefix(usage)}{self._base_texture_type_name}<{el_type.full_name}>"
+
+    # Generate the slang type name (eg Texture2D<float4>).
+    def build_type(self, usage: TextureUsage, el_type: refl.SlangType):
+        return el_type.program.find_type_by_name(self.build_type_name(usage, el_type))
 
     # Generate the slangpy accessor type name (eg Texture2DType<float4>).
     def build_accessor_name(self, usage: TextureUsage, el_type: refl.SlangType):

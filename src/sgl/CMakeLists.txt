@@ -76,8 +76,6 @@ target_sources(sgl PRIVATE
     device/buffer_cursor.h
     device/command.cpp
     device/command.h
-    device/coopvec.h
-    device/coopvec.cpp
     device/cuda_interop.cpp
     device/cuda_interop.h
     device/cuda_utils.cpp
@@ -120,6 +118,7 @@ target_sources(sgl PRIVATE
     device/reflection.h
     device/resource.cpp
     device/resource.h
+    device/rhi.slang
     device/sampler.cpp
     device/sampler.h
     device/shader_cursor.cpp
@@ -242,6 +241,7 @@ target_compile_options(sgl
             -Wno-self-assign-overloaded
             -Wno-deprecated-copy
             -Wno-microsoft-cast
+            -Wno-cast-function-type-mismatch
 
             # this is for ImGUI only
             -Wno-nontrivial-memcall

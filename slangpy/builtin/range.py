@@ -14,7 +14,14 @@ from slangpy.bindings import (
     BoundVariableRuntime,
     CodeGenBlock,
 )
-from slangpy.reflection import SlangProgramLayout, SlangType
+from slangpy.reflection import (
+    SlangProgramLayout,
+    SlangType,
+    vectorize_type,
+    EXPERIMENTAL_VECTORIZATION,
+    TypeReflection as TR,
+)
+import slangpy.reflection.vectorize as spyvec
 
 
 class RangeMarshall(Marshall):
@@ -44,8 +51,16 @@ class RangeMarshall(Marshall):
         s = ((data.stop - data.start) // data.step,)
         return Shape(s)
 
-    def resolve_type(self, context: BindContext, bound_type: "SlangType"):
-        return context.layout.scalar_type(TypeReflection.ScalarType.int32)
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(f"RangeType")
+            return [vectorize_type(marshall, bound_type)]
+        as_scalar = spyvec.scalar_to_scalar(
+            context.layout.scalar_type(TR.ScalarType.int32), bound_type
+        )
+        if as_scalar is not None:
+            return [as_scalar]
+        return None
 
     def resolve_dimensionality(
         self,

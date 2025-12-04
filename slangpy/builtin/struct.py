@@ -5,9 +5,10 @@ from slangpy.core.native import Shape, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
 from slangpy.bindings import PYTHON_TYPES, BindContext, BoundVariable
-from slangpy.reflection import SlangProgramLayout, SlangType
+from slangpy.reflection import SlangProgramLayout, SlangType, UnknownType, StructType, InterfaceType
 
 from .value import ValueMarshall
+import slangpy.reflection.vectorize as spyvec
 
 
 class StructMarshall(ValueMarshall):
@@ -37,8 +38,30 @@ class StructMarshall(ValueMarshall):
     def is_writable(self) -> bool:
         return True
 
-    def resolve_type(self, context: BindContext, bound_type: "SlangType"):
-        return bound_type
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        # Support this struct being of unknown type, which like a scalar, just means
+        # we're attempting to bind the value as is. This is especially important
+        # for structs, as they may be SOA types with fields that need to be
+        # bound individually.
+        if (
+            isinstance(self.slang_type, UnknownType)
+            and not isinstance(bound_type, (UnknownType, InterfaceType))
+            and not bound_type.is_generic
+        ):
+            return [bound_type]
+
+        # Support resolving generic struct
+        as_struct = spyvec.struct_to_struct(self.slang_type, bound_type)
+        if as_struct is not None:
+            return [as_struct]
+
+        # Support resolving generic vector (occurs if user attempts to provide a vector
+        # by specifying a dictionary with x,y,z... fields)
+        as_vector = spyvec.vector_to_vector(self.slang_type, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        return None
 
     def resolve_dimensionality(
         self,

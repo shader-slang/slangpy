@@ -44,7 +44,13 @@ public typealias Context5D = ContextND<5>;
 // call_data_len is a link-time constant declared in callshape.slang
 public typealias Context = ContextND<call_data_len>;
 
-public struct Unknown {}
+struct IntTrait<let N : int> {
+    static const int Value = N;
+}
+struct BoolTrait<let N : bool> {
+    static const bool Value = N;
+}
+
 
 int _idx<let N : int>(int[N] index, int[N] stride) {
     int idx = 0;
@@ -98,14 +104,21 @@ public struct NoneType
 }
 
 public struct ValueType<T>
+    : IVectorizeToScalar<T>
+    , IVectorizeToScalarConversions<T>
 {
     T value;
     public void load(Context0D context, out T value) { value = this.value; }
     public void store(Context0D context, in T value) {};
 }
 
-public struct VectorValueType<T,let N: int>
+public struct VectorValueType<T, let N : int>
+    : IVectorizeToVector<T, N>
+    , IVectorizeToScalar<T>
 {
+    typealias ElementType = T;
+    typealias VectorTarget = vector<T,N>;
+
     vector<T, N> value;
 
     public void load(Context0D context, out vector<T,N> value) { value = this.value; }
@@ -115,7 +128,30 @@ public struct VectorValueType<T,let N: int>
     public void store(Context1D context, in T value) {};
 }
 
+public struct MatrixValueType<T, let R : int, let C : int>
+    : IVectorizeToMatrix<T, R, C>
+    , IVectorizeToScalar<T>
+{
+    typealias ElementType = T;
+    typealias MatrixTarget = matrix<T,R,C>;
+
+    matrix<T, R, C> value;
+
+    public void load(Context0D context, out matrix<T,R,C> value) { value = this.value; }
+    public void store(Context0D context, in matrix<T,R,C> value) {};
+
+    public void load(Context1D context, out vector<T, C> value) { value = this.value[context.call_id[0]]; }
+    public void store(Context1D context, in vector<T, C> value) {};
+
+    public void load(Context2D context, out T value) {
+        value = this.value[context.call_id[0]][context.call_id[1]];
+    }
+    public void store(Context2D context, in T value) {};
+}
+
 public struct Array1DValueType<T,let N: int>
+    : IVectorizeToArray<T, N>
+    , IVectorizeToScalar<T>
 {
     Array<T, N> value;
 
@@ -127,6 +163,7 @@ public struct Array1DValueType<T,let N: int>
 }
 
 public struct RangeType
+    : IVectorizeToScalar<int>
 {
     int start;
     int stop;
@@ -134,6 +171,17 @@ public struct RangeType
     public void load(Context1D context, out int value) { value = this.start + context.call_id_vec.x * this.step; }
     public void store(Context1D context, in int value) {};
 }
+
+public struct BufferMarshall<T, let RW : int>
+    : IVectorizeToStructuredBuffer<T>
+    , IVectorizeToByteAddressBuffer
+    , IVectorizeToPointer<T>
+{
+}
+extension<T> BufferMarshall<T, 1>
+    : IVectorizeToRWStructuredBuffer<T>
+    , IVectorizeToRWByteAddressBuffer
+{ }
 
 public struct DescriptorType<T : IOpaqueDescriptor>
 {
@@ -150,8 +198,8 @@ public struct StructuredBufferType<T>
     public void load(Context0D context, out StructuredBuffer<T> value) { value = this.value; }
     public void store(Context0D context, in StructuredBuffer<T> value) {};
 }
-
-public struct RWStructuredBufferType<T> {
+public struct RWStructuredBufferType<T>
+{
     RWStructuredBuffer<T> value;
 
     public void load(Context0D context, out RWStructuredBuffer<T> value) { value = this.value; }
@@ -166,7 +214,9 @@ public struct ByteAddressBufferType
     public void store(Context0D context, in ByteAddressBuffer value) {};
 }
 
-public struct RWByteAddressBufferType {
+public struct RWByteAddressBufferType
+    : IVectorizeToSelf<RWByteAddressBuffer>
+{
     RWByteAddressBuffer value;
 
     public void load(Context0D context, out RWByteAddressBuffer value) { value = this.value; }
@@ -199,6 +249,7 @@ public struct Texture2DType<T : ITexelElement> {
     public void load(Context0D context, out Texture2D<T> value) { value = this.value; }
     public void store(Context0D context, in Texture2D<T> value) {};
 }
+
 public struct RWTexture2DType<T : ITexelElement> {
     RWTexture2D<T> value;
     public void load(Context2D context, out T value) { value = this.value[context.call_id_vec]; }
@@ -220,6 +271,7 @@ public struct Texture1DArrayType<T : ITexelElement> {
     public void load(Context0D context, out Texture1DArray<T> value) { value = this.value; }
     public void store(Context0D context, in Texture1DArray<T> value) {};
 }
+
 public struct RWTexture1DArrayType<T : ITexelElement> {
     // Map with the first index as the x coordinate and the second index as the array slice
     int2 toidx(Context2D context) { return context.call_id_vec; }
@@ -240,6 +292,7 @@ public struct Texture3DType<T : ITexelElement> {
     public void load(Context0D context, out Texture3D<T> value) { value = this.value; }
     public void store(Context0D context, in Texture3D<T> value) {};
 }
+
 public struct RWTexture3DType<T : ITexelElement> {
     RWTexture3D<T> value;
     public void load(Context3D context, out T value) { value = this.value[context.call_id_vec]; }
@@ -260,6 +313,7 @@ public struct Texture2DArrayType<T : ITexelElement> {
     public void load(Context0D context, out Texture2DArray<T> value) { value = this.value; }
     public void store(Context0D context, in Texture2DArray<T> value) {};
 }
+
 public struct RWTexture2DArrayType<T : ITexelElement> {
     // slice is 0, xy are 1,2
     int3 toidx(Context3D context) { return context.call_id_vec; }
@@ -270,6 +324,58 @@ public struct RWTexture2DArrayType<T : ITexelElement> {
 
     public void load(Context0D context, out RWTexture2DArray<T> value) { value = this.value; }
     public void store(Context0D context, in RWTexture2DArray<T> value) {};
+}
+
+// Set of extensions to let single component textures load scalar values
+public extension<T> Texture1DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context1D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context1D context, in T value) {};
+}
+public extension<T> RWTexture1DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context1D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context1D context, in T value) { this.value[context.call_id_vec] = value; };
+}
+public extension<T> Texture2DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context2D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context2D context, in T value) {};
+}
+public extension<T> RWTexture2DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context2D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context2D context, in T value) { this.value[context.call_id_vec] = value; };
+}
+public extension<T> Texture1DArrayType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context2D context, out T value) { value = this.value[toidx(context)].x; }
+    public void store(Context2D context, in T value) {};
+}
+public extension<T> RWTexture1DArrayType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context2D context, out T value) { value = this.value[toidx(context)].x; }
+    public void store(Context2D context, in T value) { this.value[toidx(context)] = value; };
+}
+public extension<T> Texture3DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context3D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context3D context, in T value) { };
+}
+public extension<T> RWTexture3DType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context3D context, out T value) { value = this.value[context.call_id_vec].x; }
+    public void store(Context3D context, in T value) { this.value[context.call_id_vec] = value; };
+}
+public extension<T> Texture2DArrayType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context3D context, out T value) { value = this.value[toidx(context)].x; }
+    public void store(Context3D context, in T value) {};
+}
+public extension<T> RWTexture2DArrayType<vector<T, 1>> where vector<T, 1> : ITexelElement
+{
+    public void load(Context3D context, out T value) { value = this.value[toidx(context)].x; }
+    public void store(Context3D context, in T value) { this.value[toidx(context)] = value; };
 }
 
 public struct RaytracingAccelerationStructureType
@@ -342,7 +448,6 @@ public struct StridedLayout<let D : int>
     }
 }
 
-
 public struct NDBuffer<T, let N : int>
 {
     typealias Storage = StorageTraits<T>.BufferType;
@@ -406,6 +511,9 @@ public struct NDBuffer<T, let N : int>
 
     public void store<let R : int, let C: int>(ContextND<N - 2> context, in matrix<T, R, C> value) {}
 }
+
+
+
 
 public struct RWNDBuffer<T, let N : int>
 {
@@ -540,7 +648,10 @@ namespace impl
     // To solve this, we check if the python type (e.g. float[3]) type can be converted
     // safely to the slang type using slang generic constraints.
     // If type B implements IConvertibleFrom<A>, then we can safely convert from A to B
-    interface IConvertibleFrom<From> {}
+    interface IConvertibleFrom<From> {
+        // This associated type allows us to extract the original type From
+        // when we have a To type that implements IConvertibleFrom<From>
+    }
 
     // A python int can be passed to any slang int/float scalar type
     extension<T : __BuiltinIntegerType> T : IConvertibleFrom<int> {}
@@ -579,7 +690,7 @@ namespace impl
     // This function allows us to check if type A is convertible to type B.
     // We attempt to specialize allowedConversionWitness with types [A, B]
     // If it succeeds, the interface requirements are satisfied.
-    struct AllowedConversionWitness<From, To : IConvertibleFrom<From>> {}
+    struct AllowedConversionWitness<From, To : IConvertibleFrom<From>> { }
 }
 
 // #pragma warning(pop)

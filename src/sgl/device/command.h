@@ -352,6 +352,19 @@ public:
     void serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src);
     void deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src);
 
+    void convert_coop_vec_matrices(
+        Buffer* dst,
+        std::span<const CoopVecMatrixDesc> dst_descs,
+        const Buffer* src,
+        std::span<const CoopVecMatrixDesc> src_descs
+    );
+    void convert_coop_vec_matrix(
+        Buffer* dst,
+        const CoopVecMatrixDesc& dst_desc,
+        const Buffer* src,
+        const CoopVecMatrixDesc& src_desc
+    );
+
     /**
      * Transition resource state of a buffer and add a barrier if state has changed.
      * \param buffer Buffer

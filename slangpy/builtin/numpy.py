@@ -10,7 +10,7 @@ from slangpy.builtin.ndbuffer import (
     ndbuffer_gen_calldata,
     ndbuffer_reduce_type,
     ndbuffer_resolve_dimensionality,
-    ndbuffer_resolve_type,
+    ndbuffer_resolve_types,
 )
 
 import numpy as np
@@ -59,8 +59,8 @@ class NumpyMarshall(NativeNumpyMarshall):
     def reduce_type(self, context: BindContext, dimensions: int):
         return ndbuffer_reduce_type(self, context, dimensions)
 
-    def resolve_type(self, context: BindContext, bound_type: "SlangType"):
-        return ndbuffer_resolve_type(self, context, bound_type)
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        return ndbuffer_resolve_types(self, context, bound_type)
 
     def resolve_dimensionality(
         self,

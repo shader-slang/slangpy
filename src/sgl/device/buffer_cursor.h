@@ -70,6 +70,14 @@ public:
     void get(T& value) const;
 
     template<typename T>
+        requires(HasWriteToCursor<T, BufferElementCursor>)
+    void set(const T& value)
+    {
+        value.write_to_cursor(*this);
+    }
+
+    template<typename T>
+        requires(!HasWriteToCursor<T, BufferElementCursor>)
     void set(const T& value);
 
     void _set_offset(size_t new_offset) { m_offset = new_offset; }

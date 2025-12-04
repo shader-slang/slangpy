@@ -340,23 +340,28 @@ class NDBuffer(NativeNDBuffer):
         usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None,
+        shape: Optional[TShapeOrTuple] = None,
+        dtype: Optional[Any] = None,
     ) -> "NDBuffer":
         """
         Creates a new NDBuffer with the same contents, shape and strides as the given numpy array.
         """
 
-        dtype = _numpy_to_slang(ndarray.dtype, device, program_layout)
         if dtype is None:
-            raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
-        if not ndarray.flags["C_CONTIGUOUS"]:
-            raise ValueError(
-                "Currently NDBuffers can only be directly constructed from C-contiguous numpy arrays"
-            )
+            dtype = _numpy_to_slang(ndarray.dtype, device, program_layout)
+            if dtype is None:
+                raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
+            if not ndarray.flags["C_CONTIGUOUS"]:
+                raise ValueError(
+                    "Currently NDBuffers can only be directly constructed from C-contiguous numpy arrays"
+                )
+        if shape is None:
+            shape = ndarray.shape
 
         res = NDBuffer(
             device,
             dtype=dtype,
-            shape=ndarray.shape,
+            shape=shape,
             usage=usage,
             memory_type=memory_type,
         )

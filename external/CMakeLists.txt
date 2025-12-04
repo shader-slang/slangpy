@@ -62,6 +62,9 @@ set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE
 add_library(lmdb STATIC)
 target_include_directories(lmdb INTERFACE lmdb)
 target_sources(lmdb PRIVATE lmdb/mdb.c lmdb/midl.c)
+target_compile_definitions(lmdb PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_compile_options(lmdb PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4333 /wd4172>)
+target_compile_options(lmdb PRIVATE $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wno-deprecated-declarations>)
 
 # slang
 
@@ -71,7 +74,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SLANG_VERSION "2025.22")
+set(SLANG_VERSION "2025.22.1")
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/slang-${SLANG_VERSION}")
 
 if(SGL_WINDOWS)
@@ -213,6 +216,9 @@ set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_SLANG_INCLUDE_DIR ${SLANG_INCLUDE_DIR} CACHE STRING "" FORCE)
 set(SLANG_RHI_SLANG_BINARY_DIR ${SLANG_DIR} CACHE STRING "" FORCE)
 add_subdirectory(slang-rhi)
+
+# Copy shared slang-rhi-device.h header to shaders directory (wrapped in sgl/device/rhi.slang)
+sgl_copy_shader_file(${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi/include/slang-rhi-device.h slang-rhi)
 
 if(TARGET slang-rhi-nvapi)
     get_target_property(NVAPI_DIR slang-rhi-nvapi INTERFACE_INCLUDE_DIRECTORIES)
