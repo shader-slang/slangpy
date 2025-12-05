@@ -6,6 +6,20 @@ import slangpy as spy
 import slangpy.testing.helpers as helpers
 
 
+class FuseSubgraph:
+    """
+    Represents a reusable subgraph that can be instantiated multiple times.
+    This is the template/definition of a subgraph, not an instance.
+    """
+
+    def __init__(self, name: str, root_node: "FuseNode"):
+        self.name = name
+        self.root_node = root_node
+        # Input/output names are derived from the root node
+        self.input_names = root_node.input_names
+        self.output_names = root_node.output_names
+
+
 class FuseNode:
     def __init__(self, name: str, input_names: list[str], output_names: list[str]):
         super().__init__()
@@ -13,6 +27,7 @@ class FuseNode:
         self.input_names = input_names
         self.output_names = output_names
         self.function: Optional[spy.Function] = None
+        self.subgraph: Optional[FuseSubgraph] = None
         self.children: list["FuseNode"] = []
         # Maps each input name to its source: either (child_node, output_name) or (None, parent_input_name)
         self.input_sources: dict[str, tuple[Optional["FuseNode"], str]] = {}
@@ -28,15 +43,64 @@ class FuseNode:
         res.output_names = ["_result"]
         return res
 
+    @staticmethod
+    def from_subgraph(subgraph: FuseSubgraph) -> "FuseNode":
+        """Create a node that references a subgraph (for reuse)."""
+        res = FuseNode(subgraph.name, subgraph.input_names.copy(), subgraph.output_names.copy())
+        res.subgraph = subgraph
+        return res
 
-def generate_code(node: FuseNode) -> str:
+
+def generate_code(
+    node: FuseNode,
+    generated_function_names: Optional[set[str]] = None,
+    generated_subgraphs: Optional[set[str]] = None,
+) -> str:
+    """
+    Generate code for a node and its children.
+
+    Args:
+        node: The node to generate code for
+        generated_function_names: Set of function names that have already been generated (to avoid duplicates)
+        generated_subgraphs: Set of subgraph names that have already been generated (to avoid duplicates)
+    """
+    if generated_function_names is None:
+        generated_function_names = set()
+    if generated_subgraphs is None:
+        generated_subgraphs = set()
+
     code_lines = []
 
-    # Generate child node functions recursively
+    # Generate child node functions recursively, deduplicating by function name and subgraph name
     for child in node.children:
-        child_code = generate_code(child)
+        # Skip if we've already generated a function with this name
+        if child.function is not None and child.name in generated_function_names:
+            continue
+        # Skip if we've already generated a subgraph with this name
+        if child.subgraph is not None and child.name in generated_subgraphs:
+            continue
+
+        child_code = generate_code(child, generated_function_names, generated_subgraphs)
         code_lines.append(child_code)
         code_lines.append("")  # Add blank line between functions
+
+        # Mark this function name or subgraph name as generated
+        if child.function is not None:
+            generated_function_names.add(child.name)
+        elif child.subgraph is not None:
+            generated_subgraphs.add(child.name)
+
+    # If this node references a subgraph, just generate the subgraph's root (no wrapper function)
+    if node.subgraph is not None:
+        # This is a subgraph reference node - ensure the subgraph's root is generated
+        if node.subgraph.name not in generated_subgraphs:
+            subgraph_code = generate_code(
+                node.subgraph.root_node, generated_function_names, generated_subgraphs
+            )
+            code_lines.append(subgraph_code)
+            generated_subgraphs.add(node.subgraph.name)
+        # Don't generate a wrapper function - just return what we've collected
+        return "\n".join(code_lines)
 
     # Generate function signature
     input_params = ", ".join(node.input_names)
@@ -60,6 +124,8 @@ def generate_code(node: FuseNode) -> str:
         # Perform topological sort
         sorted_children = []
         remaining = set(node.children)
+        # Create a mapping from child to its index in the children list for stable sorting
+        child_to_index = {child: i for i, child in enumerate(node.children)}
 
         while remaining:
             # Find nodes with no dependencies in the remaining set
@@ -68,9 +134,10 @@ def generate_code(node: FuseNode) -> str:
                 # Circular dependency or error - just use remaining order
                 ready = list(remaining)
 
-            # Sort ready nodes by name to ensure deterministic ordering
-            # when multiple nodes are ready at the same time
-            ready.sort(key=lambda x: x.name)
+            # Sort ready nodes by name (then by original index) to ensure deterministic ordering
+            # when multiple nodes are ready at the same time.
+            # Use original index as secondary key to handle multiple instances of same subgraph.
+            ready.sort(key=lambda x: (x.name, child_to_index[x]))
 
             for child in ready:
                 sorted_children.append(child)
@@ -495,6 +562,235 @@ def test_nested_children():
         temp = middle(p, q)
         temp2 = __call_ft_return3(temp)
         return temp2
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_duplicate_function_reuse():
+    """Test that using the same Slang function multiple times doesn't create duplicates."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create two separate add nodes and one multiply node
+    add1 = FuseNode.from_function(module.require_function("ft_add"))
+    add2 = FuseNode.from_function(module.require_function("ft_add"))
+    mul = FuseNode.from_function(module.require_function("ft_mul"))
+
+    # Root takes 4 inputs: a, b, c, d
+    root = FuseNode("root", ["a", "b", "c", "d"], ["result"])
+
+    root.children.extend([add1, add2, mul])
+
+    # add1: adds a + b
+    add1.input_sources["a"] = (None, "a")
+    add1.input_sources["b"] = (None, "b")
+
+    # add2: adds c + d
+    add2.input_sources["a"] = (None, "c")
+    add2.input_sources["b"] = (None, "d")
+
+    # mul: multiplies results of add1 and add2
+    mul.input_sources["a"] = (add1, "_result")
+    mul.input_sources["b"] = (add2, "_result")
+
+    # root returns mul result
+    root.output_sources["result"] = (mul, "_result")
+
+    code = generate_code(root)
+
+    # Should only have ONE __call_ft_add definition, not two
+    expected = """
+    __call_ft_add(a, b)
+    {
+        return ft_add(a, b);
+    }
+
+    __call_ft_mul(a, b)
+    {
+        return ft_mul(a, b);
+    }
+
+    root(a, b, c, d)
+    {
+        temp = __call_ft_add(a, b)
+        temp2 = __call_ft_add(c, d)
+        temp3 = __call_ft_mul(temp, temp2)
+        return temp3
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_subgraph_reuse():
+    """Test that subgraphs can be defined once and reused multiple times."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create a subgraph that adds 4 numbers (a + b + c + d)
+    # This is the reusable component we want to use twice
+
+    # Build the add4 subgraph internals
+    add1 = FuseNode.from_function(module.require_function("ft_add"))
+    add2 = FuseNode.from_function(module.require_function("ft_add"))
+    add3 = FuseNode.from_function(module.require_function("ft_add"))
+
+    # Create the root of the subgraph
+    add4_root = FuseNode("add4", ["a", "b", "c", "d"], ["result"])
+    add4_root.children.extend([add1, add2, add3])
+
+    # Wire up: add1 = a + b, add2 = c + d, add3 = add1 + add2
+    add1.input_sources["a"] = (None, "a")
+    add1.input_sources["b"] = (None, "b")
+    add2.input_sources["a"] = (None, "c")
+    add2.input_sources["b"] = (None, "d")
+    add3.input_sources["a"] = (add1, "_result")
+    add3.input_sources["b"] = (add2, "_result")
+    add4_root.output_sources["result"] = (add3, "_result")
+
+    # Create a FuseSubgraph wrapper
+    add4_subgraph = FuseSubgraph("add4", add4_root)
+
+    # Now create two instances of this subgraph
+    add4_instance1 = FuseNode.from_subgraph(add4_subgraph)
+    add4_instance2 = FuseNode.from_subgraph(add4_subgraph)
+
+    # Create a multiply node
+    mul = FuseNode.from_function(module.require_function("ft_mul"))
+
+    # Create root that uses both instances and multiplies results
+    root = FuseNode("root", ["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8"], ["final"])
+    root.children.extend([add4_instance1, add4_instance2, mul])
+
+    # First instance adds n1+n2+n3+n4
+    add4_instance1.input_sources["a"] = (None, "n1")
+    add4_instance1.input_sources["b"] = (None, "n2")
+    add4_instance1.input_sources["c"] = (None, "n3")
+    add4_instance1.input_sources["d"] = (None, "n4")
+
+    # Second instance adds n5+n6+n7+n8
+    add4_instance2.input_sources["a"] = (None, "n5")
+    add4_instance2.input_sources["b"] = (None, "n6")
+    add4_instance2.input_sources["c"] = (None, "n7")
+    add4_instance2.input_sources["d"] = (None, "n8")
+
+    # Multiply the two sums
+    mul.input_sources["a"] = (add4_instance1, "result")
+    mul.input_sources["b"] = (add4_instance2, "result")
+
+    root.output_sources["final"] = (mul, "_result")
+
+    code = generate_code(root)
+
+    # The add4 subgraph should only be defined ONCE, even though used twice
+    # The __call_ft_add should also only be defined once
+    expected = """
+    __call_ft_add(a, b)
+    {
+        return ft_add(a, b);
+    }
+
+    add4(a, b, c, d)
+    {
+        temp = __call_ft_add(a, b)
+        temp2 = __call_ft_add(c, d)
+        temp3 = __call_ft_add(temp, temp2)
+        return temp3
+    }
+
+    __call_ft_mul(a, b)
+    {
+        return ft_mul(a, b);
+    }
+
+    root(n1, n2, n3, n4, n5, n6, n7, n8)
+    {
+        temp = add4(n1, n2, n3, n4)
+        temp2 = add4(n5, n6, n7, n8)
+        temp3 = __call_ft_mul(temp, temp2)
+        return temp3
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_nested_subgraphs():
+    """Test that subgraphs can contain other subgraphs."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create a subgraph that adds 2 numbers
+    add1 = FuseNode.from_function(module.require_function("ft_add"))
+    add2_root = FuseNode("add2", ["x", "y"], ["sum"])
+    add2_root.children.append(add1)
+    add1.input_sources["a"] = (None, "x")
+    add1.input_sources["b"] = (None, "y")
+    add2_root.output_sources["sum"] = (add1, "_result")
+    add2_subgraph = FuseSubgraph("add2", add2_root)
+
+    # Create a subgraph that uses add2 three times to add 4 numbers
+    add2_inst1 = FuseNode.from_subgraph(add2_subgraph)
+    add2_inst2 = FuseNode.from_subgraph(add2_subgraph)
+    add2_inst3 = FuseNode.from_subgraph(add2_subgraph)
+
+    add4_root = FuseNode("add4_nested", ["a", "b", "c", "d"], ["result"])
+    add4_root.children.extend([add2_inst1, add2_inst2, add2_inst3])
+
+    # First instance adds a + b
+    add2_inst1.input_sources["x"] = (None, "a")
+    add2_inst1.input_sources["y"] = (None, "b")
+
+    # Second instance adds c + d
+    add2_inst2.input_sources["x"] = (None, "c")
+    add2_inst2.input_sources["y"] = (None, "d")
+
+    # Third instance adds results of first two
+    add2_inst3.input_sources["x"] = (add2_inst1, "sum")
+    add2_inst3.input_sources["y"] = (add2_inst2, "sum")
+
+    add4_root.output_sources["result"] = (add2_inst3, "sum")
+    add4_subgraph = FuseSubgraph("add4_nested", add4_root)
+
+    # Use the nested subgraph in a root
+    add4_inst = FuseNode.from_subgraph(add4_subgraph)
+    root = FuseNode("root", ["n1", "n2", "n3", "n4"], ["final"])
+    root.children.append(add4_inst)
+
+    add4_inst.input_sources["a"] = (None, "n1")
+    add4_inst.input_sources["b"] = (None, "n2")
+    add4_inst.input_sources["c"] = (None, "n3")
+    add4_inst.input_sources["d"] = (None, "n4")
+
+    root.output_sources["final"] = (add4_inst, "result")
+
+    code = generate_code(root)
+
+    # Should generate: __call_ft_add, add2, add4_nested, root
+    # Note that add2 should only be defined once even though used 3 times
+    expected = """
+    __call_ft_add(a, b)
+    {
+        return ft_add(a, b);
+    }
+
+    add2(x, y)
+    {
+        temp = __call_ft_add(x, y)
+        return temp
+    }
+
+    add4_nested(a, b, c, d)
+    {
+        temp = add2(a, b)
+        temp2 = add2(c, d)
+        temp3 = add2(temp, temp2)
+        return temp3
+    }
+
+    root(n1, n2, n3, n4)
+    {
+        temp = add4_nested(n1, n2, n3, n4)
+        return temp
     }
     """
     assert compare_code(code, expected)
