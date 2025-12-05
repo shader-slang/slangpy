@@ -36,7 +36,7 @@ void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], 
 // Public interface for a read only tensor. This can be used as the argument
 // to a function (or a generic constraint) to indicate it should take any
 // type of read-only tensor.
-public interface IRODiffTensor<T : IDifferentiable, let D : int>
+public interface IDiffTensor<T : IDifferentiable, let D : int>
 {
     [Differentiable]
     public T load<I : __BuiltinIntegerType>(I idx[D]);
@@ -46,15 +46,10 @@ public interface IRODiffTensor<T : IDifferentiable, let D : int>
     public property shape : uint[D];
 }
 
-// Type alias for a read only tensor differentiable interface This can be used as the argument
-// to a function (or a generic constraint) to indicate it should take any
-// type of read-only tensor.
-public typealias IDiffTensor<T : IDifferentiable, let D : int> = IRODiffTensor<T, D>;
-
 // Public interface for a write only differentiable tensor. This can be used as the argument
 // to a function (or a generic constraint) to indicate it should take any
 // type of write-only tensor.
-public interface IWODiffTensor<T : IDifferentiable, let D : int>
+public interface IWDiffTensor<T : IDifferentiable, let D : int>
 {
     [Differentiable]
     public void store<I : __BuiltinIntegerType>(I idx[D], T value);
@@ -67,7 +62,7 @@ public interface IWODiffTensor<T : IDifferentiable, let D : int>
 // Public interface for a read-write differentiable tensor. This can be used as the argument
 // to a function (or a generic constraint) to indicate it should take any
 // type of read-write tensor.
-public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, D>, IWODiffTensor<T, D>
+public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IDiffTensor<T, D>, IWDiffTensor<T, D>
 {
 }
 
@@ -257,10 +252,10 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
     }
 
 // A read only differentiable tensor, that internally contains a primal tensor, and a gradient output tensor.
-public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, D> where T.Differential : IAtomicAddable
+public struct DiffTensor<T : IDifferentiable, let D : int> : IDiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     // Underlying data storage
-    public ROTensor<T, D> _primal;
+    public Tensor<T, D> _primal;
     public AtomicTensor<T.Differential, D> _grad_out;
 
     _SLANGPY_DIFFTENSOR_COMMON
@@ -281,7 +276,7 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out RODiffTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out DiffTensor<T, SliceD> value)
     {
         _primal.__slangpy_load<SliceD>(ctx, value._primal);
         _grad_out.__slangpy_load<SliceD>(ctx, value._grad_out);
@@ -289,15 +284,12 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
 
 }
 
-// Type alias for a read only tensor.
-public typealias DiffTensor<T : IDifferentiable, let D : int> where T.Differential : IAtomicAddable = RODiffTensor<T, D> ;
-
 // A write only differentiable tensor, that internally contains a primal tensor, and a gradient input tensor.
-public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, D>
+public struct WDiffTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, D>
 {
     // Underlying data storage
     public RWTensor<T, D> _primal;
-    public ROTensor<T.Differential, D> _grad_in;
+    public Tensor<T.Differential, D> _grad_in;
 
     _SLANGPY_DIFFTENSOR_COMMON
     _SLANGPY_DIFFTENSOR_STORE
@@ -318,7 +310,7 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WODiffTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WDiffTensor<T, SliceD> value)
     {
         _primal.__slangpy_load<SliceD>(ctx, value._primal);
         _grad_in.__slangpy_load<SliceD>(ctx, value._grad_in);
@@ -329,7 +321,7 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
 public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     public RWTensor<T, D> _primal;
-    public ROTensor<T.Differential, D> _grad_in;
+    public Tensor<T.Differential, D> _grad_in;
     public AtomicTensor<T.Differential, D> _grad_out;
 
     _SLANGPY_DIFFTENSOR_COMMON
@@ -365,14 +357,14 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
 
 // Bespoke loads for directly reading underlying structured buffers from tensor
 #ifndef __TARGET_CUDA__
-public extension<T: IDifferentiable, let D : int> RODiffTensor<T, D> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, let D : int> DiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     public void __slangpy_load(Context0D context, out StructuredBuffer<T> value)
     {
         this._primal.__slangpy_load(context, value);
     }
 }
-public extension<T: IDifferentiable, let D : int> WODiffTensor<T, D> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, let D : int> WDiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     public void __slangpy_load(Context0D context, out RWStructuredBuffer<T> value)
     {

@@ -42,20 +42,17 @@ public interface IBaseTensor<T, let D : int>
 // Interface for a readable tensor.
 // This can be used as an argument to a function or as a constraint to
 // indicate any type of read-only tensor.
-public interface IROTensor<T, let D : int> : IBaseTensor<T, D>
+public interface ITensor<T, let D : int> : IBaseTensor<T, D>
 {
     public T read_buffer(int idx);
     public T load<I : __BuiltinIntegerType>(I idx[D]);
     public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
 }
 
-// Type alias for a read only tensor.
-public typealias ITensor<T, let D : int> = IROTensor<T, D>;
-
 // Interface for a writable tensor.
 // This can be used as an argument to a function or as a constraint to
 // indicate any type of write-only tensor.
-public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
+public interface IWTensor<T, let D : int> : IBaseTensor<T, D>
 {
     public void write_buffer(int idx, T value);
     public void store<I : __BuiltinIntegerType>(I idx[D], T value);
@@ -65,7 +62,7 @@ public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
 // Interface for a read-write tensor.
 // This can be used as an argument to a function or as a constraint to
 // indicate any type of read-write tensor.
-public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
+public interface IRWTensor<T, let D : int> : ITensor<T, D>, IWTensor<T, D>
 {
 }
 
@@ -222,7 +219,7 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
 
 
 // Read only tensor
-public struct ROTensor<T, let D : int> : IROTensor<T, D>
+public struct Tensor<T, let D : int> : ITensor<T, D>
 {
     // Underlying data storage
     public StorageTraits<T>::BufferType _data;
@@ -249,7 +246,7 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out ROTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out Tensor<T, SliceD> value)
     {
         value._data = _data;
         _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
@@ -259,11 +256,8 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
     }
 }
 
-// Type alias for a read only tensor.
-public typealias Tensor<T, let D : int> = ROTensor<T, D>;
-
 // Write only tensor
-public struct WOTensor<T, let D : int> : IWOTensor<T, D>
+public struct WTensor<T, let D : int> : IWTensor<T, D>
 {
     // Underlying data storage
     public StorageTraits<T>::RWBufferType _data;
@@ -290,7 +284,7 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WOTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WTensor<T, SliceD> value)
     {
         value._data = _data;
         _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
@@ -405,7 +399,7 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
 
 
 // Bespoke load/store for accessing pointers from a uint64 tensor
-public extension<let D : int, TensorType : IROTensor<uint64_t, D>> TensorType
+public extension<let D : int, TensorType : ITensor<uint64_t, D>> TensorType
 {
     public void __slangpy_load<PtrT>(ContextND<D> context, out Ptr<PtrT> value)
     {
@@ -418,7 +412,7 @@ public extension<let D : int, TensorType : IROTensor<uint64_t, D>> TensorType
         value = (ImmutablePtr<PtrT>)rawPtr;
     }
 }
-public extension<let D : int, TensorType : IWOTensor<uint64_t, D>> TensorType
+public extension<let D : int, TensorType : IWTensor<uint64_t, D>> TensorType
 {
     public void __slangpy_store<PtrT>(ContextND<D> context, Ptr<PtrT> value)
     {
@@ -434,14 +428,14 @@ public extension<let D : int, TensorType : IWOTensor<uint64_t, D>> TensorType
 
 // Bespoke loads for directly reading underlying structured buffers from tensor
 #ifndef __TARGET_CUDA__
-public extension<T, let D: int> ROTensor<T, D>
+public extension<T, let D: int> Tensor<T, D>
 {
     public void __slangpy_load(Context0D context, out StructuredBuffer<T> value)
     {
         value = this._data;
     }
 }
-public extension<T, let D : int> WOTensor<T, D>
+public extension<T, let D : int> WTensor<T, D>
 {
     public void __slangpy_load(Context0D context, out RWStructuredBuffer<T> value)
     {

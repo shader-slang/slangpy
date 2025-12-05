@@ -283,11 +283,11 @@ void func_rwbytebuffer(RWByteAddressBuffer a)
 }
 
 // Passing Tensors and DiffTensors
-void func_irotensor(IROTensor<float, 2> a)
+void func_iTensor(ITensor<float, 2> a)
 {
     return;
 }
-void func_iwotensor(IWOTensor<float, 2> a)
+void func_iWTensor(IWTensor<float, 2> a)
 {
     return;
 }
@@ -295,11 +295,11 @@ void func_irwtensor(IRWTensor<float, 2> a)
 {
     return;
 }
-void func_rotensor(ROTensor<float, 2> a)
+void func_Tensor(Tensor<float, 2> a)
 {
     return;
 }
-void func_wotensor(WOTensor<float, 2> a)
+void func_WTensor(WTensor<float, 2> a)
 {
     return;
 }
@@ -312,11 +312,11 @@ void func_atomictensor(AtomicTensor<float, 2> a)
     return;
 }
 
-void func_irodifftensor(IRODiffTensor<float, 2> a)
+void func_iDiffTensor(IDiffTensor<float, 2> a)
 {
     return;
 }
-void func_iwodifftensor(IWODiffTensor<float, 2> a)
+void func_iWDiffTensor(IWDiffTensor<float, 2> a)
 {
     return;
 }
@@ -324,11 +324,11 @@ void func_irwdifftensor(IRWDiffTensor<float, 2> a)
 {
     return;
 }
-void func_rodifftensor(RODiffTensor<float, 2> a)
+void func_DiffTensor(DiffTensor<float, 2> a)
 {
     return;
 }
-void func_wodifftensor(WODiffTensor<float, 2> a)
+void func_WDiffTensor(WDiffTensor<float, 2> a)
 {
     return;
 }
@@ -336,11 +336,11 @@ void func_rwdifftensor(RWDiffTensor<float, 2> a)
 {
     return;
 }
-void func_roprimaltensor(ROPrimalTensor<float, 2> a)
+void func_PrimalTensor(PrimalTensor<float, 2> a)
 {
     return;
 }
-void func_woprimaltensor(WOPrimalTensor<float, 2> a)
+void func_WPrimalTensor(WPrimalTensor<float, 2> a)
 {
     return;
 }

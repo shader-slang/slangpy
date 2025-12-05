@@ -188,10 +188,10 @@ void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], 
 
 
 
-// A read only tensor that is compatible with the IRODiffTensor interface but doesn't store
+// A read only tensor that is compatible with the IDiffTensor interface but doesn't store
 // any gradients. This is typically used in generated slangpy code to pass tensors to functions
-// that expect an IRODiffTensor type during the forward pass, when gradients are not needed.
-public struct ROPrimalTensor<T: IDifferentiable, let D : int> : IRODiffTensor<T, D> where T.Differential : IAtomicAddable
+// that expect an IDiffTensor type during the forward pass, when gradients are not needed.
+public struct PrimalTensor<T: IDifferentiable, let D : int> : IDiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     // Underlying data storage
     public StorageTraits<T>::BufferType _data;
@@ -219,7 +219,7 @@ public struct ROPrimalTensor<T: IDifferentiable, let D : int> : IRODiffTensor<T,
         value = this;
     }
 
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out ROPrimalTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out PrimalTensor<T, SliceD> value)
     {
         value._data = _data;
         _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
@@ -229,13 +229,10 @@ public struct ROPrimalTensor<T: IDifferentiable, let D : int> : IRODiffTensor<T,
     }
 }
 
-// Type alias for a read only tensor.
-public typealias PrimalTensor<T : IDifferentiable, let D : int> where T.Differential : IAtomicAddable = ROPrimalTensor<T, D>;
-
-// Write only tensor that is compatible with the IWODiffTensor interface but doesn't store
+// Write only tensor that is compatible with the IWDiffTensor interface but doesn't store
 // any gradients. This is typically used in generated slangpy code to pass tensors to functions
-// that expect an IWODiffTensor type during the forward pass, when gradients are not needed.
-public struct WOPrimalTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, D> where T.Differential : IAtomicAddable
+// that expect an IWDiffTensor type during the forward pass, when gradients are not needed.
+public struct WPrimalTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     // Underlying data storage
     public StorageTraits<T>::RWBufferType _data;
@@ -262,7 +259,7 @@ public struct WOPrimalTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T
     {
         value = this;
     }
-    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WOPrimalTensor<T, SliceD> value)
+    public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out WPrimalTensor<T, SliceD> value)
     {
         value._data = _data;
         _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
@@ -322,14 +319,14 @@ public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T
 
 // Bespoke loads for directly reading underlying structured buffers from tensor
 #ifndef __TARGET_CUDA__
-public extension<T : IDifferentiable, let D : int> ROPrimalTensor<T, D> where T.Differential : IAtomicAddable
+public extension<T : IDifferentiable, let D : int> PrimalTensor<T, D> where T.Differential : IAtomicAddable
 {
     public void __slangpy_load(Context0D context, out StructuredBuffer<T> value)
     {
         value = this._data;
     }
 }
-public extension<T : IDifferentiable, let D : int> WOPrimalTensor<T, D> where T.Differential : IAtomicAddable
+public extension<T : IDifferentiable, let D : int> WPrimalTensor<T, D> where T.Differential : IAtomicAddable
 {
     public void __slangpy_load(Context0D context, out RWStructuredBuffer<T> value)
     {

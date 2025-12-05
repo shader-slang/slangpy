@@ -882,48 +882,40 @@ class TensorAccess(Enum):
 
 _TENSOR_NAME_TO_TYPE = {
     "Tensor": TensorType.tensor,
-    "ROTensor": TensorType.tensor,
-    "WOTensor": TensorType.tensor,
+    "WTensor": TensorType.tensor,
     "RWTensor": TensorType.tensor,
     "DiffTensor": TensorType.difftensor,
-    "RODiffTensor": TensorType.difftensor,
-    "WODiffTensor": TensorType.difftensor,
+    "WDiffTensor": TensorType.difftensor,
     "RWDiffTensor": TensorType.difftensor,
     "PrimalTensor": TensorType.primaltensor,
-    "ROPrimalTensor": TensorType.primaltensor,
-    "WOPrimalTensor": TensorType.primaltensor,
+    "PrimalTensor": TensorType.primaltensor,
+    "WPrimalTensor": TensorType.primaltensor,
     "RWPrimalTensor": TensorType.primaltensor,
     "ITensor": TensorType.itensor,
-    "IROTensor": TensorType.itensor,
-    "IWOTensor": TensorType.itensor,
+    "IWTensor": TensorType.itensor,
     "IRWTensor": TensorType.itensor,
     "IDiffTensor": TensorType.idifftensor,
-    "IRODiffTensor": TensorType.idifftensor,
-    "IWODiffTensor": TensorType.idifftensor,
+    "IWDiffTensor": TensorType.idifftensor,
     "IRWDiffTensor": TensorType.idifftensor,
     "AtomicTensor": TensorType.atomic,
 }
 
 _TENSOR_NAME_TO_ACCESS = {
     "Tensor": TensorAccess.read,
-    "ROTensor": TensorAccess.read,
-    "WOTensor": TensorAccess.write,
+    "WTensor": TensorAccess.write,
     "RWTensor": TensorAccess.read_write,
     "DiffTensor": TensorAccess.read,
-    "RODiffTensor": TensorAccess.read,
-    "WODiffTensor": TensorAccess.write,
+    "WDiffTensor": TensorAccess.write,
     "RWDiffTensor": TensorAccess.read_write,
     "PrimalTensor": TensorAccess.read,
-    "ROPrimalTensor": TensorAccess.read,
-    "WOPrimalTensor": TensorAccess.write,
+    "PrimalTensor": TensorAccess.read,
+    "WPrimalTensor": TensorAccess.write,
     "RWPrimalTensor": TensorAccess.read_write,
     "ITensor": TensorAccess.read,
-    "IROTensor": TensorAccess.read,
-    "IWOTensor": TensorAccess.write,
+    "IWTensor": TensorAccess.write,
     "IRWTensor": TensorAccess.read_write,
     "IDiffTensor": TensorAccess.read,
-    "IRODiffTensor": TensorAccess.read,
-    "IWODiffTensor": TensorAccess.write,
+    "IWDiffTensor": TensorAccess.write,
     "IRWDiffTensor": TensorAccess.read_write,
     "AtomicTensor": TensorAccess.read_write,
 }
@@ -1005,9 +997,9 @@ class ITensorType(SlangType):
         if access == TensorAccess.read_write:
             prefix += "RW"
         elif access == TensorAccess.read:
-            prefix += "RO"
+            prefix += ""
         elif access == TensorAccess.write:
-            prefix += "WO"
+            prefix += "W"
         else:
             raise ValueError("Tensor must be at least readable or writable")
 
@@ -1767,28 +1759,28 @@ TYPE_OVERRIDES["DifferentialPair"] = create_differential_pair
 TYPE_OVERRIDES["Unknown"] = create_unknown_type
 
 TYPE_OVERRIDES["ITensor"] = ITensorType
-TYPE_OVERRIDES["IROTensor"] = ITensorType
-TYPE_OVERRIDES["IWOTensor"] = ITensorType
+TYPE_OVERRIDES["ITensor"] = ITensorType
+TYPE_OVERRIDES["IWTensor"] = ITensorType
 TYPE_OVERRIDES["IRWTensor"] = ITensorType
 
 TYPE_OVERRIDES["Tensor"] = ITensorType
-TYPE_OVERRIDES["ROTensor"] = ITensorType
-TYPE_OVERRIDES["WOTensor"] = ITensorType
+TYPE_OVERRIDES["Tensor"] = ITensorType
+TYPE_OVERRIDES["WTensor"] = ITensorType
 TYPE_OVERRIDES["RWTensor"] = ITensorType
 
 TYPE_OVERRIDES["IDiffTensor"] = ITensorType
-TYPE_OVERRIDES["IRODiffTensor"] = ITensorType
-TYPE_OVERRIDES["IWODiffTensor"] = ITensorType
+TYPE_OVERRIDES["IDiffTensor"] = ITensorType
+TYPE_OVERRIDES["IWDiffTensor"] = ITensorType
 TYPE_OVERRIDES["IRWDiffTensor"] = ITensorType
 
 TYPE_OVERRIDES["DiffTensor"] = ITensorType
-TYPE_OVERRIDES["RODiffTensor"] = ITensorType
-TYPE_OVERRIDES["WODiffTensor"] = ITensorType
+TYPE_OVERRIDES["DiffTensor"] = ITensorType
+TYPE_OVERRIDES["WDiffTensor"] = ITensorType
 TYPE_OVERRIDES["RWDiffTensor"] = ITensorType
 
 TYPE_OVERRIDES["PrimalTensor"] = ITensorType
-TYPE_OVERRIDES["ROPrimalTensor"] = ITensorType
-TYPE_OVERRIDES["WOPrimalTensor"] = ITensorType
+TYPE_OVERRIDES["PrimalTensor"] = ITensorType
+TYPE_OVERRIDES["WPrimalTensor"] = ITensorType
 TYPE_OVERRIDES["RWPrimalTensor"] = ITensorType
 
 TYPE_OVERRIDES["AtomicTensor"] = ITensorType

@@ -16,12 +16,12 @@ int _idx<let D : int, each I : __BuiltinIntegerType>(expand each I idx, uint str
     return res + offset;
 }
 
-public extension<T, let D : int, TensorType : IROTensor<T, D>> TensorType
+public extension<T, let D : int, TensorType : ITensor<T, D>> TensorType
 {
     public T load<each I : __BuiltinIntegerType>(I i);
 }
 
-public extension<T, let D: int> ROTensor<T, D>
+public extension<T, let D: int> Tensor<T, D>
 {
     public T load<each I : __BuiltinIntegerType>(I i)
     {
@@ -35,12 +35,12 @@ public extension<T, let D: int> ROTensor<T, D>
     }
 }
 
-public extension<T, let D : int, TensorType : IWOTensor<T, D>> TensorType
+public extension<T, let D : int, TensorType : IWTensor<T, D>> TensorType
 {
     public void store<each I : __BuiltinIntegerType>(I i, T value);
 }
 
-public extension<T, let D : int> WOTensor<T, D>
+public extension<T, let D : int> WTensor<T, D>
 {
     public void store<each I : __BuiltinIntegerType>(I i, T value)
     {
@@ -82,13 +82,13 @@ public extension<T, let D : int> RWTensor<T, D>
     }
 }
 
-public extension<T: IDifferentiable, let D : int, TensorType : IRODiffTensor<T, D>> TensorType where T.Differential: IAtomicAddable
+public extension<T: IDifferentiable, let D : int, TensorType : IDiffTensor<T, D>> TensorType where T.Differential: IAtomicAddable
 {
     [Differentiable]
     public T load<each I : __BuiltinIntegerType>(I i);
 }
 
-public extension<T : IDifferentiable, let D : int> RODiffTensor<T, D> where T.Differential : IAtomicAddable
+public extension<T : IDifferentiable, let D : int> DiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -109,12 +109,12 @@ public extension<T : IDifferentiable, let D : int> RODiffTensor<T, D> where T.Di
     }
 }
 
-public extension<T : IDifferentiable, let D : int, TensorType : IWODiffTensor<T, D>> TensorType where T.Differential : IAtomicAddable
+public extension<T : IDifferentiable, let D : int, TensorType : IWDiffTensor<T, D>> TensorType where T.Differential : IAtomicAddable
 {
     public void store<each I : __BuiltinIntegerType>(I i, T value);
 }
 
-public extension<T : IDifferentiable, let D : int> WODiffTensor<T, D> where T.Differential : IAtomicAddable
+public extension<T : IDifferentiable, let D : int> WDiffTensor<T, D> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]

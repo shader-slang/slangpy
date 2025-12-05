@@ -8,7 +8,7 @@
 #    return idx + offset;
 # }
 
-# public extension<T, TensorType : IROTensor<T, 2>> TensorType
+# public extension<T, TensorType : ITensor<T, 2>> TensorType
 # {
 #    [Differentiable]
 #    public T load(int i0, int i1)
@@ -16,7 +16,7 @@
 #        return load(int[2](i0, i1));
 #    }
 # }
-# public extension<T, TensorType : IWOTensor<T, 3>> TensorType
+# public extension<T, TensorType : IWTensor<T, 3>> TensorType
 # {
 #    [Differentiable]
 #    public void store(int i0, int i1, int i2, T value)
@@ -24,14 +24,14 @@
 #        store(int[3](i0, i1, i2), value);
 #    }
 # }
-# public extension<T> ROTensor<T, 2>
+# public extension<T> Tensor<T, 2>
 # {
 #    public __subscript(int i0, int i1)->T
 #    {
 #        get { return load(i0, i1); }
 #    }
 # }
-# public extension<T> WOTensor<T, 2>
+# public extension<T> WTensor<T, 2>
 # {
 #    public __subscript(int i0, int i1)->T
 #    {

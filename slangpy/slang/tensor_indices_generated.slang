@@ -80,7 +80,7 @@ int _idx(int idx0, int idx1, int idx2, int idx3, int idx4, int idx5, int idx6, i
     idx += idx7 * stride[7];
     return idx + offset;
 }
-public extension<T> ROTensor<T, 0>
+public extension<T> Tensor<T, 0>
 {
     public T load()
     {
@@ -93,12 +93,12 @@ public extension<T> ROTensor<T, 0>
     }
 }
 
-public extension<T, TensorType : IROTensor<T, 0>> TensorType
+public extension<T, TensorType : ITensor<T, 0>> TensorType
 {
     public T load();
 }
 
-public extension<T> ROTensor<T, 1>
+public extension<T> Tensor<T, 1>
 {
     public T load(int i0)
     {
@@ -111,12 +111,12 @@ public extension<T> ROTensor<T, 1>
     }
 }
 
-public extension<T, TensorType : IROTensor<T, 1>> TensorType
+public extension<T, TensorType : ITensor<T, 1>> TensorType
 {
     public T load(int i0);
 }
 
-public extension<T> ROTensor<T, 2>
+public extension<T> Tensor<T, 2>
 {
     public T load(int i0, int i1)
     {
@@ -129,12 +129,12 @@ public extension<T> ROTensor<T, 2>
     }
 }
 
-public extension<T, TensorType : IROTensor<T, 2>> TensorType
+public extension<T, TensorType : ITensor<T, 2>> TensorType
 {
     public T load(int i0, int i1);
 }
 
-public extension<T> ROTensor<T, 3>
+public extension<T> Tensor<T, 3>
 {
     public T load(int i0, int i1, int i2)
     {
@@ -147,12 +147,12 @@ public extension<T> ROTensor<T, 3>
     }
 }
 
-public extension<T, TensorType : IROTensor<T, 3>> TensorType
+public extension<T, TensorType : ITensor<T, 3>> TensorType
 {
     public T load(int i0, int i1, int i2);
 }
 
-public extension<T> ROTensor<T, 4>
+public extension<T> Tensor<T, 4>
 {
     public T load(int i0, int i1, int i2, int i3)
     {
@@ -165,12 +165,12 @@ public extension<T> ROTensor<T, 4>
     }
 }
 
-public extension<T, TensorType : IROTensor<T, 4>> TensorType
+public extension<T, TensorType : ITensor<T, 4>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3);
 }
 
-public extension<T> ROTensor<T, 5>
+public extension<T> Tensor<T, 5>
 {
     public T load(int i0, int i1, int i2, int i3, int i4)
     {
@@ -183,12 +183,12 @@ public extension<T> ROTensor<T, 5>
     }
 }
 
-public extension<T, TensorType : IROTensor<T, 5>> TensorType
+public extension<T, TensorType : ITensor<T, 5>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4);
 }
 
-public extension<T> ROTensor<T, 6>
+public extension<T> Tensor<T, 6>
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5)
     {
@@ -201,12 +201,12 @@ public extension<T> ROTensor<T, 6>
     }
 }
 
-public extension<T, TensorType : IROTensor<T, 6>> TensorType
+public extension<T, TensorType : ITensor<T, 6>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5);
 }
 
-public extension<T> ROTensor<T, 7>
+public extension<T> Tensor<T, 7>
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6)
     {
@@ -219,12 +219,12 @@ public extension<T> ROTensor<T, 7>
     }
 }
 
-public extension<T, TensorType : IROTensor<T, 7>> TensorType
+public extension<T, TensorType : ITensor<T, 7>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6);
 }
 
-public extension<T> ROTensor<T, 8>
+public extension<T> Tensor<T, 8>
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)
     {
@@ -237,12 +237,12 @@ public extension<T> ROTensor<T, 8>
     }
 }
 
-public extension<T, TensorType : IROTensor<T, 8>> TensorType
+public extension<T, TensorType : ITensor<T, 8>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7);
 }
 
-public extension<T> WOTensor<T, 0>
+public extension<T> WTensor<T, 0>
 {
     public void store(T value)
     {
@@ -255,12 +255,12 @@ public extension<T> WOTensor<T, 0>
     }
 }
 
-public extension<T, TensorType : IWOTensor<T, 0>> TensorType
+public extension<T, TensorType : IWTensor<T, 0>> TensorType
 {
     public void store(T value);
 }
 
-public extension<T> WOTensor<T, 1>
+public extension<T> WTensor<T, 1>
 {
     public void store(int i0, T value)
     {
@@ -273,12 +273,12 @@ public extension<T> WOTensor<T, 1>
     }
 }
 
-public extension<T, TensorType : IWOTensor<T, 1>> TensorType
+public extension<T, TensorType : IWTensor<T, 1>> TensorType
 {
     public void store(int i0, T value);
 }
 
-public extension<T> WOTensor<T, 2>
+public extension<T> WTensor<T, 2>
 {
     public void store(int i0, int i1, T value)
     {
@@ -291,12 +291,12 @@ public extension<T> WOTensor<T, 2>
     }
 }
 
-public extension<T, TensorType : IWOTensor<T, 2>> TensorType
+public extension<T, TensorType : IWTensor<T, 2>> TensorType
 {
     public void store(int i0, int i1, T value);
 }
 
-public extension<T> WOTensor<T, 3>
+public extension<T> WTensor<T, 3>
 {
     public void store(int i0, int i1, int i2, T value)
     {
@@ -309,12 +309,12 @@ public extension<T> WOTensor<T, 3>
     }
 }
 
-public extension<T, TensorType : IWOTensor<T, 3>> TensorType
+public extension<T, TensorType : IWTensor<T, 3>> TensorType
 {
     public void store(int i0, int i1, int i2, T value);
 }
 
-public extension<T> WOTensor<T, 4>
+public extension<T> WTensor<T, 4>
 {
     public void store(int i0, int i1, int i2, int i3, T value)
     {
@@ -327,12 +327,12 @@ public extension<T> WOTensor<T, 4>
     }
 }
 
-public extension<T, TensorType : IWOTensor<T, 4>> TensorType
+public extension<T, TensorType : IWTensor<T, 4>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, T value);
 }
 
-public extension<T> WOTensor<T, 5>
+public extension<T> WTensor<T, 5>
 {
     public void store(int i0, int i1, int i2, int i3, int i4, T value)
     {
@@ -345,12 +345,12 @@ public extension<T> WOTensor<T, 5>
     }
 }
 
-public extension<T, TensorType : IWOTensor<T, 5>> TensorType
+public extension<T, TensorType : IWTensor<T, 5>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, int i4, T value);
 }
 
-public extension<T> WOTensor<T, 6>
+public extension<T> WTensor<T, 6>
 {
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value)
     {
@@ -363,12 +363,12 @@ public extension<T> WOTensor<T, 6>
     }
 }
 
-public extension<T, TensorType : IWOTensor<T, 6>> TensorType
+public extension<T, TensorType : IWTensor<T, 6>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value);
 }
 
-public extension<T> WOTensor<T, 7>
+public extension<T> WTensor<T, 7>
 {
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
     {
@@ -381,12 +381,12 @@ public extension<T> WOTensor<T, 7>
     }
 }
 
-public extension<T, TensorType : IWOTensor<T, 7>> TensorType
+public extension<T, TensorType : IWTensor<T, 7>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value);
 }
 
-public extension<T> WOTensor<T, 8>
+public extension<T> WTensor<T, 8>
 {
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)
     {
@@ -399,7 +399,7 @@ public extension<T> WOTensor<T, 8>
     }
 }
 
-public extension<T, TensorType : IWOTensor<T, 8>> TensorType
+public extension<T, TensorType : IWTensor<T, 8>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value);
 }
@@ -629,7 +629,7 @@ public extension<T, TensorType : IRWTensor<T, 8>> TensorType
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value);
 }
 
-public extension<T: IDifferentiable> RODiffTensor<T, 0> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> DiffTensor<T, 0> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -647,13 +647,13 @@ public extension<T: IDifferentiable> RODiffTensor<T, 0> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load();
 }
 
-public extension<T: IDifferentiable> RODiffTensor<T, 1> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> DiffTensor<T, 1> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -671,13 +671,13 @@ public extension<T: IDifferentiable> RODiffTensor<T, 1> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0);
 }
 
-public extension<T: IDifferentiable> RODiffTensor<T, 2> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> DiffTensor<T, 2> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -695,13 +695,13 @@ public extension<T: IDifferentiable> RODiffTensor<T, 2> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1);
 }
 
-public extension<T: IDifferentiable> RODiffTensor<T, 3> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> DiffTensor<T, 3> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -719,13 +719,13 @@ public extension<T: IDifferentiable> RODiffTensor<T, 3> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2);
 }
 
-public extension<T: IDifferentiable> RODiffTensor<T, 4> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> DiffTensor<T, 4> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -743,13 +743,13 @@ public extension<T: IDifferentiable> RODiffTensor<T, 4> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3);
 }
 
-public extension<T: IDifferentiable> RODiffTensor<T, 5> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> DiffTensor<T, 5> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -767,13 +767,13 @@ public extension<T: IDifferentiable> RODiffTensor<T, 5> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3, int i4);
 }
 
-public extension<T: IDifferentiable> RODiffTensor<T, 6> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> DiffTensor<T, 6> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -791,13 +791,13 @@ public extension<T: IDifferentiable> RODiffTensor<T, 6> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5);
 }
 
-public extension<T: IDifferentiable> RODiffTensor<T, 7> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> DiffTensor<T, 7> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -815,13 +815,13 @@ public extension<T: IDifferentiable> RODiffTensor<T, 7> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6);
 }
 
-public extension<T: IDifferentiable> RODiffTensor<T, 8> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> DiffTensor<T, 8> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
@@ -839,13 +839,13 @@ public extension<T: IDifferentiable> RODiffTensor<T, 8> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7);
 }
 
-public extension<T: IDifferentiable> WODiffTensor<T, 0> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WDiffTensor<T, 0> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
@@ -863,13 +863,13 @@ public extension<T: IDifferentiable> WODiffTensor<T, 0> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(T value);
 }
 
-public extension<T: IDifferentiable> WODiffTensor<T, 1> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WDiffTensor<T, 1> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
@@ -887,13 +887,13 @@ public extension<T: IDifferentiable> WODiffTensor<T, 1> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, T value);
 }
 
-public extension<T: IDifferentiable> WODiffTensor<T, 2> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WDiffTensor<T, 2> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
@@ -911,13 +911,13 @@ public extension<T: IDifferentiable> WODiffTensor<T, 2> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, T value);
 }
 
-public extension<T: IDifferentiable> WODiffTensor<T, 3> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WDiffTensor<T, 3> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
@@ -935,13 +935,13 @@ public extension<T: IDifferentiable> WODiffTensor<T, 3> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, T value);
 }
 
-public extension<T: IDifferentiable> WODiffTensor<T, 4> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WDiffTensor<T, 4> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
@@ -959,13 +959,13 @@ public extension<T: IDifferentiable> WODiffTensor<T, 4> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, T value);
 }
 
-public extension<T: IDifferentiable> WODiffTensor<T, 5> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WDiffTensor<T, 5> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
@@ -983,13 +983,13 @@ public extension<T: IDifferentiable> WODiffTensor<T, 5> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, T value);
 }
 
-public extension<T: IDifferentiable> WODiffTensor<T, 6> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WDiffTensor<T, 6> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
@@ -1007,13 +1007,13 @@ public extension<T: IDifferentiable> WODiffTensor<T, 6> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value);
 }
 
-public extension<T: IDifferentiable> WODiffTensor<T, 7> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WDiffTensor<T, 7> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
@@ -1031,13 +1031,13 @@ public extension<T: IDifferentiable> WODiffTensor<T, 7> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value);
 }
 
-public extension<T: IDifferentiable> WODiffTensor<T, 8> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WDiffTensor<T, 8> where T.Differential : IAtomicAddable
 {
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
@@ -1055,7 +1055,7 @@ public extension<T: IDifferentiable> WODiffTensor<T, 8> where T.Differential : I
     }
 }
 
-public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value);
@@ -1394,7 +1394,7 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 8>> TensorTyp
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value);
 }
 
-public extension<T: IDifferentiable> ROPrimalTensor<T, 0> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> PrimalTensor<T, 0> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public T load()
@@ -1408,7 +1408,7 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 0> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> ROPrimalTensor<T, 1> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> PrimalTensor<T, 1> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public T load(int i0)
@@ -1422,7 +1422,7 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 1> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> ROPrimalTensor<T, 2> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> PrimalTensor<T, 2> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public T load(int i0, int i1)
@@ -1436,7 +1436,7 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 2> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> ROPrimalTensor<T, 3> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> PrimalTensor<T, 3> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public T load(int i0, int i1, int i2)
@@ -1450,7 +1450,7 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 3> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> ROPrimalTensor<T, 4> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> PrimalTensor<T, 4> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public T load(int i0, int i1, int i2, int i3)
@@ -1464,7 +1464,7 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 4> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> ROPrimalTensor<T, 5> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> PrimalTensor<T, 5> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public T load(int i0, int i1, int i2, int i3, int i4)
@@ -1478,7 +1478,7 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 5> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> ROPrimalTensor<T, 6> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> PrimalTensor<T, 6> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5)
@@ -1492,7 +1492,7 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 6> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> ROPrimalTensor<T, 7> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> PrimalTensor<T, 7> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6)
@@ -1506,7 +1506,7 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 7> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> ROPrimalTensor<T, 8> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> PrimalTensor<T, 8> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)
@@ -1520,7 +1520,7 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 8> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> WOPrimalTensor<T, 0> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WPrimalTensor<T, 0> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public void store(T value)
@@ -1534,7 +1534,7 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 0> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> WOPrimalTensor<T, 1> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WPrimalTensor<T, 1> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public void store(int i0, T value)
@@ -1548,7 +1548,7 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 1> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> WOPrimalTensor<T, 2> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WPrimalTensor<T, 2> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public void store(int i0, int i1, T value)
@@ -1562,7 +1562,7 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 2> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> WOPrimalTensor<T, 3> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WPrimalTensor<T, 3> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public void store(int i0, int i1, int i2, T value)
@@ -1576,7 +1576,7 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 3> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> WOPrimalTensor<T, 4> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WPrimalTensor<T, 4> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public void store(int i0, int i1, int i2, int i3, T value)
@@ -1590,7 +1590,7 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 4> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> WOPrimalTensor<T, 5> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WPrimalTensor<T, 5> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, T value)
@@ -1604,7 +1604,7 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 5> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> WOPrimalTensor<T, 6> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WPrimalTensor<T, 6> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value)
@@ -1618,7 +1618,7 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 6> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> WOPrimalTensor<T, 7> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WPrimalTensor<T, 7> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
@@ -1632,7 +1632,7 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 7> where T.Differential :
     }
 }
 
-public extension<T: IDifferentiable> WOPrimalTensor<T, 8> where T.Differential : IAtomicAddable
+public extension<T: IDifferentiable> WPrimalTensor<T, 8> where T.Differential : IAtomicAddable
 {
     [TreatAsDifferentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)

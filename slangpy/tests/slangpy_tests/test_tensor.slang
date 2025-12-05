@@ -89,41 +89,41 @@ void copy_tensor_vector_loadstore(int[2] idx, Tensor<float, 2> src, RWTensor<flo
 }
 
 
-void copy_difftensor_each_index(int[2] idx, DiffTensor<float, 2> src, WODiffTensor<float, 2> dst)
+void copy_difftensor_each_index(int[2] idx, DiffTensor<float, 2> src, WDiffTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     dst[i0, i1] = src[i0, i1];
 }
 
-void copy_difftensor_array_index(int[2] idx, DiffTensor<float, 2> src, WODiffTensor<float, 2> dst)
+void copy_difftensor_array_index(int[2] idx, DiffTensor<float, 2> src, WDiffTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     int[2] arr = { i0, i1 };
     dst[arr] = src[arr];
 }
-void copy_difftensor_vector_index(int[2] idx, DiffTensor<float, 2> src, WODiffTensor<float, 2> dst)
+void copy_difftensor_vector_index(int[2] idx, DiffTensor<float, 2> src, WDiffTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     var vec = int2(i1, i0);
     dst[vec] = src[vec];
 }
-void copy_difftensor_each_loadstore(int[2] idx, DiffTensor<float, 2> src, WODiffTensor<float, 2> dst)
+void copy_difftensor_each_loadstore(int[2] idx, DiffTensor<float, 2> src, WDiffTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     dst.store(i0, i1, src.load(i0, i1));
 }
-void copy_difftensor_array_loadstore(int[2] idx, DiffTensor<float, 2> src, WODiffTensor<float, 2> dst)
+void copy_difftensor_array_loadstore(int[2] idx, DiffTensor<float, 2> src, WDiffTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     int[2] arr = { i0, i1 };
     dst.store(arr, src.load(arr));
 }
-void copy_difftensor_vector_loadstore(int[2] idx, DiffTensor<float, 2> src, WODiffTensor<float, 2> dst)
+void copy_difftensor_vector_loadstore(int[2] idx, DiffTensor<float, 2> src, WDiffTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
@@ -131,40 +131,40 @@ void copy_difftensor_vector_loadstore(int[2] idx, DiffTensor<float, 2> src, WODi
     dst.store(vec, src.load(vec));
 }
 
-void copy_primaltensor_each_index(int[2] idx, PrimalTensor<float, 2> src, WOPrimalTensor<float, 2> dst)
+void copy_primaltensor_each_index(int[2] idx, PrimalTensor<float, 2> src, WPrimalTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     dst[i0, i1] = src[i0, i1];
 }
-void copy_primaltensor_array_index(int[2] idx, PrimalTensor<float, 2> src, WOPrimalTensor<float, 2> dst)
+void copy_primaltensor_array_index(int[2] idx, PrimalTensor<float, 2> src, WPrimalTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     int[2] arr = { i0, i1 };
     dst[arr] = src[arr];
 }
-void copy_primaltensor_vector_index(int[2] idx, PrimalTensor<float, 2> src, WOPrimalTensor<float, 2> dst)
+void copy_primaltensor_vector_index(int[2] idx, PrimalTensor<float, 2> src, WPrimalTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     var vec = int2(i1, i0);
     dst[vec] = src[vec];
 }
-void copy_primaltensor_each_loadstore(int[2] idx, PrimalTensor<float, 2> src, WOPrimalTensor<float, 2> dst)
+void copy_primaltensor_each_loadstore(int[2] idx, PrimalTensor<float, 2> src, WPrimalTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     dst.store(i0, i1, src.load(i0, i1));
 }
-void copy_primaltensor_array_loadstore(int[2] idx, PrimalTensor<float, 2> src, WOPrimalTensor<float, 2> dst)
+void copy_primaltensor_array_loadstore(int[2] idx, PrimalTensor<float, 2> src, WPrimalTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
     int[2] arr = { i0, i1 };
     dst.store(arr, src.load(arr));
 }
-void copy_primaltensor_vector_loadstore(int[2] idx, PrimalTensor<float, 2> src, WOPrimalTensor<float, 2> dst)
+void copy_primaltensor_vector_loadstore(int[2] idx, PrimalTensor<float, 2> src, WPrimalTensor<float, 2> dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
