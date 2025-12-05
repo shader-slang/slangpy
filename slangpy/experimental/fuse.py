@@ -33,6 +33,9 @@ class FuseNode:
         self.input_sources: dict[str, tuple[Optional["FuseNode"], str]] = {}
         # Maps each output name to its source: (child_node, output_name) or None if not connected
         self.output_sources: dict[str, tuple[Optional["FuseNode"], str]] = {}
+        # Type information (populated by infer_types pass)
+        self.input_types: dict[str, str] = {}  # Maps input name to type string
+        self.output_types: dict[str, str] = {}  # Maps output name to type string
 
     @staticmethod
     def from_function(function: spy.Function) -> "FuseNode":
@@ -51,10 +54,82 @@ class FuseNode:
         return res
 
 
+def infer_types(node: FuseNode, inferred_nodes: Optional[set[int]] = None) -> None:
+    """
+    First pass: Infer types for all nodes in the tree.
+
+    For leaf nodes (with functions), extract types from the Slang function.
+    For non-leaf nodes, infer types by tracing through the graph.
+
+    Args:
+        node: The node to infer types for
+        inferred_nodes: Set of node IDs that have already been processed (to avoid duplicates)
+    """
+    if inferred_nodes is None:
+        inferred_nodes = set()
+
+    # Skip if we've already processed this node
+    node_id = id(node)
+    if node_id in inferred_nodes:
+        return
+    inferred_nodes.add(node_id)
+
+    # Process children first (bottom-up inference)
+    for child in node.children:
+        infer_types(child, inferred_nodes)
+
+    # If this node references a subgraph, infer types for the subgraph root
+    if node.subgraph is not None:
+        infer_types(node.subgraph.root_node, inferred_nodes)
+        # Copy types from subgraph root
+        node.input_types = node.subgraph.root_node.input_types.copy()
+        node.output_types = node.subgraph.root_node.output_types.copy()
+        return
+
+    # For leaf nodes with functions, extract types from the Slang function
+    if node.function is not None:
+        # Get input types from function parameters
+        for param in node.function._slang_func.parameters:
+            node.input_types[param.name] = param.type.full_name
+
+        # Get return type
+        return_type = node.function._slang_func.return_type.full_name
+        for output_name in node.output_names:
+            node.output_types[output_name] = return_type
+        return
+
+    # For non-leaf nodes, infer types by tracing through the graph
+    # Infer input types
+    for input_name in node.input_names:
+        # Input types are determined by where they're used
+        # We'll trace through children to find what type is expected
+        type_found = False
+        for child in node.children:
+            for child_input_name in child.input_names:
+                if child_input_name in child.input_sources:
+                    source_node, source_output = child.input_sources[child_input_name]
+                    if source_node is None and source_output == input_name:
+                        # This child uses our input
+                        if child_input_name in child.input_types:
+                            node.input_types[input_name] = child.input_types[child_input_name]
+                            type_found = True
+                            break
+            if type_found:
+                break
+
+    # Infer output types
+    for output_name in node.output_names:
+        if output_name in node.output_sources:
+            source_node, source_output = node.output_sources[output_name]
+            if source_node is not None and source_output in source_node.output_types:
+                node.output_types[output_name] = source_node.output_types[source_output]
+
+
 def generate_code(
     node: FuseNode,
     generated_function_names: Optional[set[str]] = None,
     generated_subgraphs: Optional[set[str]] = None,
+    infer_types_pass: bool = True,
 ) -> str:
     """
     Generate code for a node and its children.
@@ -63,11 +138,16 @@ def generate_code(
         node: The node to generate code for
         generated_function_names: Set of function names that have already been generated (to avoid duplicates)
         generated_subgraphs: Set of subgraph names that have already been generated (to avoid duplicates)
+        infer_types_pass: Whether to run the type inference pass (should be True for root calls)
     """
     if generated_function_names is None:
         generated_function_names = set()
     if generated_subgraphs is None:
         generated_subgraphs = set()
+
+    # Run type inference pass first (only on the initial call)
+    if infer_types_pass:
+        infer_types(node)
 
     code_lines = []
 
@@ -80,7 +160,9 @@ def generate_code(
         if child.subgraph is not None and child.name in generated_subgraphs:
             continue
 
-        child_code = generate_code(child, generated_function_names, generated_subgraphs)
+        child_code = generate_code(
+            child, generated_function_names, generated_subgraphs, infer_types_pass=False
+        )
         code_lines.append(child_code)
         code_lines.append("")  # Add blank line between functions
 
@@ -95,16 +177,24 @@ def generate_code(
         # This is a subgraph reference node - ensure the subgraph's root is generated
         if node.subgraph.name not in generated_subgraphs:
             subgraph_code = generate_code(
-                node.subgraph.root_node, generated_function_names, generated_subgraphs
+                node.subgraph.root_node,
+                generated_function_names,
+                generated_subgraphs,
+                infer_types_pass=False,
             )
             code_lines.append(subgraph_code)
             generated_subgraphs.add(node.subgraph.name)
         # Don't generate a wrapper function - just return what we've collected
         return "\n".join(code_lines)
 
-    # Generate function signature
-    input_params = ", ".join(node.input_names)
-    code_lines.append(f"{node.name}({input_params})")
+    # Generate function signature with types
+    input_params = ", ".join(
+        f"{node.input_types.get(name, 'auto')} {name}" for name in node.input_names
+    )
+    return_type = (
+        node.output_types.get(node.output_names[0], "auto") if node.output_names else "void"
+    )
+    code_lines.append(f"{return_type} {node.name}({input_params})")
     code_lines.append("{")
 
     # Generate function body
@@ -176,7 +266,11 @@ def generate_code(
                 # Store mapping for all outputs of this child
                 for output_name in child.output_names:
                     child_output_to_temp[(child, output_name)] = temp_var
-                code_lines.append(f"\t{temp_var} = {child.name}({', '.join(child_args)})")
+                # Get the type of the child's output
+                output_type = child.output_types.get(child.output_names[0], "auto")
+                code_lines.append(
+                    f"\t{output_type} {temp_var} = {child.name}({', '.join(child_args)})"
+                )
 
         # Generate return statement
         for output_name in node.output_names:
@@ -248,7 +342,7 @@ def test_simple_leaf_node():
     code = generate_code(node)
 
     expected = """
-    __call_ft_add(a, b)
+    int __call_ft_add(int a, int b)
     {
         return ft_add(a, b);
     }
@@ -272,14 +366,14 @@ def test_single_child_node():
     code = generate_code(root)
 
     expected = """
-    __call_ft_add(a, b)
+    int __call_ft_add(int a, int b)
     {
         return ft_add(a, b);
     }
 
-    main(x, y)
+    int main(int x, int y)
     {
-        temp = __call_ft_add(x, y)
+        int temp = __call_ft_add(x, y)
         return temp
     }
     """
@@ -307,20 +401,20 @@ def test_two_children_with_dependency():
     code = generate_code(root)
 
     expected = """
-    __call_ft_mul(a, b)
+    int __call_ft_mul(int a, int b)
     {
         return ft_mul(a, b);
     }
 
-    __call_ft_add(a, b)
+    int __call_ft_add(int a, int b)
     {
         return ft_add(a, b);
     }
 
-    compute(p, q, r)
+    int compute(int p, int q, int r)
     {
-        temp = __call_ft_mul(p, q)
-        temp2 = __call_ft_add(temp, r)
+        int temp = __call_ft_mul(p, q)
+        int temp2 = __call_ft_add(temp, r)
         return temp2
     }
     """
@@ -351,20 +445,20 @@ def test_topological_sort_reversed_order():
     # Function definitions appear in the order children are added,
     # but the calls inside root() are topologically sorted
     expected = """
-    __call_ft_return2(a)
+    int __call_ft_return2(int a)
     {
         return ft_return2(a);
     }
 
-    __call_ft_return1(a)
+    int __call_ft_return1(int a)
     {
         return ft_return1(a);
     }
 
-    root(a, b)
+    int root(int a, auto b)
     {
-        temp = __call_ft_return1(a)
-        temp2 = __call_ft_return2(temp)
+        int temp = __call_ft_return1(a)
+        int temp2 = __call_ft_return2(temp)
         return temp2
     }
     """
@@ -393,20 +487,20 @@ def test_independent_children():
     # For independent children with no dependencies, they are sorted alphabetically by name
     # So __call_ft_return1 is executed before __call_ft_return2
     expected = """
-    __call_ft_return1(a)
+    int __call_ft_return1(int a)
     {
         return ft_return1(a);
     }
 
-    __call_ft_return2(a)
+    int __call_ft_return2(int a)
     {
         return ft_return2(a);
     }
 
-    root(a, b)
+    int root(int a, int b)
     {
-        temp = __call_ft_return1(a)
-        temp2 = __call_ft_return2(b)
+        int temp = __call_ft_return1(a)
+        int temp2 = __call_ft_return2(b)
         return temp
     }
     """
@@ -435,26 +529,26 @@ def test_chain_of_three_nodes():
     # Function definitions appear in order added (c, b, a),
     # but calls in root() are topologically sorted (a, b, c)
     expected = """
-    __call_ft_return3(a)
+    int __call_ft_return3(int a)
     {
         return ft_return3(a);
     }
 
-    __call_ft_return2(a)
+    int __call_ft_return2(int a)
     {
         return ft_return2(a);
     }
 
-    __call_ft_return1(a)
+    int __call_ft_return1(int a)
     {
         return ft_return1(a);
     }
 
-    root(x)
+    int root(int x)
     {
-        temp = __call_ft_return1(x)
-        temp2 = __call_ft_return2(temp)
-        temp3 = __call_ft_return3(temp2)
+        int temp = __call_ft_return1(x)
+        int temp2 = __call_ft_return2(temp)
+        int temp3 = __call_ft_return3(temp2)
         return temp3
     }
     """
@@ -477,14 +571,14 @@ def test_multiple_inputs_from_same_parent():
     code = generate_code(root)
 
     expected = """
-    __call_ft_add(a, b)
+    int __call_ft_add(int a, int b)
     {
         return ft_add(a, b);
     }
 
-    root(x, y)
+    int root(int x, int y)
     {
-        temp = __call_ft_add(x, y)
+        int temp = __call_ft_add(x, y)
         return temp
     }
     """
@@ -535,32 +629,32 @@ def test_nested_children():
     # finally root is defined with calls to middle and sibling in dependency order
     # Note: leaf1 and leaf2 are independent, so alphabetically ft_return1 comes before ft_return2
     expected = """
-    __call_ft_return1(a)
+    int __call_ft_return1(int a)
     {
         return ft_return1(a);
     }
 
-    __call_ft_return2(a)
+    int __call_ft_return2(int a)
     {
         return ft_return2(a);
     }
 
-    middle(x, y)
+    int middle(int x, int y)
     {
-        temp = __call_ft_return1(x)
-        temp2 = __call_ft_return2(y)
+        int temp = __call_ft_return1(x)
+        int temp2 = __call_ft_return2(y)
         return temp2
     }
 
-    __call_ft_return3(a)
+    int __call_ft_return3(int a)
     {
         return ft_return3(a);
     }
 
-    root(p, q, r)
+    int root(int p, int q, auto r)
     {
-        temp = middle(p, q)
-        temp2 = __call_ft_return3(temp)
+        int temp = middle(p, q)
+        int temp2 = __call_ft_return3(temp)
         return temp2
     }
     """
@@ -601,21 +695,21 @@ def test_duplicate_function_reuse():
 
     # Should only have ONE __call_ft_add definition, not two
     expected = """
-    __call_ft_add(a, b)
+    int __call_ft_add(int a, int b)
     {
         return ft_add(a, b);
     }
 
-    __call_ft_mul(a, b)
+    int __call_ft_mul(int a, int b)
     {
         return ft_mul(a, b);
     }
 
-    root(a, b, c, d)
+    int root(int a, int b, int c, int d)
     {
-        temp = __call_ft_add(a, b)
-        temp2 = __call_ft_add(c, d)
-        temp3 = __call_ft_mul(temp, temp2)
+        int temp = __call_ft_add(a, b)
+        int temp2 = __call_ft_add(c, d)
+        int temp3 = __call_ft_mul(temp, temp2)
         return temp3
     }
     """
@@ -685,29 +779,29 @@ def test_subgraph_reuse():
     # The add4 subgraph should only be defined ONCE, even though used twice
     # The __call_ft_add should also only be defined once
     expected = """
-    __call_ft_add(a, b)
+    int __call_ft_add(int a, int b)
     {
         return ft_add(a, b);
     }
 
-    add4(a, b, c, d)
+    int add4(int a, int b, int c, int d)
     {
-        temp = __call_ft_add(a, b)
-        temp2 = __call_ft_add(c, d)
-        temp3 = __call_ft_add(temp, temp2)
+        int temp = __call_ft_add(a, b)
+        int temp2 = __call_ft_add(c, d)
+        int temp3 = __call_ft_add(temp, temp2)
         return temp3
     }
 
-    __call_ft_mul(a, b)
+    int __call_ft_mul(int a, int b)
     {
         return ft_mul(a, b);
     }
 
-    root(n1, n2, n3, n4, n5, n6, n7, n8)
+    int root(int n1, int n2, int n3, int n4, int n5, int n6, int n7, int n8)
     {
-        temp = add4(n1, n2, n3, n4)
-        temp2 = add4(n5, n6, n7, n8)
-        temp3 = __call_ft_mul(temp, temp2)
+        int temp = add4(n1, n2, n3, n4)
+        int temp2 = add4(n5, n6, n7, n8)
+        int temp3 = __call_ft_mul(temp, temp2)
         return temp3
     }
     """
@@ -768,28 +862,28 @@ def test_nested_subgraphs():
     # Should generate: __call_ft_add, add2, add4_nested, root
     # Note that add2 should only be defined once even though used 3 times
     expected = """
-    __call_ft_add(a, b)
+    int __call_ft_add(int a, int b)
     {
         return ft_add(a, b);
     }
 
-    add2(x, y)
+    int add2(int x, int y)
     {
-        temp = __call_ft_add(x, y)
+        int temp = __call_ft_add(x, y)
         return temp
     }
 
-    add4_nested(a, b, c, d)
+    int add4_nested(int a, int b, int c, int d)
     {
-        temp = add2(a, b)
-        temp2 = add2(c, d)
-        temp3 = add2(temp, temp2)
+        int temp = add2(a, b)
+        int temp2 = add2(c, d)
+        int temp3 = add2(temp, temp2)
         return temp3
     }
 
-    root(n1, n2, n3, n4)
+    int root(int n1, int n2, int n3, int n4)
     {
-        temp = add4_nested(n1, n2, n3, n4)
+        int temp = add4_nested(n1, n2, n3, n4)
         return temp
     }
     """
