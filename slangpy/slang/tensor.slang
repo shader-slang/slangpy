@@ -220,6 +220,43 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
             }\
         }
 
+// Work arounds for inability to specify subscript in interface, by extending any
+// type that inherits from IROTensor/IWOTensor/IRWTensor with subscript implementations
+public extension<T, let D : int, TensorType: IROTensor<T, D>> TensorType
+{
+    public __subscript<I : IInteger>(I indices[D])->T
+    {
+        get { return load(indices); }
+    }
+     public __subscript<I : IInteger>(vector<I, D> indices)->T
+     {
+        get { return load(indices); }
+    }
+}
+public extension<T, let D : int, TensorType: IWOTensor<T, D>> TensorType
+{
+    public __subscript<I : IInteger>(I indices[D])->T
+    {
+        [nonmutating] set { return store(indices, newValue); }
+    }
+     public __subscript<I : IInteger>(vector<I, D> indices)->T
+     {
+         [nonmutating] set { return store(indices, newValue); }
+    }
+}
+public extension<T, let D : int, TensorType: IRWTensor<T, D>> TensorType
+{
+    public __subscript<I : IInteger>(I indices[D])->T
+    {
+        get { return load(indices); }
+        [nonmutating] set { return store(indices, newValue); }
+    }
+     public __subscript<I : IInteger>(vector<I, D> indices)->T
+     {
+        get { return load(indices); }
+        [nonmutating] set { return store(indices, newValue); }
+    }
+}
 
 // Read only tensor
 public struct ROTensor<T, let D : int> : IROTensor<T, D>
@@ -236,14 +273,14 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
     _SLANGPY_TENSOR_LOAD
     _SLANGPY_TENSOR_SLANGPYLOAD
 
-    public __subscript<I : IInteger>(I indices[D])->T
-    {
-        get { return load(indices); }
-    }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
-    {
-        get { return load(indices); }
-    }
+//    public __subscript<I : IInteger>(I indices[D])->T
+//    {
+//        get { return load(indices); }
+//    }
+//     public __subscript<I : IInteger>(vector<I, D> indices)->T
+//    {
+//        get { return load(indices); }
+//    }
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -277,14 +314,14 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
     _SLANGPY_TENSOR_STORE
     _SLANGPY_TENSOR_SLANGPYSTORE
 
-    public __subscript<I : IInteger>(I indices[D])->T
-    {
-        set { return store(indices, newValue); }
-    }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
-    {
-        set { return store(indices, newValue); }
-    }
+//    public __subscript<I : IInteger>(I indices[D])->T
+//    {
+//        set { return store(indices, newValue); }
+//    }
+//     public __subscript<I : IInteger>(vector<I, D> indices)->T
+//    {
+//        set { return store(indices, newValue); }
+//    }
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -321,16 +358,16 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
     _SLANGPY_TENSOR_STORE
     _SLANGPY_TENSOR_SLANGPYSTORE
 
-    public __subscript<I : IInteger>(I indices[D])->T
-    {
-        get { return load(indices); }
-        set { return store(indices, newValue); }
-    }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
-    {
-        get { return load(indices); }
-        set { return store(indices, newValue); }
-    }
+//    public __subscript<I : IInteger>(I indices[D])->T
+//    {
+//        get { return load(indices); }
+//        set { return store(indices, newValue); }
+//    }
+//     public __subscript<I : IInteger>(vector<I, D> indices)->T
+//    {
+//        get { return load(indices); }
+//        set { return store(indices, newValue); }
+//    }
 
     public void __slangpy_load(Context0D context, out This value)
     {

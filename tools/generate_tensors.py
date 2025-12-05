@@ -270,10 +270,10 @@ def cg_subscript_getter(dimensions: int, differentiable: bool = False):
 def cg_subscript_setter(dimensions: int, differentiable: bool = False):
     diff = "[Differentiable] " if differentiable else ""
     if dimensions == 0:
-        return f"{diff}set {{ store(newValue); }}"
+        return f"{diff}[nonmutating] set {{ store(newValue); }}"
     else:
         args = ", ".join([f"i{i}" for i in range(dimensions)])
-        return f"{diff}set {{ store({args}, newValue); }}"
+        return f"{diff}[nonmutating] set {{ store({args}, newValue); }}"
 
 
 def cg_subscript_extension(
@@ -362,25 +362,25 @@ def generate_tensor_extensions():
                 # Struct extensions
                 code.append(cg_struct_extension_header(tensor_type, dim, differentiable))
                 code.append("\n{\n")
-                getter = False
-                setter = False
                 if "R" in tensor_type:
                     code.append(cg_load(dim, differentiable))
-                    getter = True
                 if "W" in tensor_type:
                     code.append(cg_store(dim, differentiable))
-                    setter = True
-                code.append(cg_subscript_extension(getter, setter, dim, differentiable))
                 code.append("}\n")
                 code.append("\n")
 
                 # Interface extensions
                 code.append(cg_interface_extension_header(tensor_type, dim, differentiable))
                 code.append("\n{\n")
+                getter = False
+                setter = False
                 if "R" in tensor_type:
                     code.append(cg_load_decl(dim, differentiable))
+                    getter = True
                 if "W" in tensor_type:
                     code.append(cg_store_decl(dim, differentiable))
+                    setter = True
+                code.append(cg_subscript_extension(getter, setter, dim, differentiable))
                 code.append("}\n")
                 code.append("\n")
 
@@ -398,7 +398,6 @@ def generate_tensor_extensions():
                 if "W" in tensor_type:
                     code.append(cg_store(dim, primal=True))
                     setter = True
-                code.append(cg_subscript_extension(getter, setter, dim))
                 code.append("}\n")
                 code.append("\n")
 
@@ -410,7 +409,6 @@ def generate_tensor_extensions():
         code.append(cg_load(dim))
         code.append(cg_store(dim))
         code.append(cg_atomic_add(dim))
-        code.append(cg_subscript_extension(True, True, dim))
         code.append("}\n")
         code.append("\n")
 

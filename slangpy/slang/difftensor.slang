@@ -256,6 +256,44 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
         }                                                                                                              \
     }
 
+// Work arounds for inability to specify subscript in interface, by extending any
+// type that inherits from IRODiffTensor/IWODiffTensor/IRWDiffTensor with subscript implementations
+public extension<T: IDifferentiable, let D : int, TensorType : IRODiffTensor<T, D>> TensorType where T.Differential : IAtomicAddable
+{
+    public __subscript<I : IInteger>(I indices[D])->T
+    {
+        [Differentiable] get { return load(indices); }
+    }
+    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    {
+        [Differentiable] get { return load(indices); }
+    }
+}
+public extension<T: IDifferentiable, let D : int, TensorType : IWODiffTensor<T, D>> TensorType where T.Differential : IAtomicAddable
+{
+    public __subscript<I : IInteger>(I indices[D])->T
+    {
+        [Differentiable] [nonmutating] set { return store(indices, newValue); }
+    }
+    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    {
+        [Differentiable] [nonmutating] set { return store(indices, newValue); }
+    }
+}
+public extension<T: IDifferentiable, let D : int, TensorType : IRWDiffTensor<T, D>> TensorType where T.Differential : IAtomicAddable
+{
+    public __subscript<I : IInteger>(I indices[D])->T
+    {
+        [Differentiable] get { return load(indices); }
+        [Differentiable] [nonmutating] set { return store(indices, newValue); }
+    }
+    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    {
+        [Differentiable] get { return load(indices); }
+        [Differentiable] [nonmutating] set { return store(indices, newValue); }
+    }
+}
+
 // A read only differentiable tensor, that internally contains a primal tensor, and a gradient output tensor.
 public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, D> where T.Differential : IAtomicAddable
 {
@@ -268,14 +306,14 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
     _SLANGPY_DIFFTENSOR_LOAD_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
 
-    public __subscript<I : IInteger>(I indices[D])->T
-    {
-        [Differentiable] get { return load(indices); }
-    }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
-     {
-         [Differentiable] get { return load(indices); }
-    }
+//    public __subscript<I : IInteger>(I indices[D])->T
+//    {
+//        [Differentiable] get { return load(indices); }
+//    }
+//     public __subscript<I : IInteger>(vector<I, D> indices)->T
+//     {
+//         [Differentiable] get { return load(indices); }
+//    }
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -305,14 +343,14 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
 
 
-    public __subscript<I : IInteger>(I indices[D])->T
-    {
-        [Differentiable] set { return store(indices, newValue); }
-    }
-    public __subscript<I : IInteger>(vector<I, D> indices)->T
-    {
-        [Differentiable] set { return store(indices, newValue); }
-    }
+//    public __subscript<I : IInteger>(I indices[D])->T
+//    {
+//        [Differentiable] set { return store(indices, newValue); }
+//    }
+//    public __subscript<I : IInteger>(vector<I, D> indices)->T
+//    {
+//        [Differentiable] set { return store(indices, newValue); }
+//    }
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -340,16 +378,16 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
 
-    public __subscript<I : IInteger>(I indices[D])->T
-    {
-        [Differentiable] get { return load(indices); }
-        [Differentiable] set { return store(indices, newValue); }
-    }
-    public __subscript<I : IInteger>(vector<I, D> indices)->T
-    {
-        [Differentiable] get { return load(indices); }
-        [Differentiable] set { return store(indices, newValue); }
-    }
+//    public __subscript<I : IInteger>(I indices[D])->T
+//    {
+//        [Differentiable] get { return load(indices); }
+//        [Differentiable] set { return store(indices, newValue); }
+//    }
+//    public __subscript<I : IInteger>(vector<I, D> indices)->T
+//    {
+//        [Differentiable] get { return load(indices); }
+//        [Differentiable] set { return store(indices, newValue); }
+//    }
 
     public void __slangpy_load(Context0D context, out This value)
     {

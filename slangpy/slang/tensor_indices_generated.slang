@@ -87,15 +87,15 @@ public extension<T> ROTensor<T, 0>
         int idx = _idx(this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript()->T
-    {
-        get { return load(); }
-    }
 }
 
 public extension<T, TensorType : IROTensor<T, 0>> TensorType
 {
     public T load();
+    public __subscript()->T
+    {
+        get { return load(); }
+    }
 }
 
 public extension<T> ROTensor<T, 1>
@@ -105,15 +105,15 @@ public extension<T> ROTensor<T, 1>
         int idx = _idx(i0, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0)->T
-    {
-        get { return load(i0); }
-    }
 }
 
 public extension<T, TensorType : IROTensor<T, 1>> TensorType
 {
     public T load(int i0);
+    public __subscript(int i0)->T
+    {
+        get { return load(i0); }
+    }
 }
 
 public extension<T> ROTensor<T, 2>
@@ -123,15 +123,15 @@ public extension<T> ROTensor<T, 2>
         int idx = _idx(i0, i1, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1)->T
-    {
-        get { return load(i0, i1); }
-    }
 }
 
 public extension<T, TensorType : IROTensor<T, 2>> TensorType
 {
     public T load(int i0, int i1);
+    public __subscript(int i0, int i1)->T
+    {
+        get { return load(i0, i1); }
+    }
 }
 
 public extension<T> ROTensor<T, 3>
@@ -141,15 +141,15 @@ public extension<T> ROTensor<T, 3>
         int idx = _idx(i0, i1, i2, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        get { return load(i0, i1, i2); }
-    }
 }
 
 public extension<T, TensorType : IROTensor<T, 3>> TensorType
 {
     public T load(int i0, int i1, int i2);
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        get { return load(i0, i1, i2); }
+    }
 }
 
 public extension<T> ROTensor<T, 4>
@@ -159,15 +159,15 @@ public extension<T> ROTensor<T, 4>
         int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        get { return load(i0, i1, i2, i3); }
-    }
 }
 
 public extension<T, TensorType : IROTensor<T, 4>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3);
+    public __subscript(int i0, int i1, int i2, int i3)->T
+    {
+        get { return load(i0, i1, i2, i3); }
+    }
 }
 
 public extension<T> ROTensor<T, 5>
@@ -177,15 +177,15 @@ public extension<T> ROTensor<T, 5>
         int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        get { return load(i0, i1, i2, i3, i4); }
-    }
 }
 
 public extension<T, TensorType : IROTensor<T, 5>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4);
+    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
+    {
+        get { return load(i0, i1, i2, i3, i4); }
+    }
 }
 
 public extension<T> ROTensor<T, 6>
@@ -195,15 +195,15 @@ public extension<T> ROTensor<T, 6>
         int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5); }
-    }
 }
 
 public extension<T, TensorType : IROTensor<T, 6>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5); }
+    }
 }
 
 public extension<T> ROTensor<T, 7>
@@ -213,15 +213,15 @@ public extension<T> ROTensor<T, 7>
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6); }
-    }
 }
 
 public extension<T, TensorType : IROTensor<T, 7>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5, i6); }
+    }
 }
 
 public extension<T> ROTensor<T, 8>
@@ -231,15 +231,15 @@ public extension<T> ROTensor<T, 8>
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
-    }
 }
 
 public extension<T, TensorType : IROTensor<T, 8>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
+    }
 }
 
 public extension<T> WOTensor<T, 0>
@@ -249,15 +249,15 @@ public extension<T> WOTensor<T, 0>
         int idx = _idx(this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript()->T
-    {
-        set { store(newValue); }
-    }
 }
 
 public extension<T, TensorType : IWOTensor<T, 0>> TensorType
 {
     public void store(T value);
+    public __subscript()->T
+    {
+        [nonmutating] set { store(newValue); }
+    }
 }
 
 public extension<T> WOTensor<T, 1>
@@ -267,15 +267,15 @@ public extension<T> WOTensor<T, 1>
         int idx = _idx(i0, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0)->T
-    {
-        set { store(i0, newValue); }
-    }
 }
 
 public extension<T, TensorType : IWOTensor<T, 1>> TensorType
 {
     public void store(int i0, T value);
+    public __subscript(int i0)->T
+    {
+        [nonmutating] set { store(i0, newValue); }
+    }
 }
 
 public extension<T> WOTensor<T, 2>
@@ -285,15 +285,15 @@ public extension<T> WOTensor<T, 2>
         int idx = _idx(i0, i1, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1)->T
-    {
-        set { store(i0, i1, newValue); }
-    }
 }
 
 public extension<T, TensorType : IWOTensor<T, 2>> TensorType
 {
     public void store(int i0, int i1, T value);
+    public __subscript(int i0, int i1)->T
+    {
+        [nonmutating] set { store(i0, i1, newValue); }
+    }
 }
 
 public extension<T> WOTensor<T, 3>
@@ -303,15 +303,15 @@ public extension<T> WOTensor<T, 3>
         int idx = _idx(i0, i1, i2, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        set { store(i0, i1, i2, newValue); }
-    }
 }
 
 public extension<T, TensorType : IWOTensor<T, 3>> TensorType
 {
     public void store(int i0, int i1, int i2, T value);
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        [nonmutating] set { store(i0, i1, i2, newValue); }
+    }
 }
 
 public extension<T> WOTensor<T, 4>
@@ -321,15 +321,15 @@ public extension<T> WOTensor<T, 4>
         int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        set { store(i0, i1, i2, i3, newValue); }
-    }
 }
 
 public extension<T, TensorType : IWOTensor<T, 4>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, T value);
+    public __subscript(int i0, int i1, int i2, int i3)->T
+    {
+        [nonmutating] set { store(i0, i1, i2, i3, newValue); }
+    }
 }
 
 public extension<T> WOTensor<T, 5>
@@ -339,15 +339,15 @@ public extension<T> WOTensor<T, 5>
         int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        set { store(i0, i1, i2, i3, i4, newValue); }
-    }
 }
 
 public extension<T, TensorType : IWOTensor<T, 5>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, int i4, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
+    {
+        [nonmutating] set { store(i0, i1, i2, i3, i4, newValue); }
+    }
 }
 
 public extension<T> WOTensor<T, 6>
@@ -357,15 +357,15 @@ public extension<T> WOTensor<T, 6>
         int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        set { store(i0, i1, i2, i3, i4, i5, newValue); }
-    }
 }
 
 public extension<T, TensorType : IWOTensor<T, 6>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
+    {
+        [nonmutating] set { store(i0, i1, i2, i3, i4, i5, newValue); }
+    }
 }
 
 public extension<T> WOTensor<T, 7>
@@ -375,15 +375,15 @@ public extension<T> WOTensor<T, 7>
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
-    }
 }
 
 public extension<T, TensorType : IWOTensor<T, 7>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
+    {
+        [nonmutating] set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
+    }
 }
 
 public extension<T> WOTensor<T, 8>
@@ -393,15 +393,15 @@ public extension<T> WOTensor<T, 8>
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
-    }
 }
 
 public extension<T, TensorType : IWOTensor<T, 8>> TensorType
 {
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
+    {
+        [nonmutating] set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
+    }
 }
 
 public extension<T> RWTensor<T, 0>
@@ -416,17 +416,17 @@ public extension<T> RWTensor<T, 0>
         int idx = _idx(this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript()->T
-    {
-        get { return load(); }
-        set { store(newValue); }
-    }
 }
 
 public extension<T, TensorType : IRWTensor<T, 0>> TensorType
 {
     public T load();
     public void store(T value);
+    public __subscript()->T
+    {
+        get { return load(); }
+        [nonmutating] set { store(newValue); }
+    }
 }
 
 public extension<T> RWTensor<T, 1>
@@ -441,17 +441,17 @@ public extension<T> RWTensor<T, 1>
         int idx = _idx(i0, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0)->T
-    {
-        get { return load(i0); }
-        set { store(i0, newValue); }
-    }
 }
 
 public extension<T, TensorType : IRWTensor<T, 1>> TensorType
 {
     public T load(int i0);
     public void store(int i0, T value);
+    public __subscript(int i0)->T
+    {
+        get { return load(i0); }
+        [nonmutating] set { store(i0, newValue); }
+    }
 }
 
 public extension<T> RWTensor<T, 2>
@@ -466,17 +466,17 @@ public extension<T> RWTensor<T, 2>
         int idx = _idx(i0, i1, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1)->T
-    {
-        get { return load(i0, i1); }
-        set { store(i0, i1, newValue); }
-    }
 }
 
 public extension<T, TensorType : IRWTensor<T, 2>> TensorType
 {
     public T load(int i0, int i1);
     public void store(int i0, int i1, T value);
+    public __subscript(int i0, int i1)->T
+    {
+        get { return load(i0, i1); }
+        [nonmutating] set { store(i0, i1, newValue); }
+    }
 }
 
 public extension<T> RWTensor<T, 3>
@@ -491,17 +491,17 @@ public extension<T> RWTensor<T, 3>
         int idx = _idx(i0, i1, i2, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        get { return load(i0, i1, i2); }
-        set { store(i0, i1, i2, newValue); }
-    }
 }
 
 public extension<T, TensorType : IRWTensor<T, 3>> TensorType
 {
     public T load(int i0, int i1, int i2);
     public void store(int i0, int i1, int i2, T value);
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        get { return load(i0, i1, i2); }
+        [nonmutating] set { store(i0, i1, i2, newValue); }
+    }
 }
 
 public extension<T> RWTensor<T, 4>
@@ -516,17 +516,17 @@ public extension<T> RWTensor<T, 4>
         int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        get { return load(i0, i1, i2, i3); }
-        set { store(i0, i1, i2, i3, newValue); }
-    }
 }
 
 public extension<T, TensorType : IRWTensor<T, 4>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3);
     public void store(int i0, int i1, int i2, int i3, T value);
+    public __subscript(int i0, int i1, int i2, int i3)->T
+    {
+        get { return load(i0, i1, i2, i3); }
+        [nonmutating] set { store(i0, i1, i2, i3, newValue); }
+    }
 }
 
 public extension<T> RWTensor<T, 5>
@@ -541,17 +541,17 @@ public extension<T> RWTensor<T, 5>
         int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        get { return load(i0, i1, i2, i3, i4); }
-        set { store(i0, i1, i2, i3, i4, newValue); }
-    }
 }
 
 public extension<T, TensorType : IRWTensor<T, 5>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4);
     public void store(int i0, int i1, int i2, int i3, int i4, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
+    {
+        get { return load(i0, i1, i2, i3, i4); }
+        [nonmutating] set { store(i0, i1, i2, i3, i4, newValue); }
+    }
 }
 
 public extension<T> RWTensor<T, 6>
@@ -566,17 +566,17 @@ public extension<T> RWTensor<T, 6>
         int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5); }
-        set { store(i0, i1, i2, i3, i4, i5, newValue); }
-    }
 }
 
 public extension<T, TensorType : IRWTensor<T, 6>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5);
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5); }
+        [nonmutating] set { store(i0, i1, i2, i3, i4, i5, newValue); }
+    }
 }
 
 public extension<T> RWTensor<T, 7>
@@ -591,17 +591,17 @@ public extension<T> RWTensor<T, 7>
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6); }
-        set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
-    }
 }
 
 public extension<T, TensorType : IRWTensor<T, 7>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6);
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5, i6); }
+        [nonmutating] set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
+    }
 }
 
 public extension<T> RWTensor<T, 8>
@@ -616,17 +616,17 @@ public extension<T> RWTensor<T, 8>
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
-        set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
-    }
 }
 
 public extension<T, TensorType : IRWTensor<T, 8>> TensorType
 {
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7);
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
+    {
+        get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
+        [nonmutating] set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RODiffTensor<T, 0> where T.Differential : IAtomicAddable
@@ -641,16 +641,16 @@ public extension<T: IDifferentiable> RODiffTensor<T, 0> where T.Differential : I
     {
         _grad_out.add(grad);
     }
-    public __subscript()->T
-    {
-        [Differentiable] get { return load(); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load();
+    public __subscript()->T
+    {
+        [Differentiable] get { return load(); }
+    }
 }
 
 public extension<T: IDifferentiable> RODiffTensor<T, 1> where T.Differential : IAtomicAddable
@@ -665,16 +665,16 @@ public extension<T: IDifferentiable> RODiffTensor<T, 1> where T.Differential : I
     {
         _grad_out.add(i0, grad);
     }
-    public __subscript(int i0)->T
-    {
-        [Differentiable] get { return load(i0); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0);
+    public __subscript(int i0)->T
+    {
+        [Differentiable] get { return load(i0); }
+    }
 }
 
 public extension<T: IDifferentiable> RODiffTensor<T, 2> where T.Differential : IAtomicAddable
@@ -689,16 +689,16 @@ public extension<T: IDifferentiable> RODiffTensor<T, 2> where T.Differential : I
     {
         _grad_out.add(i0, i1, grad);
     }
-    public __subscript(int i0, int i1)->T
-    {
-        [Differentiable] get { return load(i0, i1); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1);
+    public __subscript(int i0, int i1)->T
+    {
+        [Differentiable] get { return load(i0, i1); }
+    }
 }
 
 public extension<T: IDifferentiable> RODiffTensor<T, 3> where T.Differential : IAtomicAddable
@@ -713,16 +713,16 @@ public extension<T: IDifferentiable> RODiffTensor<T, 3> where T.Differential : I
     {
         _grad_out.add(i0, i1, i2, grad);
     }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2);
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2); }
+    }
 }
 
 public extension<T: IDifferentiable> RODiffTensor<T, 4> where T.Differential : IAtomicAddable
@@ -737,16 +737,16 @@ public extension<T: IDifferentiable> RODiffTensor<T, 4> where T.Differential : I
     {
         _grad_out.add(i0, i1, i2, i3, grad);
     }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3);
+    public __subscript(int i0, int i1, int i2, int i3)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3); }
+    }
 }
 
 public extension<T: IDifferentiable> RODiffTensor<T, 5> where T.Differential : IAtomicAddable
@@ -761,16 +761,16 @@ public extension<T: IDifferentiable> RODiffTensor<T, 5> where T.Differential : I
     {
         _grad_out.add(i0, i1, i2, i3, i4, grad);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3, i4); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3, int i4);
+    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3, i4); }
+    }
 }
 
 public extension<T: IDifferentiable> RODiffTensor<T, 6> where T.Differential : IAtomicAddable
@@ -785,16 +785,16 @@ public extension<T: IDifferentiable> RODiffTensor<T, 6> where T.Differential : I
     {
         _grad_out.add(i0, i1, i2, i3, i4, i5, grad);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5); }
+    }
 }
 
 public extension<T: IDifferentiable> RODiffTensor<T, 7> where T.Differential : IAtomicAddable
@@ -809,16 +809,16 @@ public extension<T: IDifferentiable> RODiffTensor<T, 7> where T.Differential : I
     {
         _grad_out.add(i0, i1, i2, i3, i4, i5, i6, grad);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5, i6); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5, i6); }
+    }
 }
 
 public extension<T: IDifferentiable> RODiffTensor<T, 8> where T.Differential : IAtomicAddable
@@ -833,16 +833,16 @@ public extension<T: IDifferentiable> RODiffTensor<T, 8> where T.Differential : I
     {
         _grad_out.add(i0, i1, i2, i3, i4, i5, i6, i7, grad);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRODiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
+    }
 }
 
 public extension<T: IDifferentiable> WODiffTensor<T, 0> where T.Differential : IAtomicAddable
@@ -857,16 +857,16 @@ public extension<T: IDifferentiable> WODiffTensor<T, 0> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load());
     }
-    public __subscript()->T
-    {
-        [Differentiable] set { store(newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(T value);
+    public __subscript()->T
+    {
+        [Differentiable] [nonmutating] set { store(newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WODiffTensor<T, 1> where T.Differential : IAtomicAddable
@@ -881,16 +881,16 @@ public extension<T: IDifferentiable> WODiffTensor<T, 1> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0));
     }
-    public __subscript(int i0)->T
-    {
-        [Differentiable] set { store(i0, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, T value);
+    public __subscript(int i0)->T
+    {
+        [Differentiable] [nonmutating] set { store(i0, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WODiffTensor<T, 2> where T.Differential : IAtomicAddable
@@ -905,16 +905,16 @@ public extension<T: IDifferentiable> WODiffTensor<T, 2> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1));
     }
-    public __subscript(int i0, int i1)->T
-    {
-        [Differentiable] set { store(i0, i1, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, T value);
+    public __subscript(int i0, int i1)->T
+    {
+        [Differentiable] [nonmutating] set { store(i0, i1, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WODiffTensor<T, 3> where T.Differential : IAtomicAddable
@@ -929,16 +929,16 @@ public extension<T: IDifferentiable> WODiffTensor<T, 3> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2));
     }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        [Differentiable] set { store(i0, i1, i2, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, T value);
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WODiffTensor<T, 4> where T.Differential : IAtomicAddable
@@ -953,16 +953,16 @@ public extension<T: IDifferentiable> WODiffTensor<T, 4> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3));
     }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        [Differentiable] set { store(i0, i1, i2, i3, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, T value);
+    public __subscript(int i0, int i1, int i2, int i3)->T
+    {
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WODiffTensor<T, 5> where T.Differential : IAtomicAddable
@@ -977,16 +977,16 @@ public extension<T: IDifferentiable> WODiffTensor<T, 5> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3, i4));
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        [Differentiable] set { store(i0, i1, i2, i3, i4, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
+    {
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, i4, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WODiffTensor<T, 6> where T.Differential : IAtomicAddable
@@ -1001,16 +1001,16 @@ public extension<T: IDifferentiable> WODiffTensor<T, 6> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3, i4, i5));
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        [Differentiable] set { store(i0, i1, i2, i3, i4, i5, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
+    {
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, i4, i5, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WODiffTensor<T, 7> where T.Differential : IAtomicAddable
@@ -1025,16 +1025,16 @@ public extension<T: IDifferentiable> WODiffTensor<T, 7> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3, i4, i5, i6));
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        [Differentiable] set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
+    {
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WODiffTensor<T, 8> where T.Differential : IAtomicAddable
@@ -1049,16 +1049,16 @@ public extension<T: IDifferentiable> WODiffTensor<T, 8> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3, i4, i5, i6, i7));
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        [Differentiable] set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IWODiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
 {
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
+    {
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWDiffTensor<T, 0> where T.Differential : IAtomicAddable
@@ -1083,11 +1083,6 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 0> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load());
     }
-    public __subscript()->T
-    {
-        [Differentiable] get { return load(); }
-        [Differentiable] set { store(newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
@@ -1096,6 +1091,11 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 0>> TensorTyp
     public T load();
     [Differentiable]
     public void store(T value);
+    public __subscript()->T
+    {
+        [Differentiable] get { return load(); }
+        [Differentiable] [nonmutating] set { store(newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWDiffTensor<T, 1> where T.Differential : IAtomicAddable
@@ -1120,11 +1120,6 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 1> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0));
     }
-    public __subscript(int i0)->T
-    {
-        [Differentiable] get { return load(i0); }
-        [Differentiable] set { store(i0, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
@@ -1133,6 +1128,11 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 1>> TensorTyp
     public T load(int i0);
     [Differentiable]
     public void store(int i0, T value);
+    public __subscript(int i0)->T
+    {
+        [Differentiable] get { return load(i0); }
+        [Differentiable] [nonmutating] set { store(i0, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWDiffTensor<T, 2> where T.Differential : IAtomicAddable
@@ -1157,11 +1157,6 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 2> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1));
     }
-    public __subscript(int i0, int i1)->T
-    {
-        [Differentiable] get { return load(i0, i1); }
-        [Differentiable] set { store(i0, i1, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
@@ -1170,6 +1165,11 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 2>> TensorTyp
     public T load(int i0, int i1);
     [Differentiable]
     public void store(int i0, int i1, T value);
+    public __subscript(int i0, int i1)->T
+    {
+        [Differentiable] get { return load(i0, i1); }
+        [Differentiable] [nonmutating] set { store(i0, i1, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWDiffTensor<T, 3> where T.Differential : IAtomicAddable
@@ -1194,11 +1194,6 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 3> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2));
     }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2); }
-        [Differentiable] set { store(i0, i1, i2, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
@@ -1207,6 +1202,11 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 3>> TensorTyp
     public T load(int i0, int i1, int i2);
     [Differentiable]
     public void store(int i0, int i1, int i2, T value);
+    public __subscript(int i0, int i1, int i2)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2); }
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWDiffTensor<T, 4> where T.Differential : IAtomicAddable
@@ -1231,11 +1231,6 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 4> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3));
     }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3); }
-        [Differentiable] set { store(i0, i1, i2, i3, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
@@ -1244,6 +1239,11 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 4>> TensorTyp
     public T load(int i0, int i1, int i2, int i3);
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, T value);
+    public __subscript(int i0, int i1, int i2, int i3)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3); }
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWDiffTensor<T, 5> where T.Differential : IAtomicAddable
@@ -1268,11 +1268,6 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 5> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3, i4));
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3, i4); }
-        [Differentiable] set { store(i0, i1, i2, i3, i4, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
@@ -1281,6 +1276,11 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 5>> TensorTyp
     public T load(int i0, int i1, int i2, int i3, int i4);
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3, i4); }
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, i4, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWDiffTensor<T, 6> where T.Differential : IAtomicAddable
@@ -1305,11 +1305,6 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 6> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3, i4, i5));
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5); }
-        [Differentiable] set { store(i0, i1, i2, i3, i4, i5, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
@@ -1318,6 +1313,11 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 6>> TensorTyp
     public T load(int i0, int i1, int i2, int i3, int i4, int i5);
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5); }
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, i4, i5, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWDiffTensor<T, 7> where T.Differential : IAtomicAddable
@@ -1342,11 +1342,6 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 7> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3, i4, i5, i6));
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5, i6); }
-        [Differentiable] set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
@@ -1355,6 +1350,11 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 7>> TensorTyp
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6);
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5, i6); }
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWDiffTensor<T, 8> where T.Differential : IAtomicAddable
@@ -1379,11 +1379,6 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 8> where T.Differential : I
     {
         grad = diffPair(grad.p, _grad_in.load(i0, i1, i2, i3, i4, i5, i6, i7));
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
-        [Differentiable] set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
@@ -1392,6 +1387,11 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 8>> TensorTyp
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7);
     [Differentiable]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value);
+    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
+    {
+        [Differentiable] get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
+        [Differentiable] [nonmutating] set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> ROPrimalTensor<T, 0> where T.Differential : IAtomicAddable
@@ -1401,10 +1401,6 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 0> where T.Differential :
     {
         int idx = _idx(this._strides, this._offset);
         return this.read_buffer(idx);
-    }
-    public __subscript()->T
-    {
-        get { return load(); }
     }
 }
 
@@ -1416,10 +1412,6 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 1> where T.Differential :
         int idx = _idx(i0, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0)->T
-    {
-        get { return load(i0); }
-    }
 }
 
 public extension<T: IDifferentiable> ROPrimalTensor<T, 2> where T.Differential : IAtomicAddable
@@ -1429,10 +1421,6 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 2> where T.Differential :
     {
         int idx = _idx(i0, i1, this._strides, this._offset);
         return this.read_buffer(idx);
-    }
-    public __subscript(int i0, int i1)->T
-    {
-        get { return load(i0, i1); }
     }
 }
 
@@ -1444,10 +1432,6 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 3> where T.Differential :
         int idx = _idx(i0, i1, i2, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        get { return load(i0, i1, i2); }
-    }
 }
 
 public extension<T: IDifferentiable> ROPrimalTensor<T, 4> where T.Differential : IAtomicAddable
@@ -1457,10 +1441,6 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 4> where T.Differential :
     {
         int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
         return this.read_buffer(idx);
-    }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        get { return load(i0, i1, i2, i3); }
     }
 }
 
@@ -1472,10 +1452,6 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 5> where T.Differential :
         int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        get { return load(i0, i1, i2, i3, i4); }
-    }
 }
 
 public extension<T: IDifferentiable> ROPrimalTensor<T, 6> where T.Differential : IAtomicAddable
@@ -1485,10 +1461,6 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 6> where T.Differential :
     {
         int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
         return this.read_buffer(idx);
-    }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5); }
     }
 }
 
@@ -1500,10 +1472,6 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 7> where T.Differential :
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
         return this.read_buffer(idx);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6); }
-    }
 }
 
 public extension<T: IDifferentiable> ROPrimalTensor<T, 8> where T.Differential : IAtomicAddable
@@ -1513,10 +1481,6 @@ public extension<T: IDifferentiable> ROPrimalTensor<T, 8> where T.Differential :
     {
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
         return this.read_buffer(idx);
-    }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
     }
 }
 
@@ -1528,10 +1492,6 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 0> where T.Differential :
         int idx = _idx(this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript()->T
-    {
-        set { store(newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> WOPrimalTensor<T, 1> where T.Differential : IAtomicAddable
@@ -1541,10 +1501,6 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 1> where T.Differential :
     {
         int idx = _idx(i0, this._strides, this._offset);
         this.write_buffer(idx, value);
-    }
-    public __subscript(int i0)->T
-    {
-        set { store(i0, newValue); }
     }
 }
 
@@ -1556,10 +1512,6 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 2> where T.Differential :
         int idx = _idx(i0, i1, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1)->T
-    {
-        set { store(i0, i1, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> WOPrimalTensor<T, 3> where T.Differential : IAtomicAddable
@@ -1569,10 +1521,6 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 3> where T.Differential :
     {
         int idx = _idx(i0, i1, i2, this._strides, this._offset);
         this.write_buffer(idx, value);
-    }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        set { store(i0, i1, i2, newValue); }
     }
 }
 
@@ -1584,10 +1532,6 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 4> where T.Differential :
         int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        set { store(i0, i1, i2, i3, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> WOPrimalTensor<T, 5> where T.Differential : IAtomicAddable
@@ -1597,10 +1541,6 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 5> where T.Differential :
     {
         int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
         this.write_buffer(idx, value);
-    }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        set { store(i0, i1, i2, i3, i4, newValue); }
     }
 }
 
@@ -1612,10 +1552,6 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 6> where T.Differential :
         int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        set { store(i0, i1, i2, i3, i4, i5, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> WOPrimalTensor<T, 7> where T.Differential : IAtomicAddable
@@ -1626,10 +1562,6 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 7> where T.Differential :
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> WOPrimalTensor<T, 8> where T.Differential : IAtomicAddable
@@ -1639,10 +1571,6 @@ public extension<T: IDifferentiable> WOPrimalTensor<T, 8> where T.Differential :
     {
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
         this.write_buffer(idx, value);
-    }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
     }
 }
 
@@ -1660,11 +1588,6 @@ public extension<T: IDifferentiable> RWPrimalTensor<T, 0> where T.Differential :
         int idx = _idx(this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript()->T
-    {
-        get { return load(); }
-        set { store(newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> RWPrimalTensor<T, 1> where T.Differential : IAtomicAddable
@@ -1680,11 +1603,6 @@ public extension<T: IDifferentiable> RWPrimalTensor<T, 1> where T.Differential :
     {
         int idx = _idx(i0, this._strides, this._offset);
         this.write_buffer(idx, value);
-    }
-    public __subscript(int i0)->T
-    {
-        get { return load(i0); }
-        set { store(i0, newValue); }
     }
 }
 
@@ -1702,11 +1620,6 @@ public extension<T: IDifferentiable> RWPrimalTensor<T, 2> where T.Differential :
         int idx = _idx(i0, i1, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1)->T
-    {
-        get { return load(i0, i1); }
-        set { store(i0, i1, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> RWPrimalTensor<T, 3> where T.Differential : IAtomicAddable
@@ -1722,11 +1635,6 @@ public extension<T: IDifferentiable> RWPrimalTensor<T, 3> where T.Differential :
     {
         int idx = _idx(i0, i1, i2, this._strides, this._offset);
         this.write_buffer(idx, value);
-    }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        get { return load(i0, i1, i2); }
-        set { store(i0, i1, i2, newValue); }
     }
 }
 
@@ -1744,11 +1652,6 @@ public extension<T: IDifferentiable> RWPrimalTensor<T, 4> where T.Differential :
         int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        get { return load(i0, i1, i2, i3); }
-        set { store(i0, i1, i2, i3, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> RWPrimalTensor<T, 5> where T.Differential : IAtomicAddable
@@ -1764,11 +1667,6 @@ public extension<T: IDifferentiable> RWPrimalTensor<T, 5> where T.Differential :
     {
         int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
         this.write_buffer(idx, value);
-    }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        get { return load(i0, i1, i2, i3, i4); }
-        set { store(i0, i1, i2, i3, i4, newValue); }
     }
 }
 
@@ -1786,11 +1684,6 @@ public extension<T: IDifferentiable> RWPrimalTensor<T, 6> where T.Differential :
         int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5); }
-        set { store(i0, i1, i2, i3, i4, i5, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> RWPrimalTensor<T, 7> where T.Differential : IAtomicAddable
@@ -1807,11 +1700,6 @@ public extension<T: IDifferentiable> RWPrimalTensor<T, 7> where T.Differential :
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
         this.write_buffer(idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6); }
-        set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
-    }
 }
 
 public extension<T: IDifferentiable> RWPrimalTensor<T, 8> where T.Differential : IAtomicAddable
@@ -1827,11 +1715,6 @@ public extension<T: IDifferentiable> RWPrimalTensor<T, 8> where T.Differential :
     {
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
         this.write_buffer(idx, value);
-    }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
-        set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
     }
 }
 
@@ -1852,11 +1735,6 @@ public extension<T> AtomicTensor<T, 0> where T : IAtomicAddable
         int idx = _idx(this._strides, this._offset);
         StorageTraits<T>::atomicAdd(_data, idx, value);
     }
-    public __subscript()->T
-    {
-        get { return load(); }
-        set { store(newValue); }
-    }
 }
 
 public extension<T> AtomicTensor<T, 1> where T : IAtomicAddable
@@ -1875,11 +1753,6 @@ public extension<T> AtomicTensor<T, 1> where T : IAtomicAddable
     {
         int idx = _idx(i0, this._strides, this._offset);
         StorageTraits<T>::atomicAdd(_data, idx, value);
-    }
-    public __subscript(int i0)->T
-    {
-        get { return load(i0); }
-        set { store(i0, newValue); }
     }
 }
 
@@ -1900,11 +1773,6 @@ public extension<T> AtomicTensor<T, 2> where T : IAtomicAddable
         int idx = _idx(i0, i1, this._strides, this._offset);
         StorageTraits<T>::atomicAdd(_data, idx, value);
     }
-    public __subscript(int i0, int i1)->T
-    {
-        get { return load(i0, i1); }
-        set { store(i0, i1, newValue); }
-    }
 }
 
 public extension<T> AtomicTensor<T, 3> where T : IAtomicAddable
@@ -1923,11 +1791,6 @@ public extension<T> AtomicTensor<T, 3> where T : IAtomicAddable
     {
         int idx = _idx(i0, i1, i2, this._strides, this._offset);
         StorageTraits<T>::atomicAdd(_data, idx, value);
-    }
-    public __subscript(int i0, int i1, int i2)->T
-    {
-        get { return load(i0, i1, i2); }
-        set { store(i0, i1, i2, newValue); }
     }
 }
 
@@ -1948,11 +1811,6 @@ public extension<T> AtomicTensor<T, 4> where T : IAtomicAddable
         int idx = _idx(i0, i1, i2, i3, this._strides, this._offset);
         StorageTraits<T>::atomicAdd(_data, idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3)->T
-    {
-        get { return load(i0, i1, i2, i3); }
-        set { store(i0, i1, i2, i3, newValue); }
-    }
 }
 
 public extension<T> AtomicTensor<T, 5> where T : IAtomicAddable
@@ -1971,11 +1829,6 @@ public extension<T> AtomicTensor<T, 5> where T : IAtomicAddable
     {
         int idx = _idx(i0, i1, i2, i3, i4, this._strides, this._offset);
         StorageTraits<T>::atomicAdd(_data, idx, value);
-    }
-    public __subscript(int i0, int i1, int i2, int i3, int i4)->T
-    {
-        get { return load(i0, i1, i2, i3, i4); }
-        set { store(i0, i1, i2, i3, i4, newValue); }
     }
 }
 
@@ -1996,11 +1849,6 @@ public extension<T> AtomicTensor<T, 6> where T : IAtomicAddable
         int idx = _idx(i0, i1, i2, i3, i4, i5, this._strides, this._offset);
         StorageTraits<T>::atomicAdd(_data, idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5); }
-        set { store(i0, i1, i2, i3, i4, i5, newValue); }
-    }
 }
 
 public extension<T> AtomicTensor<T, 7> where T : IAtomicAddable
@@ -2020,11 +1868,6 @@ public extension<T> AtomicTensor<T, 7> where T : IAtomicAddable
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, this._strides, this._offset);
         StorageTraits<T>::atomicAdd(_data, idx, value);
     }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6); }
-        set { store(i0, i1, i2, i3, i4, i5, i6, newValue); }
-    }
 }
 
 public extension<T> AtomicTensor<T, 8> where T : IAtomicAddable
@@ -2043,10 +1886,5 @@ public extension<T> AtomicTensor<T, 8> where T : IAtomicAddable
     {
         int idx = _idx(i0, i1, i2, i3, i4, i5, i6, i7, this._strides, this._offset);
         StorageTraits<T>::atomicAdd(_data, idx, value);
-    }
-    public __subscript(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)->T
-    {
-        get { return load(i0, i1, i2, i3, i4, i5, i6, i7); }
-        set { store(i0, i1, i2, i3, i4, i5, i6, i7, newValue); }
     }
 }
