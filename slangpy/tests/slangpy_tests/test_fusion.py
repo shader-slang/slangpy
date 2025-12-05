@@ -1,0 +1,606 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import slangpy as spy
+import slangpy.testing.helpers as helpers
+from slangpy.experimental.fuse import FuseNode, FuseSubgraph, Fuser
+
+
+def compare_code(actual: str, expected: str) -> bool:
+    """
+    Compare two code strings by trimming whitespace and comparing line-by-line.
+    Ignores empty lines and is lenient about leading/trailing whitespace on each line.
+    Returns True if they match, raises AssertionError with details if not.
+    """
+
+    def process_string(s: str) -> list[str]:
+        """Trim string, split into lines, filter out empty lines, and trim each line."""
+        lines = s.strip().split("\n")
+        return [line.strip() for line in lines if line.strip()]
+
+    actual_lines = process_string(actual)
+    expected_lines = process_string(expected)
+
+    if len(actual_lines) != len(expected_lines):
+        raise AssertionError(
+            f"Line count mismatch: expected {len(expected_lines)} lines, got {len(actual_lines)} lines\n"
+            f"Expected:\n{expected}\n\nActual:\n{actual}"
+        )
+
+    for i, (actual_line, expected_line) in enumerate(zip(actual_lines, expected_lines)):
+        if actual_line != expected_line:
+            raise AssertionError(
+                f"Line {i+1} mismatch:\n"
+                f"  Expected: '{expected_line}'\n"
+                f"  Actual:   '{actual_line}'\n\n"
+                f"Full expected:\n{expected}\n\nFull actual:\n{actual}"
+            )
+
+    return True
+
+
+def test_simple_leaf_node():
+    """Test code generation for a node with no children."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    node = FuseNode.from_function(module.require_function("ft_add"))
+
+    fuser = Fuser(node)
+    code = fuser.generate_code()
+
+    expected = """
+    int __call_ft_add(int a, int b)
+    {
+        return ft_add(a, b);
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_single_child_node():
+    """Test code generation for a node with one child."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    child = FuseNode.from_function(module.require_function("ft_add"))
+    root = FuseNode("main", ["x", "y"], ["result"])
+
+    root.children.append(child)
+    child.get_input("a").source = (None, "x")
+    child.get_input("b").source = (None, "y")
+    root.get_output("result").source = (child, "_result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    expected = """
+    int __call_ft_add(int a, int b)
+    {
+        return ft_add(a, b);
+    }
+
+    int main(int x, int y)
+    {
+        int temp = __call_ft_add(x, y)
+        return temp
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_two_children_with_dependency():
+    """Test code generation with two children where one depends on the other."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    mul_node = FuseNode.from_function(module.require_function("ft_mul"))
+    add_node = FuseNode.from_function(module.require_function("ft_add"))
+    root = FuseNode("compute", ["p", "q", "r"], ["final"])
+
+    root.children.append(mul_node)
+    root.children.append(add_node)
+
+    mul_node.get_input("a").source = (None, "p")
+    mul_node.get_input("b").source = (None, "q")
+    add_node.get_input("a").source = (mul_node, "_result")
+    add_node.get_input("b").source = (None, "r")
+    root.get_output("final").source = (add_node, "_result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    expected = """
+    int __call_ft_mul(int a, int b)
+    {
+        return ft_mul(a, b);
+    }
+
+    int __call_ft_add(int a, int b)
+    {
+        return ft_add(a, b);
+    }
+
+    int compute(int p, int q, int r)
+    {
+        int temp = __call_ft_mul(p, q)
+        int temp2 = __call_ft_add(temp, r)
+        return temp2
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_topological_sort_reversed_order():
+    """Test that topological sort works even when children are added in reverse dependency order."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create nodes using ft_return1 and ft_return2
+    first = FuseNode.from_function(module.require_function("ft_return1"))
+    second = FuseNode.from_function(module.require_function("ft_return2"))
+    root = FuseNode("root", ["a", "b"], ["final"])
+
+    # Add in REVERSE order (second depends on first, but add second first)
+    root.children.append(second)
+    root.children.append(first)
+
+    # Set up dependencies: second depends on first
+    first.get_input("a").source = (None, "a")
+    second.get_input("a").source = (first, "_result")
+    root.get_output("final").source = (second, "_result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    # Function definitions appear in the order children are added,
+    # but the calls inside root() are topologically sorted
+    expected = """
+    int __call_ft_return2(int a)
+    {
+        return ft_return2(a);
+    }
+
+    int __call_ft_return1(int a)
+    {
+        return ft_return1(a);
+    }
+
+    int root(int a, auto b)
+    {
+        int temp = __call_ft_return1(a)
+        int temp2 = __call_ft_return2(temp)
+        return temp2
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_independent_children():
+    """Test code generation with two independent children (no dependencies between them)."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    child1 = FuseNode.from_function(module.require_function("ft_return1"))
+    child2 = FuseNode.from_function(module.require_function("ft_return2"))
+    root = FuseNode("root", ["a", "b"], ["result"])
+
+    root.children.append(child1)
+    root.children.append(child2)
+
+    child1.get_input("a").source = (None, "a")
+    child2.get_input("a").source = (None, "b")
+    # Use output from child1 for simplicity
+    root.get_output("result").source = (child1, "_result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    # For independent children with no dependencies, they are sorted alphabetically by name
+    # So __call_ft_return1 is executed before __call_ft_return2
+    expected = """
+    int __call_ft_return1(int a)
+    {
+        return ft_return1(a);
+    }
+
+    int __call_ft_return2(int a)
+    {
+        return ft_return2(a);
+    }
+
+    int root(int a, int b)
+    {
+        int temp = __call_ft_return1(a)
+        int temp2 = __call_ft_return2(b)
+        return temp
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_chain_of_three_nodes():
+    """Test a chain of three nodes: A -> B -> C."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    node_a = FuseNode.from_function(module.require_function("ft_return1"))
+    node_b = FuseNode.from_function(module.require_function("ft_return2"))
+    node_c = FuseNode.from_function(module.require_function("ft_return3"))
+    root = FuseNode("root", ["x"], ["result"])
+
+    root.children.extend([node_c, node_b, node_a])  # Add in random order
+
+    node_a.get_input("a").source = (None, "x")
+    node_b.get_input("a").source = (node_a, "_result")
+    node_c.get_input("a").source = (node_b, "_result")
+    root.get_output("result").source = (node_c, "_result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    # Function definitions appear in order added (c, b, a),
+    # but calls in root() are topologically sorted (a, b, c)
+    expected = """
+    int __call_ft_return3(int a)
+    {
+        return ft_return3(a);
+    }
+
+    int __call_ft_return2(int a)
+    {
+        return ft_return2(a);
+    }
+
+    int __call_ft_return1(int a)
+    {
+        return ft_return1(a);
+    }
+
+    int root(int x)
+    {
+        int temp = __call_ft_return1(x)
+        int temp2 = __call_ft_return2(temp)
+        int temp3 = __call_ft_return3(temp2)
+        return temp3
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_multiple_inputs_from_same_parent():
+    """Test a child node that takes multiple inputs from the parent."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    child = FuseNode.from_function(module.require_function("ft_add"))
+    root = FuseNode("root", ["x", "y"], ["out"])
+
+    root.children.append(child)
+    child.get_input("a").source = (None, "x")
+    child.get_input("b").source = (None, "y")
+    root.get_output("out").source = (child, "_result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    expected = """
+    int __call_ft_add(int a, int b)
+    {
+        return ft_add(a, b);
+    }
+
+    int root(int x, int y)
+    {
+        int temp = __call_ft_add(x, y)
+        return temp
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_nested_children():
+    """Test code generation with nested children (children that have their own children)."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create leaf nodes (innermost children) using ft_return functions
+    leaf1 = FuseNode.from_function(module.require_function("ft_return1"))
+    leaf2 = FuseNode.from_function(module.require_function("ft_return2"))
+
+    # Create middle node that has children
+    middle = FuseNode("middle", ["x", "y"], ["result"])
+    middle.children.append(leaf1)
+    middle.children.append(leaf2)
+    leaf1.get_input("a").source = (None, "x")
+    leaf2.get_input("a").source = (None, "y")
+    middle.get_output("result").source = (leaf2, "_result")
+
+    # Create another child at the same level as middle
+    sibling = FuseNode.from_function(module.require_function("ft_return3"))
+
+    # Create root that has both middle and sibling as children
+    root = FuseNode("root", ["p", "q", "r"], ["final"])
+    root.children.append(middle)
+    root.children.append(sibling)
+
+    # Connect middle inputs from root
+    middle.get_input("x").source = (None, "p")
+    middle.get_input("y").source = (None, "q")
+
+    # Connect sibling input from middle output
+    sibling.get_input("a").source = (middle, "result")
+
+    # Connect root output from sibling
+    root.get_output("final").source = (sibling, "_result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    # Expected: nested children are generated recursively
+    # leaf1 and leaf2 are defined first (as children of middle)
+    # then middle is defined
+    # then sibling is defined
+    # finally root is defined with calls to middle and sibling in dependency order
+    # Note: leaf1 and leaf2 are independent, so alphabetically ft_return1 comes before ft_return2
+    expected = """
+    int __call_ft_return1(int a)
+    {
+        return ft_return1(a);
+    }
+
+    int __call_ft_return2(int a)
+    {
+        return ft_return2(a);
+    }
+
+    int middle(int x, int y)
+    {
+        int temp = __call_ft_return1(x)
+        int temp2 = __call_ft_return2(y)
+        return temp2
+    }
+
+    int __call_ft_return3(int a)
+    {
+        return ft_return3(a);
+    }
+
+    int root(int p, int q, auto r)
+    {
+        int temp = middle(p, q)
+        int temp2 = __call_ft_return3(temp)
+        return temp2
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_duplicate_function_reuse():
+    """Test that using the same Slang function multiple times doesn't create duplicates."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create two separate add nodes and one multiply node
+    add1 = FuseNode.from_function(module.require_function("ft_add"))
+    add2 = FuseNode.from_function(module.require_function("ft_add"))
+    mul = FuseNode.from_function(module.require_function("ft_mul"))
+
+    # Root takes 4 inputs: a, b, c, d
+    root = FuseNode("root", ["a", "b", "c", "d"], ["result"])
+
+    root.children.extend([add1, add2, mul])
+
+    # add1: adds a + b
+    add1.get_input("a").source = (None, "a")
+    add1.get_input("b").source = (None, "b")
+
+    # add2: adds c + d
+    add2.get_input("a").source = (None, "c")
+    add2.get_input("b").source = (None, "d")
+
+    # mul: multiplies results of add1 and add2
+    mul.get_input("a").source = (add1, "_result")
+    mul.get_input("b").source = (add2, "_result")
+
+    # root returns mul result
+    root.get_output("result").source = (mul, "_result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    # Should only have ONE __call_ft_add definition, not two
+    expected = """
+    int __call_ft_add(int a, int b)
+    {
+        return ft_add(a, b);
+    }
+
+    int __call_ft_mul(int a, int b)
+    {
+        return ft_mul(a, b);
+    }
+
+    int root(int a, int b, int c, int d)
+    {
+        int temp = __call_ft_add(a, b)
+        int temp2 = __call_ft_add(c, d)
+        int temp3 = __call_ft_mul(temp, temp2)
+        return temp3
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_subgraph_reuse():
+    """Test that subgraphs can be defined once and reused multiple times."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create a subgraph that adds 4 numbers (a + b + c + d)
+    # This is the reusable component we want to use twice
+
+    # Build the add4 subgraph internals
+    add1 = FuseNode.from_function(module.require_function("ft_add"))
+    add2 = FuseNode.from_function(module.require_function("ft_add"))
+    add3 = FuseNode.from_function(module.require_function("ft_add"))
+
+    # Create the root of the subgraph
+    add4_root = FuseNode("add4", ["a", "b", "c", "d"], ["result"])
+    add4_root.children.extend([add1, add2, add3])
+
+    # Wire up: add1 = a + b, add2 = c + d, add3 = add1 + add2
+    add1.get_input("a").source = (None, "a")
+    add1.get_input("b").source = (None, "b")
+    add2.get_input("a").source = (None, "c")
+    add2.get_input("b").source = (None, "d")
+    add3.get_input("a").source = (add1, "_result")
+    add3.get_input("b").source = (add2, "_result")
+    add4_root.get_output("result").source = (add3, "_result")
+
+    # Create a FuseSubgraph wrapper
+    add4_subgraph = FuseSubgraph("add4", add4_root)
+
+    # Now create two instances of this subgraph
+    add4_instance1 = FuseNode.from_subgraph(add4_subgraph)
+    add4_instance2 = FuseNode.from_subgraph(add4_subgraph)
+
+    # Create a multiply node
+    mul = FuseNode.from_function(module.require_function("ft_mul"))
+
+    # Create root that uses both instances and multiplies results
+    root = FuseNode("root", ["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8"], ["final"])
+    root.children.extend([add4_instance1, add4_instance2, mul])
+
+    # First instance adds n1+n2+n3+n4
+    add4_instance1.get_input("a").source = (None, "n1")
+    add4_instance1.get_input("b").source = (None, "n2")
+    add4_instance1.get_input("c").source = (None, "n3")
+    add4_instance1.get_input("d").source = (None, "n4")
+
+    # Second instance adds n5+n6+n7+n8
+    add4_instance2.get_input("a").source = (None, "n5")
+    add4_instance2.get_input("b").source = (None, "n6")
+    add4_instance2.get_input("c").source = (None, "n7")
+    add4_instance2.get_input("d").source = (None, "n8")
+
+    # Multiply the two sums
+    mul.get_input("a").source = (add4_instance1, "result")
+    mul.get_input("b").source = (add4_instance2, "result")
+
+    root.get_output("final").source = (mul, "_result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    # The add4 subgraph should only be defined ONCE, even though used twice
+    # The __call_ft_add should also only be defined once
+    expected = """
+    int __call_ft_add(int a, int b)
+    {
+        return ft_add(a, b);
+    }
+
+    int add4(int a, int b, int c, int d)
+    {
+        int temp = __call_ft_add(a, b)
+        int temp2 = __call_ft_add(c, d)
+        int temp3 = __call_ft_add(temp, temp2)
+        return temp3
+    }
+
+    int __call_ft_mul(int a, int b)
+    {
+        return ft_mul(a, b);
+    }
+
+    int root(int n1, int n2, int n3, int n4, int n5, int n6, int n7, int n8)
+    {
+        int temp = add4(n1, n2, n3, n4)
+        int temp2 = add4(n5, n6, n7, n8)
+        int temp3 = __call_ft_mul(temp, temp2)
+        return temp3
+    }
+    """
+    assert compare_code(code, expected)
+
+
+def test_nested_subgraphs():
+    """Test that subgraphs can contain other subgraphs."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create a subgraph that adds 2 numbers
+    add1 = FuseNode.from_function(module.require_function("ft_add"))
+    add2_root = FuseNode("add2", ["x", "y"], ["sum"])
+    add2_root.children.append(add1)
+    add1.get_input("a").source = (None, "x")
+    add1.get_input("b").source = (None, "y")
+    add2_root.get_output("sum").source = (add1, "_result")
+    add2_subgraph = FuseSubgraph("add2", add2_root)
+
+    # Create a subgraph that uses add2 three times to add 4 numbers
+    add2_inst1 = FuseNode.from_subgraph(add2_subgraph)
+    add2_inst2 = FuseNode.from_subgraph(add2_subgraph)
+    add2_inst3 = FuseNode.from_subgraph(add2_subgraph)
+
+    add4_root = FuseNode("add4_nested", ["a", "b", "c", "d"], ["result"])
+    add4_root.children.extend([add2_inst1, add2_inst2, add2_inst3])
+
+    # First instance adds a + b
+    add2_inst1.get_input("x").source = (None, "a")
+    add2_inst1.get_input("y").source = (None, "b")
+
+    # Second instance adds c + d
+    add2_inst2.get_input("x").source = (None, "c")
+    add2_inst2.get_input("y").source = (None, "d")
+
+    # Third instance adds results of first two
+    add2_inst3.get_input("x").source = (add2_inst1, "sum")
+    add2_inst3.get_input("y").source = (add2_inst2, "sum")
+
+    add4_root.get_output("result").source = (add2_inst3, "sum")
+    add4_subgraph = FuseSubgraph("add4_nested", add4_root)
+
+    # Use the nested subgraph in a root
+    add4_inst = FuseNode.from_subgraph(add4_subgraph)
+    root = FuseNode("root", ["n1", "n2", "n3", "n4"], ["final"])
+    root.children.append(add4_inst)
+
+    add4_inst.get_input("a").source = (None, "n1")
+    add4_inst.get_input("b").source = (None, "n2")
+    add4_inst.get_input("c").source = (None, "n3")
+    add4_inst.get_input("d").source = (None, "n4")
+
+    root.get_output("final").source = (add4_inst, "result")
+
+    fuser = Fuser(root)
+    code = fuser.generate_code()
+
+    # Should generate: __call_ft_add, add2, add4_nested, root
+    # Note that add2 should only be defined once even though used 3 times
+    expected = """
+    int __call_ft_add(int a, int b)
+    {
+        return ft_add(a, b);
+    }
+
+    int add2(int x, int y)
+    {
+        int temp = __call_ft_add(x, y)
+        return temp
+    }
+
+    int add4_nested(int a, int b, int c, int d)
+    {
+        int temp = add2(a, b)
+        int temp2 = add2(c, d)
+        int temp3 = add2(temp, temp2)
+        return temp3
+    }
+
+    int root(int n1, int n2, int n3, int n4)
+    {
+        int temp = add4_nested(n1, n2, n3, n4)
+        return temp
+    }
+    """
+    assert compare_code(code, expected)
