@@ -7,20 +7,15 @@ from slangpy import (
     Device,
     Buffer,
     BufferUsage,
-    TypeReflection,
     CommandEncoder,
     MemoryType,
 )
 from slangpy.reflection import SlangType, SlangProgramLayout
 from slangpy.core.native import Shape
 from slangpy.core.shapes import TShapeOrTuple
-from slangpy.types.buffer import (
-    resolve_element_type,
-    resolve_program_layout,
-    load_buffer_data_from_image,
-    _numpy_to_slang,
-)
+from slangpy.reflection.lookup import resolve_program_layout, resolve_element_type, numpy_to_slang
 from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
+from slangpy.types.common import load_buffer_data_from_image
 
 from warnings import warn
 
@@ -30,22 +25,6 @@ import math
 
 if TYPE_CHECKING:
     import torch
-
-ST = TypeReflection.ScalarType
-_numpy_to_sgl = {
-    "int8": ST.int8,
-    "int16": ST.int16,
-    "int32": ST.int32,
-    "int64": ST.int64,
-    "uint8": ST.uint8,
-    "uint16": ST.uint16,
-    "uint32": ST.uint32,
-    "uint64": ST.uint64,
-    "float16": ST.float16,
-    "float32": ST.float32,
-    "float64": ST.float64,
-}
-_sgl_to_numpy = {y: x for x, y in _numpy_to_sgl.items()}
 
 
 class Tensor(NativeTensor):
@@ -186,7 +165,7 @@ class Tensor(NativeTensor):
         Creates a new tensor with the same contents, shape and strides as the given numpy array.
         """
 
-        dtype = _numpy_to_slang(ndarray.dtype, device, program_layout)
+        dtype = numpy_to_slang(ndarray.dtype, device, program_layout)
         if dtype is None:
             raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
         if (ndarray.nbytes % ndarray.itemsize) != 0:
@@ -222,7 +201,7 @@ class Tensor(NativeTensor):
         """
         Creates a tensor with the requested shape and element type without attempting to initialize the data.
         """
-        # If dtype supplied is not a SlangType, resolve it using the same mechanism as NDBuffer
+        # If dtype supplied is not a SlangType, resolve it
         if not isinstance(dtype, SlangType):
             program_layout = resolve_program_layout(device, dtype, program_layout)
             dtype = resolve_element_type(program_layout, dtype)

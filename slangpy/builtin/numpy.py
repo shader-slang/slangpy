@@ -6,12 +6,7 @@ from slangpy.bindings.codegen import CodeGenBlock
 from slangpy.bindings.marshall import BindContext, ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
 from slangpy.core.native import NativeNumpyMarshall
-from slangpy.builtin.ndbuffer import (
-    ndbuffer_gen_calldata,
-    ndbuffer_reduce_type,
-    ndbuffer_resolve_dimensionality,
-    ndbuffer_resolve_types,
-)
+import slangpy.builtin.tensorcommon as spytc
 
 import numpy as np
 import numpy.typing as npt
@@ -36,6 +31,9 @@ class NumpyMarshall(NativeNumpyMarshall):
         dims: int,
         writable: bool,
     ):
+        self.slang_type: SlangType
+        self.slang_element_type: SlangType
+        self.layout = layout
         slang_el_type = layout.scalar_type(NUMPY_TYPE_TO_SCALAR_TYPE[dtype])
         assert slang_el_type is not None
 
@@ -54,11 +52,19 @@ class NumpyMarshall(NativeNumpyMarshall):
     def is_writable(self) -> bool:
         return True
 
-    def reduce_type(self, context: BindContext, dimensions: int):
-        return ndbuffer_reduce_type(self, context, dimensions)
+    @property
+    def d_in(self):
+        return None
 
-    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
-        return ndbuffer_resolve_types(self, context, bound_type)
+    @property
+    def d_out(self):
+        return None
+
+    def resolve_types(self, context: BindContext, bound_type: SlangType):
+        return spytc.resolve_types(self, context, bound_type)
+
+    def reduce_type(self, context: BindContext, dimensions: int):
+        return spytc.reduce_type(self, context, dimensions)
 
     def resolve_dimensionality(
         self,
@@ -66,10 +72,10 @@ class NumpyMarshall(NativeNumpyMarshall):
         binding: BoundVariable,
         vector_target_type: "SlangType",
     ):
-        return ndbuffer_resolve_dimensionality(self, context, binding, vector_target_type)
+        return spytc.resolve_dimensionality(self, context, binding, vector_target_type)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
-        return ndbuffer_gen_calldata(self, cgb, context, binding)
+        return spytc.gen_calldata(self, cgb, context, binding)
 
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):

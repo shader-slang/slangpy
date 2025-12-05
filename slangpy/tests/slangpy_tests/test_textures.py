@@ -17,7 +17,7 @@ from slangpy import (
 from slangpy.types import Tensor
 from slangpy.reflection import ScalarType
 from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
-from slangpy.types.buffer import _slang_to_numpy
+from slangpy.reflection.lookup import slang_to_numpy
 from slangpy.testing import helpers
 
 from typing import Union
@@ -466,7 +466,7 @@ def texture_return_value_impl(
         data = np.random.randint(255, size=shape + (channels,))
     else:
         data = np.random.random(shape + (channels,))
-    np_dtype = _slang_to_numpy(texel_dtype)
+    np_dtype = slang_to_numpy(texel_dtype)
     data = data.astype(np_dtype)
 
     dtype = texel_name if channels == 1 else f"{texel_name}{channels}"

@@ -1,17 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Optional, Union, cast
+from typing import Any, Union, cast
 
-from slangpy.core.enums import PrimType
 from slangpy.core.native import (
     AccessType,
     CallContext,
     Shape,
-    CallMode,
     NativeNDBuffer,
     NativeNDBufferMarshall,
 )
 
-from slangpy import BufferUsage, TypeReflection, ShaderCursor, ShaderObject
+from slangpy import BufferUsage, ShaderCursor, ShaderObject
 from slangpy.bindings import (
     PYTHON_TYPES,
     Marshall,
@@ -22,10 +20,8 @@ from slangpy.bindings import (
     ReturnContext,
 )
 from slangpy.reflection import (
-    TYPE_OVERRIDES,
     SlangProgramLayout,
     SlangType,
-    ScalarType,
     VectorType,
     MatrixType,
     StructuredBufferType,
@@ -37,8 +33,6 @@ from slangpy.reflection import (
     TensorAccess,
     TensorType,
     is_matching_array_type,
-    is_unknown,
-    is_known,
     vectorize_type,
     EXPERIMENTAL_VECTORIZATION,
 )
@@ -48,16 +42,6 @@ import slangpy.reflection.vectorize as spyvec
 
 class StopDebuggerException(Exception):
     pass
-
-
-def _calc_broadcast(context: CallContext, binding: BoundVariableRuntime):
-    broadcast = []
-    transform = cast(Shape, binding.transform)
-    for i in range(len(transform)):
-        csidx = transform[i]
-        broadcast.append(context.call_shape[csidx] != binding.shape[i])
-    broadcast.extend([False] * (len(binding.shape) - len(broadcast)))
-    return broadcast
 
 
 def ndbuffer_reduce_type(

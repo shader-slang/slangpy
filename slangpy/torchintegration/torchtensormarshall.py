@@ -3,7 +3,7 @@
 
 from typing import Any, Optional, cast
 from numpy import ScalarType
-from slangpy import DataType, Device, BufferUsage, TypeReflection, DeviceType
+from slangpy import DataType, BufferUsage, TypeReflection, DeviceType
 import torch
 
 from slangpy.core.native import AccessType, CallContext, CallMode, Shape, TensorRef
@@ -19,7 +19,7 @@ from slangpy.reflection.reflectiontypes import (
     VectorType,
     MatrixType,
 )
-from slangpy.types.buffer import innermost_type
+from slangpy.reflection.lookup import innermost_type
 
 ST = TypeReflection.ScalarType
 _torch_to_scalar_type = {
