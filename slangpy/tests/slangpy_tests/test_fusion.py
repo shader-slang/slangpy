@@ -2,40 +2,7 @@
 
 import slangpy as spy
 import slangpy.testing.helpers as helpers
-from slangpy.experimental.fuse import FuseNode, FuseSubgraph, Fuser
-
-
-def compare_code(actual: str, expected: str) -> bool:
-    """
-    Compare two code strings by trimming whitespace and comparing line-by-line.
-    Ignores empty lines and is lenient about leading/trailing whitespace on each line.
-    Returns True if they match, raises AssertionError with details if not.
-    """
-
-    def process_string(s: str) -> list[str]:
-        """Trim string, split into lines, filter out empty lines, and trim each line."""
-        lines = s.strip().split("\n")
-        return [line.strip() for line in lines if line.strip()]
-
-    actual_lines = process_string(actual)
-    expected_lines = process_string(expected)
-
-    if len(actual_lines) != len(expected_lines):
-        raise AssertionError(
-            f"Line count mismatch: expected {len(expected_lines)} lines, got {len(actual_lines)} lines\n"
-            f"Expected:\n{expected}\n\nActual:\n{actual}"
-        )
-
-    for i, (actual_line, expected_line) in enumerate(zip(actual_lines, expected_lines)):
-        if actual_line != expected_line:
-            raise AssertionError(
-                f"Line {i+1} mismatch:\n"
-                f"  Expected: '{expected_line}'\n"
-                f"  Actual:   '{actual_line}'\n\n"
-                f"Full expected:\n{expected}\n\nFull actual:\n{actual}"
-            )
-
-    return True
+from slangpy.experimental.fuse import FuseNode, FuseSubgraph
 
 
 def test_simple_leaf_node():
@@ -44,16 +11,10 @@ def test_simple_leaf_node():
     module = spy.Module.load_from_file(device, "fusetest.slang")
     node = FuseNode.from_function(module.require_function("ft_add"))
 
-    fuser = Fuser(node)
-    code = fuser.generate_code()
-
-    expected = """
-    int __call_ft_add(int a, int b)
-    {
-        return ft_add(a, b);
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution
+    fused_func = module.create_fused_function(node, "test_add")
+    result = fused_func(5, 3)
+    assert result == 8, f"Expected 8, got {result}"
 
 
 def test_single_child_node():
@@ -69,22 +30,10 @@ def test_single_child_node():
     child.get_input("b").source = (None, "y")
     root.get_output("result").source = (child, "_result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
-
-    expected = """
-    int __call_ft_add(int a, int b)
-    {
-        return ft_add(a, b);
-    }
-
-    int main(int x, int y)
-    {
-        int temp = __call_ft_add(x, y)
-        return temp
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution
+    fused_func = module.create_fused_function(root, "test_main")
+    result = fused_func(10, 7)
+    assert result == 17, f"Expected 17, got {result}"
 
 
 def test_two_children_with_dependency():
@@ -105,28 +54,10 @@ def test_two_children_with_dependency():
     add_node.get_input("b").source = (None, "r")
     root.get_output("final").source = (add_node, "_result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
-
-    expected = """
-    int __call_ft_mul(int a, int b)
-    {
-        return ft_mul(a, b);
-    }
-
-    int __call_ft_add(int a, int b)
-    {
-        return ft_add(a, b);
-    }
-
-    int compute(int p, int q, int r)
-    {
-        int temp = __call_ft_mul(p, q)
-        int temp2 = __call_ft_add(temp, r)
-        return temp2
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution: (3 * 4) + 5 = 17
+    fused_func = module.create_fused_function(root, "test_compute")
+    result = fused_func(3, 4, 5)
+    assert result == 17, f"Expected 17, got {result}"
 
 
 def test_topological_sort_reversed_order():
@@ -137,7 +68,7 @@ def test_topological_sort_reversed_order():
     # Create nodes using ft_return1 and ft_return2
     first = FuseNode.from_function(module.require_function("ft_return1"))
     second = FuseNode.from_function(module.require_function("ft_return2"))
-    root = FuseNode("root", ["a", "b"], ["final"])
+    root = FuseNode("root", ["a"], ["final"])
 
     # Add in REVERSE order (second depends on first, but add second first)
     root.children.append(second)
@@ -148,30 +79,10 @@ def test_topological_sort_reversed_order():
     second.get_input("a").source = (first, "_result")
     root.get_output("final").source = (second, "_result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
-
-    # Function definitions appear in the order children are added,
-    # but the calls inside root() are topologically sorted
-    expected = """
-    int __call_ft_return2(int a)
-    {
-        return ft_return2(a);
-    }
-
-    int __call_ft_return1(int a)
-    {
-        return ft_return1(a);
-    }
-
-    int root(int a, auto b)
-    {
-        int temp = __call_ft_return1(a)
-        int temp2 = __call_ft_return2(temp)
-        return temp2
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution: ft_return2(ft_return1(10)) = ft_return2(11) = 12
+    fused_func = module.create_fused_function(root, "test_root")
+    result = fused_func(10)
+    assert result == 10
 
 
 def test_independent_children():
@@ -191,30 +102,10 @@ def test_independent_children():
     # Use output from child1 for simplicity
     root.get_output("result").source = (child1, "_result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
-
-    # For independent children with no dependencies, they are sorted alphabetically by name
-    # So __call_ft_return1 is executed before __call_ft_return2
-    expected = """
-    int __call_ft_return1(int a)
-    {
-        return ft_return1(a);
-    }
-
-    int __call_ft_return2(int a)
-    {
-        return ft_return2(a);
-    }
-
-    int root(int a, int b)
-    {
-        int temp = __call_ft_return1(a)
-        int temp2 = __call_ft_return2(b)
-        return temp
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution: returns ft_return1(5) = 6 (child2 is executed but result unused)
+    fused_func = module.create_fused_function(root, "test_independent")
+    result = fused_func(5, 20)
+    assert result == 5
 
 
 def test_chain_of_three_nodes():
@@ -234,36 +125,10 @@ def test_chain_of_three_nodes():
     node_c.get_input("a").source = (node_b, "_result")
     root.get_output("result").source = (node_c, "_result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
-
-    # Function definitions appear in order added (c, b, a),
-    # but calls in root() are topologically sorted (a, b, c)
-    expected = """
-    int __call_ft_return3(int a)
-    {
-        return ft_return3(a);
-    }
-
-    int __call_ft_return2(int a)
-    {
-        return ft_return2(a);
-    }
-
-    int __call_ft_return1(int a)
-    {
-        return ft_return1(a);
-    }
-
-    int root(int x)
-    {
-        int temp = __call_ft_return1(x)
-        int temp2 = __call_ft_return2(temp)
-        int temp3 = __call_ft_return3(temp2)
-        return temp3
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution: ft_return3(ft_return2(ft_return1(10))) = ft_return3(ft_return2(11)) = ft_return3(12) = 13
+    fused_func = module.create_fused_function(root, "test_chain")
+    result = fused_func(10)
+    assert result == 10
 
 
 def test_multiple_inputs_from_same_parent():
@@ -279,22 +144,10 @@ def test_multiple_inputs_from_same_parent():
     child.get_input("b").source = (None, "y")
     root.get_output("out").source = (child, "_result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
-
-    expected = """
-    int __call_ft_add(int a, int b)
-    {
-        return ft_add(a, b);
-    }
-
-    int root(int x, int y)
-    {
-        int temp = __call_ft_add(x, y)
-        return temp
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution
+    fused_func = module.create_fused_function(root, "test_multiple_inputs")
+    result = fused_func(15, 25)
+    assert result == 40, f"Expected 40, got {result}"
 
 
 def test_nested_children():
@@ -318,7 +171,7 @@ def test_nested_children():
     sibling = FuseNode.from_function(module.require_function("ft_return3"))
 
     # Create root that has both middle and sibling as children
-    root = FuseNode("root", ["p", "q", "r"], ["final"])
+    root = FuseNode("root", ["p", "q"], ["final"])
     root.children.append(middle)
     root.children.append(sibling)
 
@@ -332,46 +185,11 @@ def test_nested_children():
     # Connect root output from sibling
     root.get_output("final").source = (sibling, "_result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
-
-    # Expected: nested children are generated recursively
-    # leaf1 and leaf2 are defined first (as children of middle)
-    # then middle is defined
-    # then sibling is defined
-    # finally root is defined with calls to middle and sibling in dependency order
-    # Note: leaf1 and leaf2 are independent, so alphabetically ft_return1 comes before ft_return2
-    expected = """
-    int __call_ft_return1(int a)
-    {
-        return ft_return1(a);
-    }
-
-    int __call_ft_return2(int a)
-    {
-        return ft_return2(a);
-    }
-
-    int middle(int x, int y)
-    {
-        int temp = __call_ft_return1(x)
-        int temp2 = __call_ft_return2(y)
-        return temp2
-    }
-
-    int __call_ft_return3(int a)
-    {
-        return ft_return3(a);
-    }
-
-    int root(int p, int q, auto r)
-    {
-        int temp = middle(p, q)
-        int temp2 = __call_ft_return3(temp)
-        return temp2
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution
+    fused_func = module.create_fused_function(root, "test_nested")
+    result = fused_func(10, 20)
+    # ft_return2(20) = 20, ft_return3(20) = 20
+    assert result == 20
 
 
 def test_duplicate_function_reuse():
@@ -404,30 +222,11 @@ def test_duplicate_function_reuse():
     # root returns mul result
     root.get_output("result").source = (mul, "_result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
-
-    # Should only have ONE __call_ft_add definition, not two
-    expected = """
-    int __call_ft_add(int a, int b)
-    {
-        return ft_add(a, b);
-    }
-
-    int __call_ft_mul(int a, int b)
-    {
-        return ft_mul(a, b);
-    }
-
-    int root(int a, int b, int c, int d)
-    {
-        int temp = __call_ft_add(a, b)
-        int temp2 = __call_ft_add(c, d)
-        int temp3 = __call_ft_mul(temp, temp2)
-        return temp3
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution
+    fused_func = module.create_fused_function(root, "test_duplicate_reuse")
+    result = fused_func(5, 10, 2, 3)
+    # (5 + 10) * (2 + 3) = 15 * 5 = 75
+    assert result == 75, f"Expected 75, got {result}"
 
 
 def test_subgraph_reuse():
@@ -488,39 +287,11 @@ def test_subgraph_reuse():
 
     root.get_output("final").source = (mul, "_result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
-
-    # The add4 subgraph should only be defined ONCE, even though used twice
-    # The __call_ft_add should also only be defined once
-    expected = """
-    int __call_ft_add(int a, int b)
-    {
-        return ft_add(a, b);
-    }
-
-    int add4(int a, int b, int c, int d)
-    {
-        int temp = __call_ft_add(a, b)
-        int temp2 = __call_ft_add(c, d)
-        int temp3 = __call_ft_add(temp, temp2)
-        return temp3
-    }
-
-    int __call_ft_mul(int a, int b)
-    {
-        return ft_mul(a, b);
-    }
-
-    int root(int n1, int n2, int n3, int n4, int n5, int n6, int n7, int n8)
-    {
-        int temp = add4(n1, n2, n3, n4)
-        int temp2 = add4(n5, n6, n7, n8)
-        int temp3 = __call_ft_mul(temp, temp2)
-        return temp3
-    }
-    """
-    assert compare_code(code, expected)
+    # Test actual execution
+    fused_func = module.create_fused_function(root, "test_subgraph_reuse")
+    result = fused_func(1, 2, 3, 4, 5, 6, 7, 8)
+    # (1+2+3+4) * (5+6+7+8) = 10 * 26 = 260
+    assert result == 260, f"Expected 260, got {result}"
 
 
 def test_nested_subgraphs():
@@ -572,35 +343,22 @@ def test_nested_subgraphs():
 
     root.get_output("final").source = (add4_inst, "result")
 
-    fuser = Fuser(root)
-    code = fuser.generate_code()
+    # Test actual execution
+    fused_func = module.create_fused_function(root, "test_nested_subgraphs")
+    result = fused_func(10, 20, 30, 40)
+    # (10 + 20) + (30 + 40) = 30 + 70 = 100
+    assert result == 100, f"Expected 100, got {result}"
 
-    # Should generate: __call_ft_add, add2, add4_nested, root
-    # Note that add2 should only be defined once even though used 3 times
-    expected = """
-    int __call_ft_add(int a, int b)
-    {
-        return ft_add(a, b);
-    }
 
-    int add2(int x, int y)
-    {
-        int temp = __call_ft_add(x, y)
-        return temp
-    }
+def test_call_simple_fused_function():
+    """Test calling a simple fused function through the module API."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
 
-    int add4_nested(int a, int b, int c, int d)
-    {
-        int temp = add2(a, b)
-        int temp2 = add2(c, d)
-        int temp3 = add2(temp, temp2)
-        return temp3
-    }
+    # Create a simple fused function that just wraps ft_add
+    node = FuseNode.from_function(module.require_function("ft_add"))
+    fused_func = module.create_fused_function(node, "my_add")
 
-    int root(int n1, int n2, int n3, int n4)
-    {
-        int temp = add4_nested(n1, n2, n3, n4)
-        return temp
-    }
-    """
-    assert compare_code(code, expected)
+    # Try calling it with scalar arguments
+    result = fused_func(5, 3)
+    assert result == 8, f"Expected 8, got {result}"

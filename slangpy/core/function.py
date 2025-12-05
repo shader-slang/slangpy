@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from slangpy.core.module import Module
     from slangpy.core.struct import Struct
     from slangpy import HitGroupDescParam
+    from slangpy.experimental.fuse import FusedFunction
 
 ENABLE_CALLDATA_CACHE = True
 
@@ -62,7 +63,7 @@ class FunctionBuildInfo:
         # Will always be populated by the root
         self.name: str
         self.module: "Module"
-        self.function: SlangFunction
+        self.function: Union[SlangFunction, "FusedFunction"]
         self.this_type: Optional[SlangType]
 
         # Optional value that will be set depending on the chain.
@@ -607,13 +608,16 @@ class Function(FunctionNode):
     def __init__(
         self,
         module: "Module",
-        func: Union[str, SlangFunction],
+        func: Union[str, SlangFunction, "FusedFunction"],
         struct: Optional["Struct"] = None,
         options: dict[str, Any] = {},
     ) -> None:
         super().__init__(None, FunctionNodeType.kernelgen, None)
 
         self._module = module
+
+        # Import FusedFunction for type checking
+        from slangpy.experimental.fuse import FusedFunction
 
         if isinstance(func, str):
             if struct is None:

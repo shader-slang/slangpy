@@ -69,7 +69,7 @@ def specialize(
 
 
 def bind(
-    context: BindContext, signature: BoundCall, function: SlangFunction, params: list[ResolvedParam]
+    context: BindContext, signature: BoundCall, function, params: list[ResolvedParam]
 ) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
@@ -86,12 +86,17 @@ def bind(
             assert function.return_type is not None
             b.bind(function.return_type, {ModifierID.out}, "_result")
         elif x.param_index == -1:
-            assert function.this is not None
-            b.bind(
-                function.this,
-                {ModifierID.inout if function.mutating else ModifierID.inn},
-                "_this",
-            )
+            # This parameter index is used for 'this' parameters
+            # Fused functions don't have 'this', so skip the assertion if function.this is None
+            if function.this is not None:
+                b.bind(
+                    function.this,
+                    {ModifierID.inout if function.mutating else ModifierID.inn},
+                    "_this",
+                )
+            else:
+                # This shouldn't happen for fused functions
+                raise ValueError(f"Unexpected param_index -1 for function without 'this'")
         else:
             b.bind(params[x.param_index])
 
@@ -346,6 +351,12 @@ def generate_code(
 
     # Get sorted list of root parameters for trampoline function
     root_params = sorted(signature.values(), key=lambda x: x.param_index)
+
+    # If this is a fused function, inject the generated code
+    from slangpy.experimental.fuse import FusedFunction
+
+    if isinstance(build_info.function, FusedFunction):
+        build_info.function._fuser.inject_code_into_codegen(cg, build_info.name)
 
     # Generate the trampoline function
     trampoline_fn = "_trampoline"
