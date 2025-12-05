@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Optional
 import slangpy as spy
+import slangpy.testing.helpers as helpers
 
 
 class FuseNode:
@@ -17,6 +18,15 @@ class FuseNode:
         self.input_sources: dict[str, tuple[Optional["FuseNode"], str]] = {}
         # Maps each output name to its source: (child_node, output_name) or None if not connected
         self.output_sources: dict[str, tuple[Optional["FuseNode"], str]] = {}
+
+    @staticmethod
+    def from_function(function: spy.Function) -> "FuseNode":
+        assert not function._slang_func.is_overloaded
+        res = FuseNode(f"__call_{function.name}", [], [])
+        res.function = function
+        res.input_names = [arg.name for arg in function._slang_func.parameters]
+        res.output_names = ["_result"]
+        return res
 
 
 def generate_code(node: FuseNode) -> str:
@@ -116,40 +126,17 @@ def generate_code(node: FuseNode) -> str:
                     # Output comes directly from an input
                     code_lines.append(f"\treturn {source_output_name}")
     else:
-        code_lines.append("\treturn <not worked out yet>")
+        # Leaf node with no children
+        if node.function is not None:
+            # Node has an associated function - generate a call to it
+            func_args = ", ".join(node.input_names)
+            code_lines.append(f"\treturn {node.function.name}({func_args});")
+        else:
+            code_lines.append("\treturn <not worked out yet>")
 
     code_lines.append("}")
 
     return "\n".join(code_lines)
-
-
-def main():
-    device = spy.create_device(include_paths=[Path(__file__).parent])
-    module = spy.Module.load_from_file(device, "fusetest.slang")
-
-    # Create child nodes
-    mul_node = FuseNode("mul_node", ["mul_in_a", "mul_in_b"], ["mul_out"])
-    add_node = FuseNode("add_node", ["add_in_a", "add_in_b"], ["add_out"])
-
-    # Create root node
-    root = FuseNode("root", ["a", "b", "c"], ["out"])
-
-    # Add children (order doesn't matter due to topological sort)
-    root.children.append(add_node)
-    root.children.append(mul_node)
-
-    # Connect mul_node inputs to root inputs
-    mul_node.input_sources["mul_in_a"] = (None, "a")  # From root input "a"
-    mul_node.input_sources["mul_in_b"] = (None, "b")  # From root input "b"
-
-    # Connect add_node inputs: one from mul_node output, one from root input
-    add_node.input_sources["add_in_a"] = (mul_node, "mul_out")  # From mul_node output
-    add_node.input_sources["add_in_b"] = (None, "c")  # From root input "c"
-
-    # Connect root output to add_node output
-    root.output_sources["out"] = (add_node, "add_out")
-
-    print(generate_code(root))
 
 
 def compare_code(actual: str, expected: str) -> bool:
@@ -187,14 +174,16 @@ def compare_code(actual: str, expected: str) -> bool:
 
 def test_simple_leaf_node():
     """Test code generation for a node with no children."""
-    node = FuseNode("simple_func", ["x", "y"], ["result"])
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    node = FuseNode.from_function(module.require_function("ft_add"))
 
     code = generate_code(node)
 
     expected = """
-    simple_func(x, y)
+    __call_ft_add(a, b)
     {
-        return <not worked out yet>
+        return ft_add(a, b);
     }
     """
     assert compare_code(code, expected)
@@ -202,25 +191,28 @@ def test_simple_leaf_node():
 
 def test_single_child_node():
     """Test code generation for a node with one child."""
-    child = FuseNode("helper", ["a", "b"], ["out"])
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    child = FuseNode.from_function(module.require_function("ft_add"))
     root = FuseNode("main", ["x", "y"], ["result"])
 
     root.children.append(child)
     child.input_sources["a"] = (None, "x")
     child.input_sources["b"] = (None, "y")
-    root.output_sources["result"] = (child, "out")
+    root.output_sources["result"] = (child, "_result")
 
     code = generate_code(root)
 
     expected = """
-    helper(a, b)
+    __call_ft_add(a, b)
     {
-        return <not worked out yet>
+        return ft_add(a, b);
     }
 
     main(x, y)
     {
-        temp = helper(x, y)
+        temp = __call_ft_add(x, y)
         return temp
     }
     """
@@ -229,8 +221,11 @@ def test_single_child_node():
 
 def test_two_children_with_dependency():
     """Test code generation with two children where one depends on the other."""
-    mul_node = FuseNode("mul", ["a", "b"], ["result"])
-    add_node = FuseNode("add", ["x", "y"], ["result"])
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    mul_node = FuseNode.from_function(module.require_function("ft_mul"))
+    add_node = FuseNode.from_function(module.require_function("ft_add"))
     root = FuseNode("compute", ["p", "q", "r"], ["final"])
 
     root.children.append(mul_node)
@@ -238,27 +233,27 @@ def test_two_children_with_dependency():
 
     mul_node.input_sources["a"] = (None, "p")
     mul_node.input_sources["b"] = (None, "q")
-    add_node.input_sources["x"] = (mul_node, "result")
-    add_node.input_sources["y"] = (None, "r")
-    root.output_sources["final"] = (add_node, "result")
+    add_node.input_sources["a"] = (mul_node, "_result")
+    add_node.input_sources["b"] = (None, "r")
+    root.output_sources["final"] = (add_node, "_result")
 
     code = generate_code(root)
 
     expected = """
-    mul(a, b)
+    __call_ft_mul(a, b)
     {
-        return <not worked out yet>
+        return ft_mul(a, b);
     }
 
-    add(x, y)
+    __call_ft_add(a, b)
     {
-        return <not worked out yet>
+        return ft_add(a, b);
     }
 
     compute(p, q, r)
     {
-        temp = mul(p, q)
-        temp2 = add(temp, r)
+        temp = __call_ft_mul(p, q)
+        temp2 = __call_ft_add(temp, r)
         return temp2
     }
     """
@@ -267,9 +262,12 @@ def test_two_children_with_dependency():
 
 def test_topological_sort_reversed_order():
     """Test that topological sort works even when children are added in reverse dependency order."""
-    # Create nodes
-    first = FuseNode("first", ["x"], ["out1"])
-    second = FuseNode("second", ["y"], ["out2"])
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create nodes using ft_return1 and ft_return2
+    first = FuseNode.from_function(module.require_function("ft_return1"))
+    second = FuseNode.from_function(module.require_function("ft_return2"))
     root = FuseNode("root", ["a", "b"], ["final"])
 
     # Add in REVERSE order (second depends on first, but add second first)
@@ -277,29 +275,29 @@ def test_topological_sort_reversed_order():
     root.children.append(first)
 
     # Set up dependencies: second depends on first
-    first.input_sources["x"] = (None, "a")
-    second.input_sources["y"] = (first, "out1")
-    root.output_sources["final"] = (second, "out2")
+    first.input_sources["a"] = (None, "a")
+    second.input_sources["a"] = (first, "_result")
+    root.output_sources["final"] = (second, "_result")
 
     code = generate_code(root)
 
     # Function definitions appear in the order children are added,
     # but the calls inside root() are topologically sorted
     expected = """
-    second(y)
+    __call_ft_return2(a)
     {
-        return <not worked out yet>
+        return ft_return2(a);
     }
 
-    first(x)
+    __call_ft_return1(a)
     {
-        return <not worked out yet>
+        return ft_return1(a);
     }
 
     root(a, b)
     {
-        temp = first(a)
-        temp2 = second(temp)
+        temp = __call_ft_return1(a)
+        temp2 = __call_ft_return2(temp)
         return temp2
     }
     """
@@ -308,37 +306,40 @@ def test_topological_sort_reversed_order():
 
 def test_independent_children():
     """Test code generation with two independent children (no dependencies between them)."""
-    child1 = FuseNode("func1", ["x"], ["out1"])
-    child2 = FuseNode("func2", ["y"], ["out2"])
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    child1 = FuseNode.from_function(module.require_function("ft_return1"))
+    child2 = FuseNode.from_function(module.require_function("ft_return2"))
     root = FuseNode("root", ["a", "b"], ["result"])
 
     root.children.append(child1)
     root.children.append(child2)
 
-    child1.input_sources["x"] = (None, "a")
-    child2.input_sources["y"] = (None, "b")
+    child1.input_sources["a"] = (None, "a")
+    child2.input_sources["a"] = (None, "b")
     # Use output from child1 for simplicity
-    root.output_sources["result"] = (child1, "out1")
+    root.output_sources["result"] = (child1, "_result")
 
     code = generate_code(root)
 
     # For independent children with no dependencies, they are sorted alphabetically by name
-    # So func1 is executed before func2
+    # So __call_ft_return1 is executed before __call_ft_return2
     expected = """
-    func1(x)
+    __call_ft_return1(a)
     {
-        return <not worked out yet>
+        return ft_return1(a);
     }
 
-    func2(y)
+    __call_ft_return2(a)
     {
-        return <not worked out yet>
+        return ft_return2(a);
     }
 
     root(a, b)
     {
-        temp = func1(a)
-        temp2 = func2(b)
+        temp = __call_ft_return1(a)
+        temp2 = __call_ft_return2(b)
         return temp
     }
     """
@@ -347,43 +348,46 @@ def test_independent_children():
 
 def test_chain_of_three_nodes():
     """Test a chain of three nodes: A -> B -> C."""
-    node_a = FuseNode("node_a", ["in"], ["out"])
-    node_b = FuseNode("node_b", ["in"], ["out"])
-    node_c = FuseNode("node_c", ["in"], ["out"])
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    node_a = FuseNode.from_function(module.require_function("ft_return1"))
+    node_b = FuseNode.from_function(module.require_function("ft_return2"))
+    node_c = FuseNode.from_function(module.require_function("ft_return3"))
     root = FuseNode("root", ["x"], ["result"])
 
     root.children.extend([node_c, node_b, node_a])  # Add in random order
 
-    node_a.input_sources["in"] = (None, "x")
-    node_b.input_sources["in"] = (node_a, "out")
-    node_c.input_sources["in"] = (node_b, "out")
-    root.output_sources["result"] = (node_c, "out")
+    node_a.input_sources["a"] = (None, "x")
+    node_b.input_sources["a"] = (node_a, "_result")
+    node_c.input_sources["a"] = (node_b, "_result")
+    root.output_sources["result"] = (node_c, "_result")
 
     code = generate_code(root)
 
     # Function definitions appear in order added (c, b, a),
     # but calls in root() are topologically sorted (a, b, c)
     expected = """
-    node_c(in)
+    __call_ft_return3(a)
     {
-        return <not worked out yet>
+        return ft_return3(a);
     }
 
-    node_b(in)
+    __call_ft_return2(a)
     {
-        return <not worked out yet>
+        return ft_return2(a);
     }
 
-    node_a(in)
+    __call_ft_return1(a)
     {
-        return <not worked out yet>
+        return ft_return1(a);
     }
 
     root(x)
     {
-        temp = node_a(x)
-        temp2 = node_b(temp)
-        temp3 = node_c(temp2)
+        temp = __call_ft_return1(x)
+        temp2 = __call_ft_return2(temp)
+        temp3 = __call_ft_return3(temp2)
         return temp3
     }
     """
@@ -392,26 +396,28 @@ def test_chain_of_three_nodes():
 
 def test_multiple_inputs_from_same_parent():
     """Test a child node that takes multiple inputs from the parent."""
-    child = FuseNode("combine", ["x", "y", "z"], ["result"])
-    root = FuseNode("root", ["a", "b", "c"], ["out"])
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    child = FuseNode.from_function(module.require_function("ft_add"))
+    root = FuseNode("root", ["x", "y"], ["out"])
 
     root.children.append(child)
-    child.input_sources["x"] = (None, "a")
-    child.input_sources["y"] = (None, "b")
-    child.input_sources["z"] = (None, "c")
-    root.output_sources["out"] = (child, "result")
+    child.input_sources["a"] = (None, "x")
+    child.input_sources["b"] = (None, "y")
+    root.output_sources["out"] = (child, "_result")
 
     code = generate_code(root)
 
     expected = """
-    combine(x, y, z)
+    __call_ft_add(a, b)
     {
-        return <not worked out yet>
+        return ft_add(a, b);
     }
 
-    root(a, b, c)
+    root(x, y)
     {
-        temp = combine(a, b, c)
+        temp = __call_ft_add(x, y)
         return temp
     }
     """
@@ -420,20 +426,23 @@ def test_multiple_inputs_from_same_parent():
 
 def test_nested_children():
     """Test code generation with nested children (children that have their own children)."""
-    # Create leaf nodes (innermost children)
-    leaf1 = FuseNode("leaf1", ["x"], ["out"])
-    leaf2 = FuseNode("leaf2", ["y"], ["out"])
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create leaf nodes (innermost children) using ft_return functions
+    leaf1 = FuseNode.from_function(module.require_function("ft_return1"))
+    leaf2 = FuseNode.from_function(module.require_function("ft_return2"))
 
     # Create middle node that has children
-    middle = FuseNode("middle", ["a", "b"], ["result"])
+    middle = FuseNode("middle", ["x", "y"], ["result"])
     middle.children.append(leaf1)
     middle.children.append(leaf2)
-    leaf1.input_sources["x"] = (None, "a")
-    leaf2.input_sources["y"] = (None, "b")
-    middle.output_sources["result"] = (leaf2, "out")
+    leaf1.input_sources["a"] = (None, "x")
+    leaf2.input_sources["a"] = (None, "y")
+    middle.output_sources["result"] = (leaf2, "_result")
 
     # Create another child at the same level as middle
-    sibling = FuseNode("sibling", ["z"], ["out"])
+    sibling = FuseNode.from_function(module.require_function("ft_return3"))
 
     # Create root that has both middle and sibling as children
     root = FuseNode("root", ["p", "q", "r"], ["final"])
@@ -441,14 +450,14 @@ def test_nested_children():
     root.children.append(sibling)
 
     # Connect middle inputs from root
-    middle.input_sources["a"] = (None, "p")
-    middle.input_sources["b"] = (None, "q")
+    middle.input_sources["x"] = (None, "p")
+    middle.input_sources["y"] = (None, "q")
 
     # Connect sibling input from middle output
-    sibling.input_sources["z"] = (middle, "result")
+    sibling.input_sources["a"] = (middle, "result")
 
     # Connect root output from sibling
-    root.output_sources["final"] = (sibling, "out")
+    root.output_sources["final"] = (sibling, "_result")
 
     code = generate_code(root)
 
@@ -457,39 +466,35 @@ def test_nested_children():
     # then middle is defined
     # then sibling is defined
     # finally root is defined with calls to middle and sibling in dependency order
-    # Note: leaf1 and leaf2 are independent, so their execution order can vary
+    # Note: leaf1 and leaf2 are independent, so alphabetically ft_return1 comes before ft_return2
     expected = """
-    leaf1(x)
+    __call_ft_return1(a)
     {
-        return <not worked out yet>
+        return ft_return1(a);
     }
 
-    leaf2(y)
+    __call_ft_return2(a)
     {
-        return <not worked out yet>
+        return ft_return2(a);
     }
 
-    middle(a, b)
+    middle(x, y)
     {
-        temp = leaf1(a)
-        temp2 = leaf2(b)
+        temp = __call_ft_return1(x)
+        temp2 = __call_ft_return2(y)
         return temp2
     }
 
-    sibling(z)
+    __call_ft_return3(a)
     {
-        return <not worked out yet>
+        return ft_return3(a);
     }
 
     root(p, q, r)
     {
         temp = middle(p, q)
-        temp2 = sibling(temp)
+        temp2 = __call_ft_return3(temp)
         return temp2
     }
     """
     assert compare_code(code, expected)
-
-
-if __name__ == "__main__":
-    main()

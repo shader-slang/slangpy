@@ -2,7 +2,20 @@
 
 
 
+int ft_return1(int a)
+{
+    return a;
+}
 
+int ft_return2(int a)
+{
+    return a;
+}
+
+int ft_return3(int a)
+{
+    return a;
+}
 
 int ft_add(int a, int b)
 {
