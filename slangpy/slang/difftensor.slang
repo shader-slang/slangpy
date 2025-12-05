@@ -12,7 +12,7 @@ int _idx<I: IInteger, let N : int>(I[N] indices, uint stride[N], uint offset)
     for (int i = 0; i < N; i++) { idx += indices[i].toUInt() * stride[i]; }
     return idx + offset;
 }
-int _idx<I : IInteger, let N : int>(vector<I, N> indices, uint stride[N], uint offset)
+int _idx<I : __BuiltinIntegerType, let N : int>(vector<I, N> indices, uint stride[N], uint offset)
 {
     int idx = 0;
     int end = N - 1;
@@ -39,9 +39,9 @@ void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], 
 public interface IRODiffTensor<T : IDifferentiable, let D : int>
 {
     [Differentiable]
-    public T load<I : IInteger>(I idx[D]);
+    public T load<I : __BuiltinIntegerType>(I idx[D]);
     [Differentiable]
-    public T load<I : IInteger>(vector<I, D> idx);
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
 
     public property shape : uint[D];
 }
@@ -57,9 +57,9 @@ public typealias IDiffTensor<T : IDifferentiable, let D : int> = IRODiffTensor<T
 public interface IWODiffTensor<T : IDifferentiable, let D : int>
 {
     [Differentiable]
-    public void store<I : IInteger>(I idx[D], T value);
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value);
     [Differentiable]
-    public void store<I : IInteger>(vector<I, D> idx, T value);
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value);
 
     public property shape : uint[D];
 }
@@ -77,33 +77,33 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
 #define _SLANGPY_DIFFTENSOR_LOAD \
     [Differentiable]\
     [BackwardDerivative(_load_bwd_array)]\
-    public T load<I : IInteger>(I idx[D])\
+    public T load<I : __BuiltinIntegerType>(I idx[D])\
     {\
         return _primal.load(idx);\
     }\
     [Differentiable]\
     [BackwardDerivative(_load_bwd_vector)]\
-    public T load<I : IInteger>(vector<I, D> idx)\
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)\
     {\
         return _primal.load(idx);\
     }
 
 #define _SLANGPY_DIFFTENSOR_LOAD_BWD \
-    void _load_bwd_array<I : IInteger>(I idx[D], T.Differential grad)\
+    void _load_bwd_array<I : __BuiltinIntegerType>(I idx[D], T.Differential grad)\
     {\
         _grad_out.add(idx, grad);\
     }\
-    void _load_bwd_vector<I : IInteger>(vector<I, D> idx, T.Differential grad)\
+    void _load_bwd_vector<I : __BuiltinIntegerType>(vector<I, D> idx, T.Differential grad)\
     {\
         _grad_out.add(idx, grad);\
     }
 
 #define _SLANGPY_DIFFTENSOR_STORE_BWD \
-    void _store_bwd_array<I : IInteger>(I idx[D], inout DifferentialPair<T> grad)\
+    void _store_bwd_array<I : __BuiltinIntegerType>(I idx[D], inout DifferentialPair<T> grad)\
     {\
         grad = diffPair(grad.p, _grad_in.load(idx));\
     }\
-    void _store_bwd_vector<I : IInteger>(vector<I, D> idx, inout DifferentialPair<T> grad)\
+    void _store_bwd_vector<I : __BuiltinIntegerType>(vector<I, D> idx, inout DifferentialPair<T> grad)\
     {\
         grad = diffPair(grad.p, _grad_in.load(idx));\
     }
@@ -111,13 +111,13 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor
 #define _SLANGPY_DIFFTENSOR_STORE \
     [Differentiable]\
     [BackwardDerivative(_store_bwd_array)]\
-    public void store<I : IInteger>(I idx[D], T value)\
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value)\
     {\
         _primal.store(idx, value);\
     }\
     [Differentiable]\
     [BackwardDerivative(_store_bwd_vector)]\
-    public void store<I : IInteger>(vector<I, D> idx, T value)\
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)\
     {\
         _primal.store(idx, value);\
     }
@@ -268,11 +268,11 @@ public struct RODiffTensor<T : IDifferentiable, let D : int> : IRODiffTensor<T, 
     _SLANGPY_DIFFTENSOR_LOAD_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         [Differentiable] get { return load(indices); }
     }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
+     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
      {
          [Differentiable] get { return load(indices); }
     }
@@ -305,11 +305,11 @@ public struct WODiffTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T, 
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
 
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         [Differentiable] set { return store(indices, newValue); }
     }
-    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         [Differentiable] set { return store(indices, newValue); }
     }
@@ -340,12 +340,12 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         [Differentiable] get { return load(indices); }
         [Differentiable] set { return store(indices, newValue); }
     }
-    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         [Differentiable] get { return load(indices); }
         [Differentiable] set { return store(indices, newValue); }

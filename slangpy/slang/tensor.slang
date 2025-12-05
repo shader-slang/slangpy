@@ -12,7 +12,7 @@ int _idx<I: IInteger, let N : int>(I[N] indices, uint stride[N], uint offset)
     for (int i = 0; i < N; i++) { idx += indices[i].toUInt() * stride[i]; }
     return idx + offset;
 }
-int _idx<I : IInteger, let N : int>(vector<I, N> indices, uint stride[N], uint offset)
+int _idx<I : __BuiltinIntegerType, let N : int>(vector<I, N> indices, uint stride[N], uint offset)
 {
     int idx = 0;
     int end = N - 1;
@@ -45,8 +45,8 @@ public interface IBaseTensor<T, let D : int>
 public interface IROTensor<T, let D : int> : IBaseTensor<T, D>
 {
     public T read_buffer(int idx);
-    public T load<I : IInteger>(I idx[D]);
-    public T load<I : IInteger>(vector<I, D> idx);
+    public T load<I : __BuiltinIntegerType>(I idx[D]);
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
 }
 
 // Type alias for a read only tensor.
@@ -58,8 +58,8 @@ public typealias ITensor<T, let D : int> = IROTensor<T, D>;
 public interface IWOTensor<T, let D : int> : IBaseTensor<T, D>
 {
     public void write_buffer(int idx, T value);
-    public void store<I : IInteger>(I idx[D], T value);
-    public void store<I : IInteger>(vector<I, D> idx, T value);
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value);
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value);
 }
 
 // Interface for a read-write tensor.
@@ -77,21 +77,21 @@ public interface IRWTensor<T, let D : int> : IROTensor<T, D>, IWOTensor<T, D>
 
 
 #define _SLANGPY_TENSOR_STORE \
-    public void store<I : IInteger>(I idx[D], T value)\
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value)\
     {\
         write_buffer(_idx(idx, _strides, _offset), value);\
     }\
-    public void store<I : IInteger>(vector<I, D> idx, T value)\
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)\
     {\
         write_buffer(_idx(idx, _strides, _offset), value);\
     }
 
 #define _SLANGPY_TENSOR_LOAD \
-    public T load<I : IInteger>(I idx[D])\
+    public T load<I : __BuiltinIntegerType>(I idx[D])\
     {\
         return read_buffer(_idx(idx, _strides, _offset));\
     }\
-    public T load<I : IInteger>(vector<I, D> idx)\
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)\
     {\
         return read_buffer(_idx(idx, _strides, _offset));\
     }
@@ -236,11 +236,11 @@ public struct ROTensor<T, let D : int> : IROTensor<T, D>
     _SLANGPY_TENSOR_LOAD
     _SLANGPY_TENSOR_SLANGPYLOAD
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         get { return load(indices); }
     }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
+     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         get { return load(indices); }
     }
@@ -277,11 +277,11 @@ public struct WOTensor<T, let D : int> : IWOTensor<T, D>
     _SLANGPY_TENSOR_STORE
     _SLANGPY_TENSOR_SLANGPYSTORE
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         set { return store(indices, newValue); }
     }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
+     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         set { return store(indices, newValue); }
     }
@@ -321,12 +321,12 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
     _SLANGPY_TENSOR_STORE
     _SLANGPY_TENSOR_SLANGPYSTORE
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         get { return load(indices); }
         set { return store(indices, newValue); }
     }
-     public __subscript<I : IInteger>(vector<I, D> indices)->T
+     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         get { return load(indices); }
         set { return store(indices, newValue); }
@@ -369,21 +369,21 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     _SLANGPY_TENSOR_SLANGPYSTORE
 
 
-    public void add<I : IInteger>(I idx[D], T value)
+    public void add<I : __BuiltinIntegerType>(I idx[D], T value)
     {
         StorageTraits<T>::atomicAdd(_data, _idx(idx, _strides, _offset), value);
     }
-    public void add<I : IInteger>(vector<I, D> idx, T value)
+    public void add<I : __BuiltinIntegerType>(vector<I, D> idx, T value)
     {
         StorageTraits<T>::atomicAdd(_data, _idx(idx, _strides, _offset), value);
     }
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         get { return load(indices); }
         set { return store(indices, newValue); }
     }
-    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         get { return load(indices); }
         set { return store(indices, newValue); }

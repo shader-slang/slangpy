@@ -10,7 +10,7 @@ int _idx<I: IInteger, let N : int>(I[N] indices, uint stride[N], uint offset)
     for (int i = 0; i < N; i++) { idx += indices[i].toUInt() * stride[i]; }
     return idx + offset;
 }
-int _idx<I : IInteger, let N : int>(vector<I, N> indices, uint stride[N], uint offset)
+int _idx<I : __BuiltinIntegerType, let N : int>(vector<I, N> indices, uint stride[N], uint offset)
 {
     int idx = 0;
     int end = N - 1;
@@ -40,24 +40,24 @@ void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], 
 
 #define _SLANGPY_PRIMALTENSOR_STORE                                                                                          \
     [TreatAsDifferentiable]                                                                                            \
-    public void store<I : IInteger>(I idx[D], T value)                                                                 \
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value)                                                                 \
     {                                                                                                                  \
         write_buffer(_idx(idx, _strides, _offset), value);                                                             \
     }                                                                                                                  \
     [TreatAsDifferentiable]                                                                                            \
-    public void store<I : IInteger>(vector<I, D> idx, T value)                                                         \
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                                                         \
     {                                                                                                                  \
         write_buffer(_idx(idx, _strides, _offset), value);                                                             \
     }
 
 #define _SLANGPY_PRIMALTENSOR_LOAD                                                                                           \
     [TreatAsDifferentiable]                                                                                            \
-    public T load<I : IInteger>(I idx[D])                                                                              \
+    public T load<I : __BuiltinIntegerType>(I idx[D])                                                                              \
     {                                                                                                                  \
         return read_buffer(_idx(idx, _strides, _offset));                                                              \
     }                                                                                                                  \
     [TreatAsDifferentiable]                                                                                            \
-    public T load<I : IInteger>(vector<I, D> idx)                                                                      \
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)                                                                      \
     {                                                                                                                  \
         return read_buffer(_idx(idx, _strides, _offset));                                                              \
     }
@@ -205,11 +205,11 @@ public struct ROPrimalTensor<T: IDifferentiable, let D : int> : IRODiffTensor<T,
     _SLANGPY_PRIMALTENSOR_LOAD
     _SLANGPY_PRIMALTENSOR_SLANGPYLOAD
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         get { return load(indices); }
     }
-    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         get { return load(indices); }
     }
@@ -249,11 +249,11 @@ public struct WOPrimalTensor<T : IDifferentiable, let D : int> : IWODiffTensor<T
     _SLANGPY_PRIMALTENSOR_STORE
     _SLANGPY_PRIMALTENSOR_SLANGPYSTORE
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         set { return store(indices, newValue); }
     }
-    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         set { return store(indices, newValue); }
     }
@@ -295,12 +295,12 @@ public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T
     _SLANGPY_PRIMALTENSOR_STORE
     _SLANGPY_PRIMALTENSOR_SLANGPYSTORE
 
-    public __subscript<I : IInteger>(I indices[D])->T
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         get { return load(indices); }
         set { return store(indices, newValue); }
     }
-    public __subscript<I : IInteger>(vector<I, D> indices)->T
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         get { return load(indices); }
         set { return store(indices, newValue); }

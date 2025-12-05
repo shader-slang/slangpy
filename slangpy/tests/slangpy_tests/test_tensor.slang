@@ -1,6 +1,50 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import slangpy;
 
+/*
+void copy_itensor_each_index(int[2] idx, ITensor<float, 2> src, IRWTensor<float, 2> dst)
+{
+    int i0 = idx[0];
+    int i1 = idx[1];
+    dst[i0, i1] = src[i0, i1];
+}
+void copy_itensor_array_index(int[2] idx, ITensor<float, 2> src, IRWTensor<float, 2> dst)
+{
+    int i0 = idx[0];
+    int i1 = idx[1];
+    int[2] arr = { i0, i1 };
+    dst[arr] = src[arr];
+}
+void copy_itensor_vector_index(int[2] idx, ITensor<float, 2> src, IRWTensor<float, 2> dst)
+{
+    int i0 = idx[0];
+    int i1 = idx[1];
+    var vec = int2(i1, i0);
+    dst[vec] = src[vec];
+}
+
+void copy_idifftensor_each_index(int[2] idx, IDiffTensor<float, 2> src, IRWDiffTensor<float, 2> dst)
+{
+    int i0 = idx[0];
+    int i1 = idx[1];
+    dst[i0, i1] = src[i0, i1];
+}
+void copy_idifftensor_array_index(int[2] idx, IDiffTensor<float, 2> src, IRWDiffTensor<float, 2> dst)
+{
+    int i0 = idx[0];
+    int i1 = idx[1];
+    int[2] arr = { i0, i1 };
+    dst[arr] = src[arr];
+}
+void copy_idifftensor_vector_index(int[2] idx, IDiffTensor<float, 2> src, IRWDiffTensor<float, 2> dst)
+{
+    int i0 = idx[0];
+    int i1 = idx[1];
+    var vec = int2(i1, i0);
+    dst[vec] = src[vec];
+}
+*/
+
 void copy_tensor_each_index(int[2] idx, Tensor<float, 2> src, RWTensor<float, 2> dst)
 {
     int i0 = idx[0];
