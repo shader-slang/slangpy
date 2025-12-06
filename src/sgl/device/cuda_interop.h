@@ -9,12 +9,14 @@
 namespace sgl::cuda {
 
 struct TensorView {
+    int device_id;
     void* data;
     size_t size;
     size_t stride;
 };
 
 class InteropBuffer : public Object {
+    SGL_OBJECT(cuda::InteropBuffer)
 public:
     InteropBuffer(sgl::Device* device, const TensorView tensor_view, bool is_uav);
     ~InteropBuffer();

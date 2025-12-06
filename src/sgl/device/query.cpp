@@ -11,7 +11,7 @@
 namespace sgl {
 
 QueryPool::QueryPool(ref<Device> device, QueryPoolDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_desc(std::move(desc))
 {
     rhi::QueryPoolDesc rhi_desc{

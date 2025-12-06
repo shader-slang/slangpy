@@ -86,6 +86,16 @@ SGL_DICT_TO_DESC_FIELD(enable_conservative_rasterization, bool)
 SGL_DICT_TO_DESC_FIELD(forced_sample_count, uint32_t)
 SGL_DICT_TO_DESC_END()
 
+SGL_DICT_TO_DESC_BEGIN(CoopVecMatrixDesc)
+SGL_DICT_TO_DESC_FIELD(rows, uint32_t)
+SGL_DICT_TO_DESC_FIELD(cols, uint32_t)
+SGL_DICT_TO_DESC_FIELD(element_type, DataType)
+SGL_DICT_TO_DESC_FIELD(layout, CoopVecMatrixLayout)
+SGL_DICT_TO_DESC_FIELD(size, size_t)
+SGL_DICT_TO_DESC_FIELD(offset, size_t)
+SGL_DICT_TO_DESC_FIELD(row_col_stride, size_t)
+SGL_DICT_TO_DESC_END()
+
 } // namespace sgl
 
 SGL_PY_EXPORT(device_types)
@@ -124,7 +134,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](DrawArguments* self, nb::dict dict) { new (self) DrawArguments(dict_to_DrawArguments(dict)); }
+            [](DrawArguments* self, nb::dict dict)
+            {
+                new (self) DrawArguments(dict_to_DrawArguments(dict));
+            }
         )
         .def_rw("vertex_count", &DrawArguments::vertex_count, D(DrawArguments, vertex_count))
         .def_rw("instance_count", &DrawArguments::instance_count, D(DrawArguments, instance_count))
@@ -139,7 +152,13 @@ SGL_PY_EXPORT(device_types)
 
     nb::class_<Viewport>(m, "Viewport", D(Viewport))
         .def(nb::init<>())
-        .def("__init__", [](Viewport* self, nb::dict dict) { new (self) Viewport(dict_to_Viewport(dict)); })
+        .def(
+            "__init__",
+            [](Viewport* self, nb::dict dict)
+            {
+                new (self) Viewport(dict_to_Viewport(dict));
+            }
+        )
         .def_static("from_size", &Viewport::from_size, "width"_a, "height"_a, D(Viewport, from_size))
         .def_rw("x", &Viewport::x, D(Viewport, x))
         .def_rw("y", &Viewport::y, D(Viewport, y))
@@ -152,7 +171,13 @@ SGL_PY_EXPORT(device_types)
 
     nb::class_<ScissorRect>(m, "ScissorRect", D(ScissorRect))
         .def(nb::init<>())
-        .def("__init__", [](ScissorRect* self, nb::dict dict) { new (self) ScissorRect(dict_to_ScissorRect(dict)); })
+        .def(
+            "__init__",
+            [](ScissorRect* self, nb::dict dict)
+            {
+                new (self) ScissorRect(dict_to_ScissorRect(dict));
+            }
+        )
         .def_static("from_size", &ScissorRect::from_size, "width"_a, "height"_a, D(ScissorRect, from_size))
         .def_rw("min_x", &ScissorRect::min_x, D(ScissorRect, min_x))
         .def_rw("min_y", &ScissorRect::min_y, D(ScissorRect, min_y))
@@ -178,7 +203,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](AspectBlendDesc* self, nb::dict dict) { new (self) AspectBlendDesc(dict_to_AspectBlendDesc(dict)); }
+            [](AspectBlendDesc* self, nb::dict dict)
+            {
+                new (self) AspectBlendDesc(dict_to_AspectBlendDesc(dict));
+            }
         )
         .def_rw("src_factor", &AspectBlendDesc::src_factor, D(AspectBlendDesc, src_factor))
         .def_rw("dst_factor", &AspectBlendDesc::dst_factor, D(AspectBlendDesc, dst_factor))
@@ -189,7 +217,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](ColorTargetDesc* self, nb::dict dict) { new (self) ColorTargetDesc(dict_to_ColorTargetDesc(dict)); }
+            [](ColorTargetDesc* self, nb::dict dict)
+            {
+                new (self) ColorTargetDesc(dict_to_ColorTargetDesc(dict));
+            }
         )
         .def_rw("format", &ColorTargetDesc::format, D(ColorTargetDesc, format))
         .def_rw("color", &ColorTargetDesc::color, D(ColorTargetDesc, color))
@@ -204,7 +235,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](MultisampleDesc* self, nb::dict dict) { new (self) MultisampleDesc(dict_to_MultisampleDesc(dict)); }
+            [](MultisampleDesc* self, nb::dict dict)
+            {
+                new (self) MultisampleDesc(dict_to_MultisampleDesc(dict));
+            }
         )
         .def_rw("sample_count", &MultisampleDesc::sample_count, D(MultisampleDesc, sample_count))
         .def_rw("sample_mask", &MultisampleDesc::sample_mask, D(MultisampleDesc, sample_mask))
@@ -221,7 +255,9 @@ SGL_PY_EXPORT(device_types)
         .def(
             "__init__",
             [](DepthStencilOpDesc* self, nb::dict dict)
-            { new (self) DepthStencilOpDesc(dict_to_DepthStencilOpDesc(dict)); }
+            {
+                new (self) DepthStencilOpDesc(dict_to_DepthStencilOpDesc(dict));
+            }
         )
         .def_rw("stencil_fail_op", &DepthStencilOpDesc::stencil_fail_op, D(DepthStencilOpDesc, stencil_fail_op))
         .def_rw(
@@ -237,7 +273,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](DepthStencilDesc* self, nb::dict dict) { new (self) DepthStencilDesc(dict_to_DepthStencilDesc(dict)); }
+            [](DepthStencilDesc* self, nb::dict dict)
+            {
+                new (self) DepthStencilDesc(dict_to_DepthStencilDesc(dict));
+            }
         )
         .def_rw("format", &DepthStencilDesc::format, D(DepthStencilDesc, format))
         .def_rw("depth_test_enable", &DepthStencilDesc::depth_test_enable, D(DepthStencilDesc, depth_test_enable))
@@ -254,7 +293,10 @@ SGL_PY_EXPORT(device_types)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](RasterizerDesc* self, nb::dict dict) { new (self) RasterizerDesc(dict_to_RasterizerDesc(dict)); }
+            [](RasterizerDesc* self, nb::dict dict)
+            {
+                new (self) RasterizerDesc(dict_to_RasterizerDesc(dict));
+            }
         )
         .def_rw("fill_mode", &RasterizerDesc::fill_mode, D(RasterizerDesc, fill_mode))
         .def_rw("cull_mode", &RasterizerDesc::cull_mode, D(RasterizerDesc, cull_mode))
@@ -293,4 +335,29 @@ SGL_PY_EXPORT(device_types)
     // ------------------------------------------------------------------------
 
     nb::sgl_enum_flags<RayTracingPipelineFlags>(m, "RayTracingPipelineFlags");
+
+    // ------------------------------------------------------------------------
+    // Cooperative Vectors
+    // ------------------------------------------------------------------------
+
+    nb::sgl_enum<CoopVecMatrixLayout>(m, "CoopVecMatrixLayout", D(CoopVecMatrixLayout));
+
+    nb::class_<CoopVecMatrixDesc>(m, "CoopVecMatrixDesc", D(CoopVecMatrixDesc))
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](CoopVecMatrixDesc* self, nb::dict dict)
+            {
+                new (self) CoopVecMatrixDesc(dict_to_CoopVecMatrixDesc(dict));
+            }
+        )
+        .def_rw("rows", &CoopVecMatrixDesc::rows, D(CoopVecMatrixDesc, rows))
+        .def_rw("cols", &CoopVecMatrixDesc::cols, D(CoopVecMatrixDesc, cols))
+        .def_rw("element_type", &CoopVecMatrixDesc::element_type, D(CoopVecMatrixDesc, element_type))
+        .def_rw("layout", &CoopVecMatrixDesc::layout, D(CoopVecMatrixDesc, layout))
+        .def_rw("size", &CoopVecMatrixDesc::size, D(CoopVecMatrixDesc, size))
+        .def_rw("offset", &CoopVecMatrixDesc::offset, D(CoopVecMatrixDesc, offset))
+        .def_rw("row_col_stride", &CoopVecMatrixDesc::row_col_stride, D_NA(CoopVecMatrixDesc, row_col_stride));
+
+    nb::implicitly_convertible<nb::dict, CoopVecMatrixDesc>();
 }

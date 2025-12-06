@@ -21,6 +21,7 @@ namespace sgl::slangpy {
 
 class NativeBoundVariableRuntime;
 class NativeCallData;
+class NativeFunctionNode;
 
 /// General exception that includes a message and the bound variable from which the error
 /// originated.
@@ -51,6 +52,7 @@ private:
 
 /// Used during calculation of slangpy signature
 class SignatureBuilder : public Object {
+    SGL_OBJECT(SignatureBuilder)
 public:
     SignatureBuilder()
     {
@@ -66,6 +68,8 @@ public:
 
     void add(const std::string& value);
     void add(const char* value);
+    void add(const uint32_t value);
+    void add(const uint64_t value);
 
     template<typename T>
     SignatureBuilder& operator<<(const T& value)
@@ -107,6 +111,7 @@ private:
 /// signature on a NativeObject on construction, or override the
 /// read_signature function to generate a signature dynamically.
 class NativeObject : public Object {
+    SGL_OBJECT(NativeObject)
 public:
     NativeObject() = default;
 
@@ -122,29 +127,31 @@ private:
 
 /// Nanobind trampoline class for NativeObject
 class PyNativeObject : public NativeObject {
+    SGL_OBJECT(PyNativeObject)
 public:
     NB_TRAMPOLINE(NativeObject, 1);
 
-    virtual void read_signature(SignatureBuilder* builder) const { NB_OVERRIDE(read_signature, builder); }
+    virtual void read_signature(SignatureBuilder* builder) const override { NB_OVERRIDE(read_signature, builder); }
 };
 
 /// Base class for a slang reflection type
 class NativeSlangType : public Object {
+    SGL_OBJECT(NativeSlangType)
 public:
     NativeSlangType() = default;
 
-    virtual ~NativeSlangType(){
+    virtual ~NativeSlangType() {
 
     };
 
     /// Get the reflection type.
-    ref<TypeReflection> get_type_reflection() const { return m_type_reflection; }
+    ref<TypeReflection> type_reflection() const { return m_type_reflection; }
 
     /// Set the reflection type.
     void set_type_reflection(const ref<TypeReflection>& reflection) { m_type_reflection = reflection; }
 
     /// Get the shape of the type.
-    Shape get_shape() const { return m_shape; }
+    Shape shape() const { return m_shape; }
 
     /// Set the shape of the type.
     void set_shape(const Shape& shape) { m_shape = shape; }
@@ -163,6 +170,9 @@ public:
 
     /// Get the buffer type layout of the type (call into Python).
     ref<TypeLayoutReflection> buffer_type_layout() const { return _py_buffer_type_layout(); }
+
+    /// Get string representation of the type.
+    std::string to_string() const override;
 
     /// Virtual accessors to give native system access to python defined reflection properties
     virtual ref<NativeSlangType> _py_element_type() const { return nullptr; }
@@ -188,6 +198,7 @@ struct PyNativeSlangType : public NativeSlangType {
 
 /// Base class for a marshal to a slangpy supported type.
 class NativeMarshall : public Object {
+    SGL_OBJECT(NativeMarshall)
 public:
     NativeMarshall() = default;
 
@@ -200,7 +211,7 @@ public:
 
     /// Get the concrete shape of the type. For none-concrete types such as buffers,
     /// this will return an invalid shape.
-    Shape get_concrete_shape() const { return m_concrete_shape; }
+    Shape concrete_shape() const { return m_concrete_shape; }
 
     /// Set the concrete shape of the type.
     void set_concrete_shape(const Shape& concrete_shape) { m_concrete_shape = concrete_shape; }
@@ -208,7 +219,7 @@ public:
     /// Get whether this type always defines its shape by matching that of the
     /// activate call, rather than by inspecting the value. This is preferred
     /// for some generator types.
-    bool get_match_call_shape() const { return m_match_call_shape; }
+    bool match_call_shape() const { return m_match_call_shape; }
 
     /// Set whether this type matches call shape.
     void set_match_call_shape(bool match_call_shape) { m_match_call_shape = match_call_shape; }
@@ -221,7 +232,7 @@ public:
     }
 
     /// Get the slang type.
-    ref<NativeSlangType> get_slang_type() const { return m_slang_type; }
+    ref<NativeSlangType> slang_type() const { return m_slang_type; }
 
     /// Set the slang type.
     void set_slang_type(const ref<NativeSlangType>& slang_type) { m_slang_type = slang_type; }
@@ -322,6 +333,18 @@ public:
         return m_slang_type;
     }
 
+    /// Code gen only, takes Python types:
+    ///   context: BindContext
+    /// Return a list of slang types for a variable when passed to a parameter of the given type.
+    /// Default behaviour is to return a list containing the result of resolve_type.
+    virtual std::vector<ref<NativeSlangType>>
+    resolve_types(nb::object context, const ref<NativeSlangType> bound_type) const
+    {
+        SGL_UNUSED(context);
+        SGL_UNUSED(bound_type);
+        return {resolve_type(context, bound_type)};
+    }
+
     /// Code gen only, takes Python types CodeGenBlock, BindContext, BoundVariable.
     /// Calculate the call dimensionality when this value is passed as a given type.
     virtual int
@@ -332,8 +355,7 @@ public:
         if (!m_slang_type) {
             SGL_THROW("Cannot resolve dimensionality without slang type");
         }
-        return static_cast<int>(m_slang_type->get_shape().size())
-            - static_cast<int>(vector_target_type->get_shape().size());
+        return static_cast<int>(m_slang_type->shape().size()) - static_cast<int>(vector_target_type->shape().size());
     }
 
     /// Builds finalized shader object for a value when requested.
@@ -357,7 +379,7 @@ private:
 
 /// Nanobind trampoline class for NativeMarshall
 struct PyNativeMarshall : public NativeMarshall {
-    NB_TRAMPOLINE(NativeMarshall, 14);
+    NB_TRAMPOLINE(NativeMarshall, 15);
 
     Shape get_shape(nb::object data) const override { NB_OVERRIDE(get_shape, data); }
 
@@ -380,8 +402,12 @@ struct PyNativeMarshall : public NativeMarshall {
 
     nb::object create_dispatchdata(nb::object data) const override { NB_OVERRIDE(create_dispatchdata, data); }
 
-    void read_calldata(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data, nb::object result)
-        const override
+    void read_calldata(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        nb::object data,
+        nb::object result
+    ) const override
     {
         NB_OVERRIDE(read_calldata, context, binding, data, result);
     }
@@ -410,8 +436,17 @@ struct PyNativeMarshall : public NativeMarshall {
         NB_OVERRIDE(resolve_type, context, bound_type);
     }
 
-    int resolve_dimensionality(nb::object context, nb::object binding, ref<NativeSlangType> vector_target_type)
-        const override
+    std::vector<ref<NativeSlangType>>
+    resolve_types(nb::object context, const ref<NativeSlangType> bound_type) const override
+    {
+        NB_OVERRIDE(resolve_types, context, bound_type);
+    }
+
+    int resolve_dimensionality(
+        nb::object context,
+        nb::object binding,
+        ref<NativeSlangType> vector_target_type
+    ) const override
     {
         NB_OVERRIDE(resolve_dimensionality, context, binding, vector_target_type);
     }
@@ -426,29 +461,30 @@ struct PyNativeMarshall : public NativeMarshall {
 /// the case of structs, this can be nested, mapping python dictionary fields to
 /// slang struct fields.
 class NativeBoundVariableRuntime : public Object {
+    SGL_OBJECT(NativeBoundVariableRuntime)
 public:
     NativeBoundVariableRuntime() = default;
 
     /// Get required access for primal and derivative.
-    std::pair<AccessType, AccessType> get_access() const { return m_access; }
+    std::pair<AccessType, AccessType> access() const { return m_access; }
 
     /// Set required access for primal and derivative.
     void set_access(const std::pair<AccessType, AccessType>& access) { m_access = access; }
 
     /// Get the call transform.
-    const Shape& get_transform() const { return m_transform; }
+    const Shape& transform() const { return m_transform; }
 
     /// Set the call transform.
     void set_transform(const Shape& transform) { m_transform = transform; }
 
     /// Get the python type marshal.
-    ref<NativeMarshall> get_python_type() const { return m_python_type; }
+    ref<NativeMarshall> python_type() const { return m_python_type; }
 
     /// Set the python type marshal.
     void set_python_type(const ref<NativeMarshall>& python_type) { m_python_type = python_type; }
 
     /// Get the vector slang type.
-    ref<NativeSlangType> get_vector_type() const { return m_vector_type; }
+    ref<NativeSlangType> vector_type() const { return m_vector_type; }
 
     /// Set the vector slang type.
     void set_vector_type(ref<NativeSlangType> vector_type) { m_vector_type = vector_type; }
@@ -466,13 +502,13 @@ public:
     void set_is_param_block(bool is_param_block) { m_is_param_block = is_param_block; }
 
     /// Get the uniform variable name.
-    std::string_view get_variable_name() const { return m_variable_name; }
+    std::string_view variable_name() const { return m_variable_name; }
 
     /// Set the uniform variable name.
     void set_variable_name(std::string_view variable_name) { m_variable_name = variable_name; }
 
     /// Get children (for structs).
-    std::optional<std::map<std::string, ref<NativeBoundVariableRuntime>>> get_children() const { return m_children; }
+    std::optional<std::map<std::string, ref<NativeBoundVariableRuntime>>> children() const { return m_children; }
 
     /// Set children (for structs).
     void set_children(const std::optional<std::map<std::string, ref<NativeBoundVariableRuntime>>>& children)
@@ -481,7 +517,7 @@ public:
     }
 
     /// Get the call dimensionality.
-    int get_call_dimensionality() const { return m_call_dimensionality; }
+    int call_dimensionality() const { return m_call_dimensionality; }
 
     /// Set the call dimensionality.
     void set_call_dimensionality(int call_dimensionality) { m_call_dimensionality = call_dimensionality; }
@@ -518,17 +554,18 @@ private:
 /// Binding information for a call to a compute kernel. Includes a set of positional
 /// and keyword arguments as bound variables.
 class NativeBoundCallRuntime : Object {
+    SGL_OBJECT(NativeBoundCallRuntime)
 public:
     NativeBoundCallRuntime() = default;
 
     /// Get positional arguments.
-    const std::vector<ref<NativeBoundVariableRuntime>>& get_args() const { return m_args; }
+    const std::vector<ref<NativeBoundVariableRuntime>>& args() const { return m_args; }
 
     /// Set positional arguments.
     void set_args(const std::vector<ref<NativeBoundVariableRuntime>>& args) { m_args = args; }
 
     /// Get keyword arguments.
-    const std::map<std::string, ref<NativeBoundVariableRuntime>>& get_kwargs() const { return m_kwargs; }
+    const std::map<std::string, ref<NativeBoundVariableRuntime>>& kwargs() const { return m_kwargs; }
 
     /// Set keyword arguments.
     void set_kwargs(const std::map<std::string, ref<NativeBoundVariableRuntime>>& kwargs) { m_kwargs = kwargs; }
@@ -568,9 +605,10 @@ private:
 };
 
 class NativeCallRuntimeOptions : Object {
+    SGL_OBJECT(NativeCallRuntimeOptions)
 public:
     /// Get the uniforms.
-    nb::list get_uniforms() const { return m_uniforms; }
+    nb::list uniforms() const { return m_uniforms; }
 
     /// Set the uniforms.
     void set_uniforms(const nb::list& uniforms) { m_uniforms = uniforms; }
@@ -581,9 +619,30 @@ public:
     /// Set this
     void set_this(const nb::object& this_) { m_this = this_; }
 
+    /// Get the CUDA stream.
+    NativeHandle cuda_stream() const { return m_cuda_stream; }
+
+    /// Set the CUDA stream.
+    void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
+
+    /// Get ray tracing pipeline flag.
+    bool is_ray_tracing() const { return m_is_ray_tracing; }
+
+    /// Set ray tracing pipeline flag.
+    void set_is_ray_tracing(bool is_ray_tracing) { m_is_ray_tracing = is_ray_tracing; }
+
+    /// Clear internal data for garbage collection
+    void garbage_collect()
+    {
+        m_uniforms.clear();
+        m_this = nb::none();
+    }
+
 private:
     nb::list m_uniforms;
     nb::object m_this{nb::none()};
+    NativeHandle m_cuda_stream;
+    bool m_is_ray_tracing{false};
 };
 
 /// Defines the common logging functions for a given log level.
@@ -601,56 +660,81 @@ private:
         log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                               \
     }
 
-/// Contains the compute kernel for a call, the corresponding bindings and any additional
+/// Contains the compute pipeline for a call, the corresponding bindings and any additional
 /// options provided by the user.
 class NativeCallData : Object {
+    SGL_OBJECT(NativeCallData)
 public:
     NativeCallData() = default;
 
     /// Get the device.
-    ref<Device> get_device() const { return m_device; }
+    ref<Device> device() const { return m_device; }
 
     /// Set the device.
     void set_device(const ref<Device>& device) { m_device = device; }
 
-    /// Get the compute kernel.
-    ref<ComputeKernel> get_kernel() const { return m_kernel; }
+    /// Get the pipeline.
+    ref<Pipeline> pipeline() const { return m_pipeline; }
 
-    /// Set the compute kernel.
-    void set_kernel(const ref<ComputeKernel>& kernel) { m_kernel = kernel; }
+    /// Set the pipeline.
+    void set_pipeline(const ref<Pipeline>& pipeline) { m_pipeline = pipeline; }
+
+    /// Get the ray tracing shader table.
+    ref<ShaderTable> shader_table() const { return m_shader_table; }
+
+    /// Set the ray tracing shader table.
+    void set_shader_table(const ref<ShaderTable>& shader_table) { m_shader_table = shader_table; }
 
     /// Get the call dimensionality.
-    int get_call_dimensionality() const { return m_call_dimensionality; }
+    int call_dimensionality() const { return m_call_dimensionality; }
 
     /// Set the call dimensionality.
     void set_call_dimensionality(int call_dimensionality) { m_call_dimensionality = call_dimensionality; }
 
     /// Get the runtime bindings.
-    ref<NativeBoundCallRuntime> get_runtime() const { return m_runtime; }
+    ref<NativeBoundCallRuntime> runtime() const { return m_runtime; }
 
     /// Set the runtime bindings.
     void set_runtime(const ref<NativeBoundCallRuntime>& runtime) { m_runtime = runtime; }
 
     /// Get the call mode (primitive/forward/backward).
-    CallMode get_call_mode() const { return m_call_mode; }
+    CallMode call_mode() const { return m_call_mode; }
 
     /// Set the call mode (primitive/forward/backward).
     void set_call_mode(CallMode call_mode) { m_call_mode = call_mode; }
 
+    /// Get the call data mode (global_data/entry_point).
+    CallDataMode call_data_mode() const { return m_call_data_mode; }
+
+    /// Set the call data mode (global_data/entry_point).
+    void set_call_data_mode(CallDataMode call_data_mode) { m_call_data_mode = call_data_mode; }
+
     /// Get the shape of the last call (useful for debugging).
-    const Shape& get_last_call_shape() const { return m_last_call_shape; }
+    const Shape& last_call_shape() const { return m_last_call_shape; }
 
     /// Get the debug name
-    std::string get_debug_name() const { return m_debug_name; }
+    std::string debug_name() const { return m_debug_name; }
 
     /// Set the debug name
     void set_debug_name(std::string debug_name) { m_debug_name = debug_name; }
 
     /// Get the logger
-    ref<Logger> get_logger() const { return m_logger; }
+    ref<Logger> logger() const { return m_logger; }
 
     /// Set the logger
     void set_logger(ref<Logger> logger) { m_logger = logger; }
+
+    /// Get torch integration status.
+    bool is_torch_integration() const { return m_torch_integration; }
+
+    /// Set torch integration status.
+    void set_torch_integration(bool torch_integration) { m_torch_integration = torch_integration; }
+
+    /// Get torch autograd status.
+    bool is_torch_autograd() const { return m_torch_autograd; }
+
+    /// Set torch autograd status.
+    void set_torch_autograd(bool torch_autograd) { m_torch_autograd = torch_autograd; }
 
     /// Set the shape of call groups when a dispatch is made.
     void set_call_group_shape(std::optional<Shape> call_group_shape)
@@ -663,7 +747,7 @@ public:
     }
 
     /// Get the shape of call groups when a dispatch is made.
-    const Shape& get_call_group_shape() const { return m_call_group_shape; }
+    const Shape& call_group_shape() const { return m_call_group_shape; }
 
     /// Call the compute kernel with the provided arguments and keyword arguments.
     nb::object call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs);
@@ -699,27 +783,55 @@ public:
     SGL_LOG_FUNC_FAMILY(log_error, LogLevel::error)
     SGL_LOG_FUNC_FAMILY(log_fatal, LogLevel::fatal)
 
+    // Virtual for python to override for wrapping torch calls
+    virtual nb::object
+    _py_torch_call(NativeFunctionNode* func, ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs)
+    {
+        SGL_UNUSED(func);
+        SGL_UNUSED(opts);
+        SGL_UNUSED(args);
+        SGL_UNUSED(kwargs);
+        SGL_THROW("Not implemented");
+    }
 
 private:
     ref<Device> m_device;
-    ref<ComputeKernel> m_kernel;
+    ref<Pipeline> m_pipeline;
+    ref<ShaderTable> m_shader_table;
     int m_call_dimensionality{0};
     ref<NativeBoundCallRuntime> m_runtime;
     CallMode m_call_mode{CallMode::prim};
+    CallDataMode m_call_data_mode{CallDataMode::global_data};
     Shape m_last_call_shape;
     std::string m_debug_name;
     ref<Logger> m_logger;
     Shape m_call_group_shape;
+    bool m_torch_integration{false};
+    bool m_torch_autograd{false};
 
     nb::object
     exec(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 };
 #undef SGL_LOG_FUNC_FAMILY
 
+class PyNativeCallData : public NativeCallData {
+public:
+    NB_TRAMPOLINE(NativeCallData, 1);
+
+    nb::object _py_torch_call(
+        NativeFunctionNode* func,
+        ref<NativeCallRuntimeOptions> opts,
+        nb::tuple args,
+        nb::dict kwargs
+    ) override;
+};
+
 typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> BuildSignatureFunc;
 
 /// Native side of system for caching call data info for given function signatures.
 class NativeCallDataCache : Object {
+    SGL_OBJECT(NativeCallDataCache)
+
 public:
     NativeCallDataCache();
 
@@ -758,9 +870,58 @@ public:
     std::optional<std::string> lookup_value_signature(nb::handle o) override { NB_OVERRIDE(lookup_value_signature, o); }
 };
 
-nb::list unpack_args(nb::args args);
-nb::dict unpack_kwargs(nb::kwargs kwargs);
-nb::object unpack_arg(nanobind::object arg);
+class TensorRef : public NativeObject {
+public:
+    TensorRef() = default;
+
+    TensorRef(int32_t id, const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
+        : m_id(id)
+        , m_tensor(tensor)
+    {
+        set_slangpy_signature(
+            fmt::format(
+                "[torch,D{},C{},B{},L{}]",
+                tensor.ndim(),
+                tensor.dtype().code,
+                tensor.dtype().bits,
+                tensor.dtype().lanes
+            )
+        );
+    }
+
+    std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor() const { return m_tensor; }
+
+    void set_tensor(const std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor) { m_tensor = tensor; }
+
+    ref<Buffer> interop_buffer() const { return m_interop_buffer; }
+
+    void set_interop_buffer(const ref<Buffer>& interop_buffer) { m_interop_buffer = interop_buffer; }
+
+    int32_t id() const { return m_id; }
+
+    void set_id(int32_t id) { m_id = id; }
+
+    ref<TensorRef> grad_in() const { return m_grad_in; }
+    void set_grad_in(const ref<TensorRef>& grad_in) { m_grad_in = grad_in; }
+
+    ref<TensorRef> grad_out() const { return m_grad_out; }
+    void set_grad_out(const ref<TensorRef>& grad_out) { m_grad_out = grad_out; }
+
+    std::pair<AccessType, AccessType> last_access() const { return m_last_access; }
+    void set_last_access(const std::pair<AccessType, AccessType>& last_access) { m_last_access = last_access; }
+
+private:
+    int32_t m_id{-1};
+    std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> m_tensor;
+    ref<Buffer> m_interop_buffer;
+    ref<TensorRef> m_grad_in;
+    ref<TensorRef> m_grad_out;
+    std::pair<AccessType, AccessType> m_last_access{AccessType::none, AccessType::none};
+};
+
+nb::list unpack_args(nb::args args, std::optional<nb::list> refs = std::optional<nb::list>());
+nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs = std::optional<nb::list>());
+nb::object unpack_arg(nanobind::object arg, std::optional<nb::list> refs = std::optional<nb::list>());
 void pack_arg(nb::object arg, nb::object unpacked_arg);
 
 void hash_signature(

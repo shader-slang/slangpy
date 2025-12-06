@@ -1,16 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import sys
-import slangpy as spy
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_print(device_type: spy.DeviceType):
+    # Metal test disabled until printing of float16 values in Metal has been fixed
+    # in Slang.
+    if device_type == spy.DeviceType.metal:
+        pytest.skip(
+            "Skipped due to issue in Slang: https://github.com/shader-slang/slangpy/issues/497"
+        )
+
     device = spy.Device(type=device_type, enable_print=True, label=f"print-{device_type.name}")
     helpers.dispatch_compute(
         device=device,
@@ -32,6 +37,7 @@ This is Print from Another Module: 7
 0123456
 01234567
 bool: false=false, true=true
+printable_string: foo=foo
 int16: min=-32768, max=32767, -12345=-12345, 12345=12345
 int32: min=-2147483648, max=2147483647, -12345=-12345, 12345=12345
 int64: min=-9223372036854775808, max=9223372036854775807, -12345=-12345, 12345=12345
@@ -66,6 +72,7 @@ This is Print from Another Module: 7
 0123456
 01234567
 bool: false=false, true=true
+printable_string: foo=foo
 int8: min=-128, max=127, -123=-123, 123=123
 int16: min=-32768, max=32767, -12345=-12345, 12345=12345
 int32: min=-2147483648, max=2147483647, -12345=-12345, 12345=12345
@@ -101,6 +108,7 @@ This is Print from Another Module: 7
 0123456
 01234567
 bool: false=false, true=true
+printable_string: foo=foo
 int8: min=-128, max=127, -123=-123, 123=123
 int16: min=-32768, max=32767, -12345=-12345, 12345=12345
 int32: min=-2147483648, max=2147483647, -12345=-12345, 12345=12345
@@ -109,7 +117,7 @@ uint8: min=0, max=255, 0=0, 123=123
 uint16: min=0, max=65535, 12345=12345, 23456=23456
 uint32: min=0, max=4294967295, 12345=12345, 23456=23456
 uint64: min=0, max=18446744073709551615, 12345=12345, 23456=23456
-float16: min=0, max=0, -123.45=0, 123.45=0
+float16: min=-65504, max=65504, -123.45=-123.44, 123.45=123.44
 float32: min=-3.4028235e+38, max=3.4028235e+38, -123.45=-123.45, 123.45=123.45
 int16_tX: {-4000, -3000} {-2000, -1000, 0} {1000, 2000, 3000, 4000}
 int32_tX: {-400000000, -300000000} {-200000000, -100000000, 0} {100000000, 200000000, 300000000, 400000000}
@@ -117,7 +125,7 @@ int64_tX: {-40000000000000, -30000000000000} {-20000000000000, -10000000000000, 
 uint16_tX: {1000, 2000} {3000, 4000, 5000} {6000, 7000, 8000, 9000}
 uint32_tX: {100000000, 200000000} {300000000, 400000000, 500000000} {600000000, 700000000, 800000000, 900000000}
 uint64_tX: {10000000000000, 20000000000000} {30000000000000, 40000000000000, 50000000000000} {60000000000000, 70000000000000, 80000000000000, 90000000000000}
-float16_tX: {0, 0} {0, 0, 0} {0, 0, 0, 0}
+float16_tX: {-400, -300} {-200, -100, 0} {100, 200, 300, 400}
 float32_tX: {-4000000, -3000000} {-2000000, -1000000, 0} {1000000, 2000000, 3000000, 4000000}
 float3x3: {{-4.00, -3.00, -1.00}, {+0.00, +1.00, +2.00}, {+3.00, +4.00, +5.00}}
 """,
@@ -132,6 +140,7 @@ This is Print from Another Module: 7
 0123456
 01234567
 bool: false=false, true=true
+printable_string: foo=foo
 int8: min=-128, max=127, -123=-123, 123=123
 int16: min=-32768, max=32767, -12345=-12345, 12345=12345
 int32: min=-2147483648, max=2147483647, -12345=-12345, 12345=12345
@@ -165,4 +174,4 @@ float3x3: {{-4.00, -3.00, -1.00}, {+0.00, +1.00, +2.00}, {+3.00, +4.00, +5.00}}
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-vvvs"])
+    pytest.main([__file__, "-v", "-s"])

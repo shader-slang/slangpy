@@ -4,7 +4,7 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 
 #include "sgl/core/macros.h"
 #include "sgl/core/object.h"
@@ -23,10 +23,12 @@ struct QueryPoolDesc {
     uint32_t count;
 };
 
-class SGL_API QueryPool : public DeviceResource {
+class SGL_API QueryPool : public DeviceChild {
     SGL_OBJECT(QueryPool)
 public:
     QueryPool(ref<Device> device, QueryPoolDesc desc);
+
+    virtual void _release_rhi_resources() override { m_rhi_query_pool.setNull(); }
 
     const QueryPoolDesc& desc() const { return m_desc; }
 

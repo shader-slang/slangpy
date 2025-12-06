@@ -420,12 +420,14 @@ struct Scene {
         uint32_t vertex_count = 0;
         uint32_t index_count = 0;
         for (const Mesh& mesh : stage.meshes) {
-            mesh_descs.push_back(MeshDesc{
-                .vertex_count = mesh.vertex_count(),
-                .index_count = mesh.index_count(),
-                .vertex_offset = vertex_count,
-                .index_offset = index_count,
-            });
+            mesh_descs.push_back(
+                MeshDesc{
+                    .vertex_count = mesh.vertex_count(),
+                    .index_count = mesh.index_count(),
+                    .vertex_offset = vertex_count,
+                    .index_offset = index_count,
+                }
+            );
             vertex_count += mesh.vertex_count();
             index_count += mesh.index_count();
         }
@@ -763,9 +765,6 @@ struct App {
             .enable_debug_layers = true,
             .compiler_options = {
                 .include_paths = {EXAMPLE_DIR},
-                .defines = {
-                    {"USE_RAYTRACING_PIPELINE", USE_RAYTRACING_PIPELINE ? "1" : "0"},
-                },
             },
         });
         surface = device->create_surface(window);
@@ -775,9 +774,24 @@ struct App {
             .vsync = false,
         });
 
-        window->set_on_keyboard_event([this](const KeyboardEvent& event) { on_keyboard_event(event); });
-        window->set_on_mouse_event([this](const MouseEvent& event) { on_mouse_event(event); });
-        window->set_on_resize([this](uint32_t width, uint32_t height) { on_resize(width, height); });
+        window->set_on_keyboard_event(
+            [this](const KeyboardEvent& event)
+            {
+                on_keyboard_event(event);
+            }
+        );
+        window->set_on_mouse_event(
+            [this](const MouseEvent& event)
+            {
+                on_mouse_event(event);
+            }
+        );
+        window->set_on_resize(
+            [this](uint32_t width, uint32_t height)
+            {
+                on_resize(width, height);
+            }
+        );
 
         stage = Stage::demo();
         scene = std::make_unique<Scene>(device, *stage);

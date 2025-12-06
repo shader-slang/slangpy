@@ -1,15 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import sys
-import slangpy as spy
-from pathlib import Path
 from deepdiff.diff import DeepDiff
+from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
-
-DEVICES = helpers.DEFAULT_DEVICE_TYPES
+import slangpy as spy
+from slangpy.testing import helpers
 
 
 def print_ast(declref: spy.DeclReflection, device: spy.Device):
@@ -53,7 +49,7 @@ def ast_to_dict(declref: spy.DeclReflection, device: spy.Device):
     return res
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_single_function(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -101,7 +97,7 @@ void foo() {
     assert func.name == "foo"
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -180,7 +176,7 @@ struct Foo {
     assert field.name == "b"
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct_with_int_array(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -203,7 +199,7 @@ struct Foo {
     assert field_variable.type.element_type.name == "int"
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_function_with_int_params(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -251,7 +247,7 @@ int foo(int a, float b) {
     assert func_reflection.parameters[1].name == "b"
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_generic_function_with_generic_params(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -268,9 +264,10 @@ void callfoo() {
     )
 
     # TODO: Setup when generic reflection works.
+    pass
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_generic_struct_with_generic_fields(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -291,7 +288,7 @@ struct Foo1 {
     # TODO: Setup when generic reflection works.
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_inout_modifier_params(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -314,7 +311,7 @@ int foo(in int a, out int b, inout int c) {
     assert params[2].as_variable().has_modifier(spy.ModifierID.inout)
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_differentiable(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
     module = device.load_module_from_source(
@@ -330,7 +327,7 @@ void foo(in int a, out int b) {
     assert func_node.as_function().has_modifier(spy.ModifierID.differentiable)
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_globals(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -373,7 +370,7 @@ void myfunc() {
     assert func is not None
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_overloads(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -406,7 +403,7 @@ void notmyfunc() {}
     assert functions[2].name == "myfunc"
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct_methods_and_overloads(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -443,18 +440,21 @@ struct Foo {
     assert functions[2].name == "myfunc"
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_ast_cursor_hashgrid(device_type: spy.DeviceType):
 
     device = helpers.get_device(type=device_type)
 
-    session = helpers.create_session(
-        device,
-        defines={
-            "NUM_LATENT_DIMS": "8",
-            "NUM_HASHGRID_LEVELS": "4",
-            "NUM_LATENT_DIMS_PER_LEVEL": "2",
-        },
+    session = device.create_slang_session(
+        compiler_options={
+            "include_paths": [Path(__file__).parent],
+            "defines": {
+                "NUM_LATENT_DIMS": "8",
+                "NUM_HASHGRID_LEVELS": "4",
+                "NUM_LATENT_DIMS_PER_LEVEL": "2",
+            },
+            "debug_info": spy.SlangDebugInfoLevel.standard,
+        }
     )
 
     module = session.load_module("test_declrefs_falcorhashgrid.slang")
@@ -790,7 +790,7 @@ HASHGRID_NO_GENERICS_DUMP = {
 }
 
 
-@pytest.mark.parametrize("device_type", DEVICES)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.skip("Breaks with current slang release")
 def test_ast_cursor_hashgrid_nogenerics(device_type: spy.DeviceType):
 
@@ -805,4 +805,4 @@ def test_ast_cursor_hashgrid_nogenerics(device_type: spy.DeviceType):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

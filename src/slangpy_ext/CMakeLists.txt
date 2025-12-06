@@ -18,9 +18,8 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     core/window.cpp
     device/buffer_cursor.cpp
     device/command.cpp
-    device/coopvec.cpp
     device/cursor_utils.h
-    device/device_resource.cpp
+    device/device_child.cpp
     device/device.cpp
     device/fence.cpp
     device/formats.cpp

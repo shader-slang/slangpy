@@ -41,7 +41,7 @@ SubresourceLayout layout_from_rhilayout(const rhi::SubresourceLayout& rhi_layout
 // ----------------------------------------------------------------------------
 
 Resource::Resource(ref<Device> device)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
 {
 }
 
@@ -152,10 +152,14 @@ void Buffer::unmap() const
 
 void* Buffer::cuda_memory() const
 {
-    SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
-    if (!m_cuda_memory)
-        m_cuda_memory = make_ref<cuda::ExternalMemory>(this);
-    return m_cuda_memory->mapped_data();
+    if (m_device->type() == DeviceType::cuda) {
+        return reinterpret_cast<void*>(device_address());
+    } else {
+        SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
+        if (!m_cuda_memory)
+            m_cuda_memory = make_ref<cuda::ExternalMemory>(this);
+        return m_cuda_memory->mapped_data();
+    }
 }
 
 void Buffer::set_data(const void* data, size_t size, DeviceOffset offset)
@@ -225,7 +229,29 @@ NativeHandle Buffer::shared_handle() const
     return NativeHandle(rhi_handle);
 }
 
-DeviceResource::MemoryUsage Buffer::memory_usage() const
+DescriptorHandle Buffer::descriptor_handle_ro() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    rhi::Format rhi_format = static_cast<rhi::Format>(m_desc.format);
+    rhi::BufferRange rhi_range = {0, m_desc.size};
+    SLANG_RHI_CALL(
+        m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, rhi_format, rhi_range, &rhi_handle)
+    );
+    return DescriptorHandle(rhi_handle);
+}
+
+DescriptorHandle Buffer::descriptor_handle_rw() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    rhi::Format rhi_format = static_cast<rhi::Format>(m_desc.format);
+    rhi::BufferRange rhi_range = {0, m_desc.size};
+    SLANG_RHI_CALL(
+        m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, rhi_format, rhi_range, &rhi_handle)
+    );
+    return DescriptorHandle(rhi_handle);
+}
+
+DeviceChild::MemoryUsage Buffer::memory_usage() const
 {
     return {.device = m_desc.size};
 }
@@ -259,7 +285,7 @@ std::string Buffer::to_string() const
 // ----------------------------------------------------------------------------
 
 BufferView::BufferView(ref<Device> device, ref<Buffer> buffer, BufferViewDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_buffer(std::move(buffer))
     , m_desc(std::move(desc))
 {
@@ -407,17 +433,17 @@ Texture::Texture(ref<Device> device, TextureDesc desc)
             uint32_t mip = subresource % m_desc.mip_count;
 
             SubresourceData subresource_data = m_desc.data[subresource];
-            if (subresource_data.row_pitch == 0 && subresource_data.slice_pitch == 0 && subresource_data.size == 0) {
+            if (subresource_data.row_pitch == 0 && subresource_data.slice_pitch == 0) {
                 SubresourceLayout subresource_layout = get_subresource_layout(0, 1);
                 subresource_data.row_pitch = subresource_layout.row_pitch;
                 subresource_data.slice_pitch = subresource_layout.slice_pitch;
-                subresource_data.size = subresource_layout.size_in_bytes;
+                SGL_CHECK_EQ(subresource_data.size, subresource_layout.size_in_bytes);
             }
             SGL_CHECK(subresource_data.row_pitch > 0, "Invalid row pitch.");
             SGL_CHECK(subresource_data.slice_pitch > 0, "Invalid slice pitch.");
             SGL_CHECK(subresource_data.size > 0, "Invalid size.");
 
-            set_subresource_data(layer, mip, m_desc.data[subresource]);
+            set_subresource_data(layer, mip, subresource_data);
         }
         if (m_desc.mip_count > 1) {
             // TODO generate mip maps
@@ -470,6 +496,20 @@ ref<TextureView> Texture::create_view(TextureViewDesc desc)
     return m_device->create_texture_view(this, std::move(desc));
 }
 
+DescriptorHandle Texture::descriptor_handle_ro() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture->getDefaultView()->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
+DescriptorHandle Texture::descriptor_handle_rw() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture->getDefaultView()->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
 NativeHandle Texture::shared_handle() const
 {
     rhi::NativeHandle rhi_handle = {};
@@ -477,7 +517,7 @@ NativeHandle Texture::shared_handle() const
     return NativeHandle(rhi_handle);
 }
 
-DeviceResource::MemoryUsage Texture::memory_usage() const
+DeviceChild::MemoryUsage Texture::memory_usage() const
 {
     rhi::Size size = 0, alignment = 0;
     SLANG_RHI_CALL(m_device->rhi_device()->getTextureAllocationInfo(m_rhi_texture->getDesc(), &size, &alignment));
@@ -634,7 +674,7 @@ std::string Texture::to_string() const
 // ----------------------------------------------------------------------------
 
 TextureView::TextureView(ref<Device> device, ref<Texture> texture, TextureViewDesc desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_texture(std::move(texture))
     , m_desc(std::move(desc))
 {

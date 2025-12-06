@@ -3,7 +3,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-from slangpy.core.native import CallMode, NativeMarshall
+from slangpy.core.native import CallMode, CallDataMode, NativeMarshall
 
 from slangpy.bindings.codegen import CodeGenBlock
 
@@ -24,6 +24,7 @@ class BindContext:
         call_mode: CallMode,
         device_module: "SlangModule",
         options: dict[str, Any],
+        call_data_mode: CallDataMode,
     ):
         super().__init__()
 
@@ -35,6 +36,9 @@ class BindContext:
 
         #: Call mode (prim/bwds/fwds).
         self.call_mode = call_mode
+
+        #: Call data mode (global_data/entry_point).
+        self.call_data_mode = call_data_mode
 
         #: SGL module.
         self.device_module = device_module
@@ -79,6 +83,9 @@ class Marshall(NativeMarshall):
         #: The slang type the python value maps to. Should be set inside __init__
         self.slang_type: "SlangType"
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}[dtype={self.slang_type.full_name}]"
+
     @property
     def has_derivative(self) -> bool:
         """
@@ -119,6 +126,14 @@ class Marshall(NativeMarshall):
         """
         res = super().resolve_type(context, bound_type)
         return res  # type: ignore
+
+    def resolve_types(self, context: BindContext, bound_type: "SlangType") -> list["SlangType"]:
+        """
+        Return a list of possible slang types for this variable when passed to a parameter
+        of the given type. Default behaviour always returns a list with a single entry,
+        retrieved by calling the legacy resolve_type() method.
+        """
+        return [self.resolve_type(context, bound_type)]
 
     def resolve_dimensionality(
         self,

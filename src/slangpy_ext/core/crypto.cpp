@@ -12,7 +12,10 @@ SGL_PY_EXPORT(core_crypto)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](SHA1* self, nb::bytes data) { new (self) SHA1(data.c_str(), data.size()); },
+            [](SHA1* self, nb::bytes data)
+            {
+                new (self) SHA1(data.c_str(), data.size());
+            },
             "data"_a,
             D(SHA1, SHA1, 2)
         )

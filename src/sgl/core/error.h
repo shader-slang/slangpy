@@ -103,12 +103,14 @@ namespace detail {
 /// Helper for throwing an exception if a pointer is null.
 #define SGL_CHECK_NOT_NULL(arg) SGL_CHECK(arg != nullptr, "\"{}\" must not be null", #arg)
 
+#define SGL_CHECK_EQ(arg, value) SGL_CHECK(arg == value, "\"{}\" must be equal to {}", #arg, value)
+#define SGL_CHECK_NE(arg, value) SGL_CHECK(arg != value, "\"{}\" must not be equal to {}", #arg, value)
 #define SGL_CHECK_LT(arg, value) SGL_CHECK(arg < value, "\"{}\" must be less than {}", #arg, value)
 #define SGL_CHECK_LE(arg, value) SGL_CHECK(arg <= value, "\"{}\" must be less than or equal {}", #arg, value)
 #define SGL_CHECK_GT(arg, value) SGL_CHECK(arg > value, "\"{}\" must be greater than {}", #arg, value)
 #define SGL_CHECK_GE(arg, value) SGL_CHECK(arg >= value, "\"{}\" must be greater than or equal {}", #arg, value)
-#define SGL_CHECK_BOUNDS(arg, min, max)                                                                                \
-    SGL_CHECK(arg >= min && arg < max, "\"{}\" must be in range [{}, {}]", #arg, min, max)
+#define SGL_CHECK_RANGE(arg, min, max)                                                                                 \
+    SGL_CHECK(arg >= min && arg <= max, "\"{}\" must be in range [{}, {}]", #arg, min, max)
 
 /// Helper for marking unimplemented functions.
 #define SGL_UNIMPLEMENTED() SGL_THROW("Unimplemented")

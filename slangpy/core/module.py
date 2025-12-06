@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union, Sequence
 
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
-from slangpy import ComputeKernel, SlangModule, Device, Logger
+from slangpy import Pipeline, ShaderTable, SlangModule, Device, Logger
 from slangpy.core.native import NativeCallDataCache
 from slangpy.reflection import SlangProgramLayout
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
@@ -50,7 +50,7 @@ class Module:
         self,
         device_module: SlangModule,
         options: dict[str, Any] = {},
-        link: list[Union["Module", SlangModule]] = [],
+        link: Sequence[Union["Module", SlangModule]] = [],
     ):
         super().__init__()
         _register_hot_reload_hook(device_module.session.device)
@@ -61,17 +61,20 @@ class Module:
         #: The slangpy device module.
         self.slangpy_device_module = device_module.session.load_module("slangpy")
 
+        # Extract linked modules, dict.fromkeys is used to remove duplicates while preserving order.
+        self.link = list(dict.fromkeys([x.module if isinstance(x, Module) else x for x in link]))
+
         #: Reflection / layout information for the module.
         # Link the user- and device module together so we can reflect combined types
         # This should be solved by the combined object API in the future
-        module_list = [self.slangpy_device_module, self.device_module]
+        module_list = [self.slangpy_device_module, self.device_module] + self.link
         combined_program = device_module.session.link_program(module_list, [])
         self.layout = SlangProgramLayout(combined_program.layout)
 
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, "DispatchData"] = {}
-        self.kernel_cache: dict[str, ComputeKernel] = {}
-        self.link = [x.module if isinstance(x, Module) else x for x in link]
+        self.pipeline_cache: dict[str, Pipeline] = {}
+        self.shader_table_cache: dict[str, ShaderTable] = {}
         self.logger: Optional[Logger] = None
 
         self._attr_cache: dict[str, Union[Function, Struct]] = {}
@@ -84,7 +87,7 @@ class Module:
         name: str,
         source: str,
         options: dict[str, Any] = {},
-        link: list[Union["Module", SlangModule]] = [],
+        link: Sequence[Union["Module", SlangModule]] = [],
     ):
         """
         Load a module from a string.
@@ -97,7 +100,7 @@ class Module:
         device: Device,
         path: str,
         options: dict[str, Any] = {},
-        link: list[Union["Module", SlangModule]] = [],
+        link: Sequence[Union["Module", SlangModule]] = [],
     ):
         """
         Load a module from a file.
@@ -144,14 +147,6 @@ class Module:
         The SGL device this module is part of.
         """
         return self.session.device
-
-    def torch(self):
-        """
-        Returns a pytorch wrapper around this module
-        """
-        from slangpy.torchintegration.torchmodule import TorchModule
-
-        return TorchModule(self)
 
     def find_struct(self, name: str):
         """
@@ -209,14 +204,15 @@ class Module:
         Called by device when the module is hot reloaded.
         """
         # Relink combined program
-        module_list = [self.slangpy_device_module, self.device_module]
+        module_list = [self.slangpy_device_module, self.device_module] + self.link
         combined_program = self.device_module.session.link_program(module_list, [])
         self.layout.on_hot_reload(combined_program.layout)
 
         # Clear all caches
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache = {}
-        self.kernel_cache = {}
+        self.pipeline_cache = {}
+        self.shader_table_cache = {}
         self._attr_cache = {}
 
     def __getattr__(self, name: str):
@@ -252,3 +248,9 @@ class Module:
         with the specified item name (by calling __getattr__).
         """
         return self.__getattr__(name)
+
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the Module for debugging.
+        """
+        return f"Module(name='{self.device_module.name}', linked_modules={len(self.link)})"

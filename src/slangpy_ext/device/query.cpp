@@ -19,13 +19,16 @@ SGL_PY_EXPORT(device_query)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](QueryPoolDesc* self, nb::dict dict) { new (self) QueryPoolDesc(dict_to_QueryPoolDesc(dict)); }
+            [](QueryPoolDesc* self, nb::dict dict)
+            {
+                new (self) QueryPoolDesc(dict_to_QueryPoolDesc(dict));
+            }
         )
         .def_rw("type", &QueryPoolDesc::type, D(QueryPoolDesc, type))
         .def_rw("count", &QueryPoolDesc::count, D(QueryPoolDesc, count));
     nb::implicitly_convertible<nb::dict, QueryPoolDesc>();
 
-    nb::class_<QueryPool, DeviceResource>(m, "QueryPool", D(QueryPool))
+    nb::class_<QueryPool, DeviceChild>(m, "QueryPool", D(QueryPool))
         .def_prop_ro("desc", &QueryPool::desc, D(QueryPool, desc))
         .def("reset", &QueryPool::reset, D(QueryPool, reset))
         .def("get_result", &QueryPool::get_result, "index"_a, D(QueryPool, get_result))

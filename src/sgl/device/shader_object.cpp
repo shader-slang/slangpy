@@ -84,7 +84,8 @@ ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
 
 void ShaderObject::set_object(const ShaderOffset& offset, const ref<ShaderObject>& object)
 {
-    SLANG_RHI_CALL(m_shader_object->setObject(rhi_shader_offset(offset), object ? object->rhi_shader_object() : nullptr)
+    SLANG_RHI_CALL(
+        m_shader_object->setObject(rhi_shader_offset(offset), object ? object->rhi_shader_object() : nullptr)
     );
 }
 
@@ -123,6 +124,10 @@ void ShaderObject::set_texture_view(const ShaderOffset& offset, const ref<Textur
 
 void ShaderObject::set_sampler(const ShaderOffset& offset, const ref<Sampler>& sampler)
 {
+    // CUDA does not support samplers and slang-rhi returns an error when trying to set a sampler.
+    // To improve compatibility with binding code for other backends, we skip setting samplers on CUDA.
+    if (m_device->type() == DeviceType::cuda)
+        return;
     SLANG_RHI_CALL(
         m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(sampler ? sampler->rhi_sampler() : nullptr))
     );

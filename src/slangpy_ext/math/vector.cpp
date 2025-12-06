@@ -24,7 +24,10 @@ void bind_vector_type(nb::module_& m, const char* name)
 
     // Constructors
 
-    auto init_empty = [](T* self) { new (self) T(value_type(0)); };
+    auto init_empty = [](T* self)
+    {
+        new (self) T(value_type(0));
+    };
     vec.def("__init__", init_empty);
 
     vec.def(nb::init<value_type>(), "scalar"_a);
@@ -54,7 +57,21 @@ void bind_vector_type(nb::module_& m, const char* name)
     if constexpr (dimension >= 4)
         vec.def_rw("w", &T::w);
 
-    vec.def("__len__", [](const T&) { return dimension; });
+    // Including all swizzles is overkill, but these 2 are very useful for conversions.
+    if constexpr (dimension == 3) {
+        vec.def_prop_ro("xy", &T::xy);
+    }
+    if constexpr (dimension == 4) {
+        vec.def_prop_ro("xyz", &T::xyz);
+    }
+
+    vec.def(
+        "__len__",
+        [](const T&)
+        {
+            return dimension;
+        }
+    );
     vec.def(
         "__getitem__",
         [](const T& self, Py_ssize_t i)
@@ -93,7 +110,10 @@ void bind_vector_type(nb::module_& m, const char* name)
 
     // Conversion
 
-    auto to_string_ = [](const T& self) { return to_string(self); };
+    auto to_string_ = [](const T& self)
+    {
+        return to_string(self);
+    };
     vec.def("__repr__", to_string_);
     vec.def("__str__", to_string_);
 
@@ -188,7 +208,13 @@ void bind_vector_type(nb::module_& m, const char* name)
         // In order to compare lists of vectors in Python, we need to
         // implement the `bool` operator, which returns `True` if all
         // components are `True`.
-        vec.def("__bool__", [](const T& self) { return all(self); });
+        vec.def(
+            "__bool__",
+            [](const T& self)
+            {
+                return all(self);
+            }
+        );
     }
 
     vec.def(nb::self == nb::self);
@@ -215,9 +241,24 @@ void bind_vector_type(nb::module_& m, const char* name)
 
     // Intrinsics
 
-#define WRAP_INTRINSIC_X(name) [](const T& x) { return name(x); }, "x"_a
-#define WRAP_INTRINSIC_XY(name) [](const T& x, const T& y) { return name(x, y); }, "x"_a, "y"_a
-#define WRAP_INTRINSIC_YX(name) [](const T& y, const T& x) { return name(y, x); }, "y"_a, "x"_a
+#define WRAP_INTRINSIC_X(name)                                                                                         \
+    [](const T& x)                                                                                                     \
+    {                                                                                                                  \
+        return name(x);                                                                                                \
+    },                                                                                                                 \
+        "x"_a
+#define WRAP_INTRINSIC_XY(name)                                                                                        \
+    [](const T& x, const T& y)                                                                                         \
+    {                                                                                                                  \
+        return name(x, y);                                                                                             \
+    },                                                                                                                 \
+        "x"_a, "y"_a
+#define WRAP_INTRINSIC_YX(name)                                                                                        \
+    [](const T& y, const T& x)                                                                                         \
+    {                                                                                                                  \
+        return name(y, x);                                                                                             \
+    },                                                                                                                 \
+        "y"_a, "x"_a
 
     if constexpr (BindIntrinsics) {
 
@@ -229,6 +270,19 @@ void bind_vector_type(nb::module_& m, const char* name)
             m.def("none", WRAP_INTRINSIC_X(none));
         }
 
+        // Selection
+
+        m.def(
+            "select",
+            [](const vector<bool, dimension>& condition, const T& true_value, const T& false_value)
+            {
+                return select(condition, true_value, false_value);
+            },
+            "condition"_a,
+            "true_value"_a,
+            "false_value"_a
+        );
+
         // Basic functions
 
         if constexpr (arithmetic<value_type>) {
@@ -236,7 +290,10 @@ void bind_vector_type(nb::module_& m, const char* name)
             m.def("max", WRAP_INTRINSIC_XY(max));
             m.def(
                 "clamp",
-                [](const T& x, const T& min_, const T& max_) { return clamp(x, min_, max_); },
+                [](const T& x, const T& min_, const T& max_)
+                {
+                    return clamp(x, min_, max_);
+                },
                 "x"_a,
                 "min"_a,
                 "max"_a
@@ -302,14 +359,20 @@ void bind_vector_type(nb::module_& m, const char* name)
             m.def("frac", WRAP_INTRINSIC_X(frac));
             m.def(
                 "lerp",
-                [](const T& x, const T& y, const T& s) { return lerp(x, y, s); },
+                [](const T& x, const T& y, const T& s)
+                {
+                    return lerp(x, y, s);
+                },
                 "x"_a,
                 "y"_a,
                 "s"_a
             );
             m.def(
                 "lerp",
-                [](const T& x, const T& y, const value_type& s) { return lerp(x, y, s); },
+                [](const T& x, const T& y, const value_type& s)
+                {
+                    return lerp(x, y, s);
+                },
                 "x"_a,
                 "y"_a,
                 "s"_a
@@ -318,7 +381,10 @@ void bind_vector_type(nb::module_& m, const char* name)
             m.def("saturate", WRAP_INTRINSIC_X(saturate));
             m.def(
                 "smoothstep",
-                [](const T& min_, const T& max_, const T& x) { return smoothstep(min_, max_, x); },
+                [](const T& min_, const T& max_, const T& x)
+                {
+                    return smoothstep(min_, max_, x);
+                },
                 "min"_a,
                 "max"_a,
                 "x"_a
@@ -337,7 +403,10 @@ void bind_vector_type(nb::module_& m, const char* name)
             m.def("normalize", WRAP_INTRINSIC_X(normalize));
             m.def(
                 "reflect",
-                [](const T& i, const T& n) { return reflect(i, n); },
+                [](const T& i, const T& n)
+                {
+                    return reflect(i, n);
+                },
                 "i"_a,
                 "n"_a
             );
@@ -372,7 +441,12 @@ inline void bind_vector(nb::module_& m)
     bind_vector_type<bool3>(m, "bool3");
     bind_vector_type<bool4>(m, "bool4");
 
-#define WRAP_INTRINSIC_X(name, type) [](const type& x) { return name(x); }, "x"_a
+#define WRAP_INTRINSIC_X(name, type)                                                                                   \
+    [](const type& x)                                                                                                  \
+    {                                                                                                                  \
+        return name(x);                                                                                                \
+    },                                                                                                                 \
+        "x"_a
 
     m.def("f16tof32", WRAP_INTRINSIC_X(f16tof32, uint2));
     m.def("f16tof32", WRAP_INTRINSIC_X(f16tof32, uint3));

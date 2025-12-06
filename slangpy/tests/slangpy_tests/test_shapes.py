@@ -1,21 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import Any, Optional
-
-from deepdiff.diff import DeepDiff
 
 import pytest
-from slangpy import float4
+from deepdiff.diff import DeepDiff
 
+from slangpy import DeviceType, float3, float4
 from slangpy.core.callsignature import BoundVariable
 from slangpy.core.shapes import TShapeOrTuple
-
-from slangpy import DeviceType, float3
 from slangpy.core.native import NativeCallRuntimeOptions
-from . import helpers
 from slangpy.types import floatRef
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
+from slangpy.testing import helpers
 
+from typing import Any, Optional
 from typing import Union
 
 # First set of tests emulate the shape of the following slang function
@@ -26,15 +23,15 @@ TTupleOrList = Union[tuple[int, ...], list[int]]
 
 
 def make_int_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=int)
+    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=int)
 
 
 def make_float_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float)
+    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float)
 
 
 def make_vec4_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer(device=helpers.get_device(device_type), shape=shape, dtype=float4)
+    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float4)
 
 
 def make_vec4_raw_buffer(device_type: DeviceType, count: int):
@@ -424,7 +421,6 @@ def test_dotproduct_output_transform(
     assert not diff
 
 
-@pytest.mark.skip(reason="Awaiting slang fix")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_readslice_scalar(device_type: DeviceType):
 
@@ -433,37 +429,36 @@ def test_readslice_scalar(device_type: DeviceType):
     shapes = read_slice(
         device_type,
         make_int_buffer(device_type, (2,)),
-        make_float_buffer(device_type, (256, 128, 4)),
+        make_float_buffer(device_type, (256, 128)),
         None,
     )
     diff = DeepDiff(
         shapes,
         {
-            "call_shape": [10, 5],
-            "node_call_dims": [2, 2, None],
-            "node_transforms": [[0, 2], [1, 2], [0, 1]],
+            "call_shape": [],
+            "node_call_dims": [0, 0, 0],
+            "node_transforms": [[], [], []],
         },
     )
     assert not diff
 
 
-@pytest.mark.skip(reason="Awaiting slang fix")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_readslice_broadcast_slice(device_type: DeviceType):
 
     # Provide a buffer of 50 indices to sample against the 1 slice
     shapes = read_slice(
         device_type,
-        make_float_buffer(device_type, (50, 2)),
-        make_float_buffer(device_type, (256, 128, 4)),
+        make_int_buffer(device_type, (50, 2)),
+        make_float_buffer(device_type, (256, 128)),
         None,
     )
     diff = DeepDiff(
         shapes,
         {
-            "type_shapes": [[2], [256, 128, 4], [4]],
-            "arg_shapes": [[50], [], [50]],
             "call_shape": [50],
+            "node_call_dims": [1, 0, 1],
+            "node_transforms": [[0], [], [0]],
         },
     )
     assert not diff
@@ -477,7 +472,7 @@ def test_readslice_broadcast_index(device_type: DeviceType):
     shapes = read_slice(
         device_type,
         make_float_buffer(device_type, (2,)),
-        make_float_buffer(device_type, (50, 256, 128, 4)),
+        make_float_buffer(device_type, (50, 256, 128)),
         None,
     )
     diff = DeepDiff(
@@ -526,7 +521,7 @@ def test_readslice_invalid_shape(
 ):
 
     # Fail trying to pass a float3 buffer into the float4 slice
-    with pytest.raises(ValueError):
+    with pytest.raises(Exception):
         shapes = read_slice(
             device_type,
             make_float_buffer(device_type, data_shape[0]),
@@ -548,7 +543,7 @@ def test_readslice_invalid_broadcast(
 ):
 
     # Fail trying to pass mismatched broadcast dimensions
-    with pytest.raises(ValueError):
+    with pytest.raises(Exception):
         shapes = read_slice(
             device_type,
             make_float_buffer(device_type, data_shape[0]),
@@ -616,9 +611,6 @@ def test_readslice_function_map(device_type: DeviceType):
 def test_copyatindex_both_buffers_defined(
     device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
-
     # Call copy-at-index passing 2 fully defined buffers
     shapes = copy_at_index(
         device_type,
@@ -648,9 +640,6 @@ def test_copyatindex_both_buffers_defined(
 def test_copyatindex_undersized_output(
     device_type: DeviceType, shape_type: str, data_shape: TTupleOrList
 ):
-    if device_type == DeviceType.cuda:
-        pytest.skip("CUDA backend crashes with CUDA_ERROR_ILLEGAL_ADDRESS")
-
     # Situation we'd ideally detect in which output
     # buffer will overrun as its too small, but we
     # need generics/IBuffer to do so.

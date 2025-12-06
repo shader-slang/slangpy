@@ -63,7 +63,8 @@ SGL_PY_EXPORT(device_shader)
                 new (self) TypeConformance{
                     nb::cast<std::string>(tuple[0]),
                     nb::cast<std::string>(tuple[1]),
-                    tuple.size() > 2 ? nb::cast<int32_t>(tuple[2]) : -1};
+                    tuple.size() > 2 ? nb::cast<int32_t>(tuple[2]) : -1
+                };
             }
         )
         .def_rw("interface_name", &TypeConformance::interface_name, D(TypeConformance, interface_name))
@@ -84,7 +85,9 @@ SGL_PY_EXPORT(device_shader)
         .def(
             "__init__",
             [](SlangCompilerOptions* self, nb::dict dict)
-            { new (self) SlangCompilerOptions(dict_to_SlangCompilerOptions(dict)); }
+            {
+                new (self) SlangCompilerOptions(dict_to_SlangCompilerOptions(dict));
+            }
         )
         .def_rw("include_paths", &SlangCompilerOptions::include_paths, D(SlangCompilerOptions, include_paths))
         .def_rw("defines", &SlangCompilerOptions::defines, D(SlangCompilerOptions, defines))
@@ -136,7 +139,10 @@ SGL_PY_EXPORT(device_shader)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](SlangLinkOptions* self, nb::dict dict) { new (self) SlangLinkOptions(dict_to_SlangLinkOptions(dict)); }
+            [](SlangLinkOptions* self, nb::dict dict)
+            {
+                new (self) SlangLinkOptions(dict_to_SlangLinkOptions(dict));
+            }
         )
         .def_rw(
             "floating_point_mode",
@@ -165,7 +171,10 @@ SGL_PY_EXPORT(device_shader)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](SlangSessionDesc* self, nb::dict dict) { new (self) SlangSessionDesc(dict_to_SlangSessionDesc(dict)); }
+            [](SlangSessionDesc* self, nb::dict dict)
+            {
+                new (self) SlangSessionDesc(dict_to_SlangSessionDesc(dict));
+            }
         )
         .def_rw("compiler_options", &SlangSessionDesc::compiler_options, D(SlangSessionDesc, compiler_options))
         .def_rw(
@@ -233,7 +242,7 @@ SGL_PY_EXPORT(device_shader)
         .def("rename", &SlangEntryPoint::rename, "new_name"_a, D(SlangEntryPoint, rename))
         .def("with_name", &SlangEntryPoint::with_name, "new_name"_a, D(SlangEntryPoint, with_name));
 
-    nb::class_<ShaderProgram, DeviceResource>(m, "ShaderProgram", D(ShaderProgram))
+    nb::class_<ShaderProgram, DeviceChild>(m, "ShaderProgram", D(ShaderProgram))
         .def_prop_ro("layout", &ShaderProgram::layout, D(ShaderProgram, layout))
         .def_prop_ro("reflection", &ShaderProgram::reflection, D(ShaderProgram, reflection));
 }

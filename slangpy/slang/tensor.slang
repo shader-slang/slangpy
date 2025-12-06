@@ -36,14 +36,15 @@ namespace impl
     int[D] makeIndex<let D : int, T : IInteger>(ISizedArray<T, D> indices)
     {
         int[D] idxVec;
+        [ForceUnroll]
         for (int i = 0; i < D; ++i)
             idxVec[i] = indices[i].toInt();
         return idxVec;
     }
 }
 
-#pragma warning(push)
-#pragma warning(disable: 30856)
+// #pragma warning(push)
+// #pragma warning(disable: 30856)
 
 public extension<T : IDifferentiable, let D : int, TensorType : ITensor<T, D>> TensorType
 {
@@ -229,7 +230,7 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWTensor<T, D>>
 #endif
 }
 
-#pragma warning(pop)
+// #pragma warning(pop)
 
 public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
 {
@@ -251,6 +252,7 @@ public struct Tensor<T : IDifferentiable, let D : int> : ITensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }
@@ -282,6 +284,7 @@ public struct RWTensor<T : IDifferentiable, let D : int> : IRWTensor<T, D>
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }
@@ -317,6 +320,7 @@ public struct AtomicTensor<T, let D : int> : IRWTensor<T, D> where T : IDifferen
     {
         value.buffer = buffer;
         value.layout = layout.slice<SliceD>(ctx.call_id);
+        [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
             value._shape[i] = _shape[D - SliceD + i];
     }

@@ -6,6 +6,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/command.h"
 #include "sgl/device/buffer_cursor.h"
+#include "sgl/device/cuda_utils.h"
 
 #include "utils/slangpybuffer.h"
 
@@ -77,7 +78,7 @@ StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc
     m_storage = std::move(storage);
 
     set_slangpy_signature(
-        fmt::format("[{},{},{}]", desc.dtype->get_type_reflection()->full_name(), desc.shape.size(), desc.usage)
+        fmt::format("[{},{},{}]", desc.dtype->type_reflection()->full_name(), desc.shape.size(), desc.usage)
     );
 }
 
@@ -180,19 +181,30 @@ void StridedBufferView::broadcast_to_inplace(const Shape& new_shape)
     view_inplace(new_shape, Shape(new_strides));
 }
 
-void StridedBufferView::index_inplace(nb::args args)
+void StridedBufferView::index_inplace(nb::object index_arg)
 {
     // This implements python indexing (i.e. __getitem__)
     // Like numpy or torch, this supports a number of different ways of indexing:
     // - Indexing with a positive index (e.g. buffer[3, 2])
     // - Indexing with a negative index, for 'from the end' indexing (e.g. buffer[-1])
-    // - Indexing with a slize (e.g. buffer[3:], buffer[:-3], buffer[::2])
+    // - Indexing with a slice (e.g. buffer[3:], buffer[:-3], buffer[::2])
     // - Inserting singleton dimensions (e.g. buffer[3, None, 2])
     // - Skipping dimensions with ellipsis (e.g. buffer[..., 3])
     //
     // A buffer may be partially indexed. E.g. for a 2D buffer of shape (64, 32),
     // doing buffer[5] is valid and will return a 1D buffer of shape (32, ) that is
     // the 1D slice of the full 2D buffer at index 5
+
+    // We might receive a single argument (e.g. tensor[4]) or a tuple (e.g. tensor[3, 4])
+    // in case of multiple indices. Unpack into a consistent argument vector.
+    std::vector<nb::handle> args;
+    if (nb::isinstance<nb::tuple>(index_arg)) {
+        nb::tuple t = nb::cast<nb::tuple>(index_arg);
+        args.insert(args.end(), t.begin(), t.end());
+    } else {
+        args.push_back(index_arg);
+    }
+
 
     // Step 1: Figure out the number of 'real' indices, i.e. indices that
     // access an existing dimension, as opposed to inserting/skipping them
@@ -271,7 +283,12 @@ void StridedBufferView::index_inplace(nb::args args)
             shape.push_back(1);
             strides.push_back(0);
         } else {
-            SGL_THROW("Illegal argument at dimension {}", i);
+            auto type_name = nb::str(arg.type());
+            SGL_THROW(
+                "Illegal argument at dimension {}: Allowed are int, slice, ..., or None; found {} instead",
+                i,
+                type_name.c_str()
+            );
         }
     }
 
@@ -321,7 +338,7 @@ static nb::ndarray<Framework> to_ndarray(void* data, nb::handle owner, const Str
     //      Buffer with shape (4, 5) of float3 -> ndarray of shape (4, 5, 3) and dtype float32
     //      Buffer with shape (5, ) of struct Foo { ... } -> ndarray of shape (5, sizeof(Foo)) and dtype uint8
     bool is_scalar = innermost_layout->type()->kind() == TypeReflection::Kind::scalar;
-    auto dtype_shape = desc.dtype->get_shape();
+    auto dtype_shape = desc.dtype->shape();
     auto dtype_strides = dtype_shape.calc_contiguous_strides();
 
     size_t innermost_size = is_scalar ? innermost_layout->stride() : 1;
@@ -362,14 +379,20 @@ nb::ndarray<nb::numpy> StridedBufferView::to_numpy() const
     size_t data_size = m_storage->size() - byte_offset;
     void* data = new uint8_t[data_size];
     m_storage->get_data(data, data_size, byte_offset);
-    nb::capsule owner(data, [](void* p) noexcept { delete[] reinterpret_cast<uint8_t*>(p); });
+    nb::capsule owner(
+        data,
+        [](void* p) noexcept
+        {
+            delete[] reinterpret_cast<uint8_t*>(p);
+        }
+    );
 
     return to_ndarray<nb::numpy>(data, owner, desc());
 }
 
 nb::ndarray<nb::pytorch> StridedBufferView::to_torch() const
 {
-    // Map cuda memory and pass to nanobind ndarray
+    // Map CUDA memory and pass to nanobind ndarray
     size_t dtype_size = desc().element_layout->stride();
     size_t byte_offset = desc().offset * dtype_size;
     void* data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;
@@ -384,6 +407,45 @@ nb::ndarray<nb::pytorch> StridedBufferView::to_torch() const
     return to_ndarray<nb::pytorch>(data, owner, desc());
 }
 
+bool StridedBufferView::maybe_pad_data(nb::ndarray<nb::numpy> data, size_t dtype_size, size_t byte_offset)
+{
+    // for vector types, we need special handling, because if the stride is not the same as the GPU requirement,
+    // we will need the padding for each element.
+    if (desc().element_layout->kind() == TypeReflection::Kind::vector) {
+        // scalar_size is the size of the element of the vector type
+        // dtype_size is the size of the aligned vector type
+        size_t scalar_size = desc().element_layout->element_type_layout()->size();
+        size_t required_element_num = dtype_size / scalar_size;
+        size_t actual_element_num = data.shape(data.ndim() - 1);
+        // If the actual element number is less than the required element number, then we need to pad the data
+        // with zeros.
+        // For simplicity, we use nanobind API to pad the data instead of writing our own padding logic.
+        if (actual_element_num < required_element_num) {
+            nb::object np = nb::module_::import_("numpy");
+            size_t padding_element_num = required_element_num - actual_element_num;
+            nb::list pad_width;
+            // construct the pad_width list to specify the padding for each dimension, we only need to pad the
+            // last dimension.
+            for (size_t i = 0; i < data.ndim() - 1; i++) {
+                pad_width.append(nb::make_tuple(0, 0)); // no padding for non-last dimension
+            }
+            // padding for last dimension
+            pad_width.append(nb::make_tuple(0, padding_element_num));
+
+            // pad the data with zeros
+            nb::object arr_obj = nb::cast(data);
+            nb::object padding_data = np.attr("pad")(arr_obj, pad_width, "constant_values"_a = 0);
+
+            nb::ndarray<nb::numpy> out = nb::cast<nb::ndarray<nb::numpy>>(padding_data);
+            size_t data_size = out.nbytes();
+            m_storage->set_data(out.data(), data_size, byte_offset);
+            return true;
+        }
+    }
+    // TODO: handle the matrix case
+    return false;
+}
+
 void StridedBufferView::copy_from_numpy(nb::ndarray<nb::numpy> data)
 {
     SGL_CHECK(is_ndarray_contiguous(data), "Source Numpy array must be contiguous");
@@ -395,7 +457,51 @@ void StridedBufferView::copy_from_numpy(nb::ndarray<nb::numpy> data)
     size_t buffer_size = m_storage->size() - byte_offset;
     SGL_CHECK(data_size <= buffer_size, "Numpy array is larger than the buffer ({} > {})", data_size, buffer_size);
 
+    if (maybe_pad_data(data, dtype_size, byte_offset)) {
+        return;
+    }
+
     m_storage->set_data(data.data(), data_size, byte_offset);
+}
+
+void StridedBufferView::copy_from_torch(nb::object tensor)
+{
+    // Check if tensor is on CUDA and buffer supports CUDA interop
+    bool is_cuda = nb::cast<bool>(tensor.attr("is_cuda"));
+    bool has_cuda_memory = m_storage->cuda_memory() != nullptr;
+
+    if (is_cuda && has_cuda_memory) {
+        // Add the same error checks as copy_from_numpy for consistency
+        SGL_CHECK(is_contiguous(), "Destination buffer view must be contiguous");
+
+        // Extract tensor data
+        nb::object contiguous_tensor = tensor.attr("contiguous")();
+        nb::object data_ptr = contiguous_tensor.attr("data_ptr")();
+        void* src_data = reinterpret_cast<void*>(nb::cast<uintptr_t>(data_ptr));
+
+        size_t tensor_bytes = nb::cast<size_t>(contiguous_tensor.attr("numel")())
+            * nb::cast<size_t>(contiguous_tensor.attr("element_size")());
+
+        // Access buffer descriptor and calculate offsets
+        const auto& buffer_desc = desc();
+        size_t dtype_size = buffer_desc.element_layout->stride();
+        size_t byte_offset = buffer_desc.offset * dtype_size;
+
+        // Validate memory bounds - use accurate error message for direct tensor operations
+        size_t buffer_size = m_storage->size() - byte_offset;
+        SGL_CHECK(tensor_bytes <= buffer_size, "Tensor is larger than the buffer ({} > {})", tensor_bytes, buffer_size);
+
+        // Make sure we use the correct CUDA context.
+        SGL_CU_SCOPE(m_storage->device());
+
+        void* dst_data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;
+        sgl::cuda::memcpy_device_to_device(dst_data, src_data, tensor_bytes);
+    } else {
+        // CPU fallback for non-CUDA tensors or non-CUDA buffers
+        nb::object numpy_array = tensor.attr("cpu")().attr("numpy")();
+        nb::ndarray<nb::numpy> numpy_data = nb::cast<nb::ndarray<nb::numpy>>(numpy_array);
+        copy_from_numpy(numpy_data);
+    }
 }
 
 void StridedBufferView::point_to(ref<StridedBufferView> target)
@@ -446,6 +552,7 @@ SGL_PY_EXPORT(utils_slangpy_strided_buffer_view)
         .def("to_numpy", &StridedBufferView::to_numpy, D_NA(StridedBufferView, to_numpy))
         .def("to_torch", &StridedBufferView::to_torch, D_NA(StridedBufferView, to_torch))
         .def("copy_from_numpy", &StridedBufferView::copy_from_numpy, "data"_a, D_NA(StridedBufferView, copy_from_numpy))
+        .def("copy_from_torch", &StridedBufferView::copy_from_torch, "tensor"_a)
         .def("is_contiguous", &StridedBufferView::is_contiguous, D_NA(&StridedBufferView, is_contiguous))
         .def("point_to", &StridedBufferView::point_to, "target"_a, D_NA(&StridedBufferView, point_to));
 }

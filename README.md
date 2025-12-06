@@ -49,14 +49,15 @@ SlangPy depends on the following third-party libraries, which have their own lic
 
 - [argparse](https://github.com/p-ranav/argparse) (MIT)
 - [AsmJit](https://github.com/asmjit/asmjit) (Zlib)
-- [BS::thread-pool](https://github.com/bshoshany/thread-pool) (MIT)
 - [Dear ImGui](https://github.com/ocornut/imgui) (MIT)
 - [doctest](https://github.com/doctest/doctest) (MIT)
 - [fmt](https://fmt.dev/latest/index.html) (MIT)
 - [glfw3](https://www.glfw.org/) (Zlib)
 - [libjpeg-turbo](https://libjpeg-turbo.org/) (BSD)
 - [libpng](http://www.libpng.org/pub/png/libpng.html) (libpng)
+- [lmdb](https://github.com/LMDB/lmdb) (OpenLDAP Public License)
 - [nanobind](https://github.com/wjakob/nanobind) (BSD)
+- [nanothread](https://github.com/mitsuba-renderer/nanothread) (BSD)
 - [NVAPI](https://github.com/NVIDIA/nvapi) (MIT)
 - [OpenEXR](https://openexr.com/en/latest/) (BSD)
 - [pugixml](https://pugixml.org/) (MIT)
@@ -82,7 +83,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
     title = {SlangPy},
     author = {Simon Kallweit and Chris Cummings and Benedikt Bitterli and Sai Bangaru and Yong He},
     note = {https://github.com/shader-slang/slangpy},
-    version = {0.31.0},
+    version = {0.39.0},
     year = 2025
 }
 ```

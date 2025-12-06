@@ -82,6 +82,7 @@ class Tensor(NativeTensor):
         desc.dtype = dtype
         desc.offset = offset
         desc.element_layout = dtype.buffer_layout.reflection
+        desc.usage = storage.desc.usage
         super().__init__(desc, storage, grad_in, grad_out)
 
         # Fix up some typing info
@@ -131,7 +132,7 @@ class Tensor(NativeTensor):
         self,
         grad_in: Optional[Tensor] = None,
         grad_out: Optional[Tensor] = None,
-        zero: bool = False,
+        zero: bool = True,
     ):
         """
         Returns a new tensor view with gradients attached. If called with no arguments, the

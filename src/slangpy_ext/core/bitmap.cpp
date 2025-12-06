@@ -27,14 +27,27 @@ SGL_PY_EXPORT(core_bitmap)
                uint32_t width,
                uint32_t height,
                uint32_t channel_count,
-               std::vector<std::string> channel_names)
-            { new (self) Bitmap(pixel_format, component_type, width, height, channel_count, channel_names); },
+               std::vector<std::string> channel_names,
+               std::optional<bool> srgb_gamma)
+            {
+                new (self) Bitmap(
+                    pixel_format,
+                    component_type,
+                    width,
+                    height,
+                    channel_count,
+                    channel_names,
+                    nullptr,
+                    srgb_gamma
+                );
+            },
             "pixel_format"_a,
             "component_type"_a,
             "width"_a,
             "height"_a,
             "channel_count"_a = 0,
             "channel_names"_a = std::vector<std::string>{},
+            "srgb_gamma"_a.none() = nb::none(),
             D(Bitmap, Bitmap)
         )
         .def(
@@ -42,7 +55,8 @@ SGL_PY_EXPORT(core_bitmap)
             [](Bitmap* self,
                nb::ndarray<nb::device::cpu> data,
                std::optional<Bitmap::PixelFormat> pixel_format_,
-               std::optional<std::vector<std::string>> channel_names_)
+               std::optional<std::vector<std::string>> channel_names_,
+               std::optional<bool> srgb_gamma)
             {
                 if (data.ndim() != 2 && data.ndim() != 3)
                     SGL_THROW("Expect array with dimension 2 or 3.");
@@ -82,7 +96,16 @@ SGL_PY_EXPORT(core_bitmap)
                 uint32_t height = narrow_cast<uint32_t>(data.shape(0));
                 std::vector channel_names = channel_names_.value_or(std::vector<std::string>{});
 
-                new (self) Bitmap(pixel_format, component_type, width, height, channel_count, channel_names);
+                new (self) Bitmap(
+                    pixel_format,
+                    component_type,
+                    width,
+                    height,
+                    channel_count,
+                    channel_names,
+                    nullptr,
+                    srgb_gamma
+                );
 
                 SGL_ASSERT(self->buffer_size() == data.nbytes());
 
@@ -130,13 +153,38 @@ SGL_PY_EXPORT(core_bitmap)
             },
             "data"_a,
             "pixel_format"_a.none() = nb::none(),
-            "channel_names"_a.none() = nb::none()
+            "channel_names"_a.none() = nb::none(),
+            "srgb_gamma"_a.none() = nb::none()
         )
         .def(
             "__init__",
-            [](Bitmap* self, const std::filesystem::path& path) { new (self) Bitmap(path); },
+            [](Bitmap* self, const std::filesystem::path& path)
+            {
+                new (self) Bitmap(path);
+            },
             "path"_a,
             D(Bitmap, Bitmap, 3)
+        )
+        .def_static(
+            "load_from_file",
+            [](const std::filesystem::path& path)
+            {
+                return make_ref<Bitmap>(path);
+            },
+            "path"_a,
+            D_NA(Bitmap, load_from_file)
+        )
+        .def_static(
+            "load_from_numpy",
+            [](nb::ndarray<nb::device::cpu> data)
+            {
+                if (!is_ndarray_contiguous(data))
+                    SGL_THROW("To load from a numpy array, ensure it is contiguous.");
+                MemoryStream stream(data.data(), data.nbytes());
+                return make_ref<Bitmap>(&stream);
+            },
+            "data"_a,
+            D_NA(Bitmap, load_from_numpy)
         )
         .def_prop_ro("pixel_format", &Bitmap::pixel_format, D(Bitmap, pixel_format))
         .def_prop_ro("component_type", &Bitmap::component_type, D(Bitmap, component_type))

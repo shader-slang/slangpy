@@ -59,7 +59,13 @@ SGL_PY_EXPORT(app_app)
 
     nb::class_<AppDesc>(m, "AppDesc", D(AppDesc))
         .def(nb::init<>())
-        .def("__init__", [](AppDesc* self, nb::dict dict) { new (self) AppDesc(dict_to_AppDesc(dict)); })
+        .def(
+            "__init__",
+            [](AppDesc* self, nb::dict dict)
+            {
+                new (self) AppDesc(dict_to_AppDesc(dict));
+            }
+        )
         .def_rw("device", &AppDesc::device, D(AppDesc, device));
     nb::implicitly_convertible<nb::dict, AppDesc>();
 
@@ -85,7 +91,10 @@ SGL_PY_EXPORT(app_app)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](AppWindowDesc* self, nb::dict dict) { new (self) AppWindowDesc(dict_to_AppWindowDesc(dict)); }
+            [](AppWindowDesc* self, nb::dict dict)
+            {
+                new (self) AppWindowDesc(dict_to_AppWindowDesc(dict));
+            }
         )
         .def_rw("width", &AppWindowDesc::width, D(AppWindowDesc, width))
         .def_rw("height", &AppWindowDesc::height, D(AppWindowDesc, height))

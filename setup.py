@@ -4,7 +4,7 @@
 
 from __future__ import print_function
 
-import sys, re, os, subprocess, shutil
+import sys, re, os, subprocess, shutil, platform
 from pathlib import Path
 
 try:
@@ -31,11 +31,24 @@ elif sys.platform.startswith("darwin"):
 else:
     raise Exception(f"Unsupported platform: {sys.platform}")
 
-CMAKE_PRESET = {
-    "windows": "windows-msvc",
-    "linux": "linux-gcc",
-    "macos": "macos-arm64-clang",
-}[PLATFORM]
+# Detect architecture for platform-specific CMake presets
+if PLATFORM == "windows":
+    python_arch = platform.machine().lower()
+    is_arm64 = python_arch in ("arm64", "aarch64")
+    if is_arm64:
+        CMAKE_PRESET = "windows-arm64-msvc"
+        MSVC_PLAT_SPEC = "x86_arm64"
+    else:
+        CMAKE_PRESET = "windows-msvc"
+        MSVC_PLAT_SPEC = "x64"
+elif PLATFORM == "linux":
+    CMAKE_PRESET = "linux-gcc"
+    MSVC_PLAT_SPEC = None
+elif PLATFORM == "macos":
+    CMAKE_PRESET = "macos-arm64-clang"
+    MSVC_PLAT_SPEC = None
+else:
+    raise RuntimeError(f"Unsupported platform: {PLATFORM}")
 
 CMAKE_CONFIG = "RelWithDebInfo"
 
@@ -67,7 +80,7 @@ class CMakeBuild(build_ext):
             sys.path.append(str(Path(__file__).parent / "tools"))
             import msvc  # type: ignore
 
-            env = msvc.msvc14_get_vc_env("x64")
+            env = msvc.msvc14_get_vc_env(MSVC_PLAT_SPEC)
 
         build_dir = str(SOURCE_DIR / "build/pip")
 

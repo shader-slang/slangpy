@@ -3,8 +3,9 @@
 #pragma once
 
 #include "sgl/device/fwd.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/shader_cursor.h"
+#include "sgl/device/native_handle.h"
 
 #include "sgl/core/macros.h"
 #include "sgl/core/object.h"
@@ -13,12 +14,14 @@
 
 namespace sgl {
 
-class SGL_API Kernel : public DeviceResource {
+class SGL_API Kernel : public DeviceChild {
     SGL_OBJECT(Kernel)
 public:
     using BindVarsCallback = std::function<void(ShaderCursor)>;
 
     virtual ~Kernel() = default;
+
+    virtual void _release_rhi_resources() override { }
 
     ShaderProgram* program() const { return m_program; }
     ReflectionCursor reflection() const { return ReflectionCursor(program()); }
@@ -41,7 +44,24 @@ public:
 
     ComputePipeline* pipeline() const;
 
-    void dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandEncoder* command_encoder = nullptr);
+    void dispatch(
+        uint3 thread_count,
+        BindVarsCallback bind_vars,
+        CommandEncoder* command_encoder,
+        QueryPool* query_pool = nullptr,
+        uint32_t query_index_before = 0,
+        uint32_t query_index_after = 0
+    );
+
+    void dispatch(
+        uint3 thread_count,
+        BindVarsCallback bind_vars,
+        CommandQueueType queue = CommandQueueType::graphics,
+        NativeHandle cuda_stream = {},
+        QueryPool* query_pool = nullptr,
+        uint32_t query_index_before = 0,
+        uint32_t query_index_after = 0
+    );
 
 private:
     uint3 m_thread_group_size;

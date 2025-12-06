@@ -26,3 +26,5 @@ slangpy.egg-info/
 slangpy/tests/slangpy_tests/logs/
 
 *.nsys-rep
+
+*.sqlite

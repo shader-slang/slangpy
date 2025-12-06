@@ -68,8 +68,8 @@ public extension half : IAtomicAddable
     }
 }
 
-#pragma warning(push)
-#pragma warning(disable: 30856)
+// #pragma warning(push)
+// #pragma warning(disable: 30856)
 
 // Add atomic support for per element operations on arrays or vectors of atomics.
 public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAtomicAddable
@@ -97,7 +97,7 @@ public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAt
     }
 }
 
-#pragma warning(pop)
+// #pragma warning(pop)
 
 // Extension of the storage traits object in slangpy/slang/core.slang that defines how to
 // store a buffer of atomics, and where appropriate uses IAtomicAddable to define the atomic add operation.

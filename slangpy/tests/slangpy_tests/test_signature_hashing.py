@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from time import time
 
 import pytest
+from time import time
 
+from slangpy import DeviceType, float3, Module
 import slangpy.core.function as kff
-
-from slangpy import Module
-from slangpy import DeviceType, float3
-from . import helpers
 from slangpy.types.buffer import NDBuffer
+from slangpy.testing import helpers
 
 # We mess with cache in this suite, so make sure it gets turned on correctly before each test
 

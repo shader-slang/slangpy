@@ -1,17 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-import numpy as np
-import pytest
-from slangpy import TextureDesc, TextureUsage
-from typing import Union
 
-from . import helpers
-from slangpy import InstanceBuffer, Module
-from slangpy import DeviceType, Format, TextureType, Texture, ALL_MIPS
+import pytest
+import numpy as np
+
+from slangpy import (
+    DeviceType,
+    Format,
+    TextureType,
+    TextureDesc,
+    TextureUsage,
+    Texture,
+    ALL_MIPS,
+    InstanceBuffer,
+    Module,
+)
 from slangpy.types import NDBuffer
 from slangpy.reflection import ScalarType
 from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
 from slangpy.types.buffer import _slang_to_numpy
-import sys
+from slangpy.testing import helpers
+
+from typing import Union
 
 
 def load_test_module(device_type: DeviceType):
@@ -314,10 +323,6 @@ def test_copy_mip_values_with_resource_views(
 ):
     if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
         pytest.skip("1D textures with mip maps are not supported on Metal")
-    if device_type == DeviceType.cuda:
-        pytest.skip(
-            "Investigating with CUDA team whether its valid to write multiple mip levels without syncing"
-        )
 
     m = load_test_module(device_type)
     assert m is not None
@@ -363,10 +368,6 @@ def test_copy_mip_values_with_all_uav_resource_views(
 ):
     if device_type == DeviceType.metal and type == TextureType.texture_1d and mips > 1:
         pytest.skip("1D textures with mip maps are not supported on Metal")
-    if device_type == DeviceType.cuda:
-        pytest.skip(
-            "Investigating with CUDA team whether its valid to write multiple mip levels without syncing"
-        )
 
     m = load_test_module(device_type)
     assert m is not None

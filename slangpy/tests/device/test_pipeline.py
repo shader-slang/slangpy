@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Any, Optional, Sequence
-import slangpy as spy
 import pytest
 import numpy as np
 import sys
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
+
+from typing import Any, Optional, Sequence
 
 
 class PipelineTestContext:

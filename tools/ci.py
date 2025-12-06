@@ -11,7 +11,7 @@ import argparse
 import subprocess
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
@@ -38,7 +38,7 @@ def get_platform():
     machine = platform.machine()
     if machine == "x86_64" or machine == "AMD64":
         return "x86_64"
-    elif machine == "aarch64" or machine == "arm64":
+    elif machine == "aarch64" or machine == "arm64" or machine == "ARM64":
         return "aarch64"
     else:
         raise NameError(f"Unsupported platform: {machine}")
@@ -58,15 +58,22 @@ def get_default_compiler():
         raise NameError(f"Unsupported OS: {get_os()}")
 
 
-def run_command(command: str, shell: bool = True, env: Optional[dict[str, str]] = None):
+def run_command(
+    command: Union[str, list[str]], shell: bool = True, env: Optional[dict[str, str]] = None
+):
+    if isinstance(command, str):
+        command = [command]
     if get_os() == "windows":
-        command = command.replace("/", "\\")
+        command[0] = command[0].replace("/", "\\")
     if env != None:
         new_env = os.environ.copy()
         new_env.update(env)
         env = new_env
-    print(f'Running "{command}" ...')
+    print(f'Running "{" ".join(command)}" ...')
     sys.stdout.flush()
+
+    if shell:
+        command = " ".join(command)
 
     process = subprocess.Popen(
         command,
@@ -95,32 +102,6 @@ def run_command(command: str, shell: bool = True, env: Optional[dict[str, str]] 
     return out
 
 
-def get_changed_env(command: str):
-    if get_os() == "windows":
-        command = command.replace("/", "\\") + " && set"
-    else:
-        command = command + " && env"
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        shell=True,
-        executable="/bin/bash" if get_os() != "windows" else None,
-    )
-    if result.returncode != 0:
-        raise NameError(f'Error running "{command}"')
-    env_vars = {}
-    for line in result.stdout.splitlines():
-        if "=" in line:
-            key, value = line.split("=", 1)
-            if key in ["_"]:
-                continue
-            curr = os.getenv(key)
-            if curr is None or curr != value:
-                env_vars[key] = value
-    return env_vars
-
-
 def get_python_env():
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PROJECT_DIR)
@@ -135,28 +116,22 @@ def setup(args: Any):
 
 
 def configure(args: Any):
-    cmd = f"{args.cmake} --preset {args.preset}"
+    cmd = [args.cmake, "--preset", args.preset]
     if "header-validation" in args.flags:
-        cmd += " -DSGL_ENABLE_HEADER_VALIDATION=ON"
+        cmd += ["-DSGL_ENABLE_HEADER_VALIDATION=ON"]
     if "coverage" in args.flags:
-        cmd += " -DSGL_ENABLE_COVERAGE=ON"
+        cmd += ["-DSGL_ENABLE_COVERAGE=ON"]
     if args.cmake_args != "":
-        cmd += " " + args.cmake_args
+        cmd += args.cmake_args.split()
     run_command(cmd)
 
 
 def build(args: Any):
-    run_command(f"{args.cmake} --build build/{args.preset} --config {args.config}")
+    run_command([args.cmake, "--build", f"build/{args.preset}", "--config", args.config])
 
 
 def unit_test_cpp(args: Any):
-    out = run_command(f"{args.bin_dir}/sgl_tests -r=console,junit")
-    # doctest outputs both regular output and junit xml report on stdout
-    # filter out regular output and write remaining to junit xml file
-    report = "\n".join(filter(lambda line: line.strip().startswith("<"), out.splitlines()))
-    os.makedirs("reports", exist_ok=True)
-    with open("reports/doctest-junit.xml", "w") as f:
-        f.write(report)
+    run_command([f"{args.bin_dir}/sgl_tests"])
 
 
 def typing_check_python(args: Any):
@@ -167,25 +142,87 @@ def typing_check_python(args: Any):
 def unit_test_python(args: Any):
     env = get_python_env()
     os.makedirs("reports", exist_ok=True)
-    cmd = "pytest slangpy/tests -ra --junit-xml=reports/pytest-junit.xml"
+    cmd = ["pytest", "slangpy/tests", "-vra"]
     if args.parallel:
-        cmd += " -n auto --maxprocesses=8"
+        cmd += ["-n", "auto", "--maxprocesses=4"]
     run_command(cmd, env=env)
 
 
 def test_examples(args: Any):
     env = get_python_env()
-    cmd = "pytest samples/tests -vra"
+    cmd = ["pytest", "samples/tests", "-vra"]
     if args.parallel:
-        cmd += " -n auto --maxprocesses=8"
+        cmd += ["-n", "auto", "--maxprocesses=4"]
     run_command(cmd, env=env)
+
+
+def benchmark_python(args: Any):
+    env = get_python_env()
+
+    # Define available device types per platform
+    os_name = get_os()
+    if os_name == "windows":
+        device_types = ["d3d12", "vulkan", "cuda"]
+    elif os_name == "linux":
+        device_types = ["vulkan", "cuda"]
+    elif os_name == "macos":
+        device_types = ["metal"]
+    else:
+        raise RuntimeError(f"Unsupported OS for benchmarks: {os_name}")
+
+    # If specific device is requested, only run for that device
+    if args.device_type:
+        if args.device_type == "nodevice":
+            device_types = ["nodevice"]
+        elif args.device_type not in device_types:
+            print(f"Device type {args.device_type} not supported on {os_name}, skipping benchmarks")
+            return
+        else:
+            device_types = [args.device_type]
+    else:
+        # Run for all device types plus nodevice tests
+        device_types = device_types + ["nodevice"]
+
+    try:
+        # Lock GPU clocks
+        if args.lock_gpu_clocks:
+            cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"]
+            if os_name == "linux":
+                cmd = ["sudo"] + cmd
+            run_command(cmd)
+
+        # Run benchmarks for each device type
+        for device_type in device_types:
+            print(f"Running benchmarks for device type: {device_type}")
+
+            cmd = ["pytest", "slangpy/benchmarks", "-ra", "--device-types", device_type]
+            if args.mongodb_connection_string:
+                cmd += ["--benchmark-upload", args.run_id]
+                cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
+                if args.mongodb_database_name:
+                    cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
+
+            try:
+                run_command(cmd, env=env)
+            except Exception as e:
+                print(f"Benchmarks failed for device type {device_type}: {e}")
+                if args.device_type:  # If specific device requested, fail hard
+                    raise
+                # Otherwise, continue with other devices
+    finally:
+        # Unlock GPU clocks
+        if args.lock_gpu_clocks:
+            cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"]
+            if os_name == "linux":
+                cmd = ["sudo"] + cmd
+            run_command(cmd)
 
 
 def coverage_report(args: Any):
     if not "coverage" in args.flags:
         print("Coverage flag not set, skipping coverage report.")
     os.makedirs("reports", exist_ok=True)
-    run_command(f"gcovr -r . -f src/sgl --html reports/coverage.html")
+    run_command(["gcovr", "-r", ".", "-f", "src/sgl", "--html", "reports/coverage.html"])
 
 
 def main():
@@ -220,6 +257,27 @@ def main():
     parser_test_examples = commands.add_parser("test-examples", help="run examples tests")
     parser_test_examples.add_argument(
         "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+
+    parser_benchmark_python = commands.add_parser(
+        "benchmark-python", help="run benchmarks (python)"
+    )
+    parser_benchmark_python.add_argument("-r", "--run-id", type=str, required=True, help="Run ID")
+    parser_benchmark_python.add_argument(
+        "-c", "--mongodb-connection-string", type=str, help="MongoDB connection string"
+    )
+    parser_benchmark_python.add_argument(
+        "-d", "--mongodb-database-name", type=str, help="MongoDB database name"
+    )
+    parser_benchmark_python.add_argument(
+        "--device-type",
+        type=str,
+        help="Specific device type to benchmark (d3d12, vulkan, cuda, metal, nodevice)",
+    )
+    parser_benchmark_python.add_argument(
+        "--lock-gpu-clocks",
+        action="store_true",
+        help="Lock GPU clocks during benchmarking (requires admin privileges).",
     )
 
     parser_coverage_report = commands.add_parser("coverage-report", help="generate coverage report")
@@ -258,6 +316,8 @@ def main():
             preset = preset.replace("macos", "macos-x64")
         elif args["platform"] == "aarch64":
             preset = preset.replace("macos", "macos-arm64")
+    elif args["os"] == "windows" and args["platform"] == "aarch64":
+        preset = "windows-arm64-" + args["compiler"]
     args["preset"] = preset
 
     # Determine binary directory.
@@ -277,6 +337,7 @@ def main():
         "typing-check-python": typing_check_python,
         "unit-test-python": unit_test_python,
         "test-examples": test_examples,
+        "benchmark-python": benchmark_python,
         "coverage-report": coverage_report,
     }[args.command](args)
 

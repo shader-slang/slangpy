@@ -1,17 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
 import hashlib
 import random
-from typing import Any
-import pytest
-import slangpy as spy
-import sys
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
-from sglhelpers import test_id  # type: ignore (pytest fixture)
+import slangpy as spy
+from slangpy.testing import helpers
+
+from typing import Any
 
 TESTS = [
     ("f_bool", "bool", "true", True),
@@ -236,7 +233,7 @@ TESTS = [
 def get_tests(device_type: spy.DeviceType):
     if device_type not in [spy.DeviceType.cuda, spy.DeviceType.metal]:
         return TESTS
-    tests = [x for x in TESTS if "bool" not in x[0]]
+    tests = [x for x in TESTS if "bool1" not in x[0]]
     return tests
 
 
@@ -337,8 +334,6 @@ def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
 
     # Randomize the order of the tests
     tests = get_tests(device_type).copy()
-    if device_type == spy.DeviceType.cuda:
-        tests = [x for x in tests if "bool" not in x[0]]
     random.seed(seed)
     random.shuffle(tests)
 

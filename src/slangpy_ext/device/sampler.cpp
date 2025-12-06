@@ -29,7 +29,13 @@ SGL_PY_EXPORT(device_sampler)
 
     nb::class_<SamplerDesc>(m, "SamplerDesc", D(SamplerDesc))
         .def(nb::init<>())
-        .def("__init__", [](SamplerDesc* self, nb::dict dict) { new (self) SamplerDesc(dict_to_SamplerDesc(dict)); })
+        .def(
+            "__init__",
+            [](SamplerDesc* self, nb::dict dict)
+            {
+                new (self) SamplerDesc(dict_to_SamplerDesc(dict));
+            }
+        )
         .def_rw("min_filter", &SamplerDesc::min_filter, D(SamplerDesc, min_filter))
         .def_rw("mag_filter", &SamplerDesc::mag_filter, D(SamplerDesc, mag_filter))
         .def_rw("mip_filter", &SamplerDesc::mip_filter, D(SamplerDesc, mip_filter))
@@ -46,7 +52,7 @@ SGL_PY_EXPORT(device_sampler)
         .def_rw("label", &SamplerDesc::label, D(SamplerDesc, label));
     nb::implicitly_convertible<nb::dict, SamplerDesc>();
 
-    nb::class_<Sampler, DeviceResource>(m, "Sampler", D(Sampler)) //
+    nb::class_<Sampler, DeviceChild>(m, "Sampler", D(Sampler)) //
         .def_prop_ro("desc", &Sampler::desc, D(Sampler, desc))
         .def_prop_ro("descriptor_handle", &Sampler::descriptor_handle, D(Sampler, descriptor_handle))
         .def_prop_ro("native_handle", &Sampler::native_handle, D(Sampler, native_handle));

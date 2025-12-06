@@ -24,6 +24,7 @@ public vector<uint, N> wang_hash_thread_vector<let WarmupIterations : int, let N
     // XOR with seed, then generate per component hashes
     vector<uint, N> value;
     hash = hash ^ seed;
+    [ForceUnroll]
     for (int i = 0; i < N; i++) {
         hash = wang_hash(hash);
         value[i] = hash;

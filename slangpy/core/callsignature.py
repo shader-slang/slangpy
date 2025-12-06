@@ -1,22 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.native import AccessType, CallMode, NativeMarshall
+from slangpy.core.native import AccessType, CallMode, CallDataMode
+from slangpy.core.function import PipelineType
 
 import slangpy.bindings.typeregistry as tr
-import slangpy.reflection as slr
 from slangpy import ModifierID, TypeReflection
-from slangpy.bindings.marshall import Marshall, BindContext, ReturnContext
+from slangpy.bindings.marshall import BindContext, ReturnContext
 from slangpy.bindings.boundvariable import (
     BoundCall,
     BoundVariable,
     BoundVariableException,
 )
 from slangpy.bindings.codegen import CodeGen
-from slangpy.builtin.value import NoneMarshall, ValueMarshall
+from slangpy.builtin.value import NoneMarshall
 from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
+from slangpy.reflection.typeresolution import resolve_function, ResolvedParam, ResolutionDiagnostic
 from slangpy.types.buffer import NDBuffer
 from slangpy.types.valueref import ValueRef
+
 
 if TYPE_CHECKING:
     from slangpy.core.function import FunctionBuildInfo
@@ -60,192 +62,15 @@ def specialize(
     context: BindContext,
     signature: BoundCall,
     function: SlangFunction,
-    this_type: Optional[SlangType] = None,
+    diagnostics: ResolutionDiagnostic,
+    this_type: Optional[SlangType],
 ):
-    # Special case for constructors
-    if function.is_overloaded and function.is_constructor:
-        matches = [
-            x for x in function.overloads if len(x.parameters) == signature.num_function_args
-        ]
-        if len(matches) != 1:
-            return MismatchReason(
-                "Overloaded functions are currently only supported if they have different argument counts."
-            )
-        function = matches[0]
-
-    # Expecting 'this' argument as first parameter of none-static member functions (except for constructors)
-    first_arg_is_this = (
-        this_type is not None and not function.static and not function.is_constructor
-    )
-
-    # Require '_result' argument for derivative calls, either as '_result' named parameter or last positional argument
-    last_arg_is_retval = (
-        function.return_type is not None
-        and function.return_type.name != "void"
-        and not "_result" in signature.kwargs
-        and context.call_mode != CallMode.prim
-    )
-
-    # Select the positional arguments we need to match against
-    signature_args = signature.args
-    if first_arg_is_this:
-        signature_args[0].param_index = -1
-        signature_args = signature_args[1:]
-    if last_arg_is_retval:
-        signature_args[-1].param_index = len(function.parameters)
-        signature_args = signature_args[:-1]
-
-    if signature.num_function_kwargs > 0 or signature.has_implicit_args:
-        if function.is_overloaded:
-            return MismatchReason(
-                f"Calling an overloaded function with named or implicit arguments is not currently supported."
-            )
-
-        function_parameters = [x for x in function.parameters]
-
-        # Build empty positional list of python arguments to correspond to each slang argument
-        positioned_args: list[Optional[BoundVariable]] = [None] * len(function_parameters)
-
-        # Populate the first N arguments from provided positional arguments
-        if len(signature_args) > len(function_parameters):
-            return MismatchReason("Too many positional arguments.")
-        for i, arg in enumerate(signature_args):
-            positioned_args[i] = arg
-            arg.param_index = i
-
-        # Attempt to populate the remaining arguments from keyword arguments
-        name_map = {param.name: i for i, param in enumerate(function_parameters)}
-        for name, arg in signature.kwargs.items():
-            if name == "_result":
-                continue
-            if name not in name_map:
-                return MismatchReason(f"No parameter named '{name}'")
-            i = name_map[name]
-            if positioned_args[i] is not None:
-                return MismatchReason(
-                    f"Parameter '{name}' is already specified as a positional argument."
-                )
-            positioned_args[i] = arg
-            arg.param_index = i
-
-        # Ensure all parameters are assigned
-        if not all(x is not None for x in positioned_args):
-            return MismatchReason(
-                "To use named or implicit arguments, all parameters must be specified."
-            )
-
-        # Choose either explicit vector type or slang type for specialization
-        inputs: list[Any] = []
-        for i, python_arg in enumerate(positioned_args):
-            slang_param = function_parameters[i]
-            assert python_arg is not None
-            if python_arg.vector_type is not None:
-                # Always take explicit vector types if provided
-                inputs.append(python_arg.vector_type)
-            elif (
-                isinstance(slang_param.type, (slr.VectorType, slr.MatrixType, slr.ArrayType))
-                and slang_param.type.is_generic
-            ):
-                # HACK! Let types with a 'slang_element_type' try to resolve known generic types
-                # Failing that, fall back to python marshall
-                sl_et = getattr(python_arg.python, "slang_element_type", None)
-                if isinstance(sl_et, type(slang_param.type)):
-                    inputs.append(sl_et)
-                else:
-                    inputs.append(python_arg.python)
-            elif slang_param.type.type_reflection.kind != TypeReflection.Kind.none:
-                # If the type is fully resolved, use it
-                inputs.append(slang_param.type)
-            elif (
-                isinstance(python_arg.python, ValueMarshall)
-                and python_arg.python.slang_type.name != "Unknown"
-            ):
-                # If passing basic type to generic, resolve from its python type
-                inputs.append(python_arg.python)
-            else:
-                return MismatchReason(
-                    f"Parameter {i} is a generic or interface, so must either be passed a value type or have an explicit vector type."
-                )
-    else:
-        # If no named or implicit arguments, just use explicit vector types for specialization
-        inputs: list[Any] = [x.vector_type for x in signature_args]
-        for i, arg in enumerate(signature_args):
-            arg.param_index = i
-
-    def to_type_reflection(input: Any) -> TypeReflection:
-        if isinstance(input, NativeMarshall):
-            return input.slang_type.type_reflection
-        elif isinstance(input, TypeReflection):
-            return input
-        elif isinstance(input, str):
-            return context.device_module.layout.find_type_by_name(input)
-        elif isinstance(input, SlangType):
-            return input.type_reflection
-        else:
-            raise KernelGenException(
-                f"Cannot convert {input} to a TypeReflection for overload resolution."
-            )
-
-    input_types = [to_type_reflection(x) for x in inputs]
-    if any(x is None for x in input_types):
-        raise KernelGenException(
-            "Unable to resolve all Slang types for specialization overload resolution."
-        )
-
-    specialized = function.reflection.specialize_with_arg_types(input_types)
-    if specialized is None:
-        return MismatchReason(
-            "No Slang overload found that matches the provided Python argument types."
-        )
-
-    type_reflection = None if this_type is None else this_type.type_reflection
-
-    return context.layout.find_function(specialized, type_reflection)
+    return resolve_function(context, function, signature, diagnostics, this_type)
 
 
-def validate_specialize(context: BindContext, signature: BoundCall, function: SlangFunction):
-    # Get sorted list of root parameters for trampoline function
-    root_params = [
-        y
-        for y in sorted(
-            signature.args + list(signature.kwargs.values()),
-            key=lambda x: x.param_index,
-        )
-        if y.param_index >= 0 and y.param_index < len(function.parameters)
-    ]
-
-    def to_type_reflection(input: Any) -> TypeReflection:
-        if isinstance(input, Marshall):
-            return input.slang_type.type_reflection
-        elif isinstance(input, TypeReflection):
-            return input
-        elif isinstance(input, str):
-            return context.device_module.layout.find_type_by_name(input)
-        elif isinstance(input, SlangType):
-            return input.type_reflection
-        else:
-            raise KernelGenException(
-                f"After implicit casting, cannot convert {input} to TypeReflection."
-            )
-
-    types = [to_type_reflection(x.vector_type) for x in root_params]
-    for type, param in zip(types, root_params):
-        if type is None:
-            raise KernelGenException(
-                f"After implicit casting, unable to find reflection data for {param.variable_name}"
-                "This typically suggests the binding system has attempted to generate an invalid Slang type."
-            )
-
-    specialized = function.reflection.specialize_with_arg_types(types)
-    if specialized is None:
-        raise KernelGenException(
-            "After implicit casting, no Slang overload found that matches the provided Python argument types. "
-            "This typically suggests SlangPy selected an overload to call, but couldn't find a valid "
-            "way to pass your Python arguments to it."
-        )
-
-
-def bind(context: BindContext, signature: BoundCall, function: SlangFunction) -> BoundCall:
+def bind(
+    context: BindContext, signature: BoundCall, function: SlangFunction, params: list[ResolvedParam]
+) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
     to the signature nodes and performing other work that kicks in once
@@ -257,7 +82,7 @@ def bind(context: BindContext, signature: BoundCall, function: SlangFunction) ->
 
     for x in signature.args:
         b = x
-        if x.param_index == len(function.parameters):
+        if x.param_index == len(params):
             assert function.return_type is not None
             b.bind(function.return_type, {ModifierID.out}, "_result")
         elif x.param_index == -1:
@@ -268,7 +93,7 @@ def bind(context: BindContext, signature: BoundCall, function: SlangFunction) ->
                 "_this",
             )
         else:
-            b.bind(function.parameters[x.param_index])
+            b.bind(params[x.param_index])
 
     for k, v in signature.kwargs.items():
         b = v
@@ -283,7 +108,7 @@ def bind(context: BindContext, signature: BoundCall, function: SlangFunction) ->
                 "_this",
             )
         else:
-            b.bind(function.parameters[v.param_index])
+            b.bind(params[v.param_index])
 
     return res
 
@@ -368,6 +193,15 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
     node.python = python_type
 
 
+def is_slangpy_vector(type: Any) -> bool:
+    return (
+        hasattr(type, "element_type")
+        and hasattr(type, "shape")
+        and len(type.shape) == 1
+        and type.shape[0] <= 4
+    )
+
+
 def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen):
     if build_info.constants is not None:
         for k, v in build_info.constants.items():
@@ -377,6 +211,11 @@ def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen):
                 )
             elif isinstance(v, (int, float)):
                 cg.constants.append_statement(f"export static const {type(v).__name__} {k} = {v}")
+            elif is_slangpy_vector(v):
+                # Cheeky logic to take, eg, {0,0,0} -> float3(0,0,0)
+                tn = type(v).__name__
+                txt = f"{tn}({str(v)[1:-1]})"
+                cg.constants.append_statement(f"export static const {tn} {k} = {txt}")
             else:
                 raise KernelGenException(
                     f"Constant value '{k}' must be an int, float or bool, not {type(v).__name__}"
@@ -393,6 +232,9 @@ def generate_code(
     Generate a list of call data nodes that will be used to generate the call
     """
     nodes: list[BoundVariable] = []
+
+    # Check if we're using entry point call data mode
+    is_entry_point = context.call_data_mode == CallDataMode.entry_point
 
     # Generate the header
     cg.add_import("slangpy")
@@ -509,7 +351,14 @@ def generate_code(
     trampoline_fn = "_trampoline"
     if context.call_mode != CallMode.prim:
         cg.trampoline.append_line("[Differentiable]")
-    cg.trampoline.append_line(f"void {trampoline_fn}(Context __slangpy_context__)")
+
+    # For entry point mode, add CallData as a parameter to the trampoline function
+    if is_entry_point:
+        cg.trampoline.append_line(
+            f"void {trampoline_fn}(Context __slangpy_context__, CallData __calldata__)"
+        )
+    else:
+        cg.trampoline.append_line(f"void {trampoline_fn}(Context __slangpy_context__)")
     cg.trampoline.begin_block()
 
     # Declare parameters and load inputs
@@ -518,11 +367,18 @@ def generate_code(
         cg.trampoline.declare(x.vector_type.full_name, x.variable_name)
     for x in root_params:
         if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
-            data_name = (
-                f"_param_{x.variable_name}"
-                if x.create_param_block
-                else f"call_data.{x.variable_name}"
-            )
+            if is_entry_point:
+                data_name = (
+                    f"_param_{x.variable_name}"
+                    if x.create_param_block
+                    else f"__calldata__.{x.variable_name}"
+                )
+            else:
+                data_name = (
+                    f"_param_{x.variable_name}"
+                    if x.create_param_block
+                    else f"call_data.{x.variable_name}"
+                )
             cg.trampoline.append_statement(
                 f"{data_name}.load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )
@@ -560,11 +416,18 @@ def generate_code(
         ):
             if not x.python.is_writable:
                 raise BoundVariableException(f"Cannot read back value for non-writable type", x)
-            data_name = (
-                f"_param_{x.variable_name}"
-                if x.create_param_block
-                else f"call_data.{x.variable_name}"
-            )
+            if is_entry_point:
+                data_name = (
+                    f"_param_{x.variable_name}"
+                    if x.create_param_block
+                    else f"__calldata__.{x.variable_name}"
+                )
+            else:
+                data_name = (
+                    f"_param_{x.variable_name}"
+                    if x.create_param_block
+                    else f"call_data.{x.variable_name}"
+                )
             cg.trampoline.append_statement(
                 f"{data_name}.store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )
@@ -573,18 +436,36 @@ def generate_code(
     cg.trampoline.append_line("")
 
     # Generate the main function
-    cg.kernel.append_line('[shader("compute")]')
-    if call_group_size != 1:
-        cg.kernel.append_line(f"[numthreads({call_group_size}, 1, 1)]")
+    if build_info.pipeline_type == PipelineType.compute:
+        cg.kernel.append_line('[shader("compute")]')
+        if call_group_size != 1:
+            cg.kernel.append_line(f"[numthreads({call_group_size}, 1, 1)]")
+        else:
+            cg.kernel.append_line("[numthreads(32, 1, 1)]")
+        # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
+        #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
+        if is_entry_point:
+            cg.kernel.append_line(
+                "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex, uniform CallData call_data)"
+            )
+        else:
+            cg.kernel.append_line(
+                "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex)"
+            )
+    elif build_info.pipeline_type == PipelineType.ray_tracing:
+        cg.kernel.append_line('[shader("raygen")]')
+        if is_entry_point:
+            cg.kernel.append_line("void raygen_main(uniform CallData call_data)")
+        else:
+            cg.kernel.append_line("void raygen_main()")
     else:
-        cg.kernel.append_line("[numthreads(32, 1, 1)]")
+        raise RuntimeError(f"Unknown pipeline type: {build_info.pipeline_type}")
 
-    # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
-    #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
-    cg.kernel.append_line(
-        "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex)"
-    )
     cg.kernel.begin_block()
+
+    if build_info.pipeline_type == PipelineType.ray_tracing:
+        cg.kernel.append_statement("int3 flat_call_thread_id = DispatchRaysIndex();")
+
     cg.kernel.append_statement("if (any(flat_call_thread_id >= call_data._thread_count)) return")
 
     # Loads / initializes call id
@@ -593,14 +474,22 @@ def generate_code(
     # Call init_thread_local_call_shape_info to initialize the call shape info. See
     # definition in callshape.slang.
     if call_data_len > 0:
-        cg.kernel.append_line(
-            f"""
-        if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
-            flat_call_group_id, flat_call_thread_id, call_data._grid_stride,
-            call_data._grid_dim, call_data._call_dim))
-            return;"""
-        )
-
+        if build_info.pipeline_type == PipelineType.compute:
+            cg.kernel.append_line(
+                f"""
+    if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
+        flat_call_group_id, flat_call_thread_id, call_data._grid_stride,
+        call_data._grid_dim, call_data._call_dim))
+        return;"""
+            )
+        elif build_info.pipeline_type == PipelineType.ray_tracing:
+            cg.kernel.append_line(
+                f"""
+    if (!init_thread_local_call_shape_info(0,
+        uint3(0), flat_call_thread_id, call_data._grid_stride,
+        call_data._grid_dim, call_data._call_dim))
+        return;"""
+            )
         context_args += ", CallShapeInfo::get_call_id().shape"
 
     cg.kernel.append_statement(f"Context __slangpy_context__ = {{{context_args}}}")
@@ -609,6 +498,10 @@ def generate_code(
     fn = trampoline_fn
     if context.call_mode == CallMode.bwds:
         fn = f"bwd_diff({fn})"
-    cg.kernel.append_statement(f"{fn}(__slangpy_context__)")
+
+    if is_entry_point:
+        cg.kernel.append_statement(f"{fn}(__slangpy_context__, call_data)")
+    else:
+        cg.kernel.append_statement(f"{fn}(__slangpy_context__)")
 
     cg.kernel.end_block()

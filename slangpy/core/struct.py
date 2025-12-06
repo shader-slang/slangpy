@@ -134,6 +134,20 @@ class Struct:
         """
         return self.module.device_module
 
+    @property
+    def vector_type_name(self) -> str:
+        """
+        The name of the vectorized version of this struct.
+        """
+        return self.struct.vector_type_name
+
+    @property
+    def is_generic(self) -> bool:
+        """
+        Whether this struct is generic.
+        """
+        return self.struct.is_generic
+
     def torch(self):
         """
         Returns a pytorch wrapper around this struct

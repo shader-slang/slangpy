@@ -35,17 +35,44 @@ void NativeBufferMarshall::write_shader_cursor_pre_dispatch(
     SGL_UNUSED(read_back);
     SGL_UNUSED(context);
 
-    AccessType primal_access = binding->get_access().first;
+    AccessType primal_access = binding->access().first;
     if (primal_access != AccessType::none) {
         SGL_UNUSED(binding);
         SGL_UNUSED(context);
-        ShaderCursor field = cursor[binding->get_variable_name()]["value"];
+        ShaderCursor field = cursor[binding->variable_name()]["value"];
         ref<BufferView> view;
         if (nb::try_cast(value, view)) {
             field.set_buffer_view(view);
         } else {
             field.set_buffer(nb::cast<ref<Buffer>>(value));
         }
+    }
+}
+
+Shape NativeDescriptorMarshall::get_shape(nb::object data) const
+{
+    SGL_UNUSED(data);
+    return Shape({-1});
+}
+
+void NativeDescriptorMarshall::write_shader_cursor_pre_dispatch(
+    CallContext* context,
+    NativeBoundVariableRuntime* binding,
+    ShaderCursor cursor,
+    nb::object value,
+    nb::list read_back
+) const
+{
+    SGL_UNUSED(read_back);
+    SGL_UNUSED(context);
+
+    AccessType primal_access = binding->access().first;
+    if (primal_access != AccessType::none) {
+        SGL_UNUSED(binding);
+        SGL_UNUSED(context);
+        ShaderCursor field = cursor[binding->variable_name()]["value"];
+        auto handle = nb::cast<DescriptorHandle>(value);
+        field.set_descriptor_handle(handle);
     }
 }
 
@@ -59,10 +86,10 @@ void NativeTextureMarshall::write_shader_cursor_pre_dispatch(
 {
     SGL_UNUSED(context);
     SGL_UNUSED(read_back);
-    AccessType primal_access = binding->get_access().first;
+    AccessType primal_access = binding->access().first;
     if (primal_access != AccessType::none) {
 
-        ShaderCursor field = cursor[binding->get_variable_name()]["value"];
+        ShaderCursor field = cursor[binding->variable_name()]["value"];
         ref<TextureView> view;
         if (nb::try_cast(value, view)) {
             field.set_texture_view(view);
@@ -96,11 +123,11 @@ Shape NativeTextureMarshall::get_shape(nb::object value) const
     if (texture) {
         Shape res = get_texture_shape(texture, mip);
         SGL_CHECK(res.size() == m_texture_dims, "Texture dimensions are incorrect");
-        return res + m_slang_element_type->get_shape();
+        return res + m_slang_element_type->shape();
     } else {
         std::vector<int> negativeDims(m_texture_dims, -1);
         Shape unknown(negativeDims); // or use a loop
-        return unknown + m_slang_element_type->get_shape();
+        return unknown + m_slang_element_type->shape();
     }
 }
 
@@ -208,7 +235,9 @@ SGL_PY_EXPORT(utils_slangpy_resources)
         .def(
             "__init__",
             [](NativeBufferMarshall& self, ref<NativeSlangType> slang_type, BufferUsage usage)
-            { new (&self) NativeBufferMarshall(slang_type, usage); },
+            {
+                new (&self) NativeBufferMarshall(slang_type, usage);
+            },
             "slang_type"_a,
             "usage"_a,
             D_NA(NativeBufferMarshall, NativeBufferMarshall)
@@ -225,7 +254,32 @@ SGL_PY_EXPORT(utils_slangpy_resources)
         )
         .def("get_shape", &NativeBufferMarshall::get_shape, "value"_a, D_NA(NativeBufferMarshall, get_shape))
         .def_prop_ro("usage", &sgl::slangpy::NativeBufferMarshall::usage)
-        .def_prop_ro("slang_type", &sgl::slangpy::NativeBufferMarshall::get_slang_type);
+        .def_prop_ro("slang_type", &sgl::slangpy::NativeBufferMarshall::slang_type);
+
+    nb::class_<NativeDescriptorMarshall, NativeMarshall>(slangpy, "NativeDescriptorMarshall") //
+        .def(
+            "__init__",
+            [](NativeDescriptorMarshall& self, ref<NativeSlangType> slang_type, DescriptorHandleType type)
+            {
+                new (&self) NativeDescriptorMarshall(slang_type, type);
+            },
+            "slang_type"_a,
+            "type"_a,
+            D_NA(NativeDescriptorMarshall, NativeDescriptorMarshall)
+        )
+        .def(
+            "write_shader_cursor_pre_dispatch",
+            &NativeDescriptorMarshall::write_shader_cursor_pre_dispatch,
+            "context"_a,
+            "binding"_a,
+            "cursor"_a,
+            "value"_a,
+            "read_back"_a,
+            D_NA(NativeDescriptorMarshall, write_shader_cursor_pre_dispatch)
+        )
+        .def("get_shape", &NativeDescriptorMarshall::get_shape, "value"_a, D_NA(NativeDescriptorMarshall, get_shape))
+        .def_prop_ro("type", &sgl::slangpy::NativeDescriptorMarshall::type)
+        .def_prop_ro("slang_type", &sgl::slangpy::NativeDescriptorMarshall::slang_type);
 
     nb::class_<NativeTextureMarshall, NativeMarshall>(slangpy, "NativeTextureMarshall") //
         .def(
@@ -237,7 +291,9 @@ SGL_PY_EXPORT(utils_slangpy_resources)
                Format format,
                TextureUsage usage,
                int dims)
-            { new (&self) NativeTextureMarshall(slang_type, element_type, resource_shape, format, usage, dims); },
+            {
+                new (&self) NativeTextureMarshall(slang_type, element_type, resource_shape, format, usage, dims);
+            },
             "slang_type"_a,
             "element_type"_a,
             "resource_shape"_a,

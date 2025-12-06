@@ -75,7 +75,12 @@ FileSystemWatcher::FileSystemWatcher()
 #endif
 
 #if !SGL_LINUX
-    m_thread = std::thread([this]() { thread_func(); });
+    m_thread = std::thread(
+        [this]()
+        {
+            thread_func();
+        }
+    );
 #endif
 }
 
@@ -126,7 +131,15 @@ uint32_t FileSystemWatcher::add_watch(const FileSystemWatchDesc& desc)
         IN_CREATE | IN_DELETE | IN_MODIFY
     );
     if (state->watch_descriptor < 0) {
-        SGL_THROW("Failed to add watch to inotify file descriptor");
+        // This is bad, but issues with hot reload shouldn't stop a user being
+        // able to render things. Currently tests start to struggle when creating
+        // lots of monitors due to having lots of devices.
+        log_error(
+            "Failed to add watch for directory {}: {}. Hot reload may fail.",
+            state->desc.directory,
+            strerror(errno)
+        );
+        return 0;
     }
 #endif
 
@@ -140,12 +153,13 @@ uint32_t FileSystemWatcher::add_watch(const FileSystemWatchDesc& desc)
 
 void FileSystemWatcher::remove_watch(uint32_t id)
 {
+    if (id > 0) {
 #if !SGL_LINUX
-    std::lock_guard<std::mutex> lock(m_watches_mutex);
+        std::lock_guard<std::mutex> lock(m_watches_mutex);
 #endif
-
-    stop_watch(m_watches[id]);
-    m_watches.erase(id);
+        stop_watch(m_watches[id]);
+        m_watches.erase(id);
+    }
 }
 
 void FileSystemWatcher::remove_watch(const std::filesystem::path& directory)
@@ -228,7 +242,10 @@ void FileSystemWatcher::update()
                 auto it = std::find_if(
                     m_watches.begin(),
                     m_watches.end(),
-                    [event](const auto& pair) { return pair.second->watch_descriptor == event->wd; }
+                    [event](const auto& pair)
+                    {
+                        return pair.second->watch_descriptor == event->wd;
+                    }
                 );
                 if (it != m_watches.end()) {
                     _notify_change(it->second.get(), path, change);

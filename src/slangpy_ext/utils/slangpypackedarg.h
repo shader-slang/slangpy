@@ -16,6 +16,7 @@ namespace sgl::slangpy {
 class NativeMarshall;
 
 class NativePackedArg : public NativeObject {
+    SGL_OBJECT(NativePackedArg)
 public:
     NativePackedArg(ref<NativeMarshall> python, ref<ShaderObject> shader_object, nb::object python_object)
         : m_python(std::move(python))
@@ -34,6 +35,9 @@ public:
 
     /// Get the Python object.
     nb::object python_object() const { return m_python_object; }
+
+    /// Get string representation of the packed arg.
+    std::string to_string() const override;
 
 private:
     ref<NativeMarshall> m_python;

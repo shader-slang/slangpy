@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import pytest
 import time
 import logging
-from pathlib import Path
-import pytest
-import slangpy as spy
-
 import sys
+from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import helpers
+import slangpy as spy
+from slangpy.testing import helpers
 
 try:
     import torch
@@ -55,19 +54,22 @@ def run_tensor_race_condition_tests(
     torch.cuda.current_stream()
 
     initial_handles = spy.get_cuda_current_context_native_handles()
+    handles = spy.get_cuda_current_context_native_handles()
 
     if share_context:
         # Access torch device+stream once to ensure cuda context is initialized,
         # then request the current context handles from slangpy and init device with
         # those handles. This ensures we are using the same context as torch.
-        handles = spy.get_cuda_current_context_native_handles()
         device = helpers.get_device(
             spy.DeviceType.cuda, use_cache=False, existing_device_handles=handles
         )
         logger.info(f"Using device '{device.info.adapter_name}' with shared context")
     else:
         # Create a new device without sharing context
-        device = helpers.get_device(spy.DeviceType.cuda, use_cache=False)
+        handles[1] = spy.NativeHandle()  # clear context so only device handle is shared
+        device = helpers.get_device(
+            spy.DeviceType.cuda, use_cache=False, existing_device_handles=handles
+        )
         logger.info(f"Using device '{device.info.adapter_name}' with new context")
 
     # Create a nice big tensor to make gpu jobs take long enough to see race conditions.
@@ -105,7 +107,7 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
 
     for i in range(iterations):
         if custom_stream:
-            with torch.cuda.stream(stream):
+            with torch.cuda.stream(stream):  # type: ignore
                 for i in range(0, 20):
                     torch_tensor.add_(ones)
             stream_handle = spy.NativeHandle.from_cuda_stream(stream.cuda_stream)
@@ -161,12 +163,8 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
 
 # Pytest for our most common default cuda-interop case, in which we've configured pytorch
 # and slangpy to share the same context and stream.
-def test_shared_context_and_stream():
-    if sys.platform == "win32":
-        pytest.skip(
-            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
-        )
-
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_shared_context_and_stream(device_type: spy.DeviceType):
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=False, share_stream=True)
         == False
@@ -176,17 +174,14 @@ def test_shared_context_and_stream():
 # Pytest for none-shared context case, which appears to avoid race conditions through some level
 # of synchronization in the default streams of separate contexts. For now this has shown not
 # to cause race conditions, so testing for that behaviour.
-def test_non_shared_context():
-    if sys.platform == "win32":
-        pytest.skip(
-            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
-        )
-
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_non_shared_context(device_type: spy.DeviceType):
     assert run_tensor_race_condition_tests(share_context=False) == False
 
 
 # Pytest for known race condition case, where we use a custom stream in torch but not sharing it with slangpy.
-def test_custom_stream_no_share():
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_custom_stream_no_share(device_type: spy.DeviceType):
     pytest.skip("Race condition doesn't reproduce reliably on CI machines of varying specs")
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=False)
@@ -195,12 +190,8 @@ def test_custom_stream_no_share():
 
 
 # Pytest that removes the race condition by sharing the custom stream
-def test_custom_stream_share():
-    if sys.platform == "win32":
-        pytest.skip(
-            "Test fails sporadically with 'RuntimeError: cannot write to file: bad file descriptor'"
-        )
-
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_custom_stream_share(device_type: spy.DeviceType):
     assert (
         run_tensor_race_condition_tests(share_context=True, custom_stream=True, share_stream=True)
         == False

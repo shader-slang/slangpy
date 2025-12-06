@@ -15,7 +15,7 @@
  * http://sourceforge.net/p/predef/wiki/Compilers/
  */
 #ifndef SGL_COMPILER
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__clang__)
 #define SGL_COMPILER SGL_COMPILER_MSVC
 #elif defined(__clang__)
 #define SGL_COMPILER SGL_COMPILER_CLANG

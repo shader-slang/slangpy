@@ -106,6 +106,7 @@ SGL_DIAGNOSTIC_POP
 #endif
 
 #include <algorithm>
+#include <numeric>
 #include <map>
 #include <mutex>
 
@@ -120,7 +121,8 @@ Bitmap::Bitmap(
     uint32_t height,
     uint32_t channel_count,
     const std::vector<std::string>& channel_names,
-    void* data
+    void* data,
+    std::optional<bool> srgb_gamma
 )
     : m_pixel_format(pixel_format)
     , m_component_type(component_type)
@@ -134,8 +136,11 @@ Bitmap::Bitmap(
         "Expected non-zero channel count for multi-channel pixel format."
     );
 
-    // Use sRGB gamma by default for 8-bit and 16-bit images.
-    m_srgb_gamma = (m_component_type == ComponentType::uint8) || (m_component_type == ComponentType::uint16);
+    // If not specified, use sRGB gamma by default for 8-bit and 16-bit images.
+    if (srgb_gamma.has_value())
+        m_srgb_gamma = srgb_gamma.value();
+    else
+        m_srgb_gamma = (m_component_type == ComponentType::uint8) || (m_component_type == ComponentType::uint16);
 
     rebuild_pixel_struct(channel_count, channel_names);
 
@@ -188,20 +193,15 @@ Bitmap::~Bitmap()
 
 std::vector<ref<Bitmap>> Bitmap::read_multiple(std::span<std::filesystem::path> paths, FileFormat format)
 {
-    std::vector<std::future<ref<Bitmap>>> futures;
-    futures.reserve(paths.size());
-    for (const auto& path : paths)
-        futures.push_back(thread::do_async(
-            [](const std::filesystem::path& path, FileFormat format) { return make_ref<Bitmap>(path, format); },
-            path,
-            format
-        ));
-    std::vector<ref<Bitmap>> bitmaps;
-    bitmaps.reserve(paths.size());
-    for (auto& future : futures) {
-        future.wait();
-        bitmaps.push_back(future.get());
-    }
+    std::vector<ref<Bitmap>> bitmaps(paths.size());
+    thread::parallel_for(
+        thread::blocked_range<size_t>(0, paths.size()),
+        [&](const thread::blocked_range<size_t>& range)
+        {
+            size_t i = range.begin();
+            bitmaps[i] = make_ref<Bitmap>(paths[i], format);
+        }
+    );
     return bitmaps;
 }
 
@@ -278,7 +278,7 @@ void Bitmap::write_async(const std::filesystem::path& path, FileFormat format, i
 {
     // Increment reference count to ensure that the bitmap is not destroyed before written.
     this->inc_ref();
-    thread::do_async(
+    thread::global_task_group().do_async(
         [=, this]()
         {
             this->write(path, format, quality);
@@ -1618,7 +1618,10 @@ void Bitmap::read_exr(Stream* stream)
     std::sort(
         channels_sorted.begin(),
         channels_sorted.end(),
-        [&](const auto& v0, const auto& v1) { return channel_key(v0) < channel_key(v1); }
+        [&](const auto& v0, const auto& v1)
+        {
+            return channel_key(v0) < channel_key(v1);
+        }
     );
 
     // Create pixel struct.
@@ -2143,7 +2146,10 @@ void Bitmap::read_exr(Stream* stream)
     std::sort(
         channels_sorted.begin(),
         channels_sorted.end(),
-        [&](const auto& v0, const auto& v1) { return channel_key(v0) < channel_key(v1); }
+        [&](const auto& v0, const auto& v1)
+        {
+            return channel_key(v0) < channel_key(v1);
+        }
     );
 
     // Create pixel struct.
@@ -2283,10 +2289,28 @@ void Bitmap::write_exr(Stream* stream, int quality) const
         string::copy_to_cstr(channel.name, sizeof(EXRChannelInfo::name), m_pixel_struct->operator[](i).name);
     }
 
+    // For maximum compatibility, sort the channels into ABGR (alphabetical) order.
+    // ord[i] is the source index of the ith output channel
+    std::vector<size_t> ord(channel_count());
+    std::iota(ord.begin(), ord.end(), 0);
+    std::stable_sort(
+        ord.begin(),
+        ord.end(),
+        [&](size_t a, size_t b)
+        {
+            return std::string(channels[a].name) < std::string(channels[b].name);
+        }
+    );
+
+    std::vector<EXRChannelInfo> channels_sorted(channel_count());
+    for (size_t i = 0; i < channel_count(); ++i) {
+        channels_sorted[i] = channels[ord[i]];
+    }
+
     std::vector<int> pixel_types(channel_count(), pixel_type);
 
     header.num_channels = channel_count();
-    header.channels = channels.data();
+    header.channels = channels_sorted.data();
     header.pixel_types = pixel_types.data();
     header.requested_pixel_types = pixel_types.data();
 
@@ -2298,10 +2322,11 @@ void Bitmap::write_exr(Stream* stream, int quality) const
 
     std::vector<std::unique_ptr<uint8_t[]>> images(channel_count());
     std::vector<uint8_t*> image_ptrs(channel_count());
+
     for (size_t i = 0; i < channel_count(); ++i) {
         images[i] = std::unique_ptr<uint8_t[]>(new uint8_t[plane_size]);
         image_ptrs[i] = images[i].get();
-        const uint8_t* src = uint8_data() + i * component_size;
+        const uint8_t* src = uint8_data() + ord[i] * component_size;
         uint8_t* dst = images[i].get();
         if (component_size == 2) {
             for (size_t j = 0; j < m_width * m_height; ++j) {

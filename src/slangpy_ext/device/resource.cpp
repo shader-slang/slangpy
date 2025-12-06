@@ -97,7 +97,13 @@ nb::ndarray<nb::numpy> buffer_to_numpy(Buffer* self)
 
     self->get_data(data, data_size);
 
-    nb::capsule owner(data, [](void* p) noexcept { delete[] reinterpret_cast<uint8_t*>(p); });
+    nb::capsule owner(
+        data,
+        [](void* p) noexcept
+        {
+            delete[] reinterpret_cast<uint8_t*>(p);
+        }
+    );
 
     if (auto dtype = resource_format_to_dtype(self->format())) {
         const FormatInfo& format_info = get_format_info(self->format());
@@ -214,7 +220,13 @@ nb::ndarray<nb::numpy> texture_to_numpy(Texture* self, uint32_t layer, uint32_t 
     void* data = dst_data;
     uint3 mip_size = dst_layout.size;
 
-    nb::capsule owner(data, [](void* p) noexcept { delete[] reinterpret_cast<uint8_t*>(p); });
+    nb::capsule owner(
+        data,
+        [](void* p) noexcept
+        {
+            delete[] reinterpret_cast<uint8_t*>(p);
+        }
+    );
 
     if (auto dtype = resource_format_to_dtype(self->format())) {
 
@@ -349,7 +361,7 @@ SGL_PY_EXPORT(device_resource)
     nb::sgl_enum<TextureType>(m, "TextureType");
     nb::sgl_enum<MemoryType>(m, "MemoryType");
 
-    nb::class_<Resource, DeviceResource>(m, "Resource", D(Resource)) //
+    nb::class_<Resource, DeviceChild>(m, "Resource", D(Resource)) //
         .def_prop_ro("native_handle", &Resource::native_handle, D(Resource, native_handle));
 
     nb::sgl_enum<TextureAspect>(m, "TextureAspect");
@@ -364,7 +376,10 @@ SGL_PY_EXPORT(device_resource)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](SubresourceRange* self, nb::dict dict) { new (self) SubresourceRange(dict_to_SubresourceRange(dict)); }
+            [](SubresourceRange* self, nb::dict dict)
+            {
+                new (self) SubresourceRange(dict_to_SubresourceRange(dict));
+            }
         )
         .def_rw("layer", &SubresourceRange::layer, D(SubresourceRange, layer))
         .def_rw("layer_count", &SubresourceRange::layer_count, D(SubresourceRange, layer_count))
@@ -374,7 +389,13 @@ SGL_PY_EXPORT(device_resource)
 
     nb::class_<BufferDesc>(m, "BufferDesc", D(BufferDesc))
         .def(nb::init<>())
-        .def("__init__", [](BufferDesc* self, nb::dict dict) { new (self) BufferDesc(dict_to_BufferDesc(dict)); })
+        .def(
+            "__init__",
+            [](BufferDesc* self, nb::dict dict)
+            {
+                new (self) BufferDesc(dict_to_BufferDesc(dict));
+            }
+        )
         .def_rw("size", &BufferDesc::size, D(BufferDesc, size))
         .def_rw("struct_size", &BufferDesc::struct_size, D(BufferDesc, struct_size))
         .def_rw("format", &BufferDesc::format, D(BufferDesc, format))
@@ -390,6 +411,8 @@ SGL_PY_EXPORT(device_resource)
         .def_prop_ro("struct_size", &Buffer::struct_size, D(Buffer, struct_size))
         .def_prop_ro("device_address", &Buffer::device_address, D(Buffer, device_address))
         .def_prop_ro("shared_handle", &Buffer::shared_handle, D(Buffer, shared_handle))
+        .def_prop_ro("descriptor_handle_ro", &Buffer::descriptor_handle_ro, D(Buffer, descriptor_handle_ro))
+        .def_prop_ro("descriptor_handle_rw", &Buffer::descriptor_handle_rw, D(Buffer, descriptor_handle_rw))
         .def("to_numpy", &buffer_to_numpy, D(buffer_to_numpy))
         .def("copy_from_numpy", &buffer_copy_from_numpy, "data"_a, D(buffer_from_numpy))
         .def(
@@ -408,7 +431,10 @@ SGL_PY_EXPORT(device_resource)
         .def(nb::init<Buffer*, DeviceOffset>(), "buffer"_a, "offset"_a = 0)
         .def(
             "__init__",
-            [](BufferOffsetPair* self, nb::dict dict) { new (self) BufferOffsetPair(dict_to_BufferOffsetPair(dict)); }
+            [](BufferOffsetPair* self, nb::dict dict)
+            {
+                new (self) BufferOffsetPair(dict_to_BufferOffsetPair(dict));
+            }
         )
         .def_rw("buffer", &BufferOffsetPair::buffer, D(BufferOffsetPair, buffer))
         .def_rw("offset", &BufferOffsetPair::offset, D(BufferOffsetPair, offset));
@@ -417,7 +443,13 @@ SGL_PY_EXPORT(device_resource)
 
     nb::class_<TextureDesc>(m, "TextureDesc", D(TextureDesc))
         .def(nb::init<>())
-        .def("__init__", [](TextureDesc* self, nb::dict dict) { new (self) TextureDesc(dict_to_TextureDesc(dict)); })
+        .def(
+            "__init__",
+            [](TextureDesc* self, nb::dict dict)
+            {
+                new (self) TextureDesc(dict_to_TextureDesc(dict));
+            }
+        )
         .def_rw("type", &TextureDesc::type, D(TextureDesc, type))
         .def_rw("format", &TextureDesc::format, D(TextureDesc, format))
         .def_rw("width", &TextureDesc::width, D(TextureDesc, width))
@@ -437,7 +469,10 @@ SGL_PY_EXPORT(device_resource)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](TextureViewDesc* self, nb::dict dict) { new (self) TextureViewDesc(dict_to_TextureViewDesc(dict)); }
+            [](TextureViewDesc* self, nb::dict dict)
+            {
+                new (self) TextureViewDesc(dict_to_TextureViewDesc(dict));
+            }
         )
         .def_rw("format", &TextureViewDesc::format, D(TextureViewDesc, format))
         .def_rw("aspect", &TextureViewDesc::aspect, D(TextureViewDesc, aspect))
@@ -482,7 +517,10 @@ SGL_PY_EXPORT(device_resource)
         .def("create_view", &Texture::create_view, "desc"_a, D(Texture, create_view))
         .def(
             "create_view",
-            [](Texture* self, nb::dict dict) { return self->create_view(dict_to_TextureViewDesc(dict)); },
+            [](Texture* self, nb::dict dict)
+            {
+                return self->create_view(dict_to_TextureViewDesc(dict));
+            },
             "dict"_a,
             D(Texture, create_view)
         )
@@ -522,7 +560,7 @@ SGL_PY_EXPORT(device_resource)
         .def("to_numpy", &texture_to_numpy, "layer"_a = 0, "mip"_a = 0, D(texture_to_numpy))
         .def("copy_from_numpy", &texture_from_numpy, "data"_a, "layer"_a = 0, "mip"_a = 0, D(texture_from_numpy));
 
-    nb::class_<TextureView, DeviceResource>(m, "TextureView", D(TextureView))
+    nb::class_<TextureView, DeviceChild>(m, "TextureView", D(TextureView))
         .def_prop_ro("texture", &TextureView::texture, D(TextureView, texture))
         .def_prop_ro("desc", &TextureView::desc, D(TextureView, desc))
         .def_prop_ro("format", &TextureView::format, D(TextureView, format))

@@ -84,9 +84,22 @@ public:
     }
 
     template<typename T>
+        requires(HasWriteToCursor<T, BufferElementCursor>)
+    void set(const T& value)
+    {
+        value.write_to_cursor(*this);
+    }
+
+    template<typename T>
+        requires(!HasWriteToCursor<T, BufferElementCursor>)
     void set(const T& value) const;
 
-    void _set_array_unsafe(const void* data, size_t size, size_t element_count) const;
+    void _set_array_unsafe(
+        const void* data,
+        size_t size,
+        size_t element_count,
+        TypeReflection::ScalarType cpu_scalar_type
+    ) const;
 
     /// CursorWriteWrappers, CursorReadWrappers
     void _set_data(ShaderOffset offset, const void* data, size_t size) const;

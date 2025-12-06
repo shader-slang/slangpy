@@ -6,6 +6,7 @@
 
 #include "sgl/core/macros.h"
 #include "sgl/core/enum.h"
+#include "sgl/core/data_type.h"
 
 #include "sgl/math/vector_types.h"
 #include "sgl/math/matrix_types.h"
@@ -20,6 +21,8 @@ using DeviceAddress = uint64_t;
 using DeviceOffset = uint64_t;
 /// Represents a size in device memory (in bytes).
 using DeviceSize = uint64_t;
+/// Adapter LUID (locally unique identifier).
+using AdapterLUID = std::array<uint8_t, 16>;
 
 enum CommandQueueType : uint32_t {
     graphics = static_cast<uint32_t>(rhi::QueueType::Graphics),
@@ -49,6 +52,7 @@ enum class Feature : uint32_t {
     custom_border_color = static_cast<uint32_t>(rhi::Feature::CustomBorderColor),
     fragment_shading_rate = static_cast<uint32_t>(rhi::Feature::FragmentShadingRate),
     sampler_feedback = static_cast<uint32_t>(rhi::Feature::SamplerFeedback),
+    combined_texture_sampler = static_cast<uint32_t>(rhi::Feature::CombinedTextureSampler),
     // Ray tracing features
     acceleration_structure = static_cast<uint32_t>(rhi::Feature::AccelerationStructure),
     acceleration_structure_spheres = static_cast<uint32_t>(rhi::Feature::AccelerationStructureSpheres),
@@ -57,7 +61,9 @@ enum class Feature : uint32_t {
     ray_tracing = static_cast<uint32_t>(rhi::Feature::RayTracing),
     ray_query = static_cast<uint32_t>(rhi::Feature::RayQuery),
     shader_execution_reordering = static_cast<uint32_t>(rhi::Feature::ShaderExecutionReordering),
+    ray_tracing_motion_blur = static_cast<uint32_t>(rhi::Feature::RayTracingMotionBlur),
     ray_tracing_validation = static_cast<uint32_t>(rhi::Feature::RayTracingValidation),
+    cluster_acceleration_structure = static_cast<uint32_t>(rhi::Feature::ClusterAccelerationStructure),
     // Other features
     timestamp_query = static_cast<uint32_t>(rhi::Feature::TimestampQuery),
     realtime_clock = static_cast<uint32_t>(rhi::Feature::RealtimeClock),
@@ -120,13 +126,16 @@ SGL_ENUM_INFO(
         {Feature::custom_border_color, "custom_border_color"},
         {Feature::fragment_shading_rate, "fragment_shading_rate"},
         {Feature::sampler_feedback, "sampler_feedback"},
+        {Feature::combined_texture_sampler, "combined_texture_sampler"},
         {Feature::acceleration_structure, "acceleration_structure"},
         {Feature::acceleration_structure_spheres, "acceleration_structure_spheres"},
         {Feature::acceleration_structure_linear_swept_spheres, "acceleration_structure_linear_swept_spheres"},
         {Feature::ray_tracing, "ray_tracing"},
         {Feature::ray_query, "ray_query"},
         {Feature::shader_execution_reordering, "shader_execution_reordering"},
+        {Feature::ray_tracing_motion_blur, "ray_tracing_motion_blur"},
         {Feature::ray_tracing_validation, "ray_tracing_validation"},
+        {Feature::cluster_acceleration_structure, "cluster_acceleration_structure"},
         {Feature::timestamp_query, "timestamp_query"},
         {Feature::realtime_clock, "realtime_clock"},
         {Feature::cooperative_vector, "cooperative_vector"},
@@ -143,7 +152,7 @@ SGL_ENUM_INFO(
         {Feature::sm_6_8, "sm_6_8"},
         {Feature::sm_6_9, "sm_6_9"},
         {Feature::half, "half"},
-        {Feature::double_, "double_"},
+        {Feature::double_, "double"},
         {Feature::int16, "int16"},
         {Feature::int64, "int64"},
         {Feature::atomic_float, "atomic_float"},
@@ -768,6 +777,8 @@ enum class RayTracingPipelineFlags : uint8_t {
     none = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::None),
     skip_triangles = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::SkipTriangles),
     skip_procedurals = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::SkipProcedurals),
+    enable_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableSpheres),
+    enable_linear_swept_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableLinearSweptSpheres),
 };
 
 SGL_ENUM_CLASS_OPERATORS(RayTracingPipelineFlags);
@@ -777,8 +788,135 @@ SGL_ENUM_INFO(
         {RayTracingPipelineFlags::none, "none"},
         {RayTracingPipelineFlags::skip_triangles, "skip_triangles"},
         {RayTracingPipelineFlags::skip_procedurals, "skip_procedurals"},
+        {RayTracingPipelineFlags::enable_spheres, "enable_spheres"},
+        {RayTracingPipelineFlags::enable_linear_swept_spheres, "enable_linear_swept_spheres"},
     }
 );
 SGL_ENUM_REGISTER(RayTracingPipelineFlags);
+
+// ----------------------------------------------------------------------------
+// Cooperative Vectors
+// ----------------------------------------------------------------------------
+
+enum class CoopVecMatrixLayout {
+    row_major = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::RowMajor),
+    column_major = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::ColumnMajor),
+    inferencing_optimal = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::InferencingOptimal),
+    training_optimal = static_cast<uint32_t>(rhi::CooperativeVectorMatrixLayout::TrainingOptimal),
+};
+SGL_ENUM_INFO(
+    CoopVecMatrixLayout,
+    {
+        {CoopVecMatrixLayout::row_major, "row_major"},
+        {CoopVecMatrixLayout::column_major, "column_major"},
+        {CoopVecMatrixLayout::inferencing_optimal, "inferencing_optimal"},
+        {CoopVecMatrixLayout::training_optimal, "training_optimal"},
+    }
+);
+SGL_ENUM_REGISTER(CoopVecMatrixLayout);
+
+struct CoopVecMatrixDesc {
+    uint32_t rows{0};
+    uint32_t cols{0};
+    DataType element_type{DataType::void_};
+    CoopVecMatrixLayout layout{CoopVecMatrixLayout::row_major};
+    /// Size (in bytes) of the matrix.
+    size_t size{0};
+    /// Offset (in bytes) from start of buffer.
+    size_t offset{0};
+    /// Stride (in bytes) between rows or columns.
+    size_t row_col_stride{0};
+};
+
+namespace detail {
+    inline rhi::CooperativeVectorComponentType to_rhi_cooperative_vector_component_type(DataType dtype)
+    {
+        switch (dtype) {
+        case DataType::float16:
+            return rhi::CooperativeVectorComponentType::Float16;
+        case DataType::float32:
+            return rhi::CooperativeVectorComponentType::Float32;
+        case DataType::float64:
+            return rhi::CooperativeVectorComponentType::Float64;
+        case DataType::float8_e4m3:
+            return rhi::CooperativeVectorComponentType::FloatE4M3;
+        case DataType::float8_e5m2:
+            return rhi::CooperativeVectorComponentType::FloatE5M2;
+        case DataType::int8:
+            return rhi::CooperativeVectorComponentType::Sint8;
+        case DataType::int16:
+            return rhi::CooperativeVectorComponentType::Sint16;
+        case DataType::int32:
+            return rhi::CooperativeVectorComponentType::Sint32;
+        case DataType::uint8:
+            return rhi::CooperativeVectorComponentType::Uint8;
+        case DataType::uint16:
+            return rhi::CooperativeVectorComponentType::Uint16;
+        case DataType::uint32:
+            return rhi::CooperativeVectorComponentType::Uint32;
+        case DataType::uint64:
+            return rhi::CooperativeVectorComponentType::Uint64;
+        default:
+            SGL_THROW("\"%s\" is not a valid component type for cooperative vector matrix", dtype);
+        }
+    }
+    inline rhi::CooperativeVectorMatrixDesc to_rhi(const CoopVecMatrixDesc& desc)
+    {
+        rhi::CooperativeVectorMatrixDesc rhi_desc = {};
+        rhi_desc.rowCount = desc.rows;
+        rhi_desc.colCount = desc.cols;
+        rhi_desc.componentType = to_rhi_cooperative_vector_component_type(desc.element_type);
+        rhi_desc.layout = static_cast<rhi::CooperativeVectorMatrixLayout>(desc.layout);
+        rhi_desc.size = desc.size;
+        rhi_desc.offset = desc.offset;
+        rhi_desc.rowColumnStride = desc.row_col_stride;
+        return rhi_desc;
+    }
+    inline size_t
+    compute_coop_vec_row_col_stride(uint32_t rows, uint32_t cols, DataType element_type, CoopVecMatrixLayout layout)
+    {
+        if (layout == CoopVecMatrixLayout::row_major)
+            return cols * data_type_size(element_type);
+        else if (layout == CoopVecMatrixLayout::column_major)
+            return rows * data_type_size(element_type);
+        return 0;
+    };
+} // namespace detail
+
+// ----------------------------------------------------------------------------
+// Heap
+// ----------------------------------------------------------------------------
+
+/// Report information for a memory heap.
+struct HeapReport {
+    /// Name of the heap.
+    std::string label;
+    /// Number of pages in the heap.
+    uint32_t num_pages{0};
+    /// Total allocated memory in bytes.
+    uint64_t total_allocated{0};
+    /// Total memory usage in bytes.
+    uint64_t total_mem_usage{0};
+    /// Number of allocations.
+    uint64_t num_allocations{0};
+
+    std::string to_string() const
+    {
+        return fmt::format(
+            "HeapReport(\n"
+            "  label = \"{}\",\n"
+            "  num_pages = {},\n"
+            "  total_allocated = {},\n"
+            "  total_mem_usage = {},\n"
+            "  num_allocations = {}\n"
+            ")",
+            label,
+            num_pages,
+            total_allocated,
+            total_mem_usage,
+            num_allocations
+        );
+    }
+};
 
 } // namespace sgl

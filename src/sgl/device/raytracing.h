@@ -4,7 +4,7 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
-#include "sgl/device/device_resource.h"
+#include "sgl/device/device_child.h"
 #include "sgl/device/resource.h"
 
 #include "sgl/math/vector_types.h"
@@ -109,10 +109,78 @@ struct AccelerationStructureBuildInputProceduralPrimitives {
     AccelerationStructureGeometryFlags flags{AccelerationStructureGeometryFlags::none};
 };
 
+struct AccelerationStructureBuildInputSpheres {
+    uint32_t vertex_count{0};
+
+    static_vector<BufferOffsetPair, MAX_ACCELERATION_STRUCTURE_MOTION_KEY_COUNT> vertex_position_buffers;
+    Format vertex_position_format{Format::undefined};
+    uint32_t vertex_position_stride{0};
+
+    static_vector<BufferOffsetPair, MAX_ACCELERATION_STRUCTURE_MOTION_KEY_COUNT> vertex_radius_buffers;
+    Format vertex_radius_format{Format::undefined};
+    uint32_t vertex_radius_stride{0};
+
+    BufferOffsetPair index_buffer;
+    IndexFormat index_format{IndexFormat::uint32};
+    uint32_t index_count{0};
+
+    AccelerationStructureGeometryFlags flags{AccelerationStructureGeometryFlags::none};
+};
+
+enum class LinearSweptSpheresIndexingMode {
+    list = static_cast<uint32_t>(rhi::LinearSweptSpheresIndexingMode::List),
+    successive = static_cast<uint32_t>(rhi::LinearSweptSpheresIndexingMode::Successive),
+};
+SGL_ENUM_INFO(
+    LinearSweptSpheresIndexingMode,
+    {
+        {LinearSweptSpheresIndexingMode::list, "list"},
+        {LinearSweptSpheresIndexingMode::successive, "successive"},
+    }
+);
+SGL_ENUM_REGISTER(LinearSweptSpheresIndexingMode);
+
+enum class LinearSweptSpheresEndCapsMode {
+    none = static_cast<uint32_t>(rhi::LinearSweptSpheresEndCapsMode::None),
+    chained = static_cast<uint32_t>(rhi::LinearSweptSpheresEndCapsMode::Chained),
+};
+SGL_ENUM_INFO(
+    LinearSweptSpheresEndCapsMode,
+    {
+        {LinearSweptSpheresEndCapsMode::none, "none"},
+        {LinearSweptSpheresEndCapsMode::chained, "chained"},
+    }
+);
+SGL_ENUM_REGISTER(LinearSweptSpheresEndCapsMode);
+
+struct AccelerationStructureBuildInputLinearSweptSpheres {
+    uint32_t vertex_count{0};
+    uint32_t primitive_count{0};
+
+    static_vector<BufferOffsetPair, MAX_ACCELERATION_STRUCTURE_MOTION_KEY_COUNT> vertex_position_buffers;
+    Format vertex_position_format{Format::undefined};
+    uint32_t vertex_position_stride{0};
+
+    static_vector<BufferOffsetPair, MAX_ACCELERATION_STRUCTURE_MOTION_KEY_COUNT> vertex_radius_buffers;
+    Format vertex_radius_format{Format::undefined};
+    uint32_t vertex_radius_stride{0};
+
+    BufferOffsetPair index_buffer;
+    IndexFormat index_format{IndexFormat::uint32};
+    uint32_t index_count{0};
+
+    LinearSweptSpheresIndexingMode indexing_mode{LinearSweptSpheresIndexingMode::list};
+    LinearSweptSpheresEndCapsMode end_caps_mode{LinearSweptSpheresEndCapsMode::none};
+
+    AccelerationStructureGeometryFlags flags{AccelerationStructureGeometryFlags::none};
+};
+
 using AccelerationStructureBuildInput = std::variant<
     AccelerationStructureBuildInputInstances,
     AccelerationStructureBuildInputTriangles,
-    AccelerationStructureBuildInputProceduralPrimitives>;
+    AccelerationStructureBuildInputProceduralPrimitives,
+    AccelerationStructureBuildInputSpheres,
+    AccelerationStructureBuildInputLinearSweptSpheres>;
 
 struct AccelerationStructureBuildInputMotionOptions {
     uint32_t key_count{1};
@@ -205,11 +273,13 @@ struct AccelerationStructureDesc {
     std::string label;
 };
 
-class SGL_API AccelerationStructure : public DeviceResource {
+class SGL_API AccelerationStructure : public DeviceChild {
     SGL_OBJECT(AccelerationStructure)
 public:
     AccelerationStructure(ref<Device> device, AccelerationStructureDesc desc);
     ~AccelerationStructure();
+
+    virtual void _release_rhi_resources() override { m_rhi_acceleration_structure.setNull(); }
 
     const AccelerationStructureDesc& desc() const { return m_desc; }
 
@@ -224,11 +294,13 @@ private:
     Slang::ComPtr<rhi::IAccelerationStructure> m_rhi_acceleration_structure;
 };
 
-class SGL_API AccelerationStructureInstanceList : public DeviceResource {
+class SGL_API AccelerationStructureInstanceList : public DeviceChild {
     SGL_OBJECT(AccelerationStructureInstanceList)
 public:
     AccelerationStructureInstanceList(ref<Device> device, size_t size = 0);
     ~AccelerationStructureInstanceList();
+
+    virtual void _release_rhi_resources() override { }
 
     size_t size() const { return m_instances.size(); }
 
@@ -261,11 +333,13 @@ struct ShaderTableDesc {
     std::vector<std::string> callable_entry_points;
 };
 
-class SGL_API ShaderTable : public DeviceResource {
+class SGL_API ShaderTable : public DeviceChild {
     SGL_OBJECT(ShaderTable)
 public:
     ShaderTable(ref<Device> device, ShaderTableDesc desc);
     ~ShaderTable();
+
+    virtual void _release_rhi_resources() override { m_rhi_shader_table.setNull(); }
 
     rhi::IShaderTable* rhi_shader_table() const { return m_rhi_shader_table; }
 

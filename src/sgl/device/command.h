@@ -68,6 +68,14 @@ public:
      */
     void insert_debug_marker(const char* name, float3 color);
 
+    /**
+     * \brief Write a timestamp.
+     *
+     * \param query_pool Query pool.
+     * \param index Index of the query.
+     */
+    void write_timestamp(QueryPool* query_pool, uint32_t index);
+
     virtual void end();
 
 protected:
@@ -138,10 +146,12 @@ private:
     friend class CommandEncoder;
 };
 
-class SGL_API CommandEncoder : public DeviceResource {
+class SGL_API CommandEncoder : public DeviceChild {
     SGL_OBJECT(CommandEncoder)
 public:
     CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder);
+
+    virtual void _release_rhi_resources() override { m_rhi_command_encoder.setNull(); }
 
     ref<RenderPassEncoder> begin_render_pass(const RenderPassDesc& desc);
     ref<ComputePassEncoder> begin_compute_pass();
@@ -342,6 +352,19 @@ public:
     void serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src);
     void deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src);
 
+    void convert_coop_vec_matrices(
+        Buffer* dst,
+        std::span<const CoopVecMatrixDesc> dst_descs,
+        const Buffer* src,
+        std::span<const CoopVecMatrixDesc> src_descs
+    );
+    void convert_coop_vec_matrix(
+        Buffer* dst,
+        const CoopVecMatrixDesc& dst_desc,
+        const Buffer* src,
+        const CoopVecMatrixDesc& src_desc
+    );
+
     /**
      * Transition resource state of a buffer and add a barrier if state has changed.
      * \param buffer Buffer
@@ -415,11 +438,13 @@ private:
     ref<ShaderObject> m_root_object;
 };
 
-class SGL_API CommandBuffer : public DeviceResource {
+class SGL_API CommandBuffer : public DeviceChild {
     SGL_OBJECT(CommandBuffer)
 public:
     CommandBuffer(ref<Device> device, Slang::ComPtr<rhi::ICommandBuffer> rhi_command_buffer);
     ~CommandBuffer();
+
+    virtual void _release_rhi_resources() override { m_rhi_command_buffer.setNull(); }
 
     rhi::ICommandBuffer* rhi_command_buffer() const { return m_rhi_command_buffer; }
 

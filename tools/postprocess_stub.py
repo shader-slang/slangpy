@@ -13,8 +13,10 @@ import libcst.matchers as m
 DESCRIPTOR_CONVERT_TYPES = {
     "AccelerationStructureBuildDesc": True,
     "AccelerationStructureBuildInputInstances": True,
+    "AccelerationStructureBuildInputLinearSweptSpheres": True,
     "AccelerationStructureBuildInputMotionOptions": True,
     "AccelerationStructureBuildInputProceduralPrimitives": True,
+    "AccelerationStructureBuildInputSpheres": True,
     "AccelerationStructureBuildInputTriangles": True,
     "AccelerationStructureDesc": True,
     "AccelerationStructureInstanceDesc": True,
@@ -26,6 +28,7 @@ DESCRIPTOR_CONVERT_TYPES = {
     "BufferOffsetPair": True,
     "ColorTargetDesc": True,
     "ComputePipelineDesc": True,
+    "CoopVecMatrixDesc": True,
     "DepthStencilDesc": True,
     "DepthStencilOpDesc": True,
     "DeviceDesc": True,

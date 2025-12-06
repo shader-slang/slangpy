@@ -1,6 +1,8 @@
 
 add_library(sgl SHARED)
 
+option(SGL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
+
 target_sources(sgl PRIVATE
     sgl.natvis
 
@@ -43,8 +45,9 @@ target_sources(sgl PRIVATE
     core/memory_stream.h
     core/object.cpp
     core/object.h
+    core/lmdb_cache.cpp
+    core/lmdb_cache.h
     core/platform_linux.cpp
-    core/platform_macos.cpp
     core/platform_windows.cpp
     core/platform.cpp
     core/platform.h
@@ -73,8 +76,6 @@ target_sources(sgl PRIVATE
     device/buffer_cursor.h
     device/command.cpp
     device/command.h
-    device/coopvec.h
-    device/coopvec.cpp
     device/cuda_interop.cpp
     device/cuda_interop.h
     device/cuda_utils.cpp
@@ -82,8 +83,8 @@ target_sources(sgl PRIVATE
     device/cursor_utils.cpp
     device/cursor_utils.h
     device/debug_logger.h
-    device/device_resource.cpp
-    device/device_resource.h
+    device/device_child.cpp
+    device/device_child.h
     device/device.cpp
     device/device.h
     device/fence.cpp
@@ -102,6 +103,8 @@ target_sources(sgl PRIVATE
     device/native_formats.h
     device/nvapi.slang
     device/nvapi.slangh
+    device/persistent_cache.cpp
+    device/persistent_cache.h
     device/pipeline.cpp
     device/pipeline.h
     device/print.cpp
@@ -115,6 +118,7 @@ target_sources(sgl PRIVATE
     device/reflection.h
     device/resource.cpp
     device/resource.h
+    device/rhi.slang
     device/sampler.cpp
     device/sampler.h
     device/shader_cursor.cpp
@@ -131,7 +135,6 @@ target_sources(sgl PRIVATE
     device/types.h
 
     math/constants.h
-    math/constants.slang
     math/float16.cpp
     math/float16.h
     math/matrix_math.h
@@ -140,8 +143,6 @@ target_sources(sgl PRIVATE
     math/quaternion_math.h
     math/quaternion_types.h
     math/quaternion.h
-    math/ray.h
-    math/ray.slang
     math/scalar_math.h
     math/scalar_types.h
     math/vector_math.h
@@ -180,6 +181,18 @@ target_sources(sgl PRIVATE
 
 target_include_directories(sgl PUBLIC ../ ${SGL_IMGUI_DIR})
 
+# Add macOS Objective-C++ source and find dependencies (only on macOS)
+if(SGL_MACOS)
+    target_sources(sgl PRIVATE core/platform_macos.mm)
+    # Enable ARC for Objective-C++ source
+    set_source_files_properties(core/platform_macos.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    find_library(SGL_APPKIT_FRAMEWORK AppKit REQUIRED)
+    find_library(SGL_FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    find_library(SGL_UTI_FRAMEWORK UniformTypeIdentifiers REQUIRED)
+    add_library(sgl_macos_deps INTERFACE)
+    target_link_libraries(sgl_macos_deps INTERFACE ${SGL_APPKIT_FRAMEWORK} ${SGL_FOUNDATION_FRAMEWORK} ${SGL_UTI_FRAMEWORK})
+endif()
+
 target_compile_features(sgl PUBLIC cxx_std_20)
 
 target_compile_options(sgl
@@ -189,7 +202,7 @@ target_compile_options(sgl
             /MP                             # enable multi-processor compilation
             /Zi                             # generate debug symbols
             # Configure warnings
-            /WX                             # warnings as errors
+            $<$<BOOL:${SGL_WARNINGS_AS_ERRORS}>:/WX>    # warnings as errors
             /W4                             # increase warning level
             /wd4251                         # 'type' : class 'type1' needs to have dll-interface to be used by clients of class 'type2'
             /wd4201                         # nonstandard extension used: nameless struct/union
@@ -197,6 +210,7 @@ target_compile_options(sgl
             /wd4275                         # non dll-interface class 'type' used as base for dll-interface class 'type2'
             /external:templates-            # Allows warnings from external headers when they occur in a template that's instantiated in your code.
             # Enable warnings that are disabled with /W4
+            /we4062                         # enumerator 'identifier' in switch of enum 'enumeration' is not handled
             /we4263                         # 'function': member function does not override any base class virtual member function
             /we4264                         # 'virtual_function': no override available for virtual member function from base 'class'; function is hidden
             /we5038                         # data member 'member1' will be initialized after data member 'member2'
@@ -209,6 +223,7 @@ target_compile_options(sgl
             -fvisibility=hidden             # hide symbols by default
             -Wall                           # set warning level
             -Wextra                         # enable extra warnings
+            $<$<BOOL:${SGL_WARNINGS_AS_ERRORS}>:-Werror>    # treat warnings as errors
             -Wno-unused-function
             -Wno-unused-variable
             -Wno-unused-but-set-variable
@@ -220,13 +235,20 @@ target_compile_options(sgl
         >
         # Clang flags.
         $<$<CXX_COMPILER_ID:Clang>:
+            -Wno-unknown-warning-option
             -Wno-unused-private-field
             -Wno-braced-scalar-init
             -Wno-self-assign-overloaded
             -Wno-deprecated-copy
+            -Wno-microsoft-cast
+            -Wno-cast-function-type-mismatch
+
+            # this is for ImGUI only
+            -Wno-nontrivial-memcall
         >
         # GCC flags.
         $<$<CXX_COMPILER_ID:GNU>:
+            -Wno-unknown-warning
             -Wno-literal-suffix
             -Wno-class-memaccess
             -Wno-strict-aliasing
@@ -335,6 +357,7 @@ target_include_directories(sgl PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TY
 target_link_libraries(sgl
     PUBLIC
         fmt::fmt
+        nanothread
         slang
         slang-rhi
         slang-rhi-vulkan-headers
@@ -345,6 +368,7 @@ target_link_libraries(sgl
         git_version
         glfw
         tevclient
+        lmdb
         $<$<BOOL:${SGL_HAS_D3D12}>:d3d12>
         $<$<BOOL:${SGL_HAS_LIBPNG}>:PNG::PNG>
         $<$<BOOL:${SGL_HAS_LIBJPEG}>:JPEG::JPEG>
@@ -358,6 +382,8 @@ target_link_libraries(sgl
         # $<$<PLATFORM_ID:Windows>:setupapi.lib>  # Used in MonitorInfo
         # Linux system libraries.
         # $<$<PLATFORM_ID:Linux>:gtk3>
+        # macOS system libraries.
+        $<$<PLATFORM_ID:Darwin>:sgl_macos_deps>
 )
 
 set_target_properties(sgl PROPERTIES

@@ -13,7 +13,13 @@ template<class ListT, class... Extra>
 void bind_list_type(nanobind::module_& m, const char* type_name, Extra&&... extra)
 {
     nb::class_<ListT>(m, type_name, std::forward<Extra>(extra)...)
-        .def("__len__", [](ListT& self) { return self.size(); })
+        .def(
+            "__len__",
+            [](ListT& self)
+            {
+                return self.size();
+            }
+        )
         .def(
             "__getitem__",
             [](ListT& self, Py_ssize_t index)
@@ -62,7 +68,13 @@ SGL_PY_EXPORT(device_reflection)
             "child_name"_a,
             D(DeclReflection, find_first_child_of_kind)
         )
-        .def("__len__", [](DeclReflection& self) { return self.child_count(); })
+        .def(
+            "__len__",
+            [](DeclReflection& self)
+            {
+                return self.child_count();
+            }
+        )
         .def(
             "__getitem__",
             [](DeclReflection& self, Py_ssize_t index)
@@ -79,6 +91,12 @@ SGL_PY_EXPORT(device_reflection)
         "DeclReflectionIndexedChildList",
         D(DeclReflectionIndexedChildList)
     );
+
+    nb::class_<Attribute, BaseReflectionObject>(m, "Attribute", D(Attribute))
+        .def_prop_ro("name", &Attribute::name, D(Attribute, name))
+        .def_prop_ro("argument_count", &Attribute::argument_count, D(Attribute, argument_count))
+        .def("argument_type", &Attribute::argument_type, "index"_a, D(Attribute, argument_type))
+        .def("__repr__", &Attribute::to_string);
 
     nb::class_<TypeReflection, BaseReflectionObject> type_reflection(m, "TypeReflection", D(TypeReflection));
 
@@ -111,6 +129,19 @@ SGL_PY_EXPORT(device_reflection)
         )
         .def_prop_ro("resource_shape", &TypeReflection::resource_shape, D(TypeReflection, resource_shape))
         .def_prop_ro("resource_access", &TypeReflection::resource_access, D(TypeReflection, resource_access))
+        .def("get_user_attribute_count", &TypeReflection::get_user_attribute_count)
+        .def(
+            "get_user_attribute_by_index",
+            &TypeReflection::get_user_attribute_by_index,
+            "index"_a,
+            D(TypeReflection, get_user_attribute_by_index)
+        )
+        .def(
+            "find_user_attribute_by_name",
+            &TypeReflection::find_user_attribute_by_name,
+            "name"_a,
+            D(TypeReflection, find_user_attribute_by_name)
+        )
         .def("unwrap_array", &TypeReflection::unwrap_array, D(TypeReflection, unwrap_array))
         .def("__repr__", &TypeReflection::to_string);
 
@@ -243,7 +274,13 @@ SGL_PY_EXPORT(device_reflection)
         .def("has_element", &ReflectionCursor::has_element, "index"_a, D(ReflectionCursor, has_element))
         .def_prop_ro("type_layout", &ReflectionCursor::type_layout, D(ReflectionCursor, type_layout))
         .def_prop_ro("type", &ReflectionCursor::type, D(ReflectionCursor, type))
-        .def("__getitem__", [](ReflectionCursor& self, std::string_view name) { return self[name]; })
+        .def(
+            "__getitem__",
+            [](ReflectionCursor& self, std::string_view name)
+            {
+                return self[name];
+            }
+        )
         .def(
             "__getitem__",
             [](ReflectionCursor& self, int index)
@@ -254,6 +291,12 @@ SGL_PY_EXPORT(device_reflection)
                 // return self[index];
             }
         )
-        .def("__getattr__", [](ReflectionCursor& self, std::string_view name) { return self[name]; })
+        .def(
+            "__getattr__",
+            [](ReflectionCursor& self, std::string_view name)
+            {
+                return self[name];
+            }
+        )
         .def("__repr__", &ReflectionCursor::to_string);
 }

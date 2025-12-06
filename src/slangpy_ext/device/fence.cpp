@@ -17,12 +17,18 @@ SGL_PY_EXPORT(device_fence)
 
     nb::class_<FenceDesc>(m, "FenceDesc", D(FenceDesc))
         .def(nb::init<>())
-        .def("__init__", [](FenceDesc* self, nb::dict dict) { new (self) FenceDesc(dict_to_FenceDesc(dict)); })
+        .def(
+            "__init__",
+            [](FenceDesc* self, nb::dict dict)
+            {
+                new (self) FenceDesc(dict_to_FenceDesc(dict));
+            }
+        )
         .def_rw("initial_value", &FenceDesc::initial_value, D(FenceDesc, initial_value))
         .def_rw("shared", &FenceDesc::shared, D(FenceDesc, shared));
     nb::implicitly_convertible<nb::dict, FenceDesc>();
 
-    nb::class_<Fence, DeviceResource>(m, "Fence", D(Fence))
+    nb::class_<Fence, DeviceChild>(m, "Fence", D(Fence))
         .def_prop_ro("desc", &Fence::desc, D(Fence, desc))
         .def("signal", &Fence::signal, "value"_a = Fence::AUTO, D(Fence, signal))
         .def("wait", &Fence::wait, "value"_a = Fence::AUTO, "timeout_ns"_a = Fence::TIMEOUT_INFINITE, D(Fence, wait))

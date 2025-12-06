@@ -5,7 +5,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(utils)
 include(mt-retry)
 
-set(VCPKG_INSTALL_OPTIONS "--no-print-usage" "--allow-unsupported")
+set(VCPKG_INSTALL_OPTIONS "--no-print-usage" "--allow-unsupported" "--x-buildtrees-root=${CMAKE_CURRENT_SOURCE_DIR}/build/buildtrees")
 
 project(sgl)
 
@@ -16,6 +16,7 @@ include(DetermineTargetArchitecture)
 include(GNUInstallDirs)
 include(CMakeRC)
 
+# Default minimum macOS version
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 
 if (APPLE)
@@ -302,7 +303,8 @@ function(sgl_copy_binary src dst_dir)
     set(dst ${SGL_OUTPUT_DIRECTORY}/${dst_dir}/${filename})
     set_property(GLOBAL APPEND PROPERTY SGL_BINARY_FILES_SRC ${src})
     set_property(GLOBAL APPEND PROPERTY SGL_BINARY_FILES_DST ${dst})
-    install(FILES ${src} DESTINATION ${CMAKE_INSTALL_BINDIR}/${dst_dir})
+    cmake_path(SET dst_dir NORMALIZE "${CMAKE_INSTALL_BINDIR}/${dst_dir}")
+    install(FILES ${src} DESTINATION ${dst_dir})
 endfunction()
 
 function(sgl_copy_library target)

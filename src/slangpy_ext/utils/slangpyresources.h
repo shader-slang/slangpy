@@ -94,5 +94,31 @@ private:
     ref<NativeSlangType> m_slang_element_type;
 };
 
+class NativeDescriptorMarshall : public NativeMarshall {
+public:
+    NativeDescriptorMarshall(ref<NativeSlangType> slang_type, DescriptorHandleType type)
+        : NativeMarshall(slang_type)
+        , m_type(type)
+    {
+    }
+
+    DescriptorHandleType type() { return m_type; }
+
+    void write_shader_cursor_pre_dispatch(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        ShaderCursor cursor,
+        nb::object value,
+        nb::list read_back
+    ) const override;
+
+    Shape get_shape(nb::object data) const override;
+
+    nb::object create_dispatchdata(nb::object data) const override { return data; }
+
+private:
+    DescriptorHandleType m_type;
+};
+
 
 } // namespace sgl::slangpy

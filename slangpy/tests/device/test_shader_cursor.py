@@ -1,18 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from __future__ import annotations
 import pytest
 import sys
-import slangpy as spy
 import struct
 import numpy as np
 from dataclasses import dataclass
-from typing import Literal, Any, Union, cast
-from numpy.typing import DTypeLike
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
+
+from typing import Literal, Any
+from numpy.typing import DTypeLike
+
 
 INT_MIN = -2147483648
 INT_MAX = 2147483647
@@ -35,24 +34,20 @@ class TypeInfo:
 
 
 TYPE_INFOS = {
-    "bool": TypeInfo(size=4, struct="I", dtype=np.uint32),  # np.bool is 8 bits
+    # The size=4 for bool here is not reflecting on the actual size of bool on the device.
+    # The result is a buffer of uint32_t, and each single write to it is at least 4 bytes.
+    "bool": TypeInfo(size=4, struct="I", dtype=np.bool_),
     "int": TypeInfo(size=4, struct="i", dtype=np.int32),
     "uint": TypeInfo(size=4, struct="I", dtype=np.uint32),
     "float": TypeInfo(size=4, struct="f", dtype=np.float32),
     "int16_t": TypeInfo(size=4, struct="hxx", dtype=np.int16),
     "uint16_t": TypeInfo(size=4, struct="Hxx", dtype=np.uint16),
     "float16_t": TypeInfo(size=4, struct="exx", dtype=np.float16),
-    "int64_t": TypeInfo(size=8, struct="q", dtype=np.int64),
-    "int64_t": TypeInfo(size=8, struct="Q", dtype=np.uint64),
-    "float64_t": TypeInfo(size=8, struct="d", dtype=np.float64),
+    ## Unused for now
+    # "int64_t": TypeInfo(size=8, struct="q", dtype=np.int64),
+    # "int64_t": TypeInfo(size=8, struct="Q", dtype=np.uint64),
+    # "float64_t": TypeInfo(size=8, struct="d", dtype=np.float64),
 }
-
-
-def get_type_info(device_type: spy.DeviceType, type: str):
-    if device_type != spy.DeviceType.cuda or type != "bool":
-        return TYPE_INFOS[type]
-    # CUDA bool is size 1
-    TypeInfo(size=1, struct="I", dtype=np.uint32)
 
 
 @dataclass
@@ -243,8 +238,6 @@ def convert_matrix(type: str, rows: int, cols: int, values: Any):
 def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
     if device_type == spy.DeviceType.vulkan and sys.platform == "darwin":
         pytest.skip("Test shader doesn't currently compile on MoltenVK")
-    if device_type == spy.DeviceType.metal and use_numpy:
-        pytest.skip("Need to fix numpy bool handling")
 
     device = helpers.get_device(type=device_type)
 
@@ -317,10 +310,7 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         sizes.append(size)
         references.append(struct.pack(struct_pattern, *flat_value).hex())
 
-        # CUDA/Metal have bool size of 1, which is currently not handled, see issue:
-        # https://github.com/shader-slang/slangpy/issues/274
-        if device_type not in [spy.DeviceType.cuda, spy.DeviceType.metal] or var.type != "bool":
-            cursor[name_or_index] = value
+        cursor[name_or_index] = value
 
     def write_vars(
         device_type: spy.DeviceType,
@@ -364,22 +354,16 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
     named_typed_results = list(zip(names, types, results))
 
     for named_typed_result, named_typed_reference in zip(
-        named_typed_references, named_typed_results
+        named_typed_results, named_typed_references
     ):
         # Vulkan/Metal/CUDA packing rule for certain matrix types are not the same as D3D12's
         if (device_type in [spy.DeviceType.vulkan, spy.DeviceType.metal, spy.DeviceType.cuda]) and (
             named_typed_result[0] == "u_float2x2" or named_typed_result[0] == "u_float3x3"
         ):
             continue
-        # CUDA/Metal have bool size of 1, which is currently not handled, see issue:
-        # https://github.com/shader-slang/slangpy/issues/274
-        if (
-            device_type in [spy.DeviceType.cuda, spy.DeviceType.metal]
-            and named_typed_result[1] == "bool"
-        ):
-            continue
+
         assert named_typed_result == named_typed_reference
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-vvvs"])
+    pytest.main([__file__, "-v", "-s"])

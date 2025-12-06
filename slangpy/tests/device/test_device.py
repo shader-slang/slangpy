@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional
 import pytest
-import slangpy as spy
-import sys
 import numpy as np
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-import sglhelpers as helpers
+import slangpy as spy
+from slangpy.testing import helpers
+
+from typing import Optional
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -114,7 +112,7 @@ def test_hot_reload_event(device_type: spy.DeviceType):
     # Load a shader
     program = device.load_program(
         module_name="test_shader_foo.slang",
-        entry_point_names=["main_a", "main_b", "main_vs", "main_fs"],
+        entry_point_names=["main_a"],
     )
 
     # Setup a hook that increments a counter on hot reload.
@@ -145,7 +143,6 @@ def test_device_import(device_type: spy.DeviceType):
         type=device_type,
         enable_debug_layers=True,
         compiler_options={
-            "include_paths": [helpers.SHADER_DIR],
             "debug_info": spy.SlangDebugInfoLevel.standard,
         },
         label=f"deviceimport-{device_type.name}-1",
@@ -156,7 +153,6 @@ def test_device_import(device_type: spy.DeviceType):
         type=device_type,
         enable_debug_layers=True,
         compiler_options={
-            "include_paths": [helpers.SHADER_DIR],
             "debug_info": spy.SlangDebugInfoLevel.standard,
         },
         existing_device_handles=device1.native_handles,
@@ -208,5 +204,38 @@ def test_device_import(device_type: spy.DeviceType):
     device2 = None
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_report_heaps(device_type: spy.DeviceType):
+    """Test the report_heaps API."""
+    device = helpers.get_device(device_type)
+
+    # Call report_heaps - this should not throw an exception
+    heap_reports = device.report_heaps()
+
+    # Verify the return type is a list
+    assert isinstance(heap_reports, list)
+
+    # Verify each heap report has the expected structure
+    for heap_report in heap_reports:
+        assert hasattr(heap_report, "label")
+        assert hasattr(heap_report, "num_pages")
+        assert hasattr(heap_report, "total_allocated")
+        assert hasattr(heap_report, "total_mem_usage")
+        assert hasattr(heap_report, "num_allocations")
+        assert isinstance(heap_report.label, str)
+
+        # Verify the types are correct
+        assert isinstance(heap_report.num_pages, int)
+        assert isinstance(heap_report.total_allocated, int)
+        assert isinstance(heap_report.total_mem_usage, int)
+        assert isinstance(heap_report.num_allocations, int)
+
+        # Verify values are non-negative
+        assert heap_report.num_pages >= 0
+        assert heap_report.total_allocated >= 0
+        assert heap_report.total_mem_usage >= 0
+        assert heap_report.num_allocations >= 0
+
+
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v", "-s"])

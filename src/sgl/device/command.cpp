@@ -25,7 +25,7 @@
 namespace sgl {
 
 namespace detail {
-    rhi::SubresourceRange rhi_subresource_range(const Texture* texture, uint32_t subresource_index)
+    inline rhi::SubresourceRange rhi_subresource_range(const Texture* texture, uint32_t subresource_index)
     {
         return rhi::SubresourceRange{
             .layer = subresource_index / texture->mip_count(),
@@ -35,7 +35,7 @@ namespace detail {
         };
     }
 
-    rhi::SubresourceRange to_rhi(const SubresourceRange& range)
+    inline rhi::SubresourceRange to_rhi(const SubresourceRange& range)
     {
         return rhi::SubresourceRange{
             .layer = range.layer,
@@ -45,15 +45,7 @@ namespace detail {
         };
     }
 
-    rhi::BufferOffsetPair to_rhi(const BufferOffsetPair& buffer_with_offset)
-    {
-        return rhi::BufferOffsetPair(
-            buffer_with_offset.buffer ? buffer_with_offset.buffer->rhi_buffer() : nullptr,
-            buffer_with_offset.offset
-        );
-    }
-
-    rhi::DrawArguments to_rhi(const DrawArguments& draw_args)
+    inline rhi::DrawArguments to_rhi(const DrawArguments& draw_args)
     {
         return rhi::DrawArguments{
             .vertexCount = draw_args.vertex_count,
@@ -82,6 +74,11 @@ void PassEncoder::pop_debug_group()
 void PassEncoder::insert_debug_marker(const char* name, float3 color)
 {
     m_rhi_pass_encoder->insertDebugMarker(name, rhi::MarkerColor{color.r, color.g, color.b});
+}
+
+void PassEncoder::write_timestamp(QueryPool* query_pool, uint32_t index)
+{
+    m_rhi_pass_encoder->writeTimestamp(query_pool->rhi_query_pool(), index);
 }
 
 void PassEncoder::end()
@@ -204,7 +201,8 @@ void ComputePassEncoder::dispatch(uint3 thread_count)
     uint3 thread_group_count{
         div_round_up(thread_count.x, m_thread_group_size.x),
         div_round_up(thread_count.y, m_thread_group_size.y),
-        div_round_up(thread_count.z, m_thread_group_size.z)};
+        div_round_up(thread_count.z, m_thread_group_size.z)
+    };
     dispatch_compute(thread_group_count);
 }
 
@@ -270,7 +268,7 @@ void RayTracingPassEncoder::end()
 // ----------------------------------------------------------------------------
 
 CommandEncoder::CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_rhi_command_encoder(std::move(rhi_command_encoder))
     , m_open(true)
 {
@@ -508,7 +506,8 @@ void CommandEncoder::upload_buffer_data(Buffer* buffer, size_t offset, size_t si
 
     set_buffer_state(buffer, ResourceState::copy_destination);
 
-    SLANG_RHI_CALL(m_rhi_command_encoder->uploadBufferData(buffer->rhi_buffer(), offset, size, const_cast<void*>(data))
+    SLANG_RHI_CALL(
+        m_rhi_command_encoder->uploadBufferData(buffer->rhi_buffer(), offset, size, const_cast<void*>(data))
     );
 }
 
@@ -763,6 +762,52 @@ void CommandEncoder::deserialize_acceleration_structure(AccelerationStructure* d
     m_rhi_command_encoder->deserializeAccelerationStructure(dst->rhi_acceleration_structure(), detail::to_rhi(src));
 }
 
+void CommandEncoder::convert_coop_vec_matrices(
+    Buffer* dst,
+    std::span<const CoopVecMatrixDesc> dst_descs,
+    const Buffer* src,
+    std::span<const CoopVecMatrixDesc> src_descs
+)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    SGL_CHECK_NOT_NULL(dst);
+    SGL_CHECK_NOT_NULL(src);
+    SGL_CHECK(src_descs.size() == dst_descs.size(), "Source and destination desc count must match.");
+
+    short_vector<rhi::CooperativeVectorMatrixDesc, 8> rhi_dst_descs;
+    rhi_dst_descs.reserve(dst_descs.size());
+    for (const CoopVecMatrixDesc& desc : dst_descs)
+        rhi_dst_descs.push_back(detail::to_rhi(desc));
+
+    short_vector<rhi::CooperativeVectorMatrixDesc, 8> rhi_src_descs;
+    rhi_src_descs.reserve(src_descs.size());
+    for (const CoopVecMatrixDesc& desc : src_descs)
+        rhi_src_descs.push_back(detail::to_rhi(desc));
+
+    m_rhi_command_encoder->convertCooperativeVectorMatrix(
+        dst->rhi_buffer(),
+        rhi_dst_descs.data(),
+        src->rhi_buffer(),
+        rhi_src_descs.data(),
+        narrow_cast<uint32_t>(rhi_dst_descs.size())
+    );
+}
+
+void CommandEncoder::convert_coop_vec_matrix(
+    Buffer* dst,
+    const CoopVecMatrixDesc& dst_desc,
+    const Buffer* src,
+    const CoopVecMatrixDesc& src_desc
+)
+{
+    convert_coop_vec_matrices(
+        dst,
+        std::span<const CoopVecMatrixDesc>(&dst_desc, 1),
+        src,
+        std::span<const CoopVecMatrixDesc>(&src_desc, 1)
+    );
+}
+
 void CommandEncoder::set_buffer_state(Buffer* buffer, ResourceState state)
 {
     SGL_CHECK(m_open, "Command encoder is finished");
@@ -864,7 +909,7 @@ std::string CommandEncoder::to_string() const
 // ----------------------------------------------------------------------------
 
 CommandBuffer::CommandBuffer(ref<Device> device, Slang::ComPtr<rhi::ICommandBuffer> command_buffer)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_rhi_command_buffer(std::move(command_buffer))
 {
 }

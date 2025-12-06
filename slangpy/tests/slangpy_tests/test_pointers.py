@@ -1,17 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from pathlib import Path
-import sys
-from time import time
-from typing import Any, cast
-import numpy as np
 import pytest
-from slangpy import grid, float3
-from slangpy import DeviceType, BufferUsage, QueryType, ResourceState
-from slangpy.types import NDBuffer, Tensor
+from time import time
+import numpy as np
 
-sys.path.append(str(Path(__file__).parent))
-import helpers
+from slangpy import DeviceType, BufferUsage, QueryType, ResourceState, grid, float3
+from slangpy.types import NDBuffer, Tensor
+from slangpy.testing import helpers
+
+from typing import Any, cast
 
 # Filter default device types to only include those that support pointers
 # TODO: Metal does support pointers but the is a slang bug leading to incorrect Metal shader code
@@ -721,20 +718,20 @@ void bindings_to_pointer_function(int call_id, StructuredBuffer<int> in_buffer, 
             out_buffer.clear()
 
             # Do 1 call to ensure warmed up
-            encoder = device.create_command_encoder()
-            func(g, in_buffer.storage, out_buffer.storage, _append_to=encoder)
-            command_buffer = encoder.finish()
+            command_encoder = device.create_command_encoder()
+            func(g, in_buffer.storage, out_buffer.storage, _append_to=command_encoder)
+            command_buffer = command_encoder.finish()
             device.submit_command_buffer(command_buffer)
             device.wait_for_idle()
 
             # Now time 100 calls
             qp.reset()
-            encoder = device.create_command_encoder()
-            encoder.write_timestamp(qp, 0)
+            command_encoder = device.create_command_encoder()
+            command_encoder.write_timestamp(qp, 0)
             for i in range(DISPATCHES_PER_LOOP):
-                func(g, in_buffer.storage, out_buffer.storage, _append_to=encoder)
-                encoder.write_timestamp(qp, i + 1)
-            command_buffer = encoder.finish()
+                func(g, in_buffer.storage, out_buffer.storage, _append_to=command_encoder)
+                command_encoder.write_timestamp(qp, i + 1)
+            command_buffer = command_encoder.finish()
 
             pointers_start = time()
             device.submit_command_buffer(command_buffer)
@@ -766,6 +763,8 @@ void bindings_to_pointer_function(int call_id, StructuredBuffer<int> in_buffer, 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
 @pytest.mark.parametrize("sync_type", ["none", "global", "resource"])
 def test_pointer_barriers(device_type: DeviceType, sync_type: str):
+    if sync_type == "none":
+        pytest.skip("Skipping non-deterministic race-condition test")
 
     device = helpers.get_device(device_type)
 

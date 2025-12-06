@@ -23,8 +23,8 @@ namespace cursor_utils {
             };
 
             using ST = TypeReflection::ScalarType;
-            add_conversion(ST::int32, ST::uint32, ST::bool_);
-            add_conversion(ST::uint32, ST::int32, ST::bool_);
+            add_conversion(ST::int32, ST::uint32);
+            add_conversion(ST::uint32, ST::int32);
             add_conversion(ST::int64, ST::uint64);
             add_conversion(ST::uint64, ST::int64);
             add_conversion(ST::int8, ST::uint8);
@@ -47,30 +47,6 @@ namespace cursor_utils {
         return table.allow_conversion(from, to);
     }
 
-    size_t get_scalar_type_size(TypeReflection::ScalarType type)
-    {
-        switch (type) {
-        case TypeReflection::ScalarType::int8:
-        case TypeReflection::ScalarType::uint8:
-            return 1;
-        case TypeReflection::ScalarType::int16:
-        case TypeReflection::ScalarType::uint16:
-        case TypeReflection::ScalarType::float16:
-            return 2;
-        case TypeReflection::ScalarType::bool_:
-        case TypeReflection::ScalarType::int32:
-        case TypeReflection::ScalarType::uint32:
-        case TypeReflection::ScalarType::float32:
-            return 4;
-        case TypeReflection::ScalarType::int64:
-        case TypeReflection::ScalarType::uint64:
-        case TypeReflection::ScalarType::float64:
-            return 8;
-        default:
-            return 0;
-        }
-    }
-
     slang::TypeLayoutReflection* unwrap_array(slang::TypeLayoutReflection* layout)
     {
         while (layout->isArray()) {
@@ -82,95 +58,82 @@ namespace cursor_utils {
     void check_array(
         slang::TypeLayoutReflection* type_layout,
         size_t size,
-        TypeReflection::ScalarType scalar_type,
+        TypeReflection::ScalarType src_scalar_type,
         size_t element_count
     )
     {
-        slang::TypeReflection* type = type_layout->getType();
-        slang::TypeReflection* element_type = unwrap_array(type_layout)->getType();
-        size_t element_size = get_scalar_type_size((TypeReflection::ScalarType)element_type->getScalarType());
+        SGL_CHECK(type_layout->isArray(), "\"{}\" cannot bind a non-array", type_layout->getName());
 
-        SGL_CHECK(type->isArray(), "\"{}\" cannot bind an array", type_layout->getName());
+        slang::TypeLayoutReflection* element_type_layout = type_layout->getElementTypeLayout();
+        size_t element_size = element_type_layout->getSize();
+        size_t element_stride = type_layout->getElementStride(SlangParameterCategory::SLANG_PARAMETER_CATEGORY_UNIFORM);
+
         SGL_CHECK(
-            allow_scalar_conversion(scalar_type, (TypeReflection::ScalarType)element_type->getScalarType()),
+            allow_scalar_conversion(src_scalar_type, (TypeReflection::ScalarType)element_type_layout->getScalarType()),
             "\"{}\" expects scalar type {} (no implicit conversion from type {})",
             type_layout->getName(),
-            (TypeReflection::ScalarType)element_type->getScalarType(),
-            scalar_type
+            (TypeReflection::ScalarType)element_type_layout->getScalarType(),
+            src_scalar_type
         );
         SGL_CHECK(
-            element_count <= type->getElementCount(),
+            element_count <= type_layout->getElementCount(),
             "\"{}\" expects an array with at most {} elements (got {})",
             type_layout->getName(),
-            type->getElementCount(),
+            type_layout->getElementCount(),
             element_count
         );
-        SGL_ASSERT(element_count * element_size == size);
+        SGL_CHECK(
+            type_layout->getSize() >= size,
+            "Mismatched size, writing {} B into backend type ({}) of only {} B.",
+            size,
+            type_layout->getName(),
+            type_layout->getSize()
+        );
     }
 
-    void check_scalar(slang::TypeLayoutReflection* type_layout, size_t size, TypeReflection::ScalarType scalar_type)
+    void check_scalar(slang::TypeLayoutReflection* type_layout, size_t size, TypeReflection::ScalarType src_scalar_type)
     {
-        slang::TypeReflection* type = unwrap_array(type_layout)->getType();
-
         SGL_CHECK(
-            (TypeReflection::Kind)type->getKind() == TypeReflection::Kind::scalar,
-            "\"{}\" cannot bind a scalar value",
-            type_layout->getName()
-        );
-        SGL_CHECK(
-            allow_scalar_conversion(scalar_type, (TypeReflection::ScalarType)type->getScalarType()),
+            allow_scalar_conversion(src_scalar_type, (TypeReflection::ScalarType)type_layout->getScalarType()),
             "\"{}\" expects scalar type {} (no implicit conversion from type {})",
             type_layout->getName(),
-            (TypeReflection::ScalarType)type->getScalarType(),
-            scalar_type
+            (TypeReflection::ScalarType)type_layout->getScalarType(),
+            src_scalar_type
         );
-        // This is currently happening a lot due to CUDA reflection issues discussed here:
-        // https://github.com/shader-slang/slang/issues/7441
-        // Until they are resolved we keep this as a warning instead of an error.
-        if (size > type_layout->getSize()) {
-            log_warn(
-                "Mismatched size, writing {} B into backend type ({}) of only {} B.",
-                size,
-                type_layout->getName(),
-                type_layout->getSize()
-            );
-        }
-        // SGL_CHECK(
-        //     type_layout->getSize() >= size,
-        //     "Mismatched size, writing {} B into backend type ({}) of only {} B.",
-        //     size,
-        //     type_layout->getName(),
-        //     type_layout->getSize()
-        // );
+        SGL_CHECK(
+            type_layout->getSize() >= size,
+            "Mismatched size, writing {} B into backend type ({}) of only {} B.",
+            size,
+            type_layout->getName(),
+            type_layout->getSize()
+        );
     }
 
     void check_vector(
         slang::TypeLayoutReflection* type_layout,
         size_t size,
-        TypeReflection::ScalarType scalar_type,
+        TypeReflection::ScalarType src_scalar_type,
         int dimension
     )
     {
-        slang::TypeReflection* type = unwrap_array(type_layout)->getType();
-
         SGL_CHECK(
-            (TypeReflection::Kind)type->getKind() == TypeReflection::Kind::vector,
-            "\"{}\" cannot bind a vector value",
+            (TypeReflection::Kind)type_layout->getKind() == TypeReflection::Kind::vector,
+            "\"{}\" cannot bind a non-vector value",
             type_layout->getName()
         );
         SGL_CHECK(
-            type->getColumnCount() == uint32_t(dimension),
+            type_layout->getColumnCount() == uint32_t(dimension),
             "\"{}\" expects a vector with dimension {} (got dimension {})",
             type_layout->getName(),
-            type->getColumnCount(),
+            type_layout->getColumnCount(),
             dimension
         );
         SGL_CHECK(
-            allow_scalar_conversion(scalar_type, (TypeReflection::ScalarType)type->getScalarType()),
+            allow_scalar_conversion(src_scalar_type, (TypeReflection::ScalarType)type_layout->getScalarType()),
             "\"{}\" expects a vector with scalar type {} (no implicit conversion from type {})",
             type_layout->getName(),
-            (TypeReflection::ScalarType)type->getScalarType(),
-            scalar_type
+            (TypeReflection::ScalarType)type_layout->getScalarType(),
+            src_scalar_type
         );
         SGL_CHECK(
             type_layout->getSize() >= size,
@@ -184,36 +147,35 @@ namespace cursor_utils {
     void check_matrix(
         slang::TypeLayoutReflection* type_layout,
         size_t size,
-        TypeReflection::ScalarType scalar_type,
+        TypeReflection::ScalarType src_scalar_type,
         int rows,
         int cols
     )
     {
-        slang::TypeReflection* type = unwrap_array(type_layout)->getType();
-
         SGL_CHECK(
-            (TypeReflection::Kind)type->getKind() == TypeReflection::Kind::matrix,
-            "\"{}\" cannot bind a matrix value",
+            (TypeReflection::Kind)type_layout->getKind() == TypeReflection::Kind::matrix,
+            "\"{}\" cannot bind a non-matrix value",
             type_layout->getName()
         );
 
-        bool dimensionCondition = type->getRowCount() == uint32_t(rows) && type->getColumnCount() == uint32_t(cols);
+        bool dimensionCondition
+            = type_layout->getRowCount() == uint32_t(rows) && type_layout->getColumnCount() == uint32_t(cols);
 
         SGL_CHECK(
             dimensionCondition,
             "\"{}\" expects a matrix with dimension {}x{} (got dimension {}x{})",
             type_layout->getName(),
-            type->getRowCount(),
-            type->getColumnCount(),
+            type_layout->getRowCount(),
+            type_layout->getColumnCount(),
             rows,
             cols
         );
         SGL_CHECK(
-            allow_scalar_conversion(scalar_type, (TypeReflection::ScalarType)type->getScalarType()),
+            allow_scalar_conversion(src_scalar_type, (TypeReflection::ScalarType)type_layout->getScalarType()),
             "\"{}\" expects a matrix with scalar type {} (no implicit conversion from type {})",
             type_layout->getName(),
-            (TypeReflection::ScalarType)type->getScalarType(),
-            scalar_type
+            (TypeReflection::ScalarType)type_layout->getScalarType(),
+            src_scalar_type
         );
         SGL_CHECK(
             type_layout->getSize() >= size,

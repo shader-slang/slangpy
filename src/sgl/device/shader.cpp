@@ -102,14 +102,16 @@ public:
     void insert_cache_include(const std::filesystem::path& path, size_t index)
     {
         SGL_ASSERT(index <= m_entries.size());
-        m_entries.insert(m_entries.begin() + index,
+        m_entries.insert(
+            m_entries.begin() + index,
             {
-            .name = slang::CompilerOptionName::Include,
-            .value = {
-                .kind = slang::CompilerOptionValueKind::String,
-                .string0 = path.string(),
-            },
-        });
+                .name = slang::CompilerOptionName::Include,
+                .value = {
+                    .kind = slang::CompilerOptionValueKind::String,
+                    .string0 = path.string(),
+                },
+            }
+        );
     }
 
     std::vector<slang::CompilerOptionEntry> slang_entries() const
@@ -280,6 +282,11 @@ void SlangSession::create_session(SlangSessionBuild& build)
     else if (options.matrix_layout == SlangMatrixLayout::column_major)
         session_options.add(slang::CompilerOptionName::MatrixLayoutColumn, true);
 
+    // TODO: Globally disable warning 30856.
+    // This is a workaround for an issue in the Slang compiler:
+    // https://github.com/shader-slang/slang/issues/8166
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
+
     // Set warnings.
     for (const auto& warning : options.enable_warnings)
         session_options.add(slang::CompilerOptionName::EnableWarning, warning);
@@ -305,8 +312,12 @@ void SlangSession::create_session(SlangSessionBuild& build)
 
     // Set downstream argument for optix include path.
     if (device_type == DeviceType::cuda) {
-        auto optix_path = platform::runtime_directory() / "optix";
-        session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", "-I" + optix_path.string());
+        uint32_t optix_version = m_device->info().optix_version;
+        if (optix_version > 0) {
+            std::string version_tag = fmt::format("{}_{}", optix_version / 10000, (optix_version % 10000) / 100);
+            auto optix_path = platform::runtime_directory() / "optix" / version_tag;
+            session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", "-I" + optix_path.string());
+        }
     }
 
     // Set intermediate dump options.
@@ -318,13 +329,19 @@ void SlangSession::create_session(SlangSessionBuild& build)
         slang::CompilerOptionName::Capability,
         int(m_device->global_session()->findCapability("hlsl_nvapi"))
     );
+    // TODO: Pass all detected capabilities to the session.
+    // This currently leads to slang compilation errors and needs more investigation.
+    // for (SlangCapabilityID capability : m_device->_slang_capabilities()) {
+    //     session_options.add(slang::CompilerOptionName::Capability, int(capability));
+    // }
 
     // TODO: We enable loop inversion as it was the default in older versions of Slang,
     //       and leads to artifacts in one project using sgl.
     session_options.add(slang::CompilerOptionName::LoopInversion, true);
 
     // Only use up to date binary modules (required for caching to work properly).
-    session_options.add(slang::CompilerOptionName::UseUpToDateBinaryModule, true);
+    if (m_desc.cache_path)
+        session_options.add(slang::CompilerOptionName::UseUpToDateBinaryModule, true);
 
     slang::SessionDesc session_desc{};
 
@@ -597,26 +614,29 @@ std::string SlangSession::load_source(std::string_view module_name)
 
 void SlangSession::_register_program(ShaderProgram* program)
 {
+    SGL_ASSERT(m_registered_programs.count(program) == 0);
     m_registered_programs.insert(program);
 }
 
 void SlangSession::_unregister_program(ShaderProgram* program)
 {
+    SGL_ASSERT(m_registered_programs.count(program) == 1);
     m_registered_programs.erase(program);
 }
 
 void SlangSession::_register_module(SlangModule* module)
 {
-    auto existing = std::find(m_registered_modules.begin(), m_registered_modules.end(), module);
-    if (existing == m_registered_modules.end())
-        m_registered_modules.push_back(module);
+    SGL_ASSERT(
+        std::find(m_registered_modules.begin(), m_registered_modules.end(), module) == m_registered_modules.end()
+    );
+    m_registered_modules.push_back(module);
 }
 
 void SlangSession::_unregister_module(SlangModule* module)
 {
     auto existing = std::find(m_registered_modules.begin(), m_registered_modules.end(), module);
-    if (existing != m_registered_modules.end())
-        m_registered_modules.erase(existing);
+    SGL_ASSERT(existing != m_registered_modules.end());
+    m_registered_modules.erase(existing);
 }
 
 std::string SlangSession::to_string() const
@@ -960,7 +980,14 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
                 // Check for duplicate ids within same interface type.
                 if (c.id >= 0) {
                     auto range = type_conformance_ids.equal_range(c.interface_name);
-                    if (std::any_of(range.first, range.second, [&c](const auto& pair) { return pair.second == c.id; }))
+                    if (std::any_of(
+                            range.first,
+                            range.second,
+                            [&c](const auto& pair)
+                            {
+                                return pair.second == c.id;
+                            }
+                        ))
                         SGL_THROW("Duplicate type id {} for interface type \"{}\"", c.id, c.interface_name);
                     type_conformance_ids.insert({c.interface_name, c.id});
                 }
@@ -1080,7 +1107,7 @@ std::string SlangEntryPoint::to_string() const
 }
 
 ShaderProgram::ShaderProgram(ref<Device> device, ref<SlangSession> session, const ShaderProgramDesc& desc)
-    : DeviceResource(std::move(device))
+    : DeviceChild(std::move(device))
     , m_session(std::move(session))
     , m_desc(desc)
 {
