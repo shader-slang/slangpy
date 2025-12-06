@@ -362,3 +362,17 @@ def test_call_simple_fused_function():
     # Try calling it with scalar arguments
     result = fused_func(5, 3)
     assert result == 8, f"Expected 8, got {result}"
+
+
+def test_call_generic_fused_function():
+    """Test calling a simple fused function through the module API."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create a simple fused function that just wraps ft_generic_add
+    node = FuseNode.from_function(module.require_function("ft_generic_add"))
+    fused_func = module.create_fused_function(node, "generic_add")
+
+    # Try calling it with scalar arguments
+    result = fused_func(5, 3)
+    assert result == 8, f"Expected 8, got {result}"

@@ -1,5 +1,6 @@
-﻿# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import copy
 from typing import TYPE_CHECKING, Optional, Any
 from slangpy.reflection.reflectiontypes import SlangType
 from slangpy import ModifierID
@@ -8,6 +9,52 @@ if TYPE_CHECKING:
     from slangpy.core.module import Module
     from slangpy.bindings.codegen import CodeGen
     from slangpy.core.function import Function
+
+
+def _sort_graph(node: "FuseNode") -> list["FuseNode"]:
+    """
+    Topologically sort children based on dependencies.
+
+    Args:
+        node: The parent node whose children should be sorted
+
+    Returns:
+        List of children in topologically sorted order
+    """
+    # Build a dependency graph: which children depend on which other children
+    child_dependencies = {child: set() for child in node.children}
+
+    for child in node.children:
+        for input_port in child.inputs:
+            if input_port.source is not None:
+                source_node, _ = input_port.source
+                # If source is from another child, add dependency
+                if source_node is not None and source_node in node.children:
+                    child_dependencies[child].add(source_node)
+
+    # Perform topological sort
+    sorted_children = []
+    remaining = set(node.children)
+    # Create a mapping from child to its index in the children list for stable sorting
+    child_to_index = {child: i for i, child in enumerate(node.children)}
+
+    while remaining:
+        # Find nodes with no dependencies in the remaining set
+        ready = [child for child in remaining if not (child_dependencies[child] & remaining)]
+        if not ready:
+            # Circular dependency or error - just use remaining order
+            ready = list(remaining)
+
+        # Sort ready nodes by name (then by original index) to ensure deterministic ordering
+        # when multiple nodes are ready at the same time.
+        # Use original index as secondary key to handle multiple instances of same subgraph.
+        ready.sort(key=lambda x: (x.name, child_to_index[x]))
+
+        for child in ready:
+            sorted_children.append(child)
+            remaining.remove(child)
+
+    return sorted_children
 
 
 class FusePort:
@@ -23,6 +70,13 @@ class FusePort:
         # Source: (source_node, source_port_name) or (None, parent_port_name)
         self.source: Optional[tuple[Optional["FuseNode"], str]] = None
 
+    def __deepcopy__(self, memo: Any) -> "FusePort":
+        new_port = FusePort(self.name)
+        memo[id(self)] = new_port
+        new_port.type = self.type
+        new_port.source = copy.deepcopy(self.source, memo)
+        return new_port
+
 
 class FuseNode:
     """Represents a node in the fusion graph."""
@@ -35,6 +89,20 @@ class FuseNode:
         self.function: Optional["Function"] = None
         self.subgraph: Optional["FuseSubgraph"] = None
         self.children: list["FuseNode"] = []
+
+    def __deepcopy__(self, memo: Any) -> "FuseNode":
+        new_node = FuseNode(self.name, [], [])
+        memo[id(self)] = new_node
+
+        new_node.inputs = [copy.deepcopy(port, memo) for port in self.inputs]
+        new_node.outputs = [copy.deepcopy(port, memo) for port in self.outputs]
+        new_node.function = self.function  # Functions are immutable, safe to share
+        new_node.subgraph = (
+            copy.deepcopy(self.subgraph, memo) if self.subgraph is not None else None
+        )
+        new_node.children = [copy.deepcopy(child, memo) for child in self.children]
+
+        return new_node
 
     def get_input(self, name: str) -> FusePort:
         """Get input port by name."""
@@ -170,6 +238,12 @@ class FusedFunction:
         self._name = name
         self._cached_parameters: Optional[tuple[FusedParameter, ...]] = None
         self._cached_return_type: Optional[SlangType] = None
+
+    def __deepcopy__(self, memo: Any) -> "FusedFunction":
+        new_func = FusedFunction(self._fuser, self._module, self._name)
+        memo[id(self)] = new_func
+        new_func._fuser = copy.deepcopy(self._fuser, memo)
+        return new_func
 
     @property
     def name(self) -> str:
@@ -422,51 +496,6 @@ class Fuser:
                     if source_output is not None:
                         output_port.type = source_output.type
 
-    def _sort_graph(self, node: FuseNode) -> list[FuseNode]:
-        """
-        Topologically sort children based on dependencies.
-
-        Args:
-            node: The parent node whose children should be sorted
-
-        Returns:
-            List of children in topologically sorted order
-        """
-        # Build a dependency graph: which children depend on which other children
-        child_dependencies = {child: set() for child in node.children}
-
-        for child in node.children:
-            for input_port in child.inputs:
-                if input_port.source is not None:
-                    source_node, _ = input_port.source
-                    # If source is from another child, add dependency
-                    if source_node is not None and source_node in node.children:
-                        child_dependencies[child].add(source_node)
-
-        # Perform topological sort
-        sorted_children = []
-        remaining = set(node.children)
-        # Create a mapping from child to its index in the children list for stable sorting
-        child_to_index = {child: i for i, child in enumerate(node.children)}
-
-        while remaining:
-            # Find nodes with no dependencies in the remaining set
-            ready = [child for child in remaining if not (child_dependencies[child] & remaining)]
-            if not ready:
-                # Circular dependency or error - just use remaining order
-                ready = list(remaining)
-
-            # Sort ready nodes by name (then by original index) to ensure deterministic ordering
-            # when multiple nodes are ready at the same time.
-            # Use original index as secondary key to handle multiple instances of same subgraph.
-            ready.sort(key=lambda x: (x.name, child_to_index[x]))
-
-            for child in ready:
-                sorted_children.append(child)
-                remaining.remove(child)
-
-        return sorted_children
-
     def _generate_code(
         self,
         node: FuseNode,
@@ -560,7 +589,7 @@ class Fuser:
 
         if len(node.children) > 0:
             # Sort children topologically
-            sorted_children = self._sort_graph(node)
+            sorted_children = _sort_graph(node)
 
             # Track which child outputs we've assigned to temps
             temp_counter = 1

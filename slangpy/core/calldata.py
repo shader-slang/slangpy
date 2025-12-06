@@ -183,38 +183,27 @@ class CallData(NativeCallData):
             # Apply explicit to the Python variables
             apply_explicit_vectorization(context, bindings, positional_mapping, keyword_mapping)
 
-            # Check if this is a fused function and handle it differently
-            if isinstance(build_info.function, FusedFunction):
-                # Experimental handling of fused functions - types are already resolved
-                # Create a mock resolve result
-                from slangpy.reflection.typeresolution import ResolveResult, ResolvedParam
-
-                resolve_result = ResolveResult()
-                resolve_result.function = build_info.function
-                resolve_result.params = [
-                    ResolvedParam(param, param.type) for param in build_info.function.parameters
-                ]
-                slang_function = build_info.function
-                for i, arg in enumerate(bindings.args):
-                    arg.param_index = i
-            else:
-                # Perform specialization to get a concrete function reflection
-                resolve_result = specialize(
-                    context, bindings, build_info.function, diagnostics, build_info.this_types
+            # Perform specialization to get a concrete function reflection
+            # This works for both regular and fused functions
+            resolve_result = specialize(
+                context, bindings, build_info.function, diagnostics, build_info.this_type
+            )
+            if resolve_result is None:
+                raise ResolveException(
+                    f"Could not call function '{function.name}':\n\n"
+                    f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
                 )
-                if resolve_result is None:
-                    raise ResolveException(
-                        f"Could not call function '{function.name}':\n\n"
-                        f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
-                    )
-                slang_function = resolve_result.function
+            slang_function = resolve_result.function
 
-                # Check for differentiability error
-                if not resolve_result.function.differentiable and self.call_mode != CallMode.prim:
-                    raise ResolveException(
-                        f"Could not call function '{function.name}': Function is not differentiable\n\n"
-                        f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
-                    )
+            # Update build_info with the specialized function (important for fused functions with generics)
+            build_info.function = resolve_result.function
+
+            # Check for differentiability error
+            if not resolve_result.function.differentiable and self.call_mode != CallMode.prim:
+                raise ResolveException(
+                    f"Could not call function '{function.name}': Function is not differentiable\n\n"
+                    f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
+                )
 
             # Inject a dummy node into the Python signature if we need a result back
             if (

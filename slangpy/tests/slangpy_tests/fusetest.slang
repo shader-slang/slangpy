@@ -26,3 +26,8 @@ int ft_mul(int a, int b)
 {
     return a * b;
 }
+
+T ft_generic_add<T: IArithmetic>(T a, T b)
+{
+    return a + b;
+}

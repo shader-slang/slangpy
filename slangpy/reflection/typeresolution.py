@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import copy
 from typing import TYPE_CHECKING, Optional, cast
 from slangpy.core.native import CallMode
 from slangpy.core.logging import function_reflection
@@ -156,6 +157,9 @@ def _resolve_function_internal(
     diagnostics: ResolutionDiagnostic,
     this_type: Optional["SlangType"] = None,
 ):
+    # Should never get a fused function here.
+    assert isinstance(function, SlangFunction)
+
     diagnostics.summary(f"{function_reflection(function.reflection)}")
 
     # Log argument info
@@ -261,7 +265,8 @@ def _resolve_function_internal(
     # If we got more than 1 resolution, try using slang's specialization system to narrow it down,
     # as slang may be able to use more precise generic rules to eliminate candiates that python
     # couldn't.
-    if len(resolved_args) != 1:
+    # Skip this for fused functions since they don't have reflection
+    if len(resolved_args) != 1 and not is_fused:
         specialized_args = []
         for ra in resolved_args:
             slang_reflections = [cast("SlangType", arg.vector).type_reflection for arg in ra]
@@ -320,13 +325,16 @@ def _resolve_function_internal(
     return res
 
 
-def resolve_function(
+def _resolve_function_with_overloads(
     bind_context: "BindContext",
     function: "SlangFunction",
     bindings: "BoundCall",
     diagnostics: ResolutionDiagnostic,
     this_type: Optional["SlangType"] = None,
 ):
+    # Should never get a fused function here.
+    assert isinstance(function, SlangFunction)
+
     if function.is_overloaded:
         resolutions = [
             _resolve_function_internal(bind_context, f, bindings, diagnostics, this_type)
@@ -343,3 +351,25 @@ def resolve_function(
         diagnostics.summary(f"Unable to resolve function.")
         return None
     return resolutions[0]
+
+
+def resolve_function(
+    bind_context: "BindContext",
+    function: "SlangFunction",
+    bindings: "BoundCall",
+    diagnostics: ResolutionDiagnostic,
+    this_type: Optional["SlangType"] = None,
+):
+    from slangpy.experimental.fuse import FusedFunction
+
+    if isinstance(function, FusedFunction):
+        # Got a fused function. Need to perform recursive operation in which
+        # leaf nodes are specialized first, then the fused function itself is specialized
+        specialized_function = copy.deepcopy(function)
+
+        pass
+    else:
+        # Not a fused function, proceed as normal
+        return _resolve_function_with_overloads(
+            bind_context, function, bindings, diagnostics, this_type
+        )
