@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from slangpy.reflection.reflectiontypes import SlangType, SlangFunction, SlangParameter
     from slangpy.bindings import BindContext, BoundCall, BoundVariable
     from slangpy.core.native import NativeMarshall
+    from slangpy.experimental.fuse import FuseNode
 
 
 class ResolutionArg:
@@ -266,7 +267,7 @@ def _resolve_function_internal(
     # as slang may be able to use more precise generic rules to eliminate candiates that python
     # couldn't.
     # Skip this for fused functions since they don't have reflection
-    if len(resolved_args) != 1 and not is_fused:
+    if len(resolved_args) != 1:
         specialized_args = []
         for ra in resolved_args:
             slang_reflections = [cast("SlangType", arg.vector).type_reflection for arg in ra]
@@ -353,6 +354,54 @@ def _resolve_function_with_overloads(
     return resolutions[0]
 
 
+def resolve_fuse_root_node(
+    bind_context: "BindContext",
+    root_node: "FuseNode",
+    diagnostics: ResolutionDiagnostic,
+    *args: "BoundVariable",
+    **kwargs: "BoundVariable",
+):
+    # Build empty positional list of python arguments to correspond to each slang argument
+    positioned_args: list[Optional["BoundVariable"]] = [None] * len(root_node.inputs)
+
+    # Populate the first N arguments from provided positional arguments
+    if len(args) > len(root_node.inputs):
+        diagnostics.summary(
+            f"  Too many arguments: expected {len(root_node.inputs)}, got {len(args)}"
+        )
+        return None
+    for i, arg in enumerate(args):
+        positioned_args[i] = arg
+        arg.param_index = i
+
+    # Attempt to populate the remaining arguments from keyword arguments
+    name_map = {port.name: i for i, port in enumerate(root_node.inputs)}
+    for name, arg in kwargs.items():
+        if name == "_result":
+            continue
+        if name not in name_map:
+            diagnostics.summary(f"  No parameter named '{name}'.")
+            return None
+        i = name_map[name]
+        if positioned_args[i] is not None:
+            diagnostics.summary(f"  Parameter '{name}' specified multiple times.")
+            return None
+        positioned_args[i] = arg
+        arg.param_index = i
+
+    # Check all arguments resolved
+    for i, arg in enumerate(positioned_args):
+        if arg is None:
+            diagnostics.summary(f"  Parameter '{root_node.inputs[i].name}' not specified.")
+            return None
+
+    # Can now assign bindings to root node inputs
+    for i, arg in enumerate(positioned_args):
+        root_node.inputs[i].binding = arg
+
+    pass
+
+
 def resolve_function(
     bind_context: "BindContext",
     function: "SlangFunction",
@@ -363,11 +412,17 @@ def resolve_function(
     from slangpy.experimental.fuse import FusedFunction
 
     if isinstance(function, FusedFunction):
+        assert this_type is None
+
         # Got a fused function. Need to perform recursive operation in which
         # leaf nodes are specialized first, then the fused function itself is specialized
         specialized_function = copy.deepcopy(function)
+        fuser = specialized_function._fuser
+        fuser.sort_graph()
 
-        pass
+        resolve_fuse_root_node(
+            bind_context, fuser.root_node, diagnostics, *bindings.args, **bindings.kwargs
+        )
     else:
         # Not a fused function, proceed as normal
         return _resolve_function_with_overloads(

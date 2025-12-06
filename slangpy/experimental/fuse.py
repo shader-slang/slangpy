@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+﻿# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import copy
 from typing import TYPE_CHECKING, Optional, Any
@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from slangpy.core.module import Module
     from slangpy.bindings.codegen import CodeGen
     from slangpy.core.function import Function
+    from slangpy.bindings.boundvariable import BoundVariable
 
 
 def _sort_graph(node: "FuseNode") -> list["FuseNode"]:
@@ -69,6 +70,7 @@ class FusePort:
         self.type: Optional[SlangType] = None  # SlangType object, None means not yet inferred
         # Source: (source_node, source_port_name) or (None, parent_port_name)
         self.source: Optional[tuple[Optional["FuseNode"], str]] = None
+        self.binding: Optional["BoundVariable"] = None  # For future use with calldata.py
 
     def __deepcopy__(self, memo: Any) -> "FusePort":
         new_port = FusePort(self.name)
@@ -349,6 +351,44 @@ class Fuser:
         generated_subgraphs: set[str] = set()
         return self._generate_code(self.root_node, generated_function_names, generated_subgraphs)
 
+    def sort_graph(self):
+        """
+        Public API: Sort the fusion graph topologically.
+
+        This modifies the root node's children in place.
+        """
+
+        def _sort_node_rec(node: FuseNode):
+            node.children = _sort_graph(node)
+            for child in node.children:
+                if child.subgraph is not None:
+                    _sort_node_rec(child.subgraph.root_node)
+
+        _sort_node_rec(self.root_node)
+
+    def clear_type_info(self) -> None:
+        """
+        Public API: Recursively clear all type information from the fusion graph.
+
+        This removes all inferred types from all ports in the graph and subgraphs.
+        Useful for resetting the graph state or debugging type inference.
+        """
+        self._clear_type_info_recursive(self.root_node, set())
+
+    def dump_graph(self) -> str:
+        """
+        Public API: Generate a human-readable string representation of the fusion graph.
+
+        Returns:
+            A multi-line string describing the graph structure, nodes, connections,
+            and type information (if available).
+        """
+        lines = []
+        lines.append("Fusion Graph:")
+        lines.append("=" * 80)
+        self._dump_node_recursive(self.root_node, lines, indent=0, visited=set())
+        return "\n".join(lines)
+
     def inject_code_into_codegen(self, cg: "CodeGen", function_name: Optional[str] = None) -> None:
         """
         Inject the fused function code into a CodeGen object.
@@ -409,6 +449,108 @@ class Fuser:
         # Recursively collect imports from children
         for child in node.children:
             self._collect_imports(child, cg, visited)
+
+    def _clear_type_info_recursive(self, node: FuseNode, visited: set[int]) -> None:
+        """
+        Recursively clear all type information from a node and its children.
+
+        Args:
+            node: Node to clear type info from
+            visited: Set of already visited node IDs to avoid infinite recursion
+        """
+        node_id = id(node)
+        if node_id in visited:
+            return
+        visited.add(node_id)
+
+        # Clear type info from all input ports
+        for port in node.inputs:
+            port.type = None
+
+        # Clear type info from all output ports
+        for port in node.outputs:
+            port.type = None
+
+        # If this node has a subgraph, clear its types too
+        if node.subgraph is not None:
+            self._clear_type_info_recursive(node.subgraph.root_node, visited)
+
+        # Recursively clear types from children
+        for child in node.children:
+            self._clear_type_info_recursive(child, visited)
+
+    def _dump_node_recursive(
+        self, node: FuseNode, lines: list[str], indent: int, visited: set[int]
+    ) -> None:
+        """
+        Recursively generate a human-readable dump of a node and its children.
+
+        Args:
+            node: Node to dump
+            lines: List of strings to append output to
+            indent: Current indentation level
+            visited: Set of already visited node IDs to avoid infinite recursion
+        """
+        node_id = id(node)
+        indent_str = "  " * indent
+
+        # Check if we've already visited this node
+        if node_id in visited:
+            lines.append(f"{indent_str}[Node '{node.name}' - ALREADY VISITED]")
+            return
+        visited.add(node_id)
+
+        # Node header
+        node_type = (
+            "SubgraphRef"
+            if node.subgraph is not None
+            else "Function" if node.function is not None else "Composite"
+        )
+        lines.append(f"{indent_str}Node: '{node.name}' (type={node_type})")
+
+        # Input ports
+        if node.inputs:
+            lines.append(f"{indent_str}  Inputs:")
+            for port in node.inputs:
+                type_str = port.type.full_name if port.type else "<?>"
+                source_str = ""
+                if port.source is not None:
+                    source_node, source_port = port.source
+                    if source_node is not None:
+                        source_str = f" <- {source_node.name}.{source_port}"
+                    else:
+                        source_str = f" <- parent.{source_port}"
+                lines.append(f"{indent_str}    - {port.name}: {type_str}{source_str}")
+
+        # Output ports
+        if node.outputs:
+            lines.append(f"{indent_str}  Outputs:")
+            for port in node.outputs:
+                type_str = port.type.full_name if port.type else "<?>"
+                source_str = ""
+                if port.source is not None:
+                    source_node, source_port = port.source
+                    if source_node is not None:
+                        source_str = f" <- {source_node.name}.{source_port}"
+                    else:
+                        source_str = f" <- parent.{source_port}"
+                lines.append(f"{indent_str}    - {port.name}: {type_str}{source_str}")
+
+        # Function info
+        if node.function is not None:
+            lines.append(f"{indent_str}  Function: {node.function.name}")
+
+        # Subgraph reference
+        if node.subgraph is not None:
+            lines.append(f"{indent_str}  Subgraph: '{node.subgraph.name}'")
+            lines.append(f"{indent_str}  Subgraph Definition:")
+            self._dump_node_recursive(node.subgraph.root_node, lines, indent + 2, visited)
+
+        # Children
+        if node.children:
+            lines.append(f"{indent_str}  Children: ({len(node.children)})")
+            for child in node.children:
+                self._dump_node_recursive(child, lines, indent + 2, visited)
 
     def get_fused_function(self, module: "Module", name: str) -> FusedFunction:
         """

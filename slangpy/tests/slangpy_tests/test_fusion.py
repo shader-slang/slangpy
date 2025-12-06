@@ -376,3 +376,133 @@ def test_call_generic_fused_function():
     # Try calling it with scalar arguments
     result = fused_func(5, 3)
     assert result == 8, f"Expected 8, got {result}"
+
+
+def test_clear_type_info():
+    """Test clearing type information from a fusion graph."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create a simple graph with children
+    mul_node = FuseNode.from_function(module.require_function("ft_mul"))
+    add_node = FuseNode.from_function(module.require_function("ft_add"))
+    root = FuseNode("compute", ["p", "q", "r"], ["final"])
+
+    root.children.append(mul_node)
+    root.children.append(add_node)
+
+    mul_node.get_input("a").source = (None, "p")
+    mul_node.get_input("b").source = (None, "q")
+    add_node.get_input("a").source = (mul_node, "_result")
+    add_node.get_input("b").source = (None, "r")
+    root.get_output("final").source = (add_node, "_result")
+
+    # Create fuser and run type inference
+    from slangpy.experimental.fuse import Fuser
+
+    fuser = Fuser(root)
+    fuser._infer_types(root)
+
+    # Verify types are set
+    assert mul_node.get_input("a").type is not None
+    assert add_node.get_output("_result").type is not None
+    assert root.get_output("final").type is not None
+
+    # Clear type info
+    fuser.clear_type_info()
+
+    # Verify types are cleared
+    assert mul_node.get_input("a").type is None
+    assert mul_node.get_input("b").type is None
+    assert add_node.get_input("a").type is None
+    assert add_node.get_input("b").type is None
+    assert add_node.get_output("_result").type is None
+    assert root.get_input("p").type is None
+    assert root.get_output("final").type is None
+
+
+def test_dump_graph():
+    """Test dumping a human-readable representation of a fusion graph."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create a simple graph with children
+    mul_node = FuseNode.from_function(module.require_function("ft_mul"))
+    add_node = FuseNode.from_function(module.require_function("ft_add"))
+    root = FuseNode("compute", ["p", "q", "r"], ["final"])
+
+    root.children.append(mul_node)
+    root.children.append(add_node)
+
+    mul_node.get_input("a").source = (None, "p")
+    mul_node.get_input("b").source = (None, "q")
+    add_node.get_input("a").source = (mul_node, "_result")
+    add_node.get_input("b").source = (None, "r")
+    root.get_output("final").source = (add_node, "_result")
+
+    # Create fuser and dump graph
+    from slangpy.experimental.fuse import Fuser
+
+    fuser = Fuser(root)
+
+    # Dump before type inference
+    dump_before = fuser.dump_graph()
+    assert "Fusion Graph:" in dump_before
+    assert "Node: 'compute'" in dump_before
+    assert "Node: '__call_ft_mul'" in dump_before
+    assert "Node: '__call_ft_add'" in dump_before
+    assert "Children:" in dump_before
+
+    # Run type inference
+    fuser._infer_types(root)
+
+    # Dump after type inference - should show types
+    dump_after = fuser.dump_graph()
+    assert "Fusion Graph:" in dump_after
+    assert "int" in dump_after or "<?>" in dump_after  # Should show either type or unknown
+
+    # Verify it's a valid string representation
+    assert isinstance(dump_after, str)
+    assert len(dump_after) > 0
+
+
+def test_dump_graph_with_subgraph():
+    """Test dumping a graph that contains subgraph references."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Create a subgraph
+    mul_node = FuseNode.from_function(module.require_function("ft_mul"))
+    subgraph_root = FuseNode("mul_wrapper", ["x", "y"], ["result"])
+    subgraph_root.children.append(mul_node)
+    mul_node.get_input("a").source = (None, "x")
+    mul_node.get_input("b").source = (None, "y")
+    subgraph_root.get_output("result").source = (mul_node, "_result")
+
+    subgraph = FuseSubgraph("my_mul", subgraph_root)
+
+    # Create main graph that uses the subgraph
+    subgraph_ref1 = FuseNode.from_subgraph(subgraph)
+    subgraph_ref2 = FuseNode.from_subgraph(subgraph)
+    root = FuseNode("main", ["a", "b"], ["out"])
+
+    root.children.append(subgraph_ref1)
+    root.children.append(subgraph_ref2)
+
+    subgraph_ref1.get_input("x").source = (None, "a")
+    subgraph_ref1.get_input("y").source = (None, "b")
+    subgraph_ref2.get_input("x").source = (subgraph_ref1, "result")
+    subgraph_ref2.get_input("y").source = (None, "b")
+    root.get_output("out").source = (subgraph_ref2, "result")
+
+    # Dump the graph
+    from slangpy.experimental.fuse import Fuser
+
+    fuser = Fuser(root)
+    dump = fuser.dump_graph()
+
+    # Verify subgraph info appears
+    assert "Fusion Graph:" in dump
+    assert "Subgraph:" in dump
+    assert "my_mul" in dump
+    assert "SubgraphRef" in dump
