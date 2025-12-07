@@ -21,7 +21,7 @@ Public API:
     - resolve_function_call(): New clean API (no BoundCall dependency)
     - ResolveResult: Output containing resolved types and specialized function
 """
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 from slangpy.core.native import CallMode
 from slangpy.core.logging import function_reflection
 
@@ -69,8 +69,8 @@ class ArgumentMapping:
     def __init__(self):
         super().__init__()
         self.param_specs: list[ArgumentSpec] = []
-        self.this_marshal: Optional["NativeMarshall"] = None
-        self.result_marshal: Optional["NativeMarshall"] = None
+        self.this_marshal: Union[Optional["NativeMarshall"], "SlangType"] = None
+        self.result_marshal: Union[Optional["NativeMarshall"], "SlangType"] = None
         self.errors: list[str] = []
 
     @property
@@ -81,20 +81,6 @@ class ArgumentMapping:
 # ============================================================================
 # Legacy Data Structures (for backward compatibility)
 # ============================================================================
-
-
-class ResolutionArg:
-    """
-    Holds a single argument for type resolution. Starts with the python marshall and slang type
-    being resolved, and ends with the resolved vector type (if any). In the case of functions
-    with optional parameters, the python variable can be None and the parameter type will be used
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.slang: "SlangType" = None  # type: ignore
-        self.resolved: Optional["SlangType"] = None
-        self.python: Optional["NativeMarshall"] = None
 
 
 class ResolutionDiagnostic:
@@ -137,14 +123,18 @@ class ResolutionDiagnostic:
 
 def map_arguments_to_parameters(
     function: "SlangFunction",
-    args: list[Optional["NativeMarshall"]],
-    kwargs: dict[str, Optional["NativeMarshall"]],
+    args: list[Union[Optional["NativeMarshall"], "SlangType"]],
+    kwargs: dict[str, Union[Optional["NativeMarshall"], "SlangType"]],
     call_mode: CallMode,
     this_type: Optional["SlangType"] = None,
 ) -> ArgumentMapping:
     """
     Maps Python positional/keyword arguments to Slang function parameters.
     Handles special cases: 'this' (first arg for non-static methods) and '_result' (last arg for derivatives).
+
+    Arguments can be either:
+    - NativeMarshall (or None): Needs type resolution
+    - SlangType: Already resolved, used directly as known_type
     """
     mapping = ArgumentMapping()
     function_parameters = list(function.parameters)
@@ -184,9 +174,11 @@ def map_arguments_to_parameters(
         return mapping
 
     # Build positional parameter list
-    positioned_marshals: list[Optional["NativeMarshall"]] = [None] * len(function_parameters)
+    positioned_args: list[Union[Optional["NativeMarshall"], "SlangType"]] = [None] * len(
+        function_parameters
+    )
     for i, arg in enumerate(regular_args):
-        positioned_marshals[i] = arg
+        positioned_args[i] = arg
 
     # Apply keyword arguments
     name_map = {param.name: i for i, param in enumerate(function_parameters)}
@@ -197,52 +189,28 @@ def map_arguments_to_parameters(
             mapping.errors.append(f"No parameter named '{name}'")
             return mapping
         i = name_map[name]
-        if positioned_marshals[i] is not None:
+        if positioned_args[i] is not None:
             mapping.errors.append(f"Parameter '{name}' specified multiple times")
             return mapping
-        positioned_marshals[i] = arg
+        positioned_args[i] = arg
 
     # Verify all parameters are specified
-    for i, marshal in enumerate(positioned_marshals):
-        if marshal is None:
+    for i, arg in enumerate(positioned_args):
+        if arg is None:
             mapping.errors.append(f"Parameter '{function_parameters[i].name}' not specified")
             return mapping
 
     # Build ArgumentSpec list
-    for marshal, param in zip(positioned_marshals, function_parameters):
-        mapping.param_specs.append(ArgumentSpec(marshal, param))
+    # If arg is already a SlangType, use it as known_type; otherwise it's a marshal
+    from slangpy.reflection.reflectiontypes import SlangType
+
+    for arg, param in zip(positioned_args, function_parameters):
+        if isinstance(arg, SlangType):
+            mapping.param_specs.append(ArgumentSpec(None, param, known_type=arg))
+        else:
+            mapping.param_specs.append(ArgumentSpec(arg, param))
 
     return mapping
-
-
-# ============================================================================
-# Legacy Helper Functions (for old resolve_arguments implementation)
-# ============================================================================
-# These functions support the legacy resolve_arguments() which operates on
-# ResolutionArg. They are kept for reference but not used by the new pipeline.
-
-
-def create_arg(variable: Optional["BoundVariable"], param: "SlangParameter"):
-    arg = ResolutionArg()
-    arg.slang = param.type
-    if variable:
-        arg.python = variable.python
-        arg.resolved = variable.vector_type
-    else:
-        arg.python = None
-        arg.resolved = arg.slang
-    return arg
-
-
-def clone_args(args: list[ResolutionArg]):
-    new_args = []
-    for arg in args:
-        new_arg = ResolutionArg()
-        new_arg.python = arg.python
-        new_arg.slang = arg.slang
-        new_arg.resolved = arg.resolved
-        new_args.append(new_arg)
-    return new_args
 
 
 # ============================================================================
@@ -301,56 +269,6 @@ def resolve_argument_list(
             for resolution in resolutions:
                 new_resolution = resolution + [ResolvedArgument(spec, resolved_type)]
                 new_resolutions.append(new_resolution)
-        resolutions = new_resolutions
-
-    return resolutions
-
-
-# ============================================================================
-# Legacy Resolution Function
-# ============================================================================
-
-
-def resolve_arguments(
-    bind_context: "BindContext", args: list[ResolutionArg], diagnostics: ResolutionDiagnostic
-):
-    """
-    Resolves the types of the given arguments by matching marshalls against argument
-    types. Returns a list of possible resolutions, where each resolution is a list of
-    ResolutionArg with the vector field filled in.
-    """
-
-    resolutions = [args]
-
-    for i in range(len(args)):
-        python, slang, vec = args[i].python, args[i].slang, args[i].resolved
-        if not python:
-            continue
-
-        if vec:
-            types = [vec]
-        else:
-            if hasattr(python, "resolve_types"):
-                types = python.resolve_types(bind_context, slang)
-            else:
-                types = [python.resolve_type(bind_context, slang)]
-        if not types:
-            types = []
-        types = [t for t in types if t]
-
-        if len(types) == 0:
-            diagnostics.summary(
-                f"  Argument {i} could not be resolved: python type {python} does not match slang type {slang.full_name}."
-            )
-
-        new_resolutions = []
-        for potential_type in types:
-            if not potential_type:
-                continue
-            for resolution in resolutions:
-                new_args = clone_args(resolution)
-                new_args[i].resolved = cast("SlangType", potential_type)
-                new_resolutions.append(new_args)
         resolutions = new_resolutions
 
     return resolutions
@@ -482,8 +400,8 @@ def build_resolve_result(
 def resolve_function_call(
     bind_context: "BindContext",
     function: "SlangFunction",
-    args: list[Optional["NativeMarshall"]],
-    kwargs: dict[str, Optional["NativeMarshall"]],
+    args: list[Union[Optional["NativeMarshall"], "SlangType"]],
+    kwargs: dict[str, Union[Optional["NativeMarshall"], "SlangType"]],
     diagnostics: ResolutionDiagnostic,
     this_type: Optional["SlangType"] = None,
 ) -> Optional[ResolveResult]:
@@ -493,6 +411,10 @@ def resolve_function_call(
     2. Resolve types for each parameter
     3. Disambiguate using Slang specialization
     4. Build final result
+
+    Arguments can be either:
+    - NativeMarshall (or None): Needs type resolution
+    - SlangType: Already resolved, used directly as known_type
     """
     diagnostics.summary(f"{function_reflection(function.reflection)}")
 
@@ -576,10 +498,14 @@ def _resolve_function_internal(
     """
     assert not function.is_overloaded
 
-    # Extract marshals from BoundVariables
-    args: list[Optional["NativeMarshall"]] = [v.python for v in bindings.args]
-    kwargs: dict[str, Optional["NativeMarshall"]] = {
-        k: v.python for k, v in bindings.kwargs.items()
+    # Extract marshals or vector_types from BoundVariables
+    # If vector_type is set (from explicit .map()), use it directly as known_type
+    args: list[Union[Optional["NativeMarshall"], "SlangType"]] = [
+        v.vector_type if v.vector_type is not None else v.python for v in bindings.args
+    ]
+    kwargs: dict[str, Union[Optional["NativeMarshall"], "SlangType"]] = {
+        k: v.vector_type if v.vector_type is not None else v.python
+        for k, v in bindings.kwargs.items()
     }
 
     # Call new implementation

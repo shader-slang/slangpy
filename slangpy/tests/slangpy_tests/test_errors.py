@@ -106,7 +106,7 @@ def test_bad_implicit_buffer_cast(device_type: DeviceType):
     buffer = NDBuffer(device, dtype=float4, shape=(10,))
 
     # fail to specialize a float3 against a float
-    with pytest.raises(Exception, match=r".*Argument 0 could not be resolved.*"):
+    with pytest.raises(Exception, match=r".*Argument 'a' could not be resolved.*"):
         function(buffer)
 
 
