@@ -388,9 +388,9 @@ def test_type_inference_single_function():
     program = builder.build()
 
     # Before type inference, types should be None
-    assert program.get_variable(a).type is None
-    assert program.get_variable(b).type is None
-    assert program.get_variable(result).type is None
+    assert program.get_variable(a).slang is None
+    assert program.get_variable(b).slang is None
+    assert program.get_variable(result).slang is None
 
     # Run type inference
     success = program.infer_types()
@@ -401,14 +401,14 @@ def test_type_inference_single_function():
     var_b = program.get_variable(b)
     var_result = program.get_variable(result)
 
-    assert var_a.type is not None, "Variable 'a' should have a type"
-    assert var_b.type is not None, "Variable 'b' should have a type"
-    assert var_result.type is not None, "Variable 'result' should have a type"
+    assert var_a.slang is not None, "Variable 'a' should have a type"
+    assert var_b.slang is not None, "Variable 'b' should have a type"
+    assert var_result.slang is not None, "Variable 'result' should have a type"
 
     # ft_add takes two ints and returns an int
-    assert var_a.type.name == "int"
-    assert var_b.type.name == "int"
-    assert var_result.type.name == "int"
+    assert var_a.slang.name == "int"
+    assert var_b.slang.name == "int"
+    assert var_result.slang.name == "int"
 
     print("\n" + program.dump())
 
@@ -439,14 +439,14 @@ def test_type_inference_sequential_calls():
 
     # Check that temp got its type from mul's return type
     var_temp = program.get_variable(temp)
-    assert var_temp.type is not None
-    assert var_temp.type.name == "int"
+    assert var_temp.slang is not None
+    assert var_temp.slang.name == "int"
 
     # Check all other variables
-    assert program.get_variable(a).type.name == "int"
-    assert program.get_variable(b).type.name == "int"
-    assert program.get_variable(c).type.name == "int"
-    assert program.get_variable(result).type.name == "int"
+    assert program.get_variable(a).slang.name == "int"
+    assert program.get_variable(b).slang.name == "int"
+    assert program.get_variable(c).slang.name == "int"
+    assert program.get_variable(result).slang.name == "int"
 
     print("\n" + program.dump())
 
@@ -483,8 +483,8 @@ def test_type_inference_complex_chain():
 
     # All variables should have int type
     for var in program.variables:
-        assert var.type is not None
-        assert var.type.name == "int"
+        assert var.slang is not None
+        assert var.slang.name == "int"
 
     print("\n" + program.dump())
 
@@ -548,8 +548,8 @@ def test_type_inference_sub_program():
     assert success
 
     # Check that types were propagated from sub-program
-    assert program.get_variable(result).type is not None
-    assert program.get_variable(result).type.name == "int"
+    assert program.get_variable(result).slang is not None
+    assert program.get_variable(result).slang.name == "int"
 
     print("\n" + program.dump())
 
@@ -571,18 +571,18 @@ def test_clear_types():
     program.infer_types()
 
     # Verify types are set
-    assert all(var.type is not None for var in program.variables)
+    assert all(var.slang is not None for var in program.variables)
 
     # Clear types
     program.clear_types()
 
     # Verify types are cleared
-    assert all(var.type is None for var in program.variables)
+    assert all(var.slang is None for var in program.variables)
 
     # Re-infer types
     success = program.infer_types()
     assert success
-    assert all(var.type is not None for var in program.variables)
+    assert all(var.slang is not None for var in program.variables)
 
 
 # ============================================================================
@@ -827,14 +827,14 @@ def test_type_inference_with_bindings_simple():
     assert success, "Type inference should succeed"
 
     # Verify types were inferred correctly
-    assert program.get_variable(a).type is not None
-    assert program.get_variable(b).type is not None
-    assert program.get_variable(result).type is not None
+    assert program.get_variable(a).slang is not None
+    assert program.get_variable(b).slang is not None
+    assert program.get_variable(result).slang is not None
 
     # Should still be int types
-    assert program.get_variable(a).type.name == "int"
-    assert program.get_variable(b).type.name == "int"
-    assert program.get_variable(result).type.name == "int"
+    assert program.get_variable(a).slang.name == "int"
+    assert program.get_variable(b).slang.name == "int"
+    assert program.get_variable(result).slang.name == "int"
 
     print("\n" + program.dump())
 
@@ -882,8 +882,8 @@ def test_type_inference_with_bindings_sequential():
 
     # Verify all variables have types
     for var in program.variables:
-        assert var.type is not None, f"Variable {var.name} should have a type"
-        assert var.type.name == "int"
+        assert var.slang is not None, f"Variable {var.name} should have a type"
+        assert var.slang.name == "int"
 
     print("\n" + program.dump())
 
@@ -908,9 +908,9 @@ def test_backward_compatibility_no_bindings():
     assert success, "Type inference should still work without bindings"
 
     # Verify types
-    assert program.get_variable(a).type.name == "int"
-    assert program.get_variable(b).type.name == "int"
-    assert program.get_variable(result).type.name == "int"
+    assert program.get_variable(a).slang.name == "int"
+    assert program.get_variable(b).slang.name == "int"
+    assert program.get_variable(result).slang.name == "int"
 
 
 def test_binding_propagation_to_outputs():
@@ -946,12 +946,12 @@ def test_binding_propagation_to_outputs():
     program.infer_types(context, bindings.args)
 
     # Check that input variables have marshals
-    assert program.get_variable(a).marshal is not None
-    assert program.get_variable(b).marshal is not None
+    assert program.get_variable(a).python is not None
+    assert program.get_variable(b).python is not None
 
     # Verify types
-    assert program.get_variable(result).type is not None
-    assert program.get_variable(result).type.name == "int"
+    assert program.get_variable(result).slang is not None
+    assert program.get_variable(result).slang.name == "int"
 
 
 def test_generic_function_resolution():
@@ -989,12 +989,12 @@ def test_generic_function_resolution():
     assert success, "Type inference should succeed for generic function"
 
     # Verify types were resolved correctly
-    assert program.get_variable(a).type is not None
-    assert program.get_variable(a).type.name == "int"
-    assert program.get_variable(b).type is not None
-    assert program.get_variable(b).type.name == "int"
-    assert program.get_variable(result).type is not None
-    assert program.get_variable(result).type.name == "int"
+    assert program.get_variable(a).slang is not None
+    assert program.get_variable(a).slang.name == "int"
+    assert program.get_variable(b).slang is not None
+    assert program.get_variable(b).slang.name == "int"
+    assert program.get_variable(result).slang is not None
+    assert program.get_variable(result).slang.name == "int"
 
 
 def test_mixed_input_sources():
@@ -1044,11 +1044,11 @@ def test_mixed_input_sources():
     assert success, "Type inference should succeed with mixed inputs"
 
     # Verify all variables have correct types
-    assert program.get_variable(x).type.name == "int"
-    assert program.get_variable(y).type.name == "int"
-    assert program.get_variable(z).type.name == "int"
-    assert program.get_variable(temp).type.name == "int"
-    assert program.get_variable(result).type.name == "int"
+    assert program.get_variable(x).slang.name == "int"
+    assert program.get_variable(y).slang.name == "int"
+    assert program.get_variable(z).slang.name == "int"
+    assert program.get_variable(temp).slang.name == "int"
+    assert program.get_variable(result).slang.name == "int"
 
     # Verify we can generate code
     code = program.generate_code()

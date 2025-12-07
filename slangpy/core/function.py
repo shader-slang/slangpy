@@ -608,16 +608,13 @@ class Function(FunctionNode):
     def __init__(
         self,
         module: "Module",
-        func: Union[str, SlangFunction, "FusedFunction"],
+        func: Union[str, SlangFunction],
         struct: Optional["Struct"] = None,
         options: dict[str, Any] = {},
     ) -> None:
         super().__init__(None, FunctionNodeType.kernelgen, None)
 
         self._module = module
-
-        # Import FusedFunction for type checking
-        from slangpy.experimental.fuse import FusedFunction
 
         if isinstance(func, str):
             if struct is None:

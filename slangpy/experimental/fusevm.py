@@ -39,17 +39,15 @@ class Variable:
 
     id: int  # Unique sequential ID
     name: str  # Human-readable name for debugging
-    type: Optional["SlangType"] = None  # Slang type (None if not yet inferred)
-    marshal: Optional[Union["NativeMarshall", "SlangType"]] = (
-        None  # Python marshal or known type for resolution
-    )
+    slang: Optional["SlangType"] = None  # Slang type (None if not yet inferred)
+    python: Optional["NativeMarshall"] = None  # Python marshal for type resolution
 
     def __str__(self) -> str:
-        type_str = self.type.full_name if self.type else "unknown"
+        type_str = self.slang.full_name if self.slang else "unknown"
         return f"v{self.id}:{self.name}:{type_str}"
 
     def __repr__(self) -> str:
-        return f"Variable(id={self.id}, name='{self.name}', type={self.type})"
+        return f"Variable(id={self.id}, name='{self.name}', slang={self.slang})"
 
 
 @dataclass
@@ -138,20 +136,20 @@ class FuseProgram:
         self.input_vars: list[int] = []  # Variable IDs that are function inputs
         self.output_vars: list[int] = []  # Variable IDs that are function outputs
 
-    def allocate_variable(self, name: str, type: Optional["SlangType"] = None) -> int:
+    def allocate_variable(self, name: str, slang: Optional["SlangType"] = None) -> int:
         """
         Allocate a new variable in the program.
 
         Args:
             name: Human-readable name for debugging
-            type: Optional Slang type (can be inferred later)
+            slang: Optional Slang type (can be inferred later)
 
         Returns:
             Variable ID (index in variables list)
         """
         var_id = self._next_var_id
         self._next_var_id += 1
-        var = Variable(id=var_id, name=name, type=type)
+        var = Variable(id=var_id, name=name, slang=slang)
         self.variables.append(var)
         return var_id
 
@@ -276,16 +274,19 @@ class FuseProgram:
 
                 # Extract marshal from BoundVariable if needed
                 from slangpy.bindings.boundvariable import BoundVariable
+                from slangpy.reflection.reflectiontypes import SlangType
 
                 if isinstance(marshal_or_type, BoundVariable):
                     marshal_or_type = marshal_or_type.python
 
-                var.marshal = marshal_or_type
-                # If it's already a SlangType, use it directly
-                from slangpy.reflection.reflectiontypes import SlangType
-
+                # Store python marshal or extract from SlangType
                 if isinstance(marshal_or_type, SlangType):
-                    var.type = marshal_or_type
+                    # If it's a SlangType, set it directly and don't store a marshal
+                    var.slang = marshal_or_type
+                    var.python = None
+                else:
+                    # It's a NativeMarshall
+                    var.python = marshal_or_type
 
         # Iterate through instructions in order
         for instr in self.instructions:
@@ -295,7 +296,7 @@ class FuseProgram:
                 self._infer_types_call_sub(instr, bind_context)
 
         # Check if all variables have types
-        return all(var.type is not None for var in self.variables)
+        return all(var.slang is not None for var in self.variables)
 
     def _infer_types_call_slang(
         self, instr: CallSlangInstruction, bind_context: Optional["BindContext"] = None
@@ -320,9 +321,9 @@ class FuseProgram:
         if slang_func is None:
             return
 
-        # If we have a bind_context and input variables have marshals, use proper type resolution
+        # If we have a bind_context and input variables have python marshals, use proper type resolution
         if bind_context is not None and all(
-            self.get_variable(var_id).marshal is not None for var_id in instr.inputs
+            self.get_variable(var_id).python is not None for var_id in instr.inputs
         ):
             self._infer_types_with_resolution(instr, slang_func, bind_context)
         else:
@@ -342,14 +343,14 @@ class FuseProgram:
             if i < len(slang_func.parameters):
                 param = slang_func.parameters[i]
                 var = self.get_variable(var_id)
-                if var.type is None:
-                    var.type = param.type
+                if var.slang is None:
+                    var.slang = param.type
 
         # Infer type for output variable from function return type
         if len(instr.outputs) > 0 and slang_func.return_type is not None:
             output_var = self.get_variable(instr.outputs[0])
-            if output_var.type is None:
-                output_var.type = slang_func.return_type
+            if output_var.slang is None:
+                output_var.slang = slang_func.return_type
 
     def _infer_types_with_resolution(
         self, instr: CallSlangInstruction, slang_func: "SlangFunction", bind_context: "BindContext"
@@ -367,11 +368,11 @@ class FuseProgram:
             ResolutionDiagnostic,
         )
 
-        # Extract marshals from input variables
+        # Extract python marshals from input variables
         args = []
         for var_id in instr.inputs:
             var = self.get_variable(var_id)
-            args.append(var.marshal)
+            args.append(var.python)
 
         # Create diagnostics
         diagnostics = ResolutionDiagnostic()
@@ -392,12 +393,12 @@ class FuseProgram:
                 for i, var_id in enumerate(instr.inputs):
                     if i < len(result.params):
                         var = self.get_variable(var_id)
-                        var.type = result.params[i].type
+                        var.slang = result.params[i].type
 
                 # Apply return type to output variable
                 if len(instr.outputs) > 0 and result.function.return_type is not None:
                     output_var = self.get_variable(instr.outputs[0])
-                    output_var.type = result.function.return_type
+                    output_var.slang = result.function.return_type
             else:
                 # Resolution failed, fall back to simple inference
                 self._infer_types_simple(instr, slang_func)
@@ -425,13 +426,13 @@ class FuseProgram:
 
         sub_prog = instr.sub_program
 
-        # Propagate marshals to sub-program inputs if we have them
+        # Propagate python marshals to sub-program inputs if we have them
         if bind_context is not None:
             sub_input_marshals = []
             for var_id in instr.inputs:
                 var = self.get_variable(var_id)
-                if var.marshal is not None:
-                    sub_input_marshals.append(var.marshal)
+                if var.python is not None:
+                    sub_input_marshals.append(var.python)
 
             if len(sub_input_marshals) == len(instr.inputs):
                 # Run type inference on sub-program with these marshals
@@ -442,16 +443,16 @@ class FuseProgram:
             if i < len(sub_prog.input_vars):
                 sub_input_var = sub_prog.get_variable(sub_prog.input_vars[i])
                 var = self.get_variable(var_id)
-                if var.type is None and sub_input_var.type is not None:
-                    var.type = sub_input_var.type
+                if var.slang is None and sub_input_var.slang is not None:
+                    var.slang = sub_input_var.slang
 
         # Infer types for output variables from sub-program outputs
         for i, var_id in enumerate(instr.outputs):
             if i < len(sub_prog.output_vars):
                 sub_output_var = sub_prog.get_variable(sub_prog.output_vars[i])
                 var = self.get_variable(var_id)
-                if var.type is None and sub_output_var.type is not None:
-                    var.type = sub_output_var.type
+                if var.slang is None and sub_output_var.slang is not None:
+                    var.slang = sub_output_var.slang
 
     def clear_types(self) -> None:
         """
@@ -459,7 +460,7 @@ class FuseProgram:
         Useful for testing or re-running type inference.
         """
         for var in self.variables:
-            var.type = None
+            var.slang = None
 
     def generate_code(self, function_name: Optional[str] = None) -> str:
         """
@@ -477,7 +478,7 @@ class FuseProgram:
             ValueError: If type inference hasn't been run or incomplete
         """
         # Verify all variables have types
-        if not all(var.type is not None for var in self.variables):
+        if not all(var.slang is not None for var in self.variables):
             raise ValueError(
                 "Cannot generate code: not all variables have types. Run infer_types() first."
             )
@@ -491,13 +492,16 @@ class FuseProgram:
         return_type = "void"
         if len(self.output_vars) > 0:
             # Use the type of the first output variable as return type
-            return_type = self.get_variable(self.output_vars[0]).type.full_name
+            output_var = self.get_variable(self.output_vars[0])
+            assert output_var.slang is not None, "Output variable must have a slang type"
+            return_type = output_var.slang.full_name
 
         # Generate parameter list
         params = []
         for var_id in self.input_vars:
             var = self.get_variable(var_id)
-            params.append(f"{var.type.full_name} v{var.id}")
+            assert var.slang is not None, f"Input variable {var.name} must have a slang type"
+            params.append(f"{var.slang.full_name} v{var.id}")
 
         params_str = ", ".join(params)
         lines.append(f"{return_type} {function_name}({params_str})")
@@ -513,7 +517,8 @@ class FuseProgram:
             # Group by type for more compact declaration
             type_groups: dict[str, list[int]] = {}
             for var in temp_and_output_vars:
-                type_name = var.type.full_name
+                assert var.slang is not None, f"Variable {var.name} must have a slang type"
+                type_name = var.slang.full_name
                 if type_name not in type_groups:
                     type_groups[type_name] = []
                 type_groups[type_name].append(var.id)
