@@ -15,6 +15,28 @@ from slangpy.experimental.fusevm import (
 )
 
 
+def create_bind_context(module):
+    """
+    Helper function to create a BindContext for testing.
+
+    Args:
+        module: The Slang module
+
+    Returns:
+        A BindContext configured for primitive mode
+    """
+    from slangpy.bindings.marshall import BindContext
+    from slangpy.core.native import CallMode, CallDataMode
+
+    return BindContext(
+        module.layout,
+        CallMode.prim,
+        module.device_module,
+        {},
+        CallDataMode.global_data,
+    )
+
+
 def test_basic_program_creation():
     """Test creating an empty program."""
     program = FuseProgram("test_program")
@@ -392,8 +414,12 @@ def test_type_inference_single_function():
     assert program.get_variable(b).slang is None
     assert program.get_variable(result).slang is None
 
-    # Run type inference
-    success = program.infer_types()
+    # Run type inference with bind context and input marshals
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 10, 20)
+    success = program.infer_types(context, bindings.args)
     assert success, "Type inference should succeed"
 
     # After type inference, all variables should have types
@@ -433,8 +459,12 @@ def test_type_inference_sequential_calls():
 
     program = builder.build()
 
-    # Run type inference
-    success = program.infer_types()
+    # Run type inference with bind context and input marshals
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 2, 3, 5)
+    success = program.infer_types(context, bindings.args)
     assert success, "Type inference should succeed"
 
     # Check that temp got its type from mul's return type
@@ -477,8 +507,12 @@ def test_type_inference_complex_chain():
 
     program = builder.build()
 
-    # Run type inference
-    success = program.infer_types()
+    # Run type inference with bind context and input marshals
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 1, 2, 3, 4)
+    success = program.infer_types(context, bindings.args)
     assert success
 
     # All variables should have int type
@@ -504,8 +538,12 @@ def test_type_inference_with_generics():
 
     program = builder.build()
 
-    # Run type inference
-    success = program.infer_types()
+    # Run type inference with bind context and input marshals
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 5, 3)
+    success = program.infer_types(context, bindings.args)
 
     # Note: For generic functions, type inference may be more complex
     # For now, we just check that the mechanism runs without errors
@@ -528,7 +566,11 @@ def test_type_inference_sub_program():
     sub_program = sub_builder.build()
 
     # Infer types in sub-program first
-    sub_program.infer_types()
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    sub_bindings = BoundCall(context, 1, 2)
+    sub_program.infer_types(context, sub_bindings.args)
 
     # Create main program that uses the sub-program
     builder = FuseProgramBuilder("main_with_typed_sub")
@@ -544,7 +586,8 @@ def test_type_inference_sub_program():
     program = builder.build()
 
     # Run type inference on main program
-    success = program.infer_types()
+    bindings = BoundCall(context, 3, 4, 5)
+    success = program.infer_types(context, bindings.args)
     assert success
 
     # Check that types were propagated from sub-program
@@ -568,7 +611,11 @@ def test_clear_types():
     builder.call_slang(ft_add, [a, b], [result])
 
     program = builder.build()
-    program.infer_types()
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 10, 20)
+    program.infer_types(context, bindings.args)
 
     # Verify types are set
     assert all(var.slang is not None for var in program.variables)
@@ -579,8 +626,9 @@ def test_clear_types():
     # Verify types are cleared
     assert all(var.slang is None for var in program.variables)
 
-    # Re-infer types
-    success = program.infer_types()
+    # Re-infer types (need to provide bind_context again)
+    bindings2 = BoundCall(context, 15, 25)
+    success = program.infer_types(context, bindings2.args)
     assert success
     assert all(var.slang is not None for var in program.variables)
 
@@ -604,7 +652,11 @@ def test_code_generation_simple():
     builder.call_slang(ft_add, [a, b], [result])
 
     program = builder.build()
-    program.infer_types()
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 10, 20)
+    program.infer_types(context, bindings.args)
 
     # Generate code
     code = program.generate_code()
@@ -637,7 +689,11 @@ def test_code_generation_sequential():
     builder.call_slang(ft_add, [temp, c], [result])
 
     program = builder.build()
-    program.infer_types()
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 2, 3, 5)
+    program.infer_types(context, bindings.args)
 
     # Generate code
     code = program.generate_code()
@@ -674,7 +730,11 @@ def test_code_generation_complex():
     builder.call_slang(ft_add, [t1, t2], [result])
 
     program = builder.build()
-    program.infer_types()
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 1, 2, 3, 4)
+    program.infer_types(context, bindings.args)
 
     # Generate code
     code = program.generate_code()
@@ -702,7 +762,11 @@ def test_code_generation_custom_name():
     builder.call_slang(ft_add, [a, b], [result])
 
     program = builder.build()
-    program.infer_types()
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 10, 20)
+    program.infer_types(context, bindings.args)
 
     # Generate with custom name
     code = program.generate_code("my_custom_function")
@@ -720,13 +784,18 @@ def test_code_generation_with_sub_program():
     ft_mul = module.require_function("ft_mul")
 
     # Create sub-program
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+
     sub_builder = FuseProgramBuilder("add_helper")
     sub_x = sub_builder.input("x")
     sub_y = sub_builder.input("y")
     sub_result = sub_builder.output("result")
     sub_builder.call_slang(ft_add, [sub_x, sub_y], [sub_result])
     sub_program = sub_builder.build()
-    sub_program.infer_types()
+    sub_bindings = BoundCall(context, 1, 2)
+    sub_program.infer_types(context, sub_bindings.args)
 
     # Create main program
     builder = FuseProgramBuilder("main_func")
@@ -740,7 +809,8 @@ def test_code_generation_with_sub_program():
     builder.call_sub(sub_program, [temp, c], [result])
 
     program = builder.build()
-    program.infer_types()
+    bindings = BoundCall(context, 3, 4, 5)
+    program.infer_types(context, bindings.args)
 
     # Generate code for both programs
     sub_code = sub_program.generate_code()
@@ -889,7 +959,7 @@ def test_type_inference_with_bindings_sequential():
 
 
 def test_backward_compatibility_no_bindings():
-    """Test that type inference still works without bindings (backward compatibility)."""
+    """Test that type inference without bind_context raises an error."""
     device = helpers.get_device(spy.DeviceType.d3d12)
     module = spy.Module.load_from_file(device, "fusetest.slang")
     ft_add = module.require_function("ft_add")
@@ -902,15 +972,12 @@ def test_backward_compatibility_no_bindings():
 
     program = builder.build()
 
-    # Run type inference WITHOUT bindings (old way)
-    success = program.infer_types()
-
-    assert success, "Type inference should still work without bindings"
-
-    # Verify types
-    assert program.get_variable(a).slang.name == "int"
-    assert program.get_variable(b).slang.name == "int"
-    assert program.get_variable(result).slang.name == "int"
+    # Run type inference WITHOUT bind_context should now raise ValueError
+    try:
+        success = program.infer_types()
+        assert False, "Expected ValueError when calling infer_types() without bind_context"
+    except ValueError as e:
+        assert "bind_context is required" in str(e)
 
 
 def test_binding_propagation_to_outputs():
@@ -928,18 +995,9 @@ def test_binding_propagation_to_outputs():
     program = builder.build()
 
     # Create bind context and bindings
-    from slangpy.bindings.marshall import BindContext
     from slangpy.bindings.boundvariable import BoundCall
-    from slangpy.core.native import CallMode, CallDataMode
 
-    context = BindContext(
-        module.layout,
-        CallMode.prim,
-        module.device_module,
-        {},
-        CallDataMode.global_data,
-    )
-
+    context = create_bind_context(module)
     bindings = BoundCall(context, 4, 5)
 
     # Run type inference
@@ -969,17 +1027,9 @@ def test_generic_function_resolution():
     program = builder.build()
 
     # Create bind context and bindings with int arguments
-    from slangpy.bindings.marshall import BindContext
     from slangpy.bindings.boundvariable import BoundCall
-    from slangpy.core.native import CallMode, CallDataMode
 
-    context = BindContext(
-        module.layout,
-        CallMode.prim,
-        module.device_module,
-        {},
-        CallDataMode.global_data,
-    )
+    context = create_bind_context(module)
 
     # Create bindings with int arguments to specialize the generic function
     bindings = BoundCall(context, 5, 3)
@@ -1025,18 +1075,9 @@ def test_mixed_input_sources():
     program = builder.build()
 
     # Create bind context with three int arguments
-    from slangpy.bindings.marshall import BindContext
     from slangpy.bindings.boundvariable import BoundCall
-    from slangpy.core.native import CallMode, CallDataMode
 
-    context = BindContext(
-        module.layout,
-        CallMode.prim,
-        module.device_module,
-        {},
-        CallDataMode.global_data,
-    )
-
+    context = create_bind_context(module)
     bindings = BoundCall(context, 2, 3, 5)
 
     # Run type inference

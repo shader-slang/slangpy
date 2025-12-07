@@ -304,12 +304,14 @@ class FuseProgram:
         """
         Infer types for a CALL_SLANG instruction.
 
-        Uses proper type resolution if bind_context is provided, otherwise falls back
-        to simple parameter type matching.
+        Requires a bind_context and python marshals on all input variables for proper type resolution.
 
         Args:
             instr: The CALL_SLANG instruction
-            bind_context: Optional BindContext for proper type resolution
+            bind_context: BindContext for proper type resolution (required)
+
+        Raises:
+            ValueError: If bind_context is None or input variables lack python marshals
         """
         if instr.function is None:
             return
@@ -321,36 +323,28 @@ class FuseProgram:
         if slang_func is None:
             return
 
-        # If we have a bind_context and input variables have python marshals, use proper type resolution
-        if bind_context is not None and all(
-            self.get_variable(var_id).python is not None for var_id in instr.inputs
-        ):
-            self._infer_types_with_resolution(instr, slang_func, bind_context)
-        else:
-            # Fall back to simple type inference
-            self._infer_types_simple(instr, slang_func)
+        # Require bind_context for proper type resolution
+        if bind_context is None:
+            raise ValueError(
+                f"Cannot infer types for instruction {instr}: bind_context is required for type resolution"
+            )
 
-    def _infer_types_simple(self, instr: CallSlangInstruction, slang_func: "SlangFunction") -> None:
-        """
-        Simple type inference without full binding resolution.
+        # Verify all input variables have either python marshals OR slang types
+        missing_info = [
+            var_id
+            for var_id in instr.inputs
+            if self.get_variable(var_id).python is None and self.get_variable(var_id).slang is None
+        ]
+        if missing_info:
+            var_names = [self.get_variable(vid).name for vid in missing_info]
+            raise ValueError(
+                f"Cannot infer types for instruction {instr}: "
+                f"input variables {var_names} lack both python marshals and slang types. "
+                f"Ensure all input variables have either marshals or types set before calling infer_types()."
+            )
 
-        Args:
-            instr: The CALL_SLANG instruction
-            slang_func: The SlangFunction to infer types from
-        """
-        # Infer types for input variables from function parameters
-        for i, var_id in enumerate(instr.inputs):
-            if i < len(slang_func.parameters):
-                param = slang_func.parameters[i]
-                var = self.get_variable(var_id)
-                if var.slang is None:
-                    var.slang = param.type
-
-        # Infer type for output variable from function return type
-        if len(instr.outputs) > 0 and slang_func.return_type is not None:
-            output_var = self.get_variable(instr.outputs[0])
-            if output_var.slang is None:
-                output_var.slang = slang_func.return_type
+        # Use proper type resolution
+        self._infer_types_with_resolution(instr, slang_func, bind_context)
 
     def _infer_types_with_resolution(
         self, instr: CallSlangInstruction, slang_func: "SlangFunction", bind_context: "BindContext"
@@ -368,44 +362,48 @@ class FuseProgram:
             ResolutionDiagnostic,
         )
 
-        # Extract python marshals from input variables
+        # Extract marshals or slang types from input variables
+        # resolve_function_call accepts either NativeMarshall OR SlangType
         args = []
         for var_id in instr.inputs:
             var = self.get_variable(var_id)
-            args.append(var.python)
+            # Prefer already-resolved slang type, fallback to python marshal
+            if var.slang is not None:
+                args.append(var.slang)
+            else:
+                args.append(var.python)
 
         # Create diagnostics
         diagnostics = ResolutionDiagnostic()
 
-        try:
-            # Call the new type resolution API directly
-            result = resolve_function_call(
-                bind_context,
-                slang_func,
-                args,
-                {},  # No kwargs for now
-                diagnostics,
-                None,  # No this_type
+        # Call the new type resolution API directly
+        result = resolve_function_call(
+            bind_context,
+            slang_func,
+            args,
+            {},  # No kwargs for now
+            diagnostics,
+            None,  # No this_type
+        )
+
+        if result is None:
+            # Resolution failed - this should not happen with valid inputs
+            diag_str = "\n".join(diagnostics.summary_lines)
+            raise ValueError(
+                f"Type resolution failed for function {slang_func.name} in instruction {instr}.\n"
+                f"Diagnostics:\n{diag_str}"
             )
 
-            if result is not None:
-                # Apply resolved types to input variables
-                for i, var_id in enumerate(instr.inputs):
-                    if i < len(result.params):
-                        var = self.get_variable(var_id)
-                        var.slang = result.params[i].type
+        # Apply resolved types to input variables
+        for i, var_id in enumerate(instr.inputs):
+            if i < len(result.params):
+                var = self.get_variable(var_id)
+                var.slang = result.params[i].type
 
-                # Apply return type to output variable
-                if len(instr.outputs) > 0 and result.function.return_type is not None:
-                    output_var = self.get_variable(instr.outputs[0])
-                    output_var.slang = result.function.return_type
-            else:
-                # Resolution failed, fall back to simple inference
-                self._infer_types_simple(instr, slang_func)
-
-        except Exception:
-            # If resolution fails for any reason, fall back to simple inference
-            self._infer_types_simple(instr, slang_func)
+        # Apply return type to output variable
+        if len(instr.outputs) > 0 and result.function.return_type is not None:
+            output_var = self.get_variable(instr.outputs[0])
+            output_var.slang = result.function.return_type
 
     def _infer_types_call_sub(
         self, instr: CallSubInstruction, bind_context: Optional["BindContext"] = None
