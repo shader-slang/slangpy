@@ -783,3 +783,172 @@ def test_code_generation_error_without_types():
     except ValueError as e:
         assert "not all variables have types" in str(e)
         print(f"\nCorrectly caught error: {e}")
+
+
+# ============================================================================
+# Binding Integration Tests
+# ============================================================================
+
+
+def test_type_inference_with_bindings_simple():
+    """Test type inference using bindings for a simple function call."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_add = module.require_function("ft_add")
+
+    # Build program
+    builder = FuseProgramBuilder("test_with_bindings")
+    a = builder.input("a")
+    b = builder.input("b")
+    result = builder.output("result")
+    builder.call_slang(ft_add, [a, b], [result])
+
+    program = builder.build()
+
+    # Create bind context
+    from slangpy.bindings.marshall import BindContext
+    from slangpy.bindings.boundvariable import BoundCall
+    from slangpy.core.native import CallMode, CallDataMode
+
+    context = BindContext(
+        module.layout,
+        CallMode.prim,
+        module.device_module,
+        {},
+        CallDataMode.global_data,
+    )
+
+    # Create bindings with actual integer values
+    bindings = BoundCall(context, 10, 20)
+
+    # Run type inference with bindings
+    success = program.infer_types(context, bindings.args)
+
+    assert success, "Type inference should succeed"
+
+    # Verify types were inferred correctly
+    assert program.get_variable(a).type is not None
+    assert program.get_variable(b).type is not None
+    assert program.get_variable(result).type is not None
+
+    # Should still be int types
+    assert program.get_variable(a).type.name == "int"
+    assert program.get_variable(b).type.name == "int"
+    assert program.get_variable(result).type.name == "int"
+
+    print("\n" + program.dump())
+
+
+def test_type_inference_with_bindings_sequential():
+    """Test binding propagation through sequential operations."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul = module.require_function("ft_mul")
+    ft_add = module.require_function("ft_add")
+
+    # Build program
+    builder = FuseProgramBuilder("test_bindings_sequential")
+    a = builder.input("a")
+    b = builder.input("b")
+    c = builder.input("c")
+    temp = builder.temp("temp")
+    result = builder.output("result")
+
+    builder.call_slang(ft_mul, [a, b], [temp])
+    builder.call_slang(ft_add, [temp, c], [result])
+
+    program = builder.build()
+
+    # Create bind context
+    from slangpy.bindings.marshall import BindContext
+    from slangpy.bindings.boundvariable import BoundCall
+    from slangpy.core.native import CallMode, CallDataMode
+
+    context = BindContext(
+        module.layout,
+        CallMode.prim,
+        module.device_module,
+        {},
+        CallDataMode.global_data,
+    )
+
+    # Create bindings
+    bindings = BoundCall(context, 5, 3, 7)
+
+    # Run type inference with bindings
+    success = program.infer_types(context, bindings.args)
+
+    assert success, "Type inference should succeed"
+
+    # Verify all variables have types
+    for var in program.variables:
+        assert var.type is not None, f"Variable {var.name} should have a type"
+        assert var.type.name == "int"
+
+    print("\n" + program.dump())
+
+
+def test_backward_compatibility_no_bindings():
+    """Test that type inference still works without bindings (backward compatibility)."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_add = module.require_function("ft_add")
+
+    builder = FuseProgramBuilder("test_no_bindings")
+    a = builder.input("a")
+    b = builder.input("b")
+    result = builder.output("result")
+    builder.call_slang(ft_add, [a, b], [result])
+
+    program = builder.build()
+
+    # Run type inference WITHOUT bindings (old way)
+    success = program.infer_types()
+
+    assert success, "Type inference should still work without bindings"
+
+    # Verify types
+    assert program.get_variable(a).type.name == "int"
+    assert program.get_variable(b).type.name == "int"
+    assert program.get_variable(result).type.name == "int"
+
+
+def test_binding_propagation_to_outputs():
+    """Test that bindings are propagated to output variables."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul = module.require_function("ft_mul")
+
+    builder = FuseProgramBuilder("test_output_binding")
+    a = builder.input("a")
+    b = builder.input("b")
+    result = builder.output("result")
+    builder.call_slang(ft_mul, [a, b], [result])
+
+    program = builder.build()
+
+    # Create bind context and bindings
+    from slangpy.bindings.marshall import BindContext
+    from slangpy.bindings.boundvariable import BoundCall
+    from slangpy.core.native import CallMode, CallDataMode
+
+    context = BindContext(
+        module.layout,
+        CallMode.prim,
+        module.device_module,
+        {},
+        CallDataMode.global_data,
+    )
+
+    bindings = BoundCall(context, 4, 5)
+
+    # Run type inference
+    program.infer_types(context, bindings.args)
+
+    # Check that input variables have bindings
+    assert program.get_variable(a).binding is not None
+    assert program.get_variable(b).binding is not None
+
+    # Verify types
+    assert program.get_variable(result).type is not None
+    assert program.get_variable(result).type.name == "int"

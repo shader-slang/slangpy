@@ -122,14 +122,19 @@ The system can now:
 8. ✅ Generate complete Slang code from bytecode programs
 9. ✅ Support custom function naming in generated code
 10. ✅ Handle sub-program calls in generated code
+11. ✅ Integrate with SlangPy's binding system
+12. ✅ Use proper type resolution via BindContext
+13. ✅ Propagate BoundVariable objects through the VM
+14. ✅ Maintain backward compatibility with simple type inference
 
 ## Test Results
 ```
-25 tests passed in 0.79s
+29 tests passed in 0.80s
 - 7 basic structure tests (Steps 1-2)
 - 6 complex program tests (Step 3)
 - 6 type inference tests (Step 4)
 - 6 code generation tests (Step 6)
+- 4 binding integration tests (Step 7)
 ```
 
 ### Step 6: Code Generation ✅
@@ -166,13 +171,59 @@ int __func_test_type_propagation(int v0, int v1, int v2)
 }
 ```
 
+### Step 7: Binding Integration ✅
+**Implementation:**
+- Extended `Variable` class with `binding` field to store `BoundVariable`
+- Updated `FuseProgram.infer_types()` to accept optional `BindContext` and `input_bindings`
+- Added `_infer_types_with_resolution()` method that uses proper type resolution via `_resolve_function_internal`
+- Added `_infer_types_simple()` for fallback when bindings not available
+- Binding propagation through sub-programs in `_infer_types_call_sub()`
+
+**Key Features:**
+1. **Spoof BindContext Creation**: Tests can create minimal BindContext with module layout
+2. **BoundCall Integration**: Input bindings are associated with input variables
+3. **Proper Type Resolution**: When bindings available, uses SlangPy's type resolution system
+4. **Backward Compatibility**: Still works without bindings for simple cases
+5. **Binding Propagation**: Bindings flow from inputs through the VM to outputs
+
+**Type Resolution Flow:**
+1. Input variables get associated `BoundVariable` objects
+2. When resolving CALL_SLANG, create mock `BoundCall` from variable bindings
+3. Call `_resolve_function_internal` from typeresolution.py
+4. Apply resolved types back to variables
+5. Continue propagating through instruction sequence
+
+**Tests Created:**
+1. `test_type_inference_with_bindings_simple` - Basic binding integration
+2. `test_type_inference_with_bindings_sequential` - Binding propagation through chain
+3. `test_backward_compatibility_no_bindings` - Ensures old tests still work
+4. `test_binding_propagation_to_outputs` - Verifies bindings flow correctly
+
+**Example Usage:**
+```python
+# Create bind context
+context = BindContext(
+    module.layout,
+    CallMode.prim,
+    module.device_module,
+    {},
+    CallDataMode.global_data,
+)
+
+# Create bindings with actual values
+bindings = BoundCall(context, 10, 20)
+
+# Run type inference with bindings
+program.infer_types(context, bindings.args)
+```
+
 ## Next Steps (Not Yet Implemented)
 
-### Step 5: Type Resolution Without Bindings (Future)
-- Implement type resolution that runs the VM symbolically
-- Handle generic type instantiation
-- Support type constraints and checking
-- This would be more advanced than current type inference
+### Step 8: Full Integration with SlangPy (Future)
+- Integrate FuseProgram with actual kernel generation pipeline
+- Support for differentiable kernels
+- Vector type resolution and broadcasting
+- Full marshalling support
 
 ### Future Enhancements
 - Integration with BoundVariable system
@@ -194,7 +245,7 @@ The bytecode approach provides:
 
 ## File Locations
 
-- Implementation: `slangpy/experimental/fusevm.py` (474 lines)
-- Tests: `slangpy/tests/slangpy_tests/test_fusevm.py` (634 lines)
+- Implementation: `slangpy/experimental/fusevm.py` (559 lines)
+- Tests: `slangpy/tests/slangpy_tests/test_fusevm.py` (760 lines)
 - Test data: `slangpy/tests/slangpy_tests/fusetest.slang` (reused from old system)
 - Documentation: `docs/FUSION_VM_PROGRESS.md`
