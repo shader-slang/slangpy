@@ -300,6 +300,7 @@ struct EventHandlers {
 
         MouseEvent event{
             .type = (action == GLFW_PRESS) ? MouseEventType::button_down : MouseEventType::button_up,
+            .pos = window->m_mouse_pos,
             .button = mouse_button,
             .mods = window->m_mods,
         };
