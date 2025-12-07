@@ -945,10 +945,111 @@ def test_binding_propagation_to_outputs():
     # Run type inference
     program.infer_types(context, bindings.args)
 
-    # Check that input variables have bindings
-    assert program.get_variable(a).binding is not None
-    assert program.get_variable(b).binding is not None
+    # Check that input variables have marshals
+    assert program.get_variable(a).marshal is not None
+    assert program.get_variable(b).marshal is not None
 
     # Verify types
     assert program.get_variable(result).type is not None
     assert program.get_variable(result).type.name == "int"
+
+
+def test_generic_function_resolution():
+    """Test that generic functions can be properly resolved with type inference."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_generic_add = module.require_function("ft_generic_add")
+
+    builder = FuseProgramBuilder("test_generic")
+    a = builder.input("a")
+    b = builder.input("b")
+    result = builder.output("result")
+    builder.call_slang(ft_generic_add, [a, b], [result])
+
+    program = builder.build()
+
+    # Create bind context and bindings with int arguments
+    from slangpy.bindings.marshall import BindContext
+    from slangpy.bindings.boundvariable import BoundCall
+    from slangpy.core.native import CallMode, CallDataMode
+
+    context = BindContext(
+        module.layout,
+        CallMode.prim,
+        module.device_module,
+        {},
+        CallDataMode.global_data,
+    )
+
+    # Create bindings with int arguments to specialize the generic function
+    bindings = BoundCall(context, 5, 3)
+
+    # Run type inference with the bind context
+    success = program.infer_types(context, bindings.args)
+    assert success, "Type inference should succeed for generic function"
+
+    # Verify types were resolved correctly
+    assert program.get_variable(a).type is not None
+    assert program.get_variable(a).type.name == "int"
+    assert program.get_variable(b).type is not None
+    assert program.get_variable(b).type.name == "int"
+    assert program.get_variable(result).type is not None
+    assert program.get_variable(result).type.name == "int"
+
+
+def test_mixed_input_sources():
+    """
+    Test that type resolution works when a function takes inputs both directly
+    from program inputs and from previous operation outputs.
+    """
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul = module.require_function("ft_mul")
+    ft_add = module.require_function("ft_add")
+
+    builder = FuseProgramBuilder("test_mixed")
+    # Program has 3 inputs: x, y, z
+    x = builder.input("x")
+    y = builder.input("y")
+    z = builder.input("z")
+
+    # First operation: mul(x, y) -> temp
+    temp = builder.temp("temp")
+    builder.call_slang(ft_mul, [x, y], [temp])
+
+    # Second operation: add(temp, z) -> result
+    # This takes one input from previous operation (temp) and one from program input (z)
+    result = builder.output("result")
+    builder.call_slang(ft_add, [temp, z], [result])
+
+    program = builder.build()
+
+    # Create bind context with three int arguments
+    from slangpy.bindings.marshall import BindContext
+    from slangpy.bindings.boundvariable import BoundCall
+    from slangpy.core.native import CallMode, CallDataMode
+
+    context = BindContext(
+        module.layout,
+        CallMode.prim,
+        module.device_module,
+        {},
+        CallDataMode.global_data,
+    )
+
+    bindings = BoundCall(context, 2, 3, 5)
+
+    # Run type inference
+    success = program.infer_types(context, bindings.args)
+    assert success, "Type inference should succeed with mixed inputs"
+
+    # Verify all variables have correct types
+    assert program.get_variable(x).type.name == "int"
+    assert program.get_variable(y).type.name == "int"
+    assert program.get_variable(z).type.name == "int"
+    assert program.get_variable(temp).type.name == "int"
+    assert program.get_variable(result).type.name == "int"
+
+    # Verify we can generate code
+    code = program.generate_code()
+    assert "int __func_test_mixed(int v" in code or "int32_t __func_test_mixed(int32_t v" in code

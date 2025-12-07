@@ -7,7 +7,7 @@ This module implements a VM-based approach to function fusion where operations
 are stored as a sequence of bytecode instructions that operate on symbolic variables.
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 from enum import Enum, auto
 from dataclasses import dataclass, field
 
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from slangpy.reflection.reflectiontypes import SlangType, SlangFunction
     from slangpy.bindings.marshall import BindContext
     from slangpy.bindings.boundvariable import BoundVariable
+    from slangpy.core.native import NativeMarshall
 
 
 class OpCode(Enum):
@@ -39,7 +40,9 @@ class Variable:
     id: int  # Unique sequential ID
     name: str  # Human-readable name for debugging
     type: Optional["SlangType"] = None  # Slang type (None if not yet inferred)
-    binding: Optional["BoundVariable"] = None  # Associated BoundVariable for type resolution
+    marshal: Optional[Union["NativeMarshall", "SlangType"]] = (
+        None  # Python marshal or known type for resolution
+    )
 
     def __str__(self) -> str:
         type_str = self.type.full_name if self.type else "unknown"
@@ -238,7 +241,9 @@ class FuseProgram:
     def infer_types(
         self,
         bind_context: Optional["BindContext"] = None,
-        input_bindings: Optional[list["BoundVariable"]] = None,
+        input_marshals: Optional[
+            list[Union["NativeMarshall", "SlangType", "BoundVariable"]]
+        ] = None,
     ) -> bool:
         """
         Infer types for all variables in the program by propagating type information
@@ -251,25 +256,36 @@ class FuseProgram:
 
         Args:
             bind_context: Optional BindContext for proper type resolution
-            input_bindings: Optional list of BoundVariable for input variables (matched by index)
+            input_marshals: Optional list of NativeMarshall, SlangType, or BoundVariable for input variables (matched by index)
+                           If BoundVariable is provided, its .python property (NativeMarshall) will be extracted.
 
         Returns:
             True if all variable types were successfully inferred, False otherwise
         """
-        # Associate input bindings with input variables
-        if input_bindings is not None:
-            if len(input_bindings) != len(self.input_vars):
+        # Associate input marshals with input variables
+        if input_marshals is not None:
+            if len(input_marshals) != len(self.input_vars):
                 raise ValueError(
-                    f"Number of input bindings ({len(input_bindings)}) does not match "
+                    f"Number of input marshals ({len(input_marshals)}) does not match "
                     f"number of input variables ({len(self.input_vars)})"
                 )
-            # Store bindings on variables
+            # Store marshals on variables, extracting from BoundVariable if needed
             for i, var_id in enumerate(self.input_vars):
                 var = self.get_variable(var_id)
-                var.binding = input_bindings[i]
-                # If binding has a vector_type, use it
-                if input_bindings[i].vector_type is not None:
-                    var.type = input_bindings[i].vector_type
+                marshal_or_type = input_marshals[i]
+
+                # Extract marshal from BoundVariable if needed
+                from slangpy.bindings.boundvariable import BoundVariable
+
+                if isinstance(marshal_or_type, BoundVariable):
+                    marshal_or_type = marshal_or_type.python
+
+                var.marshal = marshal_or_type
+                # If it's already a SlangType, use it directly
+                from slangpy.reflection.reflectiontypes import SlangType
+
+                if isinstance(marshal_or_type, SlangType):
+                    var.type = marshal_or_type
 
         # Iterate through instructions in order
         for instr in self.instructions:
@@ -304,9 +320,9 @@ class FuseProgram:
         if slang_func is None:
             return
 
-        # If we have a bind_context and input variables have bindings, use proper type resolution
+        # If we have a bind_context and input variables have marshals, use proper type resolution
         if bind_context is not None and all(
-            self.get_variable(var_id).binding is not None for var_id in instr.inputs
+            self.get_variable(var_id).marshal is not None for var_id in instr.inputs
         ):
             self._infer_types_with_resolution(instr, slang_func, bind_context)
         else:
@@ -339,39 +355,36 @@ class FuseProgram:
         self, instr: CallSlangInstruction, slang_func: "SlangFunction", bind_context: "BindContext"
     ) -> None:
         """
-        Type inference using proper type resolution through the binding system.
+        Type inference using proper type resolution through the new resolve_function_call API.
 
         Args:
             instr: The CALL_SLANG instruction
             slang_func: The SlangFunction to resolve against
             bind_context: The BindContext for resolution
         """
-        from slangpy.bindings.boundvariable import BoundCall
         from slangpy.reflection.typeresolution import (
-            _resolve_function_internal,
+            resolve_function_call,
             ResolutionDiagnostic,
         )
 
-        # Create a BoundCall from the input variable bindings
-        # We need to extract the actual bound variables
-        input_bound_vars = []
+        # Extract marshals from input variables
+        args = []
         for var_id in instr.inputs:
             var = self.get_variable(var_id)
-            if var.binding is not None:
-                input_bound_vars.append(var.binding)
-
-        # Create a mock BoundCall with these bindings
-        bound_call = BoundCall.__new__(BoundCall)
-        bound_call.args = input_bound_vars
-        bound_call.kwargs = {}
+            args.append(var.marshal)
 
         # Create diagnostics
         diagnostics = ResolutionDiagnostic()
 
         try:
-            # Call type resolution
-            result = _resolve_function_internal(
-                bind_context, slang_func, bound_call, diagnostics, None
+            # Call the new type resolution API directly
+            result = resolve_function_call(
+                bind_context,
+                slang_func,
+                args,
+                {},  # No kwargs for now
+                diagnostics,
+                None,  # No this_type
             )
 
             if result is not None:
@@ -385,21 +398,12 @@ class FuseProgram:
                 if len(instr.outputs) > 0 and result.function.return_type is not None:
                     output_var = self.get_variable(instr.outputs[0])
                     output_var.type = result.function.return_type
-
-                    # Create a binding for the output variable if needed
-                    if output_var.binding is None:
-                        # Create a simple binding for the output
-                        from slangpy.bindings.boundvariable import BoundVariable
-
-                        # We need a parent context to create this properly
-                        # For now, we'll just set the type
-                        pass
             else:
                 # Resolution failed, fall back to simple inference
                 self._infer_types_simple(instr, slang_func)
 
         except Exception:
-            # If resolution fails, fall back to simple inference
+            # If resolution fails for any reason, fall back to simple inference
             self._infer_types_simple(instr, slang_func)
 
     def _infer_types_call_sub(
@@ -421,17 +425,17 @@ class FuseProgram:
 
         sub_prog = instr.sub_program
 
-        # Propagate bindings to sub-program inputs if we have them
+        # Propagate marshals to sub-program inputs if we have them
         if bind_context is not None:
-            sub_input_bindings = []
+            sub_input_marshals = []
             for var_id in instr.inputs:
                 var = self.get_variable(var_id)
-                if var.binding is not None:
-                    sub_input_bindings.append(var.binding)
+                if var.marshal is not None:
+                    sub_input_marshals.append(var.marshal)
 
-            if len(sub_input_bindings) == len(instr.inputs):
-                # Run type inference on sub-program with these bindings
-                sub_prog.infer_types(bind_context, sub_input_bindings)
+            if len(sub_input_marshals) == len(instr.inputs):
+                # Run type inference on sub-program with these marshals
+                sub_prog.infer_types(bind_context, sub_input_marshals)
 
         # Infer types for input variables from sub-program inputs
         for i, var_id in enumerate(instr.inputs):
