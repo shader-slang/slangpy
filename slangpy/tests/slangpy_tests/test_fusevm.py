@@ -597,6 +597,69 @@ def test_type_inference_sub_program():
     print("\n" + program.dump())
 
 
+def test_sub_program_with_intermediate_types():
+    """
+    Test that sub-programs work when receiving inputs from slang function outputs.
+    This tests the case where intermediate variables have slang types but no python marshals.
+    """
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul = module.require_function("ft_mul")
+    ft_add = module.require_function("ft_add")
+
+    # Create sub-program that takes two inputs and adds them
+    sub_builder = FuseProgramBuilder("add_sub")
+    sub_x = sub_builder.input("x")
+    sub_y = sub_builder.input("y")
+    sub_result = sub_builder.output("result")
+    sub_builder.call_slang(ft_add, [sub_x, sub_y], [sub_result])
+    sub_program = sub_builder.build()
+
+    # Create main program:
+    # temp1 = mul(a, b)  - temp1 will have slang type but no python marshal
+    # temp2 = mul(c, d)  - temp2 will have slang type but no python marshal
+    # result = sub_program(temp1, temp2)  - passes intermediate results to sub
+    builder = FuseProgramBuilder("main_with_intermediate")
+    a = builder.input("a")
+    b = builder.input("b")
+    c = builder.input("c")
+    d = builder.input("d")
+    temp1 = builder.temp("temp1")
+    temp2 = builder.temp("temp2")
+    result = builder.output("result")
+
+    builder.call_slang(ft_mul, [a, b], [temp1])
+    builder.call_slang(ft_mul, [c, d], [temp2])
+    builder.call_sub(sub_program, [temp1, temp2], [result])
+
+    program = builder.build()
+
+    # Run type inference - only the original inputs have marshals
+    from slangpy.bindings.boundvariable import BoundCall
+
+    context = create_bind_context(module)
+    bindings = BoundCall(context, 2, 3, 4, 5)
+    success = program.infer_types(context, bindings.args)
+    assert success, "Type inference should succeed when passing intermediate results to sub-program"
+
+    # Verify all variables have correct types
+    assert program.get_variable(a).slang is not None
+    assert program.get_variable(a).slang.name == "int"
+    assert program.get_variable(temp1).slang is not None
+    assert program.get_variable(temp1).slang.name == "int"
+    assert program.get_variable(temp2).slang is not None
+    assert program.get_variable(temp2).slang.name == "int"
+    assert program.get_variable(result).slang is not None
+    assert program.get_variable(result).slang.name == "int"
+
+    # Verify sub-program was properly typed
+    sub_x_var = sub_program.get_variable(sub_program.input_vars[0])
+    assert sub_x_var.slang is not None
+    assert sub_x_var.slang.name == "int"
+
+    print("\n" + program.dump())
+
+
 def test_clear_types():
     """Test clearing type information."""
     device = helpers.get_device(spy.DeviceType.d3d12)

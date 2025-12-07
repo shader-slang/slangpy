@@ -424,17 +424,25 @@ class FuseProgram:
 
         sub_prog = instr.sub_program
 
-        # Propagate python marshals to sub-program inputs if we have them
+        # Propagate python marshals or slang types to sub-program inputs
+        # Similar to _infer_types_with_resolution, we prefer slang types if available
         if bind_context is not None:
-            sub_input_marshals = []
+            sub_input_types = []
             for var_id in instr.inputs:
                 var = self.get_variable(var_id)
-                if var.python is not None:
-                    sub_input_marshals.append(var.python)
+                # Prefer already-resolved slang type, fallback to python marshal
+                if var.slang is not None:
+                    sub_input_types.append(var.slang)
+                elif var.python is not None:
+                    sub_input_types.append(var.python)
+                else:
+                    # Variable has neither type nor marshal - can't propagate
+                    sub_input_types = []
+                    break
 
-            if len(sub_input_marshals) == len(instr.inputs):
-                # Run type inference on sub-program with these marshals
-                sub_prog.infer_types(bind_context, sub_input_marshals)
+            if len(sub_input_types) == len(instr.inputs):
+                # Run type inference on sub-program with these types/marshals
+                sub_prog.infer_types(bind_context, sub_input_types)
 
         # Infer types for input variables from sub-program inputs
         for i, var_id in enumerate(instr.inputs):
