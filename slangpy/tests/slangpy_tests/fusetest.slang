@@ -56,3 +56,43 @@ T ft_array_sum<T : __BuiltinArithmeticType, let N : int>(T[N] arr)
     }
     return sum;
 }
+
+int ft_sub(int a, int b)
+{
+    return a - b;
+}
+
+int ft_div(int a, int b)
+{
+    return a / b;
+}
+
+int ft_negate(int a)
+{
+    return -a;
+}
+
+float ft_add_float(float a, float b)
+{
+    return a + b;
+}
+
+float ft_mul_float(float a, float b)
+{
+    return a * b;
+}
+
+int ft_max(int a, int b)
+{
+    return a > b ? a : b;
+}
+
+int ft_min(int a, int b)
+{
+    return a < b ? a : b;
+}
+
+T ft_generic_mul<T: IArithmetic>(T a, T b)
+{
+    return a * b;
+}
