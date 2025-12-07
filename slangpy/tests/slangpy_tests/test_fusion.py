@@ -60,6 +60,33 @@ def test_two_children_with_dependency():
     assert result == 17, f"Expected 17, got {result}"
 
 
+def test_three_children_with_dependency_generic_types():
+    """Test code generation with three children where one depends on the other,
+    in which functions are generic so have dependent type information."""
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    scale_node = FuseNode.from_function(module.require_function("ft_scale_vec_generic"))
+    toarray_node = FuseNode.from_function(module.require_function("ft_vec_to_array"))
+    sum_node = FuseNode.from_function(module.require_function("ft_array_sum"))
+    root = FuseNode("compute", ["vec", "scalar"], ["final"])
+
+    root.children.append(scale_node)
+    root.children.append(toarray_node)
+    root.children.append(sum_node)
+
+    scale_node.get_input("a").source = (None, "vec")
+    scale_node.get_input("b").source = (None, "scalar")
+    toarray_node.get_input("v").source = (scale_node, "_result")
+    sum_node.get_input("arr").source = (toarray_node, "_result")
+    root.get_output("final").source = (sum_node, "_result")
+
+    # Test actual execution: (3 * 4) + 5 = 17
+    fused_func = module.create_fused_function(root, "test_compute")
+    result = fused_func(spy.float3(1, 2, 3), 2.0)
+    assert result == 12, f"Expected 12, got {result}"
+
+
 def test_topological_sort_reversed_order():
     """Test that topological sort works even when children are added in reverse dependency order."""
     device = helpers.get_device(spy.DeviceType.d3d12)

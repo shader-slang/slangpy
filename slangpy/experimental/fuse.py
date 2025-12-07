@@ -399,7 +399,7 @@ class Fuser:
             function_name: Optional name to use for the root function (overrides node name)
         """
         # Run type inference if not already done
-        self._infer_types(self.root_node)
+        # self._infer_types(self.root_node)
 
         # Temporarily override the root node's name if a function name is provided
         original_name = self.root_node.name

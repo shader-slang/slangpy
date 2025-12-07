@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from slangpy.reflection.reflectiontypes import SlangType, SlangFunction, SlangParameter
     from slangpy.bindings import BindContext, BoundCall, BoundVariable
     from slangpy.core.native import NativeMarshall
-    from slangpy.experimental.fuse import FuseNode
+    from slangpy.experimental.fuse import FuseNode, FusedFunction
 
 
 class ResolutionArg:
@@ -20,9 +20,15 @@ class ResolutionArg:
 
     def __init__(self):
         super().__init__()
-        self.slang: "SlangType" = None  # type: ignore
+        self.binding: Optional["BoundVariable"] = None
         self.vector: Optional["SlangType"] = None
-        self.python: Optional["NativeMarshall"] = None
+        self.slang: "SlangType" = None  # type: ignore
+
+    @property
+    def python(self) -> Optional["NativeMarshall"]:
+        if self.binding:
+            return self.binding.python
+        return None
 
 
 class ResolutionDiagnostic:
@@ -60,21 +66,17 @@ class ResolutionDiagnostic:
 
 def create_arg(variable: Optional["BoundVariable"], param: "SlangParameter"):
     arg = ResolutionArg()
+    arg.binding = variable
+    arg.vector = variable.vector_type if variable else param.type
     arg.slang = param.type
-    if variable:
-        arg.python = variable.python
-        arg.vector = variable.vector_type
-    else:
-        arg.python = None
-        arg.vector = arg.slang
     return arg
 
 
 def clone_args(args: list[ResolutionArg]):
-    new_args = []
+    new_args: list[ResolutionArg] = []
     for arg in args:
         new_arg = ResolutionArg()
-        new_arg.python = arg.python
+        new_arg.binding = arg.binding
         new_arg.slang = arg.slang
         new_arg.vector = arg.vector
         new_args.append(new_arg)
@@ -151,18 +153,13 @@ class ResolveResult:
         self.params: list[ResolvedParam] = []
 
 
-def _resolve_function_internal(
+def _assign_parameter_indices(
     bind_context: "BindContext",
     function: "SlangFunction",
     bindings: "BoundCall",
     diagnostics: ResolutionDiagnostic,
     this_type: Optional["SlangType"] = None,
 ):
-    # Should never get a fused function here.
-    assert isinstance(function, SlangFunction)
-
-    diagnostics.summary(f"{function_reflection(function.reflection)}")
-
     # Log argument info
     if len(bindings.args) > 0:
         diagnostics.detail(f"  Positional python arguments:")
@@ -235,10 +232,26 @@ def _resolve_function_internal(
             return None
 
     # If we reach this point, all positional and keyword arguments have been matched to slang parameters
-    # Now create a set of tuples that are [MarshallType, ParameterType, ResolvedType|None]
-    current_args = [
-        create_arg(param, arg) for param, arg in zip(positioned_args, function_parameters)
-    ]
+    # Return set of ResolutionArgs that contain [MarshallType, ParameterType, ResolvedType|None]
+    return [create_arg(param, arg) for param, arg in zip(positioned_args, function_parameters)]
+
+
+def _resolve_function_internal(
+    bind_context: "BindContext",
+    function: "SlangFunction",
+    bindings: "BoundCall",
+    diagnostics: ResolutionDiagnostic,
+    this_type: Optional["SlangType"] = None,
+):
+    # Should never get a fused function here.
+    diagnostics.summary(f"{function_reflection(function.reflection)}")
+
+    # Map python arguments to slang parameters and get a set of ResolutionArgs back
+    current_args = _assign_parameter_indices(
+        bind_context, function, bindings, diagnostics, this_type
+    )
+    if current_args is None:
+        return None
 
     # Use resolve_arguments to try and find 1 or more possible resolutions
     resolved_args = resolve_arguments(bind_context, current_args, diagnostics)
@@ -298,11 +311,10 @@ def _resolve_function_internal(
     res.args = tuple(pos_arg_types)
 
     # Output keyword python arguments
-    for name, arg in signature_kwargs.items():
+    for name, arg in bindings.kwargs.items():
         if name == "_result":
             continue
-        i = name_map[name]
-        res.kwargs[name] = cast("SlangType", resolved_args[i].vector)
+        res.kwargs[name] = cast("SlangType", resolved_args[arg.param_index].vector)
 
     # Build list of slang types, and then native type reflections, and specialize
     slang_types = tuple([cast("SlangType", arg.vector) for arg in resolved_args])
@@ -334,8 +346,6 @@ def _resolve_function_with_overloads(
     this_type: Optional["SlangType"] = None,
 ):
     # Should never get a fused function here.
-    assert isinstance(function, SlangFunction)
-
     if function.is_overloaded:
         resolutions = [
             _resolve_function_internal(bind_context, f, bindings, diagnostics, this_type)
@@ -356,50 +366,245 @@ def _resolve_function_with_overloads(
 
 def resolve_fuse_root_node(
     bind_context: "BindContext",
-    root_node: "FuseNode",
+    function: "FusedFunction",
+    bindings: "BoundCall",
     diagnostics: ResolutionDiagnostic,
-    *args: "BoundVariable",
-    **kwargs: "BoundVariable",
+    this_type: Optional["SlangType"] = None,
 ):
-    # Build empty positional list of python arguments to correspond to each slang argument
-    positioned_args: list[Optional["BoundVariable"]] = [None] * len(root_node.inputs)
-
-    # Populate the first N arguments from provided positional arguments
-    if len(args) > len(root_node.inputs):
-        diagnostics.summary(
-            f"  Too many arguments: expected {len(root_node.inputs)}, got {len(args)}"
-        )
+    # Map python arguments to slang parameters and get a set of ResolutionArgs back
+    current_args = _assign_parameter_indices(
+        bind_context, function, bindings, diagnostics, this_type  # type: ignore
+    )
+    if current_args is None:
         return None
-    for i, arg in enumerate(args):
-        positioned_args[i] = arg
-        arg.param_index = i
 
-    # Attempt to populate the remaining arguments from keyword arguments
-    name_map = {port.name: i for i, port in enumerate(root_node.inputs)}
-    for name, arg in kwargs.items():
-        if name == "_result":
-            continue
-        if name not in name_map:
-            diagnostics.summary(f"  No parameter named '{name}'.")
-            return None
-        i = name_map[name]
-        if positioned_args[i] is not None:
-            diagnostics.summary(f"  Parameter '{name}' specified multiple times.")
-            return None
-        positioned_args[i] = arg
-        arg.param_index = i
-
-    # Check all arguments resolved
-    for i, arg in enumerate(positioned_args):
-        if arg is None:
-            diagnostics.summary(f"  Parameter '{root_node.inputs[i].name}' not specified.")
-            return None
+    root_node = function._fuser.root_node
 
     # Can now assign bindings to root node inputs
-    for i, arg in enumerate(positioned_args):
-        root_node.inputs[i].binding = arg
+    for i, arg in enumerate(current_args):
+        root_node.inputs[i].binding = arg.binding
 
-    pass
+    # Perform recursive type resolution on the graph
+    resolved_nodes: set[int] = set()
+    max_iterations = len(root_node.children) * 2  # Prevent infinite loops
+    iteration = 0
+
+    def resolve_recursive(node: "FuseNode"):
+        if id(node) in resolved_nodes:
+            return True
+
+        if node.function is not None:
+            if _resolve_node(bind_context, node, diagnostics):
+                resolved_nodes.add(id(node))
+                return True
+        elif node.subgraph is not None:
+            raise NotImplementedError("Subgraph resolution not yet implemented")
+        else:
+            for child in node.children:
+                for port in child.inputs:
+                    if port.source is not None:
+                        source_node, source_port_name = port.source
+                        if source_node is node:
+                            continue
+                        if source_node is not None:
+                            source_output = source_node.get_output(source_port_name)
+                            if source_output.type is not None:
+                                port.type = source_output.type
+                        else:
+                            source_input = node.get_input(source_port_name)
+                            if source_input.type is not None:
+                                port.type = source_input.type
+                            elif source_input.binding is not None:
+                                port.binding = source_input.binding
+
+                resolve_recursive(child)
+
+            for child in node.children:
+                for port in child.inputs:
+                    if port.source is not None:
+                        source_node, source_port_name = port.source
+                        if source_node is node:
+                            continue
+                        if source_node is not None:
+                            pass
+                        else:
+                            source_input = node.get_input(source_port_name)
+                            source_input.type = port.type
+
+            for port in node.outputs:
+                if port.type is None:
+                    if port.source is not None:
+                        source_node, source_port_name = port.source
+                        if source_node is not None:
+                            source_output = source_node.get_output(source_port_name)
+                            if source_output.type is not None:
+                                port.type = source_output.type
+                        else:
+                            source_input = node.get_input(source_port_name)
+                            if source_input.type is not None:
+                                port.type = source_input.type
+                            elif source_input.binding is not None:
+                                port.binding = source_input.binding
+
+        return False
+
+    resolve_recursive(root_node)
+
+    res = ResolveResult()
+
+    # Output positional python arguments
+    pos_arg_types = []
+    for i, arg in enumerate(root_node.inputs):
+        pos_arg_types.append(cast("SlangType", arg.type))
+    res.args = tuple(pos_arg_types)
+
+    # Output keyword python arguments
+    for name, arg in bindings.kwargs.items():
+        if name == "_result":
+            continue
+        res.kwargs[name] = cast("SlangType", root_node.inputs[arg.param_index].type)
+
+    res.function = function
+    res.params = [
+        ResolvedParam(p, arg.type) for p, arg in zip(function.parameters, root_node.inputs)
+    ]
+
+    for i, arg in enumerate(current_args):
+        arg.binding.param_index = i
+
+    return res
+
+
+def _can_resolve_node(node: "FuseNode") -> bool:
+    """
+    Check if a node has all the necessary input bindings to be resolved.
+
+    Args:
+        node: The node to check
+
+    Returns:
+        True if the node can be resolved, False otherwise
+    """
+    for input_port in node.inputs:
+        # Check if the input has a binding (either from parent or from another node)
+        if input_port.binding is None and input_port.source is None:
+            return False
+
+        # If source is from another node, check if that node has resolved output types
+        if input_port.source is not None:
+            source_node, source_port_name = input_port.source
+            if source_node is not None:
+                source_output = source_node.get_output(source_port_name)
+                if source_output.type is None:
+                    return False
+
+    return True
+
+
+def _resolve_node(
+    bind_context: "BindContext", node: "FuseNode", diagnostics: ResolutionDiagnostic
+) -> bool:
+    """
+    Resolve a single node in the fused graph.
+
+    This propagates bindings to the node's inputs, calls the function resolution,
+    and propagates resolved types to the node's outputs.
+
+    Args:
+        bind_context: The binding context
+        node: The node to resolve
+        diagnostics: Diagnostic object for error reporting
+
+    Returns:
+        True if resolution succeeded, False otherwise
+    """
+    from slangpy.bindings import BoundCall, BoundVariable
+
+    # If this node has a subgraph, we need to recurse into it
+    if node.subgraph is not None:
+        # TODO: Handle subgraph resolution
+        diagnostics.detail(f"  Skipping subgraph node '{node.name}' (not yet implemented)")
+        return False
+
+    # If this node doesn't have a function, it's an error
+    if node.function is None:
+        diagnostics.summary(f"  Node '{node.name}' has no function or subgraph")
+        return False
+
+    # Build BoundCall from the node's input ports
+    # Create BoundVariable objects for each input
+    bound_args: list[BoundVariable] = []
+
+    for input_port in node.inputs:
+        # Get the binding for this input
+        if input_port.binding is not None:
+            # Direct binding from parent node
+            bound_var = input_port.binding
+        elif input_port.source is not None:
+            # Binding from another child node's output
+            source_node, source_port_name = input_port.source
+            if source_node is None:
+                diagnostics.summary(f"  Invalid source for input '{input_port.name}'")
+                return False
+
+            source_output = source_node.get_output(source_port_name)
+            if source_output.type is None:
+                diagnostics.summary(f"  Source output '{source_port_name}' has no resolved type")
+                return False
+
+            # Create a BoundVariable with the resolved type
+            # We need to create a synthetic binding here
+            bound_var = BoundVariable(bind_context, None, None, input_port.name)
+            bound_var.vector_type = source_output.type
+            bound_var.slang_type = source_output.type
+        else:
+            diagnostics.summary(f"  Input '{input_port.name}' has no binding or source")
+            return False
+
+        bound_args.append(bound_var)
+
+    # Create BoundCall with the bound variables
+    bindings = BoundCall(bind_context)
+    bindings.args = bound_args
+    bindings.kwargs = {}
+
+    # Get the SlangFunction from the node's function
+    slang_func = node.function._slang_func
+
+    # Check if this is a fused function - if so, we need to handle it differently
+    from slangpy.experimental.fuse import FusedFunction
+
+    if isinstance(slang_func, FusedFunction):
+        # Recursive fused function - need to resolve it
+        diagnostics.detail(
+            f"  Node '{node.name}' contains a nested fused function (not yet supported)"
+        )
+        return False
+
+    # Resolve the function with the bindings
+    diagnostics.detail(f"  Resolving node '{node.name}' with function '{slang_func.name}'")
+
+    result = _resolve_function_with_overloads(bind_context, slang_func, bindings, diagnostics, None)
+
+    if result is None:
+        diagnostics.summary(f"  Failed to resolve node '{node.name}'")
+        return False
+
+    # Propagate resolved types to input ports
+    for i, input_port in enumerate(node.inputs):
+        if i < len(result.args):
+            input_port.type = result.args[i]
+
+    # Propagate return type to output port (assuming single output)
+    if len(node.outputs) > 0 and result.function.return_type is not None:
+        node.outputs[0].type = result.function.return_type
+
+    diagnostics.detail(
+        f"  Successfully resolved node '{node.name}' -> output type: "
+        f"{node.outputs[0].type.full_name if node.outputs and node.outputs[0].type else 'void'}"
+    )
+
+    return True
 
 
 def resolve_function(
@@ -417,12 +622,20 @@ def resolve_function(
         # Got a fused function. Need to perform recursive operation in which
         # leaf nodes are specialized first, then the fused function itself is specialized
         specialized_function = copy.deepcopy(function)
-        fuser = specialized_function._fuser
-        fuser.sort_graph()
+        specialized_function._fuser.clear_type_info()
+        specialized_function._fuser.sort_graph()
 
-        resolve_fuse_root_node(
-            bind_context, fuser.root_node, diagnostics, *bindings.args, **bindings.kwargs
+        print("Before resolving fused function:")
+        print(specialized_function._fuser.dump_graph())
+
+        res = resolve_fuse_root_node(
+            bind_context, specialized_function, bindings, diagnostics, this_type
         )
+
+        print("After resolving fused function:")
+        print(specialized_function._fuser.dump_graph())
+
+        return res
     else:
         # Not a fused function, proceed as normal
         return _resolve_function_with_overloads(
