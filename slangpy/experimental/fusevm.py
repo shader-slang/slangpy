@@ -492,6 +492,7 @@ class FuseProgram:
         Generate Slang code from the bytecode program.
 
         This requires that type inference has been run first.
+        Recursively generates code for all sub-programs.
 
         Args:
             function_name: Optional name for the generated function (defaults to program name)
@@ -511,6 +512,48 @@ class FuseProgram:
         if function_name is None:
             function_name = f"__func_{self.name}"
 
+        all_code_sections = []
+
+        # First, collect all unique sub-programs
+        sub_programs_set: set[FuseProgram] = set()
+        self._collect_sub_programs(sub_programs_set)
+
+        # Generate code for each sub-program first (in dependency order)
+        for sub_prog in sub_programs_set:
+            sub_code = sub_prog._generate_code_internal(f"__func_{sub_prog.name}")
+            all_code_sections.append(sub_code)
+
+        # Generate code for this program
+        main_code = self._generate_code_internal(function_name)
+        all_code_sections.append(main_code)
+
+        return "\n\n".join(all_code_sections)
+
+    def _collect_sub_programs(self, sub_programs_set: set["FuseProgram"]) -> None:
+        """
+        Recursively collect all unique sub-programs used by this program.
+
+        Args:
+            sub_programs_set: Set to accumulate sub-programs (modified in-place)
+        """
+        for instr in self.instructions:
+            if isinstance(instr, CallSubInstruction) and instr.sub_program is not None:
+                sub_prog = instr.sub_program
+                if sub_prog not in sub_programs_set:
+                    sub_programs_set.add(sub_prog)
+                    # Recursively collect sub-programs of this sub-program
+                    sub_prog._collect_sub_programs(sub_programs_set)
+
+    def _generate_code_internal(self, function_name: str) -> str:
+        """
+        Generate code for just this program (without sub-programs).
+
+        Args:
+            function_name: Name for the generated function
+
+        Returns:
+            Generated Slang code as a string
+        """
         lines = []
 
         # Generate function signature

@@ -424,3 +424,226 @@ def test_vector_to_array_sum():
     vec_input = float3(1.0, 2.0, 3.0)
     result_val = fused_func(vec_input, 2.0)
     assert abs(result_val - 12.0) < 0.001, f"Expected 12.0, got {result_val}"
+
+
+def test_simple_sub_program():
+    """
+    Test a simple sub-program:
+    - Sub-program: add(x, y)
+    - Main program: mul(a, b) then call sub-program with result and c
+    - Expected: (a * b) + c
+    """
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul = module.require_function("ft_mul")
+    ft_add = module.require_function("ft_add")
+
+    # Create sub-program: result = add(x, y)
+    sub_builder = FuseProgramBuilder("add_sub")
+    sub_x = sub_builder.input("x")
+    sub_y = sub_builder.input("y")
+    sub_result = sub_builder.output("result")
+    sub_builder.call_slang(ft_add, [sub_x, sub_y], [sub_result])
+    sub_program = sub_builder.build()
+
+    # Create main program that uses the sub-program
+    builder = FuseProgramBuilder("main_with_sub")
+    a = builder.input("a")
+    b = builder.input("b")
+    c = builder.input("c")
+    temp = builder.temp("temp")
+    result = builder.output("result")
+
+    builder.call_slang(ft_mul, [a, b], [temp])
+    builder.call_sub(sub_program, [temp, c], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Test: (3 * 4) + 5 = 17
+    result_val = fused_func(3, 4, 5)
+    assert result_val == 17, f"Expected 17, got {result_val}"
+
+
+def test_nested_sub_programs():
+    """
+    Test nested sub-programs:
+    - Inner sub-program: mul(x, y)
+    - Outer sub-program: calls inner with (a, b), then adds c
+    - Main program: calls outer with inputs
+    - Expected: (a * b) + c
+    """
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul = module.require_function("ft_mul")
+    ft_add = module.require_function("ft_add")
+
+    # Create inner sub-program: result = mul(x, y)
+    inner_builder = FuseProgramBuilder("mul_inner")
+    inner_x = inner_builder.input("x")
+    inner_y = inner_builder.input("y")
+    inner_result = inner_builder.output("result")
+    inner_builder.call_slang(ft_mul, [inner_x, inner_y], [inner_result])
+    inner_program = inner_builder.build()
+
+    # Create outer sub-program: temp = mul_inner(a, b), result = add(temp, c)
+    outer_builder = FuseProgramBuilder("mul_add_outer")
+    outer_a = outer_builder.input("a")
+    outer_b = outer_builder.input("b")
+    outer_c = outer_builder.input("c")
+    outer_temp = outer_builder.temp("temp")
+    outer_result = outer_builder.output("result")
+    outer_builder.call_sub(inner_program, [outer_a, outer_b], [outer_temp])
+    outer_builder.call_slang(ft_add, [outer_temp, outer_c], [outer_result])
+    outer_program = outer_builder.build()
+
+    # Create main program that calls the outer sub-program
+    builder = FuseProgramBuilder("main_nested")
+    a = builder.input("a")
+    b = builder.input("b")
+    c = builder.input("c")
+    result = builder.output("result")
+    builder.call_sub(outer_program, [a, b, c], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Test: (3 * 4) + 5 = 17
+    result_val = fused_func(3, 4, 5)
+    assert result_val == 17, f"Expected 17, got {result_val}"
+
+
+def test_multiple_sub_programs():
+    """
+    Test using multiple different sub-programs:
+    - Sub-program 1: mul(x, y)
+    - Sub-program 2: add(x, y)
+    - Main: temp1 = mul_sub(a, b), temp2 = mul_sub(c, d), result = add_sub(temp1, temp2)
+    - Expected: (a * b) + (c * d)
+    """
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul = module.require_function("ft_mul")
+    ft_add = module.require_function("ft_add")
+
+    # Create mul sub-program
+    mul_sub_builder = FuseProgramBuilder("mul_sub")
+    mul_x = mul_sub_builder.input("x")
+    mul_y = mul_sub_builder.input("y")
+    mul_result = mul_sub_builder.output("result")
+    mul_sub_builder.call_slang(ft_mul, [mul_x, mul_y], [mul_result])
+    mul_sub_program = mul_sub_builder.build()
+
+    # Create add sub-program
+    add_sub_builder = FuseProgramBuilder("add_sub")
+    add_x = add_sub_builder.input("x")
+    add_y = add_sub_builder.input("y")
+    add_result = add_sub_builder.output("result")
+    add_sub_builder.call_slang(ft_add, [add_x, add_y], [add_result])
+    add_sub_program = add_sub_builder.build()
+
+    # Create main program using both sub-programs
+    builder = FuseProgramBuilder("main_multiple_subs")
+    a = builder.input("a")
+    b = builder.input("b")
+    c = builder.input("c")
+    d = builder.input("d")
+    temp1 = builder.temp("temp1")
+    temp2 = builder.temp("temp2")
+    result = builder.output("result")
+
+    builder.call_sub(mul_sub_program, [a, b], [temp1])
+    builder.call_sub(mul_sub_program, [c, d], [temp2])
+    builder.call_sub(add_sub_program, [temp1, temp2], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Test: (3 * 4) + (5 * 2) = 12 + 10 = 22
+    result_val = fused_func(3, 4, 5, 2)
+    assert result_val == 22, f"Expected 22, got {result_val}"
+
+
+def test_sub_program_with_chain():
+    """
+    Test sub-program containing a chain of operations:
+    - Sub-program: temp = mul(a, b), result = add(temp, c)
+    - Main: result = sub(x, y, z)
+    - Expected: (x * y) + z
+    """
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul = module.require_function("ft_mul")
+    ft_add = module.require_function("ft_add")
+
+    # Create sub-program with chain: (a * b) + c
+    sub_builder = FuseProgramBuilder("mul_add_chain")
+    sub_a = sub_builder.input("a")
+    sub_b = sub_builder.input("b")
+    sub_c = sub_builder.input("c")
+    sub_temp = sub_builder.temp("temp")
+    sub_result = sub_builder.output("result")
+    sub_builder.call_slang(ft_mul, [sub_a, sub_b], [sub_temp])
+    sub_builder.call_slang(ft_add, [sub_temp, sub_c], [sub_result])
+    sub_program = sub_builder.build()
+
+    # Create main program that calls the sub-program
+    builder = FuseProgramBuilder("main_chain_sub")
+    x = builder.input("x")
+    y = builder.input("y")
+    z = builder.input("z")
+    result = builder.output("result")
+    builder.call_sub(sub_program, [x, y, z], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Test: (3 * 4) + 5 = 17
+    result_val = fused_func(3, 4, 5)
+    assert result_val == 17, f"Expected 17, got {result_val}"
+
+
+def test_sub_program_reuse():
+    """
+    Test reusing the same sub-program multiple times:
+    - Sub-program: add(x, y)
+    - Main: temp1 = add_sub(a, b), temp2 = add_sub(c, d), result = add_sub(temp1, temp2)
+    - Expected: (a + b) + (c + d)
+    """
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_add = module.require_function("ft_add")
+
+    # Create add sub-program
+    sub_builder = FuseProgramBuilder("add_sub")
+    sub_x = sub_builder.input("x")
+    sub_y = sub_builder.input("y")
+    sub_result = sub_builder.output("result")
+    sub_builder.call_slang(ft_add, [sub_x, sub_y], [sub_result])
+    sub_program = sub_builder.build()
+
+    # Create main program that reuses the sub-program three times
+    builder = FuseProgramBuilder("main_reuse_sub")
+    a = builder.input("a")
+    b = builder.input("b")
+    c = builder.input("c")
+    d = builder.input("d")
+    temp1 = builder.temp("temp1")
+    temp2 = builder.temp("temp2")
+    result = builder.output("result")
+
+    builder.call_sub(sub_program, [a, b], [temp1])
+    builder.call_sub(sub_program, [c, d], [temp2])
+    builder.call_sub(sub_program, [temp1, temp2], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Test: (1 + 2) + (3 + 4) = 3 + 7 = 10
+    result_val = fused_func(1, 2, 3, 4)
+    assert result_val == 10, f"Expected 10, got {result_val}"
+
+
+# NOTE: Multiple outputs from sub-programs are not currently supported because
+# Slang functions can only return a single value. If this feature is needed in
+# the future, it would require returning a struct with multiple fields.
