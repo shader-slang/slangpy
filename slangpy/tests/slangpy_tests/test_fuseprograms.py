@@ -870,16 +870,16 @@ def test_tensor_fusion_complex_chain():
 
 
 # ============================================================================
-# Basic struct Tests
+# Struct-based Tests
 # ============================================================================
 
 
 def test_struct():
     """
-    Test fusion with tensor element-wise operations:
-    - Create two random float tensors
-    - Fuse: mul, add, mul sequence
-    - Expected: ((a * b) + c) * d
+    Test fusion with struct tensor and scalar:
+    - Tensor of FloatContainer structs
+    - Scalar FloatContainer dict
+    - Expected: a.value + b.value
     """
     import numpy as np
     from slangpy.types import Tensor
@@ -907,7 +907,7 @@ def test_struct():
     # Create a tensor to contain a, and a dictionary to store a single struct for b
     tensor_a = Tensor.empty(device, shape=shape, dtype=module.FloatContainer)
     tensor_a.copy_from_numpy(a_data)
-    value_b = {"value": 5}
+    value_b = {"value": 5.0}
 
     # Call fused function with tensors
     result_tensor = fused_func(tensor_a, value_b, _result="tensor")
@@ -916,6 +916,232 @@ def test_struct():
     result_data = result_tensor.to_numpy()
 
     # Verify results: a.value+b.value
-    expected = a_data + 5
+    expected = a_data + 5.0
+    assert result_data.shape == expected.shape
+    assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_struct_two_tensors():
+    """
+    Test fusion with two struct tensors:
+    - Two tensors of FloatContainer structs
+    - Expected: a.value + b.value
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_struct_add = module.require_function("ft_struct_add")
+
+    # Create fused program: result = a.value + b.value
+    builder = FuseProgramBuilder("struct_add_two_tensors")
+    a = builder.input("a")
+    b = builder.input("b")
+    result = builder.output("result")
+
+    builder.call_slang(ft_struct_add, [a, b], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(123)
+    shape = (64, 128)
+    a_data = np.random.randn(*shape).astype(np.float32)
+    b_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensors of FloatContainer structs
+    tensor_a = Tensor.empty(device, shape=shape, dtype=module.FloatContainer)
+    tensor_a.copy_from_numpy(a_data)
+
+    tensor_b = Tensor.empty(device, shape=shape, dtype=module.FloatContainer)
+    tensor_b.copy_from_numpy(b_data)
+
+    # Call fused function with tensors
+    result_tensor = fused_func(tensor_a, tensor_b, _result="tensor")
+
+    # Get numpy array back
+    result_data = result_tensor.to_numpy()
+
+    # Verify results: a.value + b.value
+    expected = a_data + b_data
+    assert result_data.shape == expected.shape
+    assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_struct_mul_scalar():
+    """
+    Test fusion with struct multiplication:
+    - Tensor of FloatContainer structs
+    - Multiply by scalar
+    - Extract value
+    - Expected: (a.value * scalar)
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_struct_mul_scalar = module.require_function("ft_struct_mul_scalar")
+    ft_struct_get_value = module.require_function("ft_struct_get_value")
+
+    # Create fused program: result = get_value(mul_scalar(a, scalar))
+    builder = FuseProgramBuilder("struct_mul_get")
+    a = builder.input("a")
+    scalar = builder.input("scalar")
+    temp = builder.temp("temp")
+    result = builder.output("result")
+
+    builder.call_slang(ft_struct_mul_scalar, [a, scalar], [temp])
+    builder.call_slang(ft_struct_get_value, [temp], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(456)
+    shape = (32, 64)
+    a_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensor of FloatContainer structs
+    tensor_a = Tensor.empty(device, shape=shape, dtype=module.FloatContainer)
+    tensor_a.copy_from_numpy(a_data)
+
+    scalar_value = 3.5
+
+    # Call fused function
+    result_tensor = fused_func(tensor_a, scalar_value, _result="tensor")
+
+    # Get numpy array back
+    result_data = result_tensor.to_numpy()
+
+    # Verify results: a.value * scalar
+    expected = a_data * scalar_value
+    assert result_data.shape == expected.shape
+    assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_struct_with_sub_program():
+    """
+    Test fusion with struct and sub-program:
+    - Sub-program: mul_scalar(struct, scalar)
+    - Main: add two mul_scalar results
+    - Expected: (a.value * s1) + (b.value * s2)
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_struct_mul_scalar = module.require_function("ft_struct_mul_scalar")
+    ft_struct_add = module.require_function("ft_struct_add")
+
+    # Create sub-program: mul_scalar
+    sub_builder = FuseProgramBuilder("struct_mul_sub")
+    sub_struct = sub_builder.input("struct")
+    sub_scalar = sub_builder.input("scalar")
+    sub_result = sub_builder.output("result")
+    sub_builder.call_slang(ft_struct_mul_scalar, [sub_struct, sub_scalar], [sub_result])
+    sub_program = sub_builder.build()
+
+    # Create main program: add(mul_scalar(a, s1), mul_scalar(b, s2))
+    # Note: ft_struct_add returns float, not FloatContainer
+    builder = FuseProgramBuilder("struct_add_scaled")
+    a = builder.input("a")
+    s1 = builder.input("s1")
+    b = builder.input("b")
+    s2 = builder.input("s2")
+    scaled_a = builder.temp("scaled_a")
+    scaled_b = builder.temp("scaled_b")
+    result = builder.output("result")
+
+    builder.call_sub(sub_program, [a, s1], [scaled_a])
+    builder.call_sub(sub_program, [b, s2], [scaled_b])
+    builder.call_slang(ft_struct_add, [scaled_a, scaled_b], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(789)
+    shape = (16, 32)
+    a_data = np.random.randn(*shape).astype(np.float32)
+    b_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensors of FloatContainer structs
+    tensor_a = Tensor.empty(device, shape=shape, dtype=module.FloatContainer)
+    tensor_a.copy_from_numpy(a_data)
+
+    tensor_b = Tensor.empty(device, shape=shape, dtype=module.FloatContainer)
+    tensor_b.copy_from_numpy(b_data)
+
+    s1_value = 2.0
+    s2_value = 3.0
+
+    # Call fused function
+    result_tensor = fused_func(tensor_a, s1_value, tensor_b, s2_value, _result="tensor")
+
+    # Get numpy array back
+    result_data = result_tensor.to_numpy()
+
+    # Verify results: (a.value * s1) + (b.value * s2)
+    expected = (a_data * s1_value) + (b_data * s2_value)
+    assert result_data.shape == expected.shape
+    assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_struct_chain_operations():
+    """
+    Test fusion with chain of struct operations:
+    - Chain: add(struct_a, struct_b) -> mul_scalar -> get_value
+    - Expected: ((a.value + b.value) * scalar)
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_struct_add = module.require_function("ft_struct_add")
+    ft_mul_float = module.require_function("ft_mul_float")
+
+    # Create fused program: result = mul(add(a, b), scalar)
+    # Note: ft_struct_add returns a float, so we use ft_mul_float
+    builder = FuseProgramBuilder("struct_chain")
+    a = builder.input("a")
+    b = builder.input("b")
+    scalar = builder.input("scalar")
+    sum_val = builder.temp("sum_val")
+    result = builder.output("result")
+
+    builder.call_slang(ft_struct_add, [a, b], [sum_val])
+    builder.call_slang(ft_mul_float, [sum_val, scalar], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(101)
+    shape = (48, 96)
+    a_data = np.random.randn(*shape).astype(np.float32)
+    b_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensors of FloatContainer structs
+    tensor_a = Tensor.empty(device, shape=shape, dtype=module.FloatContainer)
+    tensor_a.copy_from_numpy(a_data)
+
+    tensor_b = Tensor.empty(device, shape=shape, dtype=module.FloatContainer)
+    tensor_b.copy_from_numpy(b_data)
+
+    scalar_value = 1.5
+
+    # Call fused function
+    result_tensor = fused_func(tensor_a, tensor_b, scalar_value, _result="tensor")
+
+    # Get numpy array back
+    result_data = result_tensor.to_numpy()
+
+    # Verify results: (a.value + b.value) * scalar
+    expected = (a_data + b_data) * scalar_value
     assert result_data.shape == expected.shape
     assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
