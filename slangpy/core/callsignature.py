@@ -58,65 +58,6 @@ def is_generic_vector(type: TypeReflection) -> bool:
     return True
 
 
-def _specialize_fused_function(
-    context: BindContext,
-    signature: BoundCall,
-    function: "FusedFunction",
-    diagnostics: ResolutionDiagnostic,
-):
-    """
-    Special handling for fused functions from fuseinterface.py.
-    Instead of using resolve_function, we use the fused program's type inference.
-    """
-    from slangpy.reflection.typeresolution import ResolveResult, ResolvedParam
-
-    # Extract marshals or vector_types from BoundVariables
-    args = [v.vector_type if v.vector_type is not None else v.python for v in signature.args]
-    kwargs = {
-        k: v.vector_type if v.vector_type is not None else v.python
-        for k, v in signature.kwargs.items()
-    }
-
-    # Run type inference on the fused program
-    success = function.infer_types_from_args(context, args, kwargs)
-    if not success:
-        diagnostics.summary(f"Type inference failed for fused function '{function.name}'")
-        return None
-
-    # Build ResolveResult from inferred types
-    result = ResolveResult()
-    result.function = function
-
-    # Get resolved types from fused program variables
-    fuse_program = function.fuse_program
-    resolved_types = []
-    for var_id in fuse_program.input_vars:
-        var = fuse_program.get_variable(var_id)
-        if var.slang is None:
-            diagnostics.summary(
-                f"Input variable '{var.name}' in fused function has no resolved type"
-            )
-            return None
-        resolved_types.append(var.slang)
-
-    result.args = tuple(resolved_types)
-    result.slang = tuple(resolved_types)
-    result.kwargs = {}
-
-    # Build params list
-    result.params = []
-    for param, slang_type in zip(function.parameters, resolved_types):
-        result.params.append(ResolvedParam(param, slang_type))
-
-    # Update param_index fields in BoundVariables
-    for i, arg in enumerate(signature.args):
-        arg.param_index = i
-
-    diagnostics.detail(f"Successfully resolved fused function '{function.name}'")
-
-    return result
-
-
 def specialize(
     context: BindContext,
     signature: BoundCall,
@@ -124,17 +65,11 @@ def specialize(
     diagnostics: ResolutionDiagnostic,
     this_type: Optional[SlangType],
 ):
-    # Check if this is a fused function from fuseinterface.py
-    from slangpy.experimental.fuseinterface import FusedFunction
-
-    if isinstance(function, FusedFunction):
-        return _specialize_fused_function(context, signature, function, diagnostics)
-
     return resolve_function(context, function, signature, diagnostics, this_type)
 
 
 def bind(
-    context: BindContext, signature: BoundCall, function, params: list[ResolvedParam]
+    context: BindContext, signature: BoundCall, function: SlangFunction, params: list[ResolvedParam]
 ) -> BoundCall:
     """
     Apply a matched signature to a slang function, adding slang type marshalls
@@ -418,13 +353,9 @@ def generate_code(
     root_params = sorted(signature.values(), key=lambda x: x.param_index)
 
     # If this is a fused function, inject the generated code
-    from slangpy.experimental.fuse import FusedFunction
     from slangpy.experimental.fuseinterface import FusedFunction as FusedFunctionVM
 
-    if isinstance(build_info.function, FusedFunction):
-        build_info.function._fuser.inject_code_into_codegen(cg, build_info.name)
-    elif isinstance(build_info.function, FusedFunctionVM):
-        # For fusevm-based fused functions, generate and inject the code
+    if isinstance(build_info.function, FusedFunctionVM):
         func_code = build_info.function.generate_code(build_info.name)
         cg.add_snippet(f"fused_func_{build_info.name}", func_code)
 

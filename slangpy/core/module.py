@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-from typing import TYPE_CHECKING, Any, Optional, Union, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Union, Sequence, cast
 
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 
 from slangpy import Pipeline, ShaderTable, SlangModule, Device, Logger
 from slangpy.core.native import NativeCallDataCache
-from slangpy.reflection import SlangProgramLayout
+from slangpy.reflection import SlangProgramLayout, SlangFunction
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 import weakref
 
 if TYPE_CHECKING:
     from slangpy.core.dispatchdata import DispatchData
-    from slangpy.experimental.fuse import FuseNode
+    from slangpy.experimental.fusevm import FuseProgram
 
 LOADED_MODULES = weakref.WeakValueDictionary()
 
@@ -200,36 +200,7 @@ class Module:
             return None
         return child.as_func()
 
-    def create_fused_function(self, fuse_node: "FuseNode", name: str):
-        """
-        Create a Function object from a FuseNode that can be called like any other function.
-
-        Args:
-            fuse_node: A FuseNode representing the fused computation graph
-            name: Name for the fused function
-
-        Returns:
-            A Function object that can be called with Python arguments
-
-        Example:
-            ```python
-            node = FuseNode.from_function(module.require_function("add"))
-            fused_func = module.create_fused_function(node, "my_fused_add")
-            result = fused_func(1, 2)  # Returns 3
-            ```
-        """
-        from slangpy.experimental.fuse import FuseNode
-
-        if not isinstance(fuse_node, FuseNode):
-            raise TypeError(f"Expected FuseNode, got {type(fuse_node)}")
-
-        # Convert the FuseNode to a FusedFunction
-        fused_func = fuse_node.to_function(self, name)
-
-        # Create a Function wrapper around it
-        return Function(module=self, func=fused_func, struct=None, options=self.options)
-
-    def create_fused_program(self, fuse_program: "FuseProgram"):
+    def create_fused_function(self, fuse_program: "FuseProgram"):
         """
         Create a callable function from a FuseProgram.
 
@@ -242,7 +213,9 @@ class Module:
         from slangpy.experimental.fuseinterface import FusedFunction
 
         fused_func = FusedFunction(fuse_program)
-        return Function(module=self, func=fused_func, struct=None, options=self.options)
+        return Function(
+            module=self, func=cast(SlangFunction, fused_func), struct=None, options=self.options
+        )
 
     def on_hot_reload(self):
         """

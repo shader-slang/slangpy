@@ -1162,7 +1162,7 @@ def test_mixed_input_sources():
 def test_fused_program_callable():
     """
     Test that a fused program can be turned into a callable function
-    using the Module.create_fused_program() method.
+    using the Module.create_fused_function() method.
     """
     import slangpy as spy
 
@@ -1185,7 +1185,7 @@ def test_fused_program_callable():
     fuse_program = builder.build()
 
     # Create a callable function from the fused program
-    fused_func = module.create_fused_program(fuse_program)
+    fused_func = module.create_fused_function(fuse_program)
 
     # Test calling the fused function
     # This should trigger the full resolution and code generation pipeline

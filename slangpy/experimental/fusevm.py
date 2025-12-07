@@ -9,7 +9,7 @@ are stored as a sequence of bytecode instructions that operate on symbolic varia
 
 from typing import TYPE_CHECKING, Optional, Union
 from enum import Enum, auto
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from slangpy.core.function import Function
@@ -127,6 +127,7 @@ class FuseProgram:
         Args:
             name: Name of the fused function
         """
+        super().__init__()
         self.name = name
         self.instructions: list[Instruction] = []
         self.variables: list[Variable] = []
@@ -152,6 +153,24 @@ class FuseProgram:
         var = Variable(id=var_id, name=name, slang=slang)
         self.variables.append(var)
         return var_id
+
+    def get_input_variables(self) -> list[Variable]:
+        """
+        Get the list of input Variable objects.
+
+        Returns:
+            List of Variable objects that are inputs to the fused function.
+        """
+        return [self.get_variable(var_id) for var_id in self.input_vars]
+
+    def get_output_variables(self) -> list[Variable]:
+        """
+        Get the list of output Variable objects.
+
+        Returns:
+            List of Variable objects that are outputs of the fused function.
+        """
+        return [self.get_variable(var_id) for var_id in self.output_vars]
 
     def get_variable(self, var_id: int) -> Variable:
         """
@@ -626,6 +645,7 @@ class FuseProgramBuilder:
         Args:
             name: Name of the fused function
         """
+        super().__init__()
         self.program = FuseProgram(name)
 
     def input(self, name: str, type: Optional["SlangType"] = None) -> int:

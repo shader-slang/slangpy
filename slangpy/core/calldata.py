@@ -26,7 +26,6 @@ from slangpy.bindings import (
 )
 from slangpy.bindings.boundvariable import BoundCall, BoundVariable
 from slangpy.reflection import SlangFunction
-from slangpy.experimental.fuse import FusedFunction
 
 if TYPE_CHECKING:
     from slangpy.core.function import FunctionNode

@@ -21,13 +21,13 @@ Public API:
     - resolve_function_call(): New clean API (no BoundCall dependency)
     - ResolveResult: Output containing resolved types and specialized function
 """
-from typing import TYPE_CHECKING, Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Union
 from slangpy.core.native import CallMode
 from slangpy.core.logging import function_reflection
 
 if TYPE_CHECKING:
     from slangpy.reflection.reflectiontypes import SlangType, SlangFunction, SlangParameter
-    from slangpy.bindings import BindContext, BoundCall, BoundVariable
+    from slangpy.bindings import BindContext, BoundCall
     from slangpy.core.native import NativeMarshall
 
 
@@ -374,16 +374,26 @@ def build_resolve_result(
         result.kwargs[name] = resolved_args[idx].resolved_type
 
     # Specialize the function with resolved types
-    slang_reflections = [t.type_reflection for t in slang_types]
-    specialized = function.reflection.specialize_with_arg_types(slang_reflections)
-    if specialized is None:
-        diagnostics.summary("  Slang compiler could not specialize function with resolved types:")
-        diagnostics.summary(f"    {function.name}({', '.join([t.full_name for t in slang_types])})")
-        return None
+    if function.reflection is not None:
+        # Normal slang function specialization
+        slang_reflections = [t.type_reflection for t in slang_types]
+        specialized = function.reflection.specialize_with_arg_types(slang_reflections)
+        if specialized is None:
+            diagnostics.summary(
+                "  Slang compiler could not specialize function with resolved types:"
+            )
+            diagnostics.summary(
+                f"    {function.name}({', '.join([t.full_name for t in slang_types])})"
+            )
+            return None
 
-    # Find the specialized function
-    type_reflection = None if this_type is None else this_type.type_reflection
-    result.function = bind_context.layout.find_function(specialized, type_reflection)
+        # Find the specialized function
+        type_reflection = None if this_type is None else this_type.type_reflection
+        result.function = bind_context.layout.find_function(specialized, type_reflection)
+    else:
+        # Fused function that has no reflection data
+        result.function = function
+
     result.params = [ResolvedParam(p, t) for p, t in zip(result.function.parameters, slang_types)]
 
     diagnostics.detail(f"  Selected slang function signature:")
@@ -437,35 +447,62 @@ def resolve_function_call(
             diagnostics.summary(f"  {error}")
         return None
 
-    # Step 2: Resolve types for each parameter
-    resolutions = resolve_argument_list(bind_context, mapping.param_specs, diagnostics)
-    if len(resolutions) == 0:
-        diagnostics.summary(f"  No vectorization candidates found")
-        return None
+    # Check if this is a fused function from fuseinterface.py
+    from slangpy.experimental.fuseinterface import FusedFunction
 
-    # Log resolution candidates
-    if len(resolutions) > 1:
-        diagnostics.detail(f"  Multiple vectorization candidates found:")
-        for resolution in resolutions:
-            types_str = ", ".join([arg.resolved_type.full_name for arg in resolution])
-            diagnostics.detail(f"    Candidate: {types_str}")
-    elif len(resolutions) == 1:
-        diagnostics.detail(f"  Vectorization candidate found:")
-        types_str = ", ".join([arg.resolved_type.full_name for arg in resolutions[0]])
-        diagnostics.detail(f"    {types_str}")
+    if isinstance(function, FusedFunction):
 
-    # Step 3: Disambiguate if needed
-    if len(resolutions) > 1:
-        resolutions = disambiguate_with_slang(function, resolutions)
+        # Step 2: For fused functions, infer types directly from args
+        input_types = [
+            spec.known_type if spec.known_type is not None else spec.python_marshal
+            for spec in mapping.param_specs
+        ]
+
+        # Run type inference on the fused program
+        function.infer_types_from_args(bind_context, input_types)
+
+        # Get resolved types from fused program variables
+        resolved_input_types = [
+            var.slang
+            for var in function.fuse_program.get_input_variables()
+            if var.slang is not None
+        ]
+
+        # Build params list
+        resolved = []
+        for spec, slang_type in zip(mapping.param_specs, resolved_input_types):
+            resolved.append(ResolvedArgument(spec, slang_type))
+
+    else:
+        # Step 2: Resolve types for each parameter
+        resolutions = resolve_argument_list(bind_context, mapping.param_specs, diagnostics)
         if len(resolutions) == 0:
-            diagnostics.summary(
-                "  Slang compiler could not match function signature to any vectorization candidate"
-            )
+            diagnostics.summary(f"  No vectorization candidates found")
             return None
 
-    resolved = select_unique_resolution(resolutions, diagnostics)
-    if resolved is None:
-        return None
+        # Log resolution candidates
+        if len(resolutions) > 1:
+            diagnostics.detail(f"  Multiple vectorization candidates found:")
+            for resolution in resolutions:
+                types_str = ", ".join([arg.resolved_type.full_name for arg in resolution])
+                diagnostics.detail(f"    Candidate: {types_str}")
+        elif len(resolutions) == 1:
+            diagnostics.detail(f"  Vectorization candidate found:")
+            types_str = ", ".join([arg.resolved_type.full_name for arg in resolutions[0]])
+            diagnostics.detail(f"    {types_str}")
+
+        # Step 3: Disambiguate if needed
+        if len(resolutions) > 1:
+            resolutions = disambiguate_with_slang(function, resolutions)
+            if len(resolutions) == 0:
+                diagnostics.summary(
+                    "  Slang compiler could not match function signature to any vectorization candidate"
+                )
+                return None
+
+        resolved = select_unique_resolution(resolutions, diagnostics)
+        if resolved is None:
+            return None
 
     # Step 4: Build result
     # Build kwargs index mapping for result construction

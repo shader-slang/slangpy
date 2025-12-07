@@ -29,7 +29,6 @@ if TYPE_CHECKING:
     from slangpy.core.module import Module
     from slangpy.core.struct import Struct
     from slangpy import HitGroupDescParam
-    from slangpy.experimental.fuse import FusedFunction
 
 ENABLE_CALLDATA_CACHE = True
 
@@ -63,7 +62,7 @@ class FunctionBuildInfo:
         # Will always be populated by the root
         self.name: str
         self.module: "Module"
-        self.function: Union[SlangFunction, "FusedFunction"]
+        self.function: SlangFunction
         self.this_type: Optional[SlangType]
 
         # Optional value that will be set depending on the chain.

@@ -12,7 +12,7 @@ treated as a SlangFunction for the purpose of function calls.
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from slangpy.experimental.fusevm import FuseProgram
+    from slangpy.experimental.fusevm import FuseProgram, Variable
     from slangpy.reflection.reflectiontypes import SlangType
     from slangpy.bindings import BindContext
 
@@ -32,25 +32,26 @@ class FusedFunction:
         Args:
             fuse_program: The FuseProgram to wrap
         """
-        self.m_fuse_program = fuse_program
-        self.m_name = fuse_program.name
-        self.m_is_overloaded = False
-        self.m_static = True  # Fused functions are always static
+        super().__init__()
+        self._fuse_program = fuse_program
+        self._name = fuse_program.name
+        self._is_overloaded = False
+        self._static = True  # Fused functions are always static
 
     @property
     def fuse_program(self) -> "FuseProgram":
         """Get the wrapped FuseProgram."""
-        return self.m_fuse_program
+        return self._fuse_program
 
     @property
     def name(self) -> str:
         """Function name."""
-        return self.m_name
+        return self._name
 
     @property
     def full_name(self) -> str:
         """Full function name (same as name for fused functions)."""
-        return self.m_name
+        return self._name
 
     @property
     def is_overloaded(self) -> bool:
@@ -73,8 +74,8 @@ class FusedFunction:
         Get the return type of the fused function.
         Returns the slang type of the first output variable if available.
         """
-        if len(self.m_fuse_program.output_vars) > 0:
-            output_var = self.m_fuse_program.get_variable(self.m_fuse_program.output_vars[0])
+        if len(self._fuse_program.output_vars) > 0:
+            output_var = self._fuse_program.get_variable(self._fuse_program.output_vars[0])
             return output_var.slang
         return None
 
@@ -86,8 +87,8 @@ class FusedFunction:
         """
         # Return a list of FusedParameter objects
         params = []
-        for var_id in self.m_fuse_program.input_vars:
-            var = self.m_fuse_program.get_variable(var_id)
+        for var_id in self._fuse_program.input_vars:
+            var = self._fuse_program.get_variable(var_id)
             params.append(FusedParameter(var))
         return params
 
@@ -106,7 +107,6 @@ class FusedFunction:
         self,
         bind_context: "BindContext",
         args: list,
-        kwargs: dict,
     ) -> bool:
         """
         Run type inference on the fused program using provided arguments.
@@ -114,17 +114,12 @@ class FusedFunction:
         Args:
             bind_context: The BindContext for type resolution
             args: Positional arguments (marshals or types)
-            kwargs: Keyword arguments (marshals or types)
 
         Returns:
             True if type inference succeeded
         """
-        # For now, we only support positional arguments
-        if len(kwargs) > 0:
-            raise ValueError("Fused functions do not yet support keyword arguments")
-
         # Run type inference
-        return self.m_fuse_program.infer_types(bind_context, args)
+        return self._fuse_program.infer_types(bind_context, args)
 
     def generate_code(self, func_name: Optional[str] = None) -> str:
         """
@@ -136,7 +131,7 @@ class FusedFunction:
         Returns:
             Generated Slang code
         """
-        return self.m_fuse_program.generate_code(func_name)
+        return self._fuse_program.generate_code(func_name)
 
 
 class FusedParameter:
@@ -144,24 +139,25 @@ class FusedParameter:
     Duck-typed wrapper around a FuseProgram Variable that mimics SlangParameter.
     """
 
-    def __init__(self, variable):
+    def __init__(self, variable: "Variable"):
         """
         Create a FusedParameter from a Variable.
 
         Args:
             variable: The Variable to wrap
         """
-        self.m_variable = variable
+        super().__init__()
+        self._variable = variable
 
     @property
     def name(self) -> str:
         """Parameter name."""
-        return self.m_variable.name
+        return self._variable.name
 
     @property
     def type(self) -> Optional["SlangType"]:
         """Parameter type (may be None before type inference)."""
-        return self.m_variable.slang
+        return self._variable.slang
 
     @property
     def modifiers(self):
