@@ -544,7 +544,7 @@ you can find more information in the Mapping section of the documentation (https
 
             assert self.vector_type is not None
             context_decl = f"ContextND<{self.call_dimensionality}> context"
-            value_decl = f"{self.vector_type.full_name} value"
+            value_decl = f"{self.vector_type.full_name} __value"
             prefix = "[Differentiable]" if self.access[1] != AccessType.none else ""
 
             cgb.empty_line()
@@ -552,7 +552,7 @@ you can find more information in the Mapping section of the documentation (https
             cgb.begin_block()
             for field, var in self.children.items():
                 cgb.append_statement(
-                    f"{var.variable_name}.load(context.map(_m_{var.variable_name}),value.{field})"
+                    f"{var.variable_name}.load(context.map(_m_{var.variable_name}),__value.{field})"
                 )
             cgb.end_block()
 
@@ -562,7 +562,7 @@ you can find more information in the Mapping section of the documentation (https
                 cgb.begin_block()
                 for field, var in self.children.items():
                     cgb.append_statement(
-                        f"{var.variable_name}.store(context.map(_m_{var.variable_name}),value.{field})"
+                        f"{var.variable_name}.store(context.map(_m_{var.variable_name}),__value.{field})"
                     )
                 cgb.end_block()
 

@@ -96,3 +96,51 @@ T ft_generic_mul<T: IArithmetic>(T a, T b)
 {
     return a * b;
 }
+
+// Float operations for tensor tests
+float ft_sub_float(float a, float b)
+{
+    return a - b;
+}
+
+float ft_div_float(float a, float b)
+{
+    return a / b;
+}
+
+float ft_square_float(float a)
+{
+    return a * a;
+}
+
+float ft_sqrt_float(float a)
+{
+    return sqrt(a);
+}
+
+float ft_negate_float(float a)
+{
+    return -a;
+}
+
+struct FloatContainer: IDifferentiable
+{
+    float value;
+};
+
+float ft_struct_add(FloatContainer a, FloatContainer b)
+{
+    return a.value + b.value;
+}
+
+FloatContainer ft_struct_mul_scalar(FloatContainer a, float scalar)
+{
+    FloatContainer result;
+    result.value = a.value * scalar;
+    return result;
+}
+
+float ft_struct_get_value(FloatContainer a)
+{
+    return a.value;
+}

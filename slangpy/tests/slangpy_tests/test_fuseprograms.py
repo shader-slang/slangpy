@@ -647,3 +647,275 @@ def test_sub_program_reuse():
 # NOTE: Multiple outputs from sub-programs are not currently supported because
 # Slang functions can only return a single value. If this feature is needed in
 # the future, it would require returning a struct with multiple fields.
+
+
+# ============================================================================
+# Tensor Vectorization Tests
+# ============================================================================
+
+
+def test_tensor_fusion_element_wise_operations():
+    """
+    Test fusion with tensor element-wise operations:
+    - Create two random float tensors
+    - Fuse: mul, add, mul sequence
+    - Expected: ((a * b) + c) * d
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul_float = module.require_function("ft_mul_float")
+    ft_add_float = module.require_function("ft_add_float")
+
+    # Create fused program: result = mul(add(mul(a, b), c), d)
+    builder = FuseProgramBuilder("tensor_element_wise")
+    a = builder.input("a")
+    b = builder.input("b")
+    c = builder.input("c")
+    d = builder.input("d")
+    temp1 = builder.temp("temp1")
+    temp2 = builder.temp("temp2")
+    result = builder.output("result")
+
+    builder.call_slang(ft_mul_float, [a, b], [temp1])
+    builder.call_slang(ft_add_float, [temp1, c], [temp2])
+    builder.call_slang(ft_mul_float, [temp2, d], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(42)
+    shape = (128, 256)
+    a_data = np.random.randn(*shape).astype(np.float32)
+    b_data = np.random.randn(*shape).astype(np.float32)
+    c_data = np.random.randn(*shape).astype(np.float32)
+    d_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensors
+    tensor_a = Tensor.from_numpy(device, a_data)
+    tensor_b = Tensor.from_numpy(device, b_data)
+    tensor_c = Tensor.from_numpy(device, c_data)
+    tensor_d = Tensor.from_numpy(device, d_data)
+
+    # Call fused function with tensors
+    result_tensor = fused_func(tensor_a, tensor_b, tensor_c, tensor_d, _result="tensor")
+
+    # Get numpy array back
+    result_data = result_tensor.to_numpy()
+
+    # Verify results: ((a * b) + c) * d
+    expected = ((a_data * b_data) + c_data) * d_data
+    assert result_data.shape == expected.shape
+    assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_tensor_fusion_with_sub_program():
+    """
+    Test fusion with sub-program on tensors:
+    - Sub-program: square_diff = (a - b) * (a - b)
+    - Main: sqrt of square_diff
+    - Expected: sqrt((a - b)^2) = |a - b|
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_sub_float = module.require_function("ft_sub_float")
+    ft_mul_float = module.require_function("ft_mul_float")
+    ft_sqrt_float = module.require_function("ft_sqrt_float")
+
+    # Create sub-program: square_diff = (a - b) * (a - b)
+    sub_builder = FuseProgramBuilder("square_diff_sub")
+    sub_a = sub_builder.input("a")
+    sub_b = sub_builder.input("b")
+    sub_diff = sub_builder.temp("diff")
+    sub_result = sub_builder.output("result")
+    sub_builder.call_slang(ft_sub_float, [sub_a, sub_b], [sub_diff])
+    sub_builder.call_slang(ft_mul_float, [sub_diff, sub_diff], [sub_result])
+    sub_program = sub_builder.build()
+
+    # Create main program: sqrt of sub-program result
+    builder = FuseProgramBuilder("tensor_distance")
+    a = builder.input("a")
+    b = builder.input("b")
+    square_diff = builder.temp("square_diff")
+    result = builder.output("result")
+
+    builder.call_sub(sub_program, [a, b], [square_diff])
+    builder.call_slang(ft_sqrt_float, [square_diff], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(123)
+    shape = (64, 128)
+    a_data = np.random.randn(*shape).astype(np.float32) * 10 + 5
+    b_data = np.random.randn(*shape).astype(np.float32) * 10 + 5
+
+    # Create tensors
+    tensor_a = Tensor.from_numpy(device, a_data)
+    tensor_b = Tensor.from_numpy(device, b_data)
+
+    # Call fused function with tensors
+    result_tensor = fused_func(tensor_a, tensor_b, _result="tensor")
+
+    # Get numpy array back
+    result_data = result_tensor.to_numpy()
+
+    # Verify results: sqrt((a - b)^2) = |a - b|
+    expected = np.abs(a_data - b_data)
+    assert result_data.shape == expected.shape
+    assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_tensor_fusion_complex_chain():
+    """
+    Test complex fusion chain with tensors:
+    - Multiple operations in parallel and sequential
+    - Sub-program: weighted_sum = (a * w1) + (b * w2)
+    - Main: applies sub twice, then adds results
+    - Expected: ((a * w1) + (b * w2)) + ((c * w3) + (d * w4))
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul_float = module.require_function("ft_mul_float")
+    ft_add_float = module.require_function("ft_add_float")
+
+    # Create sub-program: weighted_sum = (x * w1) + (y * w2)
+    sub_builder = FuseProgramBuilder("weighted_sum")
+    sub_x = sub_builder.input("x")
+    sub_y = sub_builder.input("y")
+    sub_w1 = sub_builder.input("w1")
+    sub_w2 = sub_builder.input("w2")
+    sub_prod1 = sub_builder.temp("prod1")
+    sub_prod2 = sub_builder.temp("prod2")
+    sub_result = sub_builder.output("result")
+
+    sub_builder.call_slang(ft_mul_float, [sub_x, sub_w1], [sub_prod1])
+    sub_builder.call_slang(ft_mul_float, [sub_y, sub_w2], [sub_prod2])
+    sub_builder.call_slang(ft_add_float, [sub_prod1, sub_prod2], [sub_result])
+    sub_program = sub_builder.build()
+
+    # Create main program: use sub-program twice and combine
+    builder = FuseProgramBuilder("tensor_complex_fusion")
+    a = builder.input("a")
+    b = builder.input("b")
+    c = builder.input("c")
+    d = builder.input("d")
+    w1 = builder.input("w1")
+    w2 = builder.input("w2")
+    w3 = builder.input("w3")
+    w4 = builder.input("w4")
+    sum1 = builder.temp("sum1")
+    sum2 = builder.temp("sum2")
+    result = builder.output("result")
+
+    builder.call_sub(sub_program, [a, b, w1, w2], [sum1])
+    builder.call_sub(sub_program, [c, d, w3, w4], [sum2])
+    builder.call_slang(ft_add_float, [sum1, sum2], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(456)
+    shape = (32, 64)
+    a_data = np.random.randn(*shape).astype(np.float32)
+    b_data = np.random.randn(*shape).astype(np.float32)
+    c_data = np.random.randn(*shape).astype(np.float32)
+    d_data = np.random.randn(*shape).astype(np.float32)
+    w1_data = np.random.randn(*shape).astype(np.float32)
+    w2_data = np.random.randn(*shape).astype(np.float32)
+    w3_data = np.random.randn(*shape).astype(np.float32)
+    w4_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensors
+    tensor_a = Tensor.from_numpy(device, a_data)
+    tensor_b = Tensor.from_numpy(device, b_data)
+    tensor_c = Tensor.from_numpy(device, c_data)
+    tensor_d = Tensor.from_numpy(device, d_data)
+    tensor_w1 = Tensor.from_numpy(device, w1_data)
+    tensor_w2 = Tensor.from_numpy(device, w2_data)
+    tensor_w3 = Tensor.from_numpy(device, w3_data)
+    tensor_w4 = Tensor.from_numpy(device, w4_data)
+
+    # Call fused function with tensors
+    result_tensor = fused_func(
+        tensor_a,
+        tensor_b,
+        tensor_c,
+        tensor_d,
+        tensor_w1,
+        tensor_w2,
+        tensor_w3,
+        tensor_w4,
+        _result="tensor",
+    )
+
+    # Get numpy array back
+    result_data = result_tensor.to_numpy()
+
+    # Verify results: ((a * w1) + (b * w2)) + ((c * w3) + (d * w4))
+    expected = ((a_data * w1_data) + (b_data * w2_data)) + ((c_data * w3_data) + (d_data * w4_data))
+    assert result_data.shape == expected.shape
+    assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
+
+
+# ============================================================================
+# Basic struct Tests
+# ============================================================================
+
+
+def test_struct():
+    """
+    Test fusion with tensor element-wise operations:
+    - Create two random float tensors
+    - Fuse: mul, add, mul sequence
+    - Expected: ((a * b) + c) * d
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_struct_add = module.require_function("ft_struct_add")
+
+    # Create fused program: result = a.value + b.value
+    builder = FuseProgramBuilder("struct_add")
+    a = builder.input("a")
+    b = builder.input("b")
+    result = builder.output("result")
+
+    builder.call_slang(ft_struct_add, [a, b], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(42)
+    shape = (128, 256)
+    a_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create a tensor to contain a, and a dictionary to store a single struct for b
+    tensor_a = Tensor.empty(device, shape=shape, dtype=module.FloatContainer)
+    tensor_a.copy_from_numpy(a_data)
+    value_b = {"value": 5}
+
+    # Call fused function with tensors
+    result_tensor = fused_func(tensor_a, value_b, _result="tensor")
+
+    # Get numpy array back
+    result_data = result_tensor.to_numpy()
+
+    # Verify results: a.value+b.value
+    expected = a_data + 5
+    assert result_data.shape == expected.shape
+    assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
