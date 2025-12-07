@@ -1157,3 +1157,39 @@ def test_mixed_input_sources():
     # Verify we can generate code
     code = program.generate_code()
     assert "int __func_test_mixed(int v" in code or "int32_t __func_test_mixed(int32_t v" in code
+
+
+def test_fused_program_callable():
+    """
+    Test that a fused program can be turned into a callable function
+    using the Module.create_fused_program() method.
+    """
+    import slangpy as spy
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+    ft_mul = module.require_function("ft_mul")
+    ft_add = module.require_function("ft_add")
+
+    # Create a fused program: result = add(mul(a, b), c)
+    builder = FuseProgramBuilder("fused_add_mul")
+    a = builder.input("a")
+    b = builder.input("b")
+    c = builder.input("c")
+    temp = builder.temp("temp")
+    result = builder.output("result")
+
+    builder.call_slang(ft_mul, [a, b], [temp])
+    builder.call_slang(ft_add, [temp, c], [result])
+
+    fuse_program = builder.build()
+
+    # Create a callable function from the fused program
+    fused_func = module.create_fused_program(fuse_program)
+
+    # Test calling the fused function
+    # This should trigger the full resolution and code generation pipeline
+    result_val = fused_func(3, 4, 5)
+
+    # Expected: (3 * 4) + 5 = 17
+    assert result_val == 17, f"Expected 17, got {result_val}"

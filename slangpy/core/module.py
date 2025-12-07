@@ -229,6 +229,21 @@ class Module:
         # Create a Function wrapper around it
         return Function(module=self, func=fused_func, struct=None, options=self.options)
 
+    def create_fused_program(self, fuse_program: "FuseProgram"):
+        """
+        Create a callable function from a FuseProgram.
+
+        Args:
+            fuse_program: The FuseProgram to wrap
+
+        Returns:
+            A Function object that can be called like any other SlangPy function
+        """
+        from slangpy.experimental.fuseinterface import FusedFunction
+
+        fused_func = FusedFunction(fuse_program)
+        return Function(module=self, func=fused_func, struct=None, options=self.options)
+
     def on_hot_reload(self):
         """
         Called by device when the module is hot reloaded.
