@@ -1145,3 +1145,218 @@ def test_struct_chain_operations():
     expected = (a_data + b_data) * scalar_value
     assert result_data.shape == expected.shape
     assert np.allclose(result_data, expected, rtol=1e-5, atol=1e-6)
+
+
+# ============================================================================
+# Method Call Tests (static and non-static)
+# ============================================================================
+
+
+def test_non_static_method_call():
+    """
+    Test fusion with non-static method call.
+    - Input: TypeWithMethod struct, float scalar
+    - Operation: struct.multiply_by_scalar(scalar)
+    - Expected: struct.value * scalar
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Get the struct type and its method
+    TypeWithMethod = module.require_struct("TypeWithMethod")
+    multiply_method = module.find_function_in_struct(TypeWithMethod, "multiply_by_scalar")
+
+    # Create fused program: result = struct.multiply_by_scalar(scalar)
+    builder = FuseProgramBuilder("non_static_method")
+    struct_input = builder.input("struct_input")
+    scalar_input = builder.input("scalar")
+    result = builder.output("result")
+
+    builder.call_slang(multiply_method, [struct_input, scalar_input], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(100)
+    shape = (16, 32)
+    struct_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensor of TypeWithMethod structs
+    tensor_struct = Tensor.empty(device, shape=shape, dtype=TypeWithMethod)
+    tensor_struct.copy_from_numpy(struct_data)
+
+    scalar_value = 2.5
+
+    # Call fused function
+    result_tensor = fused_func(tensor_struct, scalar_value, _result="tensor")
+
+    # Verify results
+    result_cpu = result_tensor.to_numpy()
+    expected = struct_data * scalar_value
+    assert np.allclose(result_cpu, expected, rtol=1e-5), f"Expected {expected}, got {result_cpu}"
+
+
+def test_static_method_call():
+    """
+    Test fusion with static method call.
+    - Input: TypeWithMethod struct, float scalar
+    - Operation: TypeWithMethod.static_multiply_by_scalar(struct, scalar)
+    - Expected: struct.value * scalar
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Get the struct type and its static method
+    TypeWithMethod = module.require_struct("TypeWithMethod")
+    static_method = module.find_function_in_struct(TypeWithMethod, "static_multiply_by_scalar")
+
+    # Create fused program: result = TypeWithMethod.static_multiply_by_scalar(struct, scalar)
+    builder = FuseProgramBuilder("static_method")
+    struct_input = builder.input("struct_input")
+    scalar_input = builder.input("scalar")
+    result = builder.output("result")
+
+    builder.call_slang(static_method, [struct_input, scalar_input], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(101)
+    shape = (16, 32)
+    struct_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensor of TypeWithMethod structs
+    tensor_struct = Tensor.empty(device, shape=shape, dtype=TypeWithMethod)
+    tensor_struct.copy_from_numpy(struct_data)
+
+    scalar_value = 3.0
+
+    # Call fused function
+    result_tensor = fused_func(tensor_struct, scalar_value, _result="tensor")
+
+    # Verify results
+    result_cpu = result_tensor.to_numpy()
+    expected = struct_data * scalar_value
+    assert np.allclose(result_cpu, expected, rtol=1e-5), f"Expected {expected}, got {result_cpu}"
+
+
+def test_method_call_in_chain():
+    """
+    Test fusion with method call in a chain.
+    - Operations: struct.multiply_by_scalar(s1) -> mul_float(result, s2)
+    - Expected: (struct.value * s1) * s2
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Get the struct type and its method
+    TypeWithMethod = module.require_struct("TypeWithMethod")
+    multiply_method = module.find_function_in_struct(TypeWithMethod, "multiply_by_scalar")
+    ft_mul_float = module.require_function("ft_mul_float")
+
+    # Create fused program: temp = struct.multiply_by_scalar(s1); result = mul_float(temp, s2)
+    builder = FuseProgramBuilder("method_chain")
+    struct_input = builder.input("struct_input")
+    s1 = builder.input("s1")
+    s2 = builder.input("s2")
+    temp = builder.temp("temp")
+    result = builder.output("result")
+
+    builder.call_slang(multiply_method, [struct_input, s1], [temp])
+    builder.call_slang(ft_mul_float, [temp, s2], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(102)
+    shape = (24, 48)
+    struct_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensor of TypeWithMethod structs
+    tensor_struct = Tensor.empty(device, shape=shape, dtype=TypeWithMethod)
+    tensor_struct.copy_from_numpy(struct_data)
+
+    s1_value = 2.0
+    s2_value = 1.5
+
+    # Call fused function
+    result_tensor = fused_func(tensor_struct, s1_value, s2_value, _result="tensor")
+
+    # Verify results
+    result_cpu = result_tensor.to_numpy()
+    expected = (struct_data * s1_value) * s2_value
+    assert np.allclose(result_cpu, expected, rtol=1e-5), f"Expected {expected}, got {result_cpu}"
+
+
+def test_mixed_static_and_non_static():
+    """
+    Test fusion with both static and non-static method calls.
+    - Operations: non_static_result = struct1.multiply_by_scalar(s1)
+    -             static_result = TypeWithMethod.static_multiply_by_scalar(struct2, s2)
+    -             result = add_float(non_static_result, static_result)
+    - Expected: (struct1.value * s1) + (struct2.value * s2)
+    """
+    import numpy as np
+    from slangpy.types import Tensor
+
+    device = helpers.get_device(spy.DeviceType.d3d12)
+    module = spy.Module.load_from_file(device, "fusetest.slang")
+
+    # Get the struct type and its methods
+    TypeWithMethod = module.require_struct("TypeWithMethod")
+    multiply_method = module.find_function_in_struct(TypeWithMethod, "multiply_by_scalar")
+    static_method = module.find_function_in_struct(TypeWithMethod, "static_multiply_by_scalar")
+    ft_add_float = module.require_function("ft_add_float")
+
+    # Create fused program
+    builder = FuseProgramBuilder("mixed_methods")
+    struct1 = builder.input("struct1")
+    s1 = builder.input("s1")
+    struct2 = builder.input("struct2")
+    s2 = builder.input("s2")
+    temp1 = builder.temp("temp1")
+    temp2 = builder.temp("temp2")
+    result = builder.output("result")
+
+    builder.call_slang(multiply_method, [struct1, s1], [temp1])
+    builder.call_slang(static_method, [struct2, s2], [temp2])
+    builder.call_slang(ft_add_float, [temp1, temp2], [result])
+
+    fuse_program = builder.build()
+    fused_func = module.create_fused_function(fuse_program)
+
+    # Create random tensor data
+    np.random.seed(103)
+    shape = (8, 16)
+    struct1_data = np.random.randn(*shape).astype(np.float32)
+    struct2_data = np.random.randn(*shape).astype(np.float32)
+
+    # Create tensors of TypeWithMethod structs
+    tensor_struct1 = Tensor.empty(device, shape=shape, dtype=TypeWithMethod)
+    tensor_struct1.copy_from_numpy(struct1_data)
+
+    tensor_struct2 = Tensor.empty(device, shape=shape, dtype=TypeWithMethod)
+    tensor_struct2.copy_from_numpy(struct2_data)
+
+    s1_value = 2.0
+    s2_value = 3.0
+
+    # Call fused function
+    result_tensor = fused_func(tensor_struct1, s1_value, tensor_struct2, s2_value, _result="tensor")
+
+    # Verify results
+    result_cpu = result_tensor.to_numpy()
+    expected = (struct1_data * s1_value) + (struct2_data * s2_value)
+    assert np.allclose(result_cpu, expected, rtol=1e-5), f"Expected {expected}, got {result_cpu}"

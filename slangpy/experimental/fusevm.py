@@ -383,14 +383,16 @@ class FuseProgram:
 
         # Extract marshals or slang types from input variables
         # resolve_function_call accepts either NativeMarshall OR SlangType
+
+        # For non-static methods, set this_type (map_arguments_to_parameters will extract it from args)
+        is_non_static_method = slang_func.this is not None and not slang_func.static
+        this_type = slang_func.this if is_non_static_method else None
+
+        # Build args list from all inputs
         args = []
         for var_id in instr.inputs:
             var = self.get_variable(var_id)
-            # Prefer already-resolved slang type, fallback to python marshal
-            if var.slang is not None:
-                args.append(var.slang)
-            else:
-                args.append(var.python)
+            args.append(var.slang if var.slang is not None else var.python)
 
         # Create diagnostics
         diagnostics = ResolutionDiagnostic()
@@ -402,7 +404,7 @@ class FuseProgram:
             args,
             {},  # No kwargs for now
             diagnostics,
-            None,  # No this_type
+            this_type,  # Pass this_type for non-static methods
         )
 
         if result is None:
@@ -413,11 +415,18 @@ class FuseProgram:
                 f"Diagnostics:\n{diag_str}"
             )
 
-        # Apply resolved types to input variables
-        for i, var_id in enumerate(instr.inputs):
-            if i < len(result.params):
-                var = self.get_variable(var_id)
-                var.slang = result.params[i].type
+        # First input is 'this' for non-static methods
+        input_index = 0
+        if is_non_static_method and len(instr.inputs) > 0:
+            this_var = self.get_variable(instr.inputs[0])
+            this_var.slang = slang_func.this
+            input_index += 1
+
+        # Apply resolved parameter types to remaining inputs
+        for param in result.params:
+            var = self.get_variable(instr.inputs[input_index])
+            var.slang = param.type
+            input_index += 1
 
         # Apply return type to output variable
         if len(instr.outputs) > 0 and result.function.return_type is not None:
@@ -617,6 +626,11 @@ class FuseProgram:
         """
         Generate code for a CALL_SLANG instruction.
 
+        Handles three cases:
+        1. Global functions: func_name(v0, v1, ...)
+        2. Non-static methods: v0.method_name(v1, v2, ...)
+        3. Static methods: TypeName.static_method_name(v0, v1, ...)
+
         Args:
             instr: The instruction
 
@@ -632,17 +646,35 @@ class FuseProgram:
         if slang_func is None:
             return "// ERROR: No slang function"
 
-        func_name = slang_func.name
+        # Determine the call target and argument list based on function type
+        if slang_func.this is not None and not slang_func.static:
+            # Non-static method: v0.method_name(remaining args)
+            if len(instr.inputs) == 0:
+                return "// ERROR: Non-static method with no 'this' argument"
+            call_target = f"v{instr.inputs[0]}.{slang_func.name}"
+            arg_vars = instr.inputs[1:]  # Exclude 'this' from arguments
+        elif slang_func.this is not None and slang_func.static:
+            # Static method: TypeName.method_name(all args)
+            type_name = slang_func.this.name
+            call_target = f"{type_name}.{slang_func.name}"
+            arg_vars = instr.inputs
+        else:
+            # Global function: func_name(all args)
+            call_target = slang_func.name
+            arg_vars = instr.inputs
 
-        # Generate argument list
-        args = ", ".join(f"v{vid}" for vid in instr.inputs)
+        # Build argument list string
+        args_str = ", ".join(f"v{vid}" for vid in arg_vars)
 
-        # Generate assignment
+        # Generate the function call expression
+        call_expr = f"{call_target}({args_str})"
+
+        # Generate assignment or standalone call
         if len(instr.outputs) > 0:
             output_var_id = instr.outputs[0]
-            return f"v{output_var_id} = {func_name}({args});"
+            return f"v{output_var_id} = {call_expr};"
         else:
-            return f"{func_name}({args});"
+            return f"{call_expr};"
 
     def _generate_code_call_sub(self, instr: CallSubInstruction) -> str:
         """

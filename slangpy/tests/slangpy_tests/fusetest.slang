@@ -144,3 +144,18 @@ float ft_struct_get_value(FloatContainer a)
 {
     return a.value;
 }
+
+struct TypeWithMethod: IDifferentiable
+{
+    float value;
+
+    float multiply_by_scalar(float scalar)
+    {
+        return value * scalar;
+    }
+
+    static float static_multiply_by_scalar(TypeWithMethod instance, float scalar)
+    {
+        return instance.value * scalar;
+    }
+};
