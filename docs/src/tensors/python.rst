@@ -316,7 +316,7 @@ Utility Operations
 **uniforms** - Get uniform buffer representation:
 
 .. code-block:: python
-1
+
     # Create uniform buffer from tensor metadata
     # Useful for passing tensor parameters to shaders
     uniforms = tensor.uniforms()
@@ -513,37 +513,6 @@ After running backward differentiation, gradients are stored in the attached ten
     # Access gradients
     x_grad = x.grad.to_numpy()
     print(x_grad)  # Derivatives with respect to x
-
-Separate Input/Output Gradients
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-For functions with ``inout`` parameters that both read and write, you may need separate input and output gradient buffers to avoid race conditions:
-
-.. code-block:: python
-
-    # Slang function with inout parameter
-    # [Differentiable]
-    # void modify_inplace(inout float x) { x = x * x; }
-
-    # Create separate gradient buffers
-    grad_in = spy.Tensor.zeros(device, shape=(100,), dtype=float)
-    grad_out = spy.Tensor.zeros(device, shape=(100,), dtype=float)
-
-    # Attach both
-    x = spy.Tensor.from_numpy(device, data)
-    x = x.with_grads(grad_in=grad_in, grad_out=grad_out, zero=True)
-
-    # Forward pass
-    module.modify_inplace(x)
-
-    # Backward pass - reads from grad_in, writes to grad_out
-    module.modify_inplace.bwds(x)
-
-In most cases, the same buffer is used for both input and output gradients. Separate buffers are only needed when:
-
-- The function has ``inout`` parameters
-- You want to avoid accumulation hazards
-- Debugging gradient flow
 
 Detaching Gradients
 ~~~~~~~~~~~~~~~~~~~

@@ -48,7 +48,7 @@ For specialized scenarios, additional tensor types are available:
 - ``RWPrimalTensor<T, D>`` - Read-write primal tensor
 
 .. note::
-   ``PrimalTensor`` types are less commonly used and primarily exist for specialized automatic differentiation scenarios. Most users should use ``DiffTensor`` or ``WDiffTensor``.
+   ``PrimalTensor`` types are less commonly used and primarily exist internally to allow passing tensors without gradients to `IDiffTensor` interfaces (see below).
 
 Interface Types
 ---------------
@@ -57,7 +57,7 @@ For maximum flexibility when writing reusable functions, SlangPy provides interf
 
 1. The generated kernel can choose the most efficient storage type (e.g., ``PrimalTensor`` vs ``DiffTensor``)
 2. The same function can work for both forward and backward differentiation passes
-3. Code is more generic and reusable
+3. Code is more generic and reusable, and will be compatible with future tensor types added to SlangPy.
 
 Available tensor interfaces:
 
@@ -70,7 +70,7 @@ Available tensor interfaces:
 
 .. code-block:: slang
 
-    // Good: Uses interface types - works with any tensor implementation
+    // Good: Uses interface types - works with any compatible tensor implementation
     void process_data(int2 idx, ITensor<float, 2> input, IRWTensor<float, 2> output)
     {
         float value = input[idx];
@@ -86,7 +86,7 @@ Available tensor interfaces:
 
 When SlangPy generates a kernel that calls a function accepting interface types, it automatically selects the appropriate concrete type based on the Python tensor's properties (read-only, writable, differentiable, etc.).
 
-Currently, the main use-case for concrete Tensor types is when you need to directly access the gradient buffers for custom operations, such as manually written backwards passes, as these are only exposed by the concrete `DiffTensor` types,
+Currently, the main use-case for concrete Tensor types is when you need to directly access the gradient buffers for custom operations, such as manually written backwards passes, as these are only exposed by the concrete ``DiffTensor`` types.
 
 Tensor Operations
 -----------------
@@ -186,7 +186,7 @@ All tensors expose a ``shape`` property to query dimensions:
 Working with Structs
 ~~~~~~~~~~~~~~~~~~~~
 
-Tensors can store any user-defined struct types, so can be used in place of a `StructuredBuffer` in classical GPU programming:
+Tensors can store any user-defined struct types, so can be used in place of a ``StructuredBuffer`` in classical GPU programming:
 
 .. code-block:: slang
 
@@ -302,7 +302,7 @@ Accessing neighboring elements (e.g., convolution, blur) currently requires acce
         output[idx] = sum / float(count);
     }
 
-Work is in progress to support this pattern with a tile 'view' abstraction to allow more efficient shared memory usage.
+Work is in progress to support this pattern with a tile abstraction to allow more efficient shared memory usage.
 
 Reduction Operations
 ~~~~~~~~~~~~~~~~~~~~
@@ -365,6 +365,8 @@ Called from Python for forward pass:
 Generic slang function to take generic tensors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+A normalization function that works for any floating-point tensor:
+
 .. code-block:: slang
 
     void normalize_tensor<T: __BuiltInFloatingPointType>(int idx, ITensor<T, 1> input, IRWTensor<T, 1> output)
@@ -373,18 +375,20 @@ Generic slang function to take generic tensors
         output[idx] = value / T(255.0);
     }
 
-Implementation Details
-----------------------
+When called from Python, SlangPy will select the appropriate concrete tensor types based on the properties of the passed tensors. In this case, if ``Tensor`` of float16 were passed, SlangPy would generate a kernel using ``ITensor<float16, 1>`` and ``IRWTensor<float16, 1>``.
+
+Internals
+---------
 
 Underlying Storage
 ~~~~~~~~~~~~~~~~~~
 
 Tensors are implemented on top of GPU buffer resources:
 
-- ``Tensor`` and read-only variants use ``StructuredBuffer<T>``
-- ``RWTensor`` and read-write variants use ``RWStructuredBuffer<T>``
+- ``Tensor`` and read-only variants use ``StructuredBuffer<T>``, or ``ImmutablePtr<T>`` in CUDA
+- ``RWTensor`` and read-write variants use ``RWStructuredBuffer<T>`` or ``Ptr<T>`` in CUDA
 - ``DiffTensor`` types wrap both primal and gradient buffers
-- ``AtomicTensor`` uses special atomic-capable buffer types
+- ``AtomicTensor`` uses ``RWByteAddressBuffer`` or ``Ptr<T>`` in CUDA
 
 Each tensor stores:
 
@@ -392,8 +396,6 @@ Each tensor stores:
 - Shape array (``_shape``)
 - Stride array (``_strides``)
 - Offset (``_offset``)
-
-Strides enable flexible memory layouts including non-contiguous views created by slicing or reshaping.
 
 Memory Layout
 ~~~~~~~~~~~~~

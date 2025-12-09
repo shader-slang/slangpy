@@ -10,6 +10,9 @@ SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 Next
 -------
 - Significant rewrite of type inference system for better handling of generics and complex types.
+- Rewrite of Tensors and removal of NDBuffer in favour of unified Tensor type
+
+This version carries with it some breaking changes, please see the migration guide :ref:`here <tensorupdate>` for details.
 
 Version 0.39.0 (November 17, 2025)
 -------
