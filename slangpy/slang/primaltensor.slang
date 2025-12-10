@@ -9,31 +9,51 @@ implementing slangpy;
     public property shape : uint[D] { get { return _shape; } }
 
 
-#define _SLANGPY_PRIMALTENSOR_STORE                                                                                          \
+#define _SLANGPY_PRIMALTENSOR_STORE                                                                                    \
     [TreatAsDifferentiable]                                                                                            \
-    public void store<I : __BuiltinIntegerType>(I idx[D], T value)                                                                 \
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value)                                                     \
     {                                                                                                                  \
         write_buffer(_idx(idx, _strides, _offset), value);                                                             \
     }                                                                                                                  \
     [TreatAsDifferentiable]                                                                                            \
-    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                                                         \
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                                             \
     {                                                                                                                  \
         write_buffer(_idx(idx, _strides, _offset), value);                                                             \
+    }                                                                                                                  \
+    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                          \
+    {                                                                                                                  \
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);                                                   \
+        write_buffer(lin_idx, value);                                                                                  \
+    }                                                                                                                  \
+    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                            \
+    {                                                                                                                  \
     }
 
-#define _SLANGPY_PRIMALTENSOR_LOAD                                                                                           \
+
+#define _SLANGPY_PRIMALTENSOR_LOAD                                                                                     \
     [TreatAsDifferentiable]                                                                                            \
-    public T load<I : __BuiltinIntegerType>(I idx[D])                                                                              \
+    public T load<I : __BuiltinIntegerType>(I idx[D])                                                                  \
     {                                                                                                                  \
         return read_buffer(_idx(idx, _strides, _offset));                                                              \
     }                                                                                                                  \
     [TreatAsDifferentiable]                                                                                            \
-    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)                                                                      \
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)                                                          \
     {                                                                                                                  \
         return read_buffer(_idx(idx, _strides, _offset));                                                              \
+    }                                                                                                                  \
+    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)                                       \
+    {                                                                                                                  \
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);                                                   \
+        return read_buffer(lin_idx);                                                                                   \
+    }                                                                                                                  \
+    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)                \
+    {                                                                                                                  \
+    }                                                                                                                  \
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)           \
+    {                                                                                                                  \
     }
 
-#define _SLANGPY_PRIMALTENSOR_SLANGPYSTORE                                                                                   \
+#define _SLANGPY_PRIMALTENSOR_SLANGPYSTORE                                                                             \
     public void __slangpy_store(ContextND<D> context, in T value)                                                      \
     {                                                                                                                  \
         this.store(context.call_id, value);                                                                            \
@@ -95,7 +115,7 @@ implementing slangpy;
         }                                                                                                              \
     }
 
-#define _SLANGPY_PRIMALTENSOR_SLANGPYLOAD                                                                                    \
+#define _SLANGPY_PRIMALTENSOR_SLANGPYLOAD                                                                              \
     public void __slangpy_load(ContextND<D> context, out T value)                                                      \
     {                                                                                                                  \
         value = this.load(context.call_id);                                                                            \
@@ -172,18 +192,6 @@ public struct PrimalTensor<T: IDifferentiable, let D : int> : IDiffTensor<T, D> 
         return _data[idx];
     }
 
-    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)
-    {
-        int lin_idx = _idx_each(expand each idx, _strides, _offset);
-        return read_buffer(lin_idx);
-    }
-    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
-    {
-    }
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
-    {
-    }
-
     _SLANGPY_PRIMALTENSOR_COMMON_FIELDS
     _SLANGPY_PRIMALTENSOR_LOAD
     _SLANGPY_PRIMALTENSOR_SLANGPYLOAD
@@ -223,15 +231,6 @@ public struct WPrimalTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, 
     public void write_buffer(int idx, T value)
     {
         _data[idx] = value;
-    }
-
-    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
-    {
-        int lin_idx = _idx_each(expand each idx, _strides, _offset);
-        write_buffer(lin_idx, value);
-    }
-    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
-    {
     }
 
     _SLANGPY_PRIMALTENSOR_COMMON_FIELDS
@@ -276,26 +275,6 @@ public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T
     public void write_buffer(int idx, T value)
     {
         _data[idx] = value;
-    }
-
-    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)
-    {
-        int lin_idx = _idx_each(expand each idx, _strides, _offset);
-        return read_buffer(lin_idx);
-    }
-    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
-    {
-    }
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
-    {
-    }
-    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
-    {
-        int lin_idx = _idx_each(expand each idx, _strides, _offset);
-        write_buffer(lin_idx, value);
-    }
-    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
-    {
     }
 
     _SLANGPY_PRIMALTENSOR_COMMON_FIELDS

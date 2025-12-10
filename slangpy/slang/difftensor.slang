@@ -2,9 +2,6 @@
 
 implementing slangpy;
 
-
-#if 1
-
 // Public interface for a read only tensor. This can be used as the argument
 // to a function (or a generic constraint) to indicate it should take any
 // type of read-only tensor.
@@ -95,18 +92,30 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int>
 #define _SLANGPY_DIFFTENSOR_COMMON \
     public property shape : uint[D] { get { return _primal.shape; } }
 
-#define _SLANGPY_DIFFTENSOR_LOAD \
-    [Differentiable]\
-    [BackwardDerivative(_load_bwd_array)]\
-    public T load<I : __BuiltinIntegerType>(I idx[D])\
-    {\
-        return _primal.load(idx);\
-    }\
-    [Differentiable]\
-    [BackwardDerivative(_load_bwd_vector)]\
-    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)\
-    {\
-        return _primal.load(idx);\
+#define _SLANGPY_DIFFTENSOR_LOAD                                                                                       \
+    [Differentiable]                                                                                                   \
+    [BackwardDerivative(_load_bwd_array)]                                                                              \
+    public T load<I : __BuiltinIntegerType>(I idx[D])                                                                  \
+    {                                                                                                                  \
+        return _primal.load(idx);                                                                                      \
+    }                                                                                                                  \
+    [Differentiable]                                                                                                   \
+    [BackwardDerivative(_load_bwd_vector)]                                                                             \
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)                                                          \
+    {                                                                                                                  \
+        return _primal.load(idx);                                                                                      \
+    }                                                                                                                  \
+    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)                                       \
+    {                                                                                                                  \
+        return _primal._read_each(expand each idx);                                                                    \
+    }                                                                                                                  \
+    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)                \
+    {                                                                                                                  \
+        _grad_out._write_each(grad, expand each idx);                                                                  \
+    }                                                                                                                  \
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)           \
+    {                                                                                                                  \
+        _grad_out._accumulate_each(grad, expand each idx);                                                             \
     }
 
 #define _SLANGPY_DIFFTENSOR_LOAD_BWD \
@@ -129,18 +138,26 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int>
         grad = diffPair(grad.p, _grad_in.load(idx));\
     }
 
-#define _SLANGPY_DIFFTENSOR_STORE \
-    [Differentiable]\
-    [BackwardDerivative(_store_bwd_array)]\
-    public void store<I : __BuiltinIntegerType>(I idx[D], T value)\
-    {\
-        _primal.store(idx, value);\
-    }\
-    [Differentiable]\
-    [BackwardDerivative(_store_bwd_vector)]\
-    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)\
-    {\
-        _primal.store(idx, value);\
+#define _SLANGPY_DIFFTENSOR_STORE                                                                                      \
+    [Differentiable]                                                                                                   \
+    [BackwardDerivative(_store_bwd_array)]                                                                             \
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value)                                                     \
+    {                                                                                                                  \
+        _primal.store(idx, value);                                                                                     \
+    }                                                                                                                  \
+    [Differentiable]                                                                                                   \
+    [BackwardDerivative(_store_bwd_vector)]                                                                            \
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                                             \
+    {                                                                                                                  \
+        _primal.store(idx, value);                                                                                     \
+    }                                                                                                                  \
+    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                          \
+    {                                                                                                                  \
+        _primal._write_each(value, expand each idx);                                                                   \
+    }                                                                                                                  \
+    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                            \
+    {                                                                                                                  \
+        return _grad_in._read_each(expand each idx);                                                                   \
     }
 
 #define _SLANGPY_DIFFTENSOR_SLANGPYSTORE                                                                               \
@@ -210,7 +227,7 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int>
         }                                                                                                              \
     }
 
-#define _SLANGPY_DIFFTENSOR_SLANGPYLOAD                                                                                  \
+#define _SLANGPY_DIFFTENSOR_SLANGPYLOAD                                                                                \
     [Differentiable]                                                                                                   \
     public void __slangpy_load(ContextND<D> context, out T value)                                                      \
     {                                                                                                                  \
@@ -289,19 +306,6 @@ public struct DiffTensor<T : IDifferentiable, let D : int> : IDiffTensor<T, D> w
     _SLANGPY_DIFFTENSOR_LOAD_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
 
-    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)
-    {
-        return _primal._read_each(expand each idx);
-    }
-    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
-    {
-        _grad_out._write_each(grad, expand each idx);
-    }
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
-    {
-        _grad_out._accumulate_each(grad, expand each idx);
-    }
-
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         [Differentiable] get { return load(indices); }
@@ -334,15 +338,6 @@ public struct WDiffTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, D>
     _SLANGPY_DIFFTENSOR_STORE
     _SLANGPY_DIFFTENSOR_STORE_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
-
-    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
-    {
-        _primal._write_each(value, expand each idx);
-    }
-    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
-    {
-        return _grad_in._read_each(expand each idx);
-    }
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
@@ -378,27 +373,6 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     _SLANGPY_DIFFTENSOR_STORE_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
-
-    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)
-    {
-        return _primal._read_each(expand each idx);
-    }
-    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
-    {
-        _grad_out._write_each(grad, expand each idx);
-    }
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
-    {
-        _grad_out._accumulate_each(grad, expand each idx);
-    }
-    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
-    {
-        _primal._write_each(value, expand each idx);
-    }
-    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
-    {
-        return _grad_in._read_each(expand each idx);
-    }
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
@@ -446,7 +420,4 @@ public extension<T: IDifferentiable, let D : int> RWDiffTensor<T, D> where T.Dif
         this._primal.__slangpy_load(context, value);
     }
 }
-#endif
-
-
 #endif
