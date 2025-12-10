@@ -17,6 +17,7 @@ __include "threadidarg.slang";
 __include "callidarg.slang";
 __include "atomics.slang";
 __include "staticarray.slang";
+__include "tensorcommon.slang";
 __include "tensor.slang";
 __include "difftensor.slang";
 __include "primaltensor.slang";

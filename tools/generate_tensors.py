@@ -109,8 +109,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
     [TreatAsDifferentiable]
     public T load()
     {{
-        int idx = _idx(this._strides, this._offset);
-        return this.read_buffer(idx);
+        return this._read_each();
     }}
 """
         else:
@@ -121,8 +120,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
     [TreatAsDifferentiable]
     public T load({args})
     {{
-        int idx = _idx({idx_args}, this._strides, this._offset);
-        return this.read_buffer(idx);
+        return this._read_each({idx_args});
     }}
 """
     else:
@@ -130,8 +128,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
             return f"""\
     public T load()
     {{
-        int idx = _idx(this._strides, this._offset);
-        return this.read_buffer(idx);
+        return this._read_each();
     }}
 """
         else:
@@ -141,8 +138,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
             return f"""\
     public T load({args})
     {{
-        int idx = _idx({idx_args}, this._strides, this._offset);
-        return this.read_buffer(idx);
+        return this._read_each({idx_args});
     }}
 """
 
@@ -198,8 +194,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
     [TreatAsDifferentiable]
     public void store(T value)
     {{
-        int idx = _idx(this._strides, this._offset);
-        this.write_buffer(idx, value);
+        this._write_each(value);
     }}
 """
         else:
@@ -210,8 +205,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
     [TreatAsDifferentiable]
     public void store({args}, T value)
     {{
-        int idx = _idx({idx_args}, this._strides, this._offset);
-        this.write_buffer(idx, value);
+        this._write_each(value, {idx_args});
     }}
 """
     else:
@@ -219,8 +213,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
             return f"""\
     public void store(T value)
     {{
-        int idx = _idx(this._strides, this._offset);
-        this.write_buffer(idx, value);
+        this._write_each(value);
     }}
 """
         else:
@@ -230,8 +223,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
             return f"""\
     public void store({args}, T value)
     {{
-        int idx = _idx({idx_args}, this._strides, this._offset);
-        this.write_buffer(idx, value);
+        this._write_each(value, {idx_args});
     }}
 """
 
@@ -261,19 +253,19 @@ def cg_atomic_add(dimensions: int):
 def cg_subscript_getter(dimensions: int, differentiable: bool = False):
     diff = "[Differentiable] " if differentiable else ""
     if dimensions == 0:
-        return f"{diff}get {{ return load(); }}"
+        return f"{diff}get {{ return this._read_each(); }}"
     else:
         args = ", ".join([f"i{i}" for i in range(dimensions)])
-        return f"{diff}get {{ return load({args}); }}"
+        return f"{diff}get {{ return this._read_each({args}); }}"
 
 
 def cg_subscript_setter(dimensions: int, differentiable: bool = False):
     diff = "[Differentiable] " if differentiable else ""
     if dimensions == 0:
-        return f"{diff}set {{ store(newValue); }}"
+        return f"{diff}set {{ this._write_each(newValue); }}"
     else:
         args = ", ".join([f"i{i}" for i in range(dimensions)])
-        return f"{diff}set {{ store({args}, newValue); }}"
+        return f"{diff}set {{ this._write_each(newValue, {args}); }}"
 
 
 def cg_subscript_extension(
@@ -345,8 +337,8 @@ def cg_atomic_extension_header(tensor_type: str, dimensions: int):
 
 
 def generate_tensor_extensions():
-    tensor_types = ["RO", "WO", "RW"]
-    dimensions = range(0, 9)
+    tensor_types = ["", "W", "RW"]
+    dimensions = range(0, 3)
     code = []
 
     code.append("implementing slangpy;\n\n")
@@ -359,17 +351,16 @@ def generate_tensor_extensions():
     for differentiable in [False, True]:
         for tensor_type in tensor_types:
             for dim in dimensions:
+                getter = False
+                setter = False
+                if not "W" in tensor_type or "RW" in tensor_type:
+                    getter = True
+                if "W" in tensor_type or "RW" in tensor_type:
+                    setter = True
+
                 # Struct extensions
                 code.append(cg_struct_extension_header(tensor_type, dim, differentiable))
                 code.append("\n{\n")
-                getter = False
-                setter = False
-                if "R" in tensor_type:
-                    code.append(cg_load(dim, differentiable))
-                    getter = True
-                if "W" in tensor_type:
-                    code.append(cg_store(dim, differentiable))
-                    setter = True
                 code.append(cg_subscript_extension(getter, setter, dim, differentiable))
                 code.append("}\n")
                 code.append("\n")
@@ -377,27 +368,34 @@ def generate_tensor_extensions():
                 # Interface extensions
                 code.append(cg_interface_extension_header(tensor_type, dim, differentiable))
                 code.append("\n{\n")
-                if "R" in tensor_type:
-                    code.append(cg_load_decl(dim, differentiable))
-                if "W" in tensor_type:
-                    code.append(cg_store_decl(dim, differentiable))
+                if not (getter and setter):
+                    if getter:
+                        code.append(cg_load(dim, differentiable))
+                    if setter:
+                        code.append(cg_store(dim, differentiable))
                 code.append("}\n")
                 code.append("\n")
 
     if True:
         for tensor_type in tensor_types:
             for dim in dimensions:
+                getter = False
+                setter = False
+                if not "W" in tensor_type or "RW" in tensor_type:
+                    getter = True
+                if "W" in tensor_type or "RW" in tensor_type:
+                    setter = True
+
                 # Struct extensions
                 code.append(cg_struct_extension_header(tensor_type, dim, primal=True))
                 code.append("\n{\n")
                 getter = False
                 setter = False
-                if "R" in tensor_type:
-                    code.append(cg_load(dim, primal=True))
-                    getter = True
-                if "W" in tensor_type:
-                    code.append(cg_store(dim, primal=True))
-                    setter = True
+                if not (getter and setter):
+                    if getter:
+                        code.append(cg_load(dim, primal=True))
+                    if setter:
+                        code.append(cg_store(dim, primal=True))
                 code.append(cg_subscript_extension(getter, setter, dim))
                 code.append("}\n")
                 code.append("\n")
@@ -405,6 +403,8 @@ def generate_tensor_extensions():
     for dim in dimensions:
         # Struct extensions
         tensor_type = "Atomic"
+        getter = True
+        setter = True
         code.append(cg_atomic_extension_header(tensor_type, dim))
         code.append("\n{\n")
         code.append(cg_load(dim))

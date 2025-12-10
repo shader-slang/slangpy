@@ -5,34 +5,6 @@ implementing slangpy;
 
 #if 1
 
-int _idx<I: IInteger, let N : int>(I[N] indices, uint stride[N], uint offset)
-{
-    int idx = 0;
-    [ForceUnroll]
-    for (int i = 0; i < N; i++) { idx += indices[i].toUInt() * stride[i]; }
-    return idx + offset;
-}
-int _idx<I : __BuiltinIntegerType, let N : int>(vector<I, N> indices, uint stride[N], uint offset)
-{
-    int idx = 0;
-    int end = N - 1;
-    [ForceUnroll]
-    for (int i = 0; i < N; i++) { idx += indices[end - i].toUInt() * stride[i]; }
-    return idx + offset;
-}
-
-void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], uint offset, out uint new_stride[SliceD], out uint new_offset)
-{
-    [ForceUnroll]
-    for (int i = 0; i < SliceD; ++i)
-        new_stride[i] = stride[D - SliceD + i];
-
-    new_offset = offset;
-    [ForceUnroll]
-    for (int i = 0; i < D - SliceD; ++i)
-        new_offset += stride[i] * idx[i];
-}
-
 // Internal base interface for tensor
 public interface IBaseTensor<T, let D : int>
 {
@@ -45,6 +17,7 @@ public interface IBaseTensor<T, let D : int>
 public interface ITensor<T, let D : int> : IBaseTensor<T, D>
 {
     public T read_buffer(int idx);
+    public T _read_each<each I : __BuiltinIntegerType>(expand each I idx);
     public T load<I : __BuiltinIntegerType>(I idx[D]);
     public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
 }
@@ -55,6 +28,7 @@ public interface ITensor<T, let D : int> : IBaseTensor<T, D>
 public interface IWTensor<T, let D : int> : IBaseTensor<T, D>
 {
     public void write_buffer(int idx, T value);
+    public void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
     public void store<I : __BuiltinIntegerType>(I idx[D], T value);
     public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value);
 }
@@ -228,6 +202,11 @@ public struct Tensor<T, let D : int> : ITensor<T, D>
     {
         return _data[idx];
     }
+    public T _read_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        return read_buffer(lin_idx);
+    }
 
     _SLANGPY_TENSOR_COMMON_FIELDS
     _SLANGPY_TENSOR_LOAD
@@ -265,6 +244,11 @@ public struct WTensor<T, let D : int> : IWTensor<T, D>
     public void write_buffer(int idx, T value)
     {
         _data[idx] = value;
+    }
+    public void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        write_buffer(lin_idx, value);
     }
 
     _SLANGPY_TENSOR_COMMON_FIELDS
@@ -304,9 +288,20 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
     {
         return _data[idx];
     }
+    public T _read_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        return read_buffer(lin_idx);
+    }
+
     public void write_buffer(int idx, T value)
     {
         _data[idx] = value;
+    }
+    public void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        write_buffer(lin_idx, value);
     }
 
     _SLANGPY_TENSOR_COMMON_FIELDS
@@ -354,6 +349,25 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     public void write_buffer(int idx, T value)
     {
         StorageTraits<T>::atomicStore(_data, idx, value);
+    }
+    public void accumulate_buffer(int idx, T value)
+    {
+        StorageTraits<T>::atomicAdd(_data, idx, value);
+    }
+    public T _read_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        return read_buffer(lin_idx);
+    }
+    public void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        write_buffer(lin_idx, value);
+    }
+    public void _accumulate_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        accumulate_buffer(lin_idx, value);
     }
 
     _SLANGPY_TENSOR_COMMON_FIELDS

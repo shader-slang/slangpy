@@ -2,35 +2,6 @@
 
 implementing slangpy;
 
-
-int _idx<I: IInteger, let N : int>(I[N] indices, uint stride[N], uint offset)
-{
-    int idx = 0;
-    [ForceUnroll]
-    for (int i = 0; i < N; i++) { idx += indices[i].toUInt() * stride[i]; }
-    return idx + offset;
-}
-int _idx<I : __BuiltinIntegerType, let N : int>(vector<I, N> indices, uint stride[N], uint offset)
-{
-    int idx = 0;
-    int end = N - 1;
-    [ForceUnroll]
-    for (int i = 0; i < N; i++) { idx += indices[end - i].toUInt() * stride[i]; }
-    return idx + offset;
-}
-
-void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], uint offset, out uint new_stride[SliceD], out uint new_offset)
-{
-    [ForceUnroll]
-    for (int i = 0; i < SliceD; ++i)
-        new_stride[i] = stride[D - SliceD + i];
-
-    new_offset = offset;
-    [ForceUnroll]
-    for (int i = 0; i < D - SliceD; ++i)
-        new_offset += stride[i] * idx[i];
-}
-
 #define _SLANGPY_PRIMALTENSOR_COMMON_FIELDS \
     public uint[D] _shape;\
     public uint[D] _strides;\
@@ -201,6 +172,18 @@ public struct PrimalTensor<T: IDifferentiable, let D : int> : IDiffTensor<T, D> 
         return _data[idx];
     }
 
+    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        return read_buffer(lin_idx);
+    }
+    public void _write_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    {
+    }
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    {
+    }
+
     _SLANGPY_PRIMALTENSOR_COMMON_FIELDS
     _SLANGPY_PRIMALTENSOR_LOAD
     _SLANGPY_PRIMALTENSOR_SLANGPYLOAD
@@ -240,6 +223,15 @@ public struct WPrimalTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, 
     public void write_buffer(int idx, T value)
     {
         _data[idx] = value;
+    }
+
+    public void _write_primal_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        write_buffer(lin_idx, value);
+    }
+    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
     }
 
     _SLANGPY_PRIMALTENSOR_COMMON_FIELDS
@@ -284,6 +276,26 @@ public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T
     public void write_buffer(int idx, T value)
     {
         _data[idx] = value;
+    }
+
+    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        return read_buffer(lin_idx);
+    }
+    public void _write_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    {
+    }
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    {
+    }
+    public void _write_primal_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    {
+        int lin_idx = _idx_each(expand each idx, _strides, _offset);
+        write_buffer(lin_idx, value);
+    }
+    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
     }
 
     _SLANGPY_PRIMALTENSOR_COMMON_FIELDS

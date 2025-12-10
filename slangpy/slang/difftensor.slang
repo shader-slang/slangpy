@@ -5,39 +5,15 @@ implementing slangpy;
 
 #if 1
 
-int _idx<I: IInteger, let N : int>(I[N] indices, uint stride[N], uint offset)
-{
-    int idx = 0;
-    [ForceUnroll]
-    for (int i = 0; i < N; i++) { idx += indices[i].toUInt() * stride[i]; }
-    return idx + offset;
-}
-int _idx<I : __BuiltinIntegerType, let N : int>(vector<I, N> indices, uint stride[N], uint offset)
-{
-    int idx = 0;
-    int end = N - 1;
-    [ForceUnroll]
-    for (int i = 0; i < N; i++) { idx += indices[end - i].toUInt() * stride[i]; }
-    return idx + offset;
-}
-
-void _slice<let D : int, let SliceD : int>(int[D - SliceD] idx, uint stride[D], uint offset, out uint new_stride[SliceD], out uint new_offset)
-{
-    [ForceUnroll]
-    for (int i = 0; i < SliceD; ++i)
-        new_stride[i] = stride[D - SliceD + i];
-
-    new_offset = offset;
-    [ForceUnroll]
-    for (int i = 0; i < D - SliceD; ++i)
-        new_offset += stride[i] * idx[i];
-}
-
 // Public interface for a read only tensor. This can be used as the argument
 // to a function (or a generic constraint) to indicate it should take any
 // type of read-only tensor.
 public interface IDiffTensor<T : IDifferentiable, let D : int>
 {
+    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx);
+    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
+
     [Differentiable]
     public T load<I : __BuiltinIntegerType>(I idx[D]);
     [Differentiable]
@@ -51,6 +27,9 @@ public interface IDiffTensor<T : IDifferentiable, let D : int>
 // type of write-only tensor.
 public interface IWDiffTensor<T : IDifferentiable, let D : int>
 {
+    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
+    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx);
+
     [Differentiable]
     public void store<I : __BuiltinIntegerType>(I idx[D], T value);
     [Differentiable]
@@ -263,6 +242,19 @@ public struct DiffTensor<T : IDifferentiable, let D : int> : IDiffTensor<T, D> w
     _SLANGPY_DIFFTENSOR_LOAD_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
 
+    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
+        return _primal._read_each(expand each idx);
+    }
+    public void _write_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    {
+        _grad_out._write_each(expand each idx, grad);
+    }
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    {
+        _grad_out._accumulate_each(expand each idx, grad);
+    }
+
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         [Differentiable] get { return load(indices); }
@@ -296,6 +288,14 @@ public struct WDiffTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, D>
     _SLANGPY_DIFFTENSOR_STORE_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
 
+    public void _write_primal_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    {
+        _primal._write_each(expand each idx, value);
+    }
+    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
+        return _grad_in._read_each(expand each idx);
+    }
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
@@ -331,6 +331,27 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     _SLANGPY_DIFFTENSOR_STORE_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
+
+    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
+        return _primal._read_each(expand each idx);
+    }
+    public void _write_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    {
+        _grad_out._write_each(expand each idx, grad);
+    }
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    {
+        _grad_out._accumulate_each(expand each idx, grad);
+    }
+    public void _write_primal_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    {
+        _primal._write_each(expand each idx, value);
+    }
+    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
+    {
+        return _grad_in._read_each(expand each idx);
+    }
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
