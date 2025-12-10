@@ -20,13 +20,14 @@ implementing slangpy;
     {                                                                                                                  \
         write_buffer(_idx(idx, _strides, _offset), value);                                                             \
     }                                                                                                                  \
-    void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                          \
+    void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                                 \
     {                                                                                                                  \
         int lin_idx = _idx_each(expand each idx, _strides, _offset);                                                   \
         write_buffer(lin_idx, value);                                                                                  \
     }                                                                                                                  \
-    T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                            \
+    T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                                   \
     {                                                                                                                  \
+        return {};                                                                                                     \
     }
 
 

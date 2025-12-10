@@ -33,8 +33,10 @@ Most migration steps can be automated using search-and-replace, however doing th
 
 Note: Use of ``NDBuffer`` constructor with positional arguments may not be easily fixable with search-and-replace. It is probably worth reviewing these instances manually.
 
-2. Replace differentiable Tensors in Slang code
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2. Replace differentiable Tensors parameters in Slang
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you have exclusively used the Tensor type as function parameters, simply search and replacing as below should be sufficient.
 
 - Replace all instances of ``Tensor`` with ``IDiffTensor``
 - Replace all instances of ``RWTensor`` with ``IRWDiffTensor``
@@ -42,11 +44,27 @@ Note: Use of ``NDBuffer`` constructor with positional arguments may not be easil
 - Replace all instances of ``GradOutTensor`` with ``IDiffTensor``
 - Replace all instances of ``GradInOutTensor`` with ``IRWDiffTensor``
 
+Where tensors have been used as variables, it can depend on the use case. Typically:
+
+- Tensor/RWTensor will typically be either:
+    - Keep the same if using purely as ND storage
+    - Replace with PrimalTensor/ RWPrimalTensor if you need it to be compatible with IDiffTensor interfaces
+- GradInTensor should be changed to WDiffTensor
+- GradOutTensor should be changed to DiffTensor
+- GradInOutTensor should be changed to RWDiffTensor
+
 3. Replace NDBuffers with non-differentiable Tensors in Slang code
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+For function arguments:
+
 - Replace all instances of ``NDBuffer`` with ``ITensor``
 - Replace all instances of ``RWWBuffer`` with ``IRWTensor``
+
+Where NDBuffers have been used as variables:
+
+- Replace all instances of ``NDBuffer`` with ``Tensor``
+- Replace all instances of ``RWBuffer`` with ``RWTensor``
 
 4. Fix ``get``/``set`` and ``getv``/``setv`` method calls
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
