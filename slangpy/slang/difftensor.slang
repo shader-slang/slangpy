@@ -246,11 +246,11 @@ public struct DiffTensor<T : IDifferentiable, let D : int> : IDiffTensor<T, D> w
     {
         return _primal._read_each(expand each idx);
     }
-    public void _write_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
-        _grad_out._write_each(expand each idx, grad);
+        _grad_out._write_each(grad, expand each idx);
     }
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
         _grad_out._accumulate_each(expand each idx, grad);
     }
@@ -288,9 +288,9 @@ public struct WDiffTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, D>
     _SLANGPY_DIFFTENSOR_STORE_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYSTORE
 
-    public void _write_primal_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
     {
-        _primal._write_each(expand each idx, value);
+        _primal._write_each(value, expand each idx);
     }
     public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
     {
@@ -336,17 +336,17 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     {
         return _primal._read_each(expand each idx);
     }
-    public void _write_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
-        _grad_out._write_each(expand each idx, grad);
+        _grad_out._write_each(grad, expand each idx);
     }
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
         _grad_out._accumulate_each(expand each idx, grad);
     }
-    public void _write_primal_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
     {
-        _primal._write_each(expand each idx, value);
+        _primal._write_each(value, expand each idx);
     }
     public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)
     {

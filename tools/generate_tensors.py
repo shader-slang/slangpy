@@ -80,11 +80,11 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
     [BackwardDerivative(_load_bwd_indices)]
     public T load()
     {{
-        return this._primal.load();
+        return this._read_primal_each();
     }}
     void _load_bwd_indices(T.Differential grad)
     {{
-        _grad_out.add(grad);
+        this._accumulate_grad_each(grad);
     }}
 """
         else:
@@ -96,11 +96,11 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
     [BackwardDerivative(_load_bwd_indices)]
     public T load({args})
     {{
-        return this._primal.load({idx_args});
+        return this._read_primal_each({idx_args});
     }}
     void _load_bwd_indices({args}, T.Differential grad)
     {{
-        _grad_out.add({idx_args}, grad);
+        this._accumulate_grad_each(grad, {idx_args});
     }}
 """
     elif primal:
@@ -109,7 +109,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
     [TreatAsDifferentiable]
     public T load()
     {{
-        return this._read_each();
+        return this._read_primal_each();
     }}
 """
         else:
@@ -120,7 +120,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
     [TreatAsDifferentiable]
     public T load({args})
     {{
-        return this._read_each({idx_args});
+        return this._read_primal_each({idx_args});
     }}
 """
     else:
@@ -165,11 +165,11 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
     [BackwardDerivative(_store_bwd_indices)]
     public void store(T value)
     {{
-        this._primal.store(value);
+        this._write_primal_each(value);
     }}
     void _store_bwd_indices(inout DifferentialPair<T> grad)
     {{
-        grad = diffPair(grad.p, _grad_in.load());
+        grad = diffPair(grad.p, this._read_grad_each());
     }}
 """
         else:
@@ -181,11 +181,11 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
     [BackwardDerivative(_store_bwd_indices)]
     public void store({args}, T value)
     {{
-        this._primal.store({idx_args},value);
+        this._write_primal_each(value, {idx_args});
     }}
     void _store_bwd_indices({args}, inout DifferentialPair<T> grad)
     {{
-        grad = diffPair(grad.p, _grad_in.load({idx_args}));
+        grad = diffPair(grad.p, this._read_grad_each({idx_args}));
     }}
 """
     elif primal:
@@ -194,7 +194,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
     [TreatAsDifferentiable]
     public void store(T value)
     {{
-        this._write_each(value);
+        this._write_primal_each(value);
     }}
 """
         else:
@@ -205,7 +205,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
     [TreatAsDifferentiable]
     public void store({args}, T value)
     {{
-        this._write_each(value, {idx_args});
+        this._write_primal_each(value, {idx_args});
     }}
 """
     else:
@@ -253,19 +253,19 @@ def cg_atomic_add(dimensions: int):
 def cg_subscript_getter(dimensions: int, differentiable: bool = False):
     diff = "[Differentiable] " if differentiable else ""
     if dimensions == 0:
-        return f"{diff}get {{ return this._read_each(); }}"
+        return f"{diff}get {{ return this.load(); }}"
     else:
         args = ", ".join([f"i{i}" for i in range(dimensions)])
-        return f"{diff}get {{ return this._read_each({args}); }}"
+        return f"{diff}get {{ return this.load({args}); }}"
 
 
 def cg_subscript_setter(dimensions: int, differentiable: bool = False):
     diff = "[Differentiable] " if differentiable else ""
     if dimensions == 0:
-        return f"{diff}set {{ this._write_each(newValue); }}"
+        return f"{diff}set {{ this.store(newValue); }}"
     else:
         args = ", ".join([f"i{i}" for i in range(dimensions)])
-        return f"{diff}set {{ this._write_each(newValue, {args}); }}"
+        return f"{diff}set {{ this.store({args}, newValue); }}"
 
 
 def cg_subscript_extension(
@@ -389,13 +389,6 @@ def generate_tensor_extensions():
                 # Struct extensions
                 code.append(cg_struct_extension_header(tensor_type, dim, primal=True))
                 code.append("\n{\n")
-                getter = False
-                setter = False
-                if not (getter and setter):
-                    if getter:
-                        code.append(cg_load(dim, primal=True))
-                    if setter:
-                        code.append(cg_store(dim, primal=True))
                 code.append(cg_subscript_extension(getter, setter, dim))
                 code.append("}\n")
                 code.append("\n")

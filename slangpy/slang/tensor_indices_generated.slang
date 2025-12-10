@@ -21,7 +21,7 @@ public extension<T> Tensor<T, 0>
 {
     public __subscript()->T
     {
-        get { return this._read_each(); }
+        get { return this.load(); }
     }
 }
 
@@ -37,7 +37,7 @@ public extension<T> Tensor<T, 1>
 {
     public __subscript(int i0)->T
     {
-        get { return this._read_each(i0); }
+        get { return this.load(i0); }
     }
 }
 
@@ -53,7 +53,7 @@ public extension<T> Tensor<T, 2>
 {
     public __subscript(int i0, int i1)->T
     {
-        get { return this._read_each(i0, i1); }
+        get { return this.load(i0, i1); }
     }
 }
 
@@ -69,7 +69,7 @@ public extension<T> WTensor<T, 0>
 {
     public __subscript()->T
     {
-        set { this._write_each(newValue); }
+        set { this.store(newValue); }
     }
 }
 
@@ -85,7 +85,7 @@ public extension<T> WTensor<T, 1>
 {
     public __subscript(int i0)->T
     {
-        set { this._write_each(newValue, i0); }
+        set { this.store(i0, newValue); }
     }
 }
 
@@ -101,7 +101,7 @@ public extension<T> WTensor<T, 2>
 {
     public __subscript(int i0, int i1)->T
     {
-        set { this._write_each(newValue, i0, i1); }
+        set { this.store(i0, i1, newValue); }
     }
 }
 
@@ -117,8 +117,8 @@ public extension<T> RWTensor<T, 0>
 {
     public __subscript()->T
     {
-        get { return this._read_each(); }
-        set { this._write_each(newValue); }
+        get { return this.load(); }
+        set { this.store(newValue); }
     }
 }
 
@@ -130,8 +130,8 @@ public extension<T> RWTensor<T, 1>
 {
     public __subscript(int i0)->T
     {
-        get { return this._read_each(i0); }
-        set { this._write_each(newValue, i0); }
+        get { return this.load(i0); }
+        set { this.store(i0, newValue); }
     }
 }
 
@@ -143,8 +143,8 @@ public extension<T> RWTensor<T, 2>
 {
     public __subscript(int i0, int i1)->T
     {
-        get { return this._read_each(i0, i1); }
-        set { this._write_each(newValue, i0, i1); }
+        get { return this.load(i0, i1); }
+        set { this.store(i0, i1, newValue); }
     }
 }
 
@@ -156,7 +156,7 @@ public extension<T: IDifferentiable> DiffTensor<T, 0> where T.Differential : IAt
 {
     public __subscript()->T
     {
-        [Differentiable] get { return this._read_each(); }
+        [Differentiable] get { return this.load(); }
     }
 }
 
@@ -166,11 +166,11 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 0>> TensorType 
     [BackwardDerivative(_load_bwd_indices)]
     public T load()
     {
-        return this._primal.load();
+        return this._read_primal_each();
     }
     void _load_bwd_indices(T.Differential grad)
     {
-        _grad_out.add(grad);
+        this._accumulate_grad_each(grad);
     }
 }
 
@@ -178,7 +178,7 @@ public extension<T: IDifferentiable> DiffTensor<T, 1> where T.Differential : IAt
 {
     public __subscript(int i0)->T
     {
-        [Differentiable] get { return this._read_each(i0); }
+        [Differentiable] get { return this.load(i0); }
     }
 }
 
@@ -188,11 +188,11 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 1>> TensorType 
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0)
     {
-        return this._primal.load(i0);
+        return this._read_primal_each(i0);
     }
     void _load_bwd_indices(int i0, T.Differential grad)
     {
-        _grad_out.add(i0, grad);
+        this._accumulate_grad_each(grad, i0);
     }
 }
 
@@ -200,7 +200,7 @@ public extension<T: IDifferentiable> DiffTensor<T, 2> where T.Differential : IAt
 {
     public __subscript(int i0, int i1)->T
     {
-        [Differentiable] get { return this._read_each(i0, i1); }
+        [Differentiable] get { return this.load(i0, i1); }
     }
 }
 
@@ -210,11 +210,11 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 2>> TensorType 
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1)
     {
-        return this._primal.load(i0, i1);
+        return this._read_primal_each(i0, i1);
     }
     void _load_bwd_indices(int i0, int i1, T.Differential grad)
     {
-        _grad_out.add(i0, i1, grad);
+        this._accumulate_grad_each(grad, i0, i1);
     }
 }
 
@@ -222,7 +222,7 @@ public extension<T: IDifferentiable> WDiffTensor<T, 0> where T.Differential : IA
 {
     public __subscript()->T
     {
-        [Differentiable] set { this._write_each(newValue); }
+        [Differentiable] set { this.store(newValue); }
     }
 }
 
@@ -232,11 +232,11 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 0>> TensorType
     [BackwardDerivative(_store_bwd_indices)]
     public void store(T value)
     {
-        this._primal.store(value);
+        this._write_primal_each(value);
     }
     void _store_bwd_indices(inout DifferentialPair<T> grad)
     {
-        grad = diffPair(grad.p, _grad_in.load());
+        grad = diffPair(grad.p, this._read_grad_each());
     }
 }
 
@@ -244,7 +244,7 @@ public extension<T: IDifferentiable> WDiffTensor<T, 1> where T.Differential : IA
 {
     public __subscript(int i0)->T
     {
-        [Differentiable] set { this._write_each(newValue, i0); }
+        [Differentiable] set { this.store(i0, newValue); }
     }
 }
 
@@ -254,11 +254,11 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 1>> TensorType
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, T value)
     {
-        this._primal.store(i0,value);
+        this._write_primal_each(value, i0);
     }
     void _store_bwd_indices(int i0, inout DifferentialPair<T> grad)
     {
-        grad = diffPair(grad.p, _grad_in.load(i0));
+        grad = diffPair(grad.p, this._read_grad_each(i0));
     }
 }
 
@@ -266,7 +266,7 @@ public extension<T: IDifferentiable> WDiffTensor<T, 2> where T.Differential : IA
 {
     public __subscript(int i0, int i1)->T
     {
-        [Differentiable] set { this._write_each(newValue, i0, i1); }
+        [Differentiable] set { this.store(i0, i1, newValue); }
     }
 }
 
@@ -276,11 +276,11 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 2>> TensorType
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, T value)
     {
-        this._primal.store(i0, i1,value);
+        this._write_primal_each(value, i0, i1);
     }
     void _store_bwd_indices(int i0, int i1, inout DifferentialPair<T> grad)
     {
-        grad = diffPair(grad.p, _grad_in.load(i0, i1));
+        grad = diffPair(grad.p, this._read_grad_each(i0, i1));
     }
 }
 
@@ -288,8 +288,8 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 0> where T.Differential : I
 {
     public __subscript()->T
     {
-        [Differentiable] get { return this._read_each(); }
-        [Differentiable] set { this._write_each(newValue); }
+        [Differentiable] get { return this.load(); }
+        [Differentiable] set { this.store(newValue); }
     }
 }
 
@@ -301,8 +301,8 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 1> where T.Differential : I
 {
     public __subscript(int i0)->T
     {
-        [Differentiable] get { return this._read_each(i0); }
-        [Differentiable] set { this._write_each(newValue, i0); }
+        [Differentiable] get { return this.load(i0); }
+        [Differentiable] set { this.store(i0, newValue); }
     }
 }
 
@@ -314,8 +314,8 @@ public extension<T: IDifferentiable> RWDiffTensor<T, 2> where T.Differential : I
 {
     public __subscript(int i0, int i1)->T
     {
-        [Differentiable] get { return this._read_each(i0, i1); }
-        [Differentiable] set { this._write_each(newValue, i0, i1); }
+        [Differentiable] get { return this.load(i0, i1); }
+        [Differentiable] set { this.store(i0, i1, newValue); }
     }
 }
 
@@ -325,38 +325,77 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 2>> TensorTyp
 
 public extension<T: IDifferentiable> PrimalTensor<T, 0> where T.Differential : IAtomicAddable
 {
+    public __subscript()->T
+    {
+        get { return this.load(); }
+    }
 }
 
 public extension<T: IDifferentiable> PrimalTensor<T, 1> where T.Differential : IAtomicAddable
 {
+    public __subscript(int i0)->T
+    {
+        get { return this.load(i0); }
+    }
 }
 
 public extension<T: IDifferentiable> PrimalTensor<T, 2> where T.Differential : IAtomicAddable
 {
+    public __subscript(int i0, int i1)->T
+    {
+        get { return this.load(i0, i1); }
+    }
 }
 
 public extension<T: IDifferentiable> WPrimalTensor<T, 0> where T.Differential : IAtomicAddable
 {
+    public __subscript()->T
+    {
+        set { this.store(newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WPrimalTensor<T, 1> where T.Differential : IAtomicAddable
 {
+    public __subscript(int i0)->T
+    {
+        set { this.store(i0, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> WPrimalTensor<T, 2> where T.Differential : IAtomicAddable
 {
+    public __subscript(int i0, int i1)->T
+    {
+        set { this.store(i0, i1, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWPrimalTensor<T, 0> where T.Differential : IAtomicAddable
 {
+    public __subscript()->T
+    {
+        get { return this.load(); }
+        set { this.store(newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWPrimalTensor<T, 1> where T.Differential : IAtomicAddable
 {
+    public __subscript(int i0)->T
+    {
+        get { return this.load(i0); }
+        set { this.store(i0, newValue); }
+    }
 }
 
 public extension<T: IDifferentiable> RWPrimalTensor<T, 2> where T.Differential : IAtomicAddable
 {
+    public __subscript(int i0, int i1)->T
+    {
+        get { return this.load(i0, i1); }
+        set { this.store(i0, i1, newValue); }
+    }
 }
 
 public extension<T> AtomicTensor<T, 0> where T : IAtomicAddable
@@ -376,8 +415,8 @@ public extension<T> AtomicTensor<T, 0> where T : IAtomicAddable
     }
     public __subscript()->T
     {
-        get { return this._read_each(); }
-        set { this._write_each(newValue); }
+        get { return this.load(); }
+        set { this.store(newValue); }
     }
 }
 
@@ -398,8 +437,8 @@ public extension<T> AtomicTensor<T, 1> where T : IAtomicAddable
     }
     public __subscript(int i0)->T
     {
-        get { return this._read_each(i0); }
-        set { this._write_each(newValue, i0); }
+        get { return this.load(i0); }
+        set { this.store(i0, newValue); }
     }
 }
 
@@ -420,7 +459,7 @@ public extension<T> AtomicTensor<T, 2> where T : IAtomicAddable
     }
     public __subscript(int i0, int i1)->T
     {
-        get { return this._read_each(i0, i1); }
-        set { this._write_each(newValue, i0, i1); }
+        get { return this.load(i0, i1); }
+        set { this.store(i0, i1, newValue); }
     }
 }

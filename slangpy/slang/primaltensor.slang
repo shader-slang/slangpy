@@ -177,10 +177,10 @@ public struct PrimalTensor<T: IDifferentiable, let D : int> : IDiffTensor<T, D> 
         int lin_idx = _idx_each(expand each idx, _strides, _offset);
         return read_buffer(lin_idx);
     }
-    public void _write_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
     }
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
     }
 
@@ -225,7 +225,7 @@ public struct WPrimalTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, 
         _data[idx] = value;
     }
 
-    public void _write_primal_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
     {
         int lin_idx = _idx_each(expand each idx, _strides, _offset);
         write_buffer(lin_idx, value);
@@ -283,13 +283,13 @@ public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T
         int lin_idx = _idx_each(expand each idx, _strides, _offset);
         return read_buffer(lin_idx);
     }
-    public void _write_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
     }
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(expand each I idx, T.Differential grad)
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
     }
-    public void _write_primal_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
     {
         int lin_idx = _idx_each(expand each idx, _strides, _offset);
         write_buffer(lin_idx, value);
