@@ -20,6 +20,14 @@ public interface ITensor<T, let D : int> : IBaseTensor<T, D>
     public T _read_each<each I : __BuiltinIntegerType>(expand each I idx);
     public T load<I : __BuiltinIntegerType>(I idx[D]);
     public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
+    {
+        get;
+    }
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
+    {
+        get;
+    }
 }
 
 // Interface for a writable tensor.
@@ -31,13 +39,40 @@ public interface IWTensor<T, let D : int> : IBaseTensor<T, D>
     public void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
     public void store<I : __BuiltinIntegerType>(I idx[D], T value);
     public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value);
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
+    {
+        set;
+    }
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
+    {
+        set;
+    }
 }
 
 // Interface for a read-write tensor.
 // This can be used as an argument to a function or as a constraint to
 // indicate any type of read-write tensor.
-public interface IRWTensor<T, let D : int> : ITensor<T, D>, IWTensor<T, D>
+public interface IRWTensor<T, let D : int> : IBaseTensor<T, D>
 {
+    public T read_buffer(int idx);
+    public T _read_each<each I : __BuiltinIntegerType>(expand each I idx);
+    public T load<I : __BuiltinIntegerType>(I idx[D]);
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
+    public void write_buffer(int idx, T value);
+    public void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value);
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value);
+
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
+    {
+        get;
+        set;
+    }
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
+    {
+        get;
+        set;
+    }
 }
 
 #define _SLANGPY_TENSOR_COMMON_FIELDS \
@@ -304,22 +339,22 @@ public struct RWTensor<T, let D : int> : IRWTensor<T, D>
         write_buffer(lin_idx, value);
     }
 
-    _SLANGPY_TENSOR_COMMON_FIELDS
-    _SLANGPY_TENSOR_LOAD
-    _SLANGPY_TENSOR_SLANGPYLOAD
-    _SLANGPY_TENSOR_STORE
-    _SLANGPY_TENSOR_SLANGPYSTORE
-
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
         get { return load(indices); }
         set { return store(indices, newValue); }
     }
-     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
         get { return load(indices); }
         set { return store(indices, newValue); }
     }
+
+    _SLANGPY_TENSOR_COMMON_FIELDS
+    _SLANGPY_TENSOR_LOAD
+    _SLANGPY_TENSOR_SLANGPYLOAD
+    _SLANGPY_TENSOR_STORE
+    _SLANGPY_TENSOR_SLANGPYSTORE
 
     public void __slangpy_load(Context0D context, out This value)
     {
@@ -364,7 +399,7 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
         int lin_idx = _idx_each(expand each idx, _strides, _offset);
         write_buffer(lin_idx, value);
     }
-    public void _accumulate_each<each I : __BuiltinIntegerType>(expand each I idx, T value)
+    public void _accumulate_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
     {
         int lin_idx = _idx_each(expand each idx, _strides, _offset);
         accumulate_buffer(lin_idx, value);

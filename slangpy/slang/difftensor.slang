@@ -19,6 +19,15 @@ public interface IDiffTensor<T : IDifferentiable, let D : int>
     [Differentiable]
     public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
 
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
+    {
+        [Differentiable] get;
+    }
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
+    {
+        [Differentiable] get;
+    }
+
     public property shape : uint[D];
 }
 
@@ -35,14 +44,52 @@ public interface IWDiffTensor<T : IDifferentiable, let D : int>
     [Differentiable]
     public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value);
 
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
+    {
+        [Differentiable] set;
+    }
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
+    {
+        [Differentiable] set;
+    }
+
     public property shape : uint[D];
 }
 
 // Public interface for a read-write differentiable tensor. This can be used as the argument
 // to a function (or a generic constraint) to indicate it should take any
 // type of read-write tensor.
-public interface IRWDiffTensor<T : IDifferentiable, let D : int> : IDiffTensor<T, D>, IWDiffTensor<T, D>
+public interface IRWDiffTensor<T : IDifferentiable, let D : int>
 {
+    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx);
+    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
+    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
+
+    [Differentiable]
+    public T load<I : __BuiltinIntegerType>(I idx[D]);
+    [Differentiable]
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
+
+    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
+    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx);
+
+    [Differentiable]
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value);
+    [Differentiable]
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value);
+
+    public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
+    {
+        [Differentiable] get;
+        [Differentiable] set;
+    }
+    public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
+    {
+        [Differentiable] get;
+        [Differentiable] set;
+    }
+
+    public property shape : uint[D];
 }
 
 #define _SLANGPY_DIFFTENSOR_COMMON \
@@ -252,7 +299,7 @@ public struct DiffTensor<T : IDifferentiable, let D : int> : IDiffTensor<T, D> w
     }
     public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
-        _grad_out._accumulate_each(expand each idx, grad);
+        _grad_out._accumulate_each(grad, expand each idx);
     }
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
@@ -342,7 +389,7 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     }
     public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)
     {
-        _grad_out._accumulate_each(expand each idx, grad);
+        _grad_out._accumulate_each(grad, expand each idx);
     }
     public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
     {

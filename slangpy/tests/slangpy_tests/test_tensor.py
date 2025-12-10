@@ -2,7 +2,6 @@
 
 import pytest
 import numpy as np
-import os
 
 from slangpy import DeviceType, Device, grid, Module
 from slangpy.types import Tensor
@@ -43,6 +42,18 @@ def compare_tensors(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]):
 @pytest.mark.parametrize(
     "func_name",
     [
+        "copy_itensor_each_index",
+        "copy_itensor_array_index",
+        "copy_itensor_vector_index",
+        "copy_itensor_each_loadstore",
+        "copy_itensor_array_loadstore",
+        "copy_itensor_vector_loadstore",
+        "copy_idifftensor_each_index",
+        "copy_idifftensor_array_index",
+        "copy_idifftensor_vector_index",
+        "copy_idifftensor_each_loadstore",
+        "copy_idifftensor_array_loadstore",
+        "copy_idifftensor_vector_loadstore",
         "copy_tensor_each_index",
         "copy_tensor_array_index",
         "copy_tensor_vector_index",
