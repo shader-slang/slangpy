@@ -7,9 +7,9 @@ implementing slangpy;
 // type of read-only tensor.
 public interface IDiffTensor<T : IDifferentiable, let D : int>
 {
-    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx);
-    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
+    T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx);
+    void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
+    void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
 
     [Differentiable]
     public T load<I : __BuiltinIntegerType>(I idx[D]);
@@ -33,8 +33,8 @@ public interface IDiffTensor<T : IDifferentiable, let D : int>
 // type of write-only tensor.
 public interface IWDiffTensor<T : IDifferentiable, let D : int>
 {
-    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
-    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx);
+    void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
+    T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx);
 
     [Differentiable]
     public void store<I : __BuiltinIntegerType>(I idx[D], T value);
@@ -58,8 +58,8 @@ public interface IWDiffTensor<T : IDifferentiable, let D : int>
 // type of read-write tensor.
 public interface IRWDiffTensor<T : IDifferentiable, let D : int>
 {
-    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx);
-    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
+    T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx);
+    void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
     public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx);
 
     [Differentiable]
@@ -67,8 +67,8 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int>
     [Differentiable]
     public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
 
-    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
-    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx);
+    void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
+    T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx);
 
     [Differentiable]
     public void store<I : __BuiltinIntegerType>(I idx[D], T value);
@@ -105,11 +105,11 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int>
     {                                                                                                                  \
         return _primal.load(idx);                                                                                      \
     }                                                                                                                  \
-    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)                                       \
+    T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)                                       \
     {                                                                                                                  \
         return _primal._read_each(expand each idx);                                                                    \
     }                                                                                                                  \
-    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)                \
+    void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)                \
     {                                                                                                                  \
         _grad_out._write_each(grad, expand each idx);                                                                  \
     }                                                                                                                  \
@@ -151,11 +151,11 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int>
     {                                                                                                                  \
         _primal.store(idx, value);                                                                                     \
     }                                                                                                                  \
-    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                          \
+    void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                          \
     {                                                                                                                  \
         _primal._write_each(value, expand each idx);                                                                   \
     }                                                                                                                  \
-    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                            \
+    T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                            \
     {                                                                                                                  \
         return _grad_in._read_each(expand each idx);                                                                   \
     }

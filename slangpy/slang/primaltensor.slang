@@ -20,12 +20,12 @@ implementing slangpy;
     {                                                                                                                  \
         write_buffer(_idx(idx, _strides, _offset), value);                                                             \
     }                                                                                                                  \
-    public void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                          \
+    void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                          \
     {                                                                                                                  \
         int lin_idx = _idx_each(expand each idx, _strides, _offset);                                                   \
         write_buffer(lin_idx, value);                                                                                  \
     }                                                                                                                  \
-    public T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                            \
+    T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                            \
     {                                                                                                                  \
     }
 
@@ -41,15 +41,15 @@ implementing slangpy;
     {                                                                                                                  \
         return read_buffer(_idx(idx, _strides, _offset));                                                              \
     }                                                                                                                  \
-    public T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)                                       \
+    T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)                                       \
     {                                                                                                                  \
         int lin_idx = _idx_each(expand each idx, _strides, _offset);                                                   \
         return read_buffer(lin_idx);                                                                                   \
     }                                                                                                                  \
-    public void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)                \
+    void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)                \
     {                                                                                                                  \
     }                                                                                                                  \
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)           \
+    void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)           \
     {                                                                                                                  \
     }
 

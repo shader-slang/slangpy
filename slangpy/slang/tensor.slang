@@ -13,8 +13,9 @@ public interface IBaseTensor<T, let D : int>
 // indicate any type of read-only tensor.
 public interface ITensor<T, let D : int> : IBaseTensor<T, D>
 {
+    T _read_each<each I : __BuiltinIntegerType>(expand each I idx);
+
     public T read_buffer(int idx);
-    public T _read_each<each I : __BuiltinIntegerType>(expand each I idx);
     public T load<I : __BuiltinIntegerType>(I idx[D]);
     public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
@@ -32,8 +33,9 @@ public interface ITensor<T, let D : int> : IBaseTensor<T, D>
 // indicate any type of write-only tensor.
 public interface IWTensor<T, let D : int> : IBaseTensor<T, D>
 {
+    void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
+
     public void write_buffer(int idx, T value);
-    public void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
     public void store<I : __BuiltinIntegerType>(I idx[D], T value);
     public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value);
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
@@ -51,12 +53,13 @@ public interface IWTensor<T, let D : int> : IBaseTensor<T, D>
 // indicate any type of read-write tensor.
 public interface IRWTensor<T, let D : int> : IBaseTensor<T, D>
 {
+    T _read_each<each I : __BuiltinIntegerType>(expand each I idx);
+    void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
+
     public T read_buffer(int idx);
-    public T _read_each<each I : __BuiltinIntegerType>(expand each I idx);
     public T load<I : __BuiltinIntegerType>(I idx[D]);
     public T load<I : __BuiltinIntegerType>(vector<I, D> idx);
     public void write_buffer(int idx, T value);
-    public void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx);
     public void store<I : __BuiltinIntegerType>(I idx[D], T value);
     public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value);
 
@@ -88,7 +91,7 @@ public interface IRWTensor<T, let D : int> : IBaseTensor<T, D>
     {                                                                                                                  \
         write_buffer(_idx(idx, _strides, _offset), value);                                                             \
     }                                                                                                                  \
-    public void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                                 \
+    void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                                 \
     {                                                                                                                  \
         int lin_idx = _idx_each(expand each idx, _strides, _offset);                                                   \
         write_buffer(lin_idx, value);                                                                                  \
@@ -103,7 +106,7 @@ public interface IRWTensor<T, let D : int> : IBaseTensor<T, D>
     {                                                                                                                  \
         return read_buffer(_idx(idx, _strides, _offset));                                                              \
     }                                                                                                                  \
-    public T _read_each<each I : __BuiltinIntegerType>(expand each I idx)                                              \
+    T _read_each<each I : __BuiltinIntegerType>(expand each I idx)                                              \
     {                                                                                                                  \
         int lin_idx = _idx_each(expand each idx, _strides, _offset);                                                   \
         return read_buffer(lin_idx);                                                                                   \
@@ -374,7 +377,7 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     {
         StorageTraits<T>::atomicAdd(_data, idx, value);
     }
-    public void _accumulate_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
+    void _accumulate_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
     {
         int lin_idx = _idx_each(expand each idx, _strides, _offset);
         accumulate_buffer(lin_idx, value);
