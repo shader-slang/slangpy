@@ -159,5 +159,15 @@ def test_generic_call(device_type: DeviceType):
     compare_tensors(y.to_numpy(), np_result)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_existential_type_bug(device_type: DeviceType):
+    """Tests for a slang issue that causes compilation error when using Tensor accessors"""
+
+    device = helpers.get_device(device_type)
+
+    program = device.load_program("test_existential_bug.slang", ["build_importance_map"])
+    kernel = device.create_compute_kernel(program=program)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
