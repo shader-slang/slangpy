@@ -117,26 +117,37 @@ PyObject* Object::self_py() const noexcept
 
 #if SGL_ENABLE_OBJECT_TRACKING
 
-void Object::report_live_objects()
+std::string LiveObjectInfo::to_string()
+{
+    return fmt::format(
+        "address={}, self_py={}, ref_count={}, class_name={}",
+        fmt::ptr(object),
+        self_py ? fmt::ptr(self_py) : "null",
+        ref_count,
+        class_name
+    );
+}
+
+std::vector<LiveObjectInfo> Object::report_live_objects(bool log_to_tty)
 {
     std::lock_guard<std::mutex> lock(s_tracked_objects_mutex);
+    std::vector<LiveObjectInfo> res;
     if (!s_tracked_objects.empty()) {
-        fmt::println("Found {} live objects!", s_tracked_objects.size());
+        if (log_to_tty)
+            fmt::println("Found {} live objects!", s_tracked_objects.size());
         for (const Object* object : s_tracked_objects) {
             uint64_t ref_count = object->ref_count();
             PyObject* self_py = object->self_py();
             if (self_py)
                 ref_count = object_ref_cnt_py(self_py);
-            fmt::println(
-                "Live object: {} self_py={} ref_count={} class_name=\"{}\"",
-                fmt::ptr(object),
-                self_py ? fmt::ptr(self_py) : "null",
-                ref_count,
-                object->class_name()
-            );
+            LiveObjectInfo info{object, ref_count, self_py, object->class_name()};
+            if (log_to_tty)
+                fmt::println("Live object: {}", info.to_string());
+            res.push_back(info);
             object->report_refs();
         }
     }
+    return res;
 }
 
 void Object::report_refs() const
