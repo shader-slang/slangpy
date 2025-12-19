@@ -49,6 +49,8 @@ def is_nested_array(a: SlangType):
     while True:
         if isinstance(a, ScalarType):
             return True
+        if isinstance(a, VectorType):
+            return True
         if isinstance(a, MatrixType):
             return True
         if not isinstance(a, ArrayType):
