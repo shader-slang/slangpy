@@ -344,5 +344,45 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int):
     # res.backward(torch.ones_like(res))
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_array_of_vector_return(device_type: DeviceType):
+    """Test that array-of-vector return types work with torch tensors.
+    
+    This test addresses the issue where float2[6] works with NumPy
+    but fails with PyTorch with the error:
+    "Torch tensors do not support data type vector<float,2>[6]"
+    """
+    module = load_test_module(device_type)
+
+    # Test with float2[6]
+    coord = 5
+    result = module.return_vector_array(coord)
+    
+    assert isinstance(result, torch.Tensor)
+    assert result.shape == (6, 2), f"Expected shape (6, 2), got {result.shape}"
+    
+    # Verify the values
+    expected = torch.tensor(
+        [[coord, coord + i] for i in range(6)],
+        dtype=torch.float32,
+        device=torch.device("cuda")
+    )
+    compare_tensors(result, expected)
+
+    # Test with float3[4]
+    result2 = module.return_vector_array_float3(coord)
+    
+    assert isinstance(result2, torch.Tensor)
+    assert result2.shape == (4, 3), f"Expected shape (4, 3), got {result2.shape}"
+    
+    # Verify the values
+    expected2 = torch.tensor(
+        [[coord, coord + i, coord + i * 2] for i in range(4)],
+        dtype=torch.float32,
+        device=torch.device("cuda")
+    )
+    compare_tensors(result2, expected2)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
