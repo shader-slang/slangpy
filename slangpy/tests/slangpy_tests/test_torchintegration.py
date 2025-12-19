@@ -354,7 +354,7 @@ def test_array_of_vector_return(device_type: DeviceType):
     """
     module = load_test_module(device_type)
 
-    # Test with float2[6]
+    # Test with float2[6] - single call
     coord = 5
     result = module.return_vector_array(coord)
     
@@ -382,6 +382,33 @@ def test_array_of_vector_return(device_type: DeviceType):
         device=torch.device("cuda")
     )
     compare_tensors(result2, expected2)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_array_of_vector_return_with_grid(device_type: DeviceType):
+    """Test that array-of-vector return types work with torch tensors in grid context.
+    
+    This replicates the original issue more closely by using grid() for multiple calls.
+    """
+    import slangpy as spy
+    
+    module = load_test_module(device_type)
+
+    # Test the original issue scenario: calling with grid
+    result = module.return_vector_array(coord=spy.grid((13,)))
+    
+    assert isinstance(result, torch.Tensor)
+    # Grid of 13 calls, each returning 6 float2 values
+    assert result.shape == (13, 6, 2), f"Expected shape (13, 6, 2), got {result.shape}"
+    
+    # Verify some values
+    result_cpu = result.cpu()
+    for i in range(13):
+        for j in range(6):
+            expected_x = float(i)
+            expected_y = float(i + j)
+            assert abs(result_cpu[i, j, 0].item() - expected_x) < 1e-5
+            assert abs(result_cpu[i, j, 1].item() - expected_y) < 1e-5
 
 
 if __name__ == "__main__":
