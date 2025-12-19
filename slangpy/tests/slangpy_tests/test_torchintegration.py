@@ -362,12 +362,12 @@ def test_array_of_vector_return(device_type: DeviceType):
     assert result.shape == (6, 2), f"Expected shape (6, 2), got {result.shape}"
     
     # Verify the values
-    expected = torch.tensor(
-        [[coord, coord + i] for i in range(6)],
-        dtype=torch.float32,
-        device=torch.device("cuda")
-    )
-    compare_tensors(result, expected)
+    result_cpu = result.cpu()
+    for i in range(6):
+        expected_x = float(coord)
+        expected_y = float(coord + i)
+        assert abs(result_cpu[i, 0].item() - expected_x) < 1e-5, f"Mismatch at [{i}, 0]"
+        assert abs(result_cpu[i, 1].item() - expected_y) < 1e-5, f"Mismatch at [{i}, 1]"
 
     # Test with float3[4]
     result2 = module.return_vector_array_float3(coord)
@@ -376,12 +376,14 @@ def test_array_of_vector_return(device_type: DeviceType):
     assert result2.shape == (4, 3), f"Expected shape (4, 3), got {result2.shape}"
     
     # Verify the values
-    expected2 = torch.tensor(
-        [[coord, coord + i, coord + i * 2] for i in range(4)],
-        dtype=torch.float32,
-        device=torch.device("cuda")
-    )
-    compare_tensors(result2, expected2)
+    result2_cpu = result2.cpu()
+    for i in range(4):
+        expected_x = float(coord)
+        expected_y = float(coord + i)
+        expected_z = float(coord + i * 2)
+        assert abs(result2_cpu[i, 0].item() - expected_x) < 1e-5, f"Mismatch at [{i}, 0]"
+        assert abs(result2_cpu[i, 1].item() - expected_y) < 1e-5, f"Mismatch at [{i}, 1]"
+        assert abs(result2_cpu[i, 2].item() - expected_z) < 1e-5, f"Mismatch at [{i}, 2]"
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
