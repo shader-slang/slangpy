@@ -17,6 +17,11 @@ TEST_SUITE_BEGIN("simple_gpu");
 /// 4. Reads back the results and verifies correctness
 TEST_CASE_GPU("add_one")
 {
+    // Define buffer size as a constant for maintainability
+    constexpr uint32_t BUFFER_SIZE = 1024;
+    constexpr uint32_t THREADS_PER_WORKGROUP = 64;
+    constexpr uint32_t NUM_WORKGROUPS = BUFFER_SIZE / THREADS_PER_WORKGROUP;
+
     // Define a simple compute shader that adds 1 to each element in a buffer.
     // The shader uses Slang syntax and runs with 64 threads per workgroup.
     const char* shader_source = R"(
@@ -41,16 +46,16 @@ void main(uint3 tid : SV_DispatchThreadID)
     ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
     CHECK(kernel);
 
-    // Create input data: an array containing values from 0 to 1023.
-    std::vector<uint32_t> input_data(1024);
-    for (uint32_t i = 0; i < 1024; ++i) {
+    // Create input data: an array containing values from 0 to BUFFER_SIZE-1.
+    std::vector<uint32_t> input_data(BUFFER_SIZE);
+    for (uint32_t i = 0; i < BUFFER_SIZE; ++i) {
         input_data[i] = i;
     }
 
     // Create a GPU buffer and initialize it with the input data.
     // The buffer is accessible for both reading and writing from shaders.
     ref<Buffer> buffer = ctx.device->create_buffer({
-        .element_count = 1024,
+        .element_count = BUFFER_SIZE,
         .struct_size = sizeof(uint32_t),
         .usage = BufferUsage::shader_resource | BufferUsage::unordered_access,
         .data = input_data.data(),
@@ -59,9 +64,9 @@ void main(uint3 tid : SV_DispatchThreadID)
     CHECK(buffer);
 
     // Dispatch the compute kernel to execute on the GPU.
-    // We use 16 workgroups of 64 threads each (16 * 64 = 1024 total threads).
+    // We use NUM_WORKGROUPS workgroups of THREADS_PER_WORKGROUP threads each.
     kernel->dispatch(
-        uint3(16, 1, 1),
+        uint3(NUM_WORKGROUPS, 1, 1),
         [&buffer](ShaderCursor cursor)
         {
             // Bind the buffer to the shader's "buffer" parameter.
@@ -70,18 +75,13 @@ void main(uint3 tid : SV_DispatchThreadID)
     );
 
     // Read back the results from the GPU buffer to CPU memory.
-    std::vector<uint32_t> output_data(1024);
+    std::vector<uint32_t> output_data(BUFFER_SIZE);
     buffer->get_data(output_data.data(), output_data.size() * sizeof(uint32_t));
 
     // Verify that each element was incremented by 1 as expected.
-    bool all_correct = true;
-    for (uint32_t i = 0; i < 1024; ++i) {
-        if (output_data[i] != i + 1) {
-            all_correct = false;
-            break;
-        }
+    for (uint32_t i = 0; i < BUFFER_SIZE; ++i) {
+        CHECK_EQ(output_data[i], i + 1);
     }
-    CHECK(all_correct);
 }
 
 TEST_SUITE_END();
