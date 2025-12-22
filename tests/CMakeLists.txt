@@ -26,6 +26,7 @@ if(SGL_BUILD_TESTS)
         sgl/device/test_hot_reload.cpp
         sgl/device/test_formats.cpp
         sgl/device/test_shader.cpp
+        sgl/device/test_simple_gpu.cpp
         sgl/math/test_float16.cpp
         sgl/math/test_matrix.cpp
         sgl/math/test_quaternion.cpp
