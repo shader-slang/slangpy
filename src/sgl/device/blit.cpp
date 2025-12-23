@@ -67,7 +67,7 @@ void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureVie
     uint32_t dst_mip = dst->subresource_range().mip;
     uint32_t src_mip = src->subresource_range().mip;
 
-    uint2 dst_size = src_texture->get_mip_size(dst_mip).xy();
+    uint2 dst_size = dst_texture->get_mip_size(dst_mip).xy();
     uint2 src_size = src_texture->get_mip_size(src_mip).xy();
 
     auto determine_texture_data_kind = [](const FormatInfo& format_info) -> TextureDataKind
