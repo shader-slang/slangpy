@@ -40,6 +40,15 @@ std::string TypeConformance::to_string() const
     );
 }
 
+std::string SpecializationArg::to_string() const
+{
+    return fmt::format(
+        "SpecializationArg(kind={}, value=\"{}\")",
+        kind == Kind::type ? "type" : "expr",
+        value
+    );
+}
+
 // ----------------------------------------------------------------------------
 // CompilerOptionEntries
 // ----------------------------------------------------------------------------
@@ -1039,6 +1048,47 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
         data->slang_entry_point = std::move(new_entry_point);
     }
 
+    // If we have specialization arguments, specialize the entry point.
+    if (!desc.specialization_args.empty()) {
+        slang::ProgramLayout* layout = slang_module->getLayout();
+
+        // Build the slang specialization args from our descriptors.
+        std::vector<slang::SpecializationArg> slang_spec_args;
+        slang_spec_args.reserve(desc.specialization_args.size());
+
+        // We need to keep string storage alive for expr args.
+        std::vector<std::string> expr_storage;
+
+        for (const SpecializationArg& arg : desc.specialization_args) {
+            slang::SpecializationArg slang_arg;
+            if (arg.kind == SpecializationArg::Kind::type) {
+                slang::TypeReflection* type = layout->findTypeByName(arg.value.c_str());
+                SGL_CHECK(type, "Specialization type \"{}\" not found", arg.value);
+                slang_arg = slang::SpecializationArg::fromType(type);
+            } else {
+                // For expressions, we need to store the string and pass a pointer to it.
+                expr_storage.push_back(arg.value);
+                slang_arg = slang::SpecializationArg::fromExpr(expr_storage.back().c_str());
+            }
+            slang_spec_args.push_back(slang_arg);
+        }
+
+        // Specialize the entry point.
+        Slang::ComPtr<slang::IComponentType> specialized_entry_point;
+        Slang::ComPtr<ISlangBlob> diagnostics;
+        SlangResult result = data->slang_entry_point->specialize(
+            slang_spec_args.data(),
+            narrow_cast<SlangInt>(slang_spec_args.size()),
+            specialized_entry_point.writeRef(),
+            diagnostics.writeRef()
+        );
+        report_diagnostics(diagnostics);
+        SGL_CHECK(SLANG_SUCCEEDED(result), "Failed to specialize generic entry point \"{}\"", desc.name);
+        SGL_CHECK(specialized_entry_point, "Failed to specialize generic entry point \"{}\"", desc.name);
+
+        data->slang_entry_point = std::move(specialized_entry_point);
+    }
+
     // Read name and stage from the entry point.
     slang::EntryPointLayout* layout = data->slang_entry_point->getLayout()->getEntryPointByIndex(0);
     data->name = layout->getNameOverride() ? layout->getNameOverride() : layout->getName();
@@ -1084,6 +1134,23 @@ ref<SlangEntryPoint> SlangEntryPoint::with_name(const std::string& name) const
 
     SlangEntryPointDesc desc = m_desc;
     desc.name = name;
+    auto ep = make_ref<SlangEntryPoint>(m_module, desc);
+
+    // Setup build containing just the session and this module, then build and store the entry point.
+    SlangSessionBuild build_data;
+    build_data.session = m_module->session()->_data();
+    build_data.modules[m_module.get()] = m_module->_data();
+    ep->init(build_data);
+    ep->store_built_data(build_data);
+
+    return ep;
+}
+
+ref<SlangEntryPoint> SlangEntryPoint::specialize(std::span<SpecializationArg> specialization_args) const
+{
+    SlangEntryPointDesc desc = m_desc;
+    desc.specialization_args.assign(specialization_args.begin(), specialization_args.end());
+
     auto ep = make_ref<SlangEntryPoint>(m_module, desc);
 
     // Setup build containing just the session and this module, then build and store the entry point.

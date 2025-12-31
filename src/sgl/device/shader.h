@@ -431,9 +431,54 @@ private:
     mutable std::set<SlangEntryPoint*> m_registered_entry_points;
 };
 
+/// \brief Specialization argument for generic entrypoints.
+/// Used to provide concrete types or values for generic parameters.
+struct SGL_API SpecializationArg {
+    enum class Kind {
+        type, ///< Specialize with a type.
+        expr, ///< Specialize with an expression (e.g., integer constant).
+    };
+
+    SGL_ENUM_INFO(
+        Kind,
+        {
+            {Kind::type, "type"},
+            {Kind::expr, "expr"},
+        }
+    );
+
+    Kind kind{Kind::type};
+    /// Type name (for Kind::type) or expression string (for Kind::expr).
+    std::string value;
+
+    SpecializationArg() = default;
+    SpecializationArg(Kind kind, std::string_view value)
+        : kind(kind)
+        , value(value)
+    {
+    }
+
+    /// Create a type specialization argument.
+    static SpecializationArg from_type(std::string_view type_name)
+    {
+        return SpecializationArg(Kind::type, type_name);
+    }
+
+    /// Create an expression specialization argument.
+    static SpecializationArg from_expr(std::string_view expr)
+    {
+        return SpecializationArg(Kind::expr, expr);
+    }
+
+    std::string to_string() const;
+};
+SGL_ENUM_REGISTER(SpecializationArg::Kind);
+
 struct SlangEntryPointDesc {
     std::string name;
     std::vector<TypeConformance> type_conformances;
+    /// Specialization arguments for generic entrypoints.
+    std::vector<SpecializationArg> specialization_args;
 };
 struct SlangEntryPointData : Object {
     SGL_OBJECT(SlangEntryPointData)
@@ -468,6 +513,10 @@ public:
 
     /// Returns a copy of the entry point with a new name.
     ref<SlangEntryPoint> with_name(const std::string& name) const;
+
+    /// Returns a specialized version of a generic entry point.
+    /// \param specialization_args The specialization arguments for generic parameters.
+    ref<SlangEntryPoint> specialize(std::span<SpecializationArg> specialization_args) const;
 
     slang::IComponentType* slang_entry_point() const { return m_data->slang_entry_point.get(); }
 
