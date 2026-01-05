@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 import slangpy as spy
-from slangpy import DeviceType
+from slangpy import BufferCursor, DeviceType
 from slangpy.testing import helpers
 from slangpy.types import NDBuffer
 
@@ -253,15 +253,18 @@ def test_issue_636_structured_dtype(device_type: DeviceType):
     # Previously this would fail with a nanobind error
     buffer.copy_from_numpy(data)
 
-    # Verify each field roundtrips correctly
-    result = buffer.to_numpy().view(training_sample_dtype).flatten()
-    assert np.all(result["valid"] == data["valid"])
-    assert np.all(result["material_id"] == data["material_id"])
-    assert np.all(result["uv"] == data["uv"])
-    assert np.all(result["wi"] == data["wi"])
-    assert np.all(result["wo"] == data["wo"])
-    assert np.all(result["mip_level"] == data["mip_level"])
-    assert np.all(result["target"] == data["target"])
+    # Verify each field roundtrips correctly using BufferCursor
+    # (can't use .view() because Metal has different float3 alignment)
+    cursor = BufferCursor(buffer.dtype.buffer_layout.reflection, buffer.storage)
+    for i in range(num_samples):
+        elem = cursor[i]
+        assert np.isclose(elem["valid"].read(), data["valid"][i])
+        assert elem["material_id"].read() == data["material_id"][i]
+        assert np.allclose(elem["uv"].read(), data["uv"][i])
+        assert np.allclose(elem["wi"].read(), data["wi"][i])
+        assert np.allclose(elem["wo"].read(), data["wo"][i])
+        assert elem["mip_level"].read() == data["mip_level"][i]
+        assert np.allclose(elem["target"].read(), data["target"][i])
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -341,8 +344,6 @@ def test_vec3_struct(device_type: DeviceType):
     buffer.copy_from_numpy(data)
 
     # Verify using BufferCursor to read back with correct alignment
-    from slangpy import BufferCursor
-
     cursor = BufferCursor(buffer.dtype.buffer_layout.reflection, buffer.storage)
     for i in range(num_elements):
         elem = cursor[i]
