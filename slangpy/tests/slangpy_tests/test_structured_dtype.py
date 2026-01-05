@@ -191,5 +191,63 @@ def test_simple_dtype_still_works(device_type: DeviceType):
     assert np.all(result_int == data_int)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_issue_636_structured_dtype(device_type: DeviceType):
+    """
+    Test with a structured dtype containing multiple field types.
+    https://github.com/shader-slang/slangpy/issues/636
+
+    This test verifies that copy_from_numpy accepts structured dtypes
+    without requiring a manual .view(np.uint8) workaround.
+    """
+    device = helpers.get_device(device_type)
+    module = load_test_module(device_type)
+
+    # A structured dtype with multiple field types (from issue #636)
+    training_sample_dtype = np.dtype(
+        [
+            ("valid", np.float32, (1,)),
+            ("material_id", np.int32, (1,)),
+            ("uv", np.float32, (2,)),
+            ("wi", np.float32, (3,)),
+            ("wo", np.float32, (3,)),
+            ("mip_level", np.int32, (1,)),
+            ("target", np.float32, (3,)),
+        ]
+    )
+
+    num_samples = 10
+    data = np.zeros(num_samples, dtype=training_sample_dtype)
+    data["valid"] = 1.0
+    data["material_id"] = np.arange(num_samples).reshape(-1, 1)
+    data["uv"][:, 0] = 0.5
+    data["uv"][:, 1] = 0.75
+    data["target"][:, 0] = 1.0
+    data["target"][:, 1] = 2.0
+    data["target"][:, 2] = 3.0
+
+    # Create NDBuffer with explicit Slang type
+    TrainingSample = module.TrainingSample
+    buffer = NDBuffer(
+        device,
+        dtype=TrainingSample,
+        shape=(num_samples,),
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+
+    # Previously this would fail with a nanobind error
+    buffer.copy_from_numpy(data)
+
+    # Verify each field roundtrips correctly
+    result = buffer.to_numpy().view(training_sample_dtype).flatten()
+    assert np.all(result["valid"] == data["valid"])
+    assert np.all(result["material_id"] == data["material_id"])
+    assert np.all(result["uv"] == data["uv"])
+    assert np.all(result["wi"] == data["wi"])
+    assert np.all(result["wo"] == data["wo"])
+    assert np.all(result["mip_level"] == data["mip_level"])
+    assert np.all(result["target"] == data["target"])
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
