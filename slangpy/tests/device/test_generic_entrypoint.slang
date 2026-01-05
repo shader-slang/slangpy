@@ -33,7 +33,7 @@ void compute_main<T : IProcessor>(
     uint idx = tid.x;
     if (idx >= count)
         return;
-    
+
     T processor;
     data[idx] = processor.process(data[idx]);
 }
@@ -49,6 +49,6 @@ void compute_double(
     uint idx = tid.x;
     if (idx >= count)
         return;
-    
+
     data[idx] = data[idx] * 2.0;
 }

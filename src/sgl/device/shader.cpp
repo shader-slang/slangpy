@@ -40,13 +40,25 @@ std::string TypeConformance::to_string() const
     );
 }
 
+// ----------------------------------------------------------------------------
+// SpecializationArg
+// ----------------------------------------------------------------------------
+
 std::string SpecializationArg::to_string() const
 {
-    return fmt::format(
-        "SpecializationArg(kind={}, value=\"{}\")",
-        kind == Kind::type ? "type" : "expr",
-        value
-    );
+    const char* kind_str = "unknown";
+    switch (kind) {
+    case Kind::unknown:
+        kind_str = "unknown";
+        break;
+    case Kind::type:
+        kind_str = "type";
+        break;
+    case Kind::expr:
+        kind_str = "expr";
+        break;
+    }
+    return fmt::format("SpecializationArg(kind={}, value=\"{}\")", kind_str, value);
 }
 
 // ----------------------------------------------------------------------------
@@ -1061,14 +1073,20 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
 
         for (const SpecializationArg& arg : desc.specialization_args) {
             slang::SpecializationArg slang_arg;
-            if (arg.kind == SpecializationArg::Kind::type) {
+            switch (arg.kind) {
+            case SpecializationArg::Kind::type: {
                 slang::TypeReflection* type = layout->findTypeByName(arg.value.c_str());
                 SGL_CHECK(type, "Specialization type \"{}\" not found", arg.value);
                 slang_arg = slang::SpecializationArg::fromType(type);
-            } else {
+                break;
+            }
+            case SpecializationArg::Kind::expr:
                 // For expressions, we need to store the string and pass a pointer to it.
                 expr_storage.push_back(arg.value);
                 slang_arg = slang::SpecializationArg::fromExpr(expr_storage.back().c_str());
+                break;
+            case SpecializationArg::Kind::unknown:
+                SGL_THROW("Invalid specialization argument: kind is 'unknown'");
             }
             slang_spec_args.push_back(slang_arg);
         }

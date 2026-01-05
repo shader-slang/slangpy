@@ -432,16 +432,19 @@ private:
 };
 
 /// \brief Specialization argument for generic entrypoints.
-/// Used to provide concrete types or values for generic parameters.
+/// Mirrors slang::SpecializationArg but uses string values for Python compatibility.
 struct SGL_API SpecializationArg {
+    /// Kind of specialization argument (mirrors slang::SpecializationArg::Kind).
     enum class Kind {
-        type, ///< Specialize with a type.
-        expr, ///< Specialize with an expression (e.g., integer constant).
+        unknown, ///< An invalid specialization argument.
+        type,    ///< Specialize with a type.
+        expr,    ///< Specialize with an expression (e.g., integer constant).
     };
 
     SGL_ENUM_INFO(
         Kind,
         {
+            {Kind::unknown, "unknown"},
             {Kind::type, "type"},
             {Kind::expr, "expr"},
         }
