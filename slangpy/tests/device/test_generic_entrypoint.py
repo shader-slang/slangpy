@@ -73,7 +73,9 @@ def test_generic_entrypoint_multiple_specializations(device_type: spy.DeviceType
     )
     double_kernel.dispatch(thread_count=[4, 1, 1], data=buffer, count=4)
     result = buffer.to_numpy().view(np.float32)
-    assert np.allclose(result, input_data * 2.0), f"DoubleIt failed: expected {input_data * 2.0}, got {result}"
+    assert np.allclose(
+        result, input_data * 2.0
+    ), f"DoubleIt failed: expected {input_data * 2.0}, got {result}"
 
     # Test SquareIt
     buffer = device.create_buffer(
@@ -82,7 +84,9 @@ def test_generic_entrypoint_multiple_specializations(device_type: spy.DeviceType
     )
     square_kernel.dispatch(thread_count=[4, 1, 1], data=buffer, count=4)
     result = buffer.to_numpy().view(np.float32)
-    assert np.allclose(result, input_data * input_data), f"SquareIt failed: expected {input_data * input_data}, got {result}"
+    assert np.allclose(
+        result, input_data * input_data
+    ), f"SquareIt failed: expected {input_data * input_data}, got {result}"
 
     # Test AddTen
     buffer = device.create_buffer(
@@ -91,7 +95,9 @@ def test_generic_entrypoint_multiple_specializations(device_type: spy.DeviceType
     )
     add_kernel.dispatch(thread_count=[4, 1, 1], data=buffer, count=4)
     result = buffer.to_numpy().view(np.float32)
-    assert np.allclose(result, input_data + 10.0), f"AddTen failed: expected {input_data + 10.0}, got {result}"
+    assert np.allclose(
+        result, input_data + 10.0
+    ), f"AddTen failed: expected {input_data + 10.0}, got {result}"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

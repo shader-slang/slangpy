@@ -462,16 +462,10 @@ struct SGL_API SpecializationArg {
     }
 
     /// Create a type specialization argument.
-    static SpecializationArg from_type(std::string_view type_name)
-    {
-        return SpecializationArg(Kind::type, type_name);
-    }
+    static SpecializationArg from_type(std::string_view type_name) { return SpecializationArg(Kind::type, type_name); }
 
     /// Create an expression specialization argument.
-    static SpecializationArg from_expr(std::string_view expr)
-    {
-        return SpecializationArg(Kind::expr, expr);
-    }
+    static SpecializationArg from_expr(std::string_view expr) { return SpecializationArg(Kind::expr, expr); }
 
     std::string to_string() const;
 };
