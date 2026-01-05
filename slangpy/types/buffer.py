@@ -318,6 +318,18 @@ class NDBuffer(NativeNDBuffer):
         """
         return cast(np.ndarray[Any, Any], super().to_numpy())
 
+    def copy_from_numpy(self, data: np.ndarray[Any, Any]):
+        """
+        Copies data from a numpy array into the buffer.
+
+        This method handles structured numpy dtypes (compound dtypes created with np.dtype)
+        by automatically converting them to a byte view before copying because nanobind doesn't
+        properly handle structured numpy arrays.
+        """
+        if data.dtype.names is not None:
+            data = data.view(np.uint8)
+        super().copy_from_numpy(data)
+
     def to_torch(self) -> "torch.Tensor":
         """
         Returns a view of the buffer data as a torch tensor with the same shape and strides.
@@ -345,16 +357,28 @@ class NDBuffer(NativeNDBuffer):
     ) -> "NDBuffer":
         """
         Creates a new NDBuffer with the same contents, shape and strides as the given numpy array.
+
+        For structured numpy dtypes (compound dtypes created with np.dtype), you must provide
+        the corresponding Slang dtype explicitly, as automatic conversion is not supported.
         """
+        # Check if this is a structured dtype
+        is_structured = ndarray.dtype.names is not None
 
         if dtype is None:
+            if is_structured:
+                raise ValueError(
+                    f"Structured numpy dtype {ndarray.dtype} cannot be automatically converted to a Slang type. "
+                    "Please provide an explicit 'dtype' parameter with the corresponding Slang type."
+                )
             dtype = _numpy_to_slang(ndarray.dtype, device, program_layout)
             if dtype is None:
                 raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
-            if not ndarray.flags["C_CONTIGUOUS"]:
-                raise ValueError(
-                    "Currently NDBuffers can only be directly constructed from C-contiguous numpy arrays"
-                )
+
+        if not ndarray.flags["C_CONTIGUOUS"]:
+            raise ValueError(
+                "Currently NDBuffers can only be directly constructed from C-contiguous numpy arrays"
+            )
+
         if shape is None:
             shape = ndarray.shape
 
@@ -364,6 +388,7 @@ class NDBuffer(NativeNDBuffer):
             shape=shape,
             usage=usage,
             memory_type=memory_type,
+            program_layout=program_layout,
         )
         res.copy_from_numpy(ndarray)
         return res
