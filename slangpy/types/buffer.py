@@ -17,6 +17,7 @@ from slangpy import (
     CommandEncoder,
     Bitmap,
     DataStruct,
+    BufferCursor,
 )
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
@@ -322,13 +323,37 @@ class NDBuffer(NativeNDBuffer):
         """
         Copies data from a numpy array into the buffer.
 
-        This method handles structured numpy dtypes (compound dtypes created with np.dtype)
-        by automatically converting them to a byte view before copying because nanobind doesn't
-        properly handle structured numpy arrays.
+        This method handles structured numpy dtypes by using BufferCursor to
+        write each field separately, which correctly handles platform-specific
+        alignment differences (e.g., Metal's 16-byte float3 alignment vs
+        CUDA/Vulkan's 12-byte float3).
+
+        Examples:
+            # Simple dtype - direct copy
+            buffer.copy_from_numpy(np.array([1.0, 2.0, 3.0], dtype=np.float32))
+
+            # Structured dtype with mixed types - automatically handled via BufferCursor
+            particle_dtype = np.dtype([('position', np.float32, (3,)), ('id', np.int32)])
+            buffer.copy_from_numpy(np.array([([1.0, 2.0, 3.0], 42)], dtype=particle_dtype))
         """
         if data.dtype.names is not None:
-            data = data.view(np.uint8)
-        super().copy_from_numpy(data)
+            # Structured dtype: use BufferCursor which handles alignment correctly
+            # Convert structured array to dict of arrays (what write_from_numpy expects)
+            data_dict = {}
+            for name in data.dtype.names:
+                field_data = data[name]
+                # Ensure contiguous for efficient transfer
+                if not field_data.flags["C_CONTIGUOUS"]:
+                    field_data = np.ascontiguousarray(field_data)
+                data_dict[name] = field_data
+
+            # Use BufferCursor.write_from_numpy which handles platform-specific alignment
+            cursor = BufferCursor(self.dtype.buffer_layout.reflection, self.storage)
+            cursor.write_from_numpy(data_dict)
+            cursor.apply()
+        else:
+            # Simple dtype: use direct copy (faster)
+            super().copy_from_numpy(data)
 
     def to_torch(self) -> "torch.Tensor":
         """

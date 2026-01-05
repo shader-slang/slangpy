@@ -17,11 +17,37 @@ from slangpy.types import NDBuffer
 STRUCTURED_DTYPE_MODULE = r"""
 import "slangpy";
 
+// Basic struct - two floats
 struct Point2D {
     float x;
     float y;
 };
 
+// Single field struct - edge case
+struct SingleField {
+    float value;
+};
+
+// Integer struct - tests signed and unsigned
+struct IntStruct {
+    int a;
+    int b;
+    uint c;  // Mix signed and unsigned
+};
+
+// Vec3 struct - Important: float3 has alignment issues on Metal (16B vs 12B)
+struct Vec3Struct {
+    float3 position;
+    float3 normal;
+};
+
+// 64-bit types
+struct Double64Struct {
+    double value;
+    int64_t big_int;
+};
+
+// Mixed everything - comprehensive test (from issue #636)
 struct TrainingSample {
     float valid;
     int material_id;
@@ -32,22 +58,11 @@ struct TrainingSample {
     float3 target;
 };
 
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void double_points(uint3 tid: SV_DispatchThreadID, RWStructuredBuffer<Point2D> points, uniform uint count) {
-    uint idx = tid.x;
-    if (idx >= count) return;
-    points[idx].x *= 2.0;
-    points[idx].y *= 2.0;
-}
-
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void process_sample(uint3 tid: SV_DispatchThreadID, RWStructuredBuffer<TrainingSample> samples, uniform uint count) {
-    uint idx = tid.x;
-    if (idx >= count) return;
-    samples[idx].target = samples[idx].target * 2.0;
-}
+// Struct with array
+struct ArrayStruct {
+    float values[4];
+    int count;
+};
 """
 
 
@@ -247,6 +262,144 @@ def test_issue_636_structured_dtype(device_type: DeviceType):
     assert np.all(result["wo"] == data["wo"])
     assert np.all(result["mip_level"] == data["mip_level"])
     assert np.all(result["target"] == data["target"])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_single_field_struct(device_type: DeviceType):
+    """Test edge case: struct with only one field."""
+    device = helpers.get_device(device_type)
+    module = load_test_module(device_type)
+
+    dtype = np.dtype([("value", np.float32)])
+    num_elements = 8
+    data = np.zeros(num_elements, dtype=dtype)
+    data["value"] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+
+    buffer = NDBuffer(
+        device,
+        dtype=module.SingleField,
+        shape=(num_elements,),
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    buffer.copy_from_numpy(data)
+
+    result = buffer.to_numpy().view(dtype).flatten()
+    assert np.allclose(result["value"], data["value"])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_integer_struct(device_type: DeviceType):
+    """Test struct with integer fields (signed and unsigned, no floats)."""
+    device = helpers.get_device(device_type)
+    module = load_test_module(device_type)
+
+    # Mix of signed (int32) and unsigned (uint32)
+    dtype = np.dtype([("a", np.int32), ("b", np.int32), ("c", np.uint32)])
+    num_elements = 5
+    data = np.zeros(num_elements, dtype=dtype)
+    data["a"] = [-1, -2, 3, 4, 5]  # Signed values
+    data["b"] = [10, 20, 30, 40, 50]
+    data["c"] = [0xFFFFFFFF, 0x12345678, 0xDEADBEEF, 100, 0]  # Unsigned values
+
+    buffer = NDBuffer(
+        device,
+        dtype=module.IntStruct,
+        shape=(num_elements,),
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    buffer.copy_from_numpy(data)
+
+    result = buffer.to_numpy().view(dtype).flatten()
+    assert np.all(result["a"] == data["a"])
+    assert np.all(result["b"] == data["b"])
+    assert np.all(result["c"] == data["c"])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_vec3_struct(device_type: DeviceType):
+    """
+    Test struct with float3 vectors.
+
+    This is particularly important because float3 has different alignment
+    on Metal (16 bytes) vs CUDA/Vulkan (12 bytes). BufferCursor handles this.
+    """
+    device = helpers.get_device(device_type)
+    module = load_test_module(device_type)
+
+    dtype = np.dtype([("position", np.float32, (3,)), ("normal", np.float32, (3,))])
+    num_elements = 4
+    data = np.zeros(num_elements, dtype=dtype)
+    data["position"] = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]
+    data["normal"] = [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.577, 0.577, 0.577]]
+
+    buffer = NDBuffer(
+        device,
+        dtype=module.Vec3Struct,
+        shape=(num_elements,),
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    buffer.copy_from_numpy(data)
+
+    # Verify using BufferCursor to read back with correct alignment
+    from slangpy import BufferCursor
+
+    cursor = BufferCursor(buffer.dtype.buffer_layout.reflection, buffer.storage)
+    for i in range(num_elements):
+        elem = cursor[i]
+        pos = elem["position"].read()
+        norm = elem["normal"].read()
+        assert np.allclose(pos, data["position"][i])
+        assert np.allclose(norm, data["normal"][i])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_64bit_types_struct(device_type: DeviceType):
+    """Test struct with 64-bit types (double and int64)."""
+    device = helpers.get_device(device_type)
+    module = load_test_module(device_type)
+
+    dtype = np.dtype([("value", np.float64), ("big_int", np.int64)])
+    num_elements = 4
+    data = np.zeros(num_elements, dtype=dtype)
+    data["value"] = [3.14159265358979, 2.71828182845904, 1.41421356237309, 1.61803398874989]
+    data["big_int"] = [2**60, 2**61, 2**62, 2**63 - 1]
+
+    buffer = NDBuffer(
+        device,
+        dtype=module.Double64Struct,
+        shape=(num_elements,),
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    buffer.copy_from_numpy(data)
+
+    result = buffer.to_numpy().view(dtype).flatten()
+    assert np.allclose(result["value"], data["value"])
+    assert np.all(result["big_int"] == data["big_int"])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_in_struct(device_type: DeviceType):
+    """Test struct containing a fixed-size array."""
+    device = helpers.get_device(device_type)
+    module = load_test_module(device_type)
+
+    dtype = np.dtype([("values", np.float32, (4,)), ("count", np.int32)])
+    num_elements = 3
+    data = np.zeros(num_elements, dtype=dtype)
+    data["values"] = [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0]]
+    data["count"] = [4, 3, 2]
+
+    buffer = NDBuffer(
+        device,
+        dtype=module.ArrayStruct,
+        shape=(num_elements,),
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    buffer.copy_from_numpy(data)
+
+    result = buffer.to_numpy().view(dtype).flatten()
+    assert np.allclose(result["values"], data["values"])
+    assert np.all(result["count"] == data["count"])
 
 
 if __name__ == "__main__":
