@@ -121,7 +121,11 @@ def test_tensor_sum(
     if not RUN_NATIVE_TENSOR_BENCHMARK:
         pytest.skip("Native tensor benchmark is not enabled")
 
-    device = helpers.get_torch_device(device_type)
+    if HAS_TORCH:
+        device = helpers.get_torch_device(device_type)
+    else:
+        device = helpers.get_device(device_type)
+
     inputs = [np.random.rand(1024, 1024).astype(np.float32) for _ in range(count)]
     result_tensor = spy.Tensor.empty(device, shape=(1024, 1024), dtype=float)
 
