@@ -87,3 +87,9 @@ void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] r
     for (int i = 0; i < 5; i++)
         res[i] = a * x[i] * x[i] + b * x[i] + c;
 }
+
+// Simple copy for testing empty tensors (issue #580)
+void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
+    for (uint i = 0; i < input.shape[0]; i++)
+        output.set({int(i)}, input[int(i)]);
+}
