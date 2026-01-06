@@ -9,15 +9,32 @@ import slangpy as spy
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkPythonFunction
 
-import torch
-import time
-import slangtorch
+HAS_TORCH = False
+try:
+    import torch
+
+    HAS_TORCH = True
+except ImportError:
+    pass
+
+HAS_SLANGTORCH = False
+try:
+    import slangtorch
+
+    HAS_SLANGTORCH = True
+except ImportError:
+    pass
 
 SLEEPS = True
 ITERATIONS = 10
 SUB_ITERATIONS = 2000
 WARMUPS = 10
-COUNTS = [1]
+COUNTS = [1, 6]
+
+RUN_SLANGTORCH_BENCHMARK = True
+RUN_PURE_TORCH_BENCHMARK = True
+RUN_TORCH_TENSOR_BENCHMARK = True
+RUN_NATIVE_TENSOR_BENCHMARK = True
 
 # ITERATIONS = 1
 # SUB_ITERATIONS = 1
@@ -26,10 +43,14 @@ COUNTS = [1]
 
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 @pytest.mark.parametrize("count", COUNTS)
-@pytest.mark.skip("Not testing")
 def test_tensor_sum_torch(
     device_type: spy.DeviceType, count: int, benchmark_python_function: BenchmarkPythonFunction
 ):
+    if not RUN_TORCH_TENSOR_BENCHMARK:
+        pytest.skip("Torch tensor benchmark is not enabled")
+    if not HAS_TORCH:
+        pytest.skip("PyTorch is not installed")
+
     device = helpers.get_torch_device(device_type)
     inputs = [np.random.rand(1024, 1024).astype(np.float32) for _ in range(count)]
     result_tensor = torch.empty((1024, 1024), dtype=torch.float32, device="cuda")
@@ -41,12 +62,6 @@ def test_tensor_sum_torch(
 
     module = spy.Module(device.load_module("test_benchmark_tensor.slang"))
     func = module.require_function(f"sum")
-
-    def tensor_addition_torch():
-        for i in range(count):
-            args["_result"] += args[f"tensor_{i}"]
-
-    tensor_addition_torch()
 
     def tensor_addition():
         func(**args)
@@ -66,6 +81,13 @@ def test_tensor_sum_torch(
 def test_tensor_sum_slangtorch(
     device_type: spy.DeviceType, count: int, benchmark_python_function: BenchmarkPythonFunction
 ):
+    if not RUN_SLANGTORCH_BENCHMARK:
+        pytest.skip("slang-torch benchmark is not enabled")
+    if not HAS_TORCH:
+        pytest.skip("PyTorch is not installed")
+    if not HAS_SLANGTORCH:
+        pytest.skip("slang-torch is not installed")
+
     device = helpers.get_torch_device(device_type)
     module = slangtorch.loadModule(Path(__file__).parent / "test_benchmark_tensor_slangtorch.slang")
     inputs = [np.random.rand(1024, 1024).astype(np.float32) for _ in range(count)]
@@ -93,10 +115,12 @@ def test_tensor_sum_slangtorch(
 
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 @pytest.mark.parametrize("count", COUNTS)
-@pytest.mark.skip("Not testing")
 def test_tensor_sum(
     device_type: spy.DeviceType, count: int, benchmark_python_function: BenchmarkPythonFunction
 ):
+    if not RUN_NATIVE_TENSOR_BENCHMARK:
+        pytest.skip("Native tensor benchmark is not enabled")
+
     device = helpers.get_torch_device(device_type)
     inputs = [np.random.rand(1024, 1024).astype(np.float32) for _ in range(count)]
     result_tensor = spy.Tensor.empty(device, shape=(1024, 1024), dtype=float)
@@ -124,10 +148,14 @@ def test_tensor_sum(
 
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 @pytest.mark.parametrize("count", COUNTS)
-@pytest.mark.skip("Not testing")
 def test_tensor_sum_pure_torch(
     device_type: spy.DeviceType, count: int, benchmark_python_function: BenchmarkPythonFunction
 ):
+    if not RUN_PURE_TORCH_BENCHMARK:
+        pytest.skip("Pure Torch benchmark is not enabled")
+    if not HAS_TORCH:
+        pytest.skip("PyTorch is not installed")
+
     device = helpers.get_torch_device(device_type)
     inputs = [np.random.rand(1, 1).astype(np.float32) for _ in range(count)]
     result_tensor = torch.empty((1, 1), dtype=torch.float32, device="cuda")
