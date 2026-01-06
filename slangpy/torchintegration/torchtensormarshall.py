@@ -128,7 +128,7 @@ class TensorRefMarshall(TensorMarshall):
 
             data_type = _torch_to_data_type[self.torch_dtype]
 
-            # For empty tensors (issue #580), create a minimal placeholder buffer
+            # For empty tensors, create a minimal placeholder buffer
             # Shaders still need a valid buffer binding even if no data is accessed
             element_count = max(1, primal.numel())
             data.interop_buffer = get_storage(context, element_count, primal.element_size())
@@ -189,7 +189,7 @@ class TensorRefMarshall(TensorMarshall):
             assert data.interop_buffer is not None
             primal = cast(torch.Tensor, data.tensor)  # type: ignore
 
-            # Only copy data back for non-empty tensors (issue #580)
+            # Only copy data back for non-empty tensors
             if primal.numel() > 0:
                 shape = tuple(primal.shape)
                 strides = primal.stride()
