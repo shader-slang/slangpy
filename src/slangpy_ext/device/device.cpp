@@ -184,7 +184,11 @@ SGL_PY_EXPORT(device_device)
         .def_rw("type", &DeviceDesc::type, D(DeviceDesc, type))
         .def_rw("enable_debug_layers", &DeviceDesc::enable_debug_layers, D(DeviceDesc, enable_debug_layers))
         .def_rw("enable_rhi_validation", &DeviceDesc::enable_rhi_validation, D_NA(DeviceDesc, enable_rhi_validation))
-        .def_rw("enable_ray_tracing_validation", &DeviceDesc::enable_ray_tracing_validation, D_NA(DeviceDesc, enable_ray_tracing_validation))
+        .def_rw(
+            "enable_ray_tracing_validation",
+            &DeviceDesc::enable_ray_tracing_validation,
+            D_NA(DeviceDesc, enable_ray_tracing_validation)
+        )
         .def_rw("enable_aftermath", &DeviceDesc::enable_aftermath, D_NA(DeviceDesc, enable_aftermath))
         .def_rw("enable_cuda_interop", &DeviceDesc::enable_cuda_interop, D(DeviceDesc, enable_cuda_interop))
         .def_rw("enable_print", &DeviceDesc::enable_print, D(DeviceDesc, enable_print))
