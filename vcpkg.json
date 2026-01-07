@@ -1,6 +1,6 @@
 {
     "name": "sgl",
-    "version-string": "0.40.0",
+    "version-string": "0.40.1",
     "dependencies": [
         "libjpeg-turbo",
         "libpng",
