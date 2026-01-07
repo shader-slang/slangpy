@@ -415,6 +415,11 @@ void Window::resize(uint32_t width, uint32_t height)
     glfwSetWindowSize(m_window, m_width, m_height);
 }
 
+void Window::set_position(uint32_t x, uint32_t y)
+{
+    glfwSetWindowPos(m_window, x, y);
+}
+
 void Window::set_title(std::string title)
 {
     m_title = std::move(title);

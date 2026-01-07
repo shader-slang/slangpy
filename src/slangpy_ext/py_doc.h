@@ -8324,6 +8324,15 @@ static const char *__doc_sgl_Window_set_on_mouse_event = R"doc()doc";
 
 static const char *__doc_sgl_Window_set_on_resize = R"doc()doc";
 
+static const char *__doc_sgl_Window_set_position =
+R"doc(Set window position.
+
+Parameter ``x``:
+    The new x position of the window.
+
+Parameter ``y``:
+    The new y position of the window.)doc";
+
 static const char *__doc_sgl_Window_set_title = R"doc()doc";
 
 static const char *__doc_sgl_Window_should_close = R"doc(True if the window should be closed.)doc";

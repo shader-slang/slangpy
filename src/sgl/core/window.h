@@ -71,6 +71,11 @@ public:
     /// \param height The new height of the window in pixels.
     void resize(uint32_t width, uint32_t height);
 
+    /// Set window position.
+    /// \param x The new x position of the window.
+    /// \param y The new y position of the window.
+    void set_position(uint32_t x, uint32_t y);
+
     /// The title of the window.
     const std::string& title() const { return m_title; }
     void set_title(std::string title);
