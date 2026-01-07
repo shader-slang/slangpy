@@ -225,8 +225,9 @@ Device::Device(const DeviceDesc& desc)
         .persistentPipelineCache = m_persistent_cache.get(),
         // This needs to match NV_SHADER_EXTN_SLOT set in shader.cpp
         .nvapiExtUavSlot = 999,
-        // TODO(slang-rhi) make configurable but default to true
-        .enableValidation = true,
+        .enableValidation = m_desc.enable_rhi_validation,
+        .enableRayTracingValidation = m_desc.enable_ray_tracing_validation,
+        .enableAftermath = m_desc.enable_aftermath,
         .debugCallback = &DebugLogger::get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
         .bindless = bindless_desc,
@@ -1207,6 +1208,9 @@ std::string Device::to_string() const
         "  adapter_name = \"{}\",\n"
         "  adapter_luid = {},\n"
         "  enable_debug_layers = {},\n"
+        "  enable_rhi_validation = {},\n"
+        "  enable_ray_tracing_validation = {},\n"
+        "  enable_aftermath = {},\n"
         "  enable_cuda_interop = {},\n"
         "  enable_print = {},\n"
         "  enable_hot_reload = {},\n"
@@ -1219,6 +1223,9 @@ std::string Device::to_string() const
         m_info.adapter_name,
         string::hexlify(m_info.adapter_luid),
         m_desc.enable_debug_layers,
+        m_desc.enable_rhi_validation,
+        m_desc.enable_ray_tracing_validation,
+        m_desc.enable_aftermath,
         m_desc.enable_cuda_interop,
         m_desc.enable_print,
         m_desc.enable_hot_reload,
