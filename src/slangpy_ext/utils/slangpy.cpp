@@ -946,14 +946,32 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
         obj = nb::getattr(obj, "get_this")();
     }
 
-    // If object is a pytorch tensor, wrap it in a ref and export
+    // If object is a pytorch tensor (or subclass), wrap it in a ref and export
     if (refs.has_value()) {
         nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
+
+        // Try direct cast first for torch.Tensor
         if (nb::try_cast(arg, pytorch_tensor)) {
             ref<TensorRef> tensorref = make_ref<TensorRef>((int32_t)refs->size(), pytorch_tensor);
             auto asobj = nb::cast(tensorref);
             refs->append(asobj);
             return asobj;
+        }
+
+        // Check if this is a Tensor subclass that needs conversion via
+        // as_subclass to work with nanobind's ndarray
+        if (nb::hasattr(arg, "as_subclass")) {
+            nb::module_ torch = nb::module_::import_("torch");
+            nb::object TensorClass = torch.attr("Tensor");
+            if (nb::isinstance(arg, TensorClass)) {
+                nb::object tensor_obj = arg.attr("as_subclass")(TensorClass);
+                if (nb::try_cast(tensor_obj, pytorch_tensor)) {
+                    ref<TensorRef> tensorref = make_ref<TensorRef>((int32_t)refs->size(), pytorch_tensor);
+                    auto asobj = nb::cast(tensorref);
+                    refs->append(asobj);
+                    return asobj;
+                }
+            }
         }
     }
 

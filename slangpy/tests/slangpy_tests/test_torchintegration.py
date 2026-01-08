@@ -344,5 +344,83 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int):
     # res.backward(torch.ones_like(res))
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_nn_parameter_basic(device_type: DeviceType):
+    """Test that torch.nn.Parameter can be passed directly to slangpy functions."""
+    m = load_test_module(device_type)
+
+    # Create nn.Parameter (subclass of torch.Tensor)
+    param = torch.nn.Parameter(torch.tensor(2.0, device="cuda"))
+
+    # Should work just like a regular tensor
+    result = m.add(param, 3.0)
+    assert result.item() == 5.0
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_nn_parameter_gradient_flow(device_type: DeviceType):
+    """Test that gradients flow correctly through nn.Parameter."""
+    m = load_test_module(device_type)
+
+    # polynomial: a*x^2 + b*x + c
+    # At x=2: 1*4 + 2*2 + 3 = 11
+    # Derivative w.r.t x: 2*a*x + b = 2*1*2 + 2 = 6
+    x = torch.nn.Parameter(torch.tensor(2.0, device="cuda"))
+
+    result = m.polynomial(1.0, 2.0, 3.0, x)
+    assert result.item() == 11.0
+
+    result.backward()
+    assert x.grad is not None
+    assert x.grad.item() == 6.0
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_nn_module_integration(device_type: DeviceType):
+    """Test standard torch.nn.Module pattern with slangpy functions."""
+    m = load_test_module(device_type)
+
+    class SimpleModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.scale = torch.nn.Parameter(torch.tensor(2.0, device="cuda"))
+            self.bias = torch.nn.Parameter(torch.tensor(1.0, device="cuda"))
+
+        def forward(self, x):
+            # polynomial: scale * x + bias (using a=0, b=scale, c=bias)
+            return m.polynomial(0.0, self.scale, self.bias, x)
+
+    model = SimpleModel()
+
+    # Verify parameters are registered
+    param_names = [name for name, _ in model.named_parameters()]
+    assert "scale" in param_names
+    assert "bias" in param_names
+
+    # Forward pass
+    x = torch.tensor(3.0, device="cuda")
+    result = model(x)
+    # 0*9 + 2*3 + 1 = 7
+    assert result.item() == 7.0
+
+    # Backward pass and optimizer step
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    target = torch.tensor(10.0, device="cuda")
+
+    loss = (result - target).pow(2)
+    loss.backward()
+
+    # Gradients should be computed
+    assert model.scale.grad is not None
+    assert model.bias.grad is not None
+
+    # Take optimizer step
+    old_scale = model.scale.item()
+    optimizer.step()
+
+    # Parameters should have changed
+    assert model.scale.item() != old_scale
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
