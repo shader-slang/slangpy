@@ -29,6 +29,7 @@ public:
     ShaderCursor(ShaderObject* shader_object, bool need_dereference, slang::TypeLayoutReflection* parent_type_layout);
 
     ShaderOffset offset() const { return m_offset; }
+    ShaderObject* shader_object() const { return m_shader_object; }
 
     bool is_valid() const { return m_offset.is_valid(); }
 
