@@ -75,7 +75,10 @@ public:
             m_size = vec.size();
             if (m_size > INLINE_CAPACITY) {
                 m_uses_heap = true;
-                m_storage.heap_data = new std::vector<int>(vec);
+                m_storage.heap_data = std::make_unique<int[]>(m_size);
+                for (size_t i = 0; i < m_size; ++i) {
+                    m_storage.heap_data[i] = vec[i];
+                }
             } else {
                 for (size_t i = 0; i < m_size; ++i) {
                     m_storage.inline_data[i] = vec[i];
@@ -91,7 +94,11 @@ public:
         , m_uses_heap(shape.size() > INLINE_CAPACITY)
     {
         if (m_uses_heap) {
-            m_storage.heap_data = new std::vector<int>(shape);
+            m_storage.heap_data = std::make_unique<int[]>(m_size);
+            size_t i = 0;
+            for (int val : shape) {
+                m_storage.heap_data[i++] = val;
+            }
         } else {
             size_t i = 0;
             for (int val : shape) {
@@ -107,7 +114,10 @@ public:
         , m_uses_heap(other.m_uses_heap)
     {
         if (m_uses_heap) {
-            m_storage.heap_data = new std::vector<int>(*other.m_storage.heap_data);
+            m_storage.heap_data = std::make_unique<int[]>(m_size);
+            for (size_t i = 0; i < m_size; ++i) {
+                m_storage.heap_data[i] = other.m_storage.heap_data[i];
+            }
         } else {
             for (size_t i = 0; i < m_size; ++i) {
                 m_storage.inline_data[i] = other.m_storage.inline_data[i];
@@ -122,8 +132,7 @@ public:
         , m_uses_heap(other.m_uses_heap)
     {
         if (m_uses_heap) {
-            m_storage.heap_data = other.m_storage.heap_data;
-            other.m_storage.heap_data = nullptr;
+            m_storage.heap_data = std::move(other.m_storage.heap_data);
             other.m_uses_heap = false;
             other.m_valid = false;
             other.m_size = 0;
@@ -134,13 +143,8 @@ public:
         }
     }
 
-    /// Destructor
-    ~Shape()
-    {
-        if (m_uses_heap && m_storage.heap_data) {
-            delete m_storage.heap_data;
-        }
-    }
+    /// Destructor (default is fine now that we use struct instead of union)
+    ~Shape() = default;
 
     /// Add operator combines the 2 shapes.
     Shape operator+(const Shape& other) const
@@ -162,17 +166,15 @@ public:
     Shape& operator=(const Shape& other)
     {
         if (this != &other) {
-            // Clean up existing heap storage
-            if (m_uses_heap && m_storage.heap_data) {
-                delete m_storage.heap_data;
-            }
-
             m_size = other.m_size;
             m_valid = other.m_valid;
             m_uses_heap = other.m_uses_heap;
 
             if (m_uses_heap) {
-                m_storage.heap_data = new std::vector<int>(*other.m_storage.heap_data);
+                m_storage.heap_data = std::make_unique<int[]>(m_size);
+                for (size_t i = 0; i < m_size; ++i) {
+                    m_storage.heap_data[i] = other.m_storage.heap_data[i];
+                }
             } else {
                 for (size_t i = 0; i < m_size; ++i) {
                     m_storage.inline_data[i] = other.m_storage.inline_data[i];
@@ -186,13 +188,13 @@ public:
     int operator[](size_t i) const
     {
         SGL_ASSERT(i < m_size);
-        return m_uses_heap ? (*m_storage.heap_data)[i] : m_storage.inline_data[i];
+        return m_uses_heap ? m_storage.heap_data[i] : m_storage.inline_data[i];
     }
 
     int& operator[](size_t i)
     {
         SGL_ASSERT(i < m_size);
-        return m_uses_heap ? (*m_storage.heap_data)[i] : m_storage.inline_data[i];
+        return m_uses_heap ? m_storage.heap_data[i] : m_storage.inline_data[i];
     }
 
     /// Access to internal data as pointer.
@@ -201,7 +203,7 @@ public:
         if (!m_valid) {
             SGL_THROW("Shape is invalid");
         }
-        return m_uses_heap ? m_storage.heap_data->data() : m_storage.inline_data;
+        return m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
     }
 
     /// Access to internal vector (creates a copy for compatibility).
@@ -211,11 +213,8 @@ public:
         if (!m_valid) {
             SGL_THROW("Shape is invalid");
         }
-        if (m_uses_heap) {
-            return *m_storage.heap_data;
-        } else {
-            return std::vector<int>(m_storage.inline_data, m_storage.inline_data + m_size);
-        }
+        const int* ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+        return std::vector<int>(ptr, ptr + m_size);
     }
 
     /// Check if shape is valid (if the std::optional has a value).
@@ -294,15 +293,9 @@ public:
     }
 
 private:
-    union Storage {
+    struct Storage {
         int inline_data[INLINE_CAPACITY];
-        std::vector<int>* heap_data;
-
-        Storage()
-            : heap_data(nullptr)
-        {
-        }
-        ~Storage() { } // Union destructor does nothing, managed by Shape
+        std::unique_ptr<int[]> heap_data;
     };
 
     Storage m_storage;
