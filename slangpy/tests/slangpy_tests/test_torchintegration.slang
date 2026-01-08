@@ -87,3 +87,21 @@ void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] r
     for (int i = 0; i < 5; i++)
         res[i] = a * x[i] * x[i] + b * x[i] + c;
 }
+
+[Differentiable]
+float2[6] return_vector_array(int coord) {
+    float2 outputs[6];
+    for (int i = 0; i < 6; ++i) {
+        outputs[i] = float2(coord, coord + i);
+    }
+    return outputs;
+}
+
+[Differentiable]
+float3[4] return_vector_array_float3(int coord) {
+    float3 outputs[4];
+    for (int i = 0; i < 4; ++i) {
+        outputs[i] = float3(coord, coord + i, coord + i * 2);
+    }
+    return outputs;
+}
