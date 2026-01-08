@@ -149,8 +149,8 @@ void StridedBufferView::broadcast_to_inplace(const Shape& new_shape)
     // This 'broadcasts' the buffer view to a new shape, i.e.
     // - Prepend extra dimensions of the new shape to the front our shape
     // - Expand our singleton dimensions to the new shape
-    auto& curr_shape_vec = this->shape().as_vector();
-    auto& new_shape_vec = new_shape.as_vector();
+    std::vector<int> curr_shape_vec = this->shape().as_vector();
+    std::vector<int> new_shape_vec = new_shape.as_vector();
 
     int D = (int)new_shape_vec.size() - (int)curr_shape_vec.size();
     if (D < 0) {
@@ -168,7 +168,7 @@ void StridedBufferView::broadcast_to_inplace(const Shape& new_shape)
         }
     }
 
-    auto& curr_strides_vec = this->strides().as_vector();
+    std::vector<int> curr_strides_vec = this->strides().as_vector();
     std::vector<int> new_strides(new_shape.size(), 0);
     for (size_t i = 0; i < curr_strides_vec.size(); ++i) {
         if (curr_shape_vec[i] > 1) {

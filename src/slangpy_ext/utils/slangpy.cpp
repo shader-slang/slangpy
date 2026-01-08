@@ -474,11 +474,12 @@ nb::object NativeCallData::exec(
             nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
             kwargs["_result"] = output;
             unpacked_kwargs["_result"] = output;
-            rv_node->populate_call_shape(call_shape.as_vector(), output, this);
+            std::vector<int> call_shape_vec = call_shape.as_vector();
+            rv_node->populate_call_shape(call_shape_vec, output, this);
         }
     }
 
-    const std::vector<int>& cs = call_shape.as_vector();
+    std::vector<int> cs = call_shape.as_vector();
     std::vector<int> strides;
     int current_stride = 1;
     for (auto it = cs.rbegin(); it != cs.rend(); ++it) {
@@ -649,17 +650,18 @@ nb::object NativeCallData::exec(
 
         // Extract and cache offsets on first call
         if (!m_cached_call_data_offsets.is_valid) {
-            m_cached_call_data_offsets.call_dim = call_data_cursor["_call_dim"].offset();
-            m_cached_call_data_offsets.grid_stride = call_data_cursor["_grid_stride"].offset();
-            m_cached_call_data_offsets.grid_dim = call_data_cursor["_grid_dim"].offset();
-            m_cached_call_data_offsets.thread_count = call_data_cursor["_thread_count"].offset();
+            m_cached_call_data_offsets.call_dim = call_data_cursor.find_field("_call_dim").offset();
+            m_cached_call_data_offsets.grid_stride = call_data_cursor.find_field("_grid_stride").offset();
+            m_cached_call_data_offsets.grid_dim = call_data_cursor.find_field("_grid_dim").offset();
+            m_cached_call_data_offsets.thread_count = call_data_cursor.find_field("_thread_count").offset();
             m_cached_call_data_offsets.field_offset = call_data_cursor.offset();
             m_cached_call_data_offsets.field_size
                 = (uint32_t)call_data_cursor.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
-            m_cached_call_data_offsets.array_stride
-                = (int)call_data_cursor["_call_dim"].slang_type_layout()->getElementStride(
-                    SLANG_PARAMETER_CATEGORY_UNIFORM
-                );
+            if (m_cached_call_data_offsets.call_dim.is_valid()) {
+                m_cached_call_data_offsets.array_stride = (int)call_data_cursor.find_field("_call_dim")
+                                                              .slang_type_layout()
+                                                              ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+            }
             m_cached_call_data_offsets.is_valid = true;
         }
 
@@ -1637,12 +1639,11 @@ SGL_PY_EXPORT(utils_slangpy)
         .def_prop_ro("concrete", &Shape::concrete, D_NA(Shape, concrete))
         .def(
             "as_tuple",
-            [](Shape& self)
+            [](const Shape& self)
             {
-                std::vector<int>& v = self.as_vector();
                 nb::list py_list;
-                for (const int& item : v) {
-                    py_list.append(item);
+                for (size_t i = 0; i < self.size(); ++i) {
+                    py_list.append(self[i]);
                 }
                 return nb::tuple(py_list);
             },
@@ -1650,11 +1651,10 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "as_list",
-            [](Shape& self)
+            [](const Shape& self)
             {
                 return self.as_vector();
             },
-            nb::rv_policy::reference_internal,
             D_NA(Shape, as_list)
         )
         .def("calc_contiguous_strides", &Shape::calc_contiguous_strides, D_NA(Shape, calc_contiguous_strides))
@@ -1665,12 +1665,18 @@ SGL_PY_EXPORT(utils_slangpy)
             [](const Shape& self, nb::object other)
             {
                 if (nb::isinstance<Shape>(other)) {
-                    return self.as_vector() == nb::cast<Shape>(other).as_vector();
+                    return self == nb::cast<const Shape&>(other);
                 }
 
                 std::vector<int> v;
                 if (nb::try_cast(other, v)) {
-                    return self.as_vector() == v;
+                    if (self.size() != v.size())
+                        return false;
+                    for (size_t i = 0; i < self.size(); ++i) {
+                        if (self[i] != v[i])
+                            return false;
+                    }
+                    return true;
                 }
 
                 return false;
