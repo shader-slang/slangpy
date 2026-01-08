@@ -46,19 +46,7 @@ std::string TypeConformance::to_string() const
 
 std::string SpecializationArg::to_string() const
 {
-    const char* kind_str = "unknown";
-    switch (kind) {
-    case Kind::unknown:
-        kind_str = "unknown";
-        break;
-    case Kind::type:
-        kind_str = "type";
-        break;
-    case Kind::expr:
-        kind_str = "expr";
-        break;
-    }
-    return fmt::format("SpecializationArg(kind={}, value=\"{}\")", kind_str, value);
+    return fmt::format("SpecializationArg(kind={}, value=\"{}\")", kind, value);
 }
 
 // ----------------------------------------------------------------------------
@@ -1068,24 +1056,19 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
         std::vector<slang::SpecializationArg> slang_spec_args;
         slang_spec_args.reserve(desc.specialization_args.size());
 
-        // We need to keep string storage alive for expr args.
-        std::vector<std::string> expr_storage;
-
         for (const SpecializationArg& arg : desc.specialization_args) {
             slang::SpecializationArg slang_arg;
             switch (arg.kind) {
-            case SpecializationArg::Kind::type: {
+            case SpecializationArgKind::type: {
                 slang::TypeReflection* type = layout->findTypeByName(arg.value.c_str());
                 SGL_CHECK(type, "Specialization type \"{}\" not found", arg.value);
                 slang_arg = slang::SpecializationArg::fromType(type);
                 break;
             }
-            case SpecializationArg::Kind::expr:
-                // For expressions, we need to store the string and pass a pointer to it.
-                expr_storage.push_back(arg.value);
-                slang_arg = slang::SpecializationArg::fromExpr(expr_storage.back().c_str());
+            case SpecializationArgKind::expr:
+                slang_arg = slang::SpecializationArg::fromExpr(arg.value.c_str());
                 break;
-            case SpecializationArg::Kind::unknown:
+            case SpecializationArgKind::unknown:
                 SGL_THROW("Invalid specialization argument: kind is 'unknown'");
             }
             slang_spec_args.push_back(slang_arg);

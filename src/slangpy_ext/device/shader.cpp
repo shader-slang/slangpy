@@ -74,11 +74,11 @@ SGL_PY_EXPORT(device_shader)
         .def("__repr__", &TypeConformance::to_string);
     nb::implicitly_convertible<nb::tuple, TypeConformance>();
 
-    nb::sgl_enum<SpecializationArg::Kind>(m, "SpecializationArgKind");
+    nb::sgl_enum<SpecializationArgKind>(m, "SpecializationArgKind");
 
     nb::class_<SpecializationArg>(m, "SpecializationArg")
         .def(nb::init<>())
-        .def(nb::init<SpecializationArg::Kind, std::string_view>(), "kind"_a, "value"_a)
+        .def(nb::init<SpecializationArgKind, std::string_view>(), "kind"_a, "value"_a)
         .def_static("from_type", &SpecializationArg::from_type, "type_name"_a)
         .def_static("from_expr", &SpecializationArg::from_expr, "expr"_a)
         .def_rw("kind", &SpecializationArg::kind)
