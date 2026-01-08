@@ -946,10 +946,27 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
         obj = nb::getattr(obj, "get_this")();
     }
 
-    // If object is a pytorch tensor, wrap it in a ref and export
+    // If object is a pytorch tensor (or subclass like nn.Parameter), wrap it in a ref and export
     if (refs.has_value()) {
         nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
-        if (nb::try_cast(arg, pytorch_tensor)) {
+        nb::object tensor_obj = arg;
+
+        // Check if this is a torch.Tensor subclass (like nn.Parameter) that needs conversion
+        // try_cast fails for subclasses, so we check isinstance and convert if needed
+        if (!nb::try_cast(arg, pytorch_tensor)) {
+            try {
+                nb::module_ torch = nb::module_::import_("torch");
+                nb::object TensorClass = torch.attr("Tensor");
+                if (nb::isinstance(arg, TensorClass)) {
+                    // Convert subclass to plain Tensor using as_subclass (preserves autograd graph)
+                    tensor_obj = arg.attr("as_subclass")(TensorClass);
+                }
+            } catch (...) {
+                // torch not available or conversion failed, continue with original arg
+            }
+        }
+
+        if (nb::try_cast(tensor_obj, pytorch_tensor)) {
             ref<TensorRef> tensorref = make_ref<TensorRef>((int32_t)refs->size(), pytorch_tensor);
             auto asobj = nb::cast(tensorref);
             refs->append(asobj);
