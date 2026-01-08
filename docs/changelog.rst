@@ -10,6 +10,10 @@ SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 Next
 -------
 
+Version 0.40.1 (January 7, 2026)
+-------
+- Rebuild of 0.40.0 due to failed PyPI push.
+
 Version 0.40.0 (January 7, 2026)
 -------
   - Update to Slang version 2025.24.3 with latest shader compilation improvements and bug fixes.
