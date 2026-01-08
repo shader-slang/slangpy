@@ -146,20 +146,36 @@ public:
     /// Destructor (default is fine now that we use struct instead of union)
     ~Shape() = default;
 
-    /// Add operator combines the 2 shapes.
+    /// Add operator combines the 2 shapes (optimized to avoid temporary allocations).
     Shape operator+(const Shape& other) const
     {
-        std::vector<int> combined;
-        combined.reserve(m_size + other.m_size);
+        Shape result;
+        result.m_size = m_size + other.m_size;
+        result.m_valid = true;
+        result.m_uses_heap = result.m_size > INLINE_CAPACITY;
 
-        for (size_t i = 0; i < m_size; ++i) {
-            combined.push_back((*this)[i]);
-        }
-        for (size_t i = 0; i < other.m_size; ++i) {
-            combined.push_back(other[i]);
+        if (result.m_uses_heap) {
+            result.m_storage.heap_data = std::make_unique<int[]>(result.m_size);
+            // Copy from this
+            for (size_t i = 0; i < m_size; ++i) {
+                result.m_storage.heap_data[i] = (*this)[i];
+            }
+            // Copy from other
+            for (size_t i = 0; i < other.m_size; ++i) {
+                result.m_storage.heap_data[m_size + i] = other[i];
+            }
+        } else {
+            // Copy from this
+            for (size_t i = 0; i < m_size; ++i) {
+                result.m_storage.inline_data[i] = (*this)[i];
+            }
+            // Copy from other
+            for (size_t i = 0; i < other.m_size; ++i) {
+                result.m_storage.inline_data[m_size + i] = other[i];
+            }
         }
 
-        return Shape(std::optional<std::vector<int>>(combined));
+        return result;
     }
 
     /// Assignment operator.
@@ -261,19 +277,33 @@ public:
     }
 
     /// Calculate the strides of a buffer of this shape, assuming it is contiguous.
+    /// Optimized to avoid temporary allocations.
     Shape calc_contiguous_strides() const
     {
-        if (valid()) {
-            int total = 1;
-            std::vector<int> strides(m_size, 1);
-            for (int i = (int)m_size - 1; i >= 0; --i) {
-                strides[i] = total;
-                total *= (*this)[i];
-            }
-            return Shape(std::optional<std::vector<int>>(strides));
-        } else {
+        if (!valid()) {
             return Shape();
         }
+
+        Shape result;
+        result.m_size = m_size;
+        result.m_valid = true;
+        result.m_uses_heap = m_size > INLINE_CAPACITY;
+
+        int total = 1;
+        if (result.m_uses_heap) {
+            result.m_storage.heap_data = std::make_unique<int[]>(m_size);
+            for (int i = (int)m_size - 1; i >= 0; --i) {
+                result.m_storage.heap_data[i] = total;
+                total *= (*this)[i];
+            }
+        } else {
+            for (int i = (int)m_size - 1; i >= 0; --i) {
+                result.m_storage.inline_data[i] = total;
+                total *= (*this)[i];
+            }
+        }
+
+        return result;
     }
 
     bool operator==(const Shape& o) const
