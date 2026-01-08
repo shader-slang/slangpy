@@ -459,6 +459,15 @@ void ShaderCursor::set_data(const void* data, size_t size) const
     m_shader_object->set_data(m_offset, data, size);
 }
 
+void* ShaderCursor::reserve_data(size_t size) const
+{
+    if ((TypeReflection::ParameterCategory)m_type_layout->getParameterCategory()
+        != TypeReflection::ParameterCategory::uniform)
+        SGL_THROW("\"{}\" cannot reserve data", m_type_layout->getName());
+    return m_shader_object->reserve_data(m_offset, size);
+}
+
+
 void ShaderCursor::set_object(const ref<ShaderObject>& object) const
 {
     slang::TypeReflection* type = m_type_layout->getType();

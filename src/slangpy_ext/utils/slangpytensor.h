@@ -13,6 +13,7 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/resource.h"
+#include "sgl/device/shader_offset.h"
 
 #include "utils/slangpy.h"
 
@@ -127,12 +128,73 @@ public:
     nb::object read_output(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data) const override;
 
 private:
+    /// Cached shader offsets for a single tensor's fields
+    struct TensorFieldOffsets {
+        int array_stride;
+        ShaderOffset data;     // Offset for _data field
+        ShaderOffset shape;    // Offset for _shape field
+        ShaderOffset strides;  // Offset for _strides field
+        ShaderOffset offset;   // Offset for _offset field
+        bool is_valid = false; // Whether offsets have been initialized
+    };
+
+    /// Cached offsets for all tensor variants (primal, grad_in, grad_out)
+    struct CachedOffsets {
+        TensorFieldOffsets primal;
+        TensorFieldOffsets grad_in;
+        TensorFieldOffsets grad_out;
+        bool has_primal_field = false; // Whether tensor uses _primal wrapper
+    };
+
     int m_dims;
     bool m_writable;
     ref<NativeSlangType> m_slang_element_type;
     ref<TypeLayoutReflection> m_element_layout;
     ref<NativeTensorMarshall> m_d_in;
     ref<NativeTensorMarshall> m_d_out;
+    mutable CachedOffsets m_cached_offsets;
+
+    mutable ShaderOffset m_field_offset;
+    mutable uint32_t m_field_size;
+
+    /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure
+    /// This is the single source of truth for reading offsets from a cursor
+    static TensorFieldOffsets extract_tensor_field_offsets(ShaderCursor tensor_cursor);
+    static CachedOffsets extract_offsets(ShaderCursor cursor);
+
+    /// Fast path for writing NativeTensor fields using cached offsets
+    void write_shader_cursor_fields_fast(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        ShaderObject* shader_object,
+        void* base_address,
+        const TensorFieldOffsets& offsets,
+        NativeTensor* buffer,
+        nb::list read_back
+    ) const;
+
+    /// Fast path for writing tensor fields using cached offsets (internal helper)
+    void write_tensor_fields_fast(
+        ShaderObject* shader_object,
+        void* base_address,
+        const TensorFieldOffsets& offsets,
+        const ref<Buffer>& buffer,
+        const std::vector<int>& shape,
+        const std::vector<int>& strides,
+        int offset
+    ) const;
+
+    /// Fast path for writing PyTorch tensor fields using cached offsets
+    void write_pytorch_tensor_fields_fast(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        ShaderObject* shader_object,
+        const TensorFieldOffsets& offsets,
+        void* data_ptr,
+        const std::vector<int>& shape,
+        const std::vector<int>& strides,
+        int offset
+    ) const;
 
     void write_shader_cursor_fields(
         CallContext* context,
