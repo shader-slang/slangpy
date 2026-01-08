@@ -90,19 +90,20 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
     // Write the buffer storage.
     field["_data"] = buffer->storage();
 
-    // Write shape vector as an array of ints.
-    const std::vector<int>& shape_vec = buffer->shape().as_vector();
-    field["_shape"]
-        ._set_array_unsafe(&shape_vec[0], shape_vec.size() * 4, shape_vec.size(), TypeReflection::ScalarType::int32);
+    // Write shape vector as an array of ints (direct access, no temporary allocation).
+    const Shape& shape = buffer->shape();
+    field["_shape"]._set_array_unsafe(shape.data(), shape.size() * 4, shape.size(), TypeReflection::ScalarType::int32);
 
     // Generate and write strides vector, clearing strides to 0
     // for dimensions that are broadcast.
-    std::vector<int> strides_vec = buffer->strides().as_vector();
-    const std::vector<int>& transform = binding->transform().as_vector();
-    const std::vector<int>& call_shape = context->call_shape().as_vector();
+    const Shape& strides_shape = buffer->strides();
+    const Shape& transform = binding->transform();
+    const Shape& call_shape = context->call_shape();
+
+    std::vector<int> strides_vec(strides_shape.data(), strides_shape.data() + strides_shape.size());
     for (size_t i = 0; i < transform.size(); i++) {
         int csidx = transform[i];
-        if (call_shape[csidx] != shape_vec[i]) {
+        if (call_shape[csidx] != shape[i]) {
             strides_vec[i] = 0;
         }
     }
@@ -196,7 +197,7 @@ void NativeNumpyMarshall::write_shader_cursor_pre_dispatch(
         shape_vec.push_back((int)ndarray.shape(i));
     }
 
-    std::vector<int> vector_shape = binding->vector_type()->shape().as_vector();
+    const Shape& vector_shape = binding->vector_type()->shape();
     for (size_t i = 0; i < vector_shape.size(); i++) {
         int vs_size = vector_shape[vector_shape.size() - i - 1];
         int arr_size = shape_vec[shape_vec.size() - i - 1];
@@ -264,9 +265,10 @@ nb::object NativeNumpyMarshall::create_output(CallContext* context, NativeBoundV
         }
     );
 
-    std::vector<size_t> s(0, shape.size());
-    for (auto sd : shape.as_vector()) {
-        s.push_back(sd);
+    std::vector<size_t> s;
+    s.reserve(shape.size());
+    for (size_t i = 0; i < shape.size(); ++i) {
+        s.push_back(shape[i]);
     }
 
     auto ndarray = nb::ndarray<nb::numpy>(data, s.size(), s.data(), owner, nullptr, m_dtype);

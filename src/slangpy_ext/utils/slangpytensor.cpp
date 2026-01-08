@@ -63,6 +63,24 @@ namespace {
         return result;
     }
 
+    /// Overload accepting Shape directly (avoids temporary allocations)
+    std::vector<int> apply_broadcast_stride_zeroing(
+        const Shape& strides,
+        const Shape& shape,
+        const Shape& transform,
+        const Shape& call_shape
+    )
+    {
+        std::vector<int> result(strides.data(), strides.data() + strides.size());
+        for (size_t i = 0; i < transform.size(); i++) {
+            int csidx = transform[i];
+            if (call_shape[csidx] != shape[i]) {
+                result[i] = 0;
+            }
+        }
+        return result;
+    }
+
     /// Helper for writing single value to base address with offset
     template<typename T>
     void write_value_helper(void* base_address, size_t offset, const T& value)
@@ -552,13 +570,12 @@ void NativeTensorMarshall::write_native_tensor_fields(
 {
     SGL_UNUSED(read_back);
 
-    const std::vector<int>& shape_vec = tensor->shape().as_vector();
-    std::vector<int> strides_vec = apply_broadcast_stride_zeroing(
-        tensor->strides().as_vector(),
-        shape_vec,
-        binding->transform().as_vector(),
-        context->call_shape().as_vector()
-    );
+    const Shape& shape = tensor->shape();
+    std::vector<int> strides_vec
+        = apply_broadcast_stride_zeroing(tensor->strides(), shape, binding->transform(), context->call_shape());
+
+    // Convert shape to vector for write_tensor_fields_from_buffer
+    std::vector<int> shape_vec(shape.data(), shape.data() + shape.size());
 
     write_tensor_fields_from_buffer(
         shader_object,
@@ -582,12 +599,17 @@ void NativeTensorMarshall::write_torch_tensor_ref_fields(
     int offset
 ) const
 {
-    std::vector<int> strides = apply_broadcast_stride_zeroing(
-        strides_in,
-        shape,
-        binding->transform().as_vector(),
-        context->call_shape().as_vector()
+    // Convert Shape to vector for this legacy interface
+    std::vector<int> transform_vec(
+        binding->transform().data(),
+        binding->transform().data() + binding->transform().size()
     );
+    std::vector<int> call_shape_vec(
+        context->call_shape().data(),
+        context->call_shape().data() + context->call_shape().size()
+    );
+
+    std::vector<int> strides = apply_broadcast_stride_zeroing(strides_in, shape, transform_vec, call_shape_vec);
 
     write_tensor_fields_from_pointer(shader_object, offsets, data_ptr, shape, strides, offset);
 }

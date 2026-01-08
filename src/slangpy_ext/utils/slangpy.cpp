@@ -184,7 +184,7 @@ void NativeBoundVariableRuntime::populate_call_shape(
         }
 
         // Read the transform and call shape size.
-        const std::vector<int>& tf = m_transform.as_vector();
+        const Shape& tf = m_transform;
         size_t csl = call_shape.size();
 
         // Get the shape of the value. In the case of none-concrete types,
@@ -204,7 +204,7 @@ void NativeBoundVariableRuntime::populate_call_shape(
         }
 
         // Apply this shape to the overall call shape.
-        const std::vector<int>& shape = m_shape.as_vector();
+        const Shape& shape = m_shape;
         for (size_t i = 0; i < tf.size(); ++i) {
             int shape_dim = shape[i];
             int call_idx = tf[i];
@@ -474,17 +474,18 @@ nb::object NativeCallData::exec(
             nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
             kwargs["_result"] = output;
             unpacked_kwargs["_result"] = output;
-            std::vector<int> call_shape_vec = call_shape.as_vector();
+            std::vector<int> call_shape_vec(call_shape.data(), call_shape.data() + call_shape.size());
             rv_node->populate_call_shape(call_shape_vec, output, this);
         }
     }
 
-    std::vector<int> cs = call_shape.as_vector();
+    // Calculate strides from call_shape without allocating temporary vector
     std::vector<int> strides;
+    strides.reserve(call_shape.size());
     int current_stride = 1;
-    for (auto it = cs.rbegin(); it != cs.rend(); ++it) {
+    for (int i = (int)call_shape.size() - 1; i >= 0; --i) {
         strides.push_back(current_stride);
-        current_stride *= *it;
+        current_stride *= call_shape[i];
     }
     std::reverse(strides.begin(), strides.end());
 
@@ -492,23 +493,23 @@ nb::object NativeCallData::exec(
     std::vector<int> call_group_shape;
 
     if (m_call_group_shape.valid() && m_call_group_shape.size() > 0) {
-        // Similar to cs, this will be recieved with the first dimension
+        // Similar to call_shape, this will be recieved with the first dimension
         // as the right most element, ex: [..., z, y, x].
-        call_group_shape = m_call_group_shape.as_vector();
+        call_group_shape.assign(m_call_group_shape.data(), m_call_group_shape.data() + m_call_group_shape.size());
 
         // Verify that call_group_shape has valid dimensions and values.
         // Our check above should have already validated that
         // call_group_shape.size() > 0.
-        if (call_group_shape.size() > cs.size()) {
+        if (call_group_shape.size() > call_shape.size()) {
             throw std::runtime_error(
                 fmt::format(
                     "call_group_shape dimensionality ({}) must be <= call_shape dimensionality ({}). "
                     "call_group_shape cannot have more dimensions than call_shape.",
                     call_group_shape.size(),
-                    cs.size()
+                    call_shape.size()
                 )
             );
-        } else if (call_group_shape.size() < cs.size()) {
+        } else if (call_group_shape.size() < call_shape.size()) {
             // Call group shape size is less than the call shape size so we need to
             // pad the call group shape with 1's to account for the missing dimensions.
             // However, inserting at the front of the vector will be inefficient, so
@@ -519,12 +520,12 @@ nb::object NativeCallData::exec(
                     "Padding call_group_shape with {} leading 1's. "
                     "Consider specifying full dimensions for better performance.",
                     call_group_shape.size(),
-                    cs.size(),
-                    cs.size() - call_group_shape.size()
+                    call_shape.size(),
+                    call_shape.size() - call_group_shape.size()
                 );
             }
 
-            for (size_t i = 0; i < (cs.size() - call_group_shape.size()); ++i) {
+            for (size_t i = 0; i < (call_shape.size() - call_group_shape.size()); ++i) {
                 // Insert 1's for the dimensions we were not given
                 call_group_shape.insert(call_group_shape.begin(), 1);
             }
@@ -547,14 +548,14 @@ nb::object NativeCallData::exec(
         // We already know the size/dimensionality of all the shape and
         // stride vectors at this point. Use reserve() to preallocate
         // to the exact size required for efficiency.
-        call_group_shape.reserve(cs.size());
+        call_group_shape.reserve(call_shape.size());
 
         // Default to making the call group shape all 1's. This will force the
         // grid shape to be identical to the call shape giving us linear
         // dispatches by default when a call group shape is not specified.
         // In this case, conceptually all thread's have their own "group" even
         // though they will still be executed in groups of 32.
-        for (int i = 0; i < cs.size(); i++) {
+        for (size_t i = 0; i < call_shape.size(); i++) {
             call_group_shape.push_back(1);
         }
     }
@@ -581,12 +582,12 @@ nb::object NativeCallData::exec(
     short_vector<int, 32> call_grid_shape;
     short_vector<int, 32> aligned_call_shape;
     bool is_call_shape_unaligned = false;
-    for (int i = 0; i < cs.size(); i++) {
+    for (size_t i = 0; i < call_shape.size(); i++) {
         // When the call shape is not call group shape aligned, we will add some
         // padding to align up.
-        call_grid_shape.push_back((int)std::ceil((float)cs[i] / (float)call_group_shape[i]));
+        call_grid_shape.push_back((int)std::ceil((float)call_shape[i] / (float)call_group_shape[i]));
         aligned_call_shape.push_back(call_grid_shape.back() * call_group_shape[i]);
-        if (aligned_call_shape[i] != cs[i])
+        if (aligned_call_shape[i] != call_shape[i])
             is_call_shape_unaligned = true;
         total_threads *= aligned_call_shape.back();
     }
@@ -672,14 +673,14 @@ nb::object NativeCallData::exec(
             m_cached_call_data_offsets.field_size
         );
 
-        if (!cs.empty()) {
+        if (call_shape.size() > 0) {
             // Write arrays using cached offsets and direct memory access
             write_strided_array_helper(
                 base_address,
                 m_cached_call_data_offsets.call_dim.uniform_offset
                     - m_cached_call_data_offsets.field_offset.uniform_offset,
-                cs.data(),
-                cs.size(),
+                call_shape.data(),
+                call_shape.size(),
                 m_cached_call_data_offsets.array_stride
             );
 
