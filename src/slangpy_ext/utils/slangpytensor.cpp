@@ -105,33 +105,29 @@ NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_fi
 
 NativeTensorMarshall::CachedOffsets NativeTensorMarshall::extract_offsets(ShaderCursor field)
 {
-    // Check if we have a differentiated structure (with _primal field)
-    ShaderCursor primal_field = field.find_field("_primal");
     NativeTensorMarshall::CachedOffsets offsets;
 
+    ShaderCursor primal_field = field.find_field("_primal");
     if (!primal_field.is_valid()) {
-        // Flat structure - extract offsets directly from field
-        offsets.has_primal_field = false;
+        offsets.has_grad_fields = false;
         offsets.primal = extract_tensor_field_offsets(field);
     } else {
-        // Differentiated structure - extract offsets from _primal, _grad_in, _grad_out
-        offsets.has_primal_field = true;
-
-        // Primal offsets
+        offsets.has_grad_fields = true;
         offsets.primal = extract_tensor_field_offsets(primal_field);
 
-        // Grad_in offsets (if exists)
         ShaderCursor grad_in_field = field.find_field("_grad_in");
         if (grad_in_field.is_valid()) {
             offsets.grad_in = extract_tensor_field_offsets(grad_in_field);
         }
-
-        // Grad_out offsets (if exists)
         ShaderCursor grad_out_field = field.find_field("_grad_out");
         if (grad_out_field.is_valid()) {
             offsets.grad_out = extract_tensor_field_offsets(grad_out_field);
         }
     }
+
+    offsets.field_offset = field.offset();
+    offsets.field_size = (int)field.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
+
     return offsets;
 }
 
@@ -245,13 +241,11 @@ void NativeTensorMarshall::ensure_offsets_cached(ShaderCursor cursor, NativeBoun
 {
     if (!m_cached_offsets.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
-        m_cached_offsets.field_offset = field.offset();
-        m_cached_offsets.field_size = (int)field.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
         m_cached_offsets = extract_offsets(field);
     }
 }
 
-void NativeTensorMarshall::write_differentiated_tensor(
+void NativeTensorMarshall::write_native_tensor(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
     ShaderObject* shader_object,
@@ -263,9 +257,9 @@ void NativeTensorMarshall::write_differentiated_tensor(
     const ref<NativeTensor>& grad_in = primal_tensor->grad_in();
     const ref<NativeTensor>& grad_out = primal_tensor->grad_out();
 
-    if (!m_cached_offsets.has_primal_field) {
+    if (!m_cached_offsets.has_grad_fields) {
         // Flat structure - write directly to primal offsets
-        write_shader_cursor_fields_fast(
+        write_native_tensor_fields(
             context,
             binding,
             shader_object,
@@ -276,7 +270,7 @@ void NativeTensorMarshall::write_differentiated_tensor(
         );
     } else {
         // Differentiated structure - write to primal, grad_in, grad_out
-        write_shader_cursor_fields_fast(
+        write_native_tensor_fields(
             context,
             binding,
             shader_object,
@@ -288,7 +282,7 @@ void NativeTensorMarshall::write_differentiated_tensor(
 
         if (m_d_in && m_cached_offsets.grad_in.is_valid) {
             SGL_CHECK(grad_in, "Missing required input gradients");
-            write_shader_cursor_fields_fast(
+            write_native_tensor_fields(
                 context,
                 binding,
                 shader_object,
@@ -301,7 +295,7 @@ void NativeTensorMarshall::write_differentiated_tensor(
 
         if (m_d_out && m_cached_offsets.grad_out.is_valid) {
             SGL_CHECK(grad_out, "Missing required output gradients");
-            write_shader_cursor_fields_fast(
+            write_native_tensor_fields(
                 context,
                 binding,
                 shader_object,
@@ -314,7 +308,7 @@ void NativeTensorMarshall::write_differentiated_tensor(
     }
 }
 
-void NativeTensorMarshall::write_differentiated_pytorch_tensor(
+void NativeTensorMarshall::write_torch_tensor_ref(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
     ShaderObject* shader_object,
@@ -329,9 +323,9 @@ void NativeTensorMarshall::write_differentiated_pytorch_tensor(
     auto& pytorch_tensor = pytorch_tensor_opt.value();
 
     // Write primal tensor
-    if (!m_cached_offsets.has_primal_field) {
+    if (!m_cached_offsets.has_grad_fields) {
         // Flat structure - use primal offsets directly
-        write_pytorch_tensor_fields_fast(
+        write_torch_tensor_ref_fields(
             context,
             binding,
             shader_object,
@@ -343,7 +337,7 @@ void NativeTensorMarshall::write_differentiated_pytorch_tensor(
         );
     } else {
         // Differentiated structure - write primal
-        write_pytorch_tensor_fields_fast(
+        write_torch_tensor_ref_fields(
             context,
             binding,
             shader_object,
@@ -361,7 +355,7 @@ void NativeTensorMarshall::write_differentiated_pytorch_tensor(
             auto grad_in_tensor_opt = grad_in_ref->tensor();
             if (grad_in_tensor_opt.has_value()) {
                 auto& grad_in_tensor = grad_in_tensor_opt.value();
-                write_pytorch_tensor_fields_fast(
+                write_torch_tensor_ref_fields(
                     context,
                     binding,
                     shader_object,
@@ -381,7 +375,7 @@ void NativeTensorMarshall::write_differentiated_pytorch_tensor(
             auto grad_out_tensor_opt = grad_out_ref->tensor();
             if (grad_out_tensor_opt.has_value()) {
                 auto& grad_out_tensor = grad_out_tensor_opt.value();
-                write_pytorch_tensor_fields_fast(
+                write_torch_tensor_ref_fields(
                     context,
                     binding,
                     shader_object,
@@ -454,7 +448,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
         void* base_address = shader_object->reserve_data(m_cached_offsets.field_offset, m_cached_offsets.field_size);
 
         // Write the differentiated tensor structure
-        write_differentiated_tensor(context, binding, shader_object, base_address, primal, read_back);
+        write_native_tensor(context, binding, shader_object, base_address, primal, read_back);
 
         // Check for gradient aliasing issues
         const ref<NativeTensor>& grad_in = primal->grad_in();
@@ -476,35 +470,8 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
         if (pytorch_tensor_opt.has_value() && context->device()->type() == DeviceType::cuda) {
             // Set last_access to track read/write operations for autograd
             tensorref->set_last_access(binding->access());
-
-            // Validate tensor shape matches expected shape
-            auto& pytorch_tensor = pytorch_tensor_opt.value();
-            std::vector<int> tensor_shape = extract_shape(pytorch_tensor);
-            const Shape& expected_shape = binding->vector_type()->shape();
-            const std::vector<int>& expected_shape_vec = expected_shape.as_vector();
-
-            // Check trailing dimensions match
-            if (expected_shape_vec.size() > 0) {
-                size_t start_idx = tensor_shape.size() - expected_shape_vec.size();
-                for (size_t i = 0; i < expected_shape_vec.size(); i++) {
-                    int expected_dim = expected_shape_vec[i];
-                    int tensor_dim = tensor_shape[start_idx + i];
-                    // -1 means any size is allowed
-                    if (expected_dim != -1 && tensor_dim != expected_dim) {
-                        throw nb::value_error(
-                            fmt::format(
-                                "Tensor shape ({}) does not match expected shape ({})",
-                                fmt::join(tensor_shape, ", "),
-                                fmt::join(expected_shape_vec, ", ")
-                            )
-                                .c_str()
-                        );
-                    }
-                }
-            }
-
             ShaderObject* shader_object = cursor.shader_object();
-            write_differentiated_pytorch_tensor(context, binding, shader_object, tensorref);
+            write_torch_tensor_ref(context, binding, shader_object, tensorref);
             return;
         }
     }
@@ -513,7 +480,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     NativeMarshall::write_shader_cursor_pre_dispatch(context, binding, cursor, value, read_back);
 }
 
-void NativeTensorMarshall::write_tensor_fields_fast_buffer(
+void NativeTensorMarshall::write_tensor_fields_from_buffer(
     ShaderObject* shader_object,
     void* base_address,
     const TensorFieldOffsets& offsets,
@@ -525,20 +492,15 @@ void NativeTensorMarshall::write_tensor_fields_fast_buffer(
 {
     // For CUDA, we need to use device pointer instead of buffer binding
     if (shader_object->device()->type() == DeviceType::cuda) {
-        // Get device address and set as pointer
-        // Note: offset is in elements, need to multiply by struct_size to get byte offset
-        DeviceAddress address = buffer->device_address() + static_cast<DeviceAddress>(offset) * buffer->struct_size();
         write_value_helper(
             base_address,
             offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
-            address
+            buffer->device_address()
         );
     } else {
-        // For other backends, use buffer binding
         shader_object->set_buffer(offsets.data, buffer);
     }
 
-    // Write shape, strides, and offset
     write_strided_array_helper(
         base_address,
         offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
@@ -562,7 +524,7 @@ void NativeTensorMarshall::write_tensor_fields_fast_buffer(
     );
 }
 
-void NativeTensorMarshall::write_tensor_fields_fast_pointer(
+void NativeTensorMarshall::write_tensor_fields_from_pointer(
     ShaderObject* shader_object,
     const TensorFieldOffsets& offsets,
     void* data_ptr,
@@ -571,50 +533,45 @@ void NativeTensorMarshall::write_tensor_fields_fast_pointer(
     int offset
 ) const
 {
-    // Write raw pointer directly (for PyTorch tensors)
-    uint64_t ptr_value = reinterpret_cast<uint64_t>(data_ptr);
-    shader_object->set_data(offsets.data, &ptr_value, sizeof(uint64_t));
-
-    // Write shape, strides, and offset
+    DeviceAddress address = reinterpret_cast<DeviceAddress>(data_ptr);
+    shader_object->set_data(offsets.data, &address, sizeof(DeviceAddress));
     shader_object->set_data(offsets.shape, shape.data(), shape.size() * sizeof(int));
     shader_object->set_data(offsets.strides, strides.data(), strides.size() * sizeof(int));
     shader_object->set_data(offsets.offset, &offset, sizeof(int));
 }
 
-void NativeTensorMarshall::write_shader_cursor_fields_fast(
+void NativeTensorMarshall::write_native_tensor_fields(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
     ShaderObject* shader_object,
     void* base_address,
     const TensorFieldOffsets& offsets,
-    NativeTensor* buffer,
+    NativeTensor* tensor,
     nb::list read_back
 ) const
 {
     SGL_UNUSED(read_back);
 
-    // Apply broadcast stride zeroing for dimensions that are broadcast
-    const std::vector<int>& shape_vec = buffer->shape().as_vector();
+    const std::vector<int>& shape_vec = tensor->shape().as_vector();
     std::vector<int> strides_vec = apply_broadcast_stride_zeroing(
-        buffer->strides().as_vector(),
+        tensor->strides().as_vector(),
         shape_vec,
         binding->transform().as_vector(),
         context->call_shape().as_vector()
     );
 
-    // Fast path: write directly using cached offsets
-    write_tensor_fields_fast_buffer(
+    write_tensor_fields_from_buffer(
         shader_object,
         base_address,
         offsets,
-        buffer->storage(),
+        tensor->storage(),
         shape_vec,
         strides_vec,
-        buffer->offset()
+        tensor->offset()
     );
 }
 
-void NativeTensorMarshall::write_pytorch_tensor_fields_fast(
+void NativeTensorMarshall::write_torch_tensor_ref_fields(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
     ShaderObject* shader_object,
@@ -625,7 +582,6 @@ void NativeTensorMarshall::write_pytorch_tensor_fields_fast(
     int offset
 ) const
 {
-    // Apply broadcast stride zeroing
     std::vector<int> strides = apply_broadcast_stride_zeroing(
         strides_in,
         shape,
@@ -633,8 +589,7 @@ void NativeTensorMarshall::write_pytorch_tensor_fields_fast(
         context->call_shape().as_vector()
     );
 
-    // Use the helper for raw pointers
-    write_tensor_fields_fast_pointer(shader_object, offsets, data_ptr, shape, strides, offset);
+    write_tensor_fields_from_pointer(shader_object, offsets, data_ptr, shape, strides, offset);
 }
 
 void NativeTensorMarshall::read_calldata(
