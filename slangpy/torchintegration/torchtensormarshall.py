@@ -127,13 +127,19 @@ class TensorRefMarshall(TensorMarshall):
         if context.device.info.type != DeviceType.cuda:
 
             data_type = _torch_to_data_type[self.torch_dtype]
-            data.interop_buffer = get_storage(context, primal.numel(), primal.element_size())
 
-            interop_tensor = cast(
-                torch.Tensor,
-                data.interop_buffer.to_torch(type=data_type, shape=shape, strides=strides),
-            )
-            interop_tensor.copy_(primal)
+            # For empty tensors, create a minimal placeholder buffer
+            # Shaders still need a valid buffer binding even if no data is accessed
+            element_count = max(1, primal.numel())
+            data.interop_buffer = get_storage(context, element_count, primal.element_size())
+
+            # Only copy data if tensor has elements
+            if primal.numel() > 0:
+                interop_tensor = cast(
+                    torch.Tensor,
+                    data.interop_buffer.to_torch(type=data_type, shape=shape, strides=strides),
+                )
+                interop_tensor.copy_(primal)
 
             primal_calldata = {
                 "buffer": data.interop_buffer,
@@ -183,15 +189,18 @@ class TensorRefMarshall(TensorMarshall):
             assert data.interop_buffer is not None
             primal = cast(torch.Tensor, data.tensor)  # type: ignore
 
-            shape = tuple(primal.shape)
-            strides = primal.stride()
-            data_type = _torch_to_data_type[self.torch_dtype]
-            interop_tensor = cast(
-                torch.Tensor,
-                data.interop_buffer.to_torch(type=data_type, shape=shape, strides=strides),
-            )
+            # Only copy data back for non-empty tensors
+            if primal.numel() > 0:
+                shape = tuple(primal.shape)
+                strides = primal.stride()
+                data_type = _torch_to_data_type[self.torch_dtype]
+                interop_tensor = cast(
+                    torch.Tensor,
+                    data.interop_buffer.to_torch(type=data_type, shape=shape, strides=strides),
+                )
 
-            primal.untyped_storage().copy_(interop_tensor.untyped_storage())
+                primal.untyped_storage().copy_(interop_tensor.untyped_storage())
+
             data.interop_buffer = None
 
             if self.d_in is not None:
