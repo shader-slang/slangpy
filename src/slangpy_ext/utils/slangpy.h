@@ -795,6 +795,18 @@ public:
     }
 
 private:
+    /// Cached shader offsets for call data fields
+    struct CallDataOffsets {
+        ShaderOffset call_dim;
+        ShaderOffset grid_stride;
+        ShaderOffset grid_dim;
+        ShaderOffset thread_count;
+        ShaderOffset field_offset; // Base offset of the call_data structure
+        uint32_t field_size = 0;   // Total size of the call_data in uniform data
+        int array_stride = 0;      // Stride for array elements
+        bool is_valid = false;     // Whether offsets have been initialized
+    };
+
     ref<Device> m_device;
     ref<Pipeline> m_pipeline;
     ref<ShaderTable> m_shader_table;
@@ -808,6 +820,7 @@ private:
     Shape m_call_group_shape;
     bool m_torch_integration{false};
     bool m_torch_autograd{false};
+    mutable CallDataOffsets m_cached_call_data_offsets;
 
     nb::object
     exec(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);

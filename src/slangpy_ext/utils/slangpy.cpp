@@ -42,6 +42,33 @@ struct GcHelper<slangpy::NativeCallRuntimeOptions> {
 
 namespace sgl::slangpy {
 
+namespace {
+    /// Helper for writing single value to base address with offset
+    template<typename T>
+    void write_value_helper(void* base_address, size_t offset, const T& value)
+    {
+        T* ptr = reinterpret_cast<T*>(static_cast<uint8_t*>(base_address) + offset);
+        *ptr = value;
+    }
+
+    /// Helper for writing strided array to base address with offset
+    template<typename T>
+    void write_strided_array_helper(
+        void* base_address,
+        size_t offset,
+        const T* data,
+        size_t element_count,
+        size_t element_stride
+    )
+    {
+        uint8_t* dest_ptr = static_cast<uint8_t*>(base_address) + offset;
+        for (size_t i = 0; i < element_count; i++) {
+            T* ptr = reinterpret_cast<T*>(dest_ptr + i * element_stride);
+            *ptr = data[i];
+        }
+    }
+} // anonymous namespace
+
 // Implementation of to_string methods
 std::string NativeSlangType::to_string() const
 {
@@ -620,24 +647,67 @@ nb::object NativeCallData::exec(
         if (call_data_cursor.is_reference())
             call_data_cursor = call_data_cursor.dereference();
 
+        // Extract and cache offsets on first call
+        if (!m_cached_call_data_offsets.is_valid) {
+            m_cached_call_data_offsets.call_dim = call_data_cursor["_call_dim"].offset();
+            m_cached_call_data_offsets.grid_stride = call_data_cursor["_grid_stride"].offset();
+            m_cached_call_data_offsets.grid_dim = call_data_cursor["_grid_dim"].offset();
+            m_cached_call_data_offsets.thread_count = call_data_cursor["_thread_count"].offset();
+            m_cached_call_data_offsets.field_offset = call_data_cursor.offset();
+            m_cached_call_data_offsets.field_size
+                = (uint32_t)call_data_cursor.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
+            m_cached_call_data_offsets.array_stride
+                = (int)call_data_cursor["_call_dim"].slang_type_layout()->getElementStride(
+                    SLANG_PARAMETER_CATEGORY_UNIFORM
+                );
+            m_cached_call_data_offsets.is_valid = true;
+        }
+
+        // Reserve memory block for all call data fields
+        ShaderObject* shader_object = call_data_cursor.shader_object();
+        void* base_address = shader_object->reserve_data(
+            m_cached_call_data_offsets.field_offset,
+            m_cached_call_data_offsets.field_size
+        );
+
         if (!cs.empty()) {
-            call_data_cursor["_call_dim"]
-                ._set_array_unsafe(&cs[0], cs.size() * 4, cs.size(), TypeReflection::ScalarType::int32);
-            call_data_cursor["_grid_stride"]._set_array_unsafe(
-                &call_grid_strides[0],
-                call_grid_strides.size() * 4,
-                call_grid_strides.size(),
-                TypeReflection::ScalarType::int32
+            // Write arrays using cached offsets and direct memory access
+            write_strided_array_helper(
+                base_address,
+                m_cached_call_data_offsets.call_dim.uniform_offset
+                    - m_cached_call_data_offsets.field_offset.uniform_offset,
+                cs.data(),
+                cs.size(),
+                m_cached_call_data_offsets.array_stride
             );
-            call_data_cursor["_grid_dim"]._set_array_unsafe(
-                &call_grid_shape[0],
-                call_grid_shape.size() * 4,
+
+            write_strided_array_helper(
+                base_address,
+                m_cached_call_data_offsets.grid_stride.uniform_offset
+                    - m_cached_call_data_offsets.field_offset.uniform_offset,
+                call_grid_strides.data(),
+                call_grid_strides.size(),
+                m_cached_call_data_offsets.array_stride
+            );
+
+            write_strided_array_helper(
+                base_address,
+                m_cached_call_data_offsets.grid_dim.uniform_offset
+                    - m_cached_call_data_offsets.field_offset.uniform_offset,
+                call_grid_shape.data(),
                 call_grid_shape.size(),
-                TypeReflection::ScalarType::int32
+                m_cached_call_data_offsets.array_stride
             );
         }
 
-        call_data_cursor["_thread_count"] = uint3(total_threads, 1, 1);
+        // Write thread count
+        uint3 thread_count_value(total_threads, 1, 1);
+        write_value_helper(
+            base_address,
+            m_cached_call_data_offsets.thread_count.uniform_offset
+                - m_cached_call_data_offsets.field_offset.uniform_offset,
+            thread_count_value
+        );
 
         m_runtime->write_shader_cursor_pre_dispatch(
             context,
