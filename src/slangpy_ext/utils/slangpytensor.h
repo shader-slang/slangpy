@@ -140,10 +140,12 @@ private:
 
     /// Cached offsets for all tensor variants (primal, grad_in, grad_out)
     struct CachedOffsets {
-        TensorFieldOffsets primal;
-        TensorFieldOffsets grad_in;
-        TensorFieldOffsets grad_out;
-        bool has_primal_field = false; // Whether tensor uses _primal wrapper
+        TensorFieldOffsets primal;     // Offsets for primal tensor fields
+        TensorFieldOffsets grad_in;    // Offsets for gradient input fields (if present)
+        TensorFieldOffsets grad_out;   // Offsets for gradient output fields (if present)
+        bool has_primal_field = false; // Whether tensor uses _primal wrapper (differentiated mode)
+        ShaderOffset field_offset;     // Base offset of the entire field structure
+        uint32_t field_size = 0;       // Total size of the field in uniform data
     };
 
     int m_dims;
@@ -154,15 +156,53 @@ private:
     ref<NativeTensorMarshall> m_d_out;
     mutable CachedOffsets m_cached_offsets;
 
-    mutable ShaderOffset m_field_offset;
-    mutable uint32_t m_field_size;
+    //
+    // Helper Methods for Offset Extraction and Caching
+    //
 
     /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure
     /// This is the single source of truth for reading offsets from a cursor
     static TensorFieldOffsets extract_tensor_field_offsets(ShaderCursor tensor_cursor);
+
+    /// Extract all cached offsets (primal, grad_in, grad_out) from a field cursor
     static CachedOffsets extract_offsets(ShaderCursor cursor);
 
-    /// Fast path for writing NativeTensor fields using cached offsets
+    /// Initialize cached offsets if not already done
+    /// This method is called on the first dispatch to cache reflection data for subsequent calls
+    void ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;
+
+    //
+    // High-Level Write Methods
+    //
+
+    /// Write differentiated tensor structure (handles primal, grad_in, grad_out)
+    /// This method handles both flat and differentiated tensor layouts
+    void write_differentiated_tensor(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        ShaderObject* shader_object,
+        void* base_address,
+        NativeTensor* primal_tensor,
+        nb::list read_back
+    ) const;
+
+    /// Write differentiated PyTorch tensor structure (handles primal, grad_in, grad_out)
+    /// This method handles both flat and differentiated tensor layouts for PyTorch tensors
+    void write_differentiated_pytorch_tensor(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        ShaderObject* shader_object,
+        TensorRef* tensorref
+    ) const;
+
+    //
+    // Core Field Writing Methods (Fast Path)
+    //
+
+    /// Write NativeTensor fields using pre-cached offsets
+    /// Uses direct memory writes with pre-computed offsets for maximum performance
+    /// Write NativeTensor fields using pre-cached offsets
+    /// Uses direct memory writes with pre-computed offsets for maximum performance
     void write_shader_cursor_fields_fast(
         CallContext* context,
         NativeBoundVariableRuntime* binding,
@@ -173,8 +213,9 @@ private:
         nb::list read_back
     ) const;
 
-    /// Fast path for writing tensor fields using cached offsets (internal helper)
-    void write_tensor_fields_fast(
+    /// Write tensor fields using pre-cached offsets (Buffer version)
+    /// For non-CUDA backends, binds the buffer; for CUDA, writes the device pointer
+    void write_tensor_fields_fast_buffer(
         ShaderObject* shader_object,
         void* base_address,
         const TensorFieldOffsets& offsets,
@@ -184,7 +225,19 @@ private:
         int offset
     ) const;
 
-    /// Fast path for writing PyTorch tensor fields using cached offsets
+    /// Write tensor fields using pre-cached offsets (Raw pointer version)
+    /// Used for PyTorch tensors where we write the raw device pointer directly
+    void write_tensor_fields_fast_pointer(
+        ShaderObject* shader_object,
+        const TensorFieldOffsets& offsets,
+        void* data_ptr,
+        const std::vector<int>& shape,
+        const std::vector<int>& strides,
+        int offset
+    ) const;
+
+    /// Write PyTorch tensor fields using pre-cached offsets
+    /// Handles broadcast stride zeroing and delegates to write_tensor_fields_fast_pointer
     void write_pytorch_tensor_fields_fast(
         CallContext* context,
         NativeBoundVariableRuntime* binding,
@@ -194,22 +247,6 @@ private:
         const std::vector<int>& shape,
         const std::vector<int>& strides,
         int offset
-    ) const;
-
-    void write_shader_cursor_fields(
-        CallContext* context,
-        NativeBoundVariableRuntime* binding,
-        ShaderCursor field,
-        NativeTensor* value,
-        nb::list read_back
-    ) const;
-
-    void write_pytorch_tensor_fields(
-        CallContext* context,
-        NativeBoundVariableRuntime* binding,
-        ShaderCursor field,
-        TensorRef* tensorref,
-        nb::list read_back
     ) const;
 };
 

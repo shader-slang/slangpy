@@ -43,6 +43,50 @@ namespace {
         }
         return strides;
     }
+
+    /// Apply broadcast stride zeroing for dimensions that are broadcast
+    /// Returns a new strides vector with broadcast dimensions set to 0
+    std::vector<int> apply_broadcast_stride_zeroing(
+        const std::vector<int>& strides,
+        const std::vector<int>& shape,
+        const std::vector<int>& transform,
+        const std::vector<int>& call_shape
+    )
+    {
+        std::vector<int> result = strides;
+        for (size_t i = 0; i < transform.size(); i++) {
+            int csidx = transform[i];
+            if (call_shape[csidx] != shape[i]) {
+                result[i] = 0;
+            }
+        }
+        return result;
+    }
+
+    /// Helper for writing single value to base address with offset
+    template<typename T>
+    void write_value_helper(void* base_address, size_t offset, const T& value)
+    {
+        T* ptr = reinterpret_cast<T*>(static_cast<uint8_t*>(base_address) + offset);
+        *ptr = value;
+    }
+
+    /// Helper for writing strided array to base address with offset
+    template<typename T>
+    void write_strided_array_helper(
+        void* base_address,
+        size_t offset,
+        const T* data,
+        size_t element_count,
+        size_t element_stride
+    )
+    {
+        uint8_t* dest_ptr = static_cast<uint8_t*>(base_address) + offset;
+        for (size_t i = 0; i < element_count; i++) {
+            T* ptr = reinterpret_cast<T*>(dest_ptr + i * element_stride);
+            *ptr = data[i];
+        }
+    }
 } // anonymous namespace
 
 
@@ -197,16 +241,86 @@ Shape NativeTensorMarshall::get_shape(nb::object data) const
     return buffer->shape();
 }
 
-void NativeTensorMarshall::write_pytorch_tensor_fields(
+void NativeTensorMarshall::ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const
+{
+    if (!m_cached_offsets.primal.is_valid) {
+        ShaderCursor field = cursor[binding->variable_name()];
+        m_cached_offsets.field_offset = field.offset();
+        m_cached_offsets.field_size = (int)field.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
+        m_cached_offsets = extract_offsets(field);
+    }
+}
+
+void NativeTensorMarshall::write_differentiated_tensor(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
-    ShaderCursor field,
-    TensorRef* tensorref,
+    ShaderObject* shader_object,
+    void* base_address,
+    NativeTensor* primal_tensor,
     nb::list read_back
 ) const
 {
-    SGL_UNUSED(read_back);
+    const ref<NativeTensor>& grad_in = primal_tensor->grad_in();
+    const ref<NativeTensor>& grad_out = primal_tensor->grad_out();
 
+    if (!m_cached_offsets.has_primal_field) {
+        // Flat structure - write directly to primal offsets
+        write_shader_cursor_fields_fast(
+            context,
+            binding,
+            shader_object,
+            base_address,
+            m_cached_offsets.primal,
+            primal_tensor,
+            read_back
+        );
+    } else {
+        // Differentiated structure - write to primal, grad_in, grad_out
+        write_shader_cursor_fields_fast(
+            context,
+            binding,
+            shader_object,
+            base_address,
+            m_cached_offsets.primal,
+            primal_tensor,
+            read_back
+        );
+
+        if (m_d_in && m_cached_offsets.grad_in.is_valid) {
+            SGL_CHECK(grad_in, "Missing required input gradients");
+            write_shader_cursor_fields_fast(
+                context,
+                binding,
+                shader_object,
+                base_address,
+                m_cached_offsets.grad_in,
+                grad_in.get(),
+                read_back
+            );
+        }
+
+        if (m_d_out && m_cached_offsets.grad_out.is_valid) {
+            SGL_CHECK(grad_out, "Missing required output gradients");
+            write_shader_cursor_fields_fast(
+                context,
+                binding,
+                shader_object,
+                base_address,
+                m_cached_offsets.grad_out,
+                grad_out.get(),
+                read_back
+            );
+        }
+    }
+}
+
+void NativeTensorMarshall::write_differentiated_pytorch_tensor(
+    CallContext* context,
+    NativeBoundVariableRuntime* binding,
+    ShaderObject* shader_object,
+    TensorRef* tensorref
+) const
+{
     // Extract PyTorch tensor from TensorRef
     auto pytorch_tensor_opt = tensorref->tensor();
     if (!pytorch_tensor_opt.has_value()) {
@@ -214,212 +328,81 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
     }
     auto& pytorch_tensor = pytorch_tensor_opt.value();
 
-    // Set last_access to track read/write operations for autograd
-    // This is critical for PyTorch's autograd system to identify input/output tensors
-    tensorref->set_last_access(binding->access());
-
-    // Validation checks
-    SGL_CHECK(pytorch_tensor.data() != nullptr, "PyTorch tensor has null data pointer");
-
-    // Validate tensor shape matches expected shape
-    std::vector<int> tensor_shape = extract_shape(pytorch_tensor);
-    const Shape& expected_shape = binding->vector_type()->shape();
-    const std::vector<int>& expected_shape_vec = expected_shape.as_vector();
-
-    // Check trailing dimensions match (like Python: shape[-len(expected):])
-    if (expected_shape_vec.size() > 0) {
-        size_t start_idx = tensor_shape.size() - expected_shape_vec.size();
-        for (size_t i = 0; i < expected_shape_vec.size(); i++) {
-            int expected_dim = expected_shape_vec[i];
-            int tensor_dim = tensor_shape[start_idx + i];
-            // -1 means any size is allowed
-            if (expected_dim != -1 && tensor_dim != expected_dim) {
-                throw nb::value_error(
-                    fmt::format(
-                        "Tensor shape ({}) does not match expected shape ({})",
-                        fmt::join(tensor_shape, ", "),
-                        fmt::join(expected_shape_vec, ", ")
-                    )
-                        .c_str()
-                );
-            }
-        }
-    }
-
-    // Check if we can use the fast path with cached offsets
-    if (m_cached_offsets.primal.is_valid) {
-        ShaderObject* shader_object = field.shader_object();
-
-        // Write primal tensor using fast path
-        if (!m_cached_offsets.has_primal_field) {
-            // Flat structure - use primal offsets directly
-            write_pytorch_tensor_fields_fast(
-                context,
-                binding,
-                shader_object,
-                m_cached_offsets.primal,
-                pytorch_tensor.data(),
-                extract_shape(pytorch_tensor),
-                extract_strides(pytorch_tensor),
-                0
-            );
-        } else {
-            // Differentiated structure - write primal
-            write_pytorch_tensor_fields_fast(
-                context,
-                binding,
-                shader_object,
-                m_cached_offsets.primal,
-                pytorch_tensor.data(),
-                extract_shape(pytorch_tensor),
-                extract_strides(pytorch_tensor),
-                0
-            );
-
-            // Handle grad_in
-            if (m_d_in && m_cached_offsets.grad_in.is_valid) {
-                ref<TensorRef> grad_in_ref = tensorref->grad_in();
-                SGL_CHECK(grad_in_ref, "Missing required input gradients");
-                auto grad_in_tensor_opt = grad_in_ref->tensor();
-                if (grad_in_tensor_opt.has_value()) {
-                    auto& grad_in_tensor = grad_in_tensor_opt.value();
-                    write_pytorch_tensor_fields_fast(
-                        context,
-                        binding,
-                        shader_object,
-                        m_cached_offsets.grad_in,
-                        grad_in_tensor.data(),
-                        extract_shape(grad_in_tensor),
-                        extract_strides(grad_in_tensor),
-                        0
-                    );
-                }
-            }
-
-            // Handle grad_out
-            if (m_d_out && m_cached_offsets.grad_out.is_valid) {
-                ref<TensorRef> grad_out_ref = tensorref->grad_out();
-                SGL_CHECK(grad_out_ref, "Missing required output gradients");
-                auto grad_out_tensor_opt = grad_out_ref->tensor();
-                if (grad_out_tensor_opt.has_value()) {
-                    auto& grad_out_tensor = grad_out_tensor_opt.value();
-                    write_pytorch_tensor_fields_fast(
-                        context,
-                        binding,
-                        shader_object,
-                        m_cached_offsets.grad_out,
-                        grad_out_tensor.data(),
-                        extract_shape(grad_out_tensor),
-                        extract_strides(grad_out_tensor),
-                        0
-                    );
-                }
-            }
-        }
-        return;
-    }
-
-    // Fallback to cursor-based approach (original code)
-    // Lambda helper for writing tensor data
-    auto write_data = [&](ShaderCursor cursor,
-                          void* data_ptr,
-                          const std::vector<int>& shape,
-                          const std::vector<int>& strides_in,
-                          int offset)
-    {
-        // Write buffer pointer
-        cursor["_data"].set_pointer(reinterpret_cast<uint64_t>(data_ptr));
-
-        // Write shape
-        cursor["_shape"]._set_array_unsafe(
-            shape.empty() ? nullptr : &shape[0],
-            shape.size() * 4,
-            shape.size(),
-            TypeReflection::ScalarType::int32
-        );
-
-        // Apply broadcast stride zeroing
-        std::vector<int> strides = strides_in;
-        const std::vector<int>& transform = binding->transform().as_vector();
-        const std::vector<int>& call_shape = context->call_shape().as_vector();
-        for (size_t i = 0; i < transform.size(); i++) {
-            int csidx = transform[i];
-            if (call_shape[csidx] != shape[i]) {
-                strides[i] = 0;
-            }
-        }
-
-        // Write layout
-        cursor["_strides"]._set_array_unsafe(
-            strides.empty() ? nullptr : &strides[0],
-            strides.size() * 4,
-            strides.size(),
-            TypeReflection::ScalarType::int32
-        );
-        cursor["_offset"] = offset;
-    };
-
     // Write primal tensor
-    ShaderCursor primal_field = field.find_field("_primal");
-    if (!primal_field.is_valid()) {
-        write_data(
-            field,
+    if (!m_cached_offsets.has_primal_field) {
+        // Flat structure - use primal offsets directly
+        write_pytorch_tensor_fields_fast(
+            context,
+            binding,
+            shader_object,
+            m_cached_offsets.primal,
             pytorch_tensor.data(),
             extract_shape(pytorch_tensor),
             extract_strides(pytorch_tensor),
-            0 // offset is 0 for direct tensor access
+            0
         );
     } else {
-        write_data(
-            primal_field,
+        // Differentiated structure - write primal
+        write_pytorch_tensor_fields_fast(
+            context,
+            binding,
+            shader_object,
+            m_cached_offsets.primal,
             pytorch_tensor.data(),
             extract_shape(pytorch_tensor),
             extract_strides(pytorch_tensor),
-            0 // offset is 0 for direct tensor access
+            0
         );
 
         // Handle grad_in
-        if (m_d_in) {
-            ShaderCursor grad_in_field = field.find_field("_grad_in");
-            if (grad_in_field.is_valid()) {
-                ref<TensorRef> grad_in_ref = tensorref->grad_in();
-                SGL_CHECK(grad_in_ref, "Missing required input gradients");
-                auto grad_in_tensor_opt = grad_in_ref->tensor();
-                if (grad_in_tensor_opt.has_value()) {
-                    auto& grad_in_tensor = grad_in_tensor_opt.value();
-                    write_data(
-                        grad_in_field,
-                        grad_in_tensor.data(),
-                        extract_shape(grad_in_tensor),
-                        extract_strides(grad_in_tensor),
-                        0 // offset is 0 for direct tensor access
-                    );
-                }
+        if (m_d_in && m_cached_offsets.grad_in.is_valid) {
+            ref<TensorRef> grad_in_ref = tensorref->grad_in();
+            SGL_CHECK(grad_in_ref, "Missing required input gradients");
+            auto grad_in_tensor_opt = grad_in_ref->tensor();
+            if (grad_in_tensor_opt.has_value()) {
+                auto& grad_in_tensor = grad_in_tensor_opt.value();
+                write_pytorch_tensor_fields_fast(
+                    context,
+                    binding,
+                    shader_object,
+                    m_cached_offsets.grad_in,
+                    grad_in_tensor.data(),
+                    extract_shape(grad_in_tensor),
+                    extract_strides(grad_in_tensor),
+                    0
+                );
             }
         }
 
         // Handle grad_out
-        if (m_d_out) {
-            ShaderCursor grad_out_field = field.find_field("_grad_out");
-            if (grad_out_field.is_valid()) {
-                ref<TensorRef> grad_out_ref = tensorref->grad_out();
-                SGL_CHECK(grad_out_ref, "Missing required output gradients");
-                auto grad_out_tensor_opt = grad_out_ref->tensor();
-                if (grad_out_tensor_opt.has_value()) {
-                    auto& grad_out_tensor = grad_out_tensor_opt.value();
-                    write_data(
-                        grad_out_field,
-                        grad_out_tensor.data(),
-                        extract_shape(grad_out_tensor),
-                        extract_strides(grad_out_tensor),
-                        0 // offset is 0 for direct tensor access
-                    );
-                }
+        if (m_d_out && m_cached_offsets.grad_out.is_valid) {
+            ref<TensorRef> grad_out_ref = tensorref->grad_out();
+            SGL_CHECK(grad_out_ref, "Missing required output gradients");
+            auto grad_out_tensor_opt = grad_out_ref->tensor();
+            if (grad_out_tensor_opt.has_value()) {
+                auto& grad_out_tensor = grad_out_tensor_opt.value();
+                write_pytorch_tensor_fields_fast(
+                    context,
+                    binding,
+                    shader_object,
+                    m_cached_offsets.grad_out,
+                    grad_out_tensor.data(),
+                    extract_shape(grad_out_tensor),
+                    extract_strides(grad_out_tensor),
+                    0
+                );
             }
         }
     }
 }
 
+/**
+ * Write tensor data to shader uniforms using pre-cached reflection offsets.
+ * This is the optimized path that avoids repeated shader cursor navigation.
+ *
+ * The offsets are cached on first call and reused for subsequent calls.
+ * This assumes the shader structure layout remains constant across calls.
+ */
 void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
@@ -429,12 +412,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
 ) const
 {
     // Initialize cached offsets on first call
-    if (!m_cached_offsets.primal.is_valid) {
-        ShaderCursor field = cursor[binding->variable_name()];
-        m_field_offset = field.offset();
-        m_field_size = (int)field.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
-        m_cached_offsets = extract_offsets(cursor[binding->variable_name()]);
-    }
+    ensure_offsets_cached(cursor, binding);
 
 #if 0
     // Validate offsets on future calls
@@ -469,96 +447,18 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     }
 #endif
 
-    // The native tensor marshall can be inherited for other types, so
-    // we check if we have a native tensor, and if not revert to the
-    // base class implementation.
+    // Try NativeTensor path
     NativeTensor* primal;
     if (nb::try_cast(value, primal)) {
+        ShaderObject* shader_object = cursor.shader_object();
+        void* base_address = shader_object->reserve_data(m_cached_offsets.field_offset, m_cached_offsets.field_size);
+
+        // Write the differentiated tensor structure
+        write_differentiated_tensor(context, binding, shader_object, base_address, primal, read_back);
+
+        // Check for gradient aliasing issues
         const ref<NativeTensor>& grad_in = primal->grad_in();
         const ref<NativeTensor>& grad_out = primal->grad_out();
-
-        // Use fast path when offsets are cached
-        if (m_cached_offsets.primal.is_valid) {
-            ShaderObject* shader_object = cursor.shader_object();
-            void* base_address = shader_object->reserve_data(m_field_offset, m_field_size);
-
-            if (!m_cached_offsets.has_primal_field) {
-                // Flat structure - write directly to primal offsets
-                write_shader_cursor_fields_fast(
-                    context,
-                    binding,
-                    shader_object,
-                    base_address,
-                    m_cached_offsets.primal,
-                    primal,
-                    read_back
-                );
-            } else {
-                // Differentiated structure - write to primal, grad_in, grad_out
-                write_shader_cursor_fields_fast(
-                    context,
-                    binding,
-                    shader_object,
-                    base_address,
-                    m_cached_offsets.primal,
-                    primal,
-                    read_back
-                );
-
-                if (m_d_in && m_cached_offsets.grad_in.is_valid) {
-                    SGL_CHECK(grad_in, "Missing required input gradients");
-                    write_shader_cursor_fields_fast(
-                        context,
-                        binding,
-                        shader_object,
-                        base_address,
-                        m_cached_offsets.grad_in,
-                        grad_in.get(),
-                        read_back
-                    );
-                }
-
-                if (m_d_out && m_cached_offsets.grad_out.is_valid) {
-                    SGL_CHECK(grad_out, "Missing required output gradients");
-                    write_shader_cursor_fields_fast(
-                        context,
-                        binding,
-                        shader_object,
-                        base_address,
-                        m_cached_offsets.grad_out,
-                        grad_out.get(),
-                        read_back
-                    );
-                }
-            }
-        } else {
-            // Fallback to cursor-based approach
-            ShaderCursor field = cursor[binding->variable_name()];
-            ShaderCursor primal_field = field.find_field("_primal");
-
-            if (!primal_field.is_valid()) {
-                write_shader_cursor_fields(context, binding, field, primal, read_back);
-            } else {
-                write_shader_cursor_fields(context, binding, primal_field, primal, read_back);
-
-                if (m_d_in) {
-                    ShaderCursor grad_in_field = field.find_field("_grad_in");
-                    if (grad_in_field.is_valid()) {
-                        SGL_CHECK(grad_in, "Missing required input gradients");
-                        write_shader_cursor_fields(context, binding, grad_in_field, grad_in.get(), read_back);
-                    }
-                }
-
-                if (m_d_out) {
-                    ShaderCursor grad_out_field = field.find_field("_grad_out");
-                    if (grad_out_field.is_valid()) {
-                        SGL_CHECK(grad_out, "Missing required input gradients");
-                        write_shader_cursor_fields(context, binding, grad_out_field, grad_out.get(), read_back);
-                    }
-                }
-            }
-        }
-
         if (context->call_mode() != CallMode::prim && grad_in && grad_in == grad_out) {
             if (binding->access().second == AccessType::readwrite)
                 SGL_THROW(
@@ -568,14 +468,43 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
         return;
     }
 
-    // Check if we have a TensorRef with PyTorch tensor for fast path
+    // Try PyTorch TensorRef path (CUDA only)
     TensorRef* tensorref;
     if (nb::try_cast(value, tensorref)) {
         auto pytorch_tensor_opt = tensorref->tensor();
         // Only use fast path for CUDA tensors - other backends need interop buffer
         if (pytorch_tensor_opt.has_value() && context->device()->type() == DeviceType::cuda) {
-            ShaderCursor field = cursor[binding->variable_name()];
-            write_pytorch_tensor_fields(context, binding, field, tensorref, read_back);
+            // Set last_access to track read/write operations for autograd
+            tensorref->set_last_access(binding->access());
+
+            // Validate tensor shape matches expected shape
+            auto& pytorch_tensor = pytorch_tensor_opt.value();
+            std::vector<int> tensor_shape = extract_shape(pytorch_tensor);
+            const Shape& expected_shape = binding->vector_type()->shape();
+            const std::vector<int>& expected_shape_vec = expected_shape.as_vector();
+
+            // Check trailing dimensions match
+            if (expected_shape_vec.size() > 0) {
+                size_t start_idx = tensor_shape.size() - expected_shape_vec.size();
+                for (size_t i = 0; i < expected_shape_vec.size(); i++) {
+                    int expected_dim = expected_shape_vec[i];
+                    int tensor_dim = tensor_shape[start_idx + i];
+                    // -1 means any size is allowed
+                    if (expected_dim != -1 && tensor_dim != expected_dim) {
+                        throw nb::value_error(
+                            fmt::format(
+                                "Tensor shape ({}) does not match expected shape ({})",
+                                fmt::join(tensor_shape, ", "),
+                                fmt::join(expected_shape_vec, ", ")
+                            )
+                                .c_str()
+                        );
+                    }
+                }
+            }
+
+            ShaderObject* shader_object = cursor.shader_object();
+            write_differentiated_pytorch_tensor(context, binding, shader_object, tensorref);
             return;
         }
     }
@@ -584,30 +513,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     NativeMarshall::write_shader_cursor_pre_dispatch(context, binding, cursor, value, read_back);
 }
 
-template<typename T>
-void write_value_helper(void* base_address, size_t offset, const T& value)
-{
-    T* ptr = reinterpret_cast<T*>(static_cast<uint8_t*>(base_address) + offset);
-    *ptr = value;
-}
-
-template<typename T>
-void write_strided_array_helper(
-    void* base_address,
-    size_t offset,
-    const T* data,
-    size_t element_count,
-    size_t element_stride
-)
-{
-    uint8_t* dest_ptr = static_cast<uint8_t*>(base_address) + offset;
-    for (size_t i = 0; i < element_count; i++) {
-        T* ptr = reinterpret_cast<T*>(dest_ptr + i * element_stride);
-        *ptr = data[i];
-    }
-}
-
-void NativeTensorMarshall::write_tensor_fields_fast(
+void NativeTensorMarshall::write_tensor_fields_fast_buffer(
     ShaderObject* shader_object,
     void* base_address,
     const TensorFieldOffsets& offsets,
@@ -622,32 +528,57 @@ void NativeTensorMarshall::write_tensor_fields_fast(
         // Get device address and set as pointer
         // Note: offset is in elements, need to multiply by struct_size to get byte offset
         DeviceAddress address = buffer->device_address() + static_cast<DeviceAddress>(offset) * buffer->struct_size();
-        write_value_helper(base_address, offsets.data.uniform_offset - m_field_offset.uniform_offset, address);
+        write_value_helper(
+            base_address,
+            offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            address
+        );
     } else {
         // For other backends, use buffer binding
         shader_object->set_buffer(offsets.data, buffer);
     }
 
-    // Write shape array directly using cached offset
+    // Write shape, strides, and offset
     write_strided_array_helper(
         base_address,
-        offsets.shape.uniform_offset - m_field_offset.uniform_offset,
+        offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
         shape.data(),
         shape.size(),
         offsets.array_stride
     );
 
-    // Write strides array directly using cached offset
     write_strided_array_helper(
         base_address,
-        offsets.strides.uniform_offset - m_field_offset.uniform_offset,
+        offsets.strides.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
         strides.data(),
         strides.size(),
         offsets.array_stride
     );
 
-    // Write offset value directly using cached offset
-    write_value_helper(base_address, offsets.offset.uniform_offset - m_field_offset.uniform_offset, offset);
+    write_value_helper(
+        base_address,
+        offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offset
+    );
+}
+
+void NativeTensorMarshall::write_tensor_fields_fast_pointer(
+    ShaderObject* shader_object,
+    const TensorFieldOffsets& offsets,
+    void* data_ptr,
+    const std::vector<int>& shape,
+    const std::vector<int>& strides,
+    int offset
+) const
+{
+    // Write raw pointer directly (for PyTorch tensors)
+    uint64_t ptr_value = reinterpret_cast<uint64_t>(data_ptr);
+    shader_object->set_data(offsets.data, &ptr_value, sizeof(uint64_t));
+
+    // Write shape, strides, and offset
+    shader_object->set_data(offsets.shape, shape.data(), shape.size() * sizeof(int));
+    shader_object->set_data(offsets.strides, strides.data(), strides.size() * sizeof(int));
+    shader_object->set_data(offsets.offset, &offset, sizeof(int));
 }
 
 void NativeTensorMarshall::write_shader_cursor_fields_fast(
@@ -662,21 +593,17 @@ void NativeTensorMarshall::write_shader_cursor_fields_fast(
 {
     SGL_UNUSED(read_back);
 
-    // Generate and write strides vector, clearing strides to 0 for broadcast dimensions
-    std::vector<int> strides_vec = buffer->strides().as_vector();
-    const std::vector<int>& transform = binding->transform().as_vector();
-    const std::vector<int>& call_shape = context->call_shape().as_vector();
+    // Apply broadcast stride zeroing for dimensions that are broadcast
     const std::vector<int>& shape_vec = buffer->shape().as_vector();
-
-    for (size_t i = 0; i < transform.size(); i++) {
-        int csidx = transform[i];
-        if (call_shape[csidx] != shape_vec[i]) {
-            strides_vec[i] = 0;
-        }
-    }
+    std::vector<int> strides_vec = apply_broadcast_stride_zeroing(
+        buffer->strides().as_vector(),
+        shape_vec,
+        binding->transform().as_vector(),
+        context->call_shape().as_vector()
+    );
 
     // Fast path: write directly using cached offsets
-    write_tensor_fields_fast(
+    write_tensor_fields_fast_buffer(
         shader_object,
         base_address,
         offsets,
@@ -698,69 +625,16 @@ void NativeTensorMarshall::write_pytorch_tensor_fields_fast(
     int offset
 ) const
 {
-    // Write buffer pointer directly using cached offset
-    uint64_t ptr_value = reinterpret_cast<uint64_t>(data_ptr);
-    shader_object->set_data(offsets.data, &ptr_value, sizeof(uint64_t));
-
-    // Write shape array directly using cached offset
-    shader_object->set_data(offsets.shape, shape.data(), shape.size() * sizeof(int));
-
     // Apply broadcast stride zeroing
-    std::vector<int> strides = strides_in;
-    const std::vector<int>& transform = binding->transform().as_vector();
-    const std::vector<int>& call_shape = context->call_shape().as_vector();
-    for (size_t i = 0; i < transform.size(); i++) {
-        int csidx = transform[i];
-        if (call_shape[csidx] != shape[i]) {
-            strides[i] = 0;
-        }
-    }
-
-    // Write strides array directly using cached offset
-    shader_object->set_data(offsets.strides, strides.data(), strides.size() * sizeof(int));
-
-    // Write offset value directly using cached offset
-    shader_object->set_data(offsets.offset, &offset, sizeof(int));
-}
-
-void NativeTensorMarshall::write_shader_cursor_fields(
-    CallContext* context,
-    NativeBoundVariableRuntime* binding,
-    ShaderCursor field,
-    NativeTensor* buffer,
-    nb::list read_back
-) const
-{
-    SGL_UNUSED(read_back);
-
-    // Fallback to cursor-based approach (used when offsets aren't cached)
-    field["_data"] = buffer->storage();
-
-    // Write shape vector as an array of ints.
-    const std::vector<int>& shape_vec = buffer->shape().as_vector();
-    field["_shape"]
-        ._set_array_unsafe(&shape_vec[0], shape_vec.size() * 4, shape_vec.size(), TypeReflection::ScalarType::int32);
-
-    // Generate and write strides vector, clearing strides to 0
-    // for dimensions that are broadcast.
-    std::vector<int> strides_vec = buffer->strides().as_vector();
-    const std::vector<int>& transform = binding->transform().as_vector();
-    const std::vector<int>& call_shape = context->call_shape().as_vector();
-    for (size_t i = 0; i < transform.size(); i++) {
-        int csidx = transform[i];
-        if (call_shape[csidx] != shape_vec[i]) {
-            strides_vec[i] = 0;
-        }
-    }
-
-    // Write the strides vector as an array of ints.
-    field["_strides"]._set_array_unsafe(
-        &strides_vec[0],
-        strides_vec.size() * 4,
-        strides_vec.size(),
-        TypeReflection::ScalarType::int32
+    std::vector<int> strides = apply_broadcast_stride_zeroing(
+        strides_in,
+        shape,
+        binding->transform().as_vector(),
+        context->call_shape().as_vector()
     );
-    field["_offset"] = buffer->offset();
+
+    // Use the helper for raw pointers
+    write_tensor_fields_fast_pointer(shader_object, offsets, data_ptr, shape, strides, offset);
 }
 
 void NativeTensorMarshall::read_calldata(
