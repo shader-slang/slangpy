@@ -60,6 +60,8 @@ def slang_type_to_return_type(slang_type: kfr.SlangType) -> Any:
             return getattr(slangpy, f"uint{slang_type.rows}x{slang_type.cols}")
         elif slang_type.slang_scalar_type in BOOL_TYPES:
             return getattr(slangpy, f"bool{slang_type.rows}x{slang_type.cols}")
+    elif isinstance(slang_type, kfr.ArrayType):
+        return list
     elif isinstance(slang_type, kfr.StructType):
         return dict
     elif isinstance(slang_type, kfr.PointerType):

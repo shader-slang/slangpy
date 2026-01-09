@@ -170,15 +170,18 @@ class ValueRefMarshall(Marshall):
         if access[0] == AccessType.read:
             return {"value": data.value}
         else:
-            if isinstance(binding.vector_type, kfr.StructType):
+            if isinstance(binding.vector_type, (kfr.StructType, kfr.ArrayType)):
                 buffer = context.device.create_buffer(
                     element_count=1,
                     struct_size=binding.vector_type.buffer_layout.stride,
                     usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
                 )
                 cursor = BufferCursor(binding.vector_type.buffer_layout.reflection, buffer, False)
-                cursor[0].write(data.value)
-                cursor.apply()
+                # For write-only outputs, the initial Python value may be just a placeholder
+                # (e.g. [] for half[8]). Don't pre-initialize GPU memory in that case.
+                if access[0] != AccessType.write:
+                    cursor[0].write(data.value)
+                    cursor.apply()
                 return {"value": buffer}
             else:
                 if isinstance(self.value_type, kfr.SlangType):
@@ -210,7 +213,7 @@ class ValueRefMarshall(Marshall):
         access = binding.access
         if access[0] in [AccessType.write, AccessType.readwrite]:
             assert isinstance(result["value"], Buffer)
-            if isinstance(binding.vector_type, kfr.StructType):
+            if isinstance(binding.vector_type, (kfr.StructType, kfr.ArrayType)):
                 cursor = BufferCursor(binding.vector_type.buffer_layout.reflection, result["value"])
                 data.value = cursor[0].read()
             else:
