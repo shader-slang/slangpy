@@ -17,6 +17,9 @@ A ``Tensor`` consists of:
 - **Offset**: An element offset into the storage buffer (defaults to 0)
 - **Gradients**: Optional gradient storage for automatic differentiation
 
+**Note:** For code bases that utilize PyTorch, SlangPy is fully compatible with PyTorch tensors and can seamlessly interoperate with them. PyTorch users should feel entirely comfortable continuing to use PyTorch tensors as their primary container for multidimensional data. The SlangPy ``Tensor`` type is only necessary in Python when you need support for custom Slang data types or want to take advantage of its lower CPU overhead. Additionally, all the rules in this document covering vectorization function identically for PyTorch tensors.
+
+
 Creating Tensors
 ----------------
 
@@ -347,9 +350,9 @@ Many ``Tensor`` operations have PyTorch equivalents:
 +----------------------------------+------------------------------------------+------------------------------------+
 | ``tensor.clear()``               | ``tensor.zero_()``                       | Both zero out contents             |
 +----------------------------------+------------------------------------------+------------------------------------+
-| ``tensor.with_grads()``          | ``tensor.requires_grad_(True)``          | Enable gradient tracking           |
+| ``tensor.with_grads()``          | ``tensor.requires_grad_(True)``          | Add gradients                      |
 +----------------------------------+------------------------------------------+------------------------------------+
-| ``tensor.detach()``              | ``tensor.detach()``                      | Remove from gradient graph         |
+| ``tensor.detach()``              | ``tensor.detach()``                      | Remove gradients                   |
 +----------------------------------+------------------------------------------+------------------------------------+
 | ``tensor.grad``                  | ``tensor.grad``                          | Access gradient tensor             |
 +----------------------------------+------------------------------------------+------------------------------------+
@@ -358,6 +361,7 @@ The key differences to be aware of are:
 
 - SlangPy tensors always live on the GPU device they were created on. There is no concept of a 'cpu' tensor in SlangPy.
 - SlangPy supports arbitrary Slang struct types as elements, not just numeric types.
+- SlangPy does not maintain a CPU side auto-grad graph.
 
 Vectorization in Kernel Calls
 ------------------------------
