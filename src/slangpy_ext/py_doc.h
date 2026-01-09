@@ -4448,6 +4448,10 @@ static const char *__doc_sgl_KeyCode_v = R"doc()doc";
 
 static const char *__doc_sgl_KeyCode_w = R"doc()doc";
 
+static const char *__doc_sgl_KeyCode_world_1 = R"doc()doc";
+
+static const char *__doc_sgl_KeyCode_world_2 = R"doc()doc";
+
 static const char *__doc_sgl_KeyCode_x = R"doc()doc";
 
 static const char *__doc_sgl_KeyCode_y = R"doc()doc";
@@ -6900,6 +6904,8 @@ static const char *__doc_sgl_SlangEntryPointDesc = R"doc()doc";
 
 static const char *__doc_sgl_SlangEntryPointDesc_name = R"doc()doc";
 
+static const char *__doc_sgl_SlangEntryPointDesc_specialization_args = R"doc(Specialization arguments for generic entrypoints.)doc";
+
 static const char *__doc_sgl_SlangEntryPointDesc_type_conformances = R"doc()doc";
 
 static const char *__doc_sgl_SlangEntryPoint_SlangEntryPoint = R"doc()doc";
@@ -6929,6 +6935,12 @@ static const char *__doc_sgl_SlangEntryPoint_populate_build_data = R"doc(Repopul
 static const char *__doc_sgl_SlangEntryPoint_rename = R"doc()doc";
 
 static const char *__doc_sgl_SlangEntryPoint_slang_entry_point = R"doc()doc";
+
+static const char *__doc_sgl_SlangEntryPoint_specialize =
+R"doc(Returns a specialized version of a generic entry point.
+
+Parameter ``specialization_args``:
+    The specialization arguments for generic parameters.)doc";
 
 static const char *__doc_sgl_SlangEntryPoint_stage = R"doc()doc";
 
@@ -7194,6 +7206,39 @@ static const char *__doc_sgl_SlangSession_unregister_program = R"doc()doc";
 static const char *__doc_sgl_SlangSession_update_module_cache_and_dependencies = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_write_module_to_cache = R"doc()doc";
+
+static const char *__doc_sgl_SpecializationArg =
+R"doc(Specialization argument for generic entrypoints. Mirrors
+slang::SpecializationArg but uses string values for Python
+compatibility.)doc";
+
+static const char *__doc_sgl_SpecializationArgKind =
+R"doc(Kind of specialization argument (mirrors
+slang::SpecializationArg::Kind).)doc";
+
+static const char *__doc_sgl_SpecializationArgKind_expr = R"doc(< Specialize with an expression (e.g., integer constant).)doc";
+
+static const char *__doc_sgl_SpecializationArgKind_info = R"doc()doc";
+
+static const char *__doc_sgl_SpecializationArgKind_type = R"doc(< Specialize with a type.)doc";
+
+static const char *__doc_sgl_SpecializationArgKind_unknown = R"doc(< An invalid specialization argument.)doc";
+
+static const char *__doc_sgl_SpecializationArg_SpecializationArg = R"doc()doc";
+
+static const char *__doc_sgl_SpecializationArg_SpecializationArg_2 = R"doc()doc";
+
+static const char *__doc_sgl_SpecializationArg_from_expr = R"doc(Create an expression specialization argument.)doc";
+
+static const char *__doc_sgl_SpecializationArg_from_type = R"doc(Create a type specialization argument.)doc";
+
+static const char *__doc_sgl_SpecializationArg_kind = R"doc()doc";
+
+static const char *__doc_sgl_SpecializationArg_to_string = R"doc()doc";
+
+static const char *__doc_sgl_SpecializationArg_value =
+R"doc(Type name (for SpecializationArgKind::type) or expression string (for
+SpecializationArgKind::expr).)doc";
 
 static const char *__doc_sgl_StencilOp = R"doc()doc";
 
@@ -8295,6 +8340,8 @@ static const char *__doc_sgl_Window_on_resize = R"doc(Event handler to be called
 
 static const char *__doc_sgl_Window_poll_gamepad_input = R"doc()doc";
 
+static const char *__doc_sgl_Window_position = R"doc(Position of the window on the screen in pixels.)doc";
+
 static const char *__doc_sgl_Window_process_events = R"doc(Process any pending events.)doc";
 
 static const char *__doc_sgl_Window_resize =
@@ -8310,6 +8357,8 @@ static const char *__doc_sgl_Window_set_clipboard = R"doc(Set the clipboard cont
 
 static const char *__doc_sgl_Window_set_cursor_mode = R"doc()doc";
 
+static const char *__doc_sgl_Window_set_height = R"doc()doc";
+
 static const char *__doc_sgl_Window_set_icon = R"doc()doc";
 
 static const char *__doc_sgl_Window_set_on_drop_files = R"doc()doc";
@@ -8324,9 +8373,17 @@ static const char *__doc_sgl_Window_set_on_mouse_event = R"doc()doc";
 
 static const char *__doc_sgl_Window_set_on_resize = R"doc()doc";
 
+static const char *__doc_sgl_Window_set_position = R"doc()doc";
+
+static const char *__doc_sgl_Window_set_size = R"doc()doc";
+
 static const char *__doc_sgl_Window_set_title = R"doc()doc";
 
+static const char *__doc_sgl_Window_set_width = R"doc()doc";
+
 static const char *__doc_sgl_Window_should_close = R"doc(True if the window should be closed.)doc";
+
+static const char *__doc_sgl_Window_size = R"doc(Size of the window in pixels.)doc";
 
 static const char *__doc_sgl_Window_title = R"doc(The title of the window.)doc";
 
@@ -8776,6 +8833,8 @@ static const char *__doc_sgl_find_enum_info_adl_70 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_71 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_72 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_73 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
