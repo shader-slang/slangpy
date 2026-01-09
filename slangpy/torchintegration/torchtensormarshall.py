@@ -3,7 +3,7 @@
 
 from typing import Any, Optional, cast
 from numpy import ScalarType
-from slangpy import DataType, Device, BufferUsage, TypeReflection, DeviceType
+from slangpy import DataType, BufferUsage, TypeReflection, DeviceType
 import torch
 
 from slangpy.core.native import AccessType, CallContext, CallMode, Shape, TensorRef
@@ -19,7 +19,7 @@ from slangpy.reflection.reflectiontypes import (
     VectorType,
     MatrixType,
 )
-from slangpy.types.buffer import innermost_type
+from slangpy.reflection.lookup import innermost_type
 
 ST = TypeReflection.ScalarType
 _torch_to_scalar_type = {
@@ -142,23 +142,24 @@ class TensorRefMarshall(TensorMarshall):
                 interop_tensor.copy_(primal)
 
             primal_calldata = {
-                "buffer": data.interop_buffer,
-                "layout": {"offset": 0, "strides": strides},
+                "_data": data.interop_buffer,
+                "_offset": 0,
+                "_strides": strides,
                 "_shape": shape,
             }
 
             if not self.d_in and not self.d_out:
                 return primal_calldata
 
-            result = {"primal": primal_calldata}
+            result = {"_primal": primal_calldata}
             if self.d_in is not None:
                 if data.grad_in is None:
                     raise ValueError("Missing required input gradients")
-                result["d_in"] = self.d_in.create_calldata(context, binding, data.grad_in)
+                result["_grad_in"] = self.d_in.create_calldata(context, binding, data.grad_in)
             if self.d_out is not None:
                 if data.grad_out is None:
                     raise ValueError("Missing tensor to hold output gradients")
-                result["d_out"] = self.d_out.create_calldata(context, binding, data.grad_out)
+                result["_grad_out"] = self.d_out.create_calldata(context, binding, data.grad_out)
 
             if (
                 context.call_mode != CallMode.prim
@@ -205,10 +206,10 @@ class TensorRefMarshall(TensorMarshall):
 
             if self.d_in is not None:
                 assert data.grad_in is not None
-                self.d_in.read_calldata(context, binding, data.grad_in, result["d_in"])
+                self.d_in.read_calldata(context, binding, data.grad_in, result["_grad_in"])
             if self.d_out is not None:
                 assert data.grad_out is not None
-                self.d_out.read_calldata(context, binding, data.grad_out, result["d_out"])
+                self.d_out.read_calldata(context, binding, data.grad_out, result["_grad_out"])
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         # Overall shape of tensor must contain the call, plus the shape of the slang datatype

@@ -15,7 +15,7 @@ import slangpy as spy
 import math
 from slangpy import DeviceType
 from slangpy.slangpy import Shape
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 
@@ -290,7 +290,7 @@ uint test_5d_basic(uint[5] grid_cell) {
     call_group_shape = (1, 1, 2, 2, 2)
 
     # Create output buffer
-    result_buffer = NDBuffer(device=device, shape=call_shape, dtype=int)
+    result_buffer = Tensor.empty(device=device, shape=call_shape, dtype=int)
 
     # Call with call group shape
     module.test_5d_basic.call_group_shape(Shape(call_group_shape))(
@@ -428,7 +428,7 @@ int test_call_group_math({param_type} grid_pos) {{
     module = helpers.create_module(device, kernel_source)
 
     # Create output buffer
-    result_buffer = NDBuffer(device=device, shape=call_shape, dtype=float)
+    result_buffer = Tensor.empty(device=device, shape=call_shape, dtype=float)
 
     # Call with call group shape
     module.test_call_group_math.call_group_shape(Shape(call_group_shape))(

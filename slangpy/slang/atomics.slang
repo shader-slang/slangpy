@@ -107,10 +107,12 @@ public extension<T: IAtomicAddable> StorageTraits<T>
     public typealias AtomicBufferType = T*;
     public static void atomicAdd(AtomicBufferType buffer, uint idx, T value) { T::atomicAdd(buffer, idx, value); }
     public static T atomicLoad(AtomicBufferType buffer, uint idx) { return buffer[idx]; }
+    public static void atomicStore(AtomicBufferType buffer, uint idx, T value) { buffer[idx] = value; }
 #else
     public typealias AtomicBufferType = RWByteAddressBuffer;
     public static void atomicAdd(AtomicBufferType buffer, uint idx, T value) { T::atomicAdd(buffer, idx*sizeof(T), value); }
     public static T atomicLoad(AtomicBufferType buffer, uint idx) { return buffer.Load<T>(idx*sizeof(T));}
+    public static void atomicStore(AtomicBufferType buffer, uint idx, T value) { buffer.Store<T>(idx*sizeof(T), value); }
 #endif
 }
 

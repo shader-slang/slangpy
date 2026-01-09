@@ -866,23 +866,58 @@ class SamplerStateType(SlangType):
 
 
 class TensorType(Enum):
-    tensor = (0,)
-    atomic = (1,)
-    ndbuffer = (2,)
-    interface = (3,)
+    tensor = 0
+    itensor = 1
+    difftensor = 2
+    idifftensor = 3
+    primaltensor = 4
+    atomic = 5
+
+
+class TensorAccess(Enum):
+    read = 0
+    write = 1
+    read_write = 2
 
 
 _TENSOR_NAME_TO_TYPE = {
     "Tensor": TensorType.tensor,
+    "WTensor": TensorType.tensor,
     "RWTensor": TensorType.tensor,
-    "GradInTensor": TensorType.tensor,
-    "GradOutTensor": TensorType.tensor,
-    "GradInOutTensor": TensorType.tensor,
-    "ITensor": TensorType.interface,
-    "IRWTensor": TensorType.interface,
+    "DiffTensor": TensorType.difftensor,
+    "WDiffTensor": TensorType.difftensor,
+    "RWDiffTensor": TensorType.difftensor,
+    "PrimalTensor": TensorType.primaltensor,
+    "PrimalTensor": TensorType.primaltensor,
+    "WPrimalTensor": TensorType.primaltensor,
+    "RWPrimalTensor": TensorType.primaltensor,
+    "ITensor": TensorType.itensor,
+    "IWTensor": TensorType.itensor,
+    "IRWTensor": TensorType.itensor,
+    "IDiffTensor": TensorType.idifftensor,
+    "IWDiffTensor": TensorType.idifftensor,
+    "IRWDiffTensor": TensorType.idifftensor,
     "AtomicTensor": TensorType.atomic,
-    "NDBuffer": TensorType.ndbuffer,
-    "RWNDBuffer": TensorType.ndbuffer,
+}
+
+_TENSOR_NAME_TO_ACCESS = {
+    "Tensor": TensorAccess.read,
+    "WTensor": TensorAccess.write,
+    "RWTensor": TensorAccess.read_write,
+    "DiffTensor": TensorAccess.read,
+    "WDiffTensor": TensorAccess.write,
+    "RWDiffTensor": TensorAccess.read_write,
+    "PrimalTensor": TensorAccess.read,
+    "PrimalTensor": TensorAccess.read,
+    "WPrimalTensor": TensorAccess.write,
+    "RWPrimalTensor": TensorAccess.read_write,
+    "ITensor": TensorAccess.read,
+    "IWTensor": TensorAccess.write,
+    "IRWTensor": TensorAccess.read_write,
+    "IDiffTensor": TensorAccess.read,
+    "IWDiffTensor": TensorAccess.write,
+    "IRWDiffTensor": TensorAccess.read_write,
+    "AtomicTensor": TensorAccess.read_write,
 }
 
 
@@ -903,21 +938,27 @@ class ITensorType(SlangType):
 
         super().__init__(program, refl, element_type=args[0], local_shape=shape)
         self.element_type: SlangType
-        self._writable = refl.name in (
-            "IRWTensor",
-            "RWTensor",
-            "RWNDBuffer",
-            "GradInTensor",
-            "GradInOutTensor",
-            "AtomicTensor",
-        )
 
-        self.has_grad_in = refl.name in ("GradInTensor", "GradInOutTensor")
-        self.has_grad_out = refl.name in ("GradOutTensor", "GradInOutTensor")
+        self._access = _TENSOR_NAME_TO_ACCESS[self.type_reflection.name]
+
+        self.has_grad_in = self.writable and self.difftensor
+        self.has_grad_out = self.readable and self.difftensor
+
+    @property
+    def access(self) -> TensorAccess:
+        return self._access
+
+    @property
+    def readable(self) -> bool:
+        return self._access in (TensorAccess.read, TensorAccess.read_write)
 
     @property
     def writable(self) -> bool:
-        return self._writable
+        return self._access in (TensorAccess.write, TensorAccess.read_write)
+
+    @property
+    def difftensor(self) -> bool:
+        return self.tensor_type in (TensorType.difftensor, TensorType.idifftensor)
 
     @property
     def dims(self) -> int:
@@ -943,31 +984,31 @@ class ITensorType(SlangType):
     def build_tensor_name(
         element_type: SlangType,
         dims: int,
-        writable: bool = True,
+        access: TensorAccess = TensorAccess.read_write,
         tensor_type: TensorType = TensorType.tensor,
-        has_grad_in: bool = False,
-        has_grad_out: bool = False,
     ) -> str:
-        if tensor_type == TensorType.interface:
-            prefix = "IRW" if writable else "I"
-            return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
-        elif tensor_type == TensorType.atomic:
+        if tensor_type == TensorType.atomic:
             return f"AtomicTensor<{element_type.full_name}, {dims}>"
-        elif tensor_type == TensorType.ndbuffer:
-            prefix = "RW" if writable else ""
-            return f"{prefix}NDBuffer<{element_type.full_name}, {dims}>"
-        elif tensor_type == TensorType.tensor:
-            if not has_grad_in and not has_grad_out:
-                prefix = "RW" if writable else ""
-            else:
-                prefix = "Grad"
-                if has_grad_in:
-                    prefix += "In"
-                if has_grad_out:
-                    prefix += "Out"
-            return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
+
+        prefix = ""
+        if tensor_type in (TensorType.itensor, TensorType.idifftensor):
+            prefix += "I"
+
+        if access == TensorAccess.read_write:
+            prefix += "RW"
+        elif access == TensorAccess.read:
+            prefix += ""
+        elif access == TensorAccess.write:
+            prefix += "W"
         else:
-            raise ValueError("Invalid tensor type")
+            raise ValueError("Tensor must be at least readable or writable")
+
+        if tensor_type in (TensorType.difftensor, TensorType.idifftensor):
+            prefix += "Diff"
+        if tensor_type in (TensorType.primaltensor,):
+            prefix += "Primal"
+
+        return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
 
 
 class UnhandledType(SlangType):
@@ -1474,14 +1515,10 @@ class SlangProgramLayout:
         self,
         element_type: SlangType,
         dims: int,
-        writable: bool = True,
+        access: TensorAccess = TensorAccess.read_write,
         tensor_type: TensorType = TensorType.tensor,
-        has_grad_in: bool = False,
-        has_grad_out: bool = False,
     ) -> SlangType:
-        tensor_name = ITensorType.build_tensor_name(
-            element_type, dims, writable, tensor_type, has_grad_in, has_grad_out
-        )
+        tensor_name = ITensorType.build_tensor_name(element_type, dims, access, tensor_type)
         slang_type = self.find_type_by_name(tensor_name)
         return cast(ITensorType, slang_type)
 
@@ -1720,13 +1757,30 @@ def create_unknown_type(layout: SlangProgramLayout, refl: TypeReflection) -> Sla
 
 TYPE_OVERRIDES["DifferentialPair"] = create_differential_pair
 TYPE_OVERRIDES["Unknown"] = create_unknown_type
+
 TYPE_OVERRIDES["ITensor"] = ITensorType
+TYPE_OVERRIDES["ITensor"] = ITensorType
+TYPE_OVERRIDES["IWTensor"] = ITensorType
 TYPE_OVERRIDES["IRWTensor"] = ITensorType
+
 TYPE_OVERRIDES["Tensor"] = ITensorType
+TYPE_OVERRIDES["Tensor"] = ITensorType
+TYPE_OVERRIDES["WTensor"] = ITensorType
 TYPE_OVERRIDES["RWTensor"] = ITensorType
-TYPE_OVERRIDES["GradInTensor"] = ITensorType
-TYPE_OVERRIDES["GradOutTensor"] = ITensorType
-TYPE_OVERRIDES["GradInOutTensor"] = ITensorType
+
+TYPE_OVERRIDES["IDiffTensor"] = ITensorType
+TYPE_OVERRIDES["IDiffTensor"] = ITensorType
+TYPE_OVERRIDES["IWDiffTensor"] = ITensorType
+TYPE_OVERRIDES["IRWDiffTensor"] = ITensorType
+
+TYPE_OVERRIDES["DiffTensor"] = ITensorType
+TYPE_OVERRIDES["DiffTensor"] = ITensorType
+TYPE_OVERRIDES["WDiffTensor"] = ITensorType
+TYPE_OVERRIDES["RWDiffTensor"] = ITensorType
+
+TYPE_OVERRIDES["PrimalTensor"] = ITensorType
+TYPE_OVERRIDES["PrimalTensor"] = ITensorType
+TYPE_OVERRIDES["WPrimalTensor"] = ITensorType
+TYPE_OVERRIDES["RWPrimalTensor"] = ITensorType
+
 TYPE_OVERRIDES["AtomicTensor"] = ITensorType
-TYPE_OVERRIDES["NDBuffer"] = ITensorType
-TYPE_OVERRIDES["RWNDBuffer"] = ITensorType

@@ -2,9 +2,8 @@
 
 import pytest
 import numpy as np
-import os
 
-from slangpy import DeviceType, Device
+from slangpy import DeviceType, Device, grid, Module
 from slangpy.types import Tensor
 from slangpy.testing import helpers
 
@@ -30,14 +29,84 @@ def get_test_tensors(device: Device, din: int = 5, dout: int = 8, N: int = 4):
 
 
 def get_func(device: Device, name: str):
-    path = os.path.split(__file__)[0] + "/test_tensor.slang"
-    return helpers.create_function_from_module(device, name, open(path, "r").read())
+    return Module.load_from_file(device, "test_tensor.slang").require_function(name)
 
 
 def compare_tensors(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]):
     assert a.shape == b.shape, f"Tensor shape {a.shape} does not match expected shape {b.shape}"
     err = np.max(np.abs(a - b))
     assert err < 1e-4, f"Tensor deviates by {err} from reference"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name",
+    [
+        "copy_itensor_each_index",
+        "copy_itensor_array_index",
+        "copy_itensor_vector_index",
+        "copy_itensor_each_loadstore",
+        "copy_itensor_array_loadstore",
+        "copy_itensor_vector_loadstore",
+        "copy_idifftensor_each_index",
+        "copy_idifftensor_array_index",
+        "copy_idifftensor_vector_index",
+        "copy_idifftensor_each_loadstore",
+        "copy_idifftensor_array_loadstore",
+        "copy_idifftensor_vector_loadstore",
+        "copy_tensor_each_index",
+        "copy_tensor_array_index",
+        "copy_tensor_vector_index",
+        "copy_tensor_each_loadstore",
+        "copy_tensor_array_loadstore",
+        "copy_tensor_vector_loadstore",
+        "copy_difftensor_each_index",
+        "copy_difftensor_array_index",
+        "copy_difftensor_vector_index",
+        "copy_difftensor_each_loadstore",
+        "copy_difftensor_array_loadstore",
+        "copy_difftensor_vector_loadstore",
+        "copy_primaltensor_each_index",
+        "copy_primaltensor_array_index",
+        "copy_primaltensor_vector_index",
+        "copy_primaltensor_each_loadstore",
+        "copy_primaltensor_array_loadstore",
+        "copy_primaltensor_vector_loadstore",
+    ],
+)
+def test_simple_copy(device_type: DeviceType, func_name: str):
+    device = helpers.get_device(device_type)
+
+    func = get_func(device, func_name)
+
+    din = np.random.randn(1000, 3).astype(np.float32)
+    tin = Tensor.from_numpy(device, din)
+    tout = Tensor.empty_like(tin)
+
+    if "difftensor" in func_name:
+        tin = tin.with_grads(None, Tensor.empty_like(tin))
+        tout = tout.with_grads(Tensor.empty_like(tout), None)
+
+    func(grid(tin.shape), tin, tout)
+
+    dout = tout.to_numpy()
+    assert np.array_equal(din, dout), "Copied tensor does not match original"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_simple_copy_by_element(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+
+    func = get_func(device, "copy_tensor_by_element")
+
+    din = np.random.randn(1000, 3).astype(np.float32)
+    tin = Tensor.from_numpy(device, din)
+    tout = Tensor.empty_like(tin)
+
+    func(tin, tout)
+
+    dout = tout.to_numpy()
+    assert np.array_equal(din, dout), "Copied tensor does not match original"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -88,6 +157,16 @@ def test_generic_call(device_type: DeviceType):
     weights, biases, x, np_result = get_test_tensors(device)
     y = func(weights, biases, x)
     compare_tensors(y.to_numpy(), np_result)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_existential_type_bug(device_type: DeviceType):
+    """Tests for a slang issue that causes compilation error when using Tensor accessors"""
+
+    device = helpers.get_device(device_type)
+
+    program = device.load_program("test_existential_bug.slang", ["build_importance_map"])
+    kernel = device.create_compute_kernel(program=program)
 
 
 if __name__ == "__main__":

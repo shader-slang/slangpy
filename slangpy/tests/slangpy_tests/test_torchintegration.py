@@ -101,6 +101,9 @@ def test_add_values(
     val_shape = func_and_shape[1]
     extra_shape = (5,) * extra_dims
 
+    if len(extra_shape + val_shape) == 0:
+        pytest.skip("No shape to test")
+
     a = torch.randn(
         extra_shape + val_shape,
         dtype=torch.float32,
@@ -280,6 +283,9 @@ def test_polynomials(
 
     if func_name == "polynomial_vectors":
         pytest.skip("Slang bug currently causing derivatives to return 0")
+
+    if len(extra_shape + val_shape) == 0:
+        pytest.skip("No shape to test")
 
     a = 2.0
     b = 4.0

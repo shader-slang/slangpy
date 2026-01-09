@@ -12,7 +12,7 @@ float sum<let N : int>(uint2 tid, RWTensor<float, 2> tensors[N])
     float result = 0.0;
     for (int i = 0; i < N; i++)
     {
-        result += tensors[i].getv(tid);
+        result += tensors[i].load(tid);
     }
     return result;
 }
@@ -23,7 +23,7 @@ struct TensorList<let N : int>
 
     float fetch(int tensor_index, uint2 index)
     {
-        return tensors[tensor_index].getv(index);
+        return tensors[tensor_index].load(index);
     }
 }
 

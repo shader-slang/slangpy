@@ -92,7 +92,7 @@ void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
     )
 
     # Create output buffer
-    out_buffer = spy.NDBuffer.empty(device, (size,), dtype="float")
+    out_buffer = spy.Tensor.empty(device, shape=(size,), dtype="float")
 
     # Run the test function once and wait for device to be idle, to avoid compile
     # times interfering

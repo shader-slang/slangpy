@@ -547,22 +547,23 @@ you can find more information in the Mapping section of the documentation (https
             value_decl = f"{self.vector_type.full_name} value"
             prefix = "[Differentiable]" if self.access[1] != AccessType.none else ""
 
-            cgb.empty_line()
-            cgb.append_line(f"{prefix} void load({context_decl}, out {value_decl})")
-            cgb.begin_block()
-            for field, var in self.children.items():
-                cgb.append_statement(
-                    f"{var.variable_name}.load(context.map(_m_{var.variable_name}),value.{field})"
-                )
-            cgb.end_block()
-
-            if self.access[0] in (AccessType.write, AccessType.readwrite):
+            if self.access[0] in (AccessType.read, AccessType.readwrite):
                 cgb.empty_line()
-                cgb.append_line(f"{prefix} void store({context_decl}, in {value_decl})")
+                cgb.append_line(f"{prefix} void __slangpy_load({context_decl}, out {value_decl})")
                 cgb.begin_block()
                 for field, var in self.children.items():
                     cgb.append_statement(
-                        f"{var.variable_name}.store(context.map(_m_{var.variable_name}),value.{field})"
+                        f"{var.variable_name}.__slangpy_load(context.map(_m_{var.variable_name}),value.{field})"
+                    )
+                cgb.end_block()
+
+            if self.access[0] in (AccessType.write, AccessType.readwrite):
+                cgb.empty_line()
+                cgb.append_line(f"{prefix} void __slangpy_store({context_decl}, in {value_decl})")
+                cgb.begin_block()
+                for field, var in self.children.items():
+                    cgb.append_statement(
+                        f"{var.variable_name}.__slangpy_store(context.map(_m_{var.variable_name}),value.{field})"
                     )
                 cgb.end_block()
 

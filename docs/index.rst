@@ -105,6 +105,15 @@ If you use SlangPy in a research project leading to a publication, please cite t
 .. toctree::
     :hidden:
     :maxdepth: 1
+    :caption: Tensors
+
+    src/tensors/python
+    src/tensors/slang
+    src/tensors/differentiable
+
+.. toctree::
+    :hidden:
+    :maxdepth: 1
     :caption: Generators
 
     Overview <src/generators/generators>

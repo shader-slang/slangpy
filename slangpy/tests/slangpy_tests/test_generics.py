@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, TypeReflection
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.types.tensor import Tensor
 from slangpy.testing import helpers
 
@@ -31,7 +31,7 @@ def do_generic_test(
     buffertype = module.layout.find_type_by_name(buffer_type_name)
 
     if container_type == "buffer":
-        buffer = NDBuffer(device, dtype=buffertype, shape=shape)
+        buffer = Tensor.empty(device, shape=shape, dtype=buffertype)
         buffer.copy_from_numpy(np.random.random(int(buffer.storage.size / 4)).astype(np.float32))
 
         results = module.get(buffer)

@@ -5,7 +5,7 @@ from time import time
 import numpy as np
 
 from slangpy import DeviceType, BufferUsage, QueryType, ResourceState, grid, float3
-from slangpy.types import NDBuffer, Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
 from typing import Any, cast
@@ -153,8 +153,8 @@ int test_add_numbers(int call_id, int* a_buffer, int* b_buffer) {
     a_data = np.random.randint(0, 100, size=(num_ints,), dtype=np.int32)
     b_data = np.random.randint(0, 100, size=(num_ints,), dtype=np.int32)
 
-    a = NDBuffer.from_numpy(device, a_data)
-    b = NDBuffer.from_numpy(device, b_data)
+    a = Tensor.from_numpy(device, a_data)
+    b = Tensor.from_numpy(device, b_data)
 
     a_address = a.storage.device_address
     b_address = b.storage.device_address
@@ -184,8 +184,8 @@ int test_pass_raw_buffers(int call_id, int* a_buffer, int* b_buffer) {
     num_ints = 10000
     a_data = np.random.randint(0, 100, size=(num_ints,), dtype=np.int32)
     b_data = np.random.randint(0, 100, size=(num_ints,), dtype=np.int32)
-    a = NDBuffer.from_numpy(device, a_data)
-    b = NDBuffer.from_numpy(device, b_data)
+    a = Tensor.from_numpy(device, a_data)
+    b = Tensor.from_numpy(device, b_data)
     res = function(grid(shape=(num_ints,)), a.storage, b.storage, _result="numpy")
 
     expected = a_data + b_data
@@ -269,7 +269,7 @@ int test_vectorize_buffer_of_pointers(int* buffer) {
         np.random.randint(0, num_ints, size=(num_ptrs,), dtype=np.uint64) * 4
         + data_buffer.device_address
     )
-    pointers_buffer = NDBuffer.from_numpy(device, pointers)
+    pointers_buffer = Tensor.from_numpy(device, pointers)
 
     # read values cpu side to get expected data
     indices = (pointers - data_buffer.device_address) // 4
@@ -297,8 +297,8 @@ void test_write_raw_buffers(int call_id, int* in_buffer, int* out_buffer) {
 
     num_ints = 10000
     in_data = np.random.randint(0, 100, size=(num_ints,), dtype=np.int32)
-    in_buffer = NDBuffer.from_numpy(device, in_data)
-    out_buffer = NDBuffer.zeros_like(in_buffer)
+    in_buffer = Tensor.from_numpy(device, in_data)
+    out_buffer = Tensor.zeros_like(in_buffer)
     function(grid(shape=(num_ints,)), in_buffer.storage, out_buffer.storage)
     out_data = out_buffer.to_numpy()
     assert np.array_equal(in_data, out_data), f"Expected {in_data}, got {out_data}"
@@ -363,14 +363,14 @@ void test_copy_whole_structs(int call_id, Test* in_buffer, Test* out_buffer) {
         )
 
     # Fill input buffer with it
-    in_buffer = NDBuffer.empty(device, (count,), dtype=function.module.Test)
+    in_buffer = Tensor.empty(device, (count,), dtype=function.module.Test)
     cursor = in_buffer.cursor()
     for i, item in enumerate(data):
         cursor[i].write(item)
     cursor.apply()
 
     # Create and copy to output buffer
-    out_buffer = NDBuffer.empty_like(in_buffer)
+    out_buffer = Tensor.empty_like(in_buffer)
     function(grid(shape=(count,)), in_buffer.storage, out_buffer.storage)
 
     # Sanity check: clear the input buffer to ensure there isn't some happy
@@ -425,17 +425,17 @@ void test_copy_fields_from_structs(int call_id, Test* in_buffer, int* out_value1
         )
 
     # Fill input buffer with it
-    in_buffer = NDBuffer.empty(device, (count,), dtype=function.module.Test)
+    in_buffer = Tensor.empty(device, (count,), dtype=function.module.Test)
     cursor = in_buffer.cursor()
     for i, item in enumerate(data):
         cursor[i].write(item)
     cursor.apply()
 
     # Create and copy to output buffer
-    out_buffer_value1 = NDBuffer.empty(device, (count,), dtype="int")
-    out_buffer_value2 = NDBuffer.empty(device, (count,), dtype="float")
-    out_buffer_value3 = NDBuffer.empty(device, (count,), dtype="int8_t")
-    out_buffer_value4 = NDBuffer.empty(device, (count,), dtype="float3")
+    out_buffer_value1 = Tensor.empty(device, (count,), dtype="int")
+    out_buffer_value2 = Tensor.empty(device, (count,), dtype="float")
+    out_buffer_value3 = Tensor.empty(device, (count,), dtype="int8_t")
+    out_buffer_value4 = Tensor.empty(device, (count,), dtype="float3")
 
     function(
         grid(shape=(count,)),
@@ -502,17 +502,17 @@ void test_copy_fields_by_pointer(int call_id, Test* in_buffer, int* out_value1, 
         )
 
     # Fill input buffer with it
-    in_buffer = NDBuffer.empty(device, (count,), dtype=function.module.Test)
+    in_buffer = Tensor.empty(device, (count,), dtype=function.module.Test)
     cursor = in_buffer.cursor()
     for i, item in enumerate(data):
         cursor[i].write(item)
     cursor.apply()
 
     # Create and copy to output buffer
-    out_buffer_value1 = NDBuffer.empty(device, (count,), dtype="int")
-    out_buffer_value2 = NDBuffer.empty(device, (count,), dtype="float")
-    out_buffer_value3 = NDBuffer.empty(device, (count,), dtype="int8_t")
-    out_buffer_value4 = NDBuffer.empty(device, (count,), dtype="float3")
+    out_buffer_value1 = Tensor.empty(device, (count,), dtype="int")
+    out_buffer_value2 = Tensor.empty(device, (count,), dtype="float")
+    out_buffer_value3 = Tensor.empty(device, (count,), dtype="int8_t")
+    out_buffer_value4 = Tensor.empty(device, (count,), dtype="float3")
 
     function(
         grid(shape=(count,)),
@@ -623,7 +623,7 @@ void test_atomic_float_in_struct_access(int call_id, Test* buffer) {
         )
 
     # Fill input buffer with it
-    in_buffer = NDBuffer.empty(device, (count,), dtype=function.module.Test)
+    in_buffer = Tensor.empty(device, (count,), dtype=function.module.Test)
     cursor = in_buffer.cursor()
     for i, item in enumerate(data):
         cursor[i].write(item)
@@ -706,8 +706,8 @@ void bindings_to_pointer_function(int call_id, StructuredBuffer<int> in_buffer, 
 
             # Setup inputs etc
             in_data = np.random.randint(0, 100, size=(THREADS_PER_DISPATCH,), dtype=np.int32)
-            in_buffer = NDBuffer.from_numpy(device, in_data)
-            out_buffer = NDBuffer.zeros_like(in_buffer)
+            in_buffer = Tensor.from_numpy(device, in_data)
+            out_buffer = Tensor.zeros_like(in_buffer)
 
             g = grid(shape=(THREADS_PER_DISPATCH,))
 

@@ -6,7 +6,7 @@ import numpy as np
 
 from slangpy import DeviceType
 from slangpy.experimental.gridarg import grid
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 
@@ -49,7 +49,7 @@ def grid_test(
     )
 
     # Buffer for vector results
-    res = NDBuffer(device, shape=shape, dtype=module.layout.find_type_by_name(buffertypename))
+    res = Tensor.empty(device, shape=shape, dtype=module.layout.find_type_by_name(buffertypename))
 
     # Offset per dimension
     offsets = tuple([offset for s in shape])

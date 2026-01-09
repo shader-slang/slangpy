@@ -88,18 +88,12 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
     ShaderCursor field = cursor[binding->variable_name()];
 
     // Write the buffer storage.
-    field["buffer"] = buffer->storage();
+    field["_data"] = buffer->storage();
 
     // Write shape vector as an array of ints.
     const std::vector<int>& shape_vec = buffer->shape().as_vector();
     field["_shape"]
         ._set_array_unsafe(&shape_vec[0], shape_vec.size() * 4, shape_vec.size(), TypeReflection::ScalarType::int32);
-
-    // Write layout info to layout field.
-    auto layout_field = field["layout"];
-
-    // Write the offset into the buffer
-    layout_field["offset"] = buffer->offset();
 
     // Generate and write strides vector, clearing strides to 0
     // for dimensions that are broadcast.
@@ -114,12 +108,13 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
     }
 
     // Write the strides vector as an array of ints.
-    layout_field["strides"]._set_array_unsafe(
+    field["_strides"]._set_array_unsafe(
         &strides_vec[0],
         strides_vec.size() * 4,
         strides_vec.size(),
         TypeReflection::ScalarType::int32
     );
+    field["_offset"] = buffer->offset();
 }
 
 void NativeNDBufferMarshall::read_calldata(
@@ -160,12 +155,10 @@ nb::object NativeNDBufferMarshall::create_dispatchdata(nb::object data) const
     // Cast value to buffer, and get the cursor field to write to.
     auto buffer = nb::cast<NativeNDBuffer*>(data);
     nb::dict res;
-    res["buffer"] = buffer->storage();
+    res["_data"] = buffer->storage();
     res["_shape"] = buffer->shape().as_vector();
-    nb::dict layout;
-    layout["offset"] = buffer->offset();
-    layout["strides"] = buffer->strides().as_vector();
-    res["layout"] = layout;
+    res["_offset"] = buffer->offset();
+    res["_strides"] = buffer->strides().as_vector();
     return res;
 }
 

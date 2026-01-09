@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 from slangpy import DeviceType
-from slangpy.types import NDBuffer
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 
@@ -22,9 +22,9 @@ void add_numbers_nd(float a, float b, out float c) {
 """,
     )
 
-    a = NDBuffer(device, dtype=float, shape=(2, 2))
-    b = NDBuffer(device, dtype=float, shape=(2, 2))
-    c = NDBuffer(device, dtype=float, shape=(2, 2))
+    a = Tensor.empty(device, shape=(2, 2), dtype=float)
+    b = Tensor.empty(device, shape=(2, 2), dtype=float)
+    c = Tensor.empty(device, shape=(2, 2), dtype=float)
 
     a_data = np.random.rand(*a.shape).astype(np.float32)
     b_data = np.random.rand(*b.shape).astype(np.float32)
