@@ -99,6 +99,15 @@ struct DeviceDesc {
     /// Enable debug layers.
     bool enable_debug_layers{false};
 
+    /// Enable RHI validation layer.
+    bool enable_rhi_validation{true};
+
+    /// Enable ray-tracing validation.
+    bool enable_ray_tracing_validation{false};
+
+    /// Enable NVIDIA Aftermath.
+    bool enable_aftermath{false};
+
     /// Enable CUDA interoperability.
     bool enable_cuda_interop{false};
 
