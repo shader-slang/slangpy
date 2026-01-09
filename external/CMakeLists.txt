@@ -62,6 +62,9 @@ set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE
 add_library(lmdb STATIC)
 target_include_directories(lmdb INTERFACE lmdb)
 target_sources(lmdb PRIVATE lmdb/mdb.c lmdb/midl.c)
+target_compile_definitions(lmdb PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_compile_options(lmdb PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4333 /wd4172>)
+target_compile_options(lmdb PRIVATE $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wno-deprecated-declarations>)
 
 # slang
 
@@ -162,7 +165,11 @@ function(sgl_add_library_slang)
         sgl_copy_binary(${SLANG_DIR}/bin/${slang_lib_base}.dll .)
         sgl_copy_binary(${SLANG_DIR}/bin/slang-glslang.dll .)
         sgl_copy_binary(${SLANG_DIR}/bin/slang-glsl-module.dll .)
-        sgl_copy_binary(${SLANG_DIR}/bin/slang-llvm.dll .)
+        # slang-llvm.dll is available in x64 prebuilt packages but not in ARM64 packages.
+        # Use conditional copy to support both architectures.
+        if(EXISTS ${SLANG_DIR}/bin/slang-llvm.dll)
+            sgl_copy_binary(${SLANG_DIR}/bin/slang-llvm.dll .)
+        endif()
         # Note: The downloaded debug-info archive has single top-level 'bin'
         # folder that is stripped out by FetchContent.
         set(slang_resolved_debug_info "${slang_lib_base}.pdb")

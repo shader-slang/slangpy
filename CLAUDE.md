@@ -82,7 +82,7 @@ black . --line-length 100
 
 ## Development Tips
 
-- The project uses CMake with presets for different platforms (windows-msvc, linux-gcc, macos-arm64-clang)
+- The project uses CMake with presets for different platforms (windows-msvc, windows-arm64-msvc, linux-gcc, macos-arm64-clang)
 - PyTorch integration is automatic when PyTorch is installed
 - Hot-reload is supported for shader development
 - Use `python tools/ci.py` for most build/test tasks - it handles platform-specific configuration

@@ -1,6 +1,8 @@
 
 add_library(sgl SHARED)
 
+option(SGL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
+
 target_sources(sgl PRIVATE
     sgl.natvis
 
@@ -200,7 +202,7 @@ target_compile_options(sgl
             /MP                             # enable multi-processor compilation
             /Zi                             # generate debug symbols
             # Configure warnings
-            /WX                             # warnings as errors
+            $<$<BOOL:${SGL_WARNINGS_AS_ERRORS}>:/WX>    # warnings as errors
             /W4                             # increase warning level
             /wd4251                         # 'type' : class 'type1' needs to have dll-interface to be used by clients of class 'type2'
             /wd4201                         # nonstandard extension used: nameless struct/union
@@ -221,7 +223,7 @@ target_compile_options(sgl
             -fvisibility=hidden             # hide symbols by default
             -Wall                           # set warning level
             -Wextra                         # enable extra warnings
-            -Werror                         # treat warnings as errors
+            $<$<BOOL:${SGL_WARNINGS_AS_ERRORS}>:-Werror>    # treat warnings as errors
             -Wno-unused-function
             -Wno-unused-variable
             -Wno-unused-but-set-variable
@@ -239,6 +241,7 @@ target_compile_options(sgl
             -Wno-self-assign-overloaded
             -Wno-deprecated-copy
             -Wno-microsoft-cast
+            -Wno-cast-function-type-mismatch
 
             # this is for ImGUI only
             -Wno-nontrivial-memcall

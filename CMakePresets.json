@@ -92,6 +92,40 @@
             ]
         },
         {
+            "name": "windows-arm64-base",
+            "description": "Base Windows ARM64 configuration.",
+            "hidden": true,
+            "inherits": "windows-base",
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "arm64-windows-static-md-fix"
+            }
+        },
+        {
+            "name": "windows-arm64-msvc-base",
+            "description": "Base Visual Studio 2022 ARM64 configuration.",
+            "hidden": true,
+            "inherits": "windows-arm64-base",
+            "generator": "Ninja Multi-Config",
+            "architecture": {
+                "value": "ARM64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl"
+            }
+        },
+        {
+            "name": "windows-arm64-msvc",
+            "inherits": [
+                "windows-arm64-msvc-base"
+            ],
+            "cacheVariables": {
+                "CMAKE_CXX_FLAGS": "/EHsc",
+                "SGL_WARNINGS_AS_ERRORS": "OFF"
+            }
+        },
+        {
             "name": "linux-base",
             "description": "Base Linux configuration.",
             "hidden": true,
@@ -188,6 +222,18 @@
             "name": "windows-clang-debug",
             "displayName": "Debug",
             "configurePreset": "windows-clang",
+            "configuration": "Debug"
+        },
+        {
+            "name": "windows-arm64-msvc-release",
+            "displayName": "Release",
+            "configurePreset": "windows-arm64-msvc",
+            "configuration": "Release"
+        },
+        {
+            "name": "windows-arm64-msvc-debug",
+            "displayName": "Debug",
+            "configurePreset": "windows-arm64-msvc",
             "configuration": "Debug"
         },
         {
