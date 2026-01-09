@@ -266,7 +266,7 @@ SGL_PY_EXPORT(device_raytracing)
     nb::class_<AccelerationStructureBuildInputSpheres>(
         m,
         "AccelerationStructureBuildInputSpheres",
-        D_NA(AccelerationStructureBuildInputSpheres)
+        D(AccelerationStructureBuildInputSpheres)
     )
         .def(nb::init<>())
         .def(
@@ -295,7 +295,7 @@ SGL_PY_EXPORT(device_raytracing)
     nb::class_<AccelerationStructureBuildInputLinearSweptSpheres>(
         m,
         "AccelerationStructureBuildInputLinearSweptSpheres",
-        D_NA(AccelerationStructureBuildInputLinearSweptSpheres)
+        D(AccelerationStructureBuildInputLinearSweptSpheres)
     )
         .def(nb::init<>())
         .def(
