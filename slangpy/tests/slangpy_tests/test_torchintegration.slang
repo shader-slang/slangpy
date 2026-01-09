@@ -90,5 +90,5 @@ void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] r
 
 void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
-        output.set({int(i)}, input[int(i)]);
+        output[i] = input[i];
 }
