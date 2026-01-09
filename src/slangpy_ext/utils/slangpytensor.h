@@ -220,8 +220,8 @@ private:
         void* base_address,
         const TensorFieldOffsets& offsets,
         const ref<Buffer>& buffer,
-        const std::vector<int>& shape,
-        const std::vector<int>& strides,
+        const Shape& shape,
+        const Shape& strides,
         int offset
     ) const;
 
@@ -229,23 +229,25 @@ private:
     /// Used for PyTorch tensors where we write the raw device pointer directly
     void write_tensor_fields_from_pointer(
         ShaderObject* shader_object,
+        void* base_address,
         const TensorFieldOffsets& offsets,
         void* data_ptr,
-        const std::vector<int>& shape,
-        const std::vector<int>& strides,
+        const Shape& shape,
+        const Shape& strides,
         int offset
     ) const;
 
     /// Write PyTorch tensor fields using pre-cached offsets
-    /// Handles broadcast stride zeroing and delegates to write_tensor_fields_fast_pointer
+    /// Handles broadcast stride zeroing and delegates to write_tensor_fields_from_pointer
     void write_torch_tensor_ref_fields(
         CallContext* context,
         NativeBoundVariableRuntime* binding,
         ShaderObject* shader_object,
+        void* base_address,
         const TensorFieldOffsets& offsets,
         void* data_ptr,
-        const std::vector<int>& shape,
-        const std::vector<int>& strides,
+        const Shape& shape,
+        const Shape& strides_in,
         int offset
     ) const;
 };

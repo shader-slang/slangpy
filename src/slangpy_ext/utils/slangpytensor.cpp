@@ -19,63 +19,45 @@ namespace sgl::slangpy {
 
 namespace {
     /// Helper function to extract shape from PyTorch tensor
-    /// Pre-allocates vector to avoid repeated allocations
-    std::vector<int> extract_shape(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
+    /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
+    Shape extract_shape(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
-        std::vector<int> shape;
-        shape.reserve(tensor.ndim()); // Pre-allocate
+        Shape shape(tensor.ndim());
         for (size_t i = 0; i < tensor.ndim(); i++) {
-            shape.push_back(static_cast<int>(tensor.shape(i)));
+            shape[i] = static_cast<int>(tensor.shape(i));
         }
         return shape;
     }
 
     /// Helper function to extract strides from PyTorch tensor
     /// Returns element strides directly (PyTorch stride() already returns element strides for nanobind)
-    /// Pre-allocates vector to avoid repeated allocations
-    std::vector<int> extract_strides(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
+    /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
+    Shape extract_strides(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
-        std::vector<int> strides;
-        strides.reserve(tensor.ndim()); // Pre-allocate
+        Shape strides(tensor.ndim());
         for (size_t i = 0; i < tensor.ndim(); i++) {
             // nanobind's tensor.stride() returns element strides, not byte strides
-            strides.push_back(static_cast<int>(tensor.stride(i)));
+            strides[i] = static_cast<int>(tensor.stride(i));
         }
         return strides;
     }
 
-    /// Apply broadcast stride zeroing for dimensions that are broadcast
-    /// Returns a new strides vector with broadcast dimensions set to 0
-    std::vector<int> apply_broadcast_stride_zeroing(
-        const std::vector<int>& strides,
-        const std::vector<int>& shape,
-        const std::vector<int>& transform,
-        const std::vector<int>& call_shape
-    )
-    {
-        std::vector<int> result = strides;
-        for (size_t i = 0; i < transform.size(); i++) {
-            int csidx = transform[i];
-            if (call_shape[csidx] != shape[i]) {
-                result[i] = 0;
-            }
-        }
-        return result;
-    }
-
-    /// Overload accepting Shape directly (avoids temporary allocations)
-    std::vector<int> apply_broadcast_stride_zeroing(
+    /// Overload accepting Shape directly and returning Shape (ZERO allocations for small shapes!)
+    Shape apply_broadcast_stride_zeroing(
         const Shape& strides,
         const Shape& shape,
         const Shape& transform,
         const Shape& call_shape
     )
     {
-        std::vector<int> result(strides.data(), strides.data() + strides.size());
+        Shape result;
+        result = strides; // Uses copy constructor (inline if ≤8 dims, one allocation if >8)
+
         for (size_t i = 0; i < transform.size(); i++) {
             int csidx = transform[i];
             if (call_shape[csidx] != shape[i]) {
-                result[i] = 0;
+                // Need to modify - for inline storage this is in-place, for heap it modifies the allocated array
+                const_cast<Shape&>(result)[i] = 0;
             }
         }
         return result;
@@ -89,7 +71,7 @@ namespace {
         *ptr = value;
     }
 
-    /// Helper for writing strided array to base address with offset
+    /// Helper for writing strided array to base address with offset (raw pointer version)
     template<typename T>
     void write_strided_array_helper(
         void* base_address,
@@ -103,6 +85,16 @@ namespace {
         for (size_t i = 0; i < element_count; i++) {
             T* ptr = reinterpret_cast<T*>(dest_ptr + i * element_stride);
             *ptr = data[i];
+        }
+    }
+
+    /// Helper for writing strided array from Shape to base address with offset (zero allocation)
+    void write_strided_array_helper(void* base_address, size_t offset, const Shape& shape, size_t element_stride)
+    {
+        uint8_t* dest_ptr = static_cast<uint8_t*>(base_address) + offset;
+        for (size_t i = 0; i < shape.size(); i++) {
+            int* ptr = reinterpret_cast<int*>(dest_ptr + i * element_stride);
+            *ptr = shape[i];
         }
     }
 } // anonymous namespace
@@ -340,6 +332,9 @@ void NativeTensorMarshall::write_torch_tensor_ref(
     }
     auto& pytorch_tensor = pytorch_tensor_opt.value();
 
+    // Reserve memory in shader object for tensor fields
+    void* base_address = shader_object->reserve_data(m_cached_offsets.field_offset, m_cached_offsets.field_size);
+
     // Write primal tensor
     if (!m_cached_offsets.has_grad_fields) {
         // Flat structure - use primal offsets directly
@@ -347,6 +342,7 @@ void NativeTensorMarshall::write_torch_tensor_ref(
             context,
             binding,
             shader_object,
+            base_address,
             m_cached_offsets.primal,
             pytorch_tensor.data(),
             extract_shape(pytorch_tensor),
@@ -359,6 +355,7 @@ void NativeTensorMarshall::write_torch_tensor_ref(
             context,
             binding,
             shader_object,
+            base_address,
             m_cached_offsets.primal,
             pytorch_tensor.data(),
             extract_shape(pytorch_tensor),
@@ -377,6 +374,7 @@ void NativeTensorMarshall::write_torch_tensor_ref(
                     context,
                     binding,
                     shader_object,
+                    base_address,
                     m_cached_offsets.grad_in,
                     grad_in_tensor.data(),
                     extract_shape(grad_in_tensor),
@@ -397,6 +395,7 @@ void NativeTensorMarshall::write_torch_tensor_ref(
                     context,
                     binding,
                     shader_object,
+                    base_address,
                     m_cached_offsets.grad_out,
                     grad_out_tensor.data(),
                     extract_shape(grad_out_tensor),
@@ -503,13 +502,12 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
     void* base_address,
     const TensorFieldOffsets& offsets,
     const ref<Buffer>& buffer,
-    const std::vector<int>& shape,
-    const std::vector<int>& strides,
+    const Shape& shape,
+    const Shape& strides,
     int offset
 ) const
 {
-    // For CUDA, we need to use device pointer instead of buffer binding
-    if (shader_object->device()->type() == DeviceType::cuda) {
+    if (offsets.data.has_uniform_offset()) {
         write_value_helper(
             base_address,
             offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
@@ -522,16 +520,14 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
     write_strided_array_helper(
         base_address,
         offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
-        shape.data(),
-        shape.size(),
+        shape,
         offsets.array_stride
     );
 
     write_strided_array_helper(
         base_address,
         offsets.strides.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
-        strides.data(),
-        strides.size(),
+        strides,
         offsets.array_stride
     );
 
@@ -544,18 +540,44 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
 
 void NativeTensorMarshall::write_tensor_fields_from_pointer(
     ShaderObject* shader_object,
+    void* base_address,
     const TensorFieldOffsets& offsets,
     void* data_ptr,
-    const std::vector<int>& shape,
-    const std::vector<int>& strides,
+    const Shape& shape,
+    const Shape& strides,
     int offset
 ) const
 {
+    SGL_UNUSED(shader_object);
+
+    // Write device pointer
     DeviceAddress address = reinterpret_cast<DeviceAddress>(data_ptr);
-    shader_object->set_data(offsets.data, &address, sizeof(DeviceAddress));
-    shader_object->set_data(offsets.shape, shape.data(), shape.size() * sizeof(int));
-    shader_object->set_data(offsets.strides, strides.data(), strides.size() * sizeof(int));
-    shader_object->set_data(offsets.offset, &offset, sizeof(int));
+    write_value_helper(
+        base_address,
+        offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        address
+    );
+
+    // Write shape and strides using the same mechanism as write_tensor_fields_from_buffer
+    write_strided_array_helper(
+        base_address,
+        offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        shape,
+        offsets.array_stride
+    );
+
+    write_strided_array_helper(
+        base_address,
+        offsets.strides.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        strides,
+        offsets.array_stride
+    );
+
+    write_value_helper(
+        base_address,
+        offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offset
+    );
 }
 
 void NativeTensorMarshall::write_native_tensor_fields(
@@ -571,19 +593,16 @@ void NativeTensorMarshall::write_native_tensor_fields(
     SGL_UNUSED(read_back);
 
     const Shape& shape = tensor->shape();
-    std::vector<int> strides_vec
+    Shape strides
         = apply_broadcast_stride_zeroing(tensor->strides(), shape, binding->transform(), context->call_shape());
-
-    // Convert shape to vector for write_tensor_fields_from_buffer
-    std::vector<int> shape_vec(shape.data(), shape.data() + shape.size());
 
     write_tensor_fields_from_buffer(
         shader_object,
         base_address,
         offsets,
         tensor->storage(),
-        shape_vec,
-        strides_vec,
+        shape,
+        strides,
         tensor->offset()
     );
 }
@@ -592,26 +611,18 @@ void NativeTensorMarshall::write_torch_tensor_ref_fields(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
     ShaderObject* shader_object,
+    void* base_address,
     const TensorFieldOffsets& offsets,
     void* data_ptr,
-    const std::vector<int>& shape,
-    const std::vector<int>& strides_in,
+    const Shape& shape,
+    const Shape& strides_in,
     int offset
 ) const
 {
-    // Convert Shape to vector for this legacy interface
-    std::vector<int> transform_vec(
-        binding->transform().data(),
-        binding->transform().data() + binding->transform().size()
-    );
-    std::vector<int> call_shape_vec(
-        context->call_shape().data(),
-        context->call_shape().data() + context->call_shape().size()
-    );
+    // Apply broadcast stride zeroing (ZERO allocations for shapes ≤8 dims!)
+    Shape strides = apply_broadcast_stride_zeroing(strides_in, shape, binding->transform(), context->call_shape());
 
-    std::vector<int> strides = apply_broadcast_stride_zeroing(strides_in, shape, transform_vec, call_shape_vec);
-
-    write_tensor_fields_from_pointer(shader_object, offsets, data_ptr, shape, strides, offset);
+    write_tensor_fields_from_pointer(shader_object, base_address, offsets, data_ptr, shape, strides, offset);
 }
 
 void NativeTensorMarshall::read_calldata(

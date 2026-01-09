@@ -65,7 +65,7 @@ ref<NativeSlangType> innermost_type(ref<NativeSlangType> type)
     return result;
 }
 
-StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc& desc, ref<Buffer> storage)
+StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc& desc, const ref<Buffer>& storage)
 {
     if (!storage) {
         BufferDesc buffer_desc;
@@ -73,9 +73,10 @@ StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc
         buffer_desc.struct_size = desc.element_layout->stride();
         buffer_desc.usage = desc.usage;
         buffer_desc.memory_type = desc.memory_type;
-        storage = device->create_buffer(buffer_desc);
+        m_storage = device->create_buffer(buffer_desc);
+    } else {
+        m_storage = storage;
     }
-    m_storage = std::move(storage);
 
     set_slangpy_signature(
         fmt::format("[{},{},{}]", desc.dtype->type_reflection()->full_name(), desc.shape.size(), desc.usage)

@@ -87,6 +87,20 @@ public:
         }
     }
 
+    /// Constructor that creates a Shape of a given size with uninitialized values
+    /// Use this when you need to populate the shape manually
+    explicit Shape(size_t size)
+        : m_size(size)
+        , m_valid(true)
+        , m_uses_heap(size > INLINE_CAPACITY)
+    {
+        if (m_uses_heap) {
+            m_storage.heap_data = std::make_unique<int[]>(m_size);
+            // Values are uninitialized - caller must populate them
+        }
+        // For inline storage, values are also uninitialized
+    }
+
     /// Constructor from initializer list
     Shape(std::initializer_list<int> shape)
         : m_size(shape.size())
