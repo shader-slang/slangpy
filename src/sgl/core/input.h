@@ -137,6 +137,10 @@ enum class KeyCode : uint32_t {
     backslash = '\\',
     right_bracket = ']',
     grave_accent = '`',
+    // Non-US keys (GLFW_KEY_WORLD_1/2). These are layout-dependent and occupy
+    // values in the printable range.
+    world_1 = 161,
+    world_2 = 162,
 
     // Special keys start at key code 256.
     escape = 256,
@@ -250,6 +254,8 @@ SGL_ENUM_INFO(
         {KeyCode::backslash, "backslash"},
         {KeyCode::right_bracket, "right_bracket"},
         {KeyCode::grave_accent, "grave_accent"},
+        {KeyCode::world_1, "world_1"},
+        {KeyCode::world_2, "world_2"},
         {KeyCode::escape, "escape"},
         {KeyCode::tab, "tab"},
         {KeyCode::enter, "enter"},

@@ -431,9 +431,57 @@ private:
     mutable std::set<SlangEntryPoint*> m_registered_entry_points;
 };
 
+/// Kind of specialization argument (mirrors slang::SpecializationArg::Kind).
+enum class SpecializationArgKind {
+    unknown, ///< An invalid specialization argument.
+    type,    ///< Specialize with a type.
+    expr,    ///< Specialize with an expression (e.g., integer constant).
+};
+
+SGL_ENUM_INFO(
+    SpecializationArgKind,
+    {
+        {SpecializationArgKind::unknown, "unknown"},
+        {SpecializationArgKind::type, "type"},
+        {SpecializationArgKind::expr, "expr"},
+    }
+);
+SGL_ENUM_REGISTER(SpecializationArgKind);
+
+/// \brief Specialization argument for generic entrypoints.
+/// Mirrors slang::SpecializationArg but uses string values for Python compatibility.
+struct SGL_API SpecializationArg {
+    SpecializationArgKind kind{SpecializationArgKind::type};
+    /// Type name (for SpecializationArgKind::type) or expression string (for SpecializationArgKind::expr).
+    std::string value;
+
+    SpecializationArg() = default;
+    SpecializationArg(SpecializationArgKind kind, std::string_view value)
+        : kind(kind)
+        , value(value)
+    {
+    }
+
+    /// Create a type specialization argument.
+    static SpecializationArg from_type(std::string_view type_name)
+    {
+        return SpecializationArg(SpecializationArgKind::type, type_name);
+    }
+
+    /// Create an expression specialization argument.
+    static SpecializationArg from_expr(std::string_view expr)
+    {
+        return SpecializationArg(SpecializationArgKind::expr, expr);
+    }
+
+    std::string to_string() const;
+};
+
 struct SlangEntryPointDesc {
     std::string name;
     std::vector<TypeConformance> type_conformances;
+    /// Specialization arguments for generic entrypoints.
+    std::vector<SpecializationArg> specialization_args;
 };
 struct SlangEntryPointData : Object {
     SGL_OBJECT(SlangEntryPointData)
@@ -468,6 +516,10 @@ public:
 
     /// Returns a copy of the entry point with a new name.
     ref<SlangEntryPoint> with_name(const std::string& name) const;
+
+    /// Returns a specialized version of a generic entry point.
+    /// \param specialization_args The specialization arguments for generic parameters.
+    ref<SlangEntryPoint> specialize(std::span<SpecializationArg> specialization_args) const;
 
     slang::IComponentType* slang_entry_point() const { return m_data->slang_entry_point.get(); }
 

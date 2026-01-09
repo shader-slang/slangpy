@@ -13,6 +13,35 @@
 
 namespace sgl::math {
 
+template<typename LHS, typename RHS>
+void bind_matrix_mul(nb::module_& m)
+{
+    static_assert(LHS::cols == RHS::rows, "Matrix dimensions must match for multiplication");
+    m.def(
+        "mul",
+        [](const LHS& x, const RHS& y)
+        {
+            return mul(x, y);
+        },
+        "x"_a,
+        "y"_a
+    );
+}
+
+template<typename LHS, typename RHS>
+void bind_matrix_matmul(nb::class_<LHS>& mat)
+{
+    static_assert(LHS::cols == RHS::rows, "Matrix dimensions must match for multiplication");
+    mat.def(
+        "__matmul__",
+        [](const LHS& x, const RHS& y)
+        {
+            return mul(x, y);
+        },
+        nb::is_operator()
+    );
+}
+
 template<typename T>
 void bind_matrix_type(nb::module_& m, const char* name)
 {
@@ -186,15 +215,6 @@ void bind_matrix_type(nb::module_& m, const char* name)
 
     m.def(
         "mul",
-        [](const matrix<value_type, rows, cols>& x, const matrix<value_type, cols, rows>& y)
-        {
-            return mul(x, y);
-        },
-        "x"_a,
-        "y"_a
-    );
-    m.def(
-        "mul",
         [](const T& x, const row_type& y)
         {
             return mul(x, y);
@@ -211,6 +231,13 @@ void bind_matrix_type(nb::module_& m, const char* name)
         "x"_a,
         "y"_a
     );
+
+    bind_matrix_mul<T, matrix<value_type, cols, 2>>(m);
+    bind_matrix_mul<T, matrix<value_type, cols, 3>>(m);
+    bind_matrix_mul<T, matrix<value_type, cols, 4>>(m);
+    bind_matrix_matmul<T, matrix<value_type, cols, 2>>(mat);
+    bind_matrix_matmul<T, matrix<value_type, cols, 3>>(mat);
+    bind_matrix_matmul<T, matrix<value_type, cols, 4>>(mat);
 }
 
 inline void bind_matrix(nb::module_& m)

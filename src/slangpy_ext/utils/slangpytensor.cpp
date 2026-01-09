@@ -172,9 +172,6 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
     // This is critical for PyTorch's autograd system to identify input/output tensors
     tensorref->set_last_access(binding->access());
 
-    // Validation checks
-    SGL_CHECK(pytorch_tensor.data() != nullptr, "PyTorch tensor has null data pointer");
-
     // Validate tensor shape matches expected shape
     std::vector<int> tensor_shape = extract_shape(pytorch_tensor);
     const Shape& expected_shape = binding->vector_type()->shape();
