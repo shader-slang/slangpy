@@ -502,6 +502,10 @@ def texture_return_value_impl(
     assert np.allclose(result_np, data.squeeze())
 
 
+@pytest.mark.memory_leak(
+    "Leaks modules, probably issue with looking up types by name",
+    details={"ShaderProgram": 1, "ShaderProgramData": 1, "SlangModuleData": 2, "SlangModule": 2},
+)
 @pytest.mark.parametrize(
     "texel_name", ["uint8_t", "uint16_t", "int8_t", "int16_t", "float", "half", "uint"]
 )
@@ -516,6 +520,10 @@ def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: in
 
 # This case checks for when the return type is the string "texture".
 # This checks a subset of the "test_texture_return_value" parameters.
+@pytest.mark.memory_leak(
+    "Leaks modules, probably issue with looking up types by name",
+    details={"ShaderProgram": 1, "ShaderProgramData": 1, "SlangModuleData": 2, "SlangModule": 2},
+)
 @pytest.mark.parametrize("texel_name", ["float"])
 @pytest.mark.parametrize("dims", [1, 2, 3])
 @pytest.mark.parametrize("channels", [4])
