@@ -17,6 +17,7 @@ from slangpy import (
     CommandEncoder,
     Bitmap,
     DataStruct,
+    BufferCursor,
 )
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
@@ -318,6 +319,42 @@ class NDBuffer(NativeNDBuffer):
         """
         return cast(np.ndarray[Any, Any], super().to_numpy())
 
+    def copy_from_numpy(self, data: np.ndarray[Any, Any]):
+        """
+        Copies data from a numpy array into the buffer.
+
+        This method handles structured numpy dtypes by using BufferCursor to
+        write each field separately, which correctly handles platform-specific
+        alignment differences (e.g., Metal's 16-byte float3 alignment vs
+        CUDA/Vulkan's 12-byte float3).
+
+        Examples:
+            # Simple dtype - direct copy
+            buffer.copy_from_numpy(np.array([1.0, 2.0, 3.0], dtype=np.float32))
+
+            # Structured dtype with mixed types - automatically handled via BufferCursor
+            particle_dtype = np.dtype([('position', np.float32, (3,)), ('id', np.int32)])
+            buffer.copy_from_numpy(np.array([([1.0, 2.0, 3.0], 42)], dtype=particle_dtype))
+        """
+        if data.dtype.names is not None:
+            # Structured dtype: use BufferCursor which handles alignment correctly
+            # Convert structured array to dict of arrays (what write_from_numpy expects)
+            data_dict = {}
+            for name in data.dtype.names:
+                field_data = data[name]
+                # Ensure contiguous for efficient transfer
+                if not field_data.flags["C_CONTIGUOUS"]:
+                    field_data = np.ascontiguousarray(field_data)
+                data_dict[name] = field_data
+
+            # Use BufferCursor.write_from_numpy which handles platform-specific alignment
+            cursor = BufferCursor(self.dtype.buffer_layout.reflection, self.storage)
+            cursor.write_from_numpy(data_dict)
+            cursor.apply()
+        else:
+            # Simple dtype: use direct copy (faster)
+            super().copy_from_numpy(data)
+
     def to_torch(self) -> "torch.Tensor":
         """
         Returns a view of the buffer data as a torch tensor with the same shape and strides.
@@ -345,16 +382,28 @@ class NDBuffer(NativeNDBuffer):
     ) -> "NDBuffer":
         """
         Creates a new NDBuffer with the same contents, shape and strides as the given numpy array.
+
+        For structured numpy dtypes (compound dtypes created with np.dtype), you must provide
+        the corresponding Slang dtype explicitly, as automatic conversion is not supported.
         """
+        # Check if this is a structured dtype
+        is_structured = ndarray.dtype.names is not None
 
         if dtype is None:
+            if is_structured:
+                raise ValueError(
+                    f"Structured numpy dtype {ndarray.dtype} cannot be automatically converted to a Slang type. "
+                    "Please provide an explicit 'dtype' parameter with the corresponding Slang type."
+                )
             dtype = _numpy_to_slang(ndarray.dtype, device, program_layout)
             if dtype is None:
                 raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
-            if not ndarray.flags["C_CONTIGUOUS"]:
-                raise ValueError(
-                    "Currently NDBuffers can only be directly constructed from C-contiguous numpy arrays"
-                )
+
+        if not ndarray.flags["C_CONTIGUOUS"]:
+            raise ValueError(
+                "Currently NDBuffers can only be directly constructed from C-contiguous numpy arrays"
+            )
+
         if shape is None:
             shape = ndarray.shape
 
@@ -364,6 +413,7 @@ class NDBuffer(NativeNDBuffer):
             shape=shape,
             usage=usage,
             memory_type=memory_type,
+            program_layout=program_layout,
         )
         res.copy_from_numpy(ndarray)
         return res
