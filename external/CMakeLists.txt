@@ -104,7 +104,9 @@ elseif(SGL_MACOS)
     endif()
 endif()
 
-sgl_download_package(slang ${SLANG_URL})
+if(NOT SGL_LOCAL_SLANG)
+    sgl_download_package(slang ${SLANG_URL})
+endif()
 
 set(SLANG_DIR ${slang_SOURCE_DIR})
 set(SLANG_INCLUDE_DIR ${slang_SOURCE_DIR}/include)
