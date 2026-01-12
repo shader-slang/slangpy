@@ -78,7 +78,7 @@ template<typename T>
 struct type_caster<std::span<T>> {
     NB_TYPE_CASTER(
         std::span<T>,
-        io_name("Sequence", NB_TYPING_LIST) + const_name("[") + make_caster<T>::Name + const_name("]")
+        io_name("collections.abc.Sequence", "list") + const_name("[") + make_caster<T>::Name + const_name("]")
     )
 
     using Caster = make_caster<T>;
