@@ -357,7 +357,7 @@ public:
     void get_data(void* data, size_t size, DeviceOffset offset = 0);
 
     template<typename T>
-    void get_element(size_t index)
+    T get_element(size_t index)
     {
         T value;
         get_data(&value, sizeof(T), index * sizeof(T));

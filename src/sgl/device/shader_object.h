@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "sgl/core/block_allocator.h"
 #include "sgl/core/config.h"
 #include "sgl/core/object.h"
 #include "sgl/core/type_utils.h"
@@ -20,6 +21,7 @@ namespace sgl {
 
 class SGL_API ShaderObject : public Object {
     SGL_OBJECT(ShaderObject)
+    SGL_DECLARE_BLOCK_ALLOCATED(ShaderObject)
 public:
     ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain = true);
     virtual ~ShaderObject();

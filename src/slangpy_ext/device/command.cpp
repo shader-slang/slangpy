@@ -525,7 +525,7 @@ SGL_PY_EXPORT(device_command)
             "dst_descs"_a,
             "src"_a,
             "src_descs"_a,
-            D_NA(CommandEncoder::convert_coop_vec_matrices)
+            D(CommandEncoder, convert_coop_vec_matrices)
         )
         .def(
             "convert_coop_vec_matrix",
@@ -534,7 +534,7 @@ SGL_PY_EXPORT(device_command)
             "dst_desc"_a,
             "src"_a,
             "src_desc"_a,
-            D_NA(CommandEncoder::convert_coop_vec_matrix)
+            D(CommandEncoder, convert_coop_vec_matrix)
         )
         .def(
             "set_buffer_state",
@@ -558,7 +558,7 @@ SGL_PY_EXPORT(device_command)
             "state"_a,
             D(CommandEncoder, set_texture_state)
         )
-        .def("global_barrier", &CommandEncoder::global_barrier, D_NA(CommandEncoder, global_barrier))
+        .def("global_barrier", &CommandEncoder::global_barrier, D(CommandEncoder, global_barrier))
         .def(
             "push_debug_group",
             &CommandEncoder::push_debug_group,
@@ -600,7 +600,7 @@ SGL_PY_EXPORT(device_command)
             &PassEncoder::write_timestamp,
             "query_pool"_a,
             "index"_a,
-            D_NA(PassEncoder, write_timestamp)
+            D(PassEncoder, write_timestamp)
         );
 
     nb::class_<RenderPassEncoder, PassEncoder>(m, "RenderPassEncoder", D(RenderPassEncoder))

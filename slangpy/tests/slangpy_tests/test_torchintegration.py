@@ -350,5 +350,24 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int):
     # res.backward(torch.ones_like(res))
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_empty_tensor_null_data_ptr(device_type: DeviceType):
+    """
+    Test that tensors with null data pointers (e.g., zero-element tensors) are accepted.
+    """
+    module = load_test_module(device_type)
+
+    # Create empty tensors - these have null data pointers
+    input_tensor = torch.empty((0,), dtype=torch.float32, device=torch.device("cuda"))
+    output_tensor = torch.empty((0,), dtype=torch.float32, device=torch.device("cuda"))
+
+    # This should not crash - empty tensors with null data_ptr should be accepted
+    module.copy_tensor(input_tensor, output_tensor)
+
+    # Verify tensors are still empty
+    assert input_tensor.numel() == 0
+    assert output_tensor.numel() == 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
