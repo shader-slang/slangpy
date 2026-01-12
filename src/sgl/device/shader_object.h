@@ -21,7 +21,7 @@ namespace sgl {
 
 class SGL_API ShaderObject : public Object {
     SGL_OBJECT(ShaderObject)
-    SGL_DECLARE_BLOCK_ALLOCATED(ShaderObject, 256)
+    SGL_DECLARE_BLOCK_ALLOCATED(ShaderObject)
 public:
     ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain = true);
     virtual ~ShaderObject();

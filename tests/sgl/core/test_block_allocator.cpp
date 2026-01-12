@@ -51,7 +51,7 @@ TEST_CASE("basic_allocation")
 
     // Destruct and deallocate
     obj->~TestObject();
-    allocator.deallocate(obj);
+    allocator.free(obj);
 }
 
 TEST_CASE("multiple_allocations")
@@ -76,7 +76,7 @@ TEST_CASE("multiple_allocations")
     // Deallocate all
     for (auto obj : objects) {
         obj->~TestObject();
-        allocator.deallocate(obj);
+        allocator.free(obj);
     }
 }
 
@@ -89,7 +89,7 @@ TEST_CASE("reuse_after_free")
     REQUIRE(obj1 != nullptr);
     new (obj1) TestObject(1, 1.0);
     obj1->~TestObject();
-    allocator.deallocate(obj1);
+    allocator.free(obj1);
 
     // Allocate again - should reuse the same block
     TestObject* obj2 = allocator.allocate();
@@ -101,14 +101,14 @@ TEST_CASE("reuse_after_free")
     CHECK_EQ(obj2->data, 2.0);
 
     obj2->~TestObject();
-    allocator.deallocate(obj2);
+    allocator.free(obj2);
 }
 
-TEST_CASE("deallocate_nullptr")
+TEST_CASE("free_nullptr")
 {
     BlockAllocator<TestObject> allocator(4);
     // Should not crash
-    allocator.deallocate(nullptr);
+    allocator.free(nullptr);
 }
 
 TEST_CASE("owns")
@@ -130,7 +130,7 @@ TEST_CASE("owns")
     CHECK_FALSE(allocator.owns(heap_obj));
     delete heap_obj;
 
-    allocator.deallocate(obj);
+    allocator.free(obj);
 }
 
 TEST_CASE("page_allocation")
@@ -139,25 +139,25 @@ TEST_CASE("page_allocation")
     std::vector<TestObject*> objects;
 
     // Check initial state
-    CHECK_EQ(allocator.get_num_pages(), 0);
+    CHECK_EQ(allocator.num_pages(), 0);
 
     // First allocation should create a page
     objects.push_back(allocator.allocate());
-    CHECK_EQ(allocator.get_num_pages(), 1);
+    CHECK_EQ(allocator.num_pages(), 1);
 
     // Fill the first page
     for (int i = 1; i < 4; ++i) {
         objects.push_back(allocator.allocate());
     }
-    CHECK_EQ(allocator.get_num_pages(), 1);
+    CHECK_EQ(allocator.num_pages(), 1);
 
     // Next allocation should create a new page
     objects.push_back(allocator.allocate());
-    CHECK_EQ(allocator.get_num_pages(), 2);
+    CHECK_EQ(allocator.num_pages(), 2);
 
     // Cleanup
     for (auto obj : objects) {
-        allocator.deallocate(obj);
+        allocator.free(obj);
     }
 }
 
@@ -216,7 +216,7 @@ TEST_CASE("multithreaded_allocation")
                     CHECK_EQ(obj->data, i * 2.0);
                     CHECK_EQ(obj->thread, tid);
                     obj->~TestObject();
-                    allocator.deallocate(obj);
+                    allocator.free(obj);
                 }
             }
         );
@@ -231,7 +231,7 @@ TEST_CASE("multithreaded_allocation")
 
 // Test for the macros
 class TestMacroClass {
-    SGL_DECLARE_BLOCK_ALLOCATED(TestMacroClass, 16)
+    SGL_DECLARE_BLOCK_ALLOCATED(TestMacroClass)
 
 public:
     int value;
