@@ -245,6 +245,17 @@ using ResolvedStackTrace = std::vector<ResolvedStackFrame>;
 // Crash handling
 // -------------------------------------------------------------------------------------------------
 
+struct CrashHandlerOptions {
+    bool write_crash_dump;
+    bool write_crash_report;
+    bool print_crash_report;
+    std::filesystem::path crash_dump_path;
+    std::filesystem::path crash_report_path;
+};
+
+SGL_API void enable_crash_handler(const CrashHandlerOptions& options);
+SGL_API void disable_crash_handler();
+
 /// Holds data collected during a crash.
 struct CrashContext {
     /// Exception code (Windows) or signal number (Linux/macOS).

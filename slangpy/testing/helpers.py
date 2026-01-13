@@ -45,7 +45,8 @@ def crash_handler(ctx: spy.platform.CrashContext):
 
 
 # Register global crash handler.
-spy.platform.set_crash_handler(crash_handler)
+# spy.platform.set_crash_handler(crash_handler)
+spy.platform.install_default_crash_handler()
 
 
 # Global variables for device isolation. If SELECTED_DEVICE_TYPES is None, no restriction.

@@ -42,6 +42,10 @@ def pytest_sessionstart(session: pytest.Session):
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
     close_all_devices()
 
+    print("\n\n!!!!Collecting all crash files!!!!\n\n")
+    with open("my_module_crash.txt") as f:
+        print(f.read())
+
 
 @pytest.hookimpl(trylast=True)
 def pytest_runtest_teardown(item: Any, nextitem: Any):

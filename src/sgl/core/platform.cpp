@@ -165,10 +165,13 @@ std::string format_crash_report(const CrashContext& ctx)
 
 static void default_crash_handler(const CrashContext& ctx)
 {
-    fprintf(stderr, "==============================\n");
-    fprintf(stderr, "Default crash handler invoked!\n");
-    fprintf(stderr, "==============================\n");
-    fprintf(stderr, "%s\n", format_crash_report(ctx).c_str());
+    // fwrite("!!!!\n", 1, 5, stdout);
+    // fflush(stdout);
+    // fprintf(stdout, "==============================\n");
+    // fprintf(stdout, "Default crash handler invoked!\n");
+    // fprintf(stdout, "==============================\n");
+    SGL_UNUSED(ctx);
+    // fprintf(stdout, "%s\n", format_crash_report(ctx).c_str());
 }
 
 void install_default_crash_handler()

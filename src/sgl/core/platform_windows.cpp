@@ -567,6 +567,86 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
 // Crash handling
 // -------------------------------------------------------------------------------------------------
 
+static CrashHandlerOptions s_crash_handler_options;
+
+static LONG WINAPI crash_handler_2(EXCEPTION_POINTERS* info)
+{
+    if (IsDebuggerPresent())
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    const CrashHandlerOptions& options = s_crash_handler_options;
+    bool write_crash_dump = options.write_crash_dump && !options.crash_dump_path.empty();
+    bool write_crash_report = options.write_crash_report && !options.crash_report_path.empty();
+
+    if (write_crash_dump) {
+        HANDLE file = CreateFileW(
+            options.crash_dump_path.native().c_str(),
+            GENERIC_WRITE,
+            0,
+            nullptr,
+            CREATE_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr
+        );
+        if (file != INVALID_HANDLE_VALUE) {
+            MINIDUMP_EXCEPTION_INFORMATION exInfo;
+            exInfo.ThreadId = GetCurrentThreadId();
+            exInfo.ExceptionPointers = info;
+            exInfo.ClientPointers = FALSE;
+
+            MiniDumpWriteDump(
+                GetCurrentProcess(),
+                GetCurrentProcessId(),
+                file,
+                MiniDumpWithIndirectlyReferencedMemory,
+                &exInfo,
+                nullptr,
+                nullptr
+            );
+            CloseHandle(file);
+        }
+    }
+
+    if (write_crash_report || options.print_crash_report) {
+        auto report = format_stacktrace(resolve_stacktrace(backtrace()));
+        if (write_crash_report) {
+            HANDLE file = CreateFileW(
+                options.crash_report_path.native().c_str(),
+                GENERIC_WRITE,
+                0,
+                nullptr,
+                CREATE_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL,
+                nullptr
+            );
+            if (file != INVALID_HANDLE_VALUE) {
+                DWORD written = 0;
+                WriteFile(file, report.c_str(), (DWORD)report.size(), &written, nullptr);
+                CloseHandle(file);
+            }
+        }
+        if (options.print_crash_report) {
+            HANDLE file = GetStdHandle(STD_ERROR_HANDLE);
+            DWORD written = 0;
+            WriteFile(file, report.c_str(), (DWORD)report.size(), &written, nullptr);
+            FlushFileBuffers(file);
+        }
+    }
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void enable_crash_handler(const CrashHandlerOptions& options)
+{
+    s_crash_handler_options = options;
+    SetUnhandledExceptionFilter(crash_handler_2);
+}
+
+void disable_crash_handler()
+{
+    SetUnhandledExceptionFilter(nullptr);
+}
+
 static CrashHandlerCallback s_crash_handler_callback;
 
 static LONG WINAPI crash_handler(EXCEPTION_POINTERS* info)
@@ -575,10 +655,59 @@ static LONG WINAPI crash_handler(EXCEPTION_POINTERS* info)
         return EXCEPTION_CONTINUE_SEARCH;
 
     if (s_crash_handler_callback) {
-        CrashContext ctx;
-        ctx.code = info->ExceptionRecord->ExceptionCode;
-        ctx.stack_trace = backtrace();
-        s_crash_handler_callback(ctx);
+        {
+            WCHAR path[MAX_PATH];
+            GetCurrentDirectoryW(MAX_PATH, path);
+            // GetTempPathW(MAX_PATH, path);
+            wcscat_s(path, L"\\my_module_crash.dmp");
+
+            HANDLE hFile = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (hFile != INVALID_HANDLE_VALUE) {
+                MINIDUMP_EXCEPTION_INFORMATION exInfo;
+                exInfo.ThreadId = GetCurrentThreadId();
+                exInfo.ExceptionPointers = info;
+                exInfo.ClientPointers = FALSE;
+
+                MiniDumpWriteDump(
+                    GetCurrentProcess(),
+                    GetCurrentProcessId(),
+                    hFile,
+                    MiniDumpWithIndirectlyReferencedMemory,
+                    &exInfo,
+                    nullptr,
+                    nullptr
+                );
+                CloseHandle(hFile);
+            }
+        }
+
+        {
+            WCHAR path[MAX_PATH];
+            GetCurrentDirectoryW(MAX_PATH, path);
+            // GetTempPathW(MAX_PATH, path);
+            wcscat_s(path, L"\\my_module_crash.txt");
+
+            HANDLE hFile = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (hFile != INVALID_HANDLE_VALUE) {
+                auto trace = sgl::platform::format_stacktrace(sgl::platform::resolve_stacktrace(backtrace()));
+                DWORD written = 0;
+                WriteFile(hFile, trace.c_str(), (DWORD)trace.size(), &written, nullptr);
+                CloseHandle(hFile);
+            }
+        }
+
+        const char msg[] = "Crash detected in XYZ\n";
+        HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE); // or STD_OUTPUT_HANDLE
+        DWORD written = 0;
+        WriteFile(h, msg, sizeof(msg) - 1, &written, nullptr);
+        FlushFileBuffers(h);
+
+        // CrashContext ctx;
+        // ctx.code = info->ExceptionRecord->ExceptionCode;
+        // ctx.stack_trace = backtrace();
+        SGL_UNUSED(info);
+        CrashContext* ctx = nullptr;
+        s_crash_handler_callback(*ctx);
     }
     return EXCEPTION_CONTINUE_SEARCH;
 }
