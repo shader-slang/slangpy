@@ -20,11 +20,14 @@ namespace sgl::slangpy {
 namespace {
     /// Helper function to extract shape from PyTorch tensor
     /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
+    /// Uses raw pointer access to avoid per-element branching on m_uses_heap.
     Shape extract_shape(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
-        Shape shape(tensor.ndim());
-        for (size_t i = 0; i < tensor.ndim(); i++) {
-            shape[i] = static_cast<int>(tensor.shape(i));
+        const size_t ndim = tensor.ndim();
+        Shape shape(ndim);
+        int* shape_data = shape.data(); // Get pointer once
+        for (size_t i = 0; i < ndim; i++) {
+            shape_data[i] = static_cast<int>(tensor.shape(i));
         }
         return shape;
     }
@@ -32,17 +35,21 @@ namespace {
     /// Helper function to extract strides from PyTorch tensor
     /// Returns element strides directly (PyTorch stride() already returns element strides for nanobind)
     /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
+    /// Uses raw pointer access to avoid per-element branching on m_uses_heap.
     Shape extract_strides(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
-        Shape strides(tensor.ndim());
-        for (size_t i = 0; i < tensor.ndim(); i++) {
+        const size_t ndim = tensor.ndim();
+        Shape strides(ndim);
+        int* strides_data = strides.data(); // Get pointer once
+        for (size_t i = 0; i < ndim; i++) {
             // nanobind's tensor.stride() returns element strides, not byte strides
-            strides[i] = static_cast<int>(tensor.stride(i));
+            strides_data[i] = static_cast<int>(tensor.stride(i));
         }
         return strides;
     }
 
     /// Overload accepting Shape directly and returning Shape (ZERO allocations for small shapes!)
+    /// Uses raw pointer access to avoid per-element branching on m_uses_heap.
     Shape apply_broadcast_stride_zeroing(
         const Shape& strides,
         const Shape& shape,
@@ -50,14 +57,19 @@ namespace {
         const Shape& call_shape
     )
     {
-        Shape result;
-        result = strides; // Uses copy constructor (inline if ≤8 dims, one allocation if >8)
+        Shape result = strides; // Uses copy constructor (inline if ≤8 dims, one allocation if >8)
 
-        for (size_t i = 0; i < transform.size(); i++) {
-            int csidx = transform[i];
-            if (call_shape[csidx] != shape[i]) {
-                // Need to modify - for inline storage this is in-place, for heap it modifies the allocated array
-                const_cast<Shape&>(result)[i] = 0;
+        // Get raw pointers once to avoid per-element m_uses_heap branching
+        const int* transform_data = transform.data();
+        const int* shape_data = shape.data();
+        const int* call_shape_data = call_shape.data();
+        int* result_data = result.data();
+        const size_t count = transform.size();
+
+        for (size_t i = 0; i < count; i++) {
+            int csidx = transform_data[i];
+            if (call_shape_data[csidx] != shape_data[i]) {
+                result_data[i] = 0;
             }
         }
         return result;
@@ -89,12 +101,15 @@ namespace {
     }
 
     /// Helper for writing strided array from Shape to base address with offset (zero allocation)
+    /// Uses raw pointer access to avoid per-element branching on m_uses_heap.
     void write_strided_array_helper(void* base_address, size_t offset, const Shape& shape, size_t element_stride)
     {
         uint8_t* dest_ptr = static_cast<uint8_t*>(base_address) + offset;
-        for (size_t i = 0; i < shape.size(); i++) {
+        const int* shape_data = shape.data(); // Get pointer once - single branch
+        const size_t count = shape.size();
+        for (size_t i = 0; i < count; i++) {
             int* ptr = reinterpret_cast<int*>(dest_ptr + i * element_stride);
-            *ptr = shape[i];
+            *ptr = shape_data[i]; // Direct pointer access - no branch
         }
     }
 } // anonymous namespace
@@ -507,7 +522,7 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
     int offset
 ) const
 {
-    if (offsets.data.has_uniform_offset()) {
+    if (offsets.data.binding_range_index == offsets.shape.binding_range_index) {
         write_value_helper(
             base_address,
             offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,

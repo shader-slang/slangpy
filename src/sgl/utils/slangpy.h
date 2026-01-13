@@ -227,8 +227,18 @@ public:
         return m_uses_heap ? m_storage.heap_data[i] : m_storage.inline_data[i];
     }
 
-    /// Access to internal data as pointer.
+    /// Access to internal data as pointer (const version).
     const int* data() const
+    {
+        if (!m_valid) {
+            SGL_THROW("Shape is invalid");
+        }
+        return m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+    }
+
+    /// Access to internal data as pointer (mutable version).
+    /// Use this in hot paths to avoid per-element branching on m_uses_heap.
+    int* data()
     {
         if (!m_valid) {
             SGL_THROW("Shape is invalid");
@@ -256,8 +266,9 @@ public:
     /// Check if concrete shape (no dimensions are -1).
     bool concrete() const
     {
+        const int* ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
         for (size_t i = 0; i < m_size; ++i) {
-            if ((*this)[i] == -1) {
+            if (ptr[i] == -1) {
                 return false;
             }
         }
@@ -270,11 +281,12 @@ public:
         if (!m_valid) {
             return "[invalid]";
         }
+        const int* ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
         std::string result = "[";
         for (size_t i = 0; i < m_size; ++i) {
             if (i > 0)
                 result += ", ";
-            result += std::to_string((*this)[i]);
+            result += std::to_string(ptr[i]);
         }
         result += "]";
         return result;
@@ -283,9 +295,10 @@ public:
     /// Total element count (if this represented contiguous array)
     size_t element_count() const
     {
+        const int* ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
         size_t result = 1;
         for (size_t i = 0; i < m_size; ++i) {
-            result *= (*this)[i];
+            result *= ptr[i];
         }
         return result;
     }
@@ -298,6 +311,8 @@ public:
             return Shape();
         }
 
+        const int* src_ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+
         Shape result;
         result.m_size = m_size;
         result.m_valid = true;
@@ -308,12 +323,12 @@ public:
             result.m_storage.heap_data = std::make_unique<int[]>(m_size);
             for (int i = (int)m_size - 1; i >= 0; --i) {
                 result.m_storage.heap_data[i] = total;
-                total *= (*this)[i];
+                total *= src_ptr[i];
             }
         } else {
             for (int i = (int)m_size - 1; i >= 0; --i) {
                 result.m_storage.inline_data[i] = total;
-                total *= (*this)[i];
+                total *= src_ptr[i];
             }
         }
 
@@ -329,8 +344,10 @@ public:
         if (m_size != o.m_size)
             return false;
 
+        const int* this_ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+        const int* other_ptr = o.m_uses_heap ? o.m_storage.heap_data.get() : o.m_storage.inline_data;
         for (size_t i = 0; i < m_size; ++i) {
-            if ((*this)[i] != o[i])
+            if (this_ptr[i] != other_ptr[i])
                 return false;
         }
         return true;
