@@ -5,6 +5,8 @@ SlangPy provides a single multidimensional container type, named ``Tensor``, whi
 ``Tensor`` supports a variety of data types, including primitive types (e.g., float, int, vector) and user-defined Slang structs. Internally,
 ``Tensor`` will wrap either a ``StructuredBuffer`` or a ``Ptr<T>`` depending on platform.
 
+Note: if updating from pre-0.41, see :ref:`tensorupdate` for migration instructions.
+
 The ``Tensor`` type takes some basic storage and adds:
 
 - **Data type**: A ``SlangType``, which can be a primitive type (e.g., float, vector) or a user-defined Slang struct.

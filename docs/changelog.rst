@@ -7,7 +7,7 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Next
+Version 0.41 (TBD)
 -------
 - Significant rewrite of type inference system for better handling of generics and complex types.
 - Rewrite of Tensors and removal of NDBuffer in favour of unified Tensor type
