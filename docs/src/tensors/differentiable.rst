@@ -10,6 +10,15 @@ Differentiable tensors are a specialized category of SlangPy tensors designed fo
 
 While there are many ways to combine automatic differentiation with tensors, following a few key guidelines will ensure your code works correctly and efficiently.
 
+.. note::
+   **Why Separate Differentiable Tensor Types?**
+
+   You may notice that SlangPy has separate types for differentiable tensors (``DiffTensor``, ``WDiffTensor``, etc.) rather than making all tensors differentiable by default. This is an intermediate step due to current limitations in Slang's auto-diff system.
+
+   **Current limitation:** Any interface that exposes a function (e.g., ``ITensor.load``) must declare whether it is differentiable, and all types deriving from it must follow the same rule. Combined with the fact that only differentiable element types can be used to accumulate gradients, this makes it fundamentally impossible to mix ``ITensor`` and ``IDiffTensor`` in the same function signature.
+
+   **What's coming:** Work is underway on updates to the Slang auto-diff system that will remove many of these constraints, allowing ``ITensor`` to be used directly in differentiable functions. Once complete, the only difference between ``DiffTensor`` and ``Tensor`` will be that the former has gradient storage attached and the latter does not. The separate ``IDiffTensor`` interface and ``PrimalTensor`` type will no longer be necessary.
+
 Key Guidelines for Success
 --------------------------
 
