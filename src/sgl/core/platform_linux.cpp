@@ -45,7 +45,7 @@ struct KeyboardInterruptData {
     }
 };
 
-static void sigint_handler(int sig)
+static void sigint_handler(int)
 {
     KeyboardInterruptData& data = KeyboardInterruptData::get();
     std::lock_guard<std::mutex> lock(data.mutex);
