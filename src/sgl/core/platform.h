@@ -260,7 +260,7 @@ using CrashHandlerCallback = std::function<void(const CrashContext&)>;
 SGL_API void set_crash_handler(CrashHandlerCallback callback);
 
 /// Converts a crash context into a text report.
-SGL_API std::string create_crash_report(const CrashContext& ctx);
+SGL_API std::string format_crash_report(const CrashContext& ctx);
 
 /// Installs the default crash handler.
 /// The default crash handler dumps the crash report to stderr and terminates the process.

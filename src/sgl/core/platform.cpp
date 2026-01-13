@@ -149,7 +149,7 @@ std::string format_stacktrace(std::span<const StackFrame> trace, size_t max_fram
 // Crash handling
 // -------------------------------------------------------------------------------------------------
 
-std::string create_crash_report(const CrashContext& ctx)
+std::string format_crash_report(const CrashContext& ctx)
 {
     std::string report;
     report += fmt::format("Code: {}\n", ctx.code);
@@ -168,7 +168,7 @@ static void default_crash_handler(const CrashContext& ctx)
     fprintf(stderr, "==============================\n");
     fprintf(stderr, "Default crash handler invoked!\n");
     fprintf(stderr, "==============================\n");
-    fprintf(stderr, create_crash_report(ctx).c_str());
+    fprintf(stderr, format_crash_report(ctx).c_str());
 }
 
 void install_default_crash_handler()

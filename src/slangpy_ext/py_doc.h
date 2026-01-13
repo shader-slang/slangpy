@@ -10166,7 +10166,7 @@ R"doc(Show a folder selection dialog.
 Returns:
     The selected folder path or nothing if the dialog was cancelled.)doc";
 
-static const char *__doc_sgl_platform_create_crash_report = R"doc(Converts a crash context into a text report.)doc";
+static const char *__doc_sgl_platform_format_crash_report = R"doc(Converts a crash context into a text report.)doc";
 
 static const char *__doc_sgl_platform_create_junction = R"doc(Create a junction (soft link).)doc";
 

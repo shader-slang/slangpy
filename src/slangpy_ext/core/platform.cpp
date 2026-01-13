@@ -92,7 +92,7 @@ SGL_PY_EXPORT(core_platform)
         .def_ro("stack_trace", &CrashContext::stack_trace, D(platform, CrashContext, stack_trace));
 
     platform.def("set_crash_handler", &set_crash_handler, D(platform, set_crash_handler));
-    platform.def("create_crash_report", &create_crash_report, D(platform, create_crash_report));
+    platform.def("format_crash_report", &format_crash_report, D(platform, format_crash_report));
     platform.def(
         "install_default_crash_handler",
         &install_default_crash_handler,
