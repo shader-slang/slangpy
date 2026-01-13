@@ -5,6 +5,8 @@ SlangPy provides a single multidimensional container type, named ``Tensor``, whi
 ``Tensor`` supports a variety of data types, including primitive types (e.g., float, int, vector) and user-defined Slang structs. Internally,
 ``Tensor`` will wrap either a ``StructuredBuffer`` or a ``Ptr<T>`` depending on platform.
 
+Note: if updating from pre-0.41, see :ref:`tensorupdate` for migration instructions.
+
 The ``Tensor`` type takes some basic storage and adds:
 
 - **Data type**: A ``SlangType``, which can be a primitive type (e.g., float, vector) or a user-defined Slang struct.
@@ -14,8 +16,7 @@ The ``Tensor`` type takes some basic storage and adds:
 .. warning::
    **Indexing Conventions**
 
-   Multi-dimensional tensors store data using the convention where the right-most dimension has the smallest stride.
-   However, tensors can be indexed using either array coordinates, which follow the same convention, or vector coordinates, which follow a different convention where the x component has the smallest stride.
+   Tensors can be indexed using either array coordinates, which use the same convention as the stride (right-most dimension has the smallest stride), or vector coordinates, which follow a different convention where the x component has the smallest stride.
    This means the same tensor position requires different coordinate values: e.g. for a 2D tensor, array indexing uses `[row, col]` while vector indexing uses `(col, row)` for the same location.
    See :ref:`index_representation` for complete details on these differing index representation conventions.
 

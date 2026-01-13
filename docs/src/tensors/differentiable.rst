@@ -10,6 +10,15 @@ Differentiable tensors are a specialized category of SlangPy tensors designed fo
 
 While there are many ways to combine automatic differentiation with tensors, following a few key guidelines will ensure your code works correctly and efficiently.
 
+.. note::
+   **Why Separate Differentiable Tensor Types?**
+
+   You may notice that SlangPy has separate types for differentiable tensors (``DiffTensor``, ``WDiffTensor``, etc.) rather than making all tensors differentiable by default. This is an intermediate step due to current limitations in Slang's auto-diff system.
+
+   **Current limitation:** Any interface that exposes a function (e.g., ``ITensor.load``) must declare whether it is differentiable, and all types deriving from it must follow the same rule. Combined with the fact that only differentiable element types can be used to accumulate gradients, this makes it fundamentally impossible to mix ``ITensor`` and ``IDiffTensor`` in the same function signature.
+
+   **What's coming:** Work is underway on updates to the Slang auto-diff system that will remove many of these constraints, allowing ``ITensor`` to be used directly in differentiable functions. Once complete, the only difference between ``DiffTensor`` and ``Tensor`` will be that the former has gradient storage attached and the latter does not. The separate ``IDiffTensor`` interface and ``PrimalTensor`` type will no longer be necessary.
+
 Key Guidelines for Success
 --------------------------
 
@@ -54,6 +63,9 @@ From Python, we can evaluate this function and compute gradients:
     x = spy.Tensor.from_numpy(device, np.array([1, 2, 3, 4], dtype=np.float32))
     x = x.with_grads(zero=True)
 
+    # Create output tensor
+    result = spy.Tensor.empty(device, x.shape, spy.float32)
+
     # Forward pass: evaluate polynomial
     # Result: 2*x^2 + 8*x - 1
     module.polynomial(idx=spy.grid(x.shape), a=2, b=8, c=-1, x=x, result=result)
@@ -79,7 +91,7 @@ This example demonstrates the basic workflow:
 Why Use Interface Types?
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-In the none-differentiable case, the interface types (``ITensor``, ``IWTensor``, ``IRWTensor``) are recommended for maximum flexibility (and in future, performance), but they are not critical. However for
+In the non-differentiable case, the interface types (``ITensor``, ``IWTensor``, ``IRWTensor``) are recommended for maximum flexibility (and in future, performance), but they are not critical. However for
 SlangPy to correctly generate efficient backwards passes, use of interface types is essential.
 
 Consider the following code:

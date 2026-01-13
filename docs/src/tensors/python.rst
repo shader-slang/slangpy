@@ -17,6 +17,12 @@ A ``Tensor`` consists of:
 - **Offset**: An element offset into the storage buffer (defaults to 0)
 - **Gradients**: Optional gradient storage for automatic differentiation
 
+.. note::
+   **PyTorch Compatibility**
+
+   For code bases that utilize PyTorch, SlangPy is fully compatible with PyTorch tensors and can seamlessly interoperate with them. PyTorch users should feel entirely comfortable continuing to use PyTorch tensors as their primary container for multidimensional data. The SlangPy ``Tensor`` type is only necessary in Python when you need support for custom Slang data types or want to take advantage of its lower CPU overhead. Additionally, all the rules in this document covering vectorization function identically for PyTorch tensors.
+
+
 Creating Tensors
 ----------------
 
@@ -347,9 +353,9 @@ Many ``Tensor`` operations have PyTorch equivalents:
 +----------------------------------+------------------------------------------+------------------------------------+
 | ``tensor.clear()``               | ``tensor.zero_()``                       | Both zero out contents             |
 +----------------------------------+------------------------------------------+------------------------------------+
-| ``tensor.with_grads()``          | ``tensor.requires_grad_(True)``          | Enable gradient tracking           |
+| ``tensor.with_grads()``          | ``tensor.requires_grad_(True)``          | Add gradients                      |
 +----------------------------------+------------------------------------------+------------------------------------+
-| ``tensor.detach()``              | ``tensor.detach()``                      | Remove from gradient graph         |
+| ``tensor.detach()``              | ``tensor.detach()``                      | Remove gradients                   |
 +----------------------------------+------------------------------------------+------------------------------------+
 | ``tensor.grad``                  | ``tensor.grad``                          | Access gradient tensor             |
 +----------------------------------+------------------------------------------+------------------------------------+
@@ -358,6 +364,7 @@ The key differences to be aware of are:
 
 - SlangPy tensors always live on the GPU device they were created on. There is no concept of a 'cpu' tensor in SlangPy.
 - SlangPy supports arbitrary Slang struct types as elements, not just numeric types.
+- SlangPy does not maintain a CPU side auto-grad graph.
 
 Vectorization in Kernel Calls
 ------------------------------
@@ -444,6 +451,74 @@ This also works for matrices:
     result = module.determinant(matrices)
 
     # SlangPy dispatches 50 threads, each loading a 2x2 matrix
+
+Element Type vs. Dimension Considerations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A tensor's element type (``dtype``) defines the most granular unit of data that can be accessed. **You cannot automatically access sub-components of a vector dtype through dimension mapping.**
+
+For example:
+
+.. code-block:: python
+
+    # This tensor has float3 elements and 2D shape
+    colors = spy.Tensor.empty(device, shape=(10, 10), dtype="float3")
+
+    # This will NOT work:
+    # float access_component(float x) { return x * 2.0; }
+    # result = module.access_component(colors)  # ERROR!
+
+    # The function expects a float, but the tensor's dtype is float3.
+    # SlangPy cannot automatically "unwrap" float3 into 3 separate floats.
+
+    # This WILL work:
+    # float3 scale_color(float3 c) { return c * 2.0; }
+    result = module.scale_color(colors)  # OK - types match
+
+**Key rule:** The tensor's ``dtype`` is the atomic unit. If you have a ``Tensor<float3, 2>`` in Slang, you access ``float3`` values, not individual floats.
+
+However, the reverse mapping **does** work: a ``Tensor<float>`` can be passed to a function expecting ``float3`` (or ``float[3]``), as long as the trailing dimensions match. This is because SlangPy can combine multiple scalar elements into a vector or array, but cannot decompose a vector dtype into individual components.
+
+.. code-block:: python
+
+    # This WORKS: float tensor with trailing dimension 3 -> float3 parameter
+    float_data = spy.Tensor.empty(device, shape=(100, 3), dtype=float)
+    # float3 process_color(float3 c) { ... }
+    result = module.process_color(float_data)  # OK - trailing dim 3 maps to float3
+
+    # This also WORKS: float tensor -> float[4] array parameter
+    float_data = spy.Tensor.empty(device, shape=(100, 4), dtype=float)
+    # float sum_array(float values[4]) { ... }
+    result = module.sum_array(float_data)  # OK - trailing dim 4 maps to float[4]
+
+    # This does NOT work: float3 tensor -> float parameter
+    float3_data = spy.Tensor.empty(device, shape=(100,), dtype="float3")
+    # float process_scalar(float x) { ... }
+    # result = module.process_scalar(float3_data)  # ERROR - cannot unwrap float3
+
+**What about shape (10, 10, 3) with dtype=float vs. shape (10, 10) with dtype=float3?**
+
+These are different tensors that are NOT automatically interchangeable:
+
+- ``Tensor<float, 3>`` with shape ``(10, 10, 3)`` - Each element is a single ``float``
+- ``Tensor<float3, 2>`` with shape ``(10, 10)`` - Each element is a ``float3``
+
+This restriction greatly simplifies internal dimension remapping and enables better performance. If you need to reinterpret data between these layouts, you can use Python-side view operations to explicitly create a view with a different storage type:
+
+.. code-block:: python
+
+    # Create a tensor of floats with shape (10, 10, 3)
+    float_tensor = spy.Tensor.empty(device, shape=(10, 10, 3), dtype=float)
+
+    # View as float3 tensor with shape (10, 10)
+    # Note: This creates a view, not a copy
+    float3_tensor = float_tensor.view(shape=(10, 10), dtype="float3")
+
+**Performance considerations:**
+
+- Vector types (``float3``, ``float4``) often have better memory access patterns
+- Using vector dtypes when your data is naturally vectorized is generally preferred
+- The choice depends on how your shader accesses the data
 
 Mapping to Lower-Rank Tensors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

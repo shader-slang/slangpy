@@ -48,7 +48,13 @@ For specialized scenarios, additional tensor types are available:
 - ``RWPrimalTensor<T, D>`` - Read-write primal tensor
 
 .. note::
-   ``PrimalTensor`` types are less commonly used and primarily exist internally to allow passing tensors without gradients to `IDiffTensor` interfaces (see below).
+   **What are PrimalTensor types for?**
+
+   ``PrimalTensor`` types exist primarily as an internal mechanism to allow passing tensors *without* gradients to ``IDiffTensor`` interfaces.
+
+   When you write a function accepting ``IDiffTensor<T, D>`` and call it with a Python tensor that has no gradients attached, SlangPy binds a ``PrimalTensor`` instead of a ``DiffTensor``. This avoids errors from trying to bind null gradient buffers and eliminates unnecessary binding overhead.
+
+   Once upcoming Slang auto-diff improvements land, the need for separate ``IDiffTensor`` interfaces will be removed, and ``PrimalTensor`` types will no longer be necessary. At that point, the only difference between ``DiffTensor`` and ``Tensor`` will be that the former has gradient storage and the latter does not.
 
 Interface Types
 ---------------

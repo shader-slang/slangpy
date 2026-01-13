@@ -69,7 +69,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
         title = {SlangPy},
         author = {Simon Kallweit and Chris Cummings and Benedikt Bitterli and Sai Bangaru and Yong He},
         note = {https://github.com/shader-slang/slangpy},
-        version = {0.39.0},
+        version = {0.40.1},
         year = 2025
     }
 
@@ -86,7 +86,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
 
     src/basics/firstfunctions
     src/basics/returntype
-    src/basics/buffers
+    src/basics/tensors
     src/basics/textures
     src/basics/nested
     src/basics/typemethods

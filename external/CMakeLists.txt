@@ -62,6 +62,9 @@ set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE
 add_library(lmdb STATIC)
 target_include_directories(lmdb INTERFACE lmdb)
 target_sources(lmdb PRIVATE lmdb/mdb.c lmdb/midl.c)
+target_compile_definitions(lmdb PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_compile_options(lmdb PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4333 /wd4172>)
+target_compile_options(lmdb PRIVATE $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wno-deprecated-declarations>)
 
 # slang
 
@@ -71,8 +74,9 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SLANG_VERSION "2025.22.1")
-set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/slang-${SLANG_VERSION}")
+set(SGL_SLANG_VERSION "2025.24.3" CACHE STRING "Slang version to download when not using a local build")
+
+set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SGL_SLANG_VERSION}/slang-${SGL_SLANG_VERSION}")
 
 if(SGL_WINDOWS)
     if(SGL_ARCHITECTURE MATCHES "x86_64")
@@ -100,7 +104,9 @@ elseif(SGL_MACOS)
     endif()
 endif()
 
-sgl_download_package(slang ${SLANG_URL})
+if(NOT SGL_LOCAL_SLANG)
+    sgl_download_package(slang ${SLANG_URL})
+endif()
 
 set(SLANG_DIR ${slang_SOURCE_DIR})
 set(SLANG_INCLUDE_DIR ${slang_SOURCE_DIR}/include)
@@ -136,8 +142,8 @@ function(sgl_add_library_slang)
             if(EXISTS "${SLANG_TAG_VERSION_HEADER}")
                 extract_define_from_header("${SLANG_TAG_VERSION_HEADER}" "SLANG_VERSION_NUMERIC" SLANG_VERSION_FROM_HEADER)
                 if(SLANG_VERSION_FROM_HEADER)
-                    set(SLANG_VERSION "${SLANG_VERSION_FROM_HEADER}")
-                    message(STATUS "Using Slang version from local build: ${SLANG_VERSION}")
+                    set(SGL_SLANG_VERSION "${SLANG_VERSION_FROM_HEADER}")
+                    message(STATUS "Using Slang version from local build: ${SGL_SLANG_VERSION}")
                 else()
                     message(FATAL_ERROR "Could not extract SLANG_VERSION_NUMERIC from: ${SLANG_TAG_VERSION_HEADER}")
                 endif()
@@ -145,7 +151,7 @@ function(sgl_add_library_slang)
                 message(FATAL_ERROR "Slang tag version header not found: ${SLANG_TAG_VERSION_HEADER}")
             endif()
         endif()
-        set(slang_module_version "-${SLANG_VERSION}")
+        set(slang_module_version "-${SGL_SLANG_VERSION}")
     else()
         set(slang_lib_base slang)
         set(slang_module_version "")
@@ -162,7 +168,11 @@ function(sgl_add_library_slang)
         sgl_copy_binary(${SLANG_DIR}/bin/${slang_lib_base}.dll .)
         sgl_copy_binary(${SLANG_DIR}/bin/slang-glslang.dll .)
         sgl_copy_binary(${SLANG_DIR}/bin/slang-glsl-module.dll .)
-        sgl_copy_binary(${SLANG_DIR}/bin/slang-llvm.dll .)
+        # slang-llvm.dll is available in x64 prebuilt packages but not in ARM64 packages.
+        # Use conditional copy to support both architectures.
+        if(EXISTS ${SLANG_DIR}/bin/slang-llvm.dll)
+            sgl_copy_binary(${SLANG_DIR}/bin/slang-llvm.dll .)
+        endif()
         # Note: The downloaded debug-info archive has single top-level 'bin'
         # folder that is stripped out by FetchContent.
         set(slang_resolved_debug_info "${slang_lib_base}.pdb")

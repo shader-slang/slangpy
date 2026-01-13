@@ -40,7 +40,8 @@ enum class ResourceState : uint32_t {
     copy_destination = static_cast<uint32_t>(rhi::ResourceState::CopyDestination),
     resolve_source = static_cast<uint32_t>(rhi::ResourceState::ResolveSource),
     resolve_destination = static_cast<uint32_t>(rhi::ResourceState::ResolveDestination),
-    acceleration_structure = static_cast<uint32_t>(rhi::ResourceState::AccelerationStructure),
+    acceleration_structure_read = static_cast<uint32_t>(rhi::ResourceState::AccelerationStructureRead),
+    acceleration_structure_write = static_cast<uint32_t>(rhi::ResourceState::AccelerationStructureWrite),
     acceleration_structure_build_output = static_cast<uint32_t>(rhi::ResourceState::AccelerationStructureBuildInput),
 };
 
@@ -64,7 +65,8 @@ SGL_ENUM_INFO(
         {ResourceState::copy_destination, "copy_destination"},
         {ResourceState::resolve_source, "resolve_source"},
         {ResourceState::resolve_destination, "resolve_destination"},
-        {ResourceState::acceleration_structure, "acceleration_structure"},
+        {ResourceState::acceleration_structure_read, "acceleration_structure_read"},
+        {ResourceState::acceleration_structure_write, "acceleration_structure_write"},
         {ResourceState::acceleration_structure_build_output, "acceleration_structure_build_output"},
     }
 );
@@ -355,7 +357,7 @@ public:
     void get_data(void* data, size_t size, DeviceOffset offset = 0);
 
     template<typename T>
-    void get_element(size_t index)
+    T get_element(size_t index)
     {
         T value;
         get_data(&value, sizeof(T), index * sizeof(T));

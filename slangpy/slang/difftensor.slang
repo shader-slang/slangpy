@@ -93,69 +93,69 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int>
     public property shape : uint[D] { get { return _primal.shape; } }
 
 #define _SLANGPY_DIFFTENSOR_LOAD                                                                                       \
-    [Differentiable]                                                                                                   \
+    [ForceInline] [Differentiable]                                                                                     \
     [BackwardDerivative(_load_bwd_array)]                                                                              \
     public T load<I : __BuiltinIntegerType>(I idx[D])                                                                  \
     {                                                                                                                  \
         return _primal.load(idx);                                                                                      \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
+    [ForceInline] [Differentiable]                                                                                     \
     [BackwardDerivative(_load_bwd_vector)]                                                                             \
     public T load<I : __BuiltinIntegerType>(vector<I, D> idx)                                                          \
     {                                                                                                                  \
         return _primal.load(idx);                                                                                      \
     }                                                                                                                  \
-    T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)                                       \
+    [ForceInline] T _read_primal_each<each I : __BuiltinIntegerType>(expand each I idx)                                \
     {                                                                                                                  \
         return _primal._read_each(expand each idx);                                                                    \
     }                                                                                                                  \
-    void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)                \
+    [ForceInline] void _write_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)         \
     {                                                                                                                  \
         _grad_out._write_each(grad, expand each idx);                                                                  \
     }                                                                                                                  \
-    public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx)           \
+    [ForceInline] public void _accumulate_grad_each<each I : __BuiltinIntegerType>(T.Differential grad, expand each I idx) \
     {                                                                                                                  \
         _grad_out._accumulate_each(grad, expand each idx);                                                             \
     }
 
 #define _SLANGPY_DIFFTENSOR_LOAD_BWD \
-    void _load_bwd_array<I : __BuiltinIntegerType>(I idx[D], T.Differential grad)\
+    [ForceInline] void _load_bwd_array<I : __BuiltinIntegerType>(I idx[D], T.Differential grad)\
     {\
         _grad_out.add(idx, grad);\
     }\
-    void _load_bwd_vector<I : __BuiltinIntegerType>(vector<I, D> idx, T.Differential grad)\
+    [ForceInline] void _load_bwd_vector<I : __BuiltinIntegerType>(vector<I, D> idx, T.Differential grad)\
     {\
         _grad_out.add(idx, grad);\
     }
 
 #define _SLANGPY_DIFFTENSOR_STORE_BWD \
-    void _store_bwd_array<I : __BuiltinIntegerType>(I idx[D], inout DifferentialPair<T> grad)\
+    [ForceInline] void _store_bwd_array<I : __BuiltinIntegerType>(I idx[D], inout DifferentialPair<T> grad)\
     {\
         grad = diffPair(grad.p, _grad_in.load(idx));\
     }\
-    void _store_bwd_vector<I : __BuiltinIntegerType>(vector<I, D> idx, inout DifferentialPair<T> grad)\
+    [ForceInline] void _store_bwd_vector<I : __BuiltinIntegerType>(vector<I, D> idx, inout DifferentialPair<T> grad)\
     {\
         grad = diffPair(grad.p, _grad_in.load(idx));\
     }
 
 #define _SLANGPY_DIFFTENSOR_STORE                                                                                      \
-    [Differentiable]                                                                                                   \
+    [ForceInline] [Differentiable]                                                                                     \
     [BackwardDerivative(_store_bwd_array)]                                                                             \
     public void store<I : __BuiltinIntegerType>(I idx[D], T value)                                                     \
     {                                                                                                                  \
         _primal.store(idx, value);                                                                                     \
     }                                                                                                                  \
-    [Differentiable]                                                                                                   \
+    [ForceInline] [Differentiable]                                                                                     \
     [BackwardDerivative(_store_bwd_vector)]                                                                            \
     public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                                             \
     {                                                                                                                  \
         _primal.store(idx, value);                                                                                     \
     }                                                                                                                  \
-    void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                          \
+    [ForceInline] void _write_primal_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                   \
     {                                                                                                                  \
         _primal._write_each(value, expand each idx);                                                                   \
     }                                                                                                                  \
-    T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                            \
+    [ForceInline] T.Differential _read_grad_each<each I : __BuiltinIntegerType>(expand each I idx)                     \
     {                                                                                                                  \
         return _grad_in._read_each(expand each idx);                                                                   \
     }

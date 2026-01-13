@@ -4,6 +4,7 @@ implementing slangpy;
 
 public extension<T, TensorType : ITensor<T, 0>> TensorType
 {
+    [ForceInline]
     public T load()
     {
         return this._read_each();
@@ -16,6 +17,7 @@ public extension<T, TensorType : ITensor<T, 0>> TensorType
 
 public extension<T, TensorType : ITensor<T, 1>> TensorType
 {
+    [ForceInline]
     public T load(int i0)
     {
         return this._read_each(i0);
@@ -28,6 +30,7 @@ public extension<T, TensorType : ITensor<T, 1>> TensorType
 
 public extension<T, TensorType : ITensor<T, 2>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1)
     {
         return this._read_each(i0, i1);
@@ -40,6 +43,7 @@ public extension<T, TensorType : ITensor<T, 2>> TensorType
 
 public extension<T, TensorType : ITensor<T, 3>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2)
     {
         return this._read_each(i0, i1, i2);
@@ -52,6 +56,7 @@ public extension<T, TensorType : ITensor<T, 3>> TensorType
 
 public extension<T, TensorType : ITensor<T, 4>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3)
     {
         return this._read_each(i0, i1, i2, i3);
@@ -64,6 +69,7 @@ public extension<T, TensorType : ITensor<T, 4>> TensorType
 
 public extension<T, TensorType : ITensor<T, 5>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4)
     {
         return this._read_each(i0, i1, i2, i3, i4);
@@ -76,6 +82,7 @@ public extension<T, TensorType : ITensor<T, 5>> TensorType
 
 public extension<T, TensorType : ITensor<T, 6>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5)
     {
         return this._read_each(i0, i1, i2, i3, i4, i5);
@@ -88,6 +95,7 @@ public extension<T, TensorType : ITensor<T, 6>> TensorType
 
 public extension<T, TensorType : ITensor<T, 7>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6)
     {
         return this._read_each(i0, i1, i2, i3, i4, i5, i6);
@@ -100,6 +108,7 @@ public extension<T, TensorType : ITensor<T, 7>> TensorType
 
 public extension<T, TensorType : ITensor<T, 8>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)
     {
         return this._read_each(i0, i1, i2, i3, i4, i5, i6, i7);
@@ -112,6 +121,7 @@ public extension<T, TensorType : ITensor<T, 8>> TensorType
 
 public extension<T, TensorType : IWTensor<T, 0>> TensorType
 {
+    [ForceInline]
     public void store(T value)
     {
         this._write_each(value);
@@ -124,6 +134,7 @@ public extension<T, TensorType : IWTensor<T, 0>> TensorType
 
 public extension<T, TensorType : IWTensor<T, 1>> TensorType
 {
+    [ForceInline]
     public void store(int i0, T value)
     {
         this._write_each(value, i0);
@@ -136,6 +147,7 @@ public extension<T, TensorType : IWTensor<T, 1>> TensorType
 
 public extension<T, TensorType : IWTensor<T, 2>> TensorType
 {
+    [ForceInline]
     public void store(int i0, int i1, T value)
     {
         this._write_each(value, i0, i1);
@@ -148,6 +160,7 @@ public extension<T, TensorType : IWTensor<T, 2>> TensorType
 
 public extension<T, TensorType : IWTensor<T, 3>> TensorType
 {
+    [ForceInline]
     public void store(int i0, int i1, int i2, T value)
     {
         this._write_each(value, i0, i1, i2);
@@ -160,6 +173,7 @@ public extension<T, TensorType : IWTensor<T, 3>> TensorType
 
 public extension<T, TensorType : IWTensor<T, 4>> TensorType
 {
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, T value)
     {
         this._write_each(value, i0, i1, i2, i3);
@@ -172,6 +186,7 @@ public extension<T, TensorType : IWTensor<T, 4>> TensorType
 
 public extension<T, TensorType : IWTensor<T, 5>> TensorType
 {
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4);
@@ -184,6 +199,7 @@ public extension<T, TensorType : IWTensor<T, 5>> TensorType
 
 public extension<T, TensorType : IWTensor<T, 6>> TensorType
 {
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4, i5);
@@ -196,6 +212,7 @@ public extension<T, TensorType : IWTensor<T, 6>> TensorType
 
 public extension<T, TensorType : IWTensor<T, 7>> TensorType
 {
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4, i5, i6);
@@ -208,6 +225,7 @@ public extension<T, TensorType : IWTensor<T, 7>> TensorType
 
 public extension<T, TensorType : IWTensor<T, 8>> TensorType
 {
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4, i5, i6, i7);
@@ -220,10 +238,12 @@ public extension<T, TensorType : IWTensor<T, 8>> TensorType
 
 public extension<T, TensorType : IRWTensor<T, 0>> TensorType
 {
+    [ForceInline]
     public T load()
     {
         return this._read_each();
     }
+    [ForceInline]
     public void store(T value)
     {
         this._write_each(value);
@@ -237,10 +257,12 @@ public extension<T, TensorType : IRWTensor<T, 0>> TensorType
 
 public extension<T, TensorType : IRWTensor<T, 1>> TensorType
 {
+    [ForceInline]
     public T load(int i0)
     {
         return this._read_each(i0);
     }
+    [ForceInline]
     public void store(int i0, T value)
     {
         this._write_each(value, i0);
@@ -254,10 +276,12 @@ public extension<T, TensorType : IRWTensor<T, 1>> TensorType
 
 public extension<T, TensorType : IRWTensor<T, 2>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1)
     {
         return this._read_each(i0, i1);
     }
+    [ForceInline]
     public void store(int i0, int i1, T value)
     {
         this._write_each(value, i0, i1);
@@ -271,10 +295,12 @@ public extension<T, TensorType : IRWTensor<T, 2>> TensorType
 
 public extension<T, TensorType : IRWTensor<T, 3>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2)
     {
         return this._read_each(i0, i1, i2);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, T value)
     {
         this._write_each(value, i0, i1, i2);
@@ -288,10 +314,12 @@ public extension<T, TensorType : IRWTensor<T, 3>> TensorType
 
 public extension<T, TensorType : IRWTensor<T, 4>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3)
     {
         return this._read_each(i0, i1, i2, i3);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, T value)
     {
         this._write_each(value, i0, i1, i2, i3);
@@ -305,10 +333,12 @@ public extension<T, TensorType : IRWTensor<T, 4>> TensorType
 
 public extension<T, TensorType : IRWTensor<T, 5>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4)
     {
         return this._read_each(i0, i1, i2, i3, i4);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4);
@@ -322,10 +352,12 @@ public extension<T, TensorType : IRWTensor<T, 5>> TensorType
 
 public extension<T, TensorType : IRWTensor<T, 6>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5)
     {
         return this._read_each(i0, i1, i2, i3, i4, i5);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4, i5);
@@ -339,10 +371,12 @@ public extension<T, TensorType : IRWTensor<T, 6>> TensorType
 
 public extension<T, TensorType : IRWTensor<T, 7>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6)
     {
         return this._read_each(i0, i1, i2, i3, i4, i5, i6);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4, i5, i6);
@@ -356,10 +390,12 @@ public extension<T, TensorType : IRWTensor<T, 7>> TensorType
 
 public extension<T, TensorType : IRWTensor<T, 8>> TensorType
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)
     {
         return this._read_each(i0, i1, i2, i3, i4, i5, i6, i7);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4, i5, i6, i7);
@@ -373,12 +409,14 @@ public extension<T, TensorType : IRWTensor<T, 8>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load()
     {
         return this._read_primal_each();
     }
+    [ForceInline]
     void _load_bwd_indices(T.Differential grad)
     {
         this._accumulate_grad_each(grad);
@@ -391,12 +429,14 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 0>> TensorType 
 
 public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0)
     {
         return this._read_primal_each(i0);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0);
@@ -409,12 +449,14 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 1>> TensorType 
 
 public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1)
     {
         return this._read_primal_each(i0, i1);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1);
@@ -427,12 +469,14 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 2>> TensorType 
 
 public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2)
     {
         return this._read_primal_each(i0, i1, i2);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2);
@@ -445,12 +489,14 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 3>> TensorType 
 
 public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3)
     {
         return this._read_primal_each(i0, i1, i2, i3);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3);
@@ -463,12 +509,14 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 4>> TensorType 
 
 public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3, int i4)
     {
         return this._read_primal_each(i0, i1, i2, i3, i4);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, int i4, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3, i4);
@@ -481,12 +529,14 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 5>> TensorType 
 
 public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5)
     {
         return this._read_primal_each(i0, i1, i2, i3, i4, i5);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3, i4, i5);
@@ -499,12 +549,14 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 6>> TensorType 
 
 public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6)
     {
         return this._read_primal_each(i0, i1, i2, i3, i4, i5, i6);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3, i4, i5, i6);
@@ -517,12 +569,14 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 7>> TensorType 
 
 public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)
     {
         return this._read_primal_each(i0, i1, i2, i3, i4, i5, i6, i7);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3, i4, i5, i6, i7);
@@ -535,12 +589,14 @@ public extension<T: IDifferentiable, TensorType : IDiffTensor<T, 8>> TensorType 
 
 public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(T value)
     {
         this._write_primal_each(value);
     }
+    [ForceInline]
     void _store_bwd_indices(inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each());
@@ -553,12 +609,14 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 0>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, T value)
     {
         this._write_primal_each(value, i0);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0));
@@ -571,12 +629,14 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 1>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, T value)
     {
         this._write_primal_each(value, i0, i1);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1));
@@ -589,12 +649,14 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 2>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, T value)
     {
         this._write_primal_each(value, i0, i1, i2);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2));
@@ -607,12 +669,14 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 3>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3));
@@ -625,12 +689,14 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 4>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, int i4, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3, i4);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, int i4, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3, i4));
@@ -643,12 +709,14 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 5>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3, i4, i5);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3, i4, i5));
@@ -661,12 +729,14 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 6>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3, i4, i5, i6);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, int i6, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3, i4, i5, i6));
@@ -679,12 +749,14 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 7>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3, i4, i5, i6, i7);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3, i4, i5, i6, i7));
@@ -697,22 +769,26 @@ public extension<T: IDifferentiable, TensorType : IWDiffTensor<T, 8>> TensorType
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 0>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load()
     {
         return this._read_primal_each();
     }
+    [ForceInline]
     void _load_bwd_indices(T.Differential grad)
     {
         this._accumulate_grad_each(grad);
     }
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(T value)
     {
         this._write_primal_each(value);
     }
+    [ForceInline]
     void _store_bwd_indices(inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each());
@@ -726,22 +802,26 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 0>> TensorTyp
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 1>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0)
     {
         return this._read_primal_each(i0);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0);
     }
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, T value)
     {
         this._write_primal_each(value, i0);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0));
@@ -755,22 +835,26 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 1>> TensorTyp
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 2>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1)
     {
         return this._read_primal_each(i0, i1);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1);
     }
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, T value)
     {
         this._write_primal_each(value, i0, i1);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1));
@@ -784,22 +868,26 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 2>> TensorTyp
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 3>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2)
     {
         return this._read_primal_each(i0, i1, i2);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2);
     }
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, T value)
     {
         this._write_primal_each(value, i0, i1, i2);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2));
@@ -813,22 +901,26 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 3>> TensorTyp
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 4>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3)
     {
         return this._read_primal_each(i0, i1, i2, i3);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3);
     }
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3));
@@ -842,22 +934,26 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 4>> TensorTyp
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 5>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3, int i4)
     {
         return this._read_primal_each(i0, i1, i2, i3, i4);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, int i4, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3, i4);
     }
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, int i4, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3, i4);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, int i4, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3, i4));
@@ -871,22 +967,26 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 5>> TensorTyp
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 6>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5)
     {
         return this._read_primal_each(i0, i1, i2, i3, i4, i5);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3, i4, i5);
     }
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3, i4, i5);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3, i4, i5));
@@ -900,22 +1000,26 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 6>> TensorTyp
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 7>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6)
     {
         return this._read_primal_each(i0, i1, i2, i3, i4, i5, i6);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3, i4, i5, i6);
     }
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3, i4, i5, i6);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, int i6, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3, i4, i5, i6));
@@ -929,22 +1033,26 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 7>> TensorTyp
 
 public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 8>> TensorType where T.Differential : IAtomicAddable
 {
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)
     {
         return this._read_primal_each(i0, i1, i2, i3, i4, i5, i6, i7);
     }
+    [ForceInline]
     void _load_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T.Differential grad)
     {
         this._accumulate_grad_each(grad, i0, i1, i2, i3, i4, i5, i6, i7);
     }
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)
     {
         this._write_primal_each(value, i0, i1, i2, i3, i4, i5, i6, i7);
     }
+    [ForceInline]
     void _store_bwd_indices(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, inout DifferentialPair<T> grad)
     {
         grad = diffPair(grad.p, this._read_grad_each(i0, i1, i2, i3, i4, i5, i6, i7));
@@ -958,14 +1066,17 @@ public extension<T: IDifferentiable, TensorType : IRWDiffTensor<T, 8>> TensorTyp
 
 public extension<T> AtomicTensor<T, 0> where T : IAtomicAddable
 {
+    [ForceInline]
     public T load()
     {
         return this._read_each();
     }
+    [ForceInline]
     public void store(T value)
     {
         this._write_each(value);
     }
+    [ForceInline]
     public void add(T value)
     {
         this._accumulate_each(value);
@@ -974,14 +1085,17 @@ public extension<T> AtomicTensor<T, 0> where T : IAtomicAddable
 
 public extension<T> AtomicTensor<T, 1> where T : IAtomicAddable
 {
+    [ForceInline]
     public T load(int i0)
     {
         return this._read_each(i0);
     }
+    [ForceInline]
     public void store(int i0, T value)
     {
         this._write_each(value, i0);
     }
+    [ForceInline]
     public void add(int i0, T value)
     {
         this._accumulate_each(value, i0);
@@ -990,14 +1104,17 @@ public extension<T> AtomicTensor<T, 1> where T : IAtomicAddable
 
 public extension<T> AtomicTensor<T, 2> where T : IAtomicAddable
 {
+    [ForceInline]
     public T load(int i0, int i1)
     {
         return this._read_each(i0, i1);
     }
+    [ForceInline]
     public void store(int i0, int i1, T value)
     {
         this._write_each(value, i0, i1);
     }
+    [ForceInline]
     public void add(int i0, int i1, T value)
     {
         this._accumulate_each(value, i0, i1);
@@ -1006,14 +1123,17 @@ public extension<T> AtomicTensor<T, 2> where T : IAtomicAddable
 
 public extension<T> AtomicTensor<T, 3> where T : IAtomicAddable
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2)
     {
         return this._read_each(i0, i1, i2);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, T value)
     {
         this._write_each(value, i0, i1, i2);
     }
+    [ForceInline]
     public void add(int i0, int i1, int i2, T value)
     {
         this._accumulate_each(value, i0, i1, i2);
@@ -1022,14 +1142,17 @@ public extension<T> AtomicTensor<T, 3> where T : IAtomicAddable
 
 public extension<T> AtomicTensor<T, 4> where T : IAtomicAddable
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3)
     {
         return this._read_each(i0, i1, i2, i3);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, T value)
     {
         this._write_each(value, i0, i1, i2, i3);
     }
+    [ForceInline]
     public void add(int i0, int i1, int i2, int i3, T value)
     {
         this._accumulate_each(value, i0, i1, i2, i3);
@@ -1038,14 +1161,17 @@ public extension<T> AtomicTensor<T, 4> where T : IAtomicAddable
 
 public extension<T> AtomicTensor<T, 5> where T : IAtomicAddable
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4)
     {
         return this._read_each(i0, i1, i2, i3, i4);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4);
     }
+    [ForceInline]
     public void add(int i0, int i1, int i2, int i3, int i4, T value)
     {
         this._accumulate_each(value, i0, i1, i2, i3, i4);
@@ -1054,14 +1180,17 @@ public extension<T> AtomicTensor<T, 5> where T : IAtomicAddable
 
 public extension<T> AtomicTensor<T, 6> where T : IAtomicAddable
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5)
     {
         return this._read_each(i0, i1, i2, i3, i4, i5);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4, i5);
     }
+    [ForceInline]
     public void add(int i0, int i1, int i2, int i3, int i4, int i5, T value)
     {
         this._accumulate_each(value, i0, i1, i2, i3, i4, i5);
@@ -1070,14 +1199,17 @@ public extension<T> AtomicTensor<T, 6> where T : IAtomicAddable
 
 public extension<T> AtomicTensor<T, 7> where T : IAtomicAddable
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6)
     {
         return this._read_each(i0, i1, i2, i3, i4, i5, i6);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4, i5, i6);
     }
+    [ForceInline]
     public void add(int i0, int i1, int i2, int i3, int i4, int i5, int i6, T value)
     {
         this._accumulate_each(value, i0, i1, i2, i3, i4, i5, i6);
@@ -1086,14 +1218,17 @@ public extension<T> AtomicTensor<T, 7> where T : IAtomicAddable
 
 public extension<T> AtomicTensor<T, 8> where T : IAtomicAddable
 {
+    [ForceInline]
     public T load(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7)
     {
         return this._read_each(i0, i1, i2, i3, i4, i5, i6, i7);
     }
+    [ForceInline]
     public void store(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)
     {
         this._write_each(value, i0, i1, i2, i3, i4, i5, i6, i7);
     }
+    [ForceInline]
     public void add(int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, T value)
     {
         this._accumulate_each(value, i0, i1, i2, i3, i4, i5, i6, i7);

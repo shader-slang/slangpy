@@ -7,12 +7,52 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
-Next
+Version 0.41 (TBD)
 -------
 - Significant rewrite of type inference system for better handling of generics and complex types.
 - Rewrite of Tensors and removal of NDBuffer in favour of unified Tensor type
 
 This version carries with it some breaking changes, please see the migration guide :ref:`here <tensorupdate>` for details.
+
+Version 0.40.1 (January 7, 2026)
+-------
+- Rebuild of 0.40.0 due to failed PyPI push.
+
+Version 0.40.0 (January 7, 2026)
+-------
+  - Update to Slang version 2025.24.3 with latest shader compilation improvements and bug fixes.
+    (PR `#678 <https://github.com/shader-slang/slangpy/pull/678>`__, PR `#673 <https://github.com/shader-slang/slangpy/pull/673>`__)
+  - Update slang-rhi submodule to latest version with improved stability and performance.
+    (PR `#682 <https://github.com/shader-slang/slangpy/pull/682>`__, PR `#662 <https://github.com/shader-slang/slangpy/pull/662>`__, PR
+  `#659 <https://github.com/shader-slang/slangpy/pull/659>`__, PR `#647 <https://github.com/shader-slang/slangpy/pull/647>`__)
+  - Add Windows ARM64 platform support for improved cross-platform compatibility.
+    (PR `#567 <https://github.com/shader-slang/slangpy/pull/567>`__)
+  - Introduce SGL_SLANG_VERSION CMake cache variable for better build configuration management.
+    (PR `#680 <https://github.com/shader-slang/slangpy/pull/680>`__)
+  - Add float8 data type support for enhanced precision options in GPU computations.
+    (PR `#649 <https://github.com/shader-slang/slangpy/pull/649>`__)
+  - Add rhi.slang module for improved hardware abstraction layer access.
+    (PR `#653 <https://github.com/shader-slang/slangpy/pull/653>`__)
+  - Significant refactor of type inference system for better handling of generics and complex types.
+    (PR `#652 <https://github.com/shader-slang/slangpy/pull/652>`__)
+  - Refactor cooperative vector API for improved performance and usability.
+    (PR `#645 <https://github.com/shader-slang/slangpy/pull/645>`__)
+  - Add support for assigning objects with to_cursor to cursor objects for enhanced data manipulation.
+    (PR `#651 <https://github.com/shader-slang/slangpy/pull/651>`__)
+  - Fix Buffer::get_element() method for proper buffer element access.
+    (PR `#661 <https://github.com/shader-slang/slangpy/pull/661>`__)
+  - Fix module linking to preserve module order when making links unique.
+    (PR `#657 <https://github.com/shader-slang/slangpy/pull/657>`__)
+  - Fix mouse position inclusion in button events for improved UI interaction.
+    (PR `#660 <https://github.com/shader-slang/slangpy/pull/660>`__)
+  - Sort EXR channels when writing via tinyexr for consistent image output format.
+    (PR `#531 <https://github.com/shader-slang/slangpy/pull/531>`__)
+  - Move vcpkg buildtrees to build directory for cleaner project organization.
+    (PR `#650 <https://github.com/shader-slang/slangpy/pull/650>`__)
+  - Disable compiler warnings for cleaner build output.
+    (PR `#656 <https://github.com/shader-slang/slangpy/pull/656>`__)
+  - Fix incorrect Tensor constructor API documentation in autodiff examples.
+    (PR `#628 <https://github.com/shader-slang/slangpy/pull/628>`__)
 
 Version 0.39.0 (November 17, 2025)
 -------

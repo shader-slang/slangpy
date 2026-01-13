@@ -3,7 +3,7 @@
 Migration guide for Tensor update
 =================================
 
-In SlangPy version X we undertook a major rewrite of the Tensor API to bring it inline with existing standards and simplify its use going forwards. The primary changes made are:
+In SlangPy version 0.41 we undertook a major rewrite of the Tensor API to bring it inline with existing standards and simplify its use going forwards. The primary changes made are:
 
 Python API
 ----------

@@ -5,6 +5,7 @@
 #include "sgl/core/platform.h"
 #include "sgl/core/object.h"
 #include "sgl/core/input.h"
+#include "sgl/math/vector_types.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -63,13 +64,23 @@ public:
 
     /// The width of the window in pixels.
     uint32_t width() const { return m_width; }
+    void set_width(uint32_t width);
     /// The height of the window in pixels.
     uint32_t height() const { return m_height; }
+    void set_height(uint32_t height);
+
+    /// Size of the window in pixels.
+    uint2 size() const { return uint2{m_width, m_height}; }
+    void set_size(uint2 size);
 
     /// Resize the window.
     /// \param width The new width of the window in pixels.
     /// \param height The new height of the window in pixels.
     void resize(uint32_t width, uint32_t height);
+
+    /// Position of the window on the screen in pixels.
+    int2 position() const;
+    void set_position(int2 position);
 
     /// The title of the window.
     const std::string& title() const { return m_title; }
