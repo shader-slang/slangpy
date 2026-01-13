@@ -195,7 +195,7 @@ TEST_CASE("multithreaded_allocation")
 
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back(
-            [&allocator, &total_allocations, allocations_per_thread]()
+            [&allocator, &total_allocations]()
             {
                 std::vector<TestObject*> local_objects;
                 std::thread::id tid = std::this_thread::get_id();
