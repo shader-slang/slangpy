@@ -472,11 +472,7 @@ void set_crash_handler(CrashHandlerCallback callback)
     s_crash_handler_callback = callback;
 
     struct sigaction action = {};
-    if (s_crash_handler_callback) {
-        action.sa_handler = crash_signal_handler;
-    } else {
-        action.sa_flags = SIG_DFL;
-    }
+    action.sa_handler = callback ? crash_signal_handler : SIG_DFL;
     sigemptyset(&action.sa_mask);
     sigaction(SIGSEGV, &action, nullptr);
     sigaction(SIGABRT, &action, nullptr);
