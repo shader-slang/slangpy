@@ -76,12 +76,14 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
     if differentiable:
         if dimensions == 0:
             return f"""\
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load()
     {{
         return this._read_primal_each();
     }}
+    [ForceInline]
     void _load_bwd_indices(T.Differential grad)
     {{
         this._accumulate_grad_each(grad);
@@ -92,12 +94,14 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
             idx_args = ", ".join([f"i{i}" for i in range(dimensions)])
 
             return f"""\
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_load_bwd_indices)]
     public T load({args})
     {{
         return this._read_primal_each({idx_args});
     }}
+    [ForceInline]
     void _load_bwd_indices({args}, T.Differential grad)
     {{
         this._accumulate_grad_each(grad, {idx_args});
@@ -106,6 +110,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
     elif primal:
         if dimensions == 0:
             return f"""\
+    [ForceInline]
     [TreatAsDifferentiable]
     public T load()
     {{
@@ -117,6 +122,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
             idx_args = ", ".join([f"i{i}" for i in range(dimensions)])
 
             return f"""\
+    [ForceInline]
     [TreatAsDifferentiable]
     public T load({args})
     {{
@@ -126,6 +132,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
     else:
         if dimensions == 0:
             return f"""\
+    [ForceInline]
     public T load()
     {{
         return this._read_each();
@@ -136,6 +143,7 @@ def cg_load(dimensions: int, differentiable: bool = False, primal: bool = False)
             idx_args = ", ".join([f"i{i}" for i in range(dimensions)])
 
             return f"""\
+    [ForceInline]
     public T load({args})
     {{
         return this._read_each({idx_args});
@@ -161,12 +169,14 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
     if differentiable:
         if dimensions == 0:
             return f"""\
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store(T value)
     {{
         this._write_primal_each(value);
     }}
+    [ForceInline]
     void _store_bwd_indices(inout DifferentialPair<T> grad)
     {{
         grad = diffPair(grad.p, this._read_grad_each());
@@ -177,12 +187,14 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
             idx_args = ", ".join([f"i{i}" for i in range(dimensions)])
 
             return f"""\
+    [ForceInline]
     [Differentiable]
     [BackwardDerivative(_store_bwd_indices)]
     public void store({args}, T value)
     {{
         this._write_primal_each(value, {idx_args});
     }}
+    [ForceInline]
     void _store_bwd_indices({args}, inout DifferentialPair<T> grad)
     {{
         grad = diffPair(grad.p, this._read_grad_each({idx_args}));
@@ -191,6 +203,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
     elif primal:
         if dimensions == 0:
             return f"""\
+    [ForceInline]
     [TreatAsDifferentiable]
     public void store(T value)
     {{
@@ -202,6 +215,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
             idx_args = ", ".join([f"i{i}" for i in range(dimensions)])
 
             return f"""\
+    [ForceInline]
     [TreatAsDifferentiable]
     public void store({args}, T value)
     {{
@@ -211,6 +225,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
     else:
         if dimensions == 0:
             return f"""\
+    [ForceInline]
     public void store(T value)
     {{
         this._write_each(value);
@@ -221,6 +236,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
             idx_args = ", ".join([f"i{i}" for i in range(dimensions)])
 
             return f"""\
+    [ForceInline]
     public void store({args}, T value)
     {{
         this._write_each(value, {idx_args});
@@ -231,6 +247,7 @@ def cg_store(dimensions: int, differentiable: bool = False, primal: bool = False
 def cg_atomic_add(dimensions: int):
     if dimensions == 0:
         return f"""\
+    [ForceInline]
     public void add(T value)
     {{
         this._accumulate_each(value);
@@ -241,6 +258,7 @@ def cg_atomic_add(dimensions: int):
         idx_args = ", ".join([f"i{i}" for i in range(dimensions)])
 
         return f"""\
+    [ForceInline]
     public void add({args}, T value)
     {{
         this._accumulate_each(value, {idx_args});

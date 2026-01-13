@@ -54,6 +54,9 @@ From Python, we can evaluate this function and compute gradients:
     x = spy.Tensor.from_numpy(device, np.array([1, 2, 3, 4], dtype=np.float32))
     x = x.with_grads(zero=True)
 
+    # Create output tensor
+    result = spy.Tensor.empty(device, x.shape, spy.float32)
+
     # Forward pass: evaluate polynomial
     # Result: 2*x^2 + 8*x - 1
     module.polynomial(idx=spy.grid(x.shape), a=2, b=8, c=-1, x=x, result=result)
@@ -79,7 +82,7 @@ This example demonstrates the basic workflow:
 Why Use Interface Types?
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-In the none-differentiable case, the interface types (``ITensor``, ``IWTensor``, ``IRWTensor``) are recommended for maximum flexibility (and in future, performance), but they are not critical. However for
+In the non-differentiable case, the interface types (``ITensor``, ``IWTensor``, ``IRWTensor``) are recommended for maximum flexibility (and in future, performance), but they are not critical. However for
 SlangPy to correctly generate efficient backwards passes, use of interface types is essential.
 
 Consider the following code:

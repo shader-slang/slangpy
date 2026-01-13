@@ -14,8 +14,7 @@ The ``Tensor`` type takes some basic storage and adds:
 .. warning::
    **Indexing Conventions**
 
-   Multi-dimensional tensors store data using the convention where the right-most dimension has the smallest stride.
-   However, tensors can be indexed using either array coordinates, which follow the same convention, or vector coordinates, which follow a different convention where the x component has the smallest stride.
+   Tensors can be indexed using either array coordinates, which use the same convention as the stride (right-most dimension has the smallest stride), or vector coordinates, which follow a different convention where the x component has the smallest stride.
    This means the same tensor position requires different coordinate values: e.g. for a 2D tensor, array indexing uses `[row, col]` while vector indexing uses `(col, row)` for the same location.
    See :ref:`index_representation` for complete details on these differing index representation conventions.
 
