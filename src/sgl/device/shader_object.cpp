@@ -71,7 +71,7 @@ ref<ShaderObject> ShaderObject::get_entry_point(uint32_t index)
 {
     ref<ShaderObject> shader_object = make_ref<ShaderObject>(m_device, m_shader_object->getEntryPoint(index));
     // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
-    m_objects.insert(shader_object);
+    m_objects.push_back(shader_object);
     return shader_object;
 }
 
@@ -80,7 +80,7 @@ ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
     ref<ShaderObject> shader_object
         = make_ref<ShaderObject>(m_device, m_shader_object->getObject(rhi_shader_offset(offset)));
     // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
-    m_objects.insert(shader_object);
+    m_objects.push_back(shader_object);
     return shader_object;
 }
 
