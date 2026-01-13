@@ -377,9 +377,9 @@ public:
     DeviceAddress device_address() const
     {
         // Used in perf critical code, cache address to avoid repeated virtual COM calls.
-        if (m_device_address == 0)
-            m_device_address = m_rhi_buffer->getDeviceAddress();
-        return m_device_address;
+        if (m_cached_device_address == 0)
+            m_cached_device_address = m_rhi_buffer->getDeviceAddress();
+        return m_cached_device_address;
     }
 
     ref<BufferView> create_view(BufferViewDesc desc);
@@ -403,7 +403,7 @@ public:
 private:
     BufferDesc m_desc;
     Slang::ComPtr<rhi::IBuffer> m_rhi_buffer;
-    mutable DeviceAddress m_device_address{0};
+    mutable DeviceAddress m_cached_device_address{0};
     mutable ref<cuda::ExternalMemory> m_cuda_memory;
     mutable void* m_mapped_ptr{nullptr};
 };
