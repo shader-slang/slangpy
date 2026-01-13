@@ -408,11 +408,38 @@ WindowHandle Window::window_handle() const
     return handle;
 }
 
+void Window::set_width(uint32_t width)
+{
+    resize(width, m_height);
+}
+
+void Window::set_height(uint32_t height)
+{
+    resize(m_width, height);
+}
+
+void Window::set_size(uint2 size)
+{
+    resize(size.x, size.y);
+}
+
 void Window::resize(uint32_t width, uint32_t height)
 {
     m_width = width;
     m_height = height;
     glfwSetWindowSize(m_window, m_width, m_height);
+}
+
+int2 Window::position() const
+{
+    int xpos, ypos;
+    glfwGetWindowPos(m_window, &xpos, &ypos);
+    return int2{xpos, ypos};
+}
+
+void Window::set_position(int2 position)
+{
+    glfwSetWindowPos(m_window, position.x, position.y);
 }
 
 void Window::set_title(std::string title)
