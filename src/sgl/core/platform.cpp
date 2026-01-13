@@ -168,7 +168,7 @@ static void default_crash_handler(const CrashContext& ctx)
     fprintf(stderr, "==============================\n");
     fprintf(stderr, "Default crash handler invoked!\n");
     fprintf(stderr, "==============================\n");
-    fprintf(stderr, format_crash_report(ctx).c_str());
+    fprintf(stderr, "%s\n", format_crash_report(ctx).c_str());
 }
 
 void install_default_crash_handler()
