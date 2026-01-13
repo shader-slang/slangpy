@@ -29,6 +29,25 @@ from slangpy import (
 from slangpy.types.buffer import NDBuffer
 from slangpy.core.function import Function
 
+
+# Global crash handler.
+# This is invoked from the native slangpy extension and allows pytest to capture
+# crashes happening native code (i.e. segfaults). Apparently we might not get to
+# this function if things break bad enough. But this is an intial effort to get
+# better error reporting in the pytest infrastructure.
+def crash_handler(ctx: spy.platform.CrashContext):
+    # Print the crash report so pytest can capture it.
+    print("Global crash handler invoked!")
+    print(spy.platform.format_crash_report(ctx))
+    # Terminate the pytest process with an error.
+    # When running with xdist, this will allow a worker to be respawned.
+    sys.exit(1)
+
+
+# Register global crash handler.
+spy.platform.set_crash_handler(crash_handler)
+
+
 # Global variables for device isolation. If SELECTED_DEVICE_TYPES is None, no restriction.
 # If SELECTED_DEVICE_TYPES is an empty list, it means "nodevice" mode (only non-device tests).
 # If SELECTED_DEVICE_TYPES has items, only tests for those device types will run.
@@ -86,9 +105,8 @@ METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 spy.set_dump_generated_shaders(True)
 # spy.set_dump_slang_intermediates(True)
 
+
 # Returns a unique random 16 character string for every variant of every test.
-
-
 @pytest.fixture
 def test_id(request: Any):
     return hashlib.sha256(request.node.nodeid.encode()).hexdigest()[:16]
