@@ -241,5 +241,29 @@ using ResolvedStackTrace = std::vector<ResolvedStackFrame>;
 /// Convert resolved stack trace to a human readable string.
 [[nodiscard]] SGL_API std::string format_stacktrace(std::span<const StackFrame> trace, size_t max_frames = 0);
 
+// -------------------------------------------------------------------------------------------------
+// Crash handling
+// -------------------------------------------------------------------------------------------------
+
+/// Holds data collected during a crash.
+struct CrashContext {
+    /// Exception code (Windows) or signal number (Linux/macOS).
+    uint64_t code;
+    /// Stack trace.
+    StackTrace stack_trace;
+};
+
+using CrashHandlerCallback = std::function<void(const CrashContext&)>;
+
+/// Setup a callback function to be called on crash (segfault, access violation, etc).
+/// Use nullptr to remove handler.
+SGL_API void set_crash_handler(CrashHandlerCallback callback);
+
+/// Converts a crash context into a text report.
+SGL_API std::string create_crash_report(const CrashContext& ctx);
+
+/// Installs the default crash handler.
+/// The default crash handler dumps the crash report to stderr and terminates the process.
+SGL_API void install_default_crash_handler();
 
 } // namespace sgl::platform

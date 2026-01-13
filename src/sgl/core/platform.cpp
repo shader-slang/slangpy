@@ -3,6 +3,7 @@
 #include "platform.h"
 #include "sgl/core/error.h"
 #include "sgl/core/format.h"
+#include "sgl/core/string.h"
 
 #include <GLFW/glfw3.h>
 
@@ -142,6 +143,37 @@ std::string format_stacktrace(std::span<const ResolvedStackFrame> trace, size_t 
 std::string format_stacktrace(std::span<const StackFrame> trace, size_t max_frames)
 {
     return format_stacktrace(resolve_stacktrace(trace), max_frames);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Crash handling
+// -------------------------------------------------------------------------------------------------
+
+std::string create_crash_report(const CrashContext& ctx)
+{
+    std::string report;
+    report += fmt::format("Code: {}\n", ctx.code);
+    report += fmt::format("Process ID: {}\n", current_process_id());
+    report += fmt::format("Executable: {}\n", executable_path());
+    MemoryStats mem_stats = memory_stats();
+    report += fmt::format("RSS: {}\n", string::format_byte_size(mem_stats.rss));
+    report += fmt::format("Peak RSS: {}\n", string::format_byte_size(mem_stats.peak_rss));
+    report += "Stacktrace:\n";
+    report += format_stacktrace(resolve_stacktrace(ctx.stack_trace));
+    return report;
+}
+
+static void default_crash_handler(const CrashContext& ctx)
+{
+    fprintf(stderr, "==============================\n");
+    fprintf(stderr, "Default crash handler invoked!\n");
+    fprintf(stderr, "==============================\n");
+    fprintf(stderr, create_crash_report(ctx).c_str());
+}
+
+void install_default_crash_handler()
+{
+    set_crash_handler(default_crash_handler);
 }
 
 } // namespace sgl::platform

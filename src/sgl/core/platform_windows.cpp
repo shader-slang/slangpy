@@ -563,6 +563,32 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
     return resolved_trace;
 }
 
+// -------------------------------------------------------------------------------------------------
+// Crash handling
+// -------------------------------------------------------------------------------------------------
+
+static CrashHandlerCallback s_crash_handler_callback;
+
+static LONG WINAPI crash_handler(EXCEPTION_POINTERS* info)
+{
+    if (IsDebuggerPresent())
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    if (s_crash_handler_callback) {
+        CrashContext ctx;
+        ctx.code = info->ExceptionRecord->ExceptionCode;
+        ctx.stack_trace = backtrace();
+        s_crash_handler_callback(ctx);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void set_crash_handler(CrashHandlerCallback callback)
+{
+    s_crash_handler_callback = callback;
+    SetUnhandledExceptionFilter(callback ? crash_handler : nullptr);
+}
+
 } // namespace sgl::platform
 
 #endif // SGL_WINDOWS
