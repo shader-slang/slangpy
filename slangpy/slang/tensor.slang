@@ -83,30 +83,30 @@ public interface IRWTensor<T, let D : int> : IBaseTensor<T, D>
 
 
 #define _SLANGPY_TENSOR_STORE                                                                                          \
-    public void store<I : __BuiltinIntegerType>(I idx[D], T value)                                                     \
+    [ForceInline] public void store<I : __BuiltinIntegerType>(I idx[D], T value)                                       \
     {                                                                                                                  \
         write_buffer(_idx(idx, _strides, _offset), value);                                                             \
     }                                                                                                                  \
-    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                                             \
+    [ForceInline] public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                               \
     {                                                                                                                  \
         write_buffer(_idx(idx, _strides, _offset), value);                                                             \
     }                                                                                                                  \
-    void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                                 \
+    [ForceInline] void _write_each<each I : __BuiltinIntegerType>(T value, expand each I idx)                          \
     {                                                                                                                  \
         int lin_idx = _idx_each(expand each idx, _strides, _offset);                                                   \
         write_buffer(lin_idx, value);                                                                                  \
     }
 
 #define _SLANGPY_TENSOR_LOAD                                                                                           \
-    public T load<I : __BuiltinIntegerType>(I idx[D])                                                                  \
+    [ForceInline] public T load<I : __BuiltinIntegerType>(I idx[D])                                                    \
     {                                                                                                                  \
         return read_buffer(_idx(idx, _strides, _offset));                                                              \
     }                                                                                                                  \
-    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)                                                          \
+    [ForceInline] public T load<I : __BuiltinIntegerType>(vector<I, D> idx)                                            \
     {                                                                                                                  \
         return read_buffer(_idx(idx, _strides, _offset));                                                              \
     }                                                                                                                  \
-    T _read_each<each I : __BuiltinIntegerType>(expand each I idx)                                              \
+    [ForceInline] T _read_each<each I : __BuiltinIntegerType>(expand each I idx)                                       \
     {                                                                                                                  \
         int lin_idx = _idx_each(expand each idx, _strides, _offset);                                                   \
         return read_buffer(lin_idx);                                                                                   \
@@ -377,7 +377,7 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     {
         StorageTraits<T>::atomicAdd(_data, idx, value);
     }
-    void _accumulate_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
+    [ForceInline] void _accumulate_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
     {
         int lin_idx = _idx_each(expand each idx, _strides, _offset);
         accumulate_buffer(lin_idx, value);
@@ -390,11 +390,11 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     _SLANGPY_TENSOR_SLANGPYSTORE
 
 
-    public void add<I : __BuiltinIntegerType>(I idx[D], T value)
+    [ForceInline] public void add<I : __BuiltinIntegerType>(I idx[D], T value)
     {
         StorageTraits<T>::atomicAdd(_data, _idx(idx, _strides, _offset), value);
     }
-    public void add<I : __BuiltinIntegerType>(vector<I, D> idx, T value)
+    [ForceInline] public void add<I : __BuiltinIntegerType>(vector<I, D> idx, T value)
     {
         StorageTraits<T>::atomicAdd(_data, _idx(idx, _strides, _offset), value);
     }

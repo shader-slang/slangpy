@@ -86,7 +86,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
 
     src/basics/firstfunctions
     src/basics/returntype
-    src/basics/buffers
+    src/basics/tensors
     src/basics/textures
     src/basics/nested
     src/basics/typemethods
