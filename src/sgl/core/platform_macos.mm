@@ -54,16 +54,13 @@ struct KeyboardInterruptData {
     }
 };
 
-static void signal_handler(int sig)
+static void sigint_handler(int sig)
 {
     KeyboardInterruptData& data = KeyboardInterruptData::get();
+    std::lock_guard<std::mutex> lock(data.mutex);
 
-    if (sig == SIGINT) {
-        std::lock_guard<std::mutex> lock(data.mutex);
-        if (data.handler) {
-            data.handler();
-        }
-    }
+    if (data.handler)
+        data.handler();
 }
 
 void set_keyboard_interrupt_handler(std::function<void()> handler)
@@ -71,18 +68,16 @@ void set_keyboard_interrupt_handler(std::function<void()> handler)
     KeyboardInterruptData& data = KeyboardInterruptData::get();
     std::lock_guard<std::mutex> lock(data.mutex);
 
-    if (handler && !data.handler) {
-        struct sigaction action;
-        action.sa_handler = signal_handler;
+    if (handler) {
+        struct sigaction action = {};
+        action.sa_handler = sigint_handler;
         sigemptyset(&action.sa_mask);
-        action.sa_flags = 0;
         if (sigaction(SIGINT, &action, nullptr) != 0)
             SGL_THROW("Failed to register keyboard interrupt handler");
-    } else if (!handler && data.handler) {
-        struct sigaction action;
+    } else {
+        struct sigaction action = {};
         action.sa_handler = SIG_DFL;
         sigemptyset(&action.sa_mask);
-        action.sa_flags = 0;
         if (sigaction(SIGINT, &action, nullptr) != 0)
             SGL_THROW("Failed to unregister keyboard interrupt handler");
     }
