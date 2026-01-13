@@ -162,3 +162,29 @@ jobs:
         with:
           name: coverage-report
           path: reports/coverage.html
+
+      # Success Notification
+      - name: Success Notification
+        id: slack-notify-success
+        if: ${{ github.event_name == 'schedule' && success() }}
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "SlangPy-Nightly": ":green-check-mark: SlangPy nightly status: ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      # Failure Notification
+      - name: Failure Notification
+        id: slack-notify-failure
+        if: ${{ github.event_name == 'schedule' && !success() }}
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "SlangPy-Nightly": ":alert: :alert: :alert: :alert: :alert: :alert:\nSlangPy nightly status: ${{ job.status }}: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
