@@ -13,7 +13,7 @@
 
 namespace sgl {
 
-SGL_IMPLEMENT_BLOCK_ALLOCATED(ShaderObject, 256)
+SGL_IMPLEMENT_BLOCK_ALLOCATED(ShaderObject, 4096)
 
 inline rhi::ShaderOffset rhi_shader_offset(const ShaderOffset& offset)
 {
