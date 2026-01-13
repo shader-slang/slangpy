@@ -20,7 +20,6 @@ namespace sgl::slangpy {
 namespace {
     /// Helper function to extract shape from PyTorch tensor
     /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
-    /// Uses raw pointer access to avoid per-element branching on m_uses_heap.
     Shape extract_shape(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
         const size_t ndim = tensor.ndim();
@@ -35,7 +34,6 @@ namespace {
     /// Helper function to extract strides from PyTorch tensor
     /// Returns element strides directly (PyTorch stride() already returns element strides for nanobind)
     /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
-    /// Uses raw pointer access to avoid per-element branching on m_uses_heap.
     Shape extract_strides(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
         const size_t ndim = tensor.ndim();
@@ -49,7 +47,6 @@ namespace {
     }
 
     /// Overload accepting Shape directly and returning Shape (ZERO allocations for small shapes!)
-    /// Uses raw pointer access to avoid per-element branching on m_uses_heap.
     Shape apply_broadcast_stride_zeroing(
         const Shape& strides,
         const Shape& shape,
@@ -101,7 +98,6 @@ namespace {
     }
 
     /// Helper for writing strided array from Shape to base address with offset (zero allocation)
-    /// Uses raw pointer access to avoid per-element branching on m_uses_heap.
     void write_strided_array_helper(void* base_address, size_t offset, const Shape& shape, size_t element_stride)
     {
         uint8_t* dest_ptr = static_cast<uint8_t*>(base_address) + offset;
@@ -110,6 +106,50 @@ namespace {
         for (size_t i = 0; i < count; i++) {
             int* ptr = reinterpret_cast<int*>(dest_ptr + i * element_stride);
             *ptr = shape_data[i]; // Direct pointer access - no branch
+        }
+    }
+
+    /// Validate that a tensor's trailing dimensions match the expected vector type shape.
+    /// This mirrors the validation in Python's torchtensormarshall.py
+    /// Throws nb::value_error to match the Python behavior
+    void validate_tensor_shape(const Shape& tensor_shape, const Shape& vector_shape)
+    {
+        const size_t vector_dims = vector_shape.size();
+        if (vector_dims == 0) {
+            return; // No vector shape to validate against
+        }
+
+        const size_t tensor_dims = tensor_shape.size();
+        if (tensor_dims < vector_dims) {
+            throw nb::value_error(
+                fmt::format(
+                    "Tensor shape {} does not match expected shape {}",
+                    tensor_shape.to_string(),
+                    vector_shape.to_string()
+                )
+                    .c_str()
+            );
+        }
+
+        // Get raw pointers once to avoid per-element m_uses_heap branching
+        const int* tensor_data = tensor_shape.data();
+        const int* vector_data = vector_shape.data();
+
+        // Check trailing dimensions
+        for (size_t i = 0; i < vector_dims; i++) {
+            int expected = vector_data[vector_dims - 1 - i];
+            int actual = tensor_data[tensor_dims - 1 - i];
+            // -1 acts as a wildcard (matches any size)
+            if (expected != -1 && actual != expected) {
+                throw nb::value_error(
+                    fmt::format(
+                        "Tensor shape {} does not match expected shape {}",
+                        tensor_shape.to_string(),
+                        vector_shape.to_string()
+                    )
+                        .c_str()
+                );
+            }
         }
     }
 } // anonymous namespace
@@ -347,6 +387,15 @@ void NativeTensorMarshall::write_torch_tensor_ref(
     }
     auto& pytorch_tensor = pytorch_tensor_opt.value();
 
+    // Validate tensor shape against expected vector type shape
+    // This mirrors the validation in Python's torchtensormarshall.py:118
+    Shape tensor_shape = extract_shape(pytorch_tensor);
+    const Shape& vector_shape = binding->vector_type()->shape();
+    validate_tensor_shape(tensor_shape, vector_shape);
+
+    // Extract strides once for reuse
+    Shape tensor_strides = extract_strides(pytorch_tensor);
+
     // Reserve memory in shader object for tensor fields
     void* base_address = shader_object->reserve_data(m_cached_offsets.field_offset, m_cached_offsets.field_size);
 
@@ -360,8 +409,8 @@ void NativeTensorMarshall::write_torch_tensor_ref(
             base_address,
             m_cached_offsets.primal,
             pytorch_tensor.data(),
-            extract_shape(pytorch_tensor),
-            extract_strides(pytorch_tensor),
+            tensor_shape,
+            tensor_strides,
             0
         );
     } else {
@@ -373,8 +422,8 @@ void NativeTensorMarshall::write_torch_tensor_ref(
             base_address,
             m_cached_offsets.primal,
             pytorch_tensor.data(),
-            extract_shape(pytorch_tensor),
-            extract_strides(pytorch_tensor),
+            tensor_shape,
+            tensor_strides,
             0
         );
 
