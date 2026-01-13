@@ -10118,6 +10118,12 @@ static const char *__doc_sgl_operator_ior_12 = R"doc()doc";
 
 static const char *__doc_sgl_operator_ior_13 = R"doc()doc";
 
+static const char *__doc_sgl_platform_CrashContext = R"doc(Holds data collected during a crash.)doc";
+
+static const char *__doc_sgl_platform_CrashContext_code = R"doc(Exception code (Windows) or signal number (Linux/macOS).)doc";
+
+static const char *__doc_sgl_platform_CrashContext_stack_trace = R"doc(Stack trace.)doc";
+
 static const char *__doc_sgl_platform_FileDialogFilter = R"doc()doc";
 
 static const char *__doc_sgl_platform_FileDialogFilter_FileDialogFilter = R"doc()doc";
@@ -10160,6 +10166,8 @@ R"doc(Show a folder selection dialog.
 Returns:
     The selected folder path or nothing if the dialog was cancelled.)doc";
 
+static const char *__doc_sgl_platform_create_crash_report = R"doc(Converts a crash context into a text report.)doc";
+
 static const char *__doc_sgl_platform_create_junction = R"doc(Create a junction (soft link).)doc";
 
 static const char *__doc_sgl_platform_current_process_id = R"doc(Get the process ID of the current process.)doc";
@@ -10193,6 +10201,10 @@ R"doc(Check if a file path has a given file extension. Does a case-
 insensitive comparison.)doc";
 
 static const char *__doc_sgl_platform_home_directory = R"doc(The home directory.)doc";
+
+static const char *__doc_sgl_platform_install_default_crash_handler =
+R"doc(Installs the default crash handler. The default crash handler dumps
+the crash report to stderr and terminates the process.)doc";
 
 static const char *__doc_sgl_platform_is_debugger_present = R"doc(Check if a debugger session is attached.)doc";
 
@@ -10243,6 +10255,10 @@ Parameter ``filters``:
 
 Returns:
     The selected file path or nothing if the dialog was cancelled.)doc";
+
+static const char *__doc_sgl_platform_set_crash_handler =
+R"doc(Setup a callback function to be called on crash (segfault, access
+violation, etc). Use nullptr to remove handler.)doc";
 
 static const char *__doc_sgl_platform_set_keyboard_interrupt_handler =
 R"doc(Setup a callback function to be called when Ctrl-C is detected. Use

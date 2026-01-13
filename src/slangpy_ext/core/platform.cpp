@@ -86,4 +86,16 @@ SGL_PY_EXPORT(core_platform)
         .def_ro("peak_rss", &MemoryStats::peak_rss, D(platform, MemoryStats, peak_rss));
 
     platform.def("memory_stats", &memory_stats, D(platform, memory_stats));
+
+    nb::class_<CrashContext>(platform, "CrashContext", D(platform, CrashContext))
+        .def_ro("code", &CrashContext::code, D(platform, CrashContext, code))
+        .def_ro("stack_trace", &CrashContext::stack_trace, D(platform, CrashContext, stack_trace));
+
+    platform.def("set_crash_handler", &set_crash_handler, D(platform, set_crash_handler));
+    platform.def("create_crash_report", &create_crash_report, D(platform, create_crash_report));
+    platform.def(
+        "install_default_crash_handler",
+        &install_default_crash_handler,
+        D(platform, install_default_crash_handler)
+    );
 }
