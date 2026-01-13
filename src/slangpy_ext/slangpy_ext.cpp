@@ -180,5 +180,8 @@ NB_MODULE(slangpy_ext, m_)
     nanobind_module_def_slangpy_ext.m_free = [](void*)
     {
         sgl::static_shutdown();
+
+        // Reset crash handler to avoid holding on to a Python side function.
+        sgl::platform::set_crash_handler(nullptr);
     };
 }
