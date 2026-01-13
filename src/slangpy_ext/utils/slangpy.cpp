@@ -634,23 +634,25 @@ nb::object NativeCallData::exec(
 
     auto bind_call_data = [&](ShaderCursor cursor)
     {
-        // Get the call data cursor, either as an entry point parameter or global depending on call data mode
-        ShaderCursor call_data_cursor;
-        if (m_call_data_mode == CallDataMode::entry_point) {
-            call_data_cursor = cursor.find_entry_point(0).find_field("call_data");
-        } else {
-            call_data_cursor = cursor.find_field("call_data");
-        }
-
-        // Dereference the cursor if it is a reference.
-        // We do this here to avoid doing it automatically for every
-        // child. Shouldn't need to do recursively as its only
-        // relevant for parameter blocks and constant buffers.
-        if (call_data_cursor.is_reference())
-            call_data_cursor = call_data_cursor.dereference();
-
-        // Extract and cache offsets on first call
+        // On first call, cache all field indices and offsets to avoid repeated string lookups
         if (!m_cached_call_data_offsets.is_valid) {
+            // Get the call data cursor using string lookup (first call only)
+            ShaderCursor call_data_cursor;
+            if (m_call_data_mode == CallDataMode::entry_point) {
+                ShaderCursor entry_point_cursor = cursor.find_entry_point(0);
+                call_data_cursor = entry_point_cursor.find_field("call_data");
+                m_cached_call_data_offsets.call_data_field_index = entry_point_cursor.get_field_index("call_data");
+            } else {
+                call_data_cursor = cursor.find_field("call_data");
+                m_cached_call_data_offsets.call_data_field_index = cursor.get_field_index("call_data");
+            }
+
+            // Cache whether call_data needs dereference
+            m_cached_call_data_offsets.call_data_is_reference = call_data_cursor.is_reference();
+            if (m_cached_call_data_offsets.call_data_is_reference)
+                call_data_cursor = call_data_cursor.dereference();
+
+            // Cache all field offsets
             m_cached_call_data_offsets.call_dim = call_data_cursor.find_field("_call_dim").offset();
             m_cached_call_data_offsets.grid_stride = call_data_cursor.find_field("_grid_stride").offset();
             m_cached_call_data_offsets.grid_dim = call_data_cursor.find_field("_grid_dim").offset();
@@ -665,6 +667,19 @@ nb::object NativeCallData::exec(
             }
             m_cached_call_data_offsets.is_valid = true;
         }
+
+        // Fast path: use cached field index to find call_data cursor
+        ShaderCursor call_data_cursor;
+        if (m_call_data_mode == CallDataMode::entry_point) {
+            call_data_cursor
+                = cursor.find_entry_point(0).find_field_by_index(m_cached_call_data_offsets.call_data_field_index);
+        } else {
+            call_data_cursor = cursor.find_field_by_index(m_cached_call_data_offsets.call_data_field_index);
+        }
+
+        // Dereference the cursor if needed (using cached result)
+        if (m_cached_call_data_offsets.call_data_is_reference)
+            call_data_cursor = call_data_cursor.dereference();
 
         // Reserve memory block for all call data fields
         ShaderObject* shader_object = call_data_cursor.shader_object();

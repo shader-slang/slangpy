@@ -804,7 +804,10 @@ private:
         ShaderOffset field_offset; // Base offset of the call_data structure
         uint32_t field_size = 0;   // Total size of the call_data in uniform data
         int array_stride = 0;      // Stride for array elements
-        bool is_valid = false;     // Whether offsets have been initialized
+        // Cached information for navigating to call_data field
+        int32_t call_data_field_index = -1;  // Field index for "call_data" lookup
+        bool call_data_is_reference = false; // Whether call_data needs dereference
+        bool is_valid = false;               // Whether offsets have been initialized
     };
 
     ref<Device> m_device;
