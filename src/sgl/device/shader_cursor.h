@@ -73,6 +73,8 @@ public:
 
     void set_data(const void* data, size_t size) const;
 
+    void* reserve_data(size_t size) const;
+
     void set_cuda_tensor_view(const cuda::TensorView& tensor_view) const;
 
     void set_pointer(uint64_t pointer_value) const;

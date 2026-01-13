@@ -154,6 +154,13 @@ void ShaderObject::set_data(const ShaderOffset& offset, const void* data, size_t
     SLANG_RHI_CALL(m_shader_object->setData(rhi_shader_offset(offset), data, size));
 }
 
+void* ShaderObject::reserve_data(const ShaderOffset& offset, size_t size)
+{
+    void* res;
+    SLANG_RHI_CALL(m_shader_object->reserveData(rhi_shader_offset(offset), size, &res));
+    return res;
+}
+
 void ShaderObject::set_cuda_tensor_view_buffer(
     const ShaderOffset& offset,
     const cuda::TensorView& tensor_view,
