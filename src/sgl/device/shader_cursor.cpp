@@ -224,7 +224,7 @@ ShaderCursor ShaderCursor::find_field(std::string_view name) const
     return {};
 }
 
-int32_t ShaderCursor::get_field_index(std::string_view name) const
+int32_t ShaderCursor::find_field_index(std::string_view name) const
 {
     if (!is_valid())
         return -1;
@@ -235,14 +235,14 @@ int32_t ShaderCursor::get_field_index(std::string_view name) const
     case TypeReflection::Kind::constant_buffer:
     case TypeReflection::Kind::parameter_block: {
         ShaderCursor d = dereference();
-        return d.get_field_index(name);
+        return d.find_field_index(name);
     }
     default:
         return -1;
     }
 }
 
-ShaderCursor ShaderCursor::find_field_by_index(int32_t field_index) const
+ShaderCursor ShaderCursor::get_field_by_index(int32_t field_index) const
 {
     if (!is_valid() || field_index < 0)
         return {};
@@ -266,7 +266,7 @@ ShaderCursor ShaderCursor::find_field_by_index(int32_t field_index) const
     case TypeReflection::Kind::constant_buffer:
     case TypeReflection::Kind::parameter_block: {
         ShaderCursor d = dereference();
-        return d.find_field_by_index(field_index);
+        return d.get_field_by_index(field_index);
     }
     default:
         return {};
