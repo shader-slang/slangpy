@@ -6,20 +6,31 @@ from numpy import ScalarType
 from slangpy import DataType, BufferUsage, TypeReflection, DeviceType
 import torch
 
-from slangpy.core.native import AccessType, CallContext, CallMode, Shape, TensorRef
+from slangpy.core.native import (
+    AccessType,
+    CallContext,
+    CallMode,
+    Shape,
+    TensorRef,
+    NativeTorchTensorMarshall,
+)
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.bindings.marshall import ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
+from slangpy.bindings import BindContext, BoundVariable, CodeGenBlock
 from slangpy.builtin.tensor import TensorMarshall, is_nested_array
-from slangpy import Buffer
+from slangpy import Buffer, ShaderObject, ShaderCursor
 from slangpy.reflection.reflectiontypes import (
     SlangProgramLayout,
     SlangType,
     ScalarType,
     VectorType,
     MatrixType,
+    TensorType,
+    TensorAccess,
 )
 from slangpy.reflection.lookup import innermost_type
+import slangpy.builtin.tensorcommon as spytc
 
 ST = TypeReflection.ScalarType
 _torch_to_scalar_type = {
@@ -224,6 +235,178 @@ class TensorRefMarshall(TensorMarshall):
         return data
 
 
+class TorchTensorMarshall(NativeTorchTensorMarshall):
+    """
+    Marshall for raw torch.Tensor objects (not wrapped in TensorRef).
+
+    Inherits from NativeTorchTensorMarshall which provides:
+    - Fast native get_shape via TorchBridge
+    - Native write_shader_cursor_pre_dispatch for CUDA tensors
+
+    This class adds:
+    - Type resolution for binding
+    - Code generation for kernels
+    - Shader object building
+    """
+
+    def __init__(
+        self,
+        layout: SlangProgramLayout,
+        torch_dtype: torch.dtype,
+        slang_dtype: SlangType,
+        dims: int,
+        d_in: Optional["TorchTensorMarshall"],
+        d_out: Optional["TorchTensorMarshall"],
+    ):
+        # Validate element type
+        dtype = innermost_type(slang_dtype)
+        can_convert = (
+            is_nested_array(slang_dtype)
+            or isinstance(slang_dtype, ScalarType)
+            or isinstance(slang_dtype, VectorType)
+            or isinstance(slang_dtype, MatrixType)
+        )
+        if not can_convert or len(slang_dtype.shape) > 2:
+            raise ValueError(f"Torch tensors do not support data type {slang_dtype.full_name}")
+
+        full_dims = dims + len(slang_dtype.shape)
+
+        # Determine writability and tensor type
+        writable = True  # Torch tensors are always potentially writable
+        has_derivatives = d_in is not None or d_out is not None
+
+        # Get the slang tensor type
+        slang_type = layout.tensor_type(
+            element_type=dtype,
+            dims=full_dims,
+            access=TensorAccess.read_write if writable else TensorAccess.read,
+            tensor_type=TensorType.difftensor if has_derivatives else TensorType.tensor,
+        )
+
+        if not slang_type:
+            raise ValueError(
+                f"Failed to find tensor type to contain element {dtype.full_name}. "
+                f"If using differentiable tensors, this can imply that the element type "
+                f"does not support both the IDifferentiable and IAtomicAddable interfaces."
+            )
+
+        # Store for Python-side use
+        self._layout = layout
+        self._torch_dtype = torch_dtype
+        self._slang_dtype = slang_dtype
+
+        # Initialize base class (sets d_in, d_out, dims, writable etc in C++)
+        super().__init__(
+            dims=full_dims,
+            writable=writable,
+            slang_type=slang_type,
+            slang_element_type=dtype,
+            element_layout=dtype.buffer_layout.reflection,
+            d_in=d_in,
+            d_out=d_out,
+        )
+
+    @property
+    def layout(self) -> SlangProgramLayout:
+        return self._layout
+
+    @property
+    def torch_dtype(self) -> torch.dtype:
+        return self._torch_dtype
+
+    @property
+    def slang_dtype(self) -> SlangType:
+        return self._slang_dtype
+
+    def __repr__(self) -> str:
+        return f"TorchTensor[dtype={self.slang_element_type.full_name}, dims={self.dims}, writable={self.writable}]"
+
+    @property
+    def has_derivative(self) -> bool:
+        return self.d_in is not None or self.d_out is not None
+
+    @property
+    def is_writable(self) -> bool:
+        return self.writable
+
+    def resolve_types(self, context: BindContext, bound_type: SlangType):
+        """Resolve types during binding phase."""
+        return spytc.resolve_types(self, context, bound_type)
+
+    def reduce_type(self, context: BindContext, dimensions: int):
+        """Reduce tensor type by consuming dimensions."""
+        return spytc.reduce_type(self, context, dimensions)
+
+    def resolve_dimensionality(
+        self,
+        context: BindContext,
+        binding: BoundVariable,
+        vector_target_type: SlangType,
+    ):
+        """Resolve dimensionality during vectorization."""
+        return spytc.resolve_dimensionality(self, context, binding, vector_target_type)
+
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
+        """Generate call data code for the kernel."""
+        return spytc.gen_calldata(self, cgb, context, binding)
+
+    def build_shader_object(self, context: BindContext, data: torch.Tensor) -> ShaderObject:
+        """Build shader object for dispatch."""
+        so = context.device.create_shader_object(self.slang_type.uniform_layout.reflection)
+        cursor = ShaderCursor(so)
+
+        if not self.has_derivative:
+            # Simple case - just write the tensor uniforms
+            cursor.write(self._get_tensor_uniforms(data))
+        else:
+            # Differentiated case - not yet supported for raw tensors
+            raise NotImplementedError("Gradient support for raw torch.Tensor not yet implemented")
+
+        return so
+
+    def _get_tensor_uniforms(self, tensor: torch.Tensor) -> dict[str, Any]:
+        """Extract uniform data from a torch tensor."""
+        return {
+            "_data": tensor.data_ptr(),
+            "_shape": list(tensor.shape),
+            "_strides": list(tensor.stride()),
+            "_offset": 0,
+        }
+
+
+def create_torch_tensor_marshall(layout: SlangProgramLayout, value: Any):
+    """Factory function for creating TorchTensorMarshall for raw torch.Tensor."""
+    if isinstance(value, ReturnContext):
+        slang_dtype = value.slang_type
+        torch_dtype = _slang_dtype_to_torch(innermost_type(slang_dtype))
+        if torch_dtype is None:
+            raise ValueError(f"Unsupported slang type {value.slang_type}")
+        return TorchTensorMarshall(
+            layout,
+            torch_dtype,
+            slang_dtype,
+            value.bind_context.call_dimensionality,
+            None,
+            None,
+        )
+    elif isinstance(value, torch.Tensor):
+        torch_dtype = value.dtype
+        slang_dtype = _torch_dtype_to_slang(torch_dtype, layout)
+        if slang_dtype is None:
+            raise ValueError(f"Unsupported torch dtype {value.dtype}")
+        # No gradient support for raw tensors yet
+        return TorchTensorMarshall(
+            layout,
+            torch_dtype,
+            slang_dtype,
+            len(value.shape),
+            None,
+            None,
+        )
+    else:
+        raise ValueError(f"Type {type(value)} is unsupported for torch.Tensor marshall")
+
+
 def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
     if isinstance(value, ReturnContext):
         if value.bind_context.call_dimensionality == 0 and False:
@@ -266,5 +449,14 @@ def hash_tensor(value: Any) -> str:
     raise ValueError(f"TensorRef should not need a hash key as it is native object")
 
 
+def hash_torch_tensor(value: Any) -> str:
+    raise ValueError(f"torch.Tensor should not need a hash key as it is native object")
+
+
+# Register TensorRef handlers (legacy)
 PYTHON_TYPES[TensorRef] = create_tensor_marshall
 PYTHON_SIGNATURES[TensorRef] = hash_tensor
+
+# Register torch.Tensor handlers (new)
+PYTHON_TYPES[torch.Tensor] = create_torch_tensor_marshall
+PYTHON_SIGNATURES[torch.Tensor] = hash_torch_tensor

@@ -320,7 +320,8 @@ def test_polynomials(
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("extra_dims", [0, 1, 3])
-def test_add_tensors(device_type: DeviceType, extra_dims: int):
+@pytest.mark.parametrize("grads", [False, True])
+def test_add_tensors(device_type: DeviceType, extra_dims: int, grads: bool):
 
     module = load_test_module(device_type)
 
@@ -332,13 +333,13 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int):
         extra_shape + val_shape,
         dtype=torch.float32,
         device=torch.device("cuda"),
-        requires_grad=True,
+        requires_grad=grads,
     )
     b = torch.randn(
         extra_shape + val_shape,
         dtype=torch.float32,
         device=torch.device("cuda"),
-        requires_grad=True,
+        requires_grad=grads,
     )
 
     res = torch.empty_like(a)

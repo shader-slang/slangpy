@@ -60,6 +60,8 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     utils/slangpyresources.cpp
     utils/slangpytensor.h
     utils/slangpytensor.cpp
+    utils/slangpytorchtensor.h
+    utils/slangpytorchtensor.cpp
     utils/tev.cpp
     utils/texture_loader.cpp
     utils/torch_bridge.h

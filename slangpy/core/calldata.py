@@ -483,14 +483,34 @@ class CallData(NativeCallData):
         # Call the kernel
         res = self.call(options, *unpacked_args, **unpacked_kwargs)
 
-        # If result is a tensor, add it to detected tensors
+        # If result is a tensor, add it to detected tensors (use id() to check identity)
         if isinstance(res, torch.Tensor):
-            if res not in detected_tensors:
+            if not any(t is res for t in detected_tensors):
                 detected_tensors.append(res)
 
         if self.torch_autograd:
+            # Check if any raw torch.Tensor objects have requires_grad=True
+            # Autograd integration for raw tensors is not yet supported - requires TensorRef wrapper
+            from slangpy.torchintegration.torchtensormarshall import TensorRef
+
+            raw_grad_tensors = [
+                t
+                for t in detected_tensors
+                if isinstance(t, torch.Tensor) and not isinstance(t, TensorRef) and t.requires_grad
+            ]
+            if raw_grad_tensors:
+                raise NotImplementedError(
+                    "Autograd (requires_grad=True) is not yet supported for raw torch.Tensor objects. "
+                    "Please wrap tensors in TensorRef for autograd support, or use tensors without requires_grad."
+                )
+
+            # Filter to only TensorRef objects for the autograd hook
+            tensor_refs = [t for t in detected_tensors if isinstance(t, TensorRef)]
+
             # Extract all tensors that require gradients for autograd integration
-            grad_tensors = [t for t in detected_tensors if t.requires_grad]
+            grad_tensors = [
+                t for t in tensor_refs if t.tensor is not None and t.tensor.requires_grad
+            ]
 
             # Call the dummy auto-grad apply function, which critically takes the primal input list
             # as arguments and returns the primal output list as results
@@ -498,8 +518,8 @@ class CallData(NativeCallData):
                 function,
                 unpacked_args,
                 unpacked_kwargs,
-                detected_tensors,
-                *grad_tensors,
+                tensor_refs,
+                *[t.tensor for t in grad_tensors],
             )
 
         return res

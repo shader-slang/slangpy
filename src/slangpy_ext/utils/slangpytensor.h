@@ -127,8 +127,8 @@ public:
 
     nb::object read_output(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data) const override;
 
-private:
     /// Cached shader offsets for a single tensor's fields
+    /// Public so NativeTorchTensorMarshall can reuse them
     struct TensorFieldOffsets {
         int array_stride;
         ShaderOffset data;     // Offset for _data field
@@ -139,6 +139,7 @@ private:
     };
 
     /// Cached offsets for all tensor variants (primal, grad_in, grad_out)
+    /// Public so NativeTorchTensorMarshall can reuse them
     struct CachedOffsets {
         TensorFieldOffsets primal;    // Offsets for primal tensor fields
         TensorFieldOffsets grad_in;   // Offsets for gradient input fields (if present)
@@ -148,6 +149,15 @@ private:
         uint32_t field_size = 0;      // Total size of the field in uniform data
     };
 
+    /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure
+    /// Public so NativeTorchTensorMarshall can reuse it
+    static TensorFieldOffsets extract_tensor_field_offsets(ShaderCursor tensor_cursor);
+
+    /// Extract all cached offsets (primal, grad_in, grad_out) from a field cursor
+    /// Public so NativeTorchTensorMarshall can reuse it
+    static CachedOffsets extract_offsets(ShaderCursor cursor);
+
+private:
     int m_dims;
     bool m_writable;
     ref<NativeSlangType> m_slang_element_type;
@@ -155,17 +165,6 @@ private:
     ref<NativeTensorMarshall> m_d_in;
     ref<NativeTensorMarshall> m_d_out;
     mutable CachedOffsets m_cached_offsets;
-
-    //
-    // Helper Methods for Offset Extraction and Caching
-    //
-
-    /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure
-    /// This is the single source of truth for reading offsets from a cursor
-    static TensorFieldOffsets extract_tensor_field_offsets(ShaderCursor tensor_cursor);
-
-    /// Extract all cached offsets (primal, grad_in, grad_out) from a field cursor
-    static CachedOffsets extract_offsets(ShaderCursor cursor);
 
     /// Initialize cached offsets if not already done
     /// This method is called on the first dispatch to cache reflection data for subsequent calls

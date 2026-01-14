@@ -8,7 +8,8 @@ without requiring TensorRef wrappers.
 
 from typing import Any
 
-TORCH_AVAILABLE = None
+# Cached torch module reference (None = not checked yet, False = not available)
+_torch_module: Any = None
 
 
 def detect_torch_tensors(
@@ -32,17 +33,20 @@ def detect_torch_tensors(
         - tensors: List of all detected torch.Tensor objects
     """
 
-    # Check for torch just once
-    global TORCH_AVAILABLE
-    if TORCH_AVAILABLE is None:
+    # Check for torch just once and cache the module
+    global _torch_module
+    if _torch_module is None:
         try:
             import torch
 
-            TORCH_AVAILABLE = True
+            _torch_module = torch
         except ImportError:
-            TORCH_AVAILABLE = False
-    if not TORCH_AVAILABLE:
+            _torch_module = False
+    if _torch_module is False:
         return False, False, []
+
+    # Local reference to torch module for use in nested function
+    torch = _torch_module
 
     tensors: list[Any] = []
     requires_autograd = False

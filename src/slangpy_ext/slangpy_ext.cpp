@@ -64,6 +64,7 @@ SGL_PY_DECLARE(utils_slangpy_function);
 SGL_PY_DECLARE(utils_slangpy_packedarg);
 SGL_PY_DECLARE(utils_slangpy_resources);
 SGL_PY_DECLARE(utils_slangpy_tensor);
+SGL_PY_DECLARE(utils_slangpy_torch_tensor);
 SGL_PY_DECLARE(utils_slangpy_value);
 SGL_PY_DECLARE(utils_tev);
 SGL_PY_DECLARE(utils_texture_loader);
@@ -155,6 +156,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(utils_slangpy_packedarg);
     SGL_PY_IMPORT(utils_slangpy_resources);
     SGL_PY_IMPORT(utils_slangpy_tensor);
+    SGL_PY_IMPORT(utils_slangpy_torch_tensor);
     SGL_PY_IMPORT(utils_slangpy_value);
 
     SGL_PY_IMPORT(utils_tev);
