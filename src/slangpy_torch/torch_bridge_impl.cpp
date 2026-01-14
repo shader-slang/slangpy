@@ -155,13 +155,25 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
     return 0;
 }
 
+// Get the current CUDA stream for a given device index
+extern "C" void* tensor_bridge_get_current_cuda_stream(int device_index)
+{
+    try {
+        auto stream = c10::cuda::getCurrentCUDAStream(device_index);
+        return stream.stream();
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 static const TensorBridgeAPI g_api
     = {TENSOR_BRIDGE_API_VERSION,
        sizeof(TensorBridgeInfo),
        tensor_bridge_extract,
        tensor_bridge_is_tensor,
        tensor_bridge_get_signature,
-       tensor_bridge_get_error};
+       tensor_bridge_get_error,
+       tensor_bridge_get_current_cuda_stream};
 
 extern "C" const TensorBridgeAPI* tensor_bridge_get_api(void)
 {

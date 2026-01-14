@@ -97,4 +97,13 @@ inline const char* get_tensor_bridge_error()
     return g_tensor_bridge_api->get_error();
 }
 
+// Get the current CUDA stream for a given device index
+// Returns nullptr if CUDA is not available or if the bridge is not initialized
+inline void* get_current_cuda_stream(int device_index = 0)
+{
+    if (!g_tensor_bridge_api)
+        return nullptr;
+    return g_tensor_bridge_api->get_current_cuda_stream(device_index);
+}
+
 } // namespace sgl

@@ -95,10 +95,15 @@ typedef int (*TensorBridge_GetSignatureFn)(void* py_tensor_obj, char* buffer, si
 // Returns a pointer to a static thread-local buffer
 typedef const char* (*TensorBridge_GetErrorFn)(void);
 
+// Get the current CUDA stream for a given device index
+// Returns the cudaStream_t pointer, or nullptr if CUDA is not available
+// device_index: the CUDA device index (0, 1, 2, etc.)
+typedef void* (*TensorBridge_GetCurrentCudaStreamFn)(int device_index);
+
 // ============================================================================
 // Version info for ABI compatibility checking
 // ============================================================================
-#define TENSOR_BRIDGE_API_VERSION 1
+#define TENSOR_BRIDGE_API_VERSION 2
 
 typedef struct TensorBridgeAPI {
     int api_version;
@@ -108,6 +113,7 @@ typedef struct TensorBridgeAPI {
     TensorBridge_IsTensorFn is_tensor;
     TensorBridge_GetSignatureFn get_signature;
     TensorBridge_GetErrorFn get_error;
+    TensorBridge_GetCurrentCudaStreamFn get_current_cuda_stream;
 } TensorBridgeAPI;
 
 // Function to get the API struct (exported by the bridge module)

@@ -85,7 +85,7 @@ Uses fast manual character building instead of snprintf for ~10-20x speedup.
 ```powershell
 # Build slangpy-torch (with release optimization + debug symbols)
 cd src/slangpy_torch
-pip install . --no-deps --no-build-isolation
+$env:DISTUTILS_USE_SDK=1; pip install . --no-deps --no-build-isolation
 
 # Build slangpy_ext
 cd <repo_root>

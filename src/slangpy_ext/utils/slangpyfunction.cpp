@@ -2,7 +2,9 @@
 
 #include "nanobind.h"
 #include "sgl/device/command.h"
+#include "sgl/device/native_handle.h"
 #include "utils/slangpyfunction.h"
+#include "slangpy_torch/tensor_bridge_consumer.h"
 #include <fmt/format.h>
 
 namespace sgl {
@@ -62,19 +64,22 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     std::string sig = builder->str();
     ref<NativeCallData> call_data = cache->find_call_data(sig);
 
-    if (call_data) {
-        if (call_data->is_torch_integration())
-            return call_data->_py_torch_call(this, options, args, kwargs);
-        else
-            return call_data->call(options, args, kwargs);
-    } else {
-        ref<NativeCallData> new_call_data = generate_call_data(args, kwargs);
-        cache->add_call_data(sig, new_call_data);
-        if (new_call_data->is_torch_integration())
-            return new_call_data->_py_torch_call(this, options, args, kwargs);
-        else
-            return new_call_data->call(options, args, kwargs);
+    if (!call_data) {
+        call_data = generate_call_data(args, kwargs);
+        cache->add_call_data(sig, call_data);
     }
+
+    // If torch integration is enabled and the bridge is available, set the CUDA stream
+    if (call_data->is_torch_integration() && is_tensor_bridge_available()) {
+        // Get the current CUDA stream from PyTorch (device 0 by default)
+        void* stream_ptr = get_current_cuda_stream(0);
+        if (stream_ptr) {
+            NativeHandle stream_handle(NativeHandleType::CUstream, reinterpret_cast<uint64_t>(stream_ptr));
+            options->set_cuda_stream(stream_handle);
+        }
+    }
+
+    return call_data->call(options, args, kwargs);
 }
 
 void NativeFunctionNode::append_to(
