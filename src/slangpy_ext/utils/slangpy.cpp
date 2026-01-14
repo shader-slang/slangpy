@@ -929,6 +929,13 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         return;
     }
 
+    // Fast path: Signature for pytorch tensors via torch bridge (~15ns)
+    char buffer[64];
+    if (TorchBridge::instance().get_signature(o, buffer, sizeof(buffer)) == 0) {
+        *builder << buffer;
+        return;
+    }
+
     // Add type name.
     auto type_name = nb::str(nb::getattr(o.type(), "__name__"));
     *builder << type_name.c_str() << "\n";
@@ -949,12 +956,6 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         return;
     }
 
-    // Fast path: Signature for pytorch tensors via torch bridge (~15ns)
-    char buffer[64];
-    if (TorchBridge::instance().get_signature(o, buffer, sizeof(buffer)) == 0) {
-        *builder << buffer;
-        return;
-    }
 
     // If x is a dictionary get signature of its children.
     nb::dict dict;

@@ -99,7 +99,28 @@ extern "C" const char* tensor_bridge_get_error(void)
     return g_error_buffer;
 }
 
-// Fast signature extraction - returns NULL if not a tensor
+// Fast integer to string - returns pointer to end of written chars
+static inline char* fast_itoa(char* p, int val)
+{
+    if (val == 0) {
+        *p++ = '0';
+        return p;
+    }
+
+    // Build digits in reverse, then flip
+    char tmp[12];
+    int i = 0;
+    while (val > 0) {
+        tmp[i++] = '0' + (val % 10);
+        val /= 10;
+    }
+    while (i > 0) {
+        *p++ = tmp[--i];
+    }
+    return p;
+}
+
+// Fast signature extraction - returns 0 on success
 extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t buffer_size)
 {
     if (!py_obj)
@@ -111,11 +132,25 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
 
     const torch::Tensor& tensor = THPVariable_Unpack(obj);
 
-    // Format: "[torch,Dn,Sm]" where n=ndim, m=scalar_type
     int ndim = static_cast<int>(tensor.dim());
     int scalar_type = static_cast<int>(tensor.scalar_type());
 
-    snprintf(buffer, buffer_size, "[torch,D%d,S%d]", ndim, scalar_type);
+    // Format: "[torch,Dn,Sm]" - compatible format, no snprintf
+    char* p = buffer;
+    *p++ = '[';
+    *p++ = 't';
+    *p++ = 'o';
+    *p++ = 'r';
+    *p++ = 'c';
+    *p++ = 'h';
+    *p++ = ',';
+    *p++ = 'D';
+    p = fast_itoa(p, ndim);
+    *p++ = ',';
+    *p++ = 'S';
+    p = fast_itoa(p, scalar_type);
+    *p++ = ']';
+    *p = '\0';
 
     return 0;
 }

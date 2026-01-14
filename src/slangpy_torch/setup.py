@@ -27,9 +27,11 @@ setup(
             sources=["torch_bridge_impl.cpp"],
             include_dirs=["."],  # For tensor_bridge_api.h
             extra_compile_args={
-                "cxx": ["-O3"],
+                # Release build with debug symbols for profiling
+                "cxx": ["/O2", "/Zi"],  # MSVC: optimize + debug info
                 "nvcc": ["-O3"],
             },
+            extra_link_args=["/DEBUG"],  # Generate .pdb file
         )
     ],
     cmdclass={"build_ext": BuildExtension},
