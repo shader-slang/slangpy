@@ -85,6 +85,12 @@ typedef int (*TensorBridge_ExtractFn)(void* py_tensor_obj, TensorBridgeInfo* out
 // Returns 1 if true, 0 if false
 typedef int (*TensorBridge_IsTensorFn)(void* py_tensor_obj);
 
+// Get a minimal signature for a PyObject* if it's a torch.Tensor
+// Returns: pointer to static buffer with signature string if tensor, NULL if not a tensor
+// Format: "[torch,Dn,Sm]" where n=ndim, m=scalar_type
+// This is faster than full extraction when only signature is needed (~15ns)
+typedef int (*TensorBridge_GetSignatureFn)(void* py_tensor_obj, char* buffer, size_t buffer_size);
+
 // Get the last error message (if any function returned non-zero)
 // Returns a pointer to a static thread-local buffer
 typedef const char* (*TensorBridge_GetErrorFn)(void);
@@ -100,6 +106,7 @@ typedef struct TensorBridgeAPI {
 
     TensorBridge_ExtractFn extract;
     TensorBridge_IsTensorFn is_tensor;
+    TensorBridge_GetSignatureFn get_signature;
     TensorBridge_GetErrorFn get_error;
 } TensorBridgeAPI;
 

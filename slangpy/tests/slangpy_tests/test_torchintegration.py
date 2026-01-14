@@ -54,12 +54,12 @@ def compare_tensors(a: torch.Tensor, b: torch.Tensor):
 @pytest.mark.parametrize(
     "pair",
     [
-        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,C2,B32,L1"),
-        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,C2,B32,L1"),
-        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,C2,B16,L1"),
-        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,C0,B32,L1"),
-        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,C1,B8,L1"),
-        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,C1,B8,L1"),
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0"),
     ],
 )
 def test_torch_signature(pair: tuple[torch.Tensor, str]):

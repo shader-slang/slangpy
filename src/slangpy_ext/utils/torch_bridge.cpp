@@ -63,6 +63,28 @@ nb::object extract_torch_tensor_info(nb::handle tensor)
     return tensor_info_to_dict(info);
 }
 
+/// Extract PyTorch tensor signature via the bridge
+std::string extract_torch_tensor_signature(nb::handle tensor)
+{
+    auto& bridge = TorchBridge::instance();
+    bridge.try_init();
+
+    if (!bridge.is_available()) {
+        throw std::runtime_error("slangpy_torch is not available");
+    }
+
+    if (!bridge.is_tensor(tensor)) {
+        throw std::invalid_argument("Object is not a PyTorch tensor");
+    }
+
+    char buffer[64];
+    if (bridge.get_signature(tensor, buffer, sizeof(buffer)) != 0) {
+        throw std::runtime_error(bridge.get_error());
+    }
+
+    return std::string(buffer);
+}
+
 /// Check if the torch bridge is available
 bool is_torch_bridge_available()
 {
@@ -116,6 +138,19 @@ SGL_PY_EXPORT(utils_torch_bridge)
         "  - is_contiguous: whether tensor is contiguous\n"
         "  - is_cuda: whether tensor is on CUDA\n"
         "  - requires_grad: whether tensor requires gradients\n\n"
+        "Raises:\n"
+        "  RuntimeError: if slangpy_torch is not available\n"
+        "  ValueError: if object is not a PyTorch tensor"
+    );
+
+    m.def(
+        "extract_torch_tensor_signature",
+        &extract_torch_tensor_signature,
+        nb::arg("tensor"),
+        "Extract PyTorch tensor signature as a string.\n\n"
+        "Returns a string containing the tensor signature in the format:\n"
+        "  [torch,Dn,Sm] where n=ndim, m=scalar_type\n"
+        "\n"
         "Raises:\n"
         "  RuntimeError: if slangpy_torch is not available\n"
         "  ValueError: if object is not a PyTorch tensor"

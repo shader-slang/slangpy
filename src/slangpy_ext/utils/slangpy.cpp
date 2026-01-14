@@ -18,6 +18,7 @@
 #include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpyfunction.h"
+#include "utils/torch_bridge.h"
 
 #include <fmt/format.h>
 
@@ -948,19 +949,11 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         return;
     }
 
-    // Signature for pytorch tensors
-    {
-        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
-        if (nb::try_cast(o, pytorch_tensor)) {
-            *builder << fmt::format(
-                "[torch,D{},C{},B{},L{}]",
-                pytorch_tensor.ndim(),
-                pytorch_tensor.dtype().code,
-                pytorch_tensor.dtype().bits,
-                pytorch_tensor.dtype().lanes
-            );
-            return;
-        }
+    // Fast path: Signature for pytorch tensors via torch bridge (~15ns)
+    char buffer[64];
+    if (TorchBridge::instance().get_signature(o, buffer, sizeof(buffer)) == 0) {
+        *builder << buffer;
+        return;
     }
 
     // If x is a dictionary get signature of its children.

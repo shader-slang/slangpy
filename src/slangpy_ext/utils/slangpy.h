@@ -16,6 +16,7 @@
 #include "sgl/device/shader_cursor.h"
 #include "sgl/device/shader_object.h"
 #include "sgl/utils/slangpy.h"
+#include "utils/torch_bridge.h"
 
 namespace sgl::slangpy {
 
@@ -894,15 +895,11 @@ public:
         : m_id(id)
         , m_tensor(tensor)
     {
-        set_slangpy_signature(
-            fmt::format(
-                "[torch,D{},C{},B{},L{}]",
-                tensor.ndim(),
-                tensor.dtype().code,
-                tensor.dtype().bits,
-                tensor.dtype().lanes
-            )
-        );
+        // Use the fast torch bridge to get signature
+        char sig_buffer[64];
+        if (TorchBridge::instance().get_signature(nb::cast(tensor), sig_buffer, sizeof(sig_buffer)) == 0) {
+            set_slangpy_signature(sig_buffer);
+        }
     }
 
     std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor() const { return m_tensor; }

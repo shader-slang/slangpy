@@ -88,6 +88,26 @@ public:
 
     bool extract(nb::handle h, TensorBridgeInfo& out) const { return extract(h.ptr(), out); }
 
+    /// Get a minimal signature string for a tensor (~15ns)
+    /// Returns nullptr if not a tensor or bridge unavailable
+    /// Format: "[torch,Dn,Sm]" where n=ndim, m=scalar_type
+    int get_signature(PyObject* obj, char* buffer, size_t buffer_size) const
+    {
+        if (!m_api) {
+            snprintf(buffer, buffer_size, "slangpy_torch not available");
+            return -1;
+        }
+        if (m_api->get_signature(obj, buffer, buffer_size) != 0) {
+            snprintf(buffer, buffer_size, "Failed to get signature");
+        }
+        return 0;
+    }
+
+    int get_signature(nb::handle h, char* buffer, size_t buffer_size) const
+    {
+        return get_signature(h.ptr(), buffer, buffer_size);
+    }
+
     /// Get last error message
     const char* get_error() const
     {

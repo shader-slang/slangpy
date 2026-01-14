@@ -99,11 +99,33 @@ extern "C" const char* tensor_bridge_get_error(void)
     return g_error_buffer;
 }
 
+// Fast signature extraction - returns NULL if not a tensor
+extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t buffer_size)
+{
+    if (!py_obj)
+        return -1;
+
+    PyObject* obj = static_cast<PyObject*>(py_obj);
+    if (!THPVariable_Check(obj))
+        return -2;
+
+    const torch::Tensor& tensor = THPVariable_Unpack(obj);
+
+    // Format: "[torch,Dn,Sm]" where n=ndim, m=scalar_type
+    int ndim = static_cast<int>(tensor.dim());
+    int scalar_type = static_cast<int>(tensor.scalar_type());
+
+    snprintf(buffer, buffer_size, "[torch,D%d,S%d]", ndim, scalar_type);
+
+    return 0;
+}
+
 static const TensorBridgeAPI g_api
     = {TENSOR_BRIDGE_API_VERSION,
        sizeof(TensorBridgeInfo),
        tensor_bridge_extract,
        tensor_bridge_is_tensor,
+       tensor_bridge_get_signature,
        tensor_bridge_get_error};
 
 extern "C" const TensorBridgeAPI* tensor_bridge_get_api(void)

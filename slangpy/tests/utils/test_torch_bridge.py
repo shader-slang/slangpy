@@ -209,3 +209,9 @@ class TestTorchTensorExtraction:
         assert arr[1] == 2.0
         assert arr[2] == 3.0
         assert arr[3] == 4.0
+
+    def test_extract_tensor_signature(self):
+        """Test extraction of tensor signature."""
+        t = torch.zeros(4, 4, dtype=torch.float32)
+        signature = slangpy.extract_torch_tensor_signature(t)
+        assert signature == "[torch,D2,S6]"
