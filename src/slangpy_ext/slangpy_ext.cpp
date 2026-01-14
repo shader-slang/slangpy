@@ -7,6 +7,8 @@
 #include "sgl/sgl.h"
 #include "sgl/device/device.h"
 
+#include "utils/torch_bridge.h"
+
 #include <iostream>
 
 SGL_PY_DECLARE(app_app);
@@ -65,6 +67,7 @@ SGL_PY_DECLARE(utils_slangpy_tensor);
 SGL_PY_DECLARE(utils_slangpy_value);
 SGL_PY_DECLARE(utils_tev);
 SGL_PY_DECLARE(utils_texture_loader);
+SGL_PY_DECLARE(utils_torch_bridge);
 
 
 NB_MODULE(slangpy_ext, m_)
@@ -86,6 +89,10 @@ NB_MODULE(slangpy_ext, m_)
 
     sgl::static_init();
     sgl::platform::set_python_active(true);
+
+    // Try to load slangpy_torch for fast PyTorch tensor access.
+    // If not installed, falls back to slower Python API path.
+    sgl::TorchBridge::instance().try_init();
 
     sgl::Device::enable_agility_sdk();
 
@@ -152,6 +159,7 @@ NB_MODULE(slangpy_ext, m_)
 
     SGL_PY_IMPORT(utils_tev);
     SGL_PY_IMPORT(utils_texture_loader);
+    SGL_PY_IMPORT(utils_torch_bridge);
 
     SGL_PY_IMPORT(app_app);
 

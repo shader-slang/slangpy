@@ -8,6 +8,7 @@
 
 #include <torch/extension.h>
 #include <torch/csrc/autograd/python_variable.h>
+#include <c10/cuda/CUDAStream.h>
 #include "tensor_bridge_api.h"
 
 #include <chrono>
@@ -81,6 +82,14 @@ extern "C" int tensor_bridge_extract(void* py_obj, TensorBridgeInfo* out)
     out->is_contiguous = tensor.is_contiguous() ? 1 : 0;
     out->requires_grad = tensor.requires_grad() ? 1 : 0;
     out->_padding = 0;
+
+    // Get CUDA stream for CUDA tensors
+    if (device.is_cuda()) {
+        auto stream = c10::cuda::getCurrentCUDAStream(device.index());
+        out->cuda_stream = stream.stream();
+    } else {
+        out->cuda_stream = nullptr;
+    }
 
     return 0;
 }
