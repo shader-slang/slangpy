@@ -365,17 +365,22 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     // Underlying data storage
     public StorageTraits<T>::AtomicBufferType _data;
 
+    // Element byte stride - the actual stride in bytes between elements in the buffer.
+    // This is passed from C++ and may differ from sizeof(T) due to alignment requirements.
+    // For example, on Metal, sizeof(float3)=12 but buffer stride=16.
+    public uint _element_byte_stride;
+
     public T read_buffer(int idx)
     {
-        return StorageTraits<T>::atomicLoad(_data, idx);
+        return StorageTraits<T>::atomicLoadWithStride(_data, idx, _element_byte_stride);
     }
     public void write_buffer(int idx, T value)
     {
-        StorageTraits<T>::atomicStore(_data, idx, value);
+        StorageTraits<T>::atomicStoreWithStride(_data, idx, _element_byte_stride, value);
     }
     public void accumulate_buffer(int idx, T value)
     {
-        StorageTraits<T>::atomicAdd(_data, idx, value);
+        StorageTraits<T>::atomicAddWithStride(_data, idx, _element_byte_stride, value);
     }
     [ForceInline] void _accumulate_each<each I : __BuiltinIntegerType>(T value, expand each I idx)
     {
@@ -392,11 +397,11 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
 
     [ForceInline] public void add<I : __BuiltinIntegerType>(I idx[D], T value)
     {
-        StorageTraits<T>::atomicAdd(_data, _idx(idx, _strides, _offset), value);
+        StorageTraits<T>::atomicAddWithStride(_data, _idx(idx, _strides, _offset), _element_byte_stride, value);
     }
     [ForceInline] public void add<I : __BuiltinIntegerType>(vector<I, D> idx, T value)
     {
-        StorageTraits<T>::atomicAdd(_data, _idx(idx, _strides, _offset), value);
+        StorageTraits<T>::atomicAddWithStride(_data, _idx(idx, _strides, _offset), _element_byte_stride, value);
     }
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
@@ -417,6 +422,7 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out AtomicTensor<T, SliceD> value)
     {
         value._data = _data;
+        value._element_byte_stride = _element_byte_stride;
         _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
         [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)

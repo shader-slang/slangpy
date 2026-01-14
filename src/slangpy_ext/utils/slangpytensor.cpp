@@ -401,6 +401,15 @@ void NativeTensorMarshall::write_shader_cursor_fields(
         TypeReflection::ScalarType::int32
     );
     field["_offset"] = buffer->offset();
+
+    // Write element byte stride if the field exists (for AtomicTensor).
+    // This is needed because sizeof(T) in shader code may differ from the actual
+    // buffer element stride due to alignment requirements (e.g., sizeof(float3)=12
+    // on Metal but buffer stride=16).
+    ShaderCursor element_byte_stride_field = field.find_field("_element_byte_stride");
+    if (element_byte_stride_field.is_valid()) {
+        element_byte_stride_field = static_cast<uint32_t>(buffer->element_stride());
+    }
 }
 
 void NativeTensorMarshall::read_calldata(

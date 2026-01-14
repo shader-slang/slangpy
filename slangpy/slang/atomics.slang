@@ -108,11 +108,20 @@ public extension<T: IAtomicAddable> StorageTraits<T>
     public static void atomicAdd(AtomicBufferType buffer, uint idx, T value) { T::atomicAdd(buffer, idx, value); }
     public static T atomicLoad(AtomicBufferType buffer, uint idx) { return buffer[idx]; }
     public static void atomicStore(AtomicBufferType buffer, uint idx, T value) { buffer[idx] = value; }
+    // Stride-aware versions (stride parameter ignored on CUDA since it uses element indexing)
+    public static void atomicAddWithStride(AtomicBufferType buffer, uint idx, uint byte_stride, T value) { T::atomicAdd(buffer, idx, value); }
+    public static T atomicLoadWithStride(AtomicBufferType buffer, uint idx, uint byte_stride) { return buffer[idx]; }
+    public static void atomicStoreWithStride(AtomicBufferType buffer, uint idx, uint byte_stride, T value) { buffer[idx] = value; }
 #else
     public typealias AtomicBufferType = RWByteAddressBuffer;
     public static void atomicAdd(AtomicBufferType buffer, uint idx, T value) { T::atomicAdd(buffer, idx*sizeof(T), value); }
     public static T atomicLoad(AtomicBufferType buffer, uint idx) { return buffer.Load<T>(idx*sizeof(T));}
     public static void atomicStore(AtomicBufferType buffer, uint idx, T value) { buffer.Store<T>(idx*sizeof(T), value); }
+    // Stride-aware versions that use explicit byte stride instead of sizeof(T)
+    // This fixes alignment issues on Metal where sizeof(float3)=12 but buffer stride=16
+    public static void atomicAddWithStride(AtomicBufferType buffer, uint idx, uint byte_stride, T value) { T::atomicAdd(buffer, idx*byte_stride, value); }
+    public static T atomicLoadWithStride(AtomicBufferType buffer, uint idx, uint byte_stride) { return buffer.Load<T>(idx*byte_stride);}
+    public static void atomicStoreWithStride(AtomicBufferType buffer, uint idx, uint byte_stride, T value) { buffer.Store<T>(idx*byte_stride, value); }
 #endif
 }
 
