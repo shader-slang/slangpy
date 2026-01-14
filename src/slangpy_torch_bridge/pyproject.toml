@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+[build-system]
+requires = ["setuptools>=64", "wheel", "torch>=2.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slangpy_torch_bridge"
+version = "0.1.0"
+description = "Fast PyTorch tensor access bridge for slangpy"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Apache-2.0 WITH LLVM-exception"}
+authors = [
+    {name = "Shader Slang"}
+]
+dependencies = [
+    "torch>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.setuptools]
+py-modules = []
