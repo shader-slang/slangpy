@@ -146,6 +146,7 @@ class TensorRefMarshall(TensorMarshall):
                 "_offset": 0,
                 "_strides": strides,
                 "_shape": shape,
+                "_element_byte_stride": primal.element_size(),
             }
 
             if not self.d_in and not self.d_out:
