@@ -31,7 +31,7 @@ inline bool init_tensor_bridge()
 
     try {
         // Import the bridge module
-        nanobind::module_ bridge = nanobind::module_::import_("slangpy_torch_bridge");
+        nanobind::module_ bridge = nanobind::module_::import_("slangpy_torch");
 
         // Get the API pointer
         nanobind::object api_ptr_obj = bridge.attr("get_api_ptr")();

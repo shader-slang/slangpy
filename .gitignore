@@ -33,4 +33,5 @@ slangpy/tests/slangpy_tests/logs/
 
 sgl_tests.log
 
-src/slangpy_torch_bridge/slangpy_torch_bridge.egg-info/
+src/slangpy_torch/*.egg-info/
+src/slangpy_torch/build/

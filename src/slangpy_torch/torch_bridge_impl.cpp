@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// slangpy_torch_bridge - Fast PyTorch tensor access for native code
+// slangpy_torch - Fast PyTorch tensor access for native code
 //
 // This extension provides C-callable functions to extract PyTorch tensor
 // metadata from a raw PyObject*, enabling ~28ns access from native code

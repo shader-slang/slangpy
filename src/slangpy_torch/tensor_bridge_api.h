@@ -3,16 +3,16 @@
 // tensor_bridge_api.h
 //
 // This header defines the C API shared between:
-// 1. slangpy_torch_bridge (compiled with libtorch) - implements the functions
+// 1. slangpy_torch (compiled with libtorch) - implements the functions
 // 2. slangpy_ext (no libtorch dependency) - calls the functions via function pointers
 //
 // USAGE IN SLANGPY_EXT:
-// 1. Import slangpy_torch_bridge in Python
-// 2. Get the function pointer via get_extract_fn_ptr()
-// 3. Cast to ExtractTensorInfoFn and call directly from C++ with PyObject*
+// 1. Import slangpy_torch in Python
+// 2. Get the function pointer via get_api_ptr()
+// 3. Cast to TensorBridgeAPI* and call directly from C++ with PyObject*
 //
-// This allows your native code to extract PyTorch tensor data with ~10-20ns
-// overhead instead of ~1-2µs for Python API calls.
+// This allows your native code to extract PyTorch tensor data with ~28ns
+// overhead instead of ~350ns for Python API calls.
 
 #pragma once
 
@@ -70,7 +70,7 @@ typedef struct TensorBridgeInfo {
 
 // ============================================================================
 // Function pointer types for the C API
-// These are the functions that slangpy_torch_bridge exports
+// These are the functions that slangpy_torch exports
 // ============================================================================
 
 // Extract tensor info from a PyObject* (must be a torch.Tensor)
