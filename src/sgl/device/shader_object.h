@@ -5,6 +5,7 @@
 #include "sgl/core/block_allocator.h"
 #include "sgl/core/config.h"
 #include "sgl/core/object.h"
+#include "sgl/core/short_vector.h"
 #include "sgl/core/type_utils.h"
 
 #include "sgl/device/fwd.h"
@@ -15,7 +16,6 @@
 
 #include <string_view>
 #include <vector>
-#include <set>
 
 namespace sgl {
 
@@ -64,8 +64,8 @@ protected:
     ref<Device> m_device;
     rhi::IShaderObject* m_shader_object;
     bool m_retain;
-    std::vector<ref<cuda::InteropBuffer>> m_cuda_interop_buffers;
-    std::set<ref<ShaderObject>> m_objects;
+    short_vector<ref<cuda::InteropBuffer>, 8> m_cuda_interop_buffers;
+    short_vector<ref<ShaderObject>, 8> m_objects;
 };
 
 } // namespace sgl
