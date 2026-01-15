@@ -463,63 +463,34 @@ class CallData(NativeCallData):
         kwargs: dict[str, Any],
     ) -> Any:
         """
-        Call the kernel with autograd integration.
-        This is only called when torch_autograd is True.
+        Call the kernel with torch integration.
+        Handles CUDA stream synchronization and autograd integration when torch_autograd is True.
         """
         import torch
-        from slangpy.torchintegration.autogradhook import TorchAutoGradHook
         from slangpy.torchintegration.detection import detect_torch_tensors
 
         # Unpack args (handles IThis wrappers)
         unpacked_args = unpack_args(*args)
         unpacked_kwargs = unpack_kwargs(**kwargs)
 
-        # Detect torch tensors
-        _, _, detected_tensors = detect_torch_tensors(tuple(unpacked_args), dict(unpacked_kwargs))
-
         # Set the cuda stream to use (CUDA backend) or sync to (Vulkan/Metal/D3D12 backend) for the call
         options.cuda_stream = NativeHandle.from_cuda_stream(torch.cuda.current_stream().cuda_stream)
 
-        # Call the kernel
-        res = self.call(options, *unpacked_args, **unpacked_kwargs)
-
-        # If result is a tensor, add it to detected tensors (use id() to check identity)
-        if isinstance(res, torch.Tensor):
-            if not any(t is res for t in detected_tensors):
-                detected_tensors.append(res)
-
         if self.torch_autograd:
-            # Check if any raw torch.Tensor objects have requires_grad=True
-            # Autograd integration for raw tensors is not yet supported - requires TensorRef wrapper
-            from slangpy.torchintegration.torchtensormarshall import TensorRef
+            # Autograd is needed - look up the autograd hook and use it
+            from slangpy.torchintegration.autogradhook import TorchAutoGradHook
 
-            raw_grad_tensors = [
-                t
-                for t in detected_tensors
-                if isinstance(t, torch.Tensor) and not isinstance(t, TensorRef) and t.requires_grad
-            ]
-            if raw_grad_tensors:
-                raise NotImplementedError(
-                    "Autograd (requires_grad=True) is not yet supported for raw torch.Tensor objects. "
-                    "Please wrap tensors in TensorRef for autograd support, or use tensors without requires_grad."
-                )
-
-            # Filter to only TensorRef objects for the autograd hook
-            tensor_refs = [t for t in detected_tensors if isinstance(t, TensorRef)]
-
-            # Extract all tensors that require gradients for autograd integration
-            grad_tensors = [
-                t for t in tensor_refs if t.tensor is not None and t.tensor.requires_grad
-            ]
-
-            # Call the dummy auto-grad apply function, which critically takes the primal input list
-            # as arguments and returns the primal output list as results
-            TorchAutoGradHook.apply(
-                function,
-                unpacked_args,
-                unpacked_kwargs,
-                tensor_refs,
-                *[t.tensor for t in grad_tensors],
+            # Detect torch tensors for autograd tracking
+            _, _, detected_tensors = detect_torch_tensors(
+                tuple(unpacked_args), dict(unpacked_kwargs)
             )
 
-        return res
+            # Currently autograd is not yet fully implemented
+            # TODO: Implement TorchAutoGradHook.apply() integration
+            raise NotImplementedError(
+                "Autograd (requires_grad=True) is not yet fully implemented. "
+                "Please use tensors without requires_grad for now."
+            )
+        else:
+            # No autograd needed - just call the kernel directly
+            return self.call(options, *unpacked_args, **unpacked_kwargs)

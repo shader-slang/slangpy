@@ -3,7 +3,7 @@
 ## Overview
 Created a native PyTorch extension (`slangpy-torch`) that provides fast C-callable functions to extract PyTorch tensor metadata from `PyObject*`, enabling ~28ns access from native code vs ~350ns for Python API calls.
 
-## Architecture
+## Phase 1: Fast Tensor Metadata Extraction (Complete)
 
 ### slangpy-torch (src/slangpy_torch/)
 A standalone pip-installable PyTorch extension compiled against libtorch. Provides a C API that slangpy_ext can call via function pointers.
@@ -13,7 +13,7 @@ A standalone pip-installable PyTorch extension compiled against libtorch. Provid
 - `torch_bridge_impl.cpp` - Implementation using libtorch internals (THPVariable_Check/Unpack)
 - `setup.py` / `pyproject.toml` - Build configuration
 
-**C API Functions (API Version 2):**
+**C API Functions (API Version 3):**
 ```cpp
 typedef struct TensorBridgeAPI {
     int api_version;
@@ -23,6 +23,8 @@ typedef struct TensorBridgeAPI {
     TensorBridge_GetSignatureFn get_signature; // Fast signature string (~5ns)
     TensorBridge_GetErrorFn get_error;
     TensorBridge_GetCurrentCudaStreamFn get_current_cuda_stream;  // Get current CUDA stream
+    TensorBridge_CopyToBufferFn copy_to_buffer;    // Copy tensor data to CUDA pointer
+    TensorBridge_CopyFromBufferFn copy_from_buffer; // Copy data from CUDA pointer to tensor
 } TensorBridgeAPI;
 ```
 
@@ -36,7 +38,7 @@ typedef struct TensorBridgeAPI {
 
 **Files:**
 - `torch_bridge.h` - TorchBridge singleton that lazy-loads slangpy_torch and caches API pointer
-- `torch_bridge.cpp` - Python bindings for testing (`is_torch_bridge_available()`, `extract_torch_tensor_info()`, `is_torch_tensor()`, `extract_torch_tensor_signature()`)
+- `torch_bridge.cpp` - Python bindings for testing + tensor copy utilities
 
 **Key Features:**
 - Automatic `import torch` before loading slangpy_torch (handles DLL dependencies)
@@ -44,17 +46,81 @@ typedef struct TensorBridgeAPI {
 - ABI version checking for compatibility
 - Used in `slangpy.cpp` for fast tensor signature generation in hot paths
 
-### Usage in slangpy.cpp
+## Phase 2: D3D12/Vulkan Support via Interop Buffers (Complete)
+
+### Problem
+PyTorch tensors on CUDA can be directly accessed via device pointers on CUDA backends, but D3D12/Vulkan cannot directly access CUDA memory.
+
+### Solution
+Use `sgl::cuda::InteropBuffer` for shared memory between CUDA and D3D12/Vulkan:
+1. Create buffer with `BufferUsage::shared` flag
+2. Use `Buffer::cuda_memory()` to get CUDA-accessible pointer
+3. Copy tensor data to/from the interop buffer via PyTorch operations
+
+### API v3 Additions
 ```cpp
-// Fast path for PyTorch tensor signatures (~5ns vs ~500ns)
-char buffer[64];
-if (TorchBridge::instance().get_signature(obj, buffer, sizeof(buffer)) == 0) {
-    *builder << buffer;
-    return;
-}
+// Copy tensor data to a CUDA pointer (for upload to GPU buffer)
+int tensor_bridge_copy_to_buffer(PyObject* tensor, void* cuda_ptr, size_t size);
+
+// Copy data from a CUDA pointer to a tensor (for readback from GPU buffer)
+int tensor_bridge_copy_from_buffer(PyObject* tensor, void* cuda_ptr, size_t size);
 ```
 
-**TensorRef constructor** also uses the bridge for fast signature generation.
+Key implementation details:
+- Uses `torch::NoGradGuard` to allow in-place operations on tensors with `requires_grad=True`
+- Handles non-contiguous tensors correctly via `torch::from_blob` + `copy_`
+- Works with PyTorch's current CUDA stream
+
+### Buffer Binding Fix for D3D12/Vulkan
+Fixed `NativeTorchTensorMarshall::write_torch_tensor_fields` to use `shader_object->set_buffer()` for D3D12/Vulkan backends instead of writing device address directly. This is required because D3D12/Vulkan need proper buffer resource binding.
+
+## Phase 3: TensorRef Removal (Complete)
+
+### Rationale
+The `TensorRef` wrapper class was adding complexity without clear benefit:
+- Required explicit wrapping of tensors
+- Complicated the autograd integration
+- Made the API less intuitive
+
+### Changes Made
+
+**Native code removed:**
+- `TensorRef` class from `slangpy.h`
+- `TensorRef` bindings from `slangpy.cpp`
+- `write_torch_tensor_ref` from `slangpytensor.cpp`
+
+**Python code removed:**
+- `TensorRefMarshall` class from `torchtensormarshall.py`
+- `TensorRef` handling from `calldata.py`
+- Updated `autogradhook.py` to remove TensorRef dependencies
+
+**Result:**
+- Raw `torch.Tensor` objects now work directly with SlangPy
+- 18/18 `test_add_tensors` tests pass across CUDA, D3D12, and Vulkan
+- Simpler, more intuitive API
+
+## Phase 4: Autograd Refactoring (In Progress)
+
+### Current State
+The autograd system is being refactored to work without `TensorRef`:
+
+1. **`torch_autograd` flag**: Already tracked in `NativeCallData` based on whether any tensor has `requires_grad=True`
+
+2. **`TorchAutoGradHook`**: Refactored to use `TrackedTensor` dataclass instead of `TensorRef`:
+```python
+@dataclass
+class TrackedTensor:
+    tensor: torch.Tensor
+    access: AccessType  # read, write, readwrite
+    arg_name: str       # for debugging
+```
+
+3. **Access pattern tracking**: Uses `NativeBoundVariableRuntime.access` property to determine tensor roles (input/output)
+
+### Next Steps
+- Implement tensor tracking during `write_shader_cursor_pre_dispatch`
+- Complete `TorchAutoGradHook.backward()` implementation
+- Wire up autograd hook in `_py_torch_call`
 
 ## Performance Results
 - C API extraction: ~28ns per call
@@ -63,33 +129,15 @@ if (TorchBridge::instance().get_signature(obj, buffer, sizeof(buffer)) == 0) {
 - **Speedup: ~12.6x over Python API**
 - Fast signature (manual char building): ~5ns vs ~50ns (snprintf)
 
-## Signature Format
-`[torch,Dn,Sm]` where:
-- `n` = number of dimensions
-- `m` = scalar type code (0=uint8, 3=int32, 5=float16, 6=float32, etc.)
-
-Uses fast manual character building (`fast_itoa`) instead of snprintf for ~10-20x speedup.
-
 ## Test Coverage
-`slangpy/tests/utils/test_torch_bridge.py` - 16 tests covering:
-- Bridge availability detection
-- Tensor type checking
-- CPU and CUDA tensor extraction
-- CUDA stream extraction
-- Different data types (float16/32/64, int8/16/32/64, uint8, bool)
-- Non-contiguous tensors (transposed)
-- Tensors with storage offset (slices)
-- Tensors with gradients
-- 0D, 1D, and high-dimensional tensors
-- Error handling for non-tensors
-- Data pointer validation
-- Signature extraction
-
-`slangpy/tests/slangpy_tests/test_torchintegration.py::test_torch_signature` - 6 tests for signature format.
+- `slangpy/tests/utils/test_torch_bridge.py` - 16 tests for bridge API
+- `slangpy/tests/slangpy_tests/test_torchintegration.py::test_torch_signature` - 6 tests for signature format
+- `slangpy/tests/slangpy_tests/test_torchintegration.py::test_add_tensors` - 18 tests across CUDA/D3D12/Vulkan
+- `slangpy/tests/slangpy_tests/test_torchintegration.py::test_buffer_copy_*` - Round-trip buffer copy tests
 
 ## Build Commands
 ```powershell
-# Build slangpy-torch (with release optimization + debug symbols for profiling)
+# Build slangpy-torch
 cd src/slangpy_torch
 pip install . --no-deps --no-build-isolation
 
@@ -107,6 +155,24 @@ cmake --build .\build\windows-msvc --config Debug --target slangpy_ext
 - Pure C API exported via function pointers (no C++ ABI concerns)
 - Dynamic loading at runtime via Python import
 
+### Interop Buffer Pattern (D3D12/Vulkan)
+```cpp
+// Create shared buffer accessible from both CUDA and D3D12/Vulkan
+Buffer buffer = device.create_buffer(
+    size=tensor.numel() * tensor.element_size(),
+    usage=BufferUsage::shared | BufferUsage::unordered_access
+);
+
+// Get CUDA pointer for the buffer
+void* cuda_ptr = buffer.cuda_memory();
+
+// Copy tensor data to buffer (via slangpy_torch C API)
+tensor_bridge_copy_to_buffer(tensor_pyobj, cuda_ptr, size);
+
+// After dispatch, copy results back
+tensor_bridge_copy_from_buffer(tensor_pyobj, cuda_ptr, size);
+```
+
 ### Fast Signature Generation
 ```cpp
 // fast_itoa avoids snprintf overhead
@@ -119,68 +185,79 @@ static inline char* fast_itoa(char* p, int val) {
 }
 ```
 
-### CUDA Stream Access
-```cpp
-// Get current CUDA stream for a device (added in API v2)
-extern "C" void* tensor_bridge_get_current_cuda_stream(int device_index) {
-    auto stream = c10::cuda::getCurrentCUDAStream(device_index);
-    return stream.stream();
-}
-```
-
-## Future Potential
-
-### Native Autograd Integration
-Since slangpy's core dispatch is already native, a fully native autograd path is possible:
-- Implement `torch::autograd::Function<T>` in C++ within slangpy_torch
-- Accept native slangpy function handles + tensor inputs
-- Forward/backward call directly into slangpy's native dispatch
-- No Python in the hot path
-
-### Alternative Approaches Considered
-1. **Dynamic loading (dlopen)** - Could load libtorch symbols directly, but `torch::Tensor` is C++ with complex ABI, making it fragile across PyTorch versions
-2. **TensorImpl layout parsing** - Reading tensor internals directly is possible but extremely version-dependent
-3. **Current approach** - Cleanest solution: separate extension compiled against user's libtorch, exports pure C API
+### Signature Format
+`[torch,Dn,Sm]` where:
+- `n` = number of dimensions
+- `m` = scalar type code (0=uint8, 3=int32, 5=float16, 6=float32, etc.)
 
 ## Files Modified/Created
+
+### New Files
 ```
-src/slangpy_torch/           # NEW - standalone PyTorch extension
-  tensor_bridge_api.h        # C API header (API v2)
-  torch_bridge_impl.cpp      # Implementation with fast_itoa
-  setup.py                   # Build with /Zi /DEBUG for profiling
+src/slangpy_torch/           # Standalone PyTorch extension
+  tensor_bridge_api.h        # C API header (API v3)
+  torch_bridge_impl.cpp      # Implementation with copy functions
+  setup.py                   # Build configuration
   pyproject.toml
   README.md
   PROGRESS.md                # This file
 
-src/slangpy_ext/
-  utils/torch_bridge.h       # NEW - TorchBridge singleton
-  utils/torch_bridge.cpp     # NEW - Python bindings
-  utils/slangpy.h            # MODIFIED - TensorRef uses bridge, includes torch_bridge.h
-  utils/slangpy.cpp          # MODIFIED - fast tensor signature path
-  CMakeLists.txt             # MODIFIED - added torch_bridge files + include path
-  slangpy_ext.cpp            # MODIFIED - init + export registration
+src/slangpy_ext/utils/
+  torch_bridge.h             # TorchBridge singleton
+  torch_bridge.cpp           # Python bindings + copy utilities
+  slangpytorchtensor.h       # NativeTorchTensorMarshall
+  slangpytorchtensor.cpp     # PyTorch tensor marshalling
 
-slangpy/tests/
-  utils/test_torch_bridge.py # NEW - comprehensive tests (16 tests)
+slangpy/tests/utils/
+  test_torch_bridge.py       # Bridge API tests (16 tests)
 ```
 
-## Files Modified/Created
+### Modified Files
 ```
-src/slangpy_torch/           # NEW - standalone PyTorch extension
-  tensor_bridge_api.h
-  torch_bridge_impl.cpp
-  setup.py
-  pyproject.toml
-  README.md
+src/slangpy_ext/utils/
+  slangpy.h                  # Removed TensorRef class
+  slangpy.cpp                # Removed TensorRef bindings, fast signature path
+  slangpytensor.h            # Made CachedOffsets public for reuse
+  slangpytensor.cpp          # Shared offset extraction methods
+  CMakeLists.txt             # Added torch_bridge files
 
-src/slangpy_ext/
-  utils/torch_bridge.h       # NEW - TorchBridge singleton
-  utils/torch_bridge.cpp     # NEW - Python bindings
-  utils/slangpy.h            # MODIFIED - TensorRef uses bridge
-  utils/slangpy.cpp          # MODIFIED - fast tensor signature path
-  CMakeLists.txt             # MODIFIED - added torch_bridge files
-  slangpy_ext.cpp            # MODIFIED - init + export registration
+slangpy/
+  __init__.py                # Export copy utilities
+  core/calldata.py           # Removed TensorRef handling, simplified torch path
+  torchintegration/
+    torchtensormarshall.py   # Removed TensorRefMarshall
+    autogradhook.py          # Refactored for TrackedTensor approach
+    detection.py             # Tensor detection utilities
+```
 
-slangpy/tests/
-  utils/test_torch_bridge.py # NEW - comprehensive tests
+## Architecture Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Python Layer                                 │
+│  ┌─────────────┐  ┌──────────────────┐  ┌────────────────────────┐ │
+│  │ torch.Tensor│──│TorchTensorMarshall│──│ TorchAutoGradHook     │ │
+│  └─────────────┘  └──────────────────┘  └────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Native Layer (slangpy_ext)                   │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌───────────────────┐  │
+│  │  TorchBridge    │──│NativeTorchTensor │──│   CallContext     │  │
+│  │  (C API caller) │  │    Marshall      │  │  (dispatch)       │  │
+│  └─────────────────┘  └──────────────────┘  └───────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         slangpy_torch Extension                      │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  C API (tensor_bridge_api.h)                                  │  │
+│  │  - extract()          - Fast tensor metadata (~28ns)          │  │
+│  │  - get_signature()    - Fast signature (~5ns)                 │  │
+│  │  - copy_to_buffer()   - Tensor → CUDA pointer                 │  │
+│  │  - copy_from_buffer() - CUDA pointer → Tensor                 │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
