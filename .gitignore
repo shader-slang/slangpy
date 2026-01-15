@@ -13,6 +13,8 @@ docs/_build/
 .temp/
 .cache/clangd/index
 .venv/
+.crashpad/
+.tools/
 
 # Python files installed into source tree
 slangpy/**/*.pyi
@@ -29,3 +31,5 @@ slangpy/tests/slangpy_tests/logs/
 *.nsys-rep
 
 *.sqlite
+
+sgl_tests.log

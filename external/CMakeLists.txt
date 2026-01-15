@@ -249,3 +249,14 @@ set(SGL_IMGUI_DIR ${imgui_SOURCE_DIR} PARENT_SCOPE)
 
 add_library(header_only INTERFACE)
 target_include_directories(header_only INTERFACE include)
+
+# crashpad
+
+if(SGL_HAS_CRASHPAD)
+    # Copy crashpad_handler binary
+    set(CRASHPAD_HANDLER "crashpad_handler")
+    if(SGL_WINDOWS)
+        set(CRASHPAD_HANDLER "crashpad_handler.exe")
+    endif()
+    sgl_copy_binary(${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/packages/crashpad_${VCPKG_TARGET_TRIPLET}/tools/${CRASHPAD_HANDLER} .)
+endif()
