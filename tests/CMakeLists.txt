@@ -8,6 +8,7 @@ if(SGL_BUILD_TESTS)
     target_sources(sgl_tests PRIVATE
         sgl/sgl_tests.cpp
         sgl/testing.cpp
+        sgl/core/test_block_allocator.cpp
         sgl/core/test_dds_file.cpp
         sgl/core/test_enum.cpp
         sgl/core/test_file_system_watcher.cpp
