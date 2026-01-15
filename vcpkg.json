@@ -7,5 +7,10 @@
         "openexr",
         "asmjit",
         "crashpad"
-    ]
+    ],
+    "vcpkg-configuration": {
+        "overlay-ports": [
+            "./external/vcpkg-overlays"
+        ]
+    }
 }
