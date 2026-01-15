@@ -910,6 +910,12 @@ public:
     std::pair<AccessType, AccessType> last_access() const { return m_last_access; }
     void set_last_access(const std::pair<AccessType, AccessType>& last_access) { m_last_access = last_access; }
 
+    ref<NativeSlangType> struct_type() const { return m_struct_type; }
+    void set_struct_type(const ref<NativeSlangType>& struct_type) { m_struct_type = struct_type; }
+
+    int32_t struct_dims() const { return m_struct_dims; }
+    void set_struct_dims(int32_t dims) { m_struct_dims = dims; }
+
 private:
     int32_t m_id{-1};
     std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> m_tensor;
@@ -917,6 +923,8 @@ private:
     ref<TensorRef> m_grad_in;
     ref<TensorRef> m_grad_out;
     std::pair<AccessType, AccessType> m_last_access{AccessType::none, AccessType::none};
+    ref<NativeSlangType> m_struct_type;
+    int32_t m_struct_dims{-1};
 };
 
 nb::list unpack_args(nb::args args, std::optional<nb::list> refs = std::optional<nb::list>());

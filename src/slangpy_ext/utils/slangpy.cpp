@@ -1672,5 +1672,19 @@ SGL_PY_EXPORT(utils_slangpy)
             &TensorRef::set_last_access,
             nb::arg(),
             D_NA(TensorRef, last_access)
+        )
+        .def_prop_rw(
+            "struct_type",
+            &TensorRef::struct_type,
+            &TensorRef::set_struct_type,
+            nb::arg().none(),
+            D_NA(TensorRef, struct_type)
+        )
+        .def_prop_rw(
+            "struct_dims",
+            &TensorRef::struct_dims,
+            &TensorRef::set_struct_dims,
+            nb::arg(),
+            D_NA(TensorRef, struct_dims)
         );
 }

@@ -172,8 +172,35 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
     // This is critical for PyTorch's autograd system to identify input/output tensors
     tensorref->set_last_access(binding->access());
 
+    // Check for struct tensor reinterpretation
+    bool is_struct_tensor = tensorref->struct_type() != nullptr && tensorref->struct_dims() >= 0;
+
+    // Helper to get shape/strides for a tensor, applying struct reinterpretation if needed
+    auto get_shape_strides
+        = [&](const nb::ndarray<nb::pytorch, nb::device::cuda>& t) -> std::pair<std::vector<int>, std::vector<int>>
+    {
+        if (is_struct_tensor) {
+            size_t struct_size = tensorref->struct_type()->buffer_type_layout()->stride();
+            size_t element_size = t.itemsize();
+            size_t elements_per_struct = struct_size / element_size;
+
+            std::vector<int> shape, strides;
+            shape.reserve(t.ndim() - 1);
+            strides.reserve(t.ndim() - 1);
+
+            for (size_t i = 0; i < t.ndim() - 1; i++) {
+                shape.push_back(static_cast<int>(t.shape(i)));
+                strides.push_back(static_cast<int>(t.stride(i) / elements_per_struct));
+            }
+            return {shape, strides};
+        }
+        return {extract_shape(t), extract_strides(t)};
+    };
+
+    // Get shape/strides for primal tensor
+    auto [tensor_shape, tensor_strides] = get_shape_strides(pytorch_tensor);
+
     // Validate tensor shape matches expected shape
-    std::vector<int> tensor_shape = extract_shape(pytorch_tensor);
     const Shape& expected_shape = binding->vector_type()->shape();
     const std::vector<int>& expected_shape_vec = expected_shape.as_vector();
 
@@ -242,16 +269,16 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
         write_data(
             field,
             pytorch_tensor.data(),
-            extract_shape(pytorch_tensor),
-            extract_strides(pytorch_tensor),
+            tensor_shape,
+            tensor_strides,
             0 // offset is 0 for direct tensor access
         );
     } else {
         write_data(
             primal_field,
             pytorch_tensor.data(),
-            extract_shape(pytorch_tensor),
-            extract_strides(pytorch_tensor),
+            tensor_shape,
+            tensor_strides,
             0 // offset is 0 for direct tensor access
         );
 
@@ -264,11 +291,12 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
                 auto grad_in_tensor_opt = grad_in_ref->tensor();
                 if (grad_in_tensor_opt.has_value()) {
                     auto& grad_in_tensor = grad_in_tensor_opt.value();
+                    auto [grad_in_shape, grad_in_strides] = get_shape_strides(grad_in_tensor);
                     write_data(
                         grad_in_field,
                         grad_in_tensor.data(),
-                        extract_shape(grad_in_tensor),
-                        extract_strides(grad_in_tensor),
+                        grad_in_shape,
+                        grad_in_strides,
                         0 // offset is 0 for direct tensor access
                     );
                 }
@@ -284,11 +312,12 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
                 auto grad_out_tensor_opt = grad_out_ref->tensor();
                 if (grad_out_tensor_opt.has_value()) {
                     auto& grad_out_tensor = grad_out_tensor_opt.value();
+                    auto [grad_out_shape, grad_out_strides] = get_shape_strides(grad_out_tensor);
                     write_data(
                         grad_out_field,
                         grad_out_tensor.data(),
-                        extract_shape(grad_out_tensor),
-                        extract_strides(grad_out_tensor),
+                        grad_out_shape,
+                        grad_out_strides,
                         0 // offset is 0 for direct tensor access
                     );
                 }

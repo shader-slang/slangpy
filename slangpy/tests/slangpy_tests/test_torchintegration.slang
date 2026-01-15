@@ -92,3 +92,27 @@ void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
         output[i] = input[i];
 }
+
+struct Vec2 {
+    float x;
+    float y;
+};
+
+struct Particle {
+    float3 position;
+    float3 velocity;
+};
+
+void double_vec2(Vec2 input, out Vec2 output) {
+    output.x = input.x * 2.0;
+    output.y = input.y * 2.0;
+}
+
+float sum_vec2(Vec2 input) {
+    return input.x + input.y;
+}
+
+void update_particle(Particle p, float dt, out Particle output) {
+    output.position = p.position + p.velocity * dt;
+    output.velocity = p.velocity;
+}
