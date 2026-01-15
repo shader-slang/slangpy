@@ -1,5 +1,5 @@
 name: ci-latest-slang
-run-name: "Slang branch: ${{ github.event.inputs.slang_branch }}"
+run-name: "Slang branch: ${{ github.event.inputs.slang_branch || 'master' }}"
 
 on:
   schedule:
@@ -93,7 +93,7 @@ jobs:
         run: |
           git clone --recursive https://github.com/shader-slang/slang.git
           cd slang
-          git checkout ${{ github.event.inputs.slang_branch }}
+          git checkout ${{ github.event.inputs.slang_branch || 'master' }}
           git submodule update --init --recursive
 
       # Build Slang.
