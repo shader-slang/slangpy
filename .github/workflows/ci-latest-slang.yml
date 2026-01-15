@@ -1,5 +1,5 @@
 name: ci-latest-slang
-run-name: "Slang branch: ${{ github.event.inputs.slang_branch }}"
+run-name: "Slang branch: ${{ github.event.inputs.slang_branch || 'master' }}"
 
 on:
   schedule:
@@ -93,7 +93,7 @@ jobs:
         run: |
           git clone --recursive https://github.com/shader-slang/slang.git
           cd slang
-          git checkout ${{ github.event.inputs.slang_branch }}
+          git checkout ${{ github.event.inputs.slang_branch || 'master' }}
           git submodule update --init --recursive
 
       # Build Slang.
@@ -162,3 +162,29 @@ jobs:
         with:
           name: coverage-report
           path: reports/coverage.html
+
+  # Notify Slack after all matrix jobs complete
+  notify:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'schedule'
+    steps:
+      # Success Notification
+      - name: Success Notification
+        if: ${{ needs.build.result == 'success' }}
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":green-check-mark: SlangPy nightly status: success\n"
+
+      # Failure Notification
+      - name: Failure Notification
+        if: ${{ needs.build.result != 'success' }}
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":alert: :alert: :alert: :alert: :alert: :alert:\nSlangPy nightly status: ${{ needs.build.result }}: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
