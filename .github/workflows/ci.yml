@@ -174,6 +174,15 @@ jobs:
         if: contains(matrix.flags, 'test-examples')
         run: python tools/ci.py test-examples -p
 
+      # Upload Crashpad Reports
+      - name: Upload Crashpad Reports
+        if: contains(matrix.flags, 'crashpad')
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ matrix.config }}
+          path: .crashpad/reports/
+          if-no-files-found: ignore
+
       # Generate Coverage Report
       - name: Generate Coverage Report
         if: contains(matrix.flags, 'coverage')
