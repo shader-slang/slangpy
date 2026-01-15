@@ -158,6 +158,8 @@ target_sources(sgl PRIVATE
     ui/widgets.cpp
     ui/widgets.h
 
+    utils/crashpad.cpp
+    utils/crashpad.h
     utils/renderdoc.cpp
     utils/renderdoc.h
     utils/slangpy.cpp
