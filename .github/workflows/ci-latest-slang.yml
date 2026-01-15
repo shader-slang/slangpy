@@ -163,28 +163,28 @@ jobs:
           name: coverage-report
           path: reports/coverage.html
 
+  # Notify Slack after all matrix jobs complete
+  notify:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'schedule'
+    steps:
       # Success Notification
       - name: Success Notification
-        id: slack-notify-success
-        if: ${{ github.event_name == 'schedule' && success() }}
-        uses: slackapi/slack-github-action@v1.26.0
+        if: ${{ needs.build.result == 'success' }}
+        uses: slackapi/slack-github-action@v2.1.1
         with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
-            {
-              "SlangPy-Nightly": ":green-check-mark: SlangPy nightly status: ${{ job.status }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+            text: ":green-check-mark: SlangPy nightly status: success\n"
 
       # Failure Notification
       - name: Failure Notification
-        id: slack-notify-failure
-        if: ${{ github.event_name == 'schedule' && !success() }}
-        uses: slackapi/slack-github-action@v1.26.0
+        if: ${{ needs.build.result != 'success' }}
+        uses: slackapi/slack-github-action@v2.1.1
         with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
-            {
-              "SlangPy-Nightly": ":alert: :alert: :alert: :alert: :alert: :alert:\nSlangPy nightly status: ${{ job.status }}: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+            text: ":alert: :alert: :alert: :alert: :alert: :alert:\nSlangPy nightly status: ${{ needs.build.result }}: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
