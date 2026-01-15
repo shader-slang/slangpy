@@ -368,9 +368,6 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_shader_cursor_field_by_index(device_type: spy.DeviceType):
     """Test find_field_index and get_field_by_index methods."""
-    if device_type == spy.DeviceType.vulkan and sys.platform == "darwin":
-        pytest.skip("Test shader doesn't currently compile on MoltenVK")
-
     device = helpers.get_device(type=device_type)
 
     program = device.load_program("test_shader_cursor.slang", ["compute_main"])

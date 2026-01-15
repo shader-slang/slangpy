@@ -76,6 +76,9 @@ public:
 
     void set_data(const void* data, size_t size) const;
 
+    /// Reserves a block of memory within the shader object's internal data buffer at the specified offset.
+    /// WARNING: This function bypasses the immutability of a ShaderObject. To use safely, ensure that the address
+    /// returned is immediately populated, not retained. Prefer using set_data unless absolutely necessary.
     void* reserve_data(size_t size) const;
 
     void set_cuda_tensor_view(const cuda::TensorView& tensor_view) const;
