@@ -141,13 +141,16 @@ class TensorRefMarshall(TensorMarshall):
                 )
                 interop_tensor.copy_(primal)
 
-            primal_calldata = {
+            primal_calldata: dict[str, Any] = {
                 "_data": data.interop_buffer,
                 "_offset": 0,
                 "_strides": strides,
                 "_shape": shape,
-                "_element_byte_stride": primal.element_size(),
             }
+            # On Metal, sizeof(T) in shader may differ from buffer stride (e.g., float3).
+            # Other platforms use static const sizeof(T) in the shader.
+            if context.device.info.type == DeviceType.metal:
+                primal_calldata["_element_byte_stride"] = primal.element_size()
 
             if not self.d_in and not self.d_out:
                 return primal_calldata

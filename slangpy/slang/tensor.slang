@@ -365,10 +365,14 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     // Underlying data storage
     public StorageTraits<T>::AtomicBufferType _data;
 
-    // Element byte stride - the actual stride in bytes between elements in the buffer.
-    // This is passed from C++ and may differ from sizeof(T) due to alignment requirements.
-    // For example, on Metal, sizeof(float3)=12 but buffer stride=16.
+#ifdef __TARGET_METAL__
+    // Element byte stride - passed from C++ on Metal where sizeof(T) differs from buffer stride.
+    // For example, sizeof(float3)=12 but Metal buffer stride=16.
     public uint _element_byte_stride;
+#else
+    // On non-Metal platforms, sizeof(T) matches buffer stride, so use static const.
+    static const uint _element_byte_stride = sizeof(T);
+#endif
 
     public T read_buffer(int idx)
     {
@@ -422,7 +426,9 @@ public struct AtomicTensor<T: IAtomicAddable, let D : int> : IRWTensor<T, D>
     public void __slangpy_load<let SliceD : int>(ContextND<D - SliceD> ctx, out AtomicTensor<T, SliceD> value)
     {
         value._data = _data;
+#ifdef __TARGET_METAL__
         value._element_byte_stride = _element_byte_stride;
+#endif
         _slice(ctx.call_id, _strides, _offset, value._strides, value._offset);
         [ForceUnroll]
         for (int i = 0; i < SliceD; ++i)
