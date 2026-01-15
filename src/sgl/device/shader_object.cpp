@@ -13,6 +13,8 @@
 
 namespace sgl {
 
+SGL_IMPLEMENT_BLOCK_ALLOCATED(ShaderObject, 4096)
+
 inline rhi::ShaderOffset rhi_shader_offset(const ShaderOffset& offset)
 {
     return {
@@ -152,6 +154,13 @@ void ShaderObject::set_descriptor_handle(const ShaderOffset& offset, const Descr
 void ShaderObject::set_data(const ShaderOffset& offset, const void* data, size_t size)
 {
     SLANG_RHI_CALL(m_shader_object->setData(rhi_shader_offset(offset), data, size));
+}
+
+void* ShaderObject::reserve_data(const ShaderOffset& offset, size_t size)
+{
+    void* res;
+    SLANG_RHI_CALL(m_shader_object->reserveData(rhi_shader_offset(offset), size, &res));
+    return res;
 }
 
 void ShaderObject::set_cuda_tensor_view_buffer(

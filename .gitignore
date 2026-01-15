@@ -28,3 +28,5 @@ slangpy/tests/slangpy_tests/logs/
 *.nsys-rep
 
 *.sqlite
+
+sgl_tests.log
