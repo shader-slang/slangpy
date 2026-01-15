@@ -274,7 +274,11 @@ extern "C" int tensor_bridge_copy_from_buffer(void* py_obj, void* src_cuda_ptr, 
         // Use PyTorch's copy_ which handles non-contiguous destination tensors
         // We need to const_cast here because THPVariable_Unpack returns const,
         // but copy_ is safe as it only modifies the underlying storage
-        const_cast<torch::Tensor&>(dest_tensor).copy_(src_tensor);
+        // Use torch::NoGradGuard to allow in-place operations on tensors with requires_grad=True
+        {
+            torch::NoGradGuard no_grad;
+            const_cast<torch::Tensor&>(dest_tensor).copy_(src_tensor);
+        }
 
         return 0;
     } catch (const std::exception& e) {

@@ -270,8 +270,6 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     Buffer* interop_buffer
 ) const
 {
-    SGL_UNUSED(shader_object);
-
     Shape shape = shape_from_bridge_info(info);
     Shape strides = strides_from_bridge_info(info);
 
@@ -279,22 +277,32 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
 
     // Write device pointer - use interop buffer if provided, otherwise use tensor's CUDA pointer
-    DeviceAddress address;
     if (interop_buffer) {
-        // For interop, use the buffer's device address and strides should be contiguous
-        address = interop_buffer->device_address();
-        // Make strides contiguous since interop buffer is contiguous
+        // For interop, strides should be contiguous since interop buffer is contiguous
         strides = make_contiguous_strides(shape, info.element_size);
+
+        // Check if we need to bind as buffer resource or write device address
+        // See slangpytensor.cpp:574 for the same pattern
+        if (offsets.data.binding_range_index == offsets.shape.binding_range_index) {
+            // Same binding range - write device address directly
+            write_value_helper(
+                base_address,
+                offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+                interop_buffer->device_address()
+            );
+        } else {
+            // Different binding range - bind as buffer resource (D3D12/Vulkan path)
+            shader_object->set_buffer(offsets.data, ref<Buffer>(interop_buffer));
+        }
     } else {
         // Direct CUDA pointer
-        address = reinterpret_cast<DeviceAddress>(info.data_ptr);
+        DeviceAddress address = reinterpret_cast<DeviceAddress>(info.data_ptr);
+        write_value_helper(
+            base_address,
+            offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            address
+        );
     }
-
-    write_value_helper(
-        base_address,
-        offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
-        address
-    );
 
     // Write shape
     write_strided_array_helper(

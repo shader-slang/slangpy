@@ -469,5 +469,38 @@ def test_copy_noncontiguous_tensor_to_buffer(device_type: DeviceType):
     assert np.allclose(buffer_data, expected), f"Data mismatch: {buffer_data} vs {expected}"
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensor_buffer_roundtrip(device_type: DeviceType):
+    """
+    Test round-trip: tensor -> buffer -> tensor2.
+    Verifies that data survives a complete copy cycle through the interop buffer.
+    """
+    from slangpy import BufferUsage, copy_torch_tensor_to_buffer, copy_buffer_to_torch_tensor
+
+    device = helpers.get_torch_device(device_type)
+
+    # Create source tensor with known values
+    src_tensor = torch.tensor([1.5, 2.5, 3.5, 4.5, 5.5], dtype=torch.float32, device="cuda")
+
+    # Create destination tensor (zeros)
+    dst_tensor = torch.zeros_like(src_tensor)
+
+    # Create shared buffer
+    buffer = device.create_buffer(
+        size=src_tensor.numel() * src_tensor.element_size(),
+        struct_size=src_tensor.element_size(),
+        usage=BufferUsage.unordered_access | BufferUsage.shader_resource | BufferUsage.shared,
+    )
+
+    # Copy: src_tensor -> buffer -> dst_tensor
+    copy_torch_tensor_to_buffer(src_tensor, buffer)
+    copy_buffer_to_torch_tensor(buffer, dst_tensor)
+
+    # Verify dst_tensor matches src_tensor
+    assert torch.allclose(
+        src_tensor, dst_tensor
+    ), f"Round-trip mismatch: {src_tensor} vs {dst_tensor}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
