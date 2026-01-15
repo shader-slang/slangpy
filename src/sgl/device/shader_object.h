@@ -48,6 +48,11 @@ public:
     virtual void set_descriptor_handle(const ShaderOffset& offset, const DescriptorHandle& handle);
     virtual void set_data(const ShaderOffset& offset, const void* data, size_t size);
 
+    /// Reserves a block of memory within the shader object's internal data buffer at the specified offset.
+    /// WARNING: This function bypasses the immutability of a ShaderObject. To use safely, ensure that the address
+    /// returned is immediately populated, not retained. Prefer using set_data unless absolutely necessary.
+    virtual void* reserve_data(const ShaderOffset& offset, size_t size);
+
     virtual void
     set_cuda_tensor_view_buffer(const ShaderOffset& offset, const cuda::TensorView& tensor_view, bool is_uav);
     virtual void set_cuda_tensor_view_pointer(const ShaderOffset& offset, const cuda::TensorView& tensor_view);

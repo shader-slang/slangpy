@@ -54,6 +54,7 @@ SGL_PY_DECLARE(math_quaternion);
 SGL_PY_DECLARE(ui);
 SGL_PY_DECLARE(ui_widgets);
 
+SGL_PY_DECLARE(utils_crashpad);
 SGL_PY_DECLARE(utils_renderdoc);
 SGL_PY_DECLARE(utils_slangpy);
 SGL_PY_DECLARE(utils_slangpy_strided_buffer_view);
@@ -139,6 +140,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(ui);
     SGL_PY_IMPORT(ui_widgets);
 
+    SGL_PY_IMPORT(utils_crashpad);
     SGL_PY_IMPORT(utils_renderdoc);
 
     SGL_PY_IMPORT(utils_slangpy);
