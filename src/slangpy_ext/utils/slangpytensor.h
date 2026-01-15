@@ -185,15 +185,6 @@ private:
         nb::list read_back
     ) const;
 
-    /// Write differentiated PyTorch tensor structure (handles primal, grad_in, grad_out)
-    /// This method handles both flat and differentiated tensor layouts for PyTorch tensors
-    void write_torch_tensor_ref(
-        CallContext* context,
-        NativeBoundVariableRuntime* binding,
-        ShaderObject* shader_object,
-        TensorRef* tensorref
-    ) const;
-
     //
     // Core Field Writing Methods (Fast Path)
     //
@@ -233,20 +224,6 @@ private:
         void* data_ptr,
         const Shape& shape,
         const Shape& strides,
-        int offset
-    ) const;
-
-    /// Write PyTorch tensor fields using pre-cached offsets
-    /// Handles broadcast stride zeroing and delegates to write_tensor_fields_from_pointer
-    void write_torch_tensor_ref_fields(
-        CallContext* context,
-        NativeBoundVariableRuntime* binding,
-        ShaderObject* shader_object,
-        void* base_address,
-        const TensorFieldOffsets& offsets,
-        void* data_ptr,
-        const Shape& shape,
-        const Shape& strides_in,
         int offset
     ) const;
 };

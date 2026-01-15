@@ -64,6 +64,12 @@ from .core.packedarg import pack
 # Py torch integration
 from .torchintegration import *
 
+# Export torch<->buffer copy utilities (requires PyTorch)
+try:
+    from .slangpy_ext import copy_torch_tensor_to_buffer, copy_buffer_to_torch_tensor
+except ImportError:
+    pass
+
 # Get shader include path for slangpy
 SHADER_PATH = str(pathlib.Path(__file__).parent.absolute() / "slang")
 

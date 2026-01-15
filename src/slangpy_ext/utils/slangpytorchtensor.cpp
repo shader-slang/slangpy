@@ -284,7 +284,9 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
         // Check if we need to bind as buffer resource or write device address
         // See slangpytensor.cpp:574 for the same pattern
         if (offsets.data.binding_range_index == offsets.shape.binding_range_index) {
-            // Same binding range - write device address directly
+            // Same binding range - write device address directly. This should probably
+            // never happen at current, as Vk/D3d always use a buffer, and cuda always uses
+            // a pointer, but its good to support long term.
             write_value_helper(
                 base_address,
                 offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,

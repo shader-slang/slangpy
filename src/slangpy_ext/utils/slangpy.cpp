@@ -1028,14 +1028,12 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
         obj = nb::getattr(obj, "get_this")();
     }
 
-    // If object is a pytorch tensor, wrap it in a ref and export
+    // If object is a pytorch tensor, add it to refs for autograd tracking
     if (refs.has_value()) {
         nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
         if (nb::try_cast(arg, pytorch_tensor)) {
-            ref<TensorRef> tensorref = make_ref<TensorRef>((int32_t)refs->size(), pytorch_tensor);
-            auto asobj = nb::cast(tensorref);
-            refs->append(asobj);
-            return asobj;
+            refs->append(arg);
+            return arg;
         }
     }
 
@@ -1717,46 +1715,4 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(CallContext, call_shape)
         )
         .def_prop_ro("call_mode", &CallContext::call_mode, D_NA(CallContext, call_mode));
-
-    nb::class_<TensorRef, NativeObject>(slangpy, "TensorRef") //
-        .def(
-            "__init__",
-            [](TensorRef& self, int id, nb::ndarray<nb::pytorch, nb::device::cuda> tensor)
-            {
-                new (&self) TensorRef(id, tensor);
-            },
-            "id"_a,
-            "tensor"_a,
-            D_NA(TensorRef, TensorRef)
-        )
-        .def_prop_rw("id", &TensorRef::id, &TensorRef::set_id, nb::arg(), D_NA(TensorRef, index))
-        .def_prop_rw("tensor", &TensorRef::tensor, &TensorRef::set_tensor, nb::arg().none(), D_NA(TensorRef, tensor))
-        .def_prop_rw(
-            "interop_buffer",
-            &TensorRef::interop_buffer,
-            &TensorRef::set_interop_buffer,
-            nb::arg().none(),
-            D_NA(TensorRef, interop_buffer)
-        )
-        .def_prop_rw(
-            "grad_in",
-            &TensorRef::grad_in,
-            &TensorRef::set_grad_in,
-            nb::arg().none(),
-            D_NA(TensorRef, grad_in)
-        )
-        .def_prop_rw(
-            "grad_out",
-            &TensorRef::grad_out,
-            &TensorRef::set_grad_out,
-            nb::arg().none(),
-            D_NA(TensorRef, grad_out)
-        )
-        .def_prop_rw(
-            "last_access",
-            &TensorRef::last_access,
-            &TensorRef::set_last_access,
-            nb::arg(),
-            D_NA(TensorRef, last_access)
-        );
 }

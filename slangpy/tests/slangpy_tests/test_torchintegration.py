@@ -4,7 +4,7 @@ import pytest
 import sys
 
 from slangpy import DeviceType, Device, Module
-from slangpy.core.native import NativeCallDataCache, SignatureBuilder, TensorRef
+from slangpy.core.native import NativeCallDataCache, SignatureBuilder
 from slangpy.testing import helpers
 
 try:
@@ -67,11 +67,6 @@ def test_torch_signature(pair: tuple[torch.Tensor, str]):
     sig = SignatureBuilder()
     cd.get_value_signature(sig, pair[0])
     assert sig.str == f"Tensor\n[torch,{pair[1]}]"
-
-    ref = TensorRef(0, pair[0])
-    sig = SignatureBuilder()
-    cd.get_value_signature(sig, ref)
-    assert sig.str.endswith(f"[torch,{pair[1]}]")
 
 
 ADD_TESTS = [
