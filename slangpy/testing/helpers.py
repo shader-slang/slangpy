@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gc
 import hashlib
 import sys
 from pathlib import Path
@@ -26,7 +27,7 @@ from slangpy import (
     LogLevel,
     NativeHandle,
 )
-from slangpy.types.buffer import NDBuffer
+from slangpy.types.buffer import NDBuffer, get_lookup_module
 from slangpy.core.function import Function
 
 # Global variables for device isolation. If SELECTED_DEVICE_TYPES is None, no restriction.
@@ -43,6 +44,9 @@ elif sys.platform == "darwin":
     DEFAULT_DEVICE_TYPES = [DeviceType.metal]
 else:
     raise RuntimeError("Unsupported platform")
+
+# If live object tracking is supported, enable leak tracking
+LEAK_TRACKING_ENABLED = hasattr(spy.Object, "report_live_objects")
 
 
 # Called from pytest plugin if 'device-types' argument is provided
@@ -83,6 +87,59 @@ DEVICE_CACHE: dict[
 USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
+TRACKED_LIVE_OBJECTS: Optional[list[Any]] = None
+
+# Types to ignore when checking for leaked objects
+# - The reflection types are created and cached per device when buffers are loaded, so are hard
+#   to identify as actual leaks.
+# - CoopVec is created on demand within the device when the coopvec api is used, and so will appear
+#   as a leak for cached devices.
+IGNORE_LIVE_OBJECT_TYPES = ["NativeSlangType", "TypeLayoutReflection", "TypeReflection", "CoopVec"]
+
+
+def save_live_objects():
+    if LEAK_TRACKING_ENABLED:
+        global TRACKED_LIVE_OBJECTS
+        TRACKED_LIVE_OBJECTS = spy.Object.report_live_objects(True)
+
+
+def compare_and_save_live_objects(allowed_leaks: Optional[dict[str, int]] = None):
+    if LEAK_TRACKING_ENABLED:
+        while gc.collect() > 0:
+            pass
+
+        # Make a copy of allowed_leaks so we don't modify the original dict
+        allowed_leaks = allowed_leaks.copy() if allowed_leaks else {}
+
+        # Get current live objects and compare to previous captured list
+        global TRACKED_LIVE_OBJECTS
+        new = spy.Object.report_live_objects(True)
+        if TRACKED_LIVE_OBJECTS:
+            errors = []
+
+            # Build a lookup by address for fast comparison
+            current_by_address = {x["object"]: x for x in TRACKED_LIVE_OBJECTS}
+
+            # Find any new objects, and build list of errors
+            for obj in new:
+                if obj["object"] not in current_by_address:
+                    cn = obj["class_name"]
+                    if not cn in IGNORE_LIVE_OBJECT_TYPES:
+                        if cn in allowed_leaks:
+                            if allowed_leaks[cn] > 0:
+                                allowed_leaks[cn] -= 1
+                                continue
+                        errors.append(obj)
+
+            # If any errors, raise runtime error with all of them in
+            if len(errors) > 0:
+                msg = "\n".join([f"  {e}" for e in errors])
+                raise RuntimeError(f"Leaked objects detected:\n{msg}")
+
+        # Store updated live objects list
+        TRACKED_LIVE_OBJECTS = new
+
+
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
 # spy.set_dump_slang_intermediates(True)
@@ -104,6 +161,9 @@ def close_all_devices():
         import torch
 
         torch.cuda.synchronize()
+
+    # Clear device cache
+    DEVICE_CACHE.clear()
 
     # Close all devices that were created during the tests.
     for device in Device.get_created_devices():
@@ -239,7 +299,15 @@ def get_device(
             )
 
     if use_cache:
+        # Cache device
         DEVICE_CACHE[cache_key] = device
+
+        # When leak tracking, init the slangpy loopup cache up front and save live
+        # objects so that we don't report cached device resources as leaks.
+        if LEAK_TRACKING_ENABLED:
+            get_lookup_module(device)
+            save_live_objects()
+
     return device
 
 
