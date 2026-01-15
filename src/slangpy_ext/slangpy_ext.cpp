@@ -99,6 +99,17 @@ NB_MODULE(slangpy_ext, m_)
     m.attr("SGL_BUILD_TYPE") = SGL_BUILD_TYPE;
     m.attr("SLANG_BUILD_TAG") = SLANG_BUILD_TAG;
 
+    m.def(
+        "crash",
+        []()
+        {
+            uint32_t* ptr = (uint32_t*)128;
+            uint32_t value = *ptr;
+            return value;
+        },
+        D_NA(slangpy_ext, crash)
+    );
+
     SGL_PY_IMPORT(core_object);
     SGL_PY_IMPORT(core_platform);
     SGL_PY_IMPORT(core_thread);
