@@ -1,5 +1,6 @@
 build/
 external/vcpkg
+external/slang/
 tools/download
 tools/host
 docs/_build/
