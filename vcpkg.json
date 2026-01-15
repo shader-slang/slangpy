@@ -5,6 +5,7 @@
         "libjpeg-turbo",
         "libpng",
         "openexr",
-        "asmjit"
+        "asmjit",
+        "crashpad"
     ]
 }
