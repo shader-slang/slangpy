@@ -45,9 +45,11 @@ def types_equal(a: SlangType, b: SlangType):
     return a.full_name == b.full_name
 
 
-def is_nested_array(a: SlangType):
+def castable_to_scalar(a: SlangType):
     while True:
         if isinstance(a, ScalarType):
+            return True
+        if isinstance(a, VectorType):
             return True
         if isinstance(a, MatrixType):
             return True
@@ -172,7 +174,7 @@ class TensorMarshall(NativeTensorMarshall):
         # or array type
         # Be lenient and allow e.g. passing float to float[N] or float[M][N]
         if types_equal(self.slang_element_type, innermost_type(bound_type)):
-            if is_nested_array(bound_type) and len(bound_type.shape) <= 2:
+            if castable_to_scalar(bound_type) and len(bound_type.shape) <= 2:
                 return bound_type
             if isinstance(bound_type, VectorType):
                 return bound_type
