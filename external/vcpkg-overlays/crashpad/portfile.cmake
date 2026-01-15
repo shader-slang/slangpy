@@ -141,7 +141,6 @@ install_headers("${SOURCE_PATH}/util")
 install_headers("${SOURCE_PATH}/third_party/mini_chromium/mini_chromium/base")
 install_headers("${SOURCE_PATH}/third_party/mini_chromium/mini_chromium/build")
 
-file(COPY "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/gen/build/chromeos_buildflags.h" DESTINATION "${CURRENT_PACKAGES_DIR}/include/${PORT}/build")
 file(COPY "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/gen/build/chromeos_buildflags.h.flags" DESTINATION "${CURRENT_PACKAGES_DIR}/include/${PORT}/build")
 
 # On Windows/MSVC, mirror headers into the root include directory so MSBuild integration
@@ -153,7 +152,6 @@ if(VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_MINGW)
     file(COPY "${SOURCE_PATH}/util" DESTINATION "${CURRENT_PACKAGES_DIR}/include" FILES_MATCHING PATTERN "*.h")
     file(COPY "${SOURCE_PATH}/third_party/mini_chromium/mini_chromium/base" DESTINATION "${CURRENT_PACKAGES_DIR}/include" FILES_MATCHING PATTERN "*.h")
     file(COPY "${SOURCE_PATH}/third_party/mini_chromium/mini_chromium/build" DESTINATION "${CURRENT_PACKAGES_DIR}/include" FILES_MATCHING PATTERN "*.h")
-    file(COPY "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/gen/build/chromeos_buildflags.h" DESTINATION "${CURRENT_PACKAGES_DIR}/include/build")
     file(COPY "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/gen/build/chromeos_buildflags.h.flags" DESTINATION "${CURRENT_PACKAGES_DIR}/include/build")
 endif()
 
