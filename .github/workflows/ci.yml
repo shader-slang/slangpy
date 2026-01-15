@@ -176,7 +176,7 @@ jobs:
 
       # Upload Crashpad Reports
       - name: Upload Crashpad Reports
-        if: contains(matrix.flags, 'crashpad')
+        if: always() && contains(matrix.flags, 'crashpad')
         uses: actions/upload-artifact@v4
         with:
           name: crash-reports-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ matrix.config }}
