@@ -41,6 +41,16 @@ def setup():
 
 
 def report(writer: TerminalWriter):
+    # Crashpad stores reports in the "reports" directory on Windows only.
+    # On POSIX it uses "pending" and "completed" directories.
+    # This is an implementation detail and abstracted when using Crashpad's
+    # database API. As we're accessing the dumps directly, we simply copy
+    # all dumps from "pending" to "reports".
+    if os.name == "posix":
+        (CRASHPAD_DATABASE_DIR / "reports").mkdir(exist_ok=True)
+        for file in glob.glob(str(CRASHPAD_DATABASE_DIR / "pending/*.dmp")):
+            shutil.copy2(file, CRASHPAD_DATABASE_DIR / "reports" / Path(file).name)
+
     reports = glob.glob(str(CRASHPAD_DATABASE_DIR / "reports/*.dmp"))
     if len(reports) == 0:
         return
@@ -183,8 +193,17 @@ def _download_minidump_stackwalk(asset_name: str, extract_dir: Path) -> bool:
             with zipfile.ZipFile(archive_path, "r") as zf:
                 zf.extractall(extract_dir)
         elif asset_name.endswith(".tar.xz"):
+
+            def get_tar_members_stripped(tar: tarfile.TarFile, strip: int = 1):
+                members = []
+                for member in tar.getmembers():
+                    p = Path(member.path)
+                    member.path = str(p.relative_to(*p.parts[:strip]))
+                    members.append(member)
+                return members
+
             with tarfile.open(archive_path, "r:xz") as tf:
-                tf.extractall(extract_dir)
+                tf.extractall(extract_dir, members=get_tar_members_stripped(tf, strip=1))
         else:
             print(f"Unknown archive format: {asset_name}")
             return False
