@@ -3,6 +3,9 @@
 #include "torch_bridge.h"
 #include "../nanobind.h"
 
+#include "sgl/device/device.h"
+#include "sgl/device/cuda_utils.h"
+
 #include <vector>
 
 namespace sgl {
@@ -103,6 +106,94 @@ bool is_torch_tensor(nb::handle obj)
     return bridge.is_tensor(obj);
 }
 
+/// Copy a PyTorch tensor to a buffer's CUDA memory.
+/// The buffer must have been created with BufferUsage::shared.
+/// Returns true on success.
+bool copy_torch_tensor_to_buffer(nb::handle tensor, ref<Buffer> buffer)
+{
+    auto& bridge = TorchBridge::instance();
+    bridge.try_init();
+
+    if (!bridge.is_available()) {
+        throw std::runtime_error("slangpy_torch is not available");
+    }
+
+    // Extract tensor info
+    TensorBridgeInfo info;
+    if (!bridge.extract(tensor, info)) {
+        throw std::runtime_error(std::string("Failed to extract tensor info: ") + bridge.get_error());
+    }
+
+    if (!info.is_cuda) {
+        throw std::runtime_error("Tensor must be on CUDA device");
+    }
+
+    // Calculate expected buffer size
+    size_t tensor_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
+    if (buffer->size() < tensor_size) {
+        throw std::runtime_error("Buffer too small for tensor data");
+    }
+
+    // Get CUDA memory pointer from buffer
+    void* cuda_ptr = buffer->cuda_memory();
+    if (!cuda_ptr) {
+        throw std::runtime_error(
+            "Buffer cuda_memory() returned nullptr - ensure buffer was created with BufferUsage::shared"
+        );
+    }
+
+    // Copy tensor to buffer
+    if (!bridge.copy_to_buffer(tensor, cuda_ptr, tensor_size)) {
+        throw std::runtime_error(std::string("copy_to_buffer failed: ") + bridge.get_error());
+    }
+
+    return true;
+}
+
+/// Copy from a buffer's CUDA memory to a PyTorch tensor.
+/// The buffer must have been created with BufferUsage::shared.
+/// Returns true on success.
+bool copy_buffer_to_torch_tensor(ref<Buffer> buffer, nb::handle tensor)
+{
+    auto& bridge = TorchBridge::instance();
+    bridge.try_init();
+
+    if (!bridge.is_available()) {
+        throw std::runtime_error("slangpy_torch is not available");
+    }
+
+    // Extract tensor info
+    TensorBridgeInfo info;
+    if (!bridge.extract(tensor, info)) {
+        throw std::runtime_error(std::string("Failed to extract tensor info: ") + bridge.get_error());
+    }
+
+    if (!info.is_cuda) {
+        throw std::runtime_error("Tensor must be on CUDA device");
+    }
+
+    // Calculate expected tensor size
+    size_t tensor_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
+    if (buffer->size() < tensor_size) {
+        throw std::runtime_error("Buffer too small for tensor data");
+    }
+
+    // Get CUDA memory pointer from buffer
+    void* cuda_ptr = buffer->cuda_memory();
+    if (!cuda_ptr) {
+        throw std::runtime_error(
+            "Buffer cuda_memory() returned nullptr - ensure buffer was created with BufferUsage::shared"
+        );
+    }
+
+    // Copy buffer to tensor
+    if (!bridge.copy_from_buffer(tensor, cuda_ptr, tensor_size)) {
+        throw std::runtime_error(std::string("copy_from_buffer failed: ") + bridge.get_error());
+    }
+
+    return true;
+}
+
 } // namespace sgl
 
 SGL_PY_EXPORT(utils_torch_bridge)
@@ -154,5 +245,39 @@ SGL_PY_EXPORT(utils_torch_bridge)
         "Raises:\n"
         "  RuntimeError: if slangpy_torch is not available\n"
         "  ValueError: if object is not a PyTorch tensor"
+    );
+
+    m.def(
+        "copy_torch_tensor_to_buffer",
+        &copy_torch_tensor_to_buffer,
+        nb::arg("tensor"),
+        nb::arg("buffer"),
+        "Copy a PyTorch CUDA tensor to a buffer's CUDA memory.\n\n"
+        "The buffer must have been created with BufferUsage.shared.\n"
+        "Handles non-contiguous tensors correctly.\n\n"
+        "Args:\n"
+        "  tensor: A PyTorch CUDA tensor\n"
+        "  buffer: A Buffer created with BufferUsage.shared\n\n"
+        "Returns:\n"
+        "  True on success\n\n"
+        "Raises:\n"
+        "  RuntimeError: if copy fails or buffer not compatible"
+    );
+
+    m.def(
+        "copy_buffer_to_torch_tensor",
+        &copy_buffer_to_torch_tensor,
+        nb::arg("buffer"),
+        nb::arg("tensor"),
+        "Copy from a buffer's CUDA memory to a PyTorch CUDA tensor.\n\n"
+        "The buffer must have been created with BufferUsage.shared.\n"
+        "Handles non-contiguous tensors correctly.\n\n"
+        "Args:\n"
+        "  buffer: A Buffer created with BufferUsage.shared\n"
+        "  tensor: A PyTorch CUDA tensor\n\n"
+        "Returns:\n"
+        "  True on success\n\n"
+        "Raises:\n"
+        "  RuntimeError: if copy fails or buffer not compatible"
     );
 }

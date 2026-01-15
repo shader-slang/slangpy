@@ -100,10 +100,24 @@ typedef const char* (*TensorBridge_GetErrorFn)(void);
 // device_index: the CUDA device index (0, 1, 2, etc.)
 typedef void* (*TensorBridge_GetCurrentCudaStreamFn)(int device_index);
 
+// Copy tensor data to a contiguous CUDA buffer
+// This handles non-contiguous tensors by using PyTorch's copy mechanism.
+// dest_cuda_ptr: destination CUDA pointer (e.g., from interop buffer mapped memory)
+// dest_size: size in bytes of destination buffer
+// Returns 0 on success, non-zero on error
+typedef int (*TensorBridge_CopyToBufferFn)(void* py_tensor_obj, void* dest_cuda_ptr, size_t dest_size);
+
+// Copy data from a contiguous CUDA buffer back to a tensor
+// This handles non-contiguous tensors by using PyTorch's copy mechanism.
+// src_cuda_ptr: source CUDA pointer (e.g., from interop buffer mapped memory)
+// src_size: size in bytes of source buffer
+// Returns 0 on success, non-zero on error
+typedef int (*TensorBridge_CopyFromBufferFn)(void* py_tensor_obj, void* src_cuda_ptr, size_t src_size);
+
 // ============================================================================
 // Version info for ABI compatibility checking
 // ============================================================================
-#define TENSOR_BRIDGE_API_VERSION 2
+#define TENSOR_BRIDGE_API_VERSION 3
 
 typedef struct TensorBridgeAPI {
     int api_version;
@@ -114,6 +128,8 @@ typedef struct TensorBridgeAPI {
     TensorBridge_GetSignatureFn get_signature;
     TensorBridge_GetErrorFn get_error;
     TensorBridge_GetCurrentCudaStreamFn get_current_cuda_stream;
+    TensorBridge_CopyToBufferFn copy_to_buffer;
+    TensorBridge_CopyFromBufferFn copy_from_buffer;
 } TensorBridgeAPI;
 
 // Function to get the API struct (exported by the bridge module)

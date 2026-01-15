@@ -5,6 +5,8 @@
 #include "sgl/device/device.h"
 #include "sgl/device/shader_object.h"
 #include "sgl/device/buffer_cursor.h"
+#include "sgl/device/cuda_interop.h"
+#include "sgl/device/cuda_utils.h"
 
 #include <fmt/format.h>
 
@@ -118,6 +120,28 @@ namespace {
         }
     }
 
+    /// Create contiguous strides for a given shape (row-major / C-order)
+    /// element_size is in bytes, strides are in elements
+    Shape make_contiguous_strides(const Shape& shape, size_t element_size)
+    {
+        SGL_UNUSED(element_size);
+        const size_t ndim = shape.size();
+        Shape strides(ndim);
+        if (ndim == 0) {
+            return strides;
+        }
+
+        int* strides_data = strides.data();
+        const int* shape_data = shape.data();
+
+        // Row-major: stride[i] = product of shape[i+1] to shape[ndim-1]
+        strides_data[ndim - 1] = 1;
+        for (int i = static_cast<int>(ndim) - 2; i >= 0; i--) {
+            strides_data[i] = strides_data[i + 1] * shape_data[i + 1];
+        }
+        return strides;
+    }
+
 } // anonymous namespace
 
 
@@ -186,31 +210,52 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     Shape tensor_shape = shape_from_bridge_info(info);
     validate_tensor_shape(tensor_shape, binding->vector_type()->shape());
 
-    // Only support CUDA tensors on CUDA devices for now
+    // Only support CUDA tensors (the PyTorch tensor must be on CUDA)
     if (!info.is_cuda) {
         SGL_THROW("Non-CUDA torch tensors are not yet supported. Tensor must be on CUDA device.");
-    }
-    if (context->device()->type() != DeviceType::cuda) {
-        SGL_THROW("torch.Tensor support currently requires CUDA device backend.");
     }
 
     ShaderObject* shader_object = cursor.shader_object();
     void* base_address = shader_object->reserve_data(m_cached_offsets.field_offset, m_cached_offsets.field_size);
 
-    // Write tensor fields
-    if (!m_cached_offsets.has_grad_fields) {
-        // Flat structure - write directly to primal offsets
-        write_torch_tensor_fields(context, binding, shader_object, base_address, m_cached_offsets.primal, info);
-    } else {
-        // Differentiated structure - write primal
-        write_torch_tensor_fields(context, binding, shader_object, base_address, m_cached_offsets.primal, info);
+    // Check if we need interop (non-CUDA device backend)
+    bool needs_interop = context->device()->type() != DeviceType::cuda;
 
-        // Gradient tensors for raw torch.Tensor are not yet supported
-        if (m_d_in && m_cached_offsets.grad_in.is_valid) {
-            SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
-        }
-        if (m_d_out && m_cached_offsets.grad_out.is_valid) {
-            SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
+    if (needs_interop) {
+        // Non-CUDA device (D3D12/Vulkan) - need interop buffer
+        write_shader_cursor_with_interop(context, binding, shader_object, base_address, value, info, read_back);
+    } else {
+        // CUDA device - direct pointer access
+        if (!m_cached_offsets.has_grad_fields) {
+            // Flat structure - write directly to primal offsets
+            write_torch_tensor_fields(
+                context,
+                binding,
+                shader_object,
+                base_address,
+                m_cached_offsets.primal,
+                info,
+                nullptr
+            );
+        } else {
+            // Differentiated structure - write primal
+            write_torch_tensor_fields(
+                context,
+                binding,
+                shader_object,
+                base_address,
+                m_cached_offsets.primal,
+                info,
+                nullptr
+            );
+
+            // Gradient tensors for raw torch.Tensor are not yet supported
+            if (m_d_in && m_cached_offsets.grad_in.is_valid) {
+                SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
+            }
+            if (m_d_out && m_cached_offsets.grad_out.is_valid) {
+                SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
+            }
         }
     }
 }
@@ -221,7 +266,8 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     ShaderObject* shader_object,
     void* base_address,
     const TensorFieldOffsets& offsets,
-    const TensorBridgeInfo& info
+    const TensorBridgeInfo& info,
+    Buffer* interop_buffer
 ) const
 {
     SGL_UNUSED(shader_object);
@@ -232,8 +278,18 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     // Apply broadcast stride zeroing
     strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
 
-    // Write device pointer
-    DeviceAddress address = reinterpret_cast<DeviceAddress>(info.data_ptr);
+    // Write device pointer - use interop buffer if provided, otherwise use tensor's CUDA pointer
+    DeviceAddress address;
+    if (interop_buffer) {
+        // For interop, use the buffer's device address and strides should be contiguous
+        address = interop_buffer->device_address();
+        // Make strides contiguous since interop buffer is contiguous
+        strides = make_contiguous_strides(shape, info.element_size);
+    } else {
+        // Direct CUDA pointer
+        address = reinterpret_cast<DeviceAddress>(info.data_ptr);
+    }
+
     write_value_helper(
         base_address,
         offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
@@ -260,6 +316,87 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     write_value_helper(base_address, offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset, 0);
 }
 
+void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
+    CallContext* context,
+    NativeBoundVariableRuntime* binding,
+    ShaderObject* shader_object,
+    void* base_address,
+    nb::object value,
+    const TensorBridgeInfo& info,
+    nb::list read_back
+) const
+{
+    // Calculate buffer size (numel * element_size)
+    size_t buffer_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
+
+    // Handle empty tensors - create a minimal placeholder buffer
+    if (buffer_size == 0) {
+        buffer_size = static_cast<size_t>(info.element_size);
+    }
+
+    // Determine if tensor is writable (needs copy-back)
+    // access() returns a pair<AccessType, AccessType> for (read, write) access
+    bool is_writable = m_writable; // && (binding->access().second != AccessType::none);
+
+    // Create shared buffer for interop
+    // The buffer will be accessible from both CUDA (for copy) and D3D12/Vulkan (for shader)
+    ref<Buffer> interop_buffer = context->device()->create_buffer({
+        .size = buffer_size,
+        .struct_size = static_cast<size_t>(info.element_size),
+        .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::shared,
+        .default_state = is_writable ? ResourceState::unordered_access : ResourceState::shader_resource,
+    });
+
+    // Copy data from PyTorch tensor to interop buffer using TorchBridge
+    // This handles non-contiguous tensors via PyTorch's copy mechanism
+    if (info.numel > 0) {
+        if (!TorchBridge::instance().copy_to_buffer(value, interop_buffer->cuda_memory(), buffer_size)) {
+            SGL_THROW("Failed to copy tensor to interop buffer: {}", TorchBridge::instance().get_error());
+        }
+    }
+
+    // Write tensor fields using the interop buffer
+    if (!m_cached_offsets.has_grad_fields) {
+        write_torch_tensor_fields(
+            context,
+            binding,
+            shader_object,
+            base_address,
+            m_cached_offsets.primal,
+            info,
+            interop_buffer.get()
+        );
+    } else {
+        write_torch_tensor_fields(
+            context,
+            binding,
+            shader_object,
+            base_address,
+            m_cached_offsets.primal,
+            info,
+            interop_buffer.get()
+        );
+
+        // Gradient tensors for raw torch.Tensor are not yet supported
+        if (m_d_in && m_cached_offsets.grad_in.is_valid) {
+            SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
+        }
+        if (m_d_out && m_cached_offsets.grad_out.is_valid) {
+            SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
+        }
+    }
+
+    // Store interop info for post-dispatch copy-back if tensor is writable
+    if (is_writable && info.numel > 0) {
+        // Store using standard read_back format: (binding, value, calldata)
+        // calldata contains the interop info needed for copy-back
+        nb::dict calldata;
+        calldata["_interop_buffer"] = nb::cast(interop_buffer);
+        calldata["_buffer_size"] = buffer_size;
+        store_readback(binding, read_back, value, calldata);
+    }
+}
+
 void NativeTorchTensorMarshall::read_calldata(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
@@ -267,12 +404,27 @@ void NativeTorchTensorMarshall::read_calldata(
     nb::object result
 ) const
 {
-    // For CUDA tensors on CUDA devices, no read-back is needed
-    // The tensor data is written directly via device pointer
     SGL_UNUSED(context);
     SGL_UNUSED(binding);
-    SGL_UNUSED(data);
-    SGL_UNUSED(result);
+
+    // Check if this is an interop calldata (dict with _interop_buffer key)
+    if (!nb::isinstance<nb::dict>(result)) {
+        return;
+    }
+
+    nb::dict calldata = nb::cast<nb::dict>(result);
+    if (!calldata.contains("_interop_buffer")) {
+        return;
+    }
+
+    // This is interop copy-back - copy from buffer back to tensor
+    ref<Buffer> interop_buffer = nb::cast<ref<Buffer>>(calldata["_interop_buffer"]);
+    size_t buffer_size = nb::cast<size_t>(calldata["_buffer_size"]);
+
+    // Copy from interop buffer back to tensor using TorchBridge
+    if (!TorchBridge::instance().copy_from_buffer(data, interop_buffer->cuda_memory(), buffer_size)) {
+        SGL_THROW("Failed to copy tensor from interop buffer: {}", TorchBridge::instance().get_error());
+    }
 }
 
 nb::object NativeTorchTensorMarshall::create_output(CallContext* context, NativeBoundVariableRuntime* binding) const

@@ -98,13 +98,26 @@ private:
     void ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;
 
     /// Write torch tensor fields to shader uniforms
+    /// If interop_buffer is provided, uses its device address instead of tensor's CUDA pointer
     void write_torch_tensor_fields(
         CallContext* context,
         NativeBoundVariableRuntime* binding,
         ShaderObject* shader_object,
         void* base_address,
         const TensorFieldOffsets& offsets,
-        const TensorBridgeInfo& info
+        const TensorBridgeInfo& info,
+        Buffer* interop_buffer
+    ) const;
+
+    /// Handle interop path for non-CUDA device backends (D3D12/Vulkan)
+    void write_shader_cursor_with_interop(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        ShaderObject* shader_object,
+        void* base_address,
+        nb::object value,
+        const TensorBridgeInfo& info,
+        nb::list read_back
     ) const;
 };
 

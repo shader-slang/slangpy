@@ -166,6 +166,126 @@ extern "C" void* tensor_bridge_get_current_cuda_stream(int device_index)
     }
 }
 
+// Copy tensor data to a contiguous CUDA buffer
+// This handles non-contiguous tensors by using PyTorch's copy mechanism.
+extern "C" int tensor_bridge_copy_to_buffer(void* py_obj, void* dest_cuda_ptr, size_t dest_size)
+{
+    if (!py_obj) {
+        set_error("null PyObject pointer");
+        return -1;
+    }
+    if (!dest_cuda_ptr) {
+        set_error("null destination pointer");
+        return -2;
+    }
+
+    PyObject* obj = static_cast<PyObject*>(py_obj);
+    if (!THPVariable_Check(obj)) {
+        set_error("PyObject is not a torch.Tensor");
+        return -3;
+    }
+
+    try {
+        const torch::Tensor& src_tensor = THPVariable_Unpack(obj);
+
+        // Verify source is a CUDA tensor
+        if (!src_tensor.is_cuda()) {
+            set_error("Source tensor must be on CUDA device");
+            return -4;
+        }
+
+        // Verify size matches
+        size_t tensor_bytes = src_tensor.numel() * src_tensor.element_size();
+        if (tensor_bytes > dest_size) {
+            set_error("Destination buffer too small");
+            return -5;
+        }
+
+        // Create a tensor view over the destination buffer with same dtype
+        // This creates a contiguous tensor backed by the destination memory
+        auto options = torch::TensorOptions().dtype(src_tensor.dtype()).device(src_tensor.device());
+
+        // Create a flat tensor view over dest memory
+        torch::Tensor dest_tensor
+            = torch::from_blob(dest_cuda_ptr, {static_cast<int64_t>(src_tensor.numel())}, options);
+
+        // Reshape to match source shape for copy
+        dest_tensor = dest_tensor.view(src_tensor.sizes());
+
+        // Use PyTorch's copy_ which handles non-contiguous source tensors
+        dest_tensor.copy_(src_tensor);
+
+        return 0;
+    } catch (const std::exception& e) {
+        set_error(e.what());
+        return -6;
+    } catch (...) {
+        set_error("Unknown error in copy_to_buffer");
+        return -7;
+    }
+}
+
+// Copy data from a contiguous CUDA buffer back to a tensor
+// This handles non-contiguous destination tensors by using PyTorch's copy mechanism.
+extern "C" int tensor_bridge_copy_from_buffer(void* py_obj, void* src_cuda_ptr, size_t src_size)
+{
+    if (!py_obj) {
+        set_error("null PyObject pointer");
+        return -1;
+    }
+    if (!src_cuda_ptr) {
+        set_error("null source pointer");
+        return -2;
+    }
+
+    PyObject* obj = static_cast<PyObject*>(py_obj);
+    if (!THPVariable_Check(obj)) {
+        set_error("PyObject is not a torch.Tensor");
+        return -3;
+    }
+
+    try {
+        // THPVariable_Unpack returns const, but we need to modify via copy_
+        // This is safe because copy_ modifies the underlying storage, not the tensor object
+        const torch::Tensor& dest_tensor = THPVariable_Unpack(obj);
+
+        // Verify destination is a CUDA tensor
+        if (!dest_tensor.is_cuda()) {
+            set_error("Destination tensor must be on CUDA device");
+            return -4;
+        }
+
+        // Verify size matches
+        size_t tensor_bytes = dest_tensor.numel() * dest_tensor.element_size();
+        if (tensor_bytes > src_size) {
+            set_error("Source buffer too small");
+            return -5;
+        }
+
+        // Create a tensor view over the source buffer with same dtype
+        auto options = torch::TensorOptions().dtype(dest_tensor.dtype()).device(dest_tensor.device());
+
+        // Create a flat tensor view over src memory
+        torch::Tensor src_tensor = torch::from_blob(src_cuda_ptr, {static_cast<int64_t>(dest_tensor.numel())}, options);
+
+        // Reshape to match destination shape for copy
+        src_tensor = src_tensor.view(dest_tensor.sizes());
+
+        // Use PyTorch's copy_ which handles non-contiguous destination tensors
+        // We need to const_cast here because THPVariable_Unpack returns const,
+        // but copy_ is safe as it only modifies the underlying storage
+        const_cast<torch::Tensor&>(dest_tensor).copy_(src_tensor);
+
+        return 0;
+    } catch (const std::exception& e) {
+        set_error(e.what());
+        return -6;
+    } catch (...) {
+        set_error("Unknown error in copy_from_buffer");
+        return -7;
+    }
+}
+
 static const TensorBridgeAPI g_api
     = {TENSOR_BRIDGE_API_VERSION,
        sizeof(TensorBridgeInfo),
@@ -173,7 +293,9 @@ static const TensorBridgeAPI g_api
        tensor_bridge_is_tensor,
        tensor_bridge_get_signature,
        tensor_bridge_get_error,
-       tensor_bridge_get_current_cuda_stream};
+       tensor_bridge_get_current_cuda_stream,
+       tensor_bridge_copy_to_buffer,
+       tensor_bridge_copy_from_buffer};
 
 extern "C" const TensorBridgeAPI* tensor_bridge_get_api(void)
 {

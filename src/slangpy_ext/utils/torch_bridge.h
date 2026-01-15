@@ -116,6 +116,44 @@ public:
         return m_api->get_error();
     }
 
+    /// Get the current CUDA stream for a device
+    void* get_current_cuda_stream(int device_index) const
+    {
+        if (!m_api)
+            return nullptr;
+        return m_api->get_current_cuda_stream(device_index);
+    }
+
+    /// Copy tensor data to a contiguous CUDA buffer.
+    /// Handles non-contiguous tensors via PyTorch's copy mechanism.
+    /// Returns true on success.
+    bool copy_to_buffer(PyObject* tensor, void* dest_cuda_ptr, size_t dest_size) const
+    {
+        if (!m_api)
+            return false;
+        return m_api->copy_to_buffer(tensor, dest_cuda_ptr, dest_size) == 0;
+    }
+
+    bool copy_to_buffer(nb::handle h, void* dest_cuda_ptr, size_t dest_size) const
+    {
+        return copy_to_buffer(h.ptr(), dest_cuda_ptr, dest_size);
+    }
+
+    /// Copy data from a contiguous CUDA buffer back to a tensor.
+    /// Handles non-contiguous tensors via PyTorch's copy mechanism.
+    /// Returns true on success.
+    bool copy_from_buffer(PyObject* tensor, void* src_cuda_ptr, size_t src_size) const
+    {
+        if (!m_api)
+            return false;
+        return m_api->copy_from_buffer(tensor, src_cuda_ptr, src_size) == 0;
+    }
+
+    bool copy_from_buffer(nb::handle h, void* src_cuda_ptr, size_t src_size) const
+    {
+        return copy_from_buffer(h.ptr(), src_cuda_ptr, src_size);
+    }
+
 private:
     TorchBridge() = default;
     TorchBridge(const TorchBridge&) = delete;
