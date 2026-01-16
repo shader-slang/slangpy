@@ -55,82 +55,220 @@ SGL_ENUM_REGISTER(CallDataMode);
 
 class SGL_API Shape {
 public:
-    Shape() = default;
+    static constexpr size_t INLINE_CAPACITY = 8;
+
+    Shape()
+        : m_size(0)
+        , m_valid(false)
+        , m_uses_heap(false)
+    {
+    }
 
     /// Constructor from optional 'tuple'.
     Shape(const std::optional<std::vector<int>>& shape)
-        : m_shape(shape)
+        : m_size(0)
+        , m_valid(shape.has_value())
+        , m_uses_heap(false)
     {
+        if (m_valid) {
+            const auto& vec = *shape;
+            m_size = vec.size();
+            if (m_size > INLINE_CAPACITY) {
+                m_uses_heap = true;
+                m_storage.heap_data = std::make_unique<int[]>(m_size);
+                for (size_t i = 0; i < m_size; ++i) {
+                    m_storage.heap_data[i] = vec[i];
+                }
+            } else {
+                for (size_t i = 0; i < m_size; ++i) {
+                    m_storage.inline_data[i] = vec[i];
+                }
+            }
+        }
+    }
+
+    /// Constructor that creates a Shape of a given size with uninitialized values
+    /// Use this when you need to populate the shape manually
+    explicit Shape(size_t size)
+        : m_size(size)
+        , m_valid(true)
+        , m_uses_heap(size > INLINE_CAPACITY)
+    {
+        if (m_uses_heap) {
+            m_storage.heap_data = std::make_unique<int[]>(m_size);
+            // Values are uninitialized - caller must populate them
+        }
+        // For inline storage, values are also uninitialized
     }
 
     /// Constructor from initializer list
     Shape(std::initializer_list<int> shape)
-        : m_shape(shape)
+        : m_size(shape.size())
+        , m_valid(true)
+        , m_uses_heap(shape.size() > INLINE_CAPACITY)
     {
+        if (m_uses_heap) {
+            m_storage.heap_data = std::make_unique<int[]>(m_size);
+            size_t i = 0;
+            for (int val : shape) {
+                m_storage.heap_data[i++] = val;
+            }
+        } else {
+            size_t i = 0;
+            for (int val : shape) {
+                m_storage.inline_data[i++] = val;
+            }
+        }
     }
 
     /// Copy constructor.
     Shape(const Shape& other)
-        : m_shape(other.m_shape)
+        : m_size(other.m_size)
+        , m_valid(other.m_valid)
+        , m_uses_heap(other.m_uses_heap)
     {
+        if (m_uses_heap) {
+            m_storage.heap_data = std::make_unique<int[]>(m_size);
+            for (size_t i = 0; i < m_size; ++i) {
+                m_storage.heap_data[i] = other.m_storage.heap_data[i];
+            }
+        } else {
+            for (size_t i = 0; i < m_size; ++i) {
+                m_storage.inline_data[i] = other.m_storage.inline_data[i];
+            }
+        }
     }
 
     /// Move constructor.
     Shape(Shape&& other) noexcept
-        : m_shape(std::move(other.m_shape))
+        : m_size(other.m_size)
+        , m_valid(other.m_valid)
+        , m_uses_heap(other.m_uses_heap)
     {
+        if (m_uses_heap) {
+            m_storage.heap_data = std::move(other.m_storage.heap_data);
+            other.m_uses_heap = false;
+            other.m_valid = false;
+            other.m_size = 0;
+        } else {
+            for (size_t i = 0; i < m_size; ++i) {
+                m_storage.inline_data[i] = other.m_storage.inline_data[i];
+            }
+        }
     }
 
-    /// Add operator combines the 2 shapes.
+    /// Destructor (default is fine now that we use struct instead of union)
+    ~Shape() = default;
+
+    /// Add operator combines the 2 shapes (optimized to avoid temporary allocations).
     Shape operator+(const Shape& other) const
     {
-        auto& this_vec = as_vector();
-        auto& other_vec = other.as_vector();
-        std::vector<int> combined = this_vec;
-        combined.insert(combined.end(), other_vec.begin(), other_vec.end());
-        return Shape(combined);
+        Shape result;
+        result.m_size = m_size + other.m_size;
+        result.m_valid = true;
+        result.m_uses_heap = result.m_size > INLINE_CAPACITY;
+
+        if (result.m_uses_heap) {
+            result.m_storage.heap_data = std::make_unique<int[]>(result.m_size);
+            // Copy from this
+            for (size_t i = 0; i < m_size; ++i) {
+                result.m_storage.heap_data[i] = (*this)[i];
+            }
+            // Copy from other
+            for (size_t i = 0; i < other.m_size; ++i) {
+                result.m_storage.heap_data[m_size + i] = other[i];
+            }
+        } else {
+            // Copy from this
+            for (size_t i = 0; i < m_size; ++i) {
+                result.m_storage.inline_data[i] = (*this)[i];
+            }
+            // Copy from other
+            for (size_t i = 0; i < other.m_size; ++i) {
+                result.m_storage.inline_data[m_size + i] = other[i];
+            }
+        }
+
+        return result;
     }
 
     /// Assignment operator.
     Shape& operator=(const Shape& other)
     {
-        m_shape = other.m_shape;
+        if (this != &other) {
+            m_size = other.m_size;
+            m_valid = other.m_valid;
+            m_uses_heap = other.m_uses_heap;
+
+            if (m_uses_heap) {
+                m_storage.heap_data = std::make_unique<int[]>(m_size);
+                for (size_t i = 0; i < m_size; ++i) {
+                    m_storage.heap_data[i] = other.m_storage.heap_data[i];
+                }
+            } else {
+                for (size_t i = 0; i < m_size; ++i) {
+                    m_storage.inline_data[i] = other.m_storage.inline_data[i];
+                }
+            }
+        }
         return *this;
     }
 
     /// Indexers.
-    int operator[](size_t i) const { return as_vector()[i]; }
-    int& operator[](size_t i) { return as_vector()[i]; }
-
-    /// Access to internal vector.
-    std::vector<int>& as_vector()
+    int operator[](size_t i) const
     {
-        if (!m_shape) {
-            SGL_THROW("Shape is invalid");
-        }
-        return *m_shape;
+        SGL_ASSERT(i < m_size);
+        return m_uses_heap ? m_storage.heap_data[i] : m_storage.inline_data[i];
     }
 
-    /// Const access to internal vector.
-    const std::vector<int>& as_vector() const
+    int& operator[](size_t i)
     {
-        if (!m_shape) {
+        SGL_ASSERT(i < m_size);
+        return m_uses_heap ? m_storage.heap_data[i] : m_storage.inline_data[i];
+    }
+
+    /// Access to internal data as pointer (const version).
+    const int* data() const
+    {
+        if (!m_valid) {
             SGL_THROW("Shape is invalid");
         }
-        return *m_shape;
+        return m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+    }
+
+    /// Access to internal data as pointer (mutable version).
+    /// Use this in hot paths to avoid per-element branching on m_uses_heap.
+    int* data()
+    {
+        if (!m_valid) {
+            SGL_THROW("Shape is invalid");
+        }
+        return m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+    }
+
+    /// Access to internal vector (creates a copy for compatibility).
+    /// NOTE: This method allocates memory. Prefer using data() + size() or direct indexing.
+    std::vector<int> as_vector() const
+    {
+        if (!m_valid) {
+            SGL_THROW("Shape is invalid");
+        }
+        const int* ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+        return std::vector<int>(ptr, ptr + m_size);
     }
 
     /// Check if shape is valid (if the std::optional has a value).
-    bool valid() const { return m_shape.has_value(); }
+    bool valid() const { return m_valid; }
 
     /// Get size (i.e. number of dimensions) of shape.
-    size_t size() const { return as_vector().size(); }
+    size_t size() const { return m_size; }
 
     /// Check if concrete shape (no dimensions are -1).
     bool concrete() const
     {
-        for (auto dim : as_vector()) {
-            if (dim == -1) {
+        const int* ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+        for (size_t i = 0; i < m_size; ++i) {
+            if (ptr[i] == -1) {
                 return false;
             }
         }
@@ -140,37 +278,61 @@ public:
     /// Convert to string
     std::string to_string() const
     {
-        if (!m_shape) {
+        if (!m_valid) {
             return "[invalid]";
         }
-        return fmt::format("[{}]", fmt::join(as_vector(), ", "));
+        const int* ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+        std::string result = "[";
+        for (size_t i = 0; i < m_size; ++i) {
+            if (i > 0)
+                result += ", ";
+            result += std::to_string(ptr[i]);
+        }
+        result += "]";
+        return result;
     }
 
     /// Total element count (if this represented contiguous array)
     size_t element_count() const
     {
+        const int* ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
         size_t result = 1;
-        for (auto dim : as_vector()) {
-            result *= dim;
+        for (size_t i = 0; i < m_size; ++i) {
+            result *= ptr[i];
         }
         return result;
     }
 
     /// Calculate the strides of a buffer of this shape, assuming it is contiguous.
+    /// Optimized to avoid temporary allocations.
     Shape calc_contiguous_strides() const
     {
-        if (valid()) {
-            auto& shape = as_vector();
-            int total = 1;
-            std::vector<int> strides(shape.size(), 1);
-            for (int i = (int)shape.size() - 1; i >= 0; --i) {
-                strides[i] = total;
-                total *= shape[i];
-            }
-            return Shape(strides);
-        } else {
+        if (!valid()) {
             return Shape();
         }
+
+        const int* src_ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+
+        Shape result;
+        result.m_size = m_size;
+        result.m_valid = true;
+        result.m_uses_heap = m_size > INLINE_CAPACITY;
+
+        int total = 1;
+        if (result.m_uses_heap) {
+            result.m_storage.heap_data = std::make_unique<int[]>(m_size);
+            for (int i = (int)m_size - 1; i >= 0; --i) {
+                result.m_storage.heap_data[i] = total;
+                total *= src_ptr[i];
+            }
+        } else {
+            for (int i = (int)m_size - 1; i >= 0; --i) {
+                result.m_storage.inline_data[i] = total;
+                total *= src_ptr[i];
+            }
+        }
+
+        return result;
     }
 
     bool operator==(const Shape& o) const
@@ -179,12 +341,28 @@ public:
             return false;
         if (!valid() && !o.valid())
             return true;
+        if (m_size != o.m_size)
+            return false;
 
-        return *m_shape == *o.m_shape;
+        const int* this_ptr = m_uses_heap ? m_storage.heap_data.get() : m_storage.inline_data;
+        const int* other_ptr = o.m_uses_heap ? o.m_storage.heap_data.get() : o.m_storage.inline_data;
+        for (size_t i = 0; i < m_size; ++i) {
+            if (this_ptr[i] != other_ptr[i])
+                return false;
+        }
+        return true;
     }
 
 private:
-    std::optional<std::vector<int>> m_shape;
+    struct Storage {
+        int inline_data[INLINE_CAPACITY];
+        std::unique_ptr<int[]> heap_data;
+    };
+
+    Storage m_storage;
+    size_t m_size;
+    bool m_valid;
+    bool m_uses_heap;
 };
 
 class SGL_API CallContext : Object {

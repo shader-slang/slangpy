@@ -32,4 +32,6 @@ slangpy/tests/slangpy_tests/logs/
 
 *.sqlite
 
+.slangtorch_cache/
+
 sgl_tests.log

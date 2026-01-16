@@ -65,7 +65,7 @@ ref<NativeSlangType> innermost_type(ref<NativeSlangType> type)
     return result;
 }
 
-StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc& desc, ref<Buffer> storage)
+StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc& desc, const ref<Buffer>& storage)
 {
     if (!storage) {
         BufferDesc buffer_desc;
@@ -73,9 +73,10 @@ StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc
         buffer_desc.struct_size = desc.element_layout->stride();
         buffer_desc.usage = desc.usage;
         buffer_desc.memory_type = desc.memory_type;
-        storage = device->create_buffer(buffer_desc);
+        m_storage = device->create_buffer(buffer_desc);
+    } else {
+        m_storage = storage;
     }
-    m_storage = std::move(storage);
 
     set_slangpy_signature(
         fmt::format("[{},{},{}]", desc.dtype->type_reflection()->full_name(), desc.shape.size(), desc.usage)
@@ -84,18 +85,18 @@ StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc
 
 bool StridedBufferView::is_contiguous() const
 {
-    const auto& shape_vec = shape().as_vector();
-    const auto& stride_vec = strides().as_vector();
+    const Shape& shape_ref = shape();
+    const Shape& stride_ref = strides();
 
     int prod = 1;
     for (int i = dims() - 1; i >= 0; --i) {
         // Ignore strides of singleton dimensions
-        if (shape_vec[i] == 1)
+        if (shape_ref[i] == 1)
             continue;
 
-        if (stride_vec[i] != prod)
+        if (stride_ref[i] != prod)
             return false;
-        prod *= shape_vec[i];
+        prod *= shape_ref[i];
     }
 
     return true;
@@ -149,8 +150,8 @@ void StridedBufferView::broadcast_to_inplace(const Shape& new_shape)
     // This 'broadcasts' the buffer view to a new shape, i.e.
     // - Prepend extra dimensions of the new shape to the front our shape
     // - Expand our singleton dimensions to the new shape
-    auto& curr_shape_vec = this->shape().as_vector();
-    auto& new_shape_vec = new_shape.as_vector();
+    std::vector<int> curr_shape_vec(this->shape().data(), this->shape().data() + this->shape().size());
+    std::vector<int> new_shape_vec(new_shape.data(), new_shape.data() + new_shape.size());
 
     int D = (int)new_shape_vec.size() - (int)curr_shape_vec.size();
     if (D < 0) {
@@ -168,7 +169,7 @@ void StridedBufferView::broadcast_to_inplace(const Shape& new_shape)
         }
     }
 
-    auto& curr_strides_vec = this->strides().as_vector();
+    std::vector<int> curr_strides_vec(this->strides().data(), this->strides().data() + this->strides().size());
     std::vector<int> new_strides(new_shape.size(), 0);
     for (size_t i = 0; i < curr_strides_vec.size(); ++i) {
         if (curr_shape_vec[i] > 1) {
@@ -214,8 +215,8 @@ void StridedBufferView::index_inplace(nb::object index_arg)
     }
     SGL_CHECK(real_dims <= dims(), "Too many indices for buffer of dimension {}", dims());
 
-    auto cur_shape = shape().as_vector();
-    auto cur_strides = strides().as_vector();
+    std::vector<int> cur_shape(shape().data(), shape().data() + shape().size());
+    std::vector<int> cur_strides(strides().data(), strides().data() + strides().size());
 
     // This is the next dimension to be indexed by a 'real' index
     int dim = 0;
