@@ -24,10 +24,11 @@ from slangpy.bindings import (
     CodeGen,
 )
 from slangpy.bindings.boundvariable import BoundCall, BoundVariable
-from slangpy.reflection import SlangFunction
+from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
+from slangpy.reflection import SlangFunction, ITensorType, TensorAccess
 
 if TYPE_CHECKING:
-    from slangpy.core.function import FunctionNode
+    from slangpy.core.function import FunctionNode, FunctionBuildInfo
 
 SLANG_PATH = Path(__file__).parent.parent / "slang"
 
@@ -101,6 +102,10 @@ class CallData(NativeCallData):
         **kwargs: Any,
     ) -> None:
         super().__init__()
+        build_info = func.calc_build_info()
+        self.build(build_info, *args, **kwargs)
+
+    def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any):
 
         try:
 
@@ -110,8 +115,6 @@ class CallData(NativeCallData):
             diagnostics = ResolutionDiagnostic()
 
             # Read temps from function
-            function = func
-            build_info = function.calc_build_info()
             return_type = build_info.return_type
             positional_mapping = build_info.map_args
             keyword_mapping = build_info.map_kwargs
@@ -123,9 +126,9 @@ class CallData(NativeCallData):
                 self.logger = build_info.logger
             else:
                 self.logger = build_info.module.logger
-            self.debug_name = f"{build_info.module.name}::{function.name}"
+            self.debug_name = f"{build_info.module.name}::{build_info.function.name}"
 
-            self.log_debug(f"Generating kernel for {func.name}")
+            self.log_debug(f"Generating kernel for {build_info.function.name}")
             self.log_debug(f"  Module: {build_info.module.name}")
 
             # Store layout and callmode from function
@@ -184,7 +187,7 @@ class CallData(NativeCallData):
             )
             if resolve_result is None:
                 raise ResolveException(
-                    f"Could not call function '{function.name}':\n\n"
+                    f"Could not call function '{build_info.function.name}':\n\n"
                     f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
                 )
             slang_function = resolve_result.function
@@ -192,7 +195,7 @@ class CallData(NativeCallData):
             # Check for differentiability error
             if not resolve_result.function.differentiable and self.call_mode != CallMode.prim:
                 raise ResolveException(
-                    f"Could not call function '{function.name}': Function is not differentiable\n\n"
+                    f"Could not call function '{build_info.function.name}': Function is not differentiable\n\n"
                     f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
                 )
 
@@ -299,7 +302,6 @@ class CallData(NativeCallData):
 
             # Hash the code to get a unique identifier for the module.
             # We add type conformances to the start of the code to ensure that the hash is unique
-            assert function.slangpy_signature is not None
             code_minus_header = (
                 "[CallData]\n" + str(build_info.type_conformances) + code[len(codegen.header) :]
             )
@@ -455,42 +457,54 @@ class CallData(NativeCallData):
             else:
                 raise
 
-    def _py_torch_call(
-        self,
-        function: "FunctionNode",
-        options: NativeCallRuntimeOptions,
-        args: tuple[Any],
-        kwargs: dict[str, Any],
-    ) -> Any:
-        """
-        Call the kernel with torch integration.
-        Handles CUDA stream synchronization and autograd integration when torch_autograd is True.
-        """
+    def find_torch_tensors(
+        self, args: tuple[Any], kwargs: dict[str, Any], inputs: list[Any], outputs: list[Any]
+    ):
+
+        for i, arg in enumerate(args):
+            self.find_torch_tensors_recurse(arg, self.runtime.args[i], inputs, outputs)
+        for k, v in kwargs.items():
+            self.find_torch_tensors_recurse(v, self.runtime.kwargs[k], inputs, outputs)
+
+    def find_torch_tensors_recurse(
+        self, arg: Any, binding: BoundVariableRuntime, inputs: list[Any], outputs: list[Any]
+    ):
         import torch
-        from slangpy.torchintegration.detection import detect_torch_tensors
 
-        # Unpack args (handles IThis wrappers)
-        unpacked_args = unpack_args(*args)
-        unpacked_kwargs = unpack_kwargs(**kwargs)
+        if isinstance(arg, dict):
+            for k, v in arg.items():
+                self.find_torch_tensors_recurse(v, binding.children[k], inputs, outputs)
+        elif isinstance(arg, torch.Tensor):
+            if isinstance(binding.vector_type, ITensorType):
+                if binding.vector_type.access == TensorAccess.read:
+                    inputs.append(arg)
+                elif binding.vector_type.access == TensorAccess.write:
+                    outputs.append(arg)
+                elif binding.vector_type.access == TensorAccess.read_write:
+                    raise ValueError("In-place operations not supported for torch autograd.")
+            else:
+                if binding.access[0] == AccessType.read:
+                    inputs.append(arg)
+                elif binding.access[0] == AccessType.write:
+                    outputs.append(arg)
+                elif binding.access[0] == AccessType.readwrite:
+                    raise ValueError("In-place operations not supported for torch autograd.")
 
-        # Set the cuda stream to use (CUDA backend) or sync to (Vulkan/Metal/D3D12 backend) for the call
-        options.cuda_stream = NativeHandle.from_cuda_stream(torch.cuda.current_stream().cuda_stream)
 
-        if self.torch_autograd:
-            # Autograd is needed - look up the autograd hook and use it
-            from slangpy.torchintegration.autogradhook import TorchAutoGradHook
+def torch_autograd_hook(
+    forwards: "CallData",
+    backwards: "CallData",
+    options: NativeCallRuntimeOptions,
+    args: tuple[Any],
+    kwargs: dict[str, Any],
+) -> Any:
+    """
+    Call the kernel with torch integration.
+    Handles CUDA stream synchronization and autograd integration when torch_autograd is True.
+    """
+    from slangpy.torchintegration.autogradhook import TorchAutoGradHook
 
-            # Detect torch tensors for autograd tracking
-            _, _, detected_tensors = detect_torch_tensors(
-                tuple(unpacked_args), dict(unpacked_kwargs)
-            )
-
-            # Currently autograd is not yet fully implemented
-            # TODO: Implement TorchAutoGradHook.apply() integration
-            raise NotImplementedError(
-                "Autograd (requires_grad=True) is not yet fully implemented. "
-                "Please use tensors without requires_grad for now."
-            )
-        else:
-            # No autograd needed - just call the kernel directly
-            return self.call(options, *unpacked_args, **unpacked_kwargs)
+    inputs = []
+    outputs = []
+    forwards.find_torch_tensors(args, kwargs, inputs, outputs)
+    TorchAutoGradHook.apply((forwards, backwards, options, args, kwargs, inputs, outputs), *inputs)

@@ -14,15 +14,16 @@ implementation has been removed in favor of a simpler approach that tracks
 tensors directly during dispatch.
 """
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Tuple
 from dataclasses import dataclass
 import torch
 
-from slangpy.core.native import AccessType
+from slangpy.core.native import AccessType, NativeCallRuntimeOptions
 from slangpy import Device, DeviceType
 
 if TYPE_CHECKING:
     from slangpy.core.function import FunctionNode
+    from slangpy.core.calldata import CallData
 
 
 def check_cuda_enabled(device: Device) -> None:
@@ -79,63 +80,33 @@ class TorchAutoGradHook(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx: Any,
-        function: "FunctionNode",
-        call_data: Any,  # NativeCallData
-        options: Any,  # NativeCallRuntimeOptions
-        tracked_tensors: list[TrackedTensor],
-        unpacked_args: tuple[Any, ...],
-        unpacked_kwargs: dict[str, Any],
+        options: Tuple[
+            "CallData",
+            "CallData",
+            NativeCallRuntimeOptions,
+            list[Any],
+            dict[str, Any],
+            list[torch.Tensor],
+            list[torch.Tensor],
+        ],
         *tensors: torch.Tensor,
     ) -> tuple[torch.Tensor, ...]:
-        """
-        Forward pass - run the SlangPy kernel.
-
-        Args:
-            ctx: PyTorch autograd context for saving state.
-            function: The FunctionNode to call.
-            call_data: The NativeCallData for the kernel.
-            options: Runtime options for the call.
-            tracked_tensors: List of TrackedTensor with access info.
-            unpacked_args: Unpacked positional arguments.
-            unpacked_kwargs: Unpacked keyword arguments.
-            *tensors: All tensors flattened for autograd tracking.
-
-        Returns:
-            Tuple of output tensors (those with write or readwrite access).
-        """
         # Store data for backward pass
-        ctx.function = function
-        ctx.call_data = call_data
-        ctx.tracked_tensors = tracked_tensors
-        ctx.unpacked_args = unpacked_args
-        ctx.unpacked_kwargs = unpacked_kwargs
+        ctx.options = options
+        forwards_cd = options[0]
+        rt_options = options[2]
+        args = options[3]
+        kwargs = options[4]
+        inputs = options[5]
+        outputs = options[6]
 
         # Run the kernel
-        result = call_data.call(options, *unpacked_args, **unpacked_kwargs)
-
-        # Identify output tensors (written or read-write)
-        output_tensors: list[torch.Tensor] = []
-        inout_tensors: list[torch.Tensor] = []
-
-        for tt in tracked_tensors:
-            if tt.access in (AccessType.write, AccessType.readwrite):
-                output_tensors.append(tt.tensor)
-            if tt.access == AccessType.readwrite:
-                inout_tensors.append(tt.tensor)
-
-        # If function returns a tensor, add it to outputs
-        if isinstance(result, torch.Tensor):
-            if not any(t is result for t in output_tensors):
-                output_tensors.append(result)
-
-        # Mark in-out tensors as dirty
-        ctx.mark_dirty(*inout_tensors)
+        result = forwards_cd.call(rt_options, *args, **kwargs)
 
         # Save all tensors for backward
-        all_tensors = [tt.tensor for tt in tracked_tensors]
-        ctx.save_for_backward(*all_tensors)
+        ctx.save_for_backward(*inputs, *outputs)
 
-        return tuple(output_tensors)
+        return tuple(outputs)
 
     @staticmethod
     def backward(

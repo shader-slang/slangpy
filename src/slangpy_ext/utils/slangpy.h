@@ -785,8 +785,12 @@ public:
     SGL_LOG_FUNC_FAMILY(log_fatal, LogLevel::fatal)
 
     // Virtual for python to override for wrapping torch calls
-    virtual nb::object
-    _py_torch_call(NativeFunctionNode* func, ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs)
+    virtual nb::object _py_torch_autograd_call(
+        NativeFunctionNode* func,
+        ref<NativeCallRuntimeOptions> opts,
+        nb::tuple args,
+        nb::dict kwargs
+    )
     {
         SGL_UNUSED(func);
         SGL_UNUSED(opts);
@@ -835,7 +839,7 @@ class PyNativeCallData : public NativeCallData {
 public:
     NB_TRAMPOLINE(NativeCallData, 1);
 
-    nb::object _py_torch_call(
+    nb::object _py_torch_autograd_call(
         NativeFunctionNode* func,
         ref<NativeCallRuntimeOptions> opts,
         nb::tuple args,

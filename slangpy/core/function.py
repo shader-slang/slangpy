@@ -407,6 +407,9 @@ class FunctionNode(NativeFunctionNode):
 
         return CallData(self, *args, **kwargs)
 
+    def generate_bwds_call_data(self, args: Any, kwargs: Any):
+        return self.bwds.generate_call_data(args, kwargs)
+
     def call_group_shape(self, call_group_shape: Shape):
         """
         Specify the call group shape for the function. This determines how the computation

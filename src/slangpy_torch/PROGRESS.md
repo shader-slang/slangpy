@@ -120,7 +120,7 @@ class TrackedTensor:
 ### Next Steps
 - Implement tensor tracking during `write_shader_cursor_pre_dispatch`
 - Complete `TorchAutoGradHook.backward()` implementation
-- Wire up autograd hook in `_py_torch_call`
+- Wire up autograd hook in `_py_torch_autograd_call`
 
 ## Performance Results
 - C API extraction: ~28ns per call
