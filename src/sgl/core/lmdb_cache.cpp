@@ -272,6 +272,17 @@ LMDBCache::Stats LMDBCache::stats() const
     return stats;
 }
 
+void LMDBCache::for_each_impl(ForEachFunc callback, void* user_data) const
+{
+    ScopedTransaction txn(m_db.env, MDB_RDONLY);
+    ScopedCursor cursor(txn, m_db.dbi_data);
+
+    MDB_val key, val;
+    while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
+        callback(key.mv_data, key.mv_size, val.mv_data, val.mv_size, user_data);
+    }
+}
+
 void LMDBCache::evict(bool force)
 {
     // Only one thread should work on evicting entries.

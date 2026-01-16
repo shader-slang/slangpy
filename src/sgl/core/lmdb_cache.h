@@ -144,10 +144,32 @@ public:
     /// \return True if the key was found and deleted, false if the key was not found.
     inline bool del(std::span<const uint8_t> key) { return del(key.data(), key.size()); }
 
+    /// Iterate over all entries in the cache.
+    /// The callback receives the key and value as spans.
+    /// Throws on error.
+    /// \param callback Function to call for each entry.
+    template<typename Func>
+    void for_each(Func callback) const
+    {
+        for_each_impl(
+            [](const void* key, size_t key_size, const void* value, size_t value_size, void* user_data)
+            {
+                auto& cb = *static_cast<Func*>(user_data);
+                cb(std::span<const uint8_t>(static_cast<const uint8_t*>(key), key_size),
+                   std::span<const uint8_t>(static_cast<const uint8_t*>(value), value_size));
+            },
+            &callback
+        );
+    }
+
     Usage usage() const;
     Stats stats() const;
 
 private:
+    using ForEachFunc
+        = void (*)(const void* key, size_t key_size, const void* value, size_t value_size, void* user_data);
+    void for_each_impl(ForEachFunc callback, void* user_data) const;
+
     void evict(bool force = false);
 
     struct DB {
