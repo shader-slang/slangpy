@@ -58,6 +58,13 @@ public:
             LMDB_THROW("Failed to commit transaction", result);
     }
 
+    void abort()
+    {
+        SGL_CHECK(m_txn != nullptr, "Transaction is already committed or aborted");
+        mdb_txn_abort(m_txn);
+        m_txn = nullptr;
+    }
+
     operator MDB_txn*() { return m_txn; }
 
 private:
@@ -133,19 +140,35 @@ void LMDBCache::set(const void* key_data, size_t key_size, const void* value_dat
     if (usage().used_size > m_eviction_threshold_size)
         evict();
 
-    ScopedTransaction txn(m_db.env);
+    // If the first attempt fails with MDB_MAP_FULL, retry one time after
+    // running eviction.
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        ScopedTransaction txn(m_db.env);
 
-    MDB_val mdb_key = {key_size, const_cast<void*>(key_data)};
-    MDB_val mdb_val = {value_size, const_cast<void*>(value_data)};
-    if (int result = mdb_put(txn, m_db.dbi_data, &mdb_key, &mdb_val, 0); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to write data", result);
+        MDB_val mdb_key = {key_size, const_cast<void*>(key_data)};
+        MDB_val mdb_val = {value_size, const_cast<void*>(value_data)};
+        int result = mdb_put(txn, m_db.dbi_data, &mdb_key, &mdb_val, 0);
+        if (attempt == 0 && result == MDB_MAP_FULL) {
+            txn.abort();
+            evict();
+            continue;
+        }
+        if (result != MDB_SUCCESS)
+            LMDB_THROW("Failed to write data", result);
 
-    MetaData meta_data{.last_access = get_current_time_ns()};
-    MDB_val mdb_val_meta = {sizeof(MetaData), &meta_data};
-    if (int result = mdb_put(txn, m_db.dbi_meta, &mdb_key, &mdb_val_meta, 0); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to write metadata", result);
+        MetaData meta_data{.last_access = get_current_time_ns()};
+        MDB_val mdb_val_meta = {sizeof(MetaData), &meta_data};
+        result = mdb_put(txn, m_db.dbi_meta, &mdb_key, &mdb_val_meta, 0);
+        if (attempt == 0 && result == MDB_MAP_FULL) {
+            txn.abort();
+            evict();
+            continue;
+        }
+        if (result != MDB_SUCCESS)
+            LMDB_THROW("Failed to write metadata", result);
 
-    txn.commit();
+        txn.commit();
+    }
 }
 
 bool LMDBCache::get(const void* key_data, size_t key_size, WriteValueFunc write_value_func, void* user_data)
@@ -248,17 +271,34 @@ LMDBCache::Stats LMDBCache::stats() const
 
 void LMDBCache::evict()
 {
+    // Only one thread should work on evicting entries.
+    std::lock_guard lock{m_evict_mutex};
+
     struct Entry {
         uint64_t last_access;
         MDB_val key;
     };
     std::vector<Entry> entries;
 
+    // Early out if eviction target size is already hit.
     size_t used_size = usage().used_size;
-    // fmt::println("Evicting entries: used_size={} target_size={}", used_size, m_eviction_target_size);
     if (used_size < m_eviction_target_size)
         return;
+
     size_t required_free_size = used_size - m_eviction_target_size;
+
+#if 0
+    {
+        auto u = usage();
+        log_info(
+            "Evicting entries: target_size={}, used_size={}, committed_size={}, reserved_size={}",
+            m_eviction_target_size,
+            u.used_size,
+            u.committed_size,
+            u.reserved_size
+        );
+    }
+#endif
 
     ScopedTransaction txn(m_db.env);
     ScopedCursor cursor(txn, m_db.dbi_meta);
@@ -298,7 +338,22 @@ void LMDBCache::evict()
     cursor.close();
     txn.commit();
 
-    // fmt::println("Eviction complete: used_size={} evictions={}", usage().used_size, evictions);
+    // Sync to disk.
+    if (int result = mdb_env_sync(m_db.env, true); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to sync database", result);
+
+#if 0
+    {
+        auto u = usage();
+        log_info(
+            "Evicting complete: evictions={}, used_size={}, committed_size={}, reserved_size={}",
+            evictions,
+            u.used_size,
+            u.committed_size,
+            u.reserved_size
+        );
+    }
+#endif
 
     m_evictions.fetch_add(evictions);
 }
