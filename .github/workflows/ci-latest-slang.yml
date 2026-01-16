@@ -176,7 +176,7 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'schedule'
+    if: always() && github.event_name == 'schedule'
     steps:
       # Success Notification
       - name: Success Notification
