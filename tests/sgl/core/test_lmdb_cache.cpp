@@ -226,8 +226,8 @@ inline uint64_t get_current_time_ns()
 struct StressTest {
     struct Options {
         std::filesystem::path path;
-        /// Cache size (default: 32 MB)
-        size_t cache_size{32 * 1024 * 1024};
+        /// Cache size (default: 64 MB)
+        size_t cache_size{64 * 1024 * 1024};
         /// Key size in bytes.
         size_t key_size{40};
         /// Minimum value size in bytes.
