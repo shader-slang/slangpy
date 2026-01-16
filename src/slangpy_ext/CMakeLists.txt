@@ -43,6 +43,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     math/vector.cpp
     ui/ui.cpp
     ui/widgets.cpp
+    utils/crashpad.cpp
     utils/renderdoc.cpp
     utils/slangpy.h
     utils/slangpy.cpp
@@ -133,7 +134,7 @@ postprocess_stub(${SLANGPY_PACKAGE_DIR}/__init__.pyi "")
 install(FILES ${SLANGPY_PACKAGE_DIR}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Generate submodule stub files.
-foreach(submodule IN ITEMS platform thread math ui tev renderdoc slangpy)
+foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy)
     string(REPLACE "." "/" submodule_path ${submodule})
     nanobind_add_stub(
         slangpy_${submodule}_stub

@@ -224,25 +224,33 @@ ShaderCursor ShaderCursor::find_field(std::string_view name) const
     return {};
 }
 
-int32_t ShaderCursor::get_field_index(std::string_view name) const
+int32_t ShaderCursor::find_field_index(std::string_view name) const
 {
     if (!is_valid())
         return -1;
 
-    switch ((TypeReflection::Kind)m_type_layout->getKind()) {
-    case TypeReflection::Kind::struct_:
-        return (int32_t)m_type_layout->findFieldIndexByName(name.data(), name.data() + name.size());
+    slang::TypeLayoutReflection* type_layout = m_type_layout;
+
+    // For constant buffers and parameter blocks, get the element type layout directly
+    // without creating a new shader object (which dereference() would do).
+    switch ((TypeReflection::Kind)type_layout->getKind()) {
     case TypeReflection::Kind::constant_buffer:
-    case TypeReflection::Kind::parameter_block: {
-        ShaderCursor d = dereference();
-        return d.get_field_index(name);
+    case TypeReflection::Kind::parameter_block:
+        type_layout = type_layout->getElementTypeLayout();
+        break;
+    default:
+        break;
     }
+
+    switch ((TypeReflection::Kind)type_layout->getKind()) {
+    case TypeReflection::Kind::struct_:
+        return (int32_t)type_layout->findFieldIndexByName(name.data(), name.data() + name.size());
     default:
         return -1;
     }
 }
 
-ShaderCursor ShaderCursor::find_field_by_index(int32_t field_index) const
+ShaderCursor ShaderCursor::get_field_by_index(int32_t field_index) const
 {
     if (!is_valid() || field_index < 0)
         return {};
@@ -266,7 +274,7 @@ ShaderCursor ShaderCursor::find_field_by_index(int32_t field_index) const
     case TypeReflection::Kind::constant_buffer:
     case TypeReflection::Kind::parameter_block: {
         ShaderCursor d = dereference();
-        return d.find_field_by_index(field_index);
+        return d.get_field_by_index(field_index);
     }
     default:
         return {};
