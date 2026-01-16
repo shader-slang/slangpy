@@ -422,7 +422,7 @@ struct StressTest {
             const auto& entry = entries[i];
             if (entry.last_access != 0) {
                 bool is_hot = i < options.hot_candidates;
-                expected[entry.key] = {entry.value, is_hot};
+                expected.emplace(entry.key, ExpectedEntry{entry.value, is_hot});
             }
         }
 
@@ -467,7 +467,7 @@ struct StressTest {
             // Check that cache contains exactly the expected entries.
             std::set<Blob> expected_keys;
             for (size_t i = 0; i < total_in_cache; ++i)
-                expected_keys.insert(sorted_entries[i].key);
+                expected_keys.emplace(sorted_entries[i].key);
 
             cache.for_each(
                 [&](std::span<const uint8_t> key, std::span<const uint8_t> value)
