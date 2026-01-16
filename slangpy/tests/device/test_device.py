@@ -20,6 +20,7 @@ def test_create_device(device_type: spy.DeviceType):
 
     assert device.desc.type == device_type
     assert device.desc.enable_debug_layers == True
+    assert device.desc.enable_rhi_validation == True
 
     assert device.info.type == device_type
     assert device.info.adapter_name != ""

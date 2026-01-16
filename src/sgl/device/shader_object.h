@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "sgl/core/block_allocator.h"
 #include "sgl/core/config.h"
 #include "sgl/core/object.h"
+#include "sgl/core/short_vector.h"
 #include "sgl/core/type_utils.h"
 
 #include "sgl/device/fwd.h"
@@ -14,12 +16,12 @@
 
 #include <string_view>
 #include <vector>
-#include <set>
 
 namespace sgl {
 
 class SGL_API ShaderObject : public Object {
     SGL_OBJECT(ShaderObject)
+    SGL_DECLARE_BLOCK_ALLOCATED(ShaderObject)
 public:
     ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain = true);
     virtual ~ShaderObject();
@@ -46,6 +48,11 @@ public:
     virtual void set_descriptor_handle(const ShaderOffset& offset, const DescriptorHandle& handle);
     virtual void set_data(const ShaderOffset& offset, const void* data, size_t size);
 
+    /// Reserves a block of memory within the shader object's internal data buffer at the specified offset.
+    /// WARNING: This function bypasses the immutability of a ShaderObject. To use safely, ensure that the address
+    /// returned is immediately populated, not retained. Prefer using set_data unless absolutely necessary.
+    virtual void* reserve_data(const ShaderOffset& offset, size_t size);
+
     virtual void
     set_cuda_tensor_view_buffer(const ShaderOffset& offset, const cuda::TensorView& tensor_view, bool is_uav);
     virtual void set_cuda_tensor_view_pointer(const ShaderOffset& offset, const cuda::TensorView& tensor_view);
@@ -57,8 +64,8 @@ protected:
     ref<Device> m_device;
     rhi::IShaderObject* m_shader_object;
     bool m_retain;
-    std::vector<ref<cuda::InteropBuffer>> m_cuda_interop_buffers;
-    std::set<ref<ShaderObject>> m_objects;
+    short_vector<ref<cuda::InteropBuffer>, 8> m_cuda_interop_buffers;
+    short_vector<ref<ShaderObject>, 8> m_objects;
 };
 
 } // namespace sgl

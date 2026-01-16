@@ -29,6 +29,7 @@ public:
     ShaderCursor(ShaderObject* shader_object, bool need_dereference, slang::TypeLayoutReflection* parent_type_layout);
 
     ShaderOffset offset() const { return m_offset; }
+    ShaderObject* shader_object() const { return m_shader_object; }
 
     bool is_valid() const { return m_offset.is_valid(); }
 
@@ -48,9 +49,12 @@ public:
     ShaderCursor operator[](uint32_t index) const;
 
     ShaderCursor find_field(std::string_view name) const;
+    ShaderCursor get_field_by_index(int32_t field_index) const;
     ShaderCursor find_element(uint32_t index) const;
 
     ShaderCursor find_entry_point(uint32_t index) const;
+
+    int32_t find_field_index(std::string_view name) const;
 
     bool has_field(std::string_view name) const { return find_field(name).is_valid(); }
     bool has_element(uint32_t index) const { return find_element(index).is_valid(); }
@@ -71,6 +75,11 @@ public:
     void set_descriptor_handle(const DescriptorHandle& handle) const;
 
     void set_data(const void* data, size_t size) const;
+
+    /// Reserves a block of memory within the shader object's internal data buffer at the specified offset.
+    /// WARNING: This function bypasses the immutability of a ShaderObject. To use safely, ensure that the address
+    /// returned is immediately populated, not retained. Prefer using set_data unless absolutely necessary.
+    void* reserve_data(size_t size) const;
 
     void set_cuda_tensor_view(const cuda::TensorView& tensor_view) const;
 

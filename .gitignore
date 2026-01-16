@@ -1,5 +1,6 @@
 build/
 external/vcpkg
+external/slang/
 tools/download
 tools/host
 docs/_build/
@@ -12,6 +13,8 @@ docs/_build/
 .temp/
 .cache/clangd/index
 .venv/
+.crashpad/
+.tools/
 
 # Python files installed into source tree
 slangpy/**/*.pyi
@@ -30,3 +33,5 @@ slangpy/tests/slangpy_tests/logs/
 *.sqlite
 
 .slangtorch_cache/
+
+sgl_tests.log

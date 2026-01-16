@@ -224,6 +224,63 @@ ShaderCursor ShaderCursor::find_field(std::string_view name) const
     return {};
 }
 
+int32_t ShaderCursor::find_field_index(std::string_view name) const
+{
+    if (!is_valid())
+        return -1;
+
+    slang::TypeLayoutReflection* type_layout = m_type_layout;
+
+    // For constant buffers and parameter blocks, get the element type layout directly
+    // without creating a new shader object (which dereference() would do).
+    switch ((TypeReflection::Kind)type_layout->getKind()) {
+    case TypeReflection::Kind::constant_buffer:
+    case TypeReflection::Kind::parameter_block:
+        type_layout = type_layout->getElementTypeLayout();
+        break;
+    default:
+        break;
+    }
+
+    switch ((TypeReflection::Kind)type_layout->getKind()) {
+    case TypeReflection::Kind::struct_:
+        return (int32_t)type_layout->findFieldIndexByName(name.data(), name.data() + name.size());
+    default:
+        return -1;
+    }
+}
+
+ShaderCursor ShaderCursor::get_field_by_index(int32_t field_index) const
+{
+    if (!is_valid() || field_index < 0)
+        return {};
+
+    switch ((TypeReflection::Kind)m_type_layout->getKind()) {
+    case TypeReflection::Kind::struct_: {
+        slang::VariableLayoutReflection* field_layout = m_type_layout->getFieldByIndex(field_index);
+        if (!field_layout)
+            return {};
+
+        ShaderCursor field_cursor;
+        field_cursor.m_shader_object = m_shader_object;
+        field_cursor.m_type_layout = field_layout->getTypeLayout();
+        field_cursor.m_offset.uniform_offset
+            = m_offset.uniform_offset + narrow_cast<uint32_t>(field_layout->getOffset());
+        field_cursor.m_offset.binding_range_index = m_offset.binding_range_index
+            + narrow_cast<int32_t>(m_type_layout->getFieldBindingRangeOffset(field_index));
+        field_cursor.m_offset.binding_array_index = m_offset.binding_array_index;
+        return field_cursor;
+    }
+    case TypeReflection::Kind::constant_buffer:
+    case TypeReflection::Kind::parameter_block: {
+        ShaderCursor d = dereference();
+        return d.get_field_by_index(field_index);
+    }
+    default:
+        return {};
+    }
+}
+
 ShaderCursor ShaderCursor::find_element(uint32_t index) const
 {
     if (!is_valid())
@@ -458,6 +515,15 @@ void ShaderCursor::set_data(const void* data, size_t size) const
         SGL_THROW("\"{}\" cannot bind data", m_type_layout->getName());
     m_shader_object->set_data(m_offset, data, size);
 }
+
+void* ShaderCursor::reserve_data(size_t size) const
+{
+    if ((TypeReflection::ParameterCategory)m_type_layout->getParameterCategory()
+        != TypeReflection::ParameterCategory::uniform)
+        SGL_THROW("\"{}\" cannot reserve data", m_type_layout->getName());
+    return m_shader_object->reserve_data(m_offset, size);
+}
+
 
 void ShaderCursor::set_object(const ref<ShaderObject>& object) const
 {
