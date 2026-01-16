@@ -435,7 +435,6 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
 
 void LMDBCache::close_db(DB db)
 {
-    ProcessID pid = platform::current_process_id();
     std::lock_guard lock(s_db_cache_mutex);
     auto it = std::find_if(
         s_db_cache.begin(),
@@ -446,7 +445,7 @@ void LMDBCache::close_db(DB db)
         }
     );
     SGL_ASSERT(it != s_db_cache.end());
-    SGL_ASSERT(it->pid == pid);
+    SGL_ASSERT(it->pid == platform::current_process_id());
     if (--it->ref_count == 0) {
         mdb_dbi_close(db.env, db.dbi_data);
         mdb_dbi_close(db.env, db.dbi_meta);
