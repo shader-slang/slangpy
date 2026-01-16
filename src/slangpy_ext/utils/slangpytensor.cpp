@@ -162,7 +162,11 @@ NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_fi
     offsets.shape = tensor_cursor["_shape"].offset();
     offsets.strides = tensor_cursor["_strides"].offset();
     offsets.offset = tensor_cursor["_offset"].offset();
-    offsets.element_byte_stride = tensor_cursor["_element_byte_stride"].offset();
+
+    ShaderCursor ebs_field = tensor_cursor.find_field("_element_byte_stride");
+    if (ebs_field.is_valid())
+        offsets.element_byte_stride = ebs_field.offset();
+
     offsets.is_valid = true;
     offsets.array_stride
         = (int)tensor_cursor["_shape"].slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
