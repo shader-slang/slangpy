@@ -494,86 +494,66 @@ nb::object NativeCallData::exec(
         current_stride *= call_shape[i];
     }
 
-    // Get call group shape from build info
-    // Using std::vector here as we may need to insert elements at the front
-    std::vector<int> call_group_shape;
+    // Get call group shape from build info.
+    // Pre-allocate to call_shape size since we know the final size will match.
+    const size_t num_dims = call_shape.size();
+    Shape call_group_shape(num_dims, 1); // Initialize to all 1s (default)
+    int* call_group_data = call_group_shape.data();
 
     if (m_call_group_shape.valid() && m_call_group_shape.size() > 0) {
-        // Similar to call_shape, this will be recieved with the first dimension
-        // as the right most element, ex: [..., z, y, x].
-        call_group_shape.assign(m_call_group_shape.data(), m_call_group_shape.data() + m_call_group_shape.size());
+        const size_t src_size = m_call_group_shape.size();
 
-        // Verify that call_group_shape has valid dimensions and values.
-        // Our check above should have already validated that
-        // call_group_shape.size() > 0.
-        if (call_group_shape.size() > call_shape.size()) {
+        // Verify that call_group_shape has valid dimensions.
+        if (src_size > num_dims) {
             throw std::runtime_error(
                 fmt::format(
                     "call_group_shape dimensionality ({}) must be <= call_shape dimensionality ({}). "
                     "call_group_shape cannot have more dimensions than call_shape.",
-                    call_group_shape.size(),
-                    call_shape.size()
+                    src_size,
+                    num_dims
                 )
             );
-        } else if (call_group_shape.size() < call_shape.size()) {
-            // Call group shape size is less than the call shape size so we need to
-            // pad the call group shape with 1's to account for the missing dimensions.
-            // However, inserting at the front of the vector will be inefficient, so
-            // log a debug message, giving users a chance to correct their calls.
-            if (is_log_enabled(LogLevel::debug)) {
-                log_debug(
-                    "call_group_shape dimensionality ({}) < call_shape dimensionality ({}). "
-                    "Padding call_group_shape with {} leading 1's. "
-                    "Consider specifying full dimensions for better performance.",
-                    call_group_shape.size(),
-                    call_shape.size(),
-                    call_shape.size() - call_group_shape.size()
-                );
-            }
-
-            for (size_t i = 0; i < (call_shape.size() - call_group_shape.size()); ++i) {
-                // Insert 1's for the dimensions we were not given
-                call_group_shape.insert(call_group_shape.begin(), 1);
-            }
         }
 
-        // Verify that all elements of call_group_shape are >= 1
-        for (size_t i = 0; i < call_group_shape.size(); ++i) {
-            if (call_group_shape[i] < 1) {
+        // Calculate padding offset if source is smaller than destination
+        const size_t padding = num_dims - src_size;
+        if (padding > 0 && is_log_enabled(LogLevel::debug)) {
+            log_debug(
+                "call_group_shape dimensionality ({}) < call_shape dimensionality ({}). "
+                "Padding call_group_shape with {} leading 1's. "
+                "Consider specifying full dimensions for better performance.",
+                src_size,
+                num_dims,
+                padding
+            );
+        }
+
+        // Copy source data with padding offset (leading 1s are already set)
+        const int* src_data = m_call_group_shape.data();
+        for (size_t i = 0; i < src_size; ++i) {
+            int val = src_data[i];
+            if (val < 1) {
                 throw std::runtime_error(
                     fmt::format(
                         "call_group_shape[{}] = {} is invalid. All call_group_shape elements must be >= 1.",
                         i,
-                        call_group_shape[i]
+                        val
                     )
                 );
             }
-        }
-    } else {
-
-        // We already know the size/dimensionality of all the shape and
-        // stride vectors at this point. Use reserve() to preallocate
-        // to the exact size required for efficiency.
-        call_group_shape.reserve(call_shape.size());
-
-        // Default to making the call group shape all 1's. This will force the
-        // grid shape to be identical to the call shape giving us linear
-        // dispatches by default when a call group shape is not specified.
-        // In this case, conceptually all thread's have their own "group" even
-        // though they will still be executed in groups of 32.
-        for (size_t i = 0; i < call_shape.size(); i++) {
-            call_group_shape.push_back(1);
+            call_group_data[padding + i] = val;
         }
     }
+    // else: call_group_shape is already initialized to all 1s
 
     // Calculate the group strides
-    short_vector<int, 32> call_group_strides;
+    Shape call_group_strides(num_dims);
+    int* call_group_strides_data = call_group_strides.data();
     current_stride = 1;
-    for (auto it = call_group_shape.rbegin(); it != call_group_shape.rend(); ++it) {
-        call_group_strides.push_back(current_stride);
-        current_stride *= *it;
+    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
+        call_group_strides_data[i] = current_stride;
+        current_stride *= call_group_data[i];
     }
-    std::reverse(call_group_strides.begin(), call_group_strides.end());
 
     // Calculate the grid shape and total threads.
     //
@@ -585,27 +565,30 @@ nb::object NativeCallData::exec(
     //       which would likely defeat the purpose of using call groups for better
     //       memory coherency and uses of shared memory.
     int total_threads = 1;
-    short_vector<int, 32> call_grid_shape;
-    short_vector<int, 32> aligned_call_shape;
+    Shape call_grid_shape(num_dims);
+    Shape aligned_call_shape(num_dims);
+    int* call_grid_data = call_grid_shape.data();
+    int* aligned_call_data = aligned_call_shape.data();
+    const int* call_shape_data = call_shape.data();
     bool is_call_shape_unaligned = false;
-    for (size_t i = 0; i < call_shape.size(); i++) {
+    for (size_t i = 0; i < num_dims; i++) {
         // When the call shape is not call group shape aligned, we will add some
         // padding to align up.
-        call_grid_shape.push_back((int)std::ceil((float)call_shape[i] / (float)call_group_shape[i]));
-        aligned_call_shape.push_back(call_grid_shape.back() * call_group_shape[i]);
-        if (aligned_call_shape[i] != call_shape[i])
+        call_grid_data[i] = (call_shape_data[i] + call_group_data[i] - 1) / call_group_data[i]; // ceil division
+        aligned_call_data[i] = call_grid_data[i] * call_group_data[i];
+        if (aligned_call_data[i] != call_shape_data[i])
             is_call_shape_unaligned = true;
-        total_threads *= aligned_call_shape.back();
+        total_threads *= aligned_call_data[i];
     }
 
     // Calculate the grid strides
-    short_vector<int, 32> call_grid_strides;
+    Shape call_grid_strides(num_dims);
+    int* call_grid_strides_data = call_grid_strides.data();
     current_stride = 1;
-    for (auto it = call_grid_shape.end() - 1; it >= call_grid_shape.begin(); --it) {
-        call_grid_strides.push_back(current_stride);
-        current_stride *= *it;
+    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
+        call_grid_strides_data[i] = current_stride;
+        current_stride *= call_grid_data[i];
     }
-    std::reverse(call_grid_strides.begin(), call_grid_strides.end());
 
     nb::list read_back;
 
