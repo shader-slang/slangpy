@@ -49,14 +49,12 @@ public:
     ShaderCursor operator[](uint32_t index) const;
 
     ShaderCursor find_field(std::string_view name) const;
-    ShaderCursor find_field_by_index(int32_t field_index) const;
+    ShaderCursor get_field_by_index(int32_t field_index) const;
     ShaderCursor find_element(uint32_t index) const;
 
     ShaderCursor find_entry_point(uint32_t index) const;
 
-    /// Find the field index for a field by name. Returns -1 if not found.
-    /// Use with find_field_by_index for faster repeated lookups.
-    int32_t get_field_index(std::string_view name) const;
+    int32_t find_field_index(std::string_view name) const;
 
     bool has_field(std::string_view name) const { return find_field(name).is_valid(); }
     bool has_element(uint32_t index) const { return find_element(index).is_valid(); }
@@ -78,6 +76,9 @@ public:
 
     void set_data(const void* data, size_t size) const;
 
+    /// Reserves a block of memory within the shader object's internal data buffer at the specified offset.
+    /// WARNING: This function bypasses the immutability of a ShaderObject. To use safely, ensure that the address
+    /// returned is immediately populated, not retained. Prefer using set_data unless absolutely necessary.
     void* reserve_data(size_t size) const;
 
     void set_cuda_tensor_view(const cuda::TensorView& tensor_view) const;
