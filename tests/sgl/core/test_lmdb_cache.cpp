@@ -411,8 +411,13 @@ struct StressTest {
     /// - For relaxed verification, we check data integrity and use statistical LRU heuristics
     void verify(bool strict = true)
     {
-        // Build a map from key to (expected_value, is_hot) for lookups.
-        std::map<Blob, std::pair<Blob, bool>> expected;
+        struct ExpectedEntry {
+            Blob value;
+            bool is_hot;
+        };
+
+        // Build a map from key to (value, is_hot) for lookups.
+        std::map<Blob, ExpectedEntry> expected;
         for (size_t i = 0; i < entries.size(); ++i) {
             const auto& entry = entries[i];
             if (entry.last_access != 0) {
@@ -436,11 +441,11 @@ struct StressTest {
                 if (it != expected.end()) {
                     // Verify value matches.
                     Blob value_blob(value.begin(), value.end());
-                    CHECK(value_blob == it->second.first);
+                    CHECK(value_blob == it->second.value);
 
                     total_in_cache += 1;
-                    hot_in_cache += it->second.second ? 1 : 0;
-                    cold_in_cache += it->second.second ? 0 : 1;
+                    hot_in_cache += it->second.is_hot ? 1 : 0;
+                    cold_in_cache += it->second.is_hot ? 0 : 1;
                 }
             }
         );
