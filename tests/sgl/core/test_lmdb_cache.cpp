@@ -12,6 +12,14 @@
 #include <thread>
 #include <mutex>
 
+// GCC 13 has a false positive -Wstringop-overread warning when using std::map with
+// std::vector keys in release mode. The compiler loses track of vector size constraints
+// during aggressive inlining. See: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106199
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overread"
+#endif
+
 #define PRINT_DIAGNOSTICS 0
 
 using namespace sgl;
@@ -565,3 +573,7 @@ TEST_CASE("stress-multi-threaded")
 }
 
 TEST_SUITE_END();
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
