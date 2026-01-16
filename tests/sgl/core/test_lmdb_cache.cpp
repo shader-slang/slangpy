@@ -378,10 +378,8 @@ struct StressTest {
                             std::lock_guard lock(mutex);
                             entry.last_access = get_current_time_ns();
                         }
-                    } catch (const std::exception& e) {
-                        if (PRINT_DIAGNOSTICS) {
-                            fmt::println("set operation failed: {}", e.what());
-                        }
+                    } catch (const LMDBException& e) {
+                        WARN(e.what());
                     }
                 }
             }
