@@ -345,6 +345,81 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int):
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_array_of_vector_return(device_type: DeviceType):
+    """Test that array-of-vector return types work with torch tensors.
+
+    This test addresses the issue where float2[6] works with NumPy
+    but fails with PyTorch with the error:
+        "Torch tensors do not support data type vector<float,2>[6]"
+    """
+    module = load_test_module(device_type)
+
+    # Test with float2[6] - single call
+    coord = 5
+    # Pre-allocate torch tensor for result: float2[6] = shape (6, 2)
+    result = torch.empty((6, 2), dtype=torch.float32, device=torch.device("cuda"))
+    module.return_vector_array(coord, _result=result)
+
+    assert isinstance(result, torch.Tensor)
+    assert result.shape == (6, 2), f"Expected shape (6, 2), got {result.shape}"
+
+    # Verify the values
+    result_cpu = result.cpu()
+    for i in range(6):
+        expected_x = float(coord)
+        expected_y = float(coord + i)
+        assert abs(result_cpu[i, 0].item() - expected_x) < 1e-5, f"Mismatch at [{i}, 0]"
+        assert abs(result_cpu[i, 1].item() - expected_y) < 1e-5, f"Mismatch at [{i}, 1]"
+
+    # Test with float3[4]
+    # Pre-allocate torch tensor for result: float3[4] = shape (4, 3)
+    result2 = torch.empty((4, 3), dtype=torch.float32, device=torch.device("cuda"))
+    module.return_vector_array_float3(coord, _result=result2)
+
+    assert isinstance(result2, torch.Tensor)
+    assert result2.shape == (4, 3), f"Expected shape (4, 3), got {result2.shape}"
+
+    # Verify the values
+    result2_cpu = result2.cpu()
+    for i in range(4):
+        expected_x = float(coord)
+        expected_y = float(coord + i)
+        expected_z = float(coord + i * 2)
+        assert abs(result2_cpu[i, 0].item() - expected_x) < 1e-5, f"Mismatch at [{i}, 0]"
+        assert abs(result2_cpu[i, 1].item() - expected_y) < 1e-5, f"Mismatch at [{i}, 1]"
+        assert abs(result2_cpu[i, 2].item() - expected_z) < 1e-5, f"Mismatch at [{i}, 2]"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_array_of_vector_return_with_grid(device_type: DeviceType):
+    """Test that array-of-vector return types work with torch tensors in grid context.
+
+    This replicates the original issue more closely by using grid() for multiple calls.
+    """
+    import slangpy as spy
+
+    module = load_test_module(device_type)
+
+    # Test the original issue scenario: calling with grid
+    # Pre-allocate torch tensor for result: grid(13) x float2[6] = shape (13, 6, 2)
+    result = torch.empty((13, 6, 2), dtype=torch.float32, device=torch.device("cuda"))
+    module.return_vector_array(coord=spy.grid((13,)), _result=result)
+
+    assert isinstance(result, torch.Tensor)
+    # Grid of 13 calls, each returning 6 float2 values
+    assert result.shape == (13, 6, 2), f"Expected shape (13, 6, 2), got {result.shape}"
+
+    # Verify some values
+    result_cpu = result.cpu()
+    for i in range(13):
+        for j in range(6):
+            expected_x = float(i)
+            expected_y = float(i + j)
+            assert abs(result_cpu[i, j, 0].item() - expected_x) < 1e-5
+            assert abs(result_cpu[i, j, 1].item() - expected_y) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_empty_tensor_null_data_ptr(device_type: DeviceType):
     """
     Test that tensors with null data pointers (e.g., zero-element tensors) are accepted.

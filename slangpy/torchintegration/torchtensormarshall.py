@@ -10,7 +10,7 @@ from slangpy.core.native import AccessType, CallContext, CallMode, Shape, Tensor
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.bindings.marshall import ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
-from slangpy.builtin.tensor import TensorMarshall, is_nested_array
+from slangpy.builtin.tensor import TensorMarshall, castable_to_scalar
 from slangpy import Buffer
 from slangpy.reflection.reflectiontypes import (
     SlangProgramLayout,
@@ -80,13 +80,7 @@ class TensorRefMarshall(TensorMarshall):
     ):
 
         dtype = innermost_type(slang_dtype)
-        can_convert = (
-            is_nested_array(slang_dtype)
-            or isinstance(slang_dtype, ScalarType)
-            or isinstance(slang_dtype, VectorType)
-            or isinstance(slang_dtype, MatrixType)
-        )
-        if not can_convert or len(slang_dtype.shape) > 2:
+        if not castable_to_scalar(slang_dtype) or len(slang_dtype.shape) > 2:
             raise ValueError(f"Torch tensors do not support data type {slang_dtype.full_name}")
 
         full_dims = dims + len(slang_dtype.shape)

@@ -92,3 +92,21 @@ void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
         output.set({int(i)}, input[int(i)]);
 }
+
+[Differentiable]
+float2[6] return_vector_array(int coord) {
+    float2 outputs[6];
+    for (int i = 0; i < 6; ++i) {
+        outputs[i] = float2(coord, coord + i);
+    }
+    return outputs;
+}
+
+[Differentiable]
+float3[4] return_vector_array_float3(int coord) {
+    float3 outputs[4];
+    for (int i = 0; i < 4; ++i) {
+        outputs[i] = float3(coord, coord + i, coord + i * 2);
+    }
+    return outputs;
+}
