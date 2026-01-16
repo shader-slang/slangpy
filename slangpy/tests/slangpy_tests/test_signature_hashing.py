@@ -29,7 +29,7 @@ def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Mo
 def test_kernel_reuse(device_type: DeviceType):
     add_vectors = load_module(device_type).add_vectors.as_func()
 
-    encoder = Tensor.empty(helpers.get_device(device_type), dtype=int, element_count=4)
+    encoder = Tensor.empty(helpers.get_device(device_type), dtype=int, shape=(4,))
 
     count = 1000
 
@@ -43,9 +43,9 @@ def test_kernel_reuse(device_type: DeviceType):
 
     kff.ENABLE_CALLDATA_CACHE = True
 
-    a = Tensor.empty(helpers.get_device(device_type), dtype=float3, element_count=1)
-    b = Tensor.empty(helpers.get_device(device_type), dtype=float3, element_count=1)
-    res = Tensor.empty(helpers.get_device(device_type), dtype=float3, element_count=1)
+    a = Tensor.empty(helpers.get_device(device_type), dtype=float3, shape=(1,))
+    b = Tensor.empty(helpers.get_device(device_type), dtype=float3, shape=(1,))
+    res = Tensor.empty(helpers.get_device(device_type), dtype=float3, shape=(1,))
 
     add_vectors(a, b, _result=res)
 

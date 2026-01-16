@@ -52,7 +52,7 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
 
     # Make buffer for results
     results = Tensor.empty(
-        element_count=128,
+        shape=(128,),
         device=device,
         dtype=kernel_output_values.module.layout.find_type_by_name(type_name),
     )
@@ -160,7 +160,7 @@ uint3 wang_hashes(uint3 input) {
     )
 
     # Make buffer for results
-    results = Tensor.empty(element_count=16, device=device, dtype=uint3)
+    results = Tensor.empty(shape=(16,), device=device, dtype=uint3)
 
     # Call function with 3D wang hash arg
     kernel_output_values(
@@ -206,7 +206,7 @@ uint wang_hashes(uint input) {
     )
 
     # Make buffer for results
-    results = Tensor.empty(element_count=16, device=device, dtype=kernel_output_values.module.uint)
+    results = Tensor.empty(shape=(16,), device=device, dtype=kernel_output_values.module.uint)
 
     # Call function with 3D wang hash arg
     kernel_output_values(wang_hash(warmup=warmup, hash_seed=hash_seed, seed=seed), _result=results)
@@ -254,7 +254,7 @@ uint wang_hashes(uint input) {
 
     def read_values(seed: int):
         results = Tensor.empty(
-            element_count=16,  # 3840 * 2160,
+            shape=(16,),  # 3840 * 2160,
             device=device,
             dtype=kernel_output_values.module.uint,
         )
@@ -265,7 +265,7 @@ uint wang_hashes(uint input) {
 
     def read_values_hash_seed(seed: int):
         results = Tensor.empty(
-            element_count=16,  # 3840 * 2160,
+            shape=(16,),  # 3840 * 2160,
             device=device,
             dtype=kernel_output_values.module.uint,
         )
@@ -276,7 +276,7 @@ uint wang_hashes(uint input) {
 
     def read_values_warmup(seed: int):
         results = Tensor.empty(
-            element_count=3840 * 2160,
+            shape=(3840 * 2160,),
             device=device,
             dtype=kernel_output_values.module.uint,
         )
@@ -314,7 +314,7 @@ float3 rand_float(float3 input) {
     count = 1000
 
     # Make buffer for results
-    results = Tensor.empty(element_count=count, device=device, dtype=float3)
+    results = Tensor.empty(shape=(count,), device=device, dtype=float3)
 
     # Call function with 3D random arg
     kernel_output_values(
@@ -361,7 +361,7 @@ void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
     )
 
     # Make buffer for bucket of counts
-    buckets = Tensor.empty(element_count=bucket_size, device=device, dtype=int)
+    buckets = Tensor.empty(shape=(bucket_size,), device=device, dtype=int)
     buckets.clear()
 
     # Run bucketer with 1M random floats
@@ -405,7 +405,7 @@ Particle rand_float_soa(Particle input) {
 
     # Make buffer for results
     results = Tensor.empty(
-        element_count=16,
+        shape=(16,),
         device=device,
         dtype=module.layout.find_type_by_name("Particle"),
     )
