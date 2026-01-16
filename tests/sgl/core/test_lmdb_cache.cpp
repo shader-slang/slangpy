@@ -85,7 +85,7 @@ inline void print_usage(const LMDBCache::Usage& usage)
 
 TEST_CASE("simple")
 {
-    auto cache_dir = testing::get_test_temp_directory() / "cache";
+    auto cache_dir = testing::get_case_temp_directory() / "cache";
     LMDBCache cache(cache_dir);
 
     Blob key1 = random_data(32);
