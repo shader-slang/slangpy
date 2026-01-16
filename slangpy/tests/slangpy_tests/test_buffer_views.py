@@ -2,7 +2,7 @@
 
 import pytest
 from slangpy import DeviceType, BufferUsage
-from slangpy.types import NDBuffer, Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
 from typing import Any, Union, Type
@@ -40,11 +40,9 @@ TEST_INDICES = [
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
 @pytest.mark.parametrize("index", TEST_INDICES)
 def test_indexing(
     device_type: DeviceType,
-    buffer_type: Union[Type[Tensor], Type[NDBuffer]],
     index: tuple[Any, ...],
 ):
 
@@ -53,7 +51,7 @@ def test_indexing(
     shape = (10, 8, 5, 3, 5)
     rng = np.random.default_rng()
     numpy_ref = rng.random(shape, np.float32)
-    buffer = buffer_type.zeros(device, dtype="float", shape=shape)
+    buffer = Tensor.zeros(device, dtype="float", shape=shape)
     buffer.copy_from_numpy(numpy_ref)
 
     indexed_buffer = buffer.__getitem__(index)
@@ -74,11 +72,10 @@ def test_indexing(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
-def test_view(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]):
+def test_view(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer = buffer_type.zeros(device, dtype="float", shape=(32 * 32 * 32,))
+    buffer = Tensor.zeros(device, dtype="float", shape=(32 * 32 * 32,))
 
     # Transposed view of the 3rd 32x32 slice
     view_offset = 64
@@ -97,11 +94,10 @@ def test_view(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDB
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
-def test_view_errors(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]):
+def test_view_errors(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer = buffer_type.zeros(device, dtype="float", shape=(32 * 32 * 32,))
+    buffer = Tensor.zeros(device, dtype="float", shape=(32 * 32 * 32,))
 
     with pytest.raises(Exception, match=r"Shape dimensions \([0-9]\) must match stride dimensions"):
         buffer.view((5, 4), (5,))
@@ -143,11 +139,10 @@ def test_point_to(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
-def test_broadcast_to(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]):
+def test_broadcast_to(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
-    buffer = buffer_type.zeros(
+    buffer = Tensor.zeros(
         device,
         dtype="float",
         shape=(
@@ -169,14 +164,13 @@ def test_broadcast_to(device_type: DeviceType, buffer_type: Union[Type[Tensor], 
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
-def test_full_numpy_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]):
+def test_full_numpy_copy(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     shape = (5, 4)
 
     numpy_ref = np.random.default_rng().random(shape, np.float32)
-    buffer = buffer_type.zeros(device, dtype="float", shape=shape)
+    buffer = Tensor.zeros(device, dtype="float", shape=shape)
 
     buffer.copy_from_numpy(numpy_ref)
     buffer_to_np = buffer.to_numpy()
@@ -184,8 +178,7 @@ def test_full_numpy_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
-def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]):
+def test_full_torch_copy(device_type: DeviceType):
     try:
         import torch
     except ImportError:
@@ -201,7 +194,7 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
 
     torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
-    buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+    buffer = Tensor.zeros(device, dtype="float", shape=shape, usage=usage)
 
     # Wait for buffer_type.zeros() to complete
     device.sync_to_device()
@@ -213,16 +206,13 @@ def test_full_torch_copy(device_type: DeviceType, buffer_type: Union[Type[Tensor
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
-def test_partial_numpy_copy(
-    device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
-):
+def test_partial_numpy_copy(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     shape = (5, 4)
 
     numpy_ref = np.random.default_rng().random(shape, np.float32)
-    buffer = buffer_type.zeros(device, dtype="float", shape=shape)
+    buffer = Tensor.zeros(device, dtype="float", shape=shape)
 
     for i in range(shape[0]):
         buffer[i].copy_from_numpy(numpy_ref[i])
@@ -232,10 +222,7 @@ def test_partial_numpy_copy(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
-def test_partial_torch_copy(
-    device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
-):
+def test_partial_torch_copy(device_type: DeviceType):
     try:
         import torch
     except ImportError:
@@ -251,7 +238,7 @@ def test_partial_torch_copy(
 
     torch_ref = torch.randn(shape, dtype=torch.float32).cuda()
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
-    buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+    buffer = Tensor.zeros(device, dtype="float", shape=shape, usage=usage)
 
     # Wait for buffer_type.zeros() to complete
     device.sync_to_device()
@@ -264,15 +251,12 @@ def test_partial_torch_copy(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
-def test_numpy_copy_errors(
-    device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
-):
+def test_numpy_copy_errors(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     shape = (5, 4)
 
-    buffer = buffer_type.zeros(device, dtype="float", shape=shape)
+    buffer = Tensor.zeros(device, dtype="float", shape=shape)
 
     with pytest.raises(Exception, match=r"Numpy array is larger"):
         ndarray = np.zeros((shape[0], shape[1] + 1), dtype=np.float32)
@@ -285,10 +269,7 @@ def test_numpy_copy_errors(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
-def test_torch_copy_errors(
-    device_type: DeviceType, buffer_type: Union[Type[Tensor], Type[NDBuffer]]
-):
+def test_torch_copy_errors(device_type: DeviceType):
     try:
         import torch
     except ImportError:
@@ -303,9 +284,9 @@ def test_torch_copy_errors(
     shape = (5, 4)
 
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
-    buffer = buffer_type.zeros(device, dtype="float", shape=shape, usage=usage)
+    buffer = Tensor.zeros(device, dtype="float", shape=shape, usage=usage)
 
-    # Wait for buffer_type.zeros() to complete
+    # Wait for buffer.zeros() to complete
     device.sync_to_device()
 
     with pytest.raises(Exception, match=r"Tensor is larger"):

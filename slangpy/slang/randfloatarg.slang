@@ -16,15 +16,15 @@ public struct RandFloatArg<let WarmupIterations : int = 0> {
         return k / (float)0x800000; // 2^23
     }
 
-    public void load(Context0D context, out float value) {
+    public void __slangpy_load(Context0D context, out float value) {
         var hash = wang_hash_thread_scalar<WarmupIterations>(context.thread_id, seed);
         value = lerp(min, max, hash_to_uniform_float(hash));
     }
-    public void store(Context0D context, in float value) {};
+    public void __slangpy_store(Context0D context, in float value) {};
 
-    public void load<let N : int>(Context0D context, out vector<float, N> value) {
+    public void __slangpy_load<let N : int>(Context0D context, out vector<float, N> value) {
         var hash = wang_hash_thread_vector<WarmupIterations, N>(context.thread_id, seed);
         value = lerp(min, max, hash_to_uniform_vector(hash));
     }
-    public void store<let N : int>(Context0D context, in vector<float, N> value) {};
+    public void __slangpy_store<let N : int>(Context0D context, in vector<float, N> value) {};
 }
