@@ -162,6 +162,7 @@ NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_fi
     offsets.shape = tensor_cursor["_shape"].offset();
     offsets.strides = tensor_cursor["_strides"].offset();
     offsets.offset = tensor_cursor["_offset"].offset();
+    offsets.element_byte_stride = tensor_cursor["_element_byte_stride"].offset();
     offsets.is_valid = true;
     offsets.array_stride
         = (int)tensor_cursor["_shape"].slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
@@ -600,6 +601,14 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
         offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
         offset
     );
+
+    if (offsets.element_byte_stride.is_valid()) {
+        write_value_helper(
+            base_address,
+            offsets.element_byte_stride.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            (int)buffer->desc().struct_size
+        );
+    }
 }
 
 void NativeTensorMarshall::write_tensor_fields_from_pointer(
@@ -642,6 +651,15 @@ void NativeTensorMarshall::write_tensor_fields_from_pointer(
         offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
         offset
     );
+
+    if (offsets.element_byte_stride.is_valid()) {
+        SGL_THROW("TODO: This needs fixing - atomic tensors need a byte size");
+        // write_value_helper(
+        //     base_address,
+        //     offsets.element_byte_stride.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        //     (int)buffer->desc().struct_size
+        //);
+    }
 }
 
 void NativeTensorMarshall::write_native_tensor_fields(
