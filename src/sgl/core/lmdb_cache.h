@@ -6,9 +6,10 @@
 
 #include <atomic>
 #include <filesystem>
+#include <mutex>
+#include <optional>
 #include <span>
 #include <vector>
-#include <optional>
 
 // Forward declaration
 struct MDB_env;
@@ -161,6 +162,8 @@ private:
     DB m_db;
 
     size_t m_max_key_size{0};
+
+    std::mutex m_evict_mutex;
 
     std::atomic<uint64_t> m_evictions{0};
 
