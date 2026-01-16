@@ -28,8 +28,10 @@ EXCLUDE_PATHS = [
 
 EXTENSIONS = ["h", "cpp", "slang", "slangh", "py"]
 
+# REUSE-IgnoreStart
 SPDX_REMOVE_REGEX = re.compile(r"^((// )|(# ))SPDX-License-Identifier: .*\n\n")
 SPDX_IDENTIFIER = "SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception"
+# REUSE-IgnoreEnd
 SPDX_IDENTIFIER_C_LIKE = f"// {SPDX_IDENTIFIER}\n"
 SPDX_IDENTIFIER_PYTHON = f"# {SPDX_IDENTIFIER}\n"
 
