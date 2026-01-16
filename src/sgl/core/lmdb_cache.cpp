@@ -277,9 +277,12 @@ void LMDBCache::evict(bool force)
     // Only one thread should work on evicting entries.
     std::lock_guard lock{m_evict_mutex};
 
+    // Entry stores metadata and a direct pointer to the key in LMDB's memory-mapped pages.
+    // This is safe because LMDB uses copy-on-write: delete operations write to new pages,
+    // leaving the original pages (containing our scanned keys) intact until transaction commit.
     struct Entry {
         uint64_t last_access;
-        std::vector<uint8_t> key;
+        MDB_val key;
     };
     std::vector<Entry> entries;
 
@@ -311,16 +314,13 @@ void LMDBCache::evict(bool force)
     ScopedTransaction txn(m_db.env);
     ScopedCursor cursor(txn, m_db.dbi_meta);
 
-    // Scan all entries.
+    // Scan all entries. Key pointers point directly into LMDB's memory-mapped pages.
     {
         MDB_val key, val;
         while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
             entries.push_back({
                 .last_access = static_cast<const MetaData*>(val.mv_data)->last_access,
-                .key = std::vector<uint8_t>(
-                    static_cast<uint8_t*>(key.mv_data),
-                    static_cast<uint8_t*>(key.mv_data) + key.mv_size
-                ),
+                .key = key,
             });
         }
     }
@@ -337,14 +337,13 @@ void LMDBCache::evict(bool force)
     while (required_free_size > 0 && !entries.empty()) {
         std::pop_heap(entries.begin(), entries.end(), cmp);
         Entry& entry = entries.back();
-        MDB_val key = {entry.key.size(), entry.key.data()};
         MDB_val val;
-        if (int result = mdb_get(txn, m_db.dbi_data, &key, &val); result != MDB_SUCCESS)
+        if (int result = mdb_get(txn, m_db.dbi_data, &entry.key, &val); result != MDB_SUCCESS)
             LMDB_THROW("Failed to get data during eviction", result);
         required_free_size -= std::min(required_free_size, val.mv_size);
-        if (int result = mdb_del(txn, m_db.dbi_data, &key, nullptr); result != MDB_SUCCESS)
+        if (int result = mdb_del(txn, m_db.dbi_data, &entry.key, nullptr); result != MDB_SUCCESS)
             LMDB_THROW("Failed to delete data during eviction", result);
-        if (int result = mdb_del(txn, m_db.dbi_meta, &key, nullptr); result != MDB_SUCCESS)
+        if (int result = mdb_del(txn, m_db.dbi_meta, &entry.key, nullptr); result != MDB_SUCCESS)
             LMDB_THROW("Failed to delete metadata during eviction", result);
         entries.pop_back();
         evictions++;
