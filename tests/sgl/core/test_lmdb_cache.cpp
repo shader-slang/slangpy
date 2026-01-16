@@ -50,7 +50,7 @@ generate_random_entries(size_t count, size_t key_size = 32, size_t min_value_siz
     entries.reserve(count);
     for (size_t i = 0; i < count; ++i) {
         Blob key = random_data(key_size);
-        size_t value_size = min_value_size + rand() % (max_value_size - min_value_size + 1);
+        size_t value_size = min_value_size + rng() % (max_value_size - min_value_size + 1);
         Blob value = random_data(value_size);
         entries.push_back({key, value});
     }
@@ -333,10 +333,10 @@ struct StressTest {
                     print_usage(cache.usage());
                 }
             }
-            double r = static_cast<double>(rand()) / RAND_MAX;
+            double r = static_cast<double>(rng()) / static_cast<double>(0xFFFFFFFFu);
             if (r < options.delete_ratio) {
                 // delete entry
-                size_t entry_index = rand() % entries.size();
+                size_t entry_index = rng() % entries.size();
                 auto& entry = entries[entry_index];
                 Timer timer;
                 bool success = cache.del(entry.key);
@@ -348,10 +348,10 @@ struct StressTest {
                 }
             } else {
                 // access entry, write if not present
-                r = static_cast<double>(rand()) / RAND_MAX;
+                r = static_cast<double>(rng()) / static_cast<double>(0xFFFFFFFFu);
                 size_t entry_index = r < options.hot_ratio
-                    ? (rand() % options.hot_candidates)
-                    : (options.hot_candidates + rand() % (entries.size() - options.hot_candidates));
+                    ? (rng() % options.hot_candidates)
+                    : (options.hot_candidates + rng() % (entries.size() - options.hot_candidates));
                 auto& entry = entries[entry_index];
                 // try to get the entry
                 Timer timer;
