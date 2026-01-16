@@ -47,7 +47,6 @@ public:
     set_acceleration_structure(const ShaderOffset& offset, const ref<AccelerationStructure>& acceleration_structure);
     virtual void set_descriptor_handle(const ShaderOffset& offset, const DescriptorHandle& handle);
     virtual void set_data(const ShaderOffset& offset, const void* data, size_t size);
-    virtual void* reserve_data(const ShaderOffset& offset, size_t size);
 
     /// Reserves a block of memory within the shader object's internal data buffer at the specified offset.
     /// WARNING: This function bypasses the immutability of a ShaderObject. To use safely, ensure that the address
