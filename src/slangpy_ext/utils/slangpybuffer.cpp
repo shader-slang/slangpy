@@ -19,6 +19,16 @@ extern void buffer_copy_from_numpy(Buffer* self, nb::ndarray<nb::numpy> data);
 
 namespace sgl::slangpy {
 
+/// Helper function to convert Shape to nb::list efficiently (avoids std::vector allocation)
+inline nb::list shape_to_list(const Shape& shape)
+{
+    nb::list result;
+    for (size_t i = 0; i < shape.size(); ++i) {
+        result.append(shape[i]);
+    }
+    return result;
+}
+
 NativeNDBuffer::NativeNDBuffer(Device* device, NativeNDBufferDesc desc, ref<Buffer> storage)
     : StridedBufferView(device, desc, std::move(storage))
     , m_desc(desc)
@@ -157,9 +167,9 @@ nb::object NativeNDBufferMarshall::create_dispatchdata(nb::object data) const
     auto buffer = nb::cast<NativeNDBuffer*>(data);
     nb::dict res;
     res["_data"] = buffer->storage();
-    res["_shape"] = buffer->shape().as_vector();
+    res["_shape"] = shape_to_list(buffer->shape());
     res["_offset"] = buffer->offset();
-    res["_strides"] = buffer->strides().as_vector();
+    res["_strides"] = shape_to_list(buffer->strides());
     return res;
 }
 

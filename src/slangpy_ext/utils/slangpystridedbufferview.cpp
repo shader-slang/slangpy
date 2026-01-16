@@ -12,6 +12,16 @@
 
 namespace sgl::slangpy {
 
+/// Helper function to convert Shape to nb::list efficiently (avoids std::vector allocation)
+inline nb::list shape_to_list(const Shape& shape)
+{
+    nb::list result;
+    for (size_t i = 0; i < shape.size(); ++i) {
+        result.append(shape[i]);
+    }
+    return result;
+}
+
 inline std::optional<nb::dlpack::dtype> scalartype_to_dtype(TypeReflection::ScalarType scalar_type)
 {
     switch (scalar_type) {
@@ -114,9 +124,9 @@ nb::dict StridedBufferView::uniforms() const
 {
     nb::dict res;
     res["_data"] = storage();
-    res["_shape"] = shape().as_vector();
+    res["_shape"] = shape_to_list(shape());
     res["_offset"] = offset();
-    res["_strides"] = strides().as_vector();
+    res["_strides"] = shape_to_list(strides());
     return res;
 }
 

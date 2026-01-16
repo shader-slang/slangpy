@@ -1669,7 +1669,11 @@ SGL_PY_EXPORT(utils_slangpy)
             "as_list",
             [](const Shape& self)
             {
-                return self.as_vector();
+                nb::list py_list;
+                for (size_t i = 0; i < self.size(); ++i) {
+                    py_list.append(self[i]);
+                }
+                return py_list;
             },
             D_NA(Shape, as_list)
         )

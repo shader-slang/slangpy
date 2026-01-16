@@ -17,6 +17,16 @@ extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
 
 namespace sgl::slangpy {
 
+/// Helper function to convert Shape to nb::list efficiently (avoids std::vector allocation)
+inline nb::list shape_to_list(const Shape& shape)
+{
+    nb::list result;
+    for (size_t i = 0; i < shape.size(); ++i) {
+        result.append(shape[i]);
+    }
+    return result;
+}
+
 namespace {
     /// Helper function to extract shape from PyTorch tensor
     /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
@@ -743,9 +753,9 @@ nb::object NativeTensorMarshall::create_dispatchdata(nb::object data) const
     auto buffer = nb::cast<NativeTensor*>(data);
     nb::dict res;
     res["_data"] = buffer->storage();
-    res["_shape"] = buffer->shape().as_vector();
+    res["_shape"] = shape_to_list(buffer->shape());
     res["_offset"] = buffer->offset();
-    res["_strides"] = buffer->strides().as_vector();
+    res["_strides"] = shape_to_list(buffer->strides());
     return res;
 }
 
