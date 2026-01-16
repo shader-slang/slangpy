@@ -46,7 +46,7 @@ public:
         size_t max_size{64ull * 1024 * 1024};
         /// Eviction threshold in percent (0-100). When the cache size exceeds this
         /// percentage of the maximum size, eviction is triggered.
-        uint32_t eviction_threshold = 80;
+        uint32_t eviction_threshold = 70;
         /// Eviction target in percent (0-100). When eviction is triggered, entries
         /// are evicted until the cache size is below this percentage of the maximum size.
         uint32_t eviction_target = 60;
@@ -144,11 +144,33 @@ public:
     /// \return True if the key was found and deleted, false if the key was not found.
     inline bool del(std::span<const uint8_t> key) { return del(key.data(), key.size()); }
 
+    /// Iterate over all entries in the cache.
+    /// The callback receives the key and value as spans.
+    /// Throws on error.
+    /// \param callback Function to call for each entry.
+    template<typename Func>
+    void for_each(Func callback) const
+    {
+        for_each_impl(
+            [](const void* key, size_t key_size, const void* value, size_t value_size, void* user_data)
+            {
+                auto& cb = *static_cast<Func*>(user_data);
+                cb(std::span<const uint8_t>(static_cast<const uint8_t*>(key), key_size),
+                   std::span<const uint8_t>(static_cast<const uint8_t*>(value), value_size));
+            },
+            &callback
+        );
+    }
+
     Usage usage() const;
     Stats stats() const;
 
 private:
-    void evict();
+    using ForEachFunc
+        = void (*)(const void* key, size_t key_size, const void* value, size_t value_size, void* user_data);
+    void for_each_impl(ForEachFunc callback, void* user_data) const;
+
+    void evict(bool force = false);
 
     struct DB {
         MDB_env* env{nullptr};
