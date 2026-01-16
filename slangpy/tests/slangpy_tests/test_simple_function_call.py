@@ -210,7 +210,7 @@ void add_numbers(int a, int b, out int c) {
         in_buffer_0 = int(rand_array_of_ints(1)[0])
     else:
         in_buffer_0 = Tensor.empty(
-            element_count=in_buffer_0_size,
+            shape=(in_buffer_0_size,),
             device=device,
             dtype=int,
         )
@@ -221,7 +221,7 @@ void add_numbers(int a, int b, out int c) {
         in_buffer_1 = int(rand_array_of_ints(1)[0])
     else:
         in_buffer_1 = Tensor.empty(
-            element_count=in_buffer_1_size,
+            shape=(in_buffer_1_size,),
             device=device,
             dtype=int,
         )
@@ -229,7 +229,7 @@ void add_numbers(int a, int b, out int c) {
 
     # Setup output buffer
     out_buffer = Tensor.empty(
-        element_count=out_buffer_size,
+        shape=(out_buffer_size,),
         device=device,
         dtype=int,
     )
@@ -292,14 +292,14 @@ void add_numbers_remap(int a, int b, out int c) {
     )
 
     a = Tensor.empty(
-        element_count=100,
+        shape=(100,),
         device=device,
         dtype=int,
     )
     a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
     b = Tensor.empty(
-        element_count=50,
+        shape=(50,),
         device=device,
         dtype=int,
     )
@@ -330,14 +330,14 @@ int add_numbers(int a, int b) {
     )
 
     a = Tensor.empty(
-        element_count=50,
+        shape=(50,),
         device=device,
         dtype=int,
     )
     a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
     b = Tensor.empty(
-        element_count=50,
+        shape=(50,),
         device=device,
         dtype=int,
     )
@@ -368,14 +368,14 @@ int add_numbers(Tensor<int,1> a, Tensor<int,1> b) {
     )
 
     a = Tensor.empty(
-        element_count=1,
+        shape=(1,),
         device=device,
         dtype=int,
     )
     a.storage.copy_from_numpy(rand_array_of_ints(a.element_count))
 
     b = Tensor.empty(
-        element_count=1,
+        shape=(1,),
         device=device,
         dtype=int,
     )
@@ -405,7 +405,7 @@ Foo create_foo(int x) { return { x }; }
     )
 
     x = Tensor.empty(
-        element_count=1,
+        shape=(1,),
         device=device,
         dtype=int,
     )
@@ -513,14 +513,14 @@ void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
     )
 
     a = Tensor.empty(
-        element_count=1,
+        shape=(1,),
         device=device,
         dtype=int,
     )
     a.storage.copy_from_numpy(np.array([42], dtype=np.float32))
 
     b = Tensor.empty(
-        element_count=1,
+        shape=(1,),
         device=device,
         dtype=int,
     )

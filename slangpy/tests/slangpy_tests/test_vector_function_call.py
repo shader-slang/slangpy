@@ -42,10 +42,10 @@ void add_numbers(float2 a, float2 b, out float2 res) {
     a = float2(a_data[0], a_data[1])
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = Tensor.empty(device=device, element_count=100, dtype=float2)
+    b = Tensor.empty(device=device, shape=(100,), dtype=float2)
     b.storage.copy_from_numpy(b_data)
 
-    res = Tensor.empty(device=device, element_count=100, dtype=float2)
+    res = Tensor.empty(device=device, shape=(100,), dtype=float2)
 
     function(a, b, res)
 
@@ -74,10 +74,10 @@ void add_numbers(float2 a, float2 b, out float2 res) {
     a.storage.copy_from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = Tensor.empty(device=device, element_count=100, dtype=float2)
+    b = Tensor.empty(device=device, shape=(100,), dtype=float2)
     b.storage.copy_from_numpy(b_data)
 
-    res = Tensor.empty(device=device, element_count=100, dtype=float2)
+    res = Tensor.empty(device=device, shape=(100,), dtype=float2)
 
     function(a, b, res)
 
@@ -106,7 +106,7 @@ void add_numbers_vecreadwrite(float2 a, float2 b, out float2 res) {
     a.storage.copy_from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = Tensor.empty(device=device, element_count=100, dtype=float2)
+    b = Tensor.empty(device=device, shape=(100,), dtype=float2)
     b.storage.copy_from_numpy(b_data)
 
     res = Tensor.empty(device=device, shape=(100, 2), dtype=float)
@@ -138,7 +138,7 @@ void add_numbers_diffpair(float2 a, float2 b, out float2 res) {
     a.storage.copy_from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = Tensor.empty(device=device, element_count=100, dtype=float2)
+    b = Tensor.empty(device=device, shape=(100,), dtype=float2)
     b.storage.copy_from_numpy(b_data)
 
     res = Tensor.empty(device=device, shape=(100, 2), dtype=float)
