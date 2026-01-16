@@ -641,10 +641,10 @@ nb::object NativeCallData::exec(
             if (m_call_data_mode == CallDataMode::entry_point) {
                 ShaderCursor entry_point_cursor = cursor.find_entry_point(0);
                 call_data_cursor = entry_point_cursor.find_field("call_data");
-                m_cached_call_data_offsets.call_data_field_index = entry_point_cursor.get_field_index("call_data");
+                m_cached_call_data_offsets.call_data_field_index = entry_point_cursor.find_field_index("call_data");
             } else {
                 call_data_cursor = cursor.find_field("call_data");
-                m_cached_call_data_offsets.call_data_field_index = cursor.get_field_index("call_data");
+                m_cached_call_data_offsets.call_data_field_index = cursor.find_field_index("call_data");
             }
 
             // Cache whether call_data needs dereference
@@ -672,9 +672,9 @@ nb::object NativeCallData::exec(
         ShaderCursor call_data_cursor;
         if (m_call_data_mode == CallDataMode::entry_point) {
             call_data_cursor
-                = cursor.find_entry_point(0).find_field_by_index(m_cached_call_data_offsets.call_data_field_index);
+                = cursor.find_entry_point(0).get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
         } else {
-            call_data_cursor = cursor.find_field_by_index(m_cached_call_data_offsets.call_data_field_index);
+            call_data_cursor = cursor.get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
         }
 
         // Dereference the cursor if needed (using cached result)
