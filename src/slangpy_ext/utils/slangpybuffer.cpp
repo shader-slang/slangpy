@@ -19,16 +19,6 @@ extern void buffer_copy_from_numpy(Buffer* self, nb::ndarray<nb::numpy> data);
 
 namespace sgl::slangpy {
 
-/// Helper function to convert Shape to nb::list efficiently (avoids std::vector allocation)
-inline nb::list shape_to_list(const Shape& shape)
-{
-    nb::list result;
-    for (size_t i = 0; i < shape.size(); ++i) {
-        result.append(shape[i]);
-    }
-    return result;
-}
-
 NativeNDBuffer::NativeNDBuffer(Device* device, NativeNDBufferDesc desc, ref<Buffer> storage)
     : StridedBufferView(device, desc, std::move(storage))
     , m_desc(desc)
@@ -110,19 +100,21 @@ void NativeNDBufferMarshall::write_shader_cursor_pre_dispatch(
     const Shape& transform = binding->transform();
     const Shape& call_shape = context->call_shape();
 
-    std::vector<int> strides_vec(strides_shape.data(), strides_shape.data() + strides_shape.size());
+    // Create a mutable copy of strides using Shape instead of std::vector
+    Shape strides_copy = strides_shape;
+    int* strides_data = strides_copy.data();
     for (size_t i = 0; i < transform.size(); i++) {
         int csidx = transform[i];
         if (call_shape[csidx] != shape[i]) {
-            strides_vec[i] = 0;
+            strides_data[i] = 0;
         }
     }
 
     // Write the strides vector as an array of ints.
     field["_strides"]._set_array_unsafe(
-        &strides_vec[0],
-        strides_vec.size() * 4,
-        strides_vec.size(),
+        strides_copy.data(),
+        strides_copy.size() * 4,
+        strides_copy.size(),
         TypeReflection::ScalarType::int32
     );
     field["_offset"] = buffer->offset();
@@ -184,11 +176,13 @@ NativeNDBufferMarshall::read_output(CallContext* context, NativeBoundVariableRun
 Shape NativeNumpyMarshall::get_shape(nb::object data) const
 {
     auto ndarray = nb::cast<nb::ndarray<nb::numpy>>(data);
-    std::vector<int> shape_vec;
-    for (size_t i = 0; i < ndarray.ndim(); i++) {
-        shape_vec.push_back((int)ndarray.shape(i));
+    const size_t ndim = ndarray.ndim();
+    Shape shape(ndim);
+    int* shape_data = shape.data();
+    for (size_t i = 0; i < ndim; i++) {
+        shape_data[i] = static_cast<int>(ndarray.shape(i));
     }
-    return Shape(shape_vec);
+    return shape;
 }
 
 void NativeNumpyMarshall::write_shader_cursor_pre_dispatch(
@@ -202,26 +196,26 @@ void NativeNumpyMarshall::write_shader_cursor_pre_dispatch(
     auto ndarray = nb::cast<nb::ndarray<nb::numpy>>(value);
     SGL_CHECK(ndarray.dtype() == m_dtype, "numpy array dtype does not match the expected dtype");
 
-    std::vector<int> shape_vec;
-    for (size_t i = 0; i < ndarray.ndim(); i++) {
-        shape_vec.push_back((int)ndarray.shape(i));
+    const size_t ndim = ndarray.ndim();
+    Shape shape(ndim);
+    int* shape_data = shape.data();
+    for (size_t i = 0; i < ndim; i++) {
+        shape_data[i] = static_cast<int>(ndarray.shape(i));
     }
 
     const Shape& vector_shape = binding->vector_type()->shape();
     for (size_t i = 0; i < vector_shape.size(); i++) {
         int vs_size = vector_shape[vector_shape.size() - i - 1];
-        int arr_size = shape_vec[shape_vec.size() - i - 1];
+        int arr_size = shape[shape.size() - i - 1];
 
         SGL_CHECK(
             vs_size == arr_size,
             "numpy array shape dim {} does not match the expected shape ({} != {})",
-            shape_vec.size() - i - 1,
+            shape.size() - i - 1,
             vs_size,
             arr_size
         );
     }
-
-    Shape shape(shape_vec);
 
     SGL_UNUSED(binding);
     auto buffer = create_buffer(context->device(), shape);

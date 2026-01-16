@@ -159,11 +159,7 @@ void NativeMarshall::store_readback(
     read_back.append(nb::make_tuple(binding, value, data));
 }
 
-void NativeBoundVariableRuntime::populate_call_shape(
-    std::vector<int>& call_shape,
-    nb::object value,
-    NativeCallData* error_context
-)
+void NativeBoundVariableRuntime::populate_call_shape(Shape& call_shape, nb::object value, NativeCallData* error_context)
 {
     if (m_children) {
         // We have children, so load each child value and recurse down the tree.
@@ -193,9 +189,14 @@ void NativeBoundVariableRuntime::populate_call_shape(
         // and set every corresponding dimension to 1 so it is broadcast.
         if (m_python_type->concrete_shape().valid())
             m_shape = m_python_type->concrete_shape();
-        else if (m_python_type->match_call_shape())
-            m_shape = Shape(std::vector<int>(tf.size(), 1));
-        else {
+        else if (m_python_type->match_call_shape()) {
+            Shape ones(tf.size());
+            int* ones_data = ones.data();
+            for (size_t i = 0; i < tf.size(); ++i) {
+                ones_data[i] = 1;
+            }
+            m_shape = ones;
+        } else {
             NativePackedArg* packed_arg = nullptr;
             auto src_value = value;
             if (nb::try_cast<NativePackedArg*>(value, packed_arg))
@@ -356,7 +357,11 @@ Shape NativeBoundCallRuntime::calculate_call_shape(
 )
 {
     // Setup initial call shape of correct dimensionality, with all dimensions set to 1.
-    std::vector<int> call_shape(call_dimensionality, 1);
+    Shape call_shape(static_cast<size_t>(call_dimensionality));
+    int* call_shape_data = call_shape.data();
+    for (int i = 0; i < call_dimensionality; ++i) {
+        call_shape_data[i] = 1;
+    }
 
     // Populate call shape for each positional argument.
     for (size_t idx = 0; idx < args.size(); ++idx) {
@@ -372,7 +377,7 @@ Shape NativeBoundCallRuntime::calculate_call_shape(
     }
 
     // Return finalized shape.
-    return Shape(call_shape);
+    return call_shape;
 }
 
 void NativeBoundCallRuntime::write_shader_cursor_pre_dispatch(
@@ -474,22 +479,23 @@ nb::object NativeCallData::exec(
             nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
             kwargs["_result"] = output;
             unpacked_kwargs["_result"] = output;
-            std::vector<int> call_shape_vec(call_shape.data(), call_shape.data() + call_shape.size());
-            rv_node->populate_call_shape(call_shape_vec, output, this);
+            // Make a mutable copy of call_shape for populate_call_shape
+            Shape call_shape_copy = call_shape;
+            rv_node->populate_call_shape(call_shape_copy, output, this);
         }
     }
 
-    // Calculate strides from call_shape without allocating temporary vector
-    std::vector<int> strides;
-    strides.reserve(call_shape.size());
+    // Calculate strides from call_shape
+    Shape strides(call_shape.size());
+    int* strides_data = strides.data();
     int current_stride = 1;
-    for (int i = (int)call_shape.size() - 1; i >= 0; --i) {
-        strides.push_back(current_stride);
+    for (int i = static_cast<int>(call_shape.size()) - 1; i >= 0; --i) {
+        strides_data[i] = current_stride;
         current_stride *= call_shape[i];
     }
-    std::reverse(strides.begin(), strides.end());
 
     // Get call group shape from build info
+    // Using std::vector here as we may need to insert elements at the front
     std::vector<int> call_group_shape;
 
     if (m_call_group_shape.valid() && m_call_group_shape.size() > 0) {

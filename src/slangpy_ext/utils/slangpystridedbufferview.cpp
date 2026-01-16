@@ -12,16 +12,6 @@
 
 namespace sgl::slangpy {
 
-/// Helper function to convert Shape to nb::list efficiently (avoids std::vector allocation)
-inline nb::list shape_to_list(const Shape& shape)
-{
-    nb::list result;
-    for (size_t i = 0; i < shape.size(); ++i) {
-        result.append(shape[i]);
-    }
-    return result;
-}
-
 inline std::optional<nb::dlpack::dtype> scalartype_to_dtype(TypeReflection::ScalarType scalar_type)
 {
     switch (scalar_type) {
@@ -160,34 +150,38 @@ void StridedBufferView::broadcast_to_inplace(const Shape& new_shape)
     // This 'broadcasts' the buffer view to a new shape, i.e.
     // - Prepend extra dimensions of the new shape to the front our shape
     // - Expand our singleton dimensions to the new shape
-    std::vector<int> curr_shape_vec(this->shape().data(), this->shape().data() + this->shape().size());
-    std::vector<int> new_shape_vec(new_shape.data(), new_shape.data() + new_shape.size());
+    const Shape& curr_shape = this->shape();
+    const Shape& curr_strides = this->strides();
 
-    int D = (int)new_shape_vec.size() - (int)curr_shape_vec.size();
+    int D = static_cast<int>(new_shape.size()) - static_cast<int>(curr_shape.size());
     if (D < 0) {
         SGL_THROW("Broadcast shape must be larger than tensor shape");
     }
 
-    for (size_t i = 0; i < curr_shape_vec.size(); ++i) {
-        if (curr_shape_vec[i] != new_shape_vec[D + i] && curr_shape_vec[i] != 1) {
+    for (size_t i = 0; i < curr_shape.size(); ++i) {
+        if (curr_shape[i] != new_shape[D + i] && curr_shape[i] != 1) {
             SGL_THROW(
                 "Current dimension {} at index {} must be equal to new dimension {} or 1",
-                curr_shape_vec[i],
+                curr_shape[i],
                 i,
-                new_shape_vec[D + i]
+                new_shape[D + i]
             );
         }
     }
 
-    std::vector<int> curr_strides_vec(this->strides().data(), this->strides().data() + this->strides().size());
-    std::vector<int> new_strides(new_shape.size(), 0);
-    for (size_t i = 0; i < curr_strides_vec.size(); ++i) {
-        if (curr_shape_vec[i] > 1) {
-            new_strides[D + i] = curr_strides_vec[i];
+    // Build new strides: initialize to 0, then copy non-singleton strides
+    Shape new_strides(new_shape.size());
+    int* new_strides_data = new_strides.data();
+    for (size_t i = 0; i < new_shape.size(); ++i) {
+        new_strides_data[i] = 0;
+    }
+    for (size_t i = 0; i < curr_shape.size(); ++i) {
+        if (curr_shape[i] > 1) {
+            new_strides_data[D + i] = curr_strides[i];
         }
     }
 
-    view_inplace(new_shape, Shape(new_strides));
+    view_inplace(new_shape, new_strides);
 }
 
 void StridedBufferView::index_inplace(nb::object index_arg)
@@ -225,15 +219,17 @@ void StridedBufferView::index_inplace(nb::object index_arg)
     }
     SGL_CHECK(real_dims <= dims(), "Too many indices for buffer of dimension {}", dims());
 
-    std::vector<int> cur_shape(shape().data(), shape().data() + shape().size());
-    std::vector<int> cur_strides(strides().data(), strides().data() + strides().size());
+    // Use const references to avoid copying - Shape supports indexing directly
+    const Shape& cur_shape = shape();
+    const Shape& cur_strides = strides();
 
     // This is the next dimension to be indexed by a 'real' index
     int dim = 0;
     // Offset (in elements) to be applied by the indexing operation
     int offset = 0;
     // shape and strides of the output of the indexing operation
-    std::vector<int> shape, strides;
+    // Using std::vector here since the output size is dynamic (depends on indexing ops)
+    std::vector<int> out_shape, out_strides;
 
     for (size_t i = 0; i < args.size(); ++i) {
         const nb::handle& arg = args[i];
@@ -269,9 +265,9 @@ void StridedBufferView::index_inplace(nb::object index_arg)
             // Move offset by start of the slice
             offset += int(start) * cur_strides[dim];
             // Adjust shape by the computed slice length
-            shape.push_back(int(slice_length));
+            out_shape.push_back(int(slice_length));
             // Finally, adjust strides to account for the slice step
-            strides.push_back(int(step) * cur_strides[dim]);
+            out_strides.push_back(int(step) * cur_strides[dim]);
             // We indexed this dimension, so advance to the next one
             dim++;
         } else if (nb::isinstance<nb::ellipsis>(arg)) {
@@ -281,16 +277,16 @@ void StridedBufferView::index_inplace(nb::object index_arg)
             int eta = dims() - real_dims;
             // The skipped dimensions are directly appended to the output shape/strides
             for (int j = 0; j < eta; ++j) {
-                shape.push_back(cur_shape[dim + j]);
-                strides.push_back(cur_strides[dim + j]);
+                out_shape.push_back(cur_shape[dim + j]);
+                out_strides.push_back(cur_strides[dim + j]);
             }
             // Advance past the skipped dimensions
             dim += eta;
         } else if (arg.is_none()) {
             // Singleton dimensions are just dimensions of size 1 and stride 0.
             // Insert it to the output
-            shape.push_back(1);
-            strides.push_back(0);
+            out_shape.push_back(1);
+            out_strides.push_back(0);
         } else {
             auto type_name = nb::str(arg.type());
             SGL_THROW(
@@ -304,20 +300,20 @@ void StridedBufferView::index_inplace(nb::object index_arg)
     // Any remaining unindexed dimensions can now be appended to the output
     int remaining = dims() - dim;
     for (int j = 0; j < remaining; ++j) {
-        shape.push_back(cur_shape[dim + j]);
-        strides.push_back(cur_strides[dim + j]);
+        out_shape.push_back(cur_shape[dim + j]);
+        out_strides.push_back(cur_strides[dim + j]);
     }
 
-    if (shape.empty()) {
+    if (out_shape.empty()) {
         // A fully indexed buffer technically returns a 0D buffer
         // This is not really compatible with the rest of the machinery,
         // so turn it into a 1D buffer with 1 element instead
-        shape.push_back(1);
-        strides.push_back(1);
+        out_shape.push_back(1);
+        out_strides.push_back(1);
     }
 
     // Finally, change our view to the new shape/strides/offset
-    view_inplace(Shape(shape), Shape(strides), offset);
+    view_inplace(Shape(out_shape), Shape(out_strides), offset);
 }
 
 void StridedBufferView::clear(CommandEncoder* cmd)

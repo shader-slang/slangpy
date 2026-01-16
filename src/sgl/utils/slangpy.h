@@ -263,6 +263,12 @@ public:
     /// Get size (i.e. number of dimensions) of shape.
     size_t size() const { return m_size; }
 
+    /// Iterator support for range-based for loops and algorithms
+    const int* begin() const { return data(); }
+    const int* end() const { return data() + m_size; }
+    int* begin() { return data(); }
+    int* end() { return data() + m_size; }
+
     /// Check if concrete shape (no dimensions are -1).
     bool concrete() const
     {
