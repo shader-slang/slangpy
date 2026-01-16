@@ -141,7 +141,9 @@ void LMDBCache::set(const void* key_data, size_t key_size, const void* value_dat
         evict();
 
     // If the first attempt fails with MDB_MAP_FULL, retry one time after
-    // running eviction.
+    // running eviction. Force eviction to bypass threshold checks since
+    // MDB_MAP_FULL indicates we're truly out of space (size metrics don't
+    // perfectly predict this due to LMDB's copy-on-write overhead).
     for (int attempt = 0; attempt < 2; ++attempt) {
         ScopedTransaction txn(m_db.env);
 
@@ -150,7 +152,7 @@ void LMDBCache::set(const void* key_data, size_t key_size, const void* value_dat
         int result = mdb_put(txn, m_db.dbi_data, &mdb_key, &mdb_val, 0);
         if (attempt == 0 && result == MDB_MAP_FULL) {
             txn.abort();
-            evict();
+            evict(true);
             continue;
         }
         if (result != MDB_SUCCESS)
@@ -161,7 +163,7 @@ void LMDBCache::set(const void* key_data, size_t key_size, const void* value_dat
         result = mdb_put(txn, m_db.dbi_meta, &mdb_key, &mdb_val_meta, 0);
         if (attempt == 0 && result == MDB_MAP_FULL) {
             txn.abort();
-            evict();
+            evict(true);
             continue;
         }
         if (result != MDB_SUCCESS)
@@ -270,7 +272,7 @@ LMDBCache::Stats LMDBCache::stats() const
     return stats;
 }
 
-void LMDBCache::evict()
+void LMDBCache::evict(bool force)
 {
     // Only one thread should work on evicting entries.
     std::lock_guard lock{m_evict_mutex};
@@ -282,11 +284,16 @@ void LMDBCache::evict()
     std::vector<Entry> entries;
 
     // Early out if eviction target size is already hit.
-    size_t used_size = usage().used_size;
-    if (used_size < m_eviction_target_size)
+    // When force=true (triggered by MDB_MAP_FULL), we skip this check entirely
+    // since size metrics don't perfectly predict MDB_MAP_FULL due to LMDB's
+    // copy-on-write semantics and transaction overhead.
+    Usage current_usage = usage();
+    if (!force && current_usage.used_size < m_eviction_target_size)
         return;
 
-    size_t required_free_size = used_size - m_eviction_target_size;
+    // Calculate how much space to free. When forced, assume database is full.
+    size_t required_free_size
+        = (force ? current_usage.reserved_size : current_usage.used_size) - m_eviction_target_size;
 
 #if 0
     {

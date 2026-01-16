@@ -46,7 +46,7 @@ public:
         size_t max_size{64ull * 1024 * 1024};
         /// Eviction threshold in percent (0-100). When the cache size exceeds this
         /// percentage of the maximum size, eviction is triggered.
-        uint32_t eviction_threshold = 80;
+        uint32_t eviction_threshold = 70;
         /// Eviction target in percent (0-100). When eviction is triggered, entries
         /// are evicted until the cache size is below this percentage of the maximum size.
         uint32_t eviction_target = 60;
@@ -148,7 +148,7 @@ public:
     Stats stats() const;
 
 private:
-    void evict();
+    void evict(bool force = false);
 
     struct DB {
         MDB_env* env{nullptr};
