@@ -168,6 +168,7 @@ void LMDBCache::set(const void* key_data, size_t key_size, const void* value_dat
             LMDB_THROW("Failed to write metadata", result);
 
         txn.commit();
+        break;
     }
 }
 
