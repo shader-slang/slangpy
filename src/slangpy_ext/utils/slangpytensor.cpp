@@ -172,8 +172,35 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
     // This is critical for PyTorch's autograd system to identify input/output tensors
     tensorref->set_last_access(binding->access());
 
+    // Check for struct tensor reinterpretation
+    bool is_struct_tensor = tensorref->struct_type() != nullptr && tensorref->struct_dims() >= 0;
+
+    // Helper to get shape/strides for a tensor, applying struct reinterpretation if needed
+    auto get_shape_strides
+        = [&](const nb::ndarray<nb::pytorch, nb::device::cuda>& t) -> std::pair<std::vector<int>, std::vector<int>>
+    {
+        if (is_struct_tensor) {
+            size_t struct_size = tensorref->struct_type()->buffer_type_layout()->stride();
+            size_t element_size = t.itemsize();
+            size_t elements_per_struct = struct_size / element_size;
+
+            std::vector<int> shape, strides;
+            shape.reserve(t.ndim() - 1);
+            strides.reserve(t.ndim() - 1);
+
+            for (size_t i = 0; i < t.ndim() - 1; i++) {
+                shape.push_back(static_cast<int>(t.shape(i)));
+                strides.push_back(static_cast<int>(t.stride(i) / elements_per_struct));
+            }
+            return {shape, strides};
+        }
+        return {extract_shape(t), extract_strides(t)};
+    };
+
+    // Get shape/strides for primal tensor
+    auto [tensor_shape, tensor_strides] = get_shape_strides(pytorch_tensor);
+
     // Validate tensor shape matches expected shape
-    std::vector<int> tensor_shape = extract_shape(pytorch_tensor);
     const Shape& expected_shape = binding->vector_type()->shape();
     const std::vector<int>& expected_shape_vec = expected_shape.as_vector();
 
@@ -205,7 +232,7 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
                           int offset)
     {
         // Write buffer pointer
-        cursor["buffer"].set_pointer(reinterpret_cast<uint64_t>(data_ptr));
+        cursor["_data"].set_pointer(reinterpret_cast<uint64_t>(data_ptr));
 
         // Write shape
         cursor["_shape"]._set_array_unsafe(
@@ -227,66 +254,73 @@ void NativeTensorMarshall::write_pytorch_tensor_fields(
         }
 
         // Write layout
-        auto layout = cursor["layout"];
-        layout["strides"]._set_array_unsafe(
+        cursor["_strides"]._set_array_unsafe(
             strides.empty() ? nullptr : &strides[0],
             strides.size() * 4,
             strides.size(),
             TypeReflection::ScalarType::int32
         );
-        layout["offset"] = offset;
+        cursor["_offset"] = offset;
     };
 
     // Write primal tensor
-    ShaderCursor primal_field = field.find_field("primal");
+    ShaderCursor primal_field = field.find_field("_primal");
     if (!primal_field.is_valid()) {
         write_data(
             field,
             pytorch_tensor.data(),
-            extract_shape(pytorch_tensor),
-            extract_strides(pytorch_tensor),
+            tensor_shape,
+            tensor_strides,
             0 // offset is 0 for direct tensor access
         );
     } else {
         write_data(
             primal_field,
             pytorch_tensor.data(),
-            extract_shape(pytorch_tensor),
-            extract_strides(pytorch_tensor),
+            tensor_shape,
+            tensor_strides,
             0 // offset is 0 for direct tensor access
         );
 
         // Handle grad_in
         if (m_d_in) {
-            ref<TensorRef> grad_in_ref = tensorref->grad_in();
-            SGL_CHECK(grad_in_ref, "Missing required input gradients");
-            auto grad_in_tensor_opt = grad_in_ref->tensor();
-            if (grad_in_tensor_opt.has_value()) {
-                auto& grad_in_tensor = grad_in_tensor_opt.value();
-                write_data(
-                    field["d_in"],
-                    grad_in_tensor.data(),
-                    extract_shape(grad_in_tensor),
-                    extract_strides(grad_in_tensor),
-                    0 // offset is 0 for direct tensor access
-                );
+            ShaderCursor grad_in_field = field.find_field("_grad_in");
+            if (grad_in_field.is_valid()) {
+                ref<TensorRef> grad_in_ref = tensorref->grad_in();
+                SGL_CHECK(grad_in_ref, "Missing required input gradients");
+                auto grad_in_tensor_opt = grad_in_ref->tensor();
+                if (grad_in_tensor_opt.has_value()) {
+                    auto& grad_in_tensor = grad_in_tensor_opt.value();
+                    auto [grad_in_shape, grad_in_strides] = get_shape_strides(grad_in_tensor);
+                    write_data(
+                        grad_in_field,
+                        grad_in_tensor.data(),
+                        grad_in_shape,
+                        grad_in_strides,
+                        0 // offset is 0 for direct tensor access
+                    );
+                }
             }
         }
 
         // Handle grad_out
         if (m_d_out) {
-            ref<TensorRef> grad_out_ref = tensorref->grad_out();
-            SGL_CHECK(grad_out_ref, "Missing required output gradients");
-            auto grad_out_tensor_opt = grad_out_ref->tensor();
-            if (grad_out_tensor_opt.has_value()) {
-                auto& grad_out_tensor = grad_out_tensor_opt.value();
-                write_data(
-                    field["d_out"],
-                    grad_out_tensor.data(),
-                    extract_shape(grad_out_tensor),
-                    extract_strides(grad_out_tensor),
-                    0 // offset is 0 for direct tensor access
-                );
+            ShaderCursor grad_out_field = field.find_field("_grad_out");
+            if (grad_out_field.is_valid()) {
+                ref<TensorRef> grad_out_ref = tensorref->grad_out();
+                SGL_CHECK(grad_out_ref, "Missing required output gradients");
+                auto grad_out_tensor_opt = grad_out_ref->tensor();
+                if (grad_out_tensor_opt.has_value()) {
+                    auto& grad_out_tensor = grad_out_tensor_opt.value();
+                    auto [grad_out_shape, grad_out_strides] = get_shape_strides(grad_out_tensor);
+                    write_data(
+                        grad_out_field,
+                        grad_out_tensor.data(),
+                        grad_out_shape,
+                        grad_out_strides,
+                        0 // offset is 0 for direct tensor access
+                    );
+                }
             }
         }
     }
@@ -306,7 +340,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     NativeTensor* primal;
     if (nb::try_cast(value, primal)) {
         ShaderCursor field = cursor[binding->variable_name()];
-        ShaderCursor primal_field = field.find_field("primal");
+        ShaderCursor primal_field = field.find_field("_primal");
 
         const ref<NativeTensor>& grad_in = primal->grad_in();
         const ref<NativeTensor>& grad_out = primal->grad_out();
@@ -315,13 +349,21 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
             write_shader_cursor_fields(context, binding, field, primal, read_back);
         } else {
             write_shader_cursor_fields(context, binding, primal_field, primal, read_back);
+
             if (m_d_in) {
-                SGL_CHECK(grad_in, "Missing required input gradients");
-                write_shader_cursor_fields(context, binding, field["d_in"], grad_in.get(), read_back);
+                ShaderCursor grad_in_field = field.find_field("_grad_in");
+                if (grad_in_field.is_valid()) {
+                    SGL_CHECK(grad_in, "Missing required input gradients");
+                    write_shader_cursor_fields(context, binding, grad_in_field, grad_in.get(), read_back);
+                }
             }
+
             if (m_d_out) {
-                SGL_CHECK(grad_out, "Missing required input gradients");
-                write_shader_cursor_fields(context, binding, field["d_out"], grad_out.get(), read_back);
+                ShaderCursor grad_out_field = field.find_field("_grad_out");
+                if (grad_out_field.is_valid()) {
+                    SGL_CHECK(grad_out, "Missing required input gradients");
+                    write_shader_cursor_fields(context, binding, grad_out_field, grad_out.get(), read_back);
+                }
             }
         }
 
@@ -361,7 +403,7 @@ void NativeTensorMarshall::write_shader_cursor_fields(
     SGL_UNUSED(read_back);
 
     // Write the buffer storage.
-    field["buffer"] = buffer->storage();
+    field["_data"] = buffer->storage();
 
     // Write shape vector as an array of ints.
     const std::vector<int>& shape_vec = buffer->shape().as_vector();
@@ -381,14 +423,13 @@ void NativeTensorMarshall::write_shader_cursor_fields(
     }
 
     // Write the strides vector as an array of ints.
-    auto layout_field = field["layout"];
-    layout_field["strides"]._set_array_unsafe(
+    field["_strides"]._set_array_unsafe(
         &strides_vec[0],
         strides_vec.size() * 4,
         strides_vec.size(),
         TypeReflection::ScalarType::int32
     );
-    layout_field["offset"] = buffer->offset();
+    field["_offset"] = buffer->offset();
 }
 
 void NativeTensorMarshall::read_calldata(
@@ -444,12 +485,10 @@ nb::object NativeTensorMarshall::create_dispatchdata(nb::object data) const
     // Cast value to buffer, and get the cursor field to write to.
     auto buffer = nb::cast<NativeTensor*>(data);
     nb::dict res;
-    res["buffer"] = buffer->storage();
+    res["_data"] = buffer->storage();
     res["_shape"] = buffer->shape().as_vector();
-    nb::dict layout;
-    layout["offset"] = buffer->offset();
-    layout["strides"] = buffer->strides().as_vector();
-    res["layout"] = layout;
+    res["_offset"] = buffer->offset();
+    res["_strides"] = buffer->strides().as_vector();
     return res;
 }
 

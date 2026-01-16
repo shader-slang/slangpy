@@ -56,7 +56,7 @@ class BufferMarshall(NativeBufferMarshall):
             return 0
         else:
             raise ValueError(
-                "Raw buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type"
+                "Raw buffers can not be vectorized. If you need vectorized buffers, see the Tensor slangpy type"
             )
 
     def resolve_types(self, context: BindContext, bound_type: SlangType):
@@ -105,7 +105,7 @@ class BufferMarshall(NativeBufferMarshall):
             cgb.type_alias(f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
         else:
             raise ValueError(
-                "Raw buffers can not be vectorized. If you need vectorized buffers, see the NDBuffer slangpy type"
+                "Raw buffers can not be vectorized. If you need vectorized buffers, see the Tensor slangpy type"
             )
 
     @property

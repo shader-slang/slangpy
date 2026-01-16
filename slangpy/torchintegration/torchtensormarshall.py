@@ -3,7 +3,7 @@
 
 from typing import Any, Optional, cast
 from numpy import ScalarType
-from slangpy import DataType, Device, BufferUsage, TypeReflection, DeviceType
+from slangpy import DataType, BufferUsage, TypeReflection, DeviceType
 import torch
 
 from slangpy.core.native import AccessType, CallContext, CallMode, Shape, TensorRef
@@ -18,8 +18,9 @@ from slangpy.reflection.reflectiontypes import (
     ScalarType,
     VectorType,
     MatrixType,
+    StructType,
 )
-from slangpy.types.buffer import innermost_type
+from slangpy.reflection.lookup import innermost_type
 
 ST = TypeReflection.ScalarType
 _torch_to_scalar_type = {
@@ -51,6 +52,46 @@ def _slang_dtype_to_torch(slang_dtype: SlangType) -> Optional["torch.dtype"]:
     return None
 
 
+def as_struct_tensor(
+    tensor: "torch.Tensor",
+    struct_type: SlangType,
+    dims: Optional[int] = None,
+) -> TensorRef:
+    """
+    Reinterpret a torch.Tensor as a tensor of struct elements.
+
+    The tensor's last dimension must match the struct's byte size. Struct layout
+    may vary between platforms due to padding/alignment differences.
+    """
+    if not isinstance(struct_type, StructType):
+        raise TypeError(f"Expected StructType, got {type(struct_type).__name__}")
+
+    if not tensor.is_cuda:
+        raise ValueError("Tensor must be on CUDA device")
+
+    if tensor.dim() < 1:
+        raise ValueError("Tensor must have at least 1 dimension")
+
+    struct_size = struct_type.buffer_layout.size
+    element_size = tensor.element_size()
+    last_dim_bytes = tensor.shape[-1] * element_size
+    if last_dim_bytes != struct_size:
+        raise ValueError(
+            f"Last dimension size ({last_dim_bytes} bytes) != struct size ({struct_size} bytes)"
+        )
+
+    if tensor.stride()[-1] != 1:
+        raise ValueError(f"Last dimension must be contiguous, got stride {tensor.stride()[-1]}")
+
+    if dims is None:
+        dims = tensor.dim() - 1
+
+    ref = TensorRef(-1, tensor)
+    ref.struct_type = struct_type
+    ref.struct_dims = dims
+    return ref
+
+
 def _torch_dtype_to_slang(
     torch_dtype: "torch.dtype", layout: SlangProgramLayout
 ) -> Optional[SlangType]:
@@ -66,6 +107,130 @@ def get_storage(context: CallContext, element_count: int, struct_size: int) -> B
         struct_size=struct_size,
         usage=BufferUsage.shared | BufferUsage.unordered_access | BufferUsage.shader_resource,
     )
+
+
+class StructTensorRefMarshall(TensorMarshall):
+    """Marshaller for torch tensors reinterpreted as struct tensors."""
+
+    def __init__(
+        self,
+        layout: SlangProgramLayout,
+        struct_type: StructType,
+        dims: int,
+        d_in: Optional["StructTensorRefMarshall"],
+        d_out: Optional["StructTensorRefMarshall"],
+    ):
+        super().__init__(layout, struct_type, dims, True, d_in, d_out)
+        self.d_in: Optional[StructTensorRefMarshall]
+        self.d_out: Optional[StructTensorRefMarshall]
+        self.struct_type = struct_type
+
+    def get_shape(self, value: Optional[TensorRef] = None) -> Shape:
+        if value is not None:
+            tensor = cast(torch.Tensor, value.tensor)
+            return Shape(tensor.shape[:-1])
+        return Shape((-1,) * self.dims)
+
+    def create_calldata(
+        self, context: CallContext, binding: "BoundVariableRuntime", data: TensorRef
+    ) -> Any:
+        if data.tensor is None:
+            raise ValueError("Missing required tensor data")
+        primal = cast(torch.Tensor, data.tensor)
+        data.last_access = binding.access
+
+        shape = tuple(primal.shape[:-1])
+        struct_size = self.struct_type.buffer_layout.size
+        elements_per_struct = struct_size // primal.element_size()
+        strides = tuple(s // elements_per_struct for s in primal.stride()[:-1])
+
+        bound_shape = shape[-len(binding.vector_type.shape) :]
+        if any([b != -1 and a != b for a, b in zip(bound_shape, binding.vector_type.shape)]):
+            raise ValueError(
+                f"Tensor shape {shape} does not match expected shape {binding.vector_type.shape}"
+            )
+        assert primal.is_cuda
+
+        if context.device.info.type != DeviceType.cuda:
+            torch_dtype = primal.dtype
+            data_type = _torch_to_data_type[torch_dtype]
+            element_count = max(1, primal.numel())
+            data.interop_buffer = get_storage(context, element_count, primal.element_size())
+
+            if primal.numel() > 0:
+                original_shape = tuple(primal.shape)
+                original_strides = primal.stride()
+                interop_tensor = cast(
+                    torch.Tensor,
+                    data.interop_buffer.to_torch(
+                        type=data_type, shape=original_shape, strides=original_strides
+                    ),
+                )
+                interop_tensor.copy_(primal)
+
+            primal_calldata = {
+                "_data": data.interop_buffer,
+                "_offset": 0,
+                "_strides": strides,
+                "_shape": shape,
+            }
+
+            if not self.d_in and not self.d_out:
+                return primal_calldata
+
+            result = {"_primal": primal_calldata}
+            if self.d_in is not None:
+                if data.grad_in is None:
+                    raise ValueError("Missing required input gradients")
+                result["_grad_in"] = self.d_in.create_calldata(context, binding, data.grad_in)
+            if self.d_out is not None:
+                if data.grad_out is None:
+                    raise ValueError("Missing tensor to hold output gradients")
+                result["_grad_out"] = self.d_out.create_calldata(context, binding, data.grad_out)
+
+            return result
+        else:
+            raise RuntimeError("CUDA tensors should use C++ fast path")
+
+    def read_calldata(
+        self,
+        context: CallContext,
+        binding: "BoundVariableRuntime",
+        data: TensorRef,
+        result: Any,
+    ):
+        if context.device.info.type != DeviceType.cuda:
+            assert data.tensor is not None
+            assert data.interop_buffer is not None
+            primal = cast(torch.Tensor, data.tensor)
+
+            if primal.numel() > 0:
+                original_shape = tuple(primal.shape)
+                original_strides = primal.stride()
+                torch_dtype = primal.dtype
+                data_type = _torch_to_data_type[torch_dtype]
+                interop_tensor = cast(
+                    torch.Tensor,
+                    data.interop_buffer.to_torch(
+                        type=data_type, shape=original_shape, strides=original_strides
+                    ),
+                )
+                primal.untyped_storage().copy_(interop_tensor.untyped_storage())
+
+            data.interop_buffer = None
+
+            if self.d_in is not None:
+                assert data.grad_in is not None
+                self.d_in.read_calldata(context, binding, data.grad_in, result["_grad_in"])
+            if self.d_out is not None:
+                assert data.grad_out is not None
+                self.d_out.read_calldata(context, binding, data.grad_out, result["_grad_out"])
+
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
+        raise NotImplementedError("Output creation for struct tensors not yet supported")
+
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any) -> Any:
+        return data
 
 
 class TensorRefMarshall(TensorMarshall):
@@ -142,23 +307,24 @@ class TensorRefMarshall(TensorMarshall):
                 interop_tensor.copy_(primal)
 
             primal_calldata = {
-                "buffer": data.interop_buffer,
-                "layout": {"offset": 0, "strides": strides},
+                "_data": data.interop_buffer,
+                "_offset": 0,
+                "_strides": strides,
                 "_shape": shape,
             }
 
             if not self.d_in and not self.d_out:
                 return primal_calldata
 
-            result = {"primal": primal_calldata}
+            result = {"_primal": primal_calldata}
             if self.d_in is not None:
                 if data.grad_in is None:
                     raise ValueError("Missing required input gradients")
-                result["d_in"] = self.d_in.create_calldata(context, binding, data.grad_in)
+                result["_grad_in"] = self.d_in.create_calldata(context, binding, data.grad_in)
             if self.d_out is not None:
                 if data.grad_out is None:
                     raise ValueError("Missing tensor to hold output gradients")
-                result["d_out"] = self.d_out.create_calldata(context, binding, data.grad_out)
+                result["_grad_out"] = self.d_out.create_calldata(context, binding, data.grad_out)
 
             if (
                 context.call_mode != CallMode.prim
@@ -205,10 +371,10 @@ class TensorRefMarshall(TensorMarshall):
 
             if self.d_in is not None:
                 assert data.grad_in is not None
-                self.d_in.read_calldata(context, binding, data.grad_in, result["d_in"])
+                self.d_in.read_calldata(context, binding, data.grad_in, result["_grad_in"])
             if self.d_out is not None:
                 assert data.grad_out is not None
-                self.d_out.read_calldata(context, binding, data.grad_out, result["d_out"])
+                self.d_out.read_calldata(context, binding, data.grad_out, result["_grad_out"])
 
     def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
         # Overall shape of tensor must contain the call, plus the shape of the slang datatype
@@ -242,19 +408,41 @@ def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
             )
     elif isinstance(value, TensorRef):
         assert value.tensor is not None
-        torch_dtype = value.tensor.dtype
-        slang_dtype = _torch_dtype_to_slang(torch_dtype, layout)
-        if slang_dtype is None:
-            raise ValueError(f"Unsupported torch dtype {value.tensor.dtype}")
 
-        d_in = create_tensor_marshall(layout, value.grad_in) if value.grad_in is not None else None
-        d_out = (
-            create_tensor_marshall(layout, value.grad_out) if value.grad_out is not None else None
-        )
+        # Check if this is a struct tensor reinterpretation
+        if value.struct_type is not None and value.struct_dims >= 0:
+            # struct_type is already a StructType (set by as_struct_tensor)
+            struct_type = value.struct_type
 
-        marshall = TensorRefMarshall(
-            layout, torch_dtype, slang_dtype, len(value.tensor.shape), d_in, d_out
-        )
+            d_in = (
+                create_tensor_marshall(layout, value.grad_in) if value.grad_in is not None else None
+            )
+            d_out = (
+                create_tensor_marshall(layout, value.grad_out)
+                if value.grad_out is not None
+                else None
+            )
+
+            marshall = StructTensorRefMarshall(layout, struct_type, value.struct_dims, d_in, d_out)
+        else:
+            # Normal scalar tensor
+            torch_dtype = value.tensor.dtype
+            slang_dtype = _torch_dtype_to_slang(torch_dtype, layout)
+            if slang_dtype is None:
+                raise ValueError(f"Unsupported torch dtype {value.tensor.dtype}")
+
+            d_in = (
+                create_tensor_marshall(layout, value.grad_in) if value.grad_in is not None else None
+            )
+            d_out = (
+                create_tensor_marshall(layout, value.grad_out)
+                if value.grad_out is not None
+                else None
+            )
+
+            marshall = TensorRefMarshall(
+                layout, torch_dtype, slang_dtype, len(value.tensor.shape), d_in, d_out
+            )
     else:
         raise ValueError(f"Type {type(value)} is unsupported for torch.Tensor marshall")
 

@@ -5,7 +5,7 @@ import numpy as np
 import numpy.typing as npt
 from slangpy import DeviceType, float3, uint3
 from slangpy.experimental.gridarg import grid
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.types.callidarg import call_id
 from slangpy.types.randfloatarg import RandFloatArg, rand_float
 from slangpy.types.threadidarg import thread_id
@@ -51,7 +51,7 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
     )
 
     # Make buffer for results
-    results = NDBuffer(
+    results = Tensor.empty(
         element_count=128,
         device=device,
         dtype=kernel_output_values.module.layout.find_type_by_name(type_name),
@@ -62,7 +62,7 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
     kernel_output_values(thread_id(dims), _result=results)
 
     # Should get out the thread ids
-    data = helpers.read_ndbuffer_from_numpy(results).reshape((-1, elements))
+    data = helpers.read_tensor_from_numpy(results).reshape((-1, elements))
 
     if elements == 1:
         expected = [[i] for i in range(128)]
@@ -110,7 +110,7 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: 
     )
 
     # Make buffer for results
-    results = NDBuffer(
+    results = Tensor.empty(
         shape=(16,) * elements,
         device=device,
         dtype=kernel_output_values.module.layout.find_type_by_name(type_name),
@@ -121,7 +121,7 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: 
     kernel_output_values(call_id(dims), _result=results)
 
     # Should get out the thread ids
-    data = helpers.read_ndbuffer_from_numpy(results).reshape((-1, elements))
+    data = helpers.read_tensor_from_numpy(results).reshape((-1, elements))
     expected = np.indices((16,) * elements).reshape(elements, -1).T
 
     # Reverse order of components in last dimension of expected
@@ -160,7 +160,7 @@ uint3 wang_hashes(uint3 input) {
     )
 
     # Make buffer for results
-    results = NDBuffer(element_count=16, device=device, dtype=uint3)
+    results = Tensor.empty(element_count=16, device=device, dtype=uint3)
 
     # Call function with 3D wang hash arg
     kernel_output_values(
@@ -183,7 +183,7 @@ uint3 wang_hashes(uint3 input) {
     expected = np.stack((expected_d0, expected_d1, expected_d2), axis=-1)
 
     # Should get out the following precalculated wang hashes
-    data = helpers.read_ndbuffer_from_numpy(results).reshape((-1, 3))
+    data = helpers.read_tensor_from_numpy(results).reshape((-1, 3))
     assert np.allclose(data, expected)
 
 
@@ -206,7 +206,7 @@ uint wang_hashes(uint input) {
     )
 
     # Make buffer for results
-    results = NDBuffer(element_count=16, device=device, dtype=kernel_output_values.module.uint)
+    results = Tensor.empty(element_count=16, device=device, dtype=kernel_output_values.module.uint)
 
     # Call function with 3D wang hash arg
     kernel_output_values(wang_hash(warmup=warmup, hash_seed=hash_seed, seed=seed), _result=results)
@@ -222,7 +222,7 @@ uint wang_hashes(uint input) {
     expected = calc_wang_hash_numpy(thread_hash ^ np_seeds)
 
     # Should get out matching hashes
-    data = helpers.read_ndbuffer_from_numpy(results)
+    data = helpers.read_tensor_from_numpy(results)
     assert np.allclose(data, expected)
 
 
@@ -253,7 +253,7 @@ uint wang_hashes(uint input) {
     )
 
     def read_values(seed: int):
-        results = NDBuffer(
+        results = Tensor.empty(
             element_count=16,  # 3840 * 2160,
             device=device,
             dtype=kernel_output_values.module.uint,
@@ -264,7 +264,7 @@ uint wang_hashes(uint input) {
     normal_quality = measure_sequential_hash_quality(read_values)
 
     def read_values_hash_seed(seed: int):
-        results = NDBuffer(
+        results = Tensor.empty(
             element_count=16,  # 3840 * 2160,
             device=device,
             dtype=kernel_output_values.module.uint,
@@ -275,7 +275,7 @@ uint wang_hashes(uint input) {
     hash_seed_quality = measure_sequential_hash_quality(read_values_hash_seed)
 
     def read_values_warmup(seed: int):
-        results = NDBuffer(
+        results = Tensor.empty(
             element_count=3840 * 2160,
             device=device,
             dtype=kernel_output_values.module.uint,
@@ -314,7 +314,7 @@ float3 rand_float(float3 input) {
     count = 1000
 
     # Make buffer for results
-    results = NDBuffer(element_count=count, device=device, dtype=float3)
+    results = Tensor.empty(element_count=count, device=device, dtype=float3)
 
     # Call function with 3D random arg
     kernel_output_values(
@@ -339,7 +339,7 @@ float3 rand_float(float3 input) {
     values = 1.0 + 2.0 * u
 
     # Should get random numbers
-    data = helpers.read_ndbuffer_from_numpy(results).reshape((-1, 3))
+    data = helpers.read_tensor_from_numpy(results).reshape((-1, 3))
     assert np.allclose(data, values)
 
 
@@ -361,7 +361,7 @@ void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
     )
 
     # Make buffer for bucket of counts
-    buckets = NDBuffer(element_count=bucket_size, device=device, dtype=int)
+    buckets = Tensor.empty(element_count=bucket_size, device=device, dtype=int)
     buckets.clear()
 
     # Run bucketer with 1M random floats
@@ -404,7 +404,7 @@ Particle rand_float_soa(Particle input) {
     module = kernel_output_values.module
 
     # Make buffer for results
-    results = NDBuffer(
+    results = Tensor.empty(
         element_count=16,
         device=device,
         dtype=module.layout.find_type_by_name("Particle"),
@@ -420,7 +420,7 @@ Particle rand_float_soa(Particle input) {
     )
 
     # Should get random numbers
-    data = helpers.read_ndbuffer_from_numpy(results)
+    data = helpers.read_tensor_from_numpy(results)
     print(data)
 
     pos = np.array([item["pos"] for item in data])

@@ -8,7 +8,7 @@ from slangpy.core.callsignature import BoundVariable
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.types import floatRef
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.types.valueref import ValueRef
 from slangpy.testing import helpers
 
@@ -23,15 +23,15 @@ TTupleOrList = Union[tuple[int, ...], list[int]]
 
 
 def make_int_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=int)
+    return Tensor.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=int)
 
 
 def make_float_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float)
+    return Tensor.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float)
 
 
 def make_vec4_buffer(device_type: DeviceType, shape: TTupleOrList):
-    return NDBuffer.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float4)
+    return Tensor.zeros(device=helpers.get_device(device_type), shape=tuple(shape), dtype=float4)
 
 
 def make_vec4_raw_buffer(device_type: DeviceType, count: int):
@@ -91,7 +91,7 @@ def read_slice(
     function = helpers.create_function_from_module(
         device,
         "read_slice",
-        r"""import "slangpy"; float read_slice(int2 index, NDBuffer<float,2> texture) { return texture[{index.x,index.y}]; }""",
+        r"""import "slangpy"; float read_slice(int2 index, Tensor<float,2> texture) { return texture[index.x,index.y]; }""",
     )
 
     if transforms is not None:

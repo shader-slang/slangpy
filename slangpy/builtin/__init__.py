@@ -5,7 +5,7 @@
 from .value import ValueMarshall
 from .valueref import ValueRefMarshall
 from .diffpair import DiffPairMarshall
-from .ndbuffer import NDBufferMarshall, NDDifferentiableBufferMarshall
+from .ndbuffer import NDBufferMarshall
 from .struct import StructMarshall
 from .structuredbuffer import BufferMarshall
 from .descriptor import DescriptorMarshall

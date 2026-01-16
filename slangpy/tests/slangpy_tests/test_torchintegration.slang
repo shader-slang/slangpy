@@ -22,7 +22,7 @@ void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, RWTensor<float, 2> res)
     for (int i = 0; i < a.shape[0]; i++)
         [MaxIters(8)]
         for (int j = 0; j < a.shape[1]; j++)
-            res.set({i, j}, a[i,j] + b[i, j]);
+            res[i,j] = a[i,j] + b[i, j];
 }
 
 [Differentiable]
@@ -90,5 +90,29 @@ void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] r
 
 void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
-        output.set({int(i)}, input[int(i)]);
+        output[i] = input[i];
+}
+
+struct Vec2 {
+    float x;
+    float y;
+};
+
+struct Particle {
+    float3 position;
+    float3 velocity;
+};
+
+void double_vec2(Vec2 input, out Vec2 output) {
+    output.x = input.x * 2.0;
+    output.y = input.y * 2.0;
+}
+
+float sum_vec2(Vec2 input) {
+    return input.x + input.y;
+}
+
+void update_particle(Particle p, float dt, out Particle output) {
+    output.position = p.position + p.velocity * dt;
+    output.velocity = p.velocity;
 }

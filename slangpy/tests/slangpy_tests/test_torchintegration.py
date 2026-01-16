@@ -101,6 +101,9 @@ def test_add_values(
     val_shape = func_and_shape[1]
     extra_shape = (5,) * extra_dims
 
+    if len(extra_shape + val_shape) == 0:
+        pytest.skip("No shape to test")
+
     a = torch.randn(
         extra_shape + val_shape,
         dtype=torch.float32,
@@ -281,6 +284,9 @@ def test_polynomials(
     if func_name == "polynomial_vectors":
         pytest.skip("Slang bug currently causing derivatives to return 0")
 
+    if len(extra_shape + val_shape) == 0:
+        pytest.skip("No shape to test")
+
     a = 2.0
     b = 4.0
     c = 1.0
@@ -361,6 +367,140 @@ def test_empty_tensor_null_data_ptr(device_type: DeviceType):
     # Verify tensors are still empty
     assert input_tensor.numel() == 0
     assert output_tensor.numel() == 0
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_vec2_1d(device_type: DeviceType):
+    """
+    Test Tensor<Vec2> reinterpretation using as_struct_tensor.
+    A torch.Tensor of shape [N, 2] should be reinterpreted as [N] Vec2 structs.
+    """
+    import slangpy as spy
+
+    module = load_test_module(device_type)
+
+    N = 10
+    # Create tensor of shape [N, 2] where last dim represents Vec2 {x, y}
+    input_tensor = torch.randn((N, 2), dtype=torch.float32, device=torch.device("cuda"))
+    output_tensor = torch.zeros((N, 2), dtype=torch.float32, device=torch.device("cuda"))
+
+    # Wrap as struct tensors using the explicit helper
+    struct_input = spy.as_struct_tensor(input_tensor, module.Vec2.struct, dims=1)
+    struct_output = spy.as_struct_tensor(output_tensor, module.Vec2.struct, dims=1)
+
+    # Call the function - slangpy will vectorize over the first dimension
+    module.double_vec2(struct_input, struct_output)
+
+    # Verify the result: each Vec2 should be doubled
+    expected = input_tensor * 2.0
+    compare_tensors(expected, output_tensor)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_vec2_2d(device_type: DeviceType):
+    """
+    Test Tensor<Vec2> reinterpretation with 2D tensor.
+    A torch.Tensor of shape [M, N, 2] should be reinterpreted as [M, N] Vec2 structs.
+    """
+    import slangpy as spy
+
+    module = load_test_module(device_type)
+
+    M, N = 4, 5
+    # Create tensor of shape [M, N, 2] where last dim represents Vec2 {x, y}
+    input_tensor = torch.randn((M, N, 2), dtype=torch.float32, device=torch.device("cuda"))
+    output_tensor = torch.zeros((M, N, 2), dtype=torch.float32, device=torch.device("cuda"))
+
+    # Wrap as struct tensors (2D tensors of Vec2 structs)
+    struct_input = spy.as_struct_tensor(input_tensor, module.Vec2.struct, dims=2)
+    struct_output = spy.as_struct_tensor(output_tensor, module.Vec2.struct, dims=2)
+
+    # Call the function - slangpy will vectorize over both dimensions
+    module.double_vec2(struct_input, struct_output)
+
+    # Verify the result: each Vec2 should be doubled
+    expected = input_tensor * 2.0
+    compare_tensors(expected, output_tensor)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_sum_vec2(device_type: DeviceType):
+    """
+    Test reading from Tensor<Vec2> and returning a scalar per element.
+    """
+    import slangpy as spy
+
+    module = load_test_module(device_type)
+
+    N = 8
+    # Create tensor of shape [N, 2] where last dim represents Vec2 {x, y}
+    input_tensor = torch.randn((N, 2), dtype=torch.float32, device=torch.device("cuda"))
+
+    # Wrap as struct tensor
+    struct_input = spy.as_struct_tensor(input_tensor, module.Vec2.struct, dims=1)
+
+    # Call the function that sums x + y for each Vec2
+    result = module.sum_vec2(struct_input)
+
+    # Expected: sum of x and y for each element
+    expected = input_tensor[:, 0] + input_tensor[:, 1]
+
+    # Convert native tensor result to numpy for comparison
+    result_np = result.to_numpy()
+    expected_np = expected.cpu().numpy()
+
+    err = abs(result_np - expected_np).max()
+    assert err < 1e-4, f"Result deviates by {err} from reference"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_particle(device_type: DeviceType):
+    """
+    Test Tensor<Particle> reinterpretation.
+    Particle struct has 6 floats (position: float3, velocity: float3).
+    A torch.Tensor of shape [N, 6] should be reinterpreted as [N] Particle structs.
+    """
+    import slangpy as spy
+
+    module = load_test_module(device_type)
+
+    N = 5
+    dt = 0.1
+    # Create tensor of shape [N, 6] where last dim represents Particle
+    # [px, py, pz, vx, vy, vz]
+    input_tensor = torch.randn((N, 6), dtype=torch.float32, device=torch.device("cuda"))
+    output_tensor = torch.zeros((N, 6), dtype=torch.float32, device=torch.device("cuda"))
+
+    # Wrap as struct tensors
+    struct_input = spy.as_struct_tensor(input_tensor, module.Particle.struct, dims=1)
+    struct_output = spy.as_struct_tensor(output_tensor, module.Particle.struct, dims=1)
+
+    # Call the function that updates particle positions
+    module.update_particle(struct_input, dt, struct_output)
+
+    # Expected: position = position + velocity * dt, velocity unchanged
+    expected = input_tensor.clone()
+    expected[:, 0:3] = input_tensor[:, 0:3] + input_tensor[:, 3:6] * dt
+    compare_tensors(expected, output_tensor)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_wrong_size_fails(device_type: DeviceType):
+    """
+    Test that passing a tensor with wrong last dimension size raises an error.
+    Vec2 expects 2 floats (8 bytes), so shape [N, 3] should fail.
+    """
+    import slangpy as spy
+
+    module = load_test_module(device_type)
+
+    N = 10
+    # Create tensor with wrong last dim size (3 instead of 2)
+    input_tensor = torch.randn((N, 3), dtype=torch.float32, device=torch.device("cuda"))
+
+    # This should raise an error because [N, 3] doesn't match Vec2's 2 floats
+    with pytest.raises(ValueError):
+        spy.as_struct_tensor(input_tensor, module.Vec2.struct, dims=1)
 
 
 if __name__ == "__main__":

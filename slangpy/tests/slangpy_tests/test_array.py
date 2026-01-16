@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 from slangpy import DeviceType, BufferUsage, Tensor
-from slangpy.types import NDBuffer
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 
@@ -178,45 +178,6 @@ int inc(Val val) {
             data=np.array([i + 1], dtype=np.int32),
             usage=BufferUsage.shader_resource,
         )
-        vals.append({"x": buffer, "_type": "Val"})
-
-    # just verify it can be called with no exceptions
-    results = function(vals, _result="numpy")
-    assert isinstance(results, np.ndarray)
-    assert results.shape == (4,)
-    assert results.dtype == np.int32
-    assert np.array_equal(results, np.array([2, 3, 4, 5], dtype=np.int32))
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_vectorize_struct_with_ndbuffer_array(device_type: DeviceType):
-    if device_type == DeviceType.metal:
-        # https://github.com/shader-slang/slang/issues/7606
-        pytest.skip("Crash in the slang compiler")
-
-    device = helpers.get_device(device_type)
-    function = helpers.create_function_from_module(
-        device,
-        "inc",
-        r"""
-struct Val {
-    NDBuffer<int,1> x;
-}
-int inc(Val val) {
-    return val.x[0]+1;
-}
-""",
-    )
-
-    vals = []
-    for i in range(4):
-        buffer = NDBuffer.zeros(
-            device,
-            dtype=function.module.int,
-            shape=(1,),
-            usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
-        )
-        buffer.copy_from_numpy(np.array([i + 1], dtype=np.int32))
         vals.append({"x": buffer, "_type": "Val"})
 
     # just verify it can be called with no exceptions
