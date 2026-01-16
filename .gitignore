@@ -35,3 +35,5 @@ slangpy/tests/slangpy_tests/logs/
 .slangtorch_cache/
 
 sgl_tests.log
+
+__pycache__/
