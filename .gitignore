@@ -38,3 +38,5 @@ sgl_tests.log
 
 src/slangpy_torch/*.egg-info/
 src/slangpy_torch/build/
+
+__pycache__/
