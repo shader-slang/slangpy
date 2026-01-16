@@ -80,6 +80,58 @@ black . --line-length 100
 - `tests/` - Test Slang shaders used by unit tests
 - `tools/` - Build and CI utilities
 
+## Debugging Slang Compiler Issues
+
+Many issues in SlangPy originate from the Slang compiler itself (shader-slang/slang repo). When you encounter such issues, follow these steps to build and debug Slang locally.
+
+### Step 1: Clone the Slang Repository
+
+```bash
+# Clone into external/slang directory (with submodules)
+git clone --recursive https://github.com/shader-slang/slang.git external/slang
+```
+
+### Step 2: Build Slang in Debug Mode
+
+```bash
+# Configure with CMake
+cmake.exe --preset vs2022 -S external/slang
+
+# Build debug configuration
+cmake.exe --build external/slang/build --config Debug
+```
+
+The debug binaries will be generated in `external/slang/build/Debug/bin/`.
+
+### Step 3: Configure SlangPy to Use Local Slang Build
+
+Reconfigure SlangPy with the local Slang build:
+
+```bash
+# Reconfigure and rebuild slangpy
+rm -fr build
+SET CMAKE_ARGS="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=external/slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/Debug"
+pip.exe install .
+```
+
+### Key CMake Options for Local Slang
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `SGL_LOCAL_SLANG` | OFF | Enable to use a local Slang build |
+| `SGL_LOCAL_SLANG_DIR` | `../slang` | Path to the local Slang repository |
+| `SGL_LOCAL_SLANG_BUILD_DIR` | `build/Debug` | Build directory within the Slang repo |
+
+### Workflow for Debugging Slang Issues
+
+1. Reproduce the issue in SlangPy
+2. Clone and build Slang locally (steps above)
+3. Read `external/slang/CLAUDE.md`
+4. Make changes to Slang source code in `external/slang/`
+5. Rebuild Slang: `cmake --build external/slang/build --config Debug`
+6. Rebuild SlangPy to pick up changes
+7. Test the fix
+
 ## Development Tips
 
 - The project uses CMake with presets for different platforms (windows-msvc, windows-arm64-msvc, linux-gcc, macos-arm64-clang)

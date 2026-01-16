@@ -121,6 +121,8 @@ def configure(args: Any):
         cmd += ["-DSGL_ENABLE_HEADER_VALIDATION=ON"]
     if "coverage" in args.flags:
         cmd += ["-DSGL_ENABLE_COVERAGE=ON"]
+    if "crashpad" in args.flags:
+        cmd += ["-DSGL_ENABLE_CRASHPAD=ON"]
     if args.cmake_args != "":
         cmd += args.cmake_args.split()
     run_command(cmd)

@@ -419,6 +419,11 @@ def test_extended_instance_list(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_backwards_diff(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        pytest.skip(
+            "Metal backend can not atomically accumulate float3 types due to sizeof(float3) returning 12"
+        )
+
     # Use test system helper to load a slangpy module from a file
     m = load_module(device_type, "test_modules.slang")
     assert m is not None

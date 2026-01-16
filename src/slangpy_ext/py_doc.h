@@ -1228,6 +1228,8 @@ static const char *__doc_sgl_Buffer_get_elements = R"doc()doc";
 
 static const char *__doc_sgl_Buffer_is_mapped = R"doc(Returns true if buffer is currently mapped.)doc";
 
+static const char *__doc_sgl_Buffer_m_cached_device_address = R"doc()doc";
+
 static const char *__doc_sgl_Buffer_m_cuda_memory = R"doc()doc";
 
 static const char *__doc_sgl_Buffer_m_desc = R"doc()doc";
@@ -8449,6 +8451,25 @@ static const char *__doc_sgl_clamp = R"doc(Clamp x to [lo..hi] range.)doc";
 static const char *__doc_sgl_comparator = R"doc()doc";
 
 static const char *__doc_sgl_comparator_operator_call = R"doc()doc";
+
+static const char *__doc_sgl_crashpad_is_supported = R"doc(Returns true if Crashpad is supported in this build.)doc";
+
+static const char *__doc_sgl_crashpad_start_handler =
+R"doc(Starts the Crashpad handler.
+
+Start the chromium Crashpad handler to capture crashes and generate
+crash reports.
+
+Parameter ``handler``:
+    Path to the handler executable. Defaults to
+    `<runtime_directory>/crashpad_handler{.exe}` if empty.
+
+Parameter ``database``:
+    Path to the database directory. Defaults to
+    `<runtime_directory>/crashpad_database` if empty.
+
+Parameter ``annotations``:
+    Annotations to include with crash reports.)doc";
 
 static const char *__doc_sgl_cuda_ContextScope = R"doc()doc";
 

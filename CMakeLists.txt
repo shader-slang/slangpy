@@ -71,6 +71,9 @@ option(SGL_ENABLE_ASAN "Enable address sanitizer" OFF)
 # If enabled, additional targets are generated to validate that headers are self sufficient.
 option(SGL_ENABLE_HEADER_VALIDATION "Enable header validation" OFF)
 
+# Enable/disable Crashpad integration.
+option(SGL_ENABLE_CRASHPAD "Enable Crashpad integration" OFF)
+
 set(SGL_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Project directory (defaults to CMAKE_CURRENT_SOURCE_DIR)")
 
 set(SGL_BINARY_DIR ${CMAKE_BINARY_DIR} CACHE STRING "Binary directory (defaults to CMAKE_BINARY_DIR)")
@@ -330,6 +333,12 @@ else()
     ternary(SGL_HAS_OPENEXR ${OpenEXR_FOUND} ON OFF)
     find_package(asmjit)
     ternary(SGL_HAS_ASMJIT ${asmjit_FOUND} ON OFF)
+    if(SGL_ENABLE_CRASHPAD)
+        find_package(crashpad)
+        ternary(SGL_HAS_CRASHPAD ${crashpad_FOUND} ON OFF)
+    else()
+        set(SGL_HAS_CRASHPAD OFF)
+    endif()
 endif()
 
 # -----------------------------------------------------------------------------
@@ -356,6 +365,7 @@ message(STATUS "SGL_HAS_LIBJPEG: ${SGL_HAS_LIBJPEG}")
 message(STATUS "SGL_HAS_LIBPNG: ${SGL_HAS_LIBPNG}")
 message(STATUS "SGL_HAS_OPENEXR: ${SGL_HAS_OPENEXR}")
 message(STATUS "SGL_HAS_ASMJIT: ${SGL_HAS_ASMJIT}")
+message(STATUS "SGL_HAS_CRASHPAD: ${SGL_HAS_CRASHPAD}")
 
 add_subdirectory(src)
 

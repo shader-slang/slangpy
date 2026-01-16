@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
 import pytest
 import inspect
 from typing import Any
 
 import slangpy as spy
+
 from .helpers import (
     close_all_devices,
     close_leaked_devices,
@@ -13,6 +15,9 @@ from .helpers import (
     should_skip_non_device_test,
     SELECTED_DEVICE_TYPES,
 )
+from . import crashpad
+
+CRASHPAD_SUPPORT = spy.crashpad.is_supported()
 
 
 def pytest_addoption(parser: pytest.Parser):
@@ -28,6 +33,14 @@ def pytest_addoption(parser: pytest.Parser):
 
 
 @pytest.hookimpl(tryfirst=True)
+def pytest_configure(config: pytest.Config):
+    # Setup crashpad
+    if CRASHPAD_SUPPORT:
+        if not os.environ.get("PYTEST_XDIST_WORKER"):
+            crashpad.setup()
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_sessionstart(session: pytest.Session):
     # pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
     # when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
@@ -36,6 +49,10 @@ def pytest_sessionstart(session: pytest.Session):
     # Set the global device types based on the command line option
     device_types_option = session.config.getoption("--device-types")
     set_device_types(device_types_option)
+
+    # Start crashpad handler
+    if CRASHPAD_SUPPORT:
+        crashpad.start_handler()
 
 
 @pytest.hookimpl(trylast=True)
@@ -55,6 +72,11 @@ def pytest_runtest_setup(item: Any) -> None:
     This hook runs before each test and can skip tests that don't match
     the target device types.
     """
+
+    # Inform crashpad handler about the current test
+    if CRASHPAD_SUPPORT:
+        crashpad.notify_current_test(item.location[0] + ":" + item.location[2])
+
     # Check if the test function has a device_type parameter
     if hasattr(item, "function"):
         sig = inspect.signature(item.function)
@@ -83,3 +105,10 @@ def pytest_runtest_setup(item: Any) -> None:
                 pytest.skip(
                     f"Skipping non-device test (target devices: {', '.join(target_device_names)})"
                 )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):
+    # Report crashpad reports
+    if CRASHPAD_SUPPORT:
+        crashpad.report(terminalreporter.config.get_terminal_writer())

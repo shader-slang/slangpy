@@ -41,6 +41,12 @@ struct ShaderOffset {
     /// Check whether this offset is valid.
     bool is_valid() const { return uniform_offset != INVALID; }
 
+    /// Check whether this has valid uniform offset
+    bool has_uniform_offset() const { return uniform_offset != INVALID; }
+
+    /// Check whether this has valid binding offset
+    bool has_binding_offset() const { return binding_range_index != INVALID; }
+
     /// Adds another offset to this offset.
     /// Returns an invalid offset if either offset is invalid.
     ShaderOffset operator+(const ShaderOffset& other) const

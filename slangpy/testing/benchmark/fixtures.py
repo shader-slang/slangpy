@@ -5,7 +5,7 @@ import slangpy as spy
 from slangpy.core.function import FunctionNodeBwds
 import numpy as np
 from typing import Any, Callable, Optional, Union
-from time import time
+from time import time, sleep
 from datetime import datetime
 
 from .report import BenchmarkReport
@@ -163,6 +163,7 @@ class BenchmarkPythonFunction:
         iterations: int = 10,
         sub_iterations: int = DEFAULT_ITERATIONS // 10,
         warmup_iterations: int = INITIAL_WARMUP_ITERATIONS,
+        sleeps: bool = False,
         **kwargs: Any,
     ) -> None:
         """Run the benchmark with the given parameters."""
@@ -172,6 +173,8 @@ class BenchmarkPythonFunction:
         for _ in range(warmup_iterations):
             function(**kwargs)
 
+        if sleeps:
+            sleep(1)
         deltas = []
 
         for _ in range(iterations):
@@ -180,6 +183,8 @@ class BenchmarkPythonFunction:
                 function(**kwargs)
             main_end_time = time()
             deltas.append(1000 * (main_end_time - main_start_time) / sub_iterations)
+        if sleeps:
+            sleep(1)
 
         end_time = time()
 
