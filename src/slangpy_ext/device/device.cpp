@@ -733,7 +733,7 @@ SGL_PY_EXPORT(device_device)
            std::vector<std::string> callable_entry_points)
         {
             return self->create_shader_table({
-                .program = program,
+                .program = std::move(program),
                 .ray_gen_entry_points = std::move(ray_gen_entry_points),
                 .miss_entry_points = std::move(miss_entry_points),
                 .hit_group_names = std::move(hit_group_names),
@@ -912,7 +912,7 @@ SGL_PY_EXPORT(device_device)
         {
             return self->create_render_pipeline(
                 {.program = std::move(program),
-                 .input_layout = input_layout,
+                 .input_layout = std::move(input_layout),
                  .primitive_topology = primitive_topology,
                  .targets = targets,
                  .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
