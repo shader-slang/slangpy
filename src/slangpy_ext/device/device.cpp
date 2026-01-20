@@ -491,6 +491,7 @@ SGL_PY_EXPORT(device_device)
            MemoryType memory_type,
            TextureUsage usage,
            ResourceState default_state,
+           ref<Sampler> sampler,
            std::string label,
            std::optional<nb::ndarray<nb::numpy>> data)
         {
@@ -523,6 +524,7 @@ SGL_PY_EXPORT(device_device)
                 .memory_type = memory_type,
                 .usage = usage,
                 .default_state = default_state,
+                .sampler = std::move(sampler),
                 .label = std::move(label),
                 .data = data ? subresourceData : std::span<SubresourceData>(),
             });
@@ -539,6 +541,7 @@ SGL_PY_EXPORT(device_device)
         "memory_type"_a = TextureDesc().memory_type,
         "usage"_a = TextureDesc().usage,
         "default_state"_a = TextureDesc().default_state,
+        "sampler"_a.none() = nb::none(),
         "label"_a = TextureDesc().label,
         "data"_a.none() = nb::none(),
         D(Device, create_texture)

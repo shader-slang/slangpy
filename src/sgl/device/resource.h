@@ -508,6 +508,10 @@ struct TextureDesc {
     TextureUsage usage{TextureUsage::none};
     ResourceState default_state{ResourceState::undefined};
 
+    /// Default sampler settings to use for the texture (CUDA only).
+    /// If not specified, tri-linear filtering and wrap addressing mode will be used.
+    ref<Sampler> sampler;
+
     /// Debug label.
     std::string label;
 
@@ -639,6 +643,11 @@ struct TextureViewDesc {
     Format format{Format::undefined};
     TextureAspect aspect{TextureAspect::all};
     SubresourceRange subresource_range;
+
+    /// Sampler settings to use for the texture view (CUDA only).
+    /// If not specified, the default sampler settings from the texture will be used.
+    ref<Sampler> sampler;
+
     std::string label;
 };
 
