@@ -779,6 +779,14 @@ nb::object NativeCallData::exec(
     if (temp_command_encoder) {
         m_device->submit_command_buffer(temp_command_encoder->finish(), CommandQueueType::graphics, cuda_stream);
         command_encoder = nullptr;
+
+        // For Vulkan, ensure GPU operations complete BEFORE cleanup
+        // This prevents race conditions during object destruction
+        if (m_device->type() == DeviceType::vulkan) {
+            // Wait for all GPU work to complete before proceeding with cleanup
+            // This is essential to prevent destructor re-entrance bugs
+            m_device->wait();
+        }
     }
 
     // If command_encoder is not null, return early.

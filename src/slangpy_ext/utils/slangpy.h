@@ -6,6 +6,7 @@
 #include <map>
 #include <typeindex>
 #include <unordered_map>
+#include <mutex>
 
 #include "nanobind.h"
 
@@ -857,6 +858,7 @@ public:
 
     ref<NativeCallData> find_call_data(const std::string& signature)
     {
+        std::lock_guard<std::mutex> lock(m_cache_mutex);
         auto it = m_cache.find(signature);
         if (it != m_cache.end()) {
             return it->second;
@@ -866,7 +868,20 @@ public:
 
     void add_call_data(const std::string& signature, const ref<NativeCallData>& call_data)
     {
+        std::lock_guard<std::mutex> lock(m_cache_mutex);
         m_cache[signature] = call_data;
+    }
+
+    void remove_call_data(const std::string& signature)
+    {
+        std::lock_guard<std::mutex> lock(m_cache_mutex);
+        m_cache.erase(signature);
+    }
+
+    void clear_cache()
+    {
+        std::lock_guard<std::mutex> lock(m_cache_mutex);
+        m_cache.clear();
     }
 
     virtual std::optional<std::string> lookup_value_signature(nb::handle o)
@@ -876,6 +891,7 @@ public:
     }
 
 private:
+    mutable std::mutex m_cache_mutex;  // Protects cache from concurrent access
     std::unordered_map<std::string, ref<NativeCallData>> m_cache;
     std::unordered_map<std::type_index, BuildSignatureFunc> m_type_signature_table;
 };
