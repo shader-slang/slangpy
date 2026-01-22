@@ -25,6 +25,7 @@
 #include "sgl/core/data_struct.h"
 #include "sgl/core/data_type.h"
 #include "sgl/core/static_vector.h"
+#include "sgl/core/short_vector.h"
 
 #include "sgl/math/float16.h"
 
@@ -139,6 +140,8 @@ struct type_caster<std::span<T>> {
 template<typename T, std::size_t N>
 struct type_caster<sgl::static_vector<T, N>> : list_caster<sgl::static_vector<T, N>, T> { };
 
+template<typename T, std::size_t N>
+struct type_caster<sgl::short_vector<T, N>> : list_caster<sgl::short_vector<T, N>, T> { };
 
 NAMESPACE_END(detail)
 
