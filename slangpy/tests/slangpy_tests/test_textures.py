@@ -526,5 +526,83 @@ def test_texture_return_value_str(
     texture_return_value_impl(device_type, texel_name, dims, channels, "texture")
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_1d_broadcast(device_type: DeviceType):
+    if device_type == DeviceType.cuda:
+        pytest.skip("1D texture read returns zero on CUDA backend")
+    module = load_test_module(device_type)
+
+    tex_data = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32).reshape((4, 1))
+    tex = module.device.create_texture(
+        type=TextureType.texture_1d,
+        width=4,
+        usage=TextureUsage.shader_resource | TextureUsage.unordered_access,
+        format=Format.r32_float,
+        data=tex_data,
+    )
+
+    result = module.sample_texture_1d_broadcast(tex)
+    assert result == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_2d_broadcast(device_type: DeviceType):
+    module = load_test_module(device_type)
+
+    tex_data = np.full((4, 4, 1), 2.5, dtype=np.float32)
+    tex_data[0, 0, 0] = 7.0  # Value at position (0,0)
+    tex = module.device.create_texture(
+        type=TextureType.texture_2d,
+        width=4,
+        height=4,
+        usage=TextureUsage.shader_resource | TextureUsage.unordered_access,
+        format=Format.r32_float,
+        data=tex_data,
+    )
+
+    result = module.sample_texture_2d_broadcast(tex)
+    assert result == pytest.approx(7.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_3d_broadcast(device_type: DeviceType):
+    module = load_test_module(device_type)
+
+    tex_data = np.full((4, 4, 4, 1), 1.0, dtype=np.float32)
+    tex_data[0, 0, 0, 0] = 3.14  # Value at position (0,0,0)
+    tex = module.device.create_texture(
+        type=TextureType.texture_3d,
+        width=4,
+        height=4,
+        depth=4,
+        usage=TextureUsage.shader_resource | TextureUsage.unordered_access,
+        format=Format.r32_float,
+        data=tex_data,
+    )
+
+    result = module.sample_texture_3d_broadcast(tex)
+    assert result == pytest.approx(3.14)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_texture_3d_broadcast_with_scalar(device_type: DeviceType):
+    module = load_test_module(device_type)
+
+    tex_data = np.full((4, 4, 4, 1), 2.0, dtype=np.float32)
+    tex = module.device.create_texture(
+        type=TextureType.texture_3d,
+        width=4,
+        height=4,
+        depth=4,
+        usage=TextureUsage.shader_resource | TextureUsage.unordered_access,
+        format=Format.r32_float,
+        data=tex_data,
+    )
+
+    # tex[0,0,0] = 2.0, value = 3.0, so result should be 6.0
+    result = module.sample_texture_3d_with_scalar(3.0, tex)
+    assert result == pytest.approx(6.0)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
