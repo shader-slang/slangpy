@@ -31,7 +31,9 @@
 
 #include "sgl/device/cuda_interop.h"
 
+#ifndef SLANGPY_SKIP_PY_DOC_INCLUDE
 #include "py_doc.h"
+#endif
 
 #include <span>
 
