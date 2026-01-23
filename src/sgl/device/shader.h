@@ -183,6 +183,9 @@ struct SlangCompilerOptions {
     /// Specifies a list of additional arguments to be passed to the downstream compiler.
     std::vector<std::string> downstream_args;
 
+    /// Enable experimental features (e.g., experimental modules like neural).
+    bool enable_experimental_features{false};
+
     /// When set will dump the intermediate source output.
     bool dump_intermediates{false};
 
