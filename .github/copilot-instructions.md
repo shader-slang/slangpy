@@ -45,6 +45,20 @@ C++ Code style:
     - Local variable names are in snake_case.
     - Member variables start with "m_" and are in snake_case.
 
+C++ Documentation:
+    - All public classes and methods should have Doxygen-style comments.
+    - Property getters or setters have a short comment of the form:
+        /// description
+    - Simple functions that neither take or return values have a short comment of the form
+        /// description
+    - Other functions that either take or return values have a comment of the form:
+        /** Pack two float values to 8-bit snorm.
+            \param v Float values in [-1,1].
+            \param options Packing options.
+            \return 8-bit snorm values in low bits, high bits all zero.
+        */
+        uint32_t pack_snorm2x8(float2 v, const PackOptions options = PackOptions::safe)
+
 Python code style:
     - Class names should start with a capital letter.
     - Function names are in snake_case.

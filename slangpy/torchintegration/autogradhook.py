@@ -106,7 +106,11 @@ class TorchAutoGradHook(torch.autograd.Function):
         # Save all tensors for backward
         ctx.save_for_backward(*inputs, *outputs)
 
-        return tuple(outputs)
+        # Return any output tensors plus the result if present
+        res = tuple(outputs)
+        if result is not None:
+            res += (result,)
+        return res
 
     @staticmethod
     def backward(

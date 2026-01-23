@@ -144,6 +144,16 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
             d_out=d_out,
         )
 
+    def clone(self) -> "TorchTensorMarshall":
+        return TorchTensorMarshall(
+            layout=self._layout,
+            torch_dtype=self._torch_dtype,
+            slang_dtype=self._slang_dtype,
+            dims=self.dims,
+            d_in=self.d_in.clone() if self.d_in else None,
+            d_out=self.d_out.clone() if self.d_out else None,
+        )
+
     @property
     def layout(self) -> SlangProgramLayout:
         return self._layout

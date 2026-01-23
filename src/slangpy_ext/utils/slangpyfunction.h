@@ -121,8 +121,10 @@ public:
         SGL_UNUSED(kwargs);
         return nullptr;
     }
-    virtual ref<NativeCallData> generate_bwds_call_data(nb::args args, nb::kwargs kwargs)
+    virtual ref<NativeCallData>
+    generate_bwds_call_data(NativeCallData* forwards_call_data, nb::args args, nb::kwargs kwargs)
     {
+        SGL_UNUSED(forwards_call_data);
         SGL_UNUSED(args);
         SGL_UNUSED(kwargs);
         return nullptr;
@@ -146,9 +148,11 @@ struct PyNativeFunctionNode : NativeFunctionNode {
     {
         NB_OVERRIDE(generate_call_data, args, kwargs);
     }
-    ref<NativeCallData> generate_bwds_call_data(nb::args args, nb::kwargs kwargs) override
+
+    ref<NativeCallData>
+    generate_bwds_call_data(NativeCallData* forwards_call_data, nb::args args, nb::kwargs kwargs) override
     {
-        NB_OVERRIDE(generate_bwds_call_data, args, kwargs);
+        NB_OVERRIDE(generate_bwds_call_data, forwards_call_data, args, kwargs);
     }
 };
 

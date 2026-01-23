@@ -4,6 +4,7 @@ from enum import Enum
 
 from slangpy.core.native import (
     CallMode,
+    CallDataMode,
     SignatureBuilder,
     NativeCallRuntimeOptions,
     NativeFunctionNode,
@@ -407,7 +408,37 @@ class FunctionNode(NativeFunctionNode):
 
         return CallData(self, *args, **kwargs)
 
-    def generate_bwds_call_data(self, args: Any, kwargs: Any):
+    def generate_bwds_call_data(self, forwards_call_data: "CallData", args: Any, kwargs: Any):
+        """
+        Generate backwards CallData using forwards CallData to infer _result type.
+
+        This is used during torch autograd integration, where we need to generate
+        the backwards call data before we have the actual gradient tensors. The
+        forwards call data contains the _result binding information which tells us
+        the expected type and shape of the gradient input.
+        """
+        # Get the _result binding from forwards call data if present
+        fwd_result = forwards_call_data.runtime.kwargs.get("_result", None)
+        if fwd_result is not None:
+            # Create a ReturnContext that describes what the backwards _result will be.
+            # The backwards pass expects _result to receive the gradient, which has
+            # the same type as the forwards output.
+            from .calldata import BindContext
+            from slangpy.bindings.marshall import ReturnContext
+            from slangpy.reflection import SlangType
+
+            context = BindContext(
+                forwards_call_data.layout,
+                CallMode.bwds,
+                self.module.device_module,
+                {},
+                CallDataMode.global_data,
+            )
+            context.call_dimensionality = forwards_call_data.call_dimensionality
+
+            kwargs = dict(kwargs)
+            kwargs["_result"] = fwd_result.python_type.clone()
+
         return self.bwds.generate_call_data(args, kwargs)
 
     def call_group_shape(self, call_group_shape: Shape):

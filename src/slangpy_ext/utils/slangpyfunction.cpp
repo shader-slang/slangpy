@@ -84,7 +84,8 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
         auto bwds_sig = sig + "_torch_autograd";
         ref<NativeCallData> bwds_call_data = cache->find_call_data(bwds_sig);
         if (!bwds_call_data) {
-            bwds_call_data = generate_bwds_call_data(args, kwargs);
+            // Use forwards call_data to inform backwards generation about _result type
+            bwds_call_data = generate_bwds_call_data(call_data, args, kwargs);
             cache->add_call_data(bwds_sig, bwds_call_data);
         }
         // Lookup and call 'slangpy.core.calldata.torch_autograd_hook'
@@ -209,6 +210,7 @@ SGL_PY_EXPORT(utils_slangpy_function)
         .def(
             "generate_bwds_call_data",
             &NativeFunctionNode::generate_bwds_call_data,
+            "forwards_call_data"_a,
             "args"_a,
             "kwargs"_a,
             D_NA(NativeFunctionNode, generate_bwds_call_data)

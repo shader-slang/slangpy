@@ -507,4 +507,9 @@ def torch_autograd_hook(
     inputs = []
     outputs = []
     forwards.find_torch_tensors(args, kwargs, inputs, outputs)
-    TorchAutoGradHook.apply((forwards, backwards, options, args, kwargs, inputs, outputs), *inputs)
+    results = TorchAutoGradHook.apply(
+        (forwards, backwards, options, args, kwargs, inputs, outputs), *inputs
+    )
+    if len(results) > 0:
+        return results[-1]
+    return None
