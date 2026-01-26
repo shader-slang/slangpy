@@ -144,6 +144,39 @@ namespace {
 
 } // anonymous namespace
 
+// NativeTorchTensorDiffPair implementation
+
+void NativeTorchTensorDiffPair::read_signature(SignatureBuilder* builder) const
+{
+    // Write signature that combines both primal and grad tensor signatures
+    // This ensures that different primal/grad combinations get different cache keys
+    char buffer[128];
+
+    *builder << "TorchDiffPair\n";
+
+    // Add primal signature
+    if (!primal.is_none()) {
+        if (TorchBridge::instance().get_signature(primal.ptr(), buffer, sizeof(buffer)) == 0) {
+            *builder << "primal:" << buffer << "\n";
+        } else {
+            *builder << "primal:none\n";
+        }
+    } else {
+        *builder << "primal:none\n";
+    }
+
+    // Add grad signature
+    if (!grad.is_none()) {
+        if (TorchBridge::instance().get_signature(grad.ptr(), buffer, sizeof(buffer)) == 0) {
+            *builder << "grad:" << buffer << "\n";
+        } else {
+            *builder << "grad:none\n";
+        }
+    } else {
+        *builder << "grad:none\n";
+    }
+}
+
 
 NativeTorchTensorMarshall::NativeTorchTensorMarshall(
     int dims,
@@ -166,9 +199,17 @@ NativeTorchTensorMarshall::NativeTorchTensorMarshall(
 
 Shape NativeTorchTensorMarshall::get_shape(nb::object data) const
 {
+    PyObject* ptr;
+    NativeTorchTensorDiffPair* pair;
+    if (nb::try_cast(data, pair)) {
+        ptr = pair->primal.ptr();
+    } else {
+        ptr = data.ptr();
+    }
+
     // Use TorchBridge for fast native shape extraction
     TensorBridgeInfo info;
-    if (TorchBridge::instance().extract(data.ptr(), info)) {
+    if (TorchBridge::instance().extract(ptr, info)) {
         return shape_from_bridge_info(info);
     }
 
@@ -200,18 +241,39 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     // Ensure cached offsets are initialized
     ensure_offsets_cached(cursor, binding);
 
+    PyObject* primal_ptr;
+    PyObject* grad_ptr;
+    NativeTorchTensorDiffPair* pair;
+    if (nb::try_cast(value, pair)) {
+        primal_ptr = pair->primal.ptr();
+        if (!pair->grad.is_none()) {
+            grad_ptr = pair->grad.ptr();
+        } else {
+            grad_ptr = nullptr;
+        }
+    } else {
+        primal_ptr = value.ptr();
+        grad_ptr = nullptr;
+    }
+
     // Extract tensor info using TorchBridge
-    TensorBridgeInfo info;
-    if (!TorchBridge::instance().extract(value.ptr(), info)) {
+    TensorBridgeInfo primal_info;
+    if (!TorchBridge::instance().extract(primal_ptr, primal_info)) {
         SGL_THROW("Expected torch.Tensor, got {}", nb::type_name(value.type()).c_str());
+    }
+    TensorBridgeInfo grad_info;
+    if (grad_ptr && !TorchBridge::instance().extract(grad_ptr, grad_info)) {
+        SGL_THROW("Expected torch.Tensor, got {}", nb::type_name(value.type()).c_str());
+    } else {
+        grad_info = {nullptr}; // Invalidate grad_info if no grad_ptr
     }
 
     // Validate shape
-    Shape tensor_shape = shape_from_bridge_info(info);
+    Shape tensor_shape = shape_from_bridge_info(primal_info);
     validate_tensor_shape(tensor_shape, binding->vector_type()->shape());
 
     // Only support CUDA tensors (the PyTorch tensor must be on CUDA)
-    if (!info.is_cuda) {
+    if (!primal_info.is_cuda) {
         SGL_THROW("Non-CUDA torch tensors are not yet supported. Tensor must be on CUDA device.");
     }
 
@@ -223,7 +285,15 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
 
     if (needs_interop) {
         // Non-CUDA device (D3D12/Vulkan) - need interop buffer
-        write_shader_cursor_with_interop(context, binding, shader_object, base_address, value, info, read_back);
+        write_shader_cursor_with_interop(
+            context,
+            binding,
+            shader_object,
+            base_address,
+            nb::borrow(primal_ptr),
+            primal_info,
+            read_back
+        );
     } else {
         // CUDA device - direct pointer access
         if (!m_cached_offsets.has_grad_fields) {
@@ -234,7 +304,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 shader_object,
                 base_address,
                 m_cached_offsets.primal,
-                info,
+                primal_info,
                 nullptr
             );
         } else {
@@ -245,7 +315,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 shader_object,
                 base_address,
                 m_cached_offsets.primal,
-                info,
+                primal_info,
                 nullptr
             );
 
@@ -571,4 +641,74 @@ SGL_PY_EXPORT(utils_slangpy_torch_tensor)
         .def_prop_ro("has_derivative", &NativeTorchTensorMarshall::has_derivative)
         .def_prop_ro("d_in", &NativeTorchTensorMarshall::d_in)
         .def_prop_ro("d_out", &NativeTorchTensorMarshall::d_out);
+
+    // NativeTorchTensorDiffPair - pairs a primal tensor with its gradient tensor
+    // Used for backwards pass in torch autograd integration
+    nb::class_<NativeTorchTensorDiffPair, NativeObject>(slangpy, "NativeTorchTensorDiffPair")
+        .def(
+            "__init__",
+            [](NativeTorchTensorDiffPair& self, nb::object primal, nb::object grad, int index, bool is_input)
+            {
+                new (&self) NativeTorchTensorDiffPair(std::move(primal), std::move(grad), index, is_input);
+            },
+            "primal"_a.none(),
+            "grad"_a.none(),
+            "index"_a = -1,
+            "is_input"_a = true,
+            "Create a diff pair from primal and gradient tensors.\n\n"
+            ":param primal: The primal (value) tensor. May be None for output gradients.\n"
+            ":param grad: The gradient tensor.\n"
+            ":param index: Index into saved tensors list for reconnecting in backward pass.\n"
+            ":param is_input: True if this is an input tensor, false for output."
+        )
+        .def_prop_rw(
+            "primal",
+            [](NativeTorchTensorDiffPair& self) -> nb::object
+            {
+                return self.primal;
+            },
+            [](NativeTorchTensorDiffPair& self, nb::object value)
+            {
+                self.primal = std::move(value);
+            },
+            nb::arg().none(),
+            "The primal (value) tensor."
+        )
+        .def_prop_rw(
+            "grad",
+            [](NativeTorchTensorDiffPair& self) -> nb::object
+            {
+                return self.grad;
+            },
+            [](NativeTorchTensorDiffPair& self, nb::object value)
+            {
+                self.grad = std::move(value);
+            },
+            nb::arg().none(),
+            "The gradient tensor."
+        )
+        .def_rw("index", &NativeTorchTensorDiffPair::index, "Index into saved tensors list.")
+        .def_rw("is_input", &NativeTorchTensorDiffPair::is_input, "True if input tensor, false if output.")
+        .def(
+            "clear_tensors",
+            [](NativeTorchTensorDiffPair& self)
+            {
+                self.primal = nb::none();
+                self.grad = nb::none();
+            },
+            "Clear tensor references (set both primal and grad to None)."
+        )
+        .def(
+            "__repr__",
+            [](const NativeTorchTensorDiffPair& self)
+            {
+                return fmt::format(
+                    "TorchTensorDiffPair(primal={}, grad={}, index={}, is_input={})",
+                    self.primal.is_none() ? "None" : "Tensor",
+                    self.grad.is_none() ? "None" : "Tensor",
+                    self.index,
+                    self.is_input ? "True" : "False"
+                );
+            }
+        );
 }

@@ -154,15 +154,16 @@ class TorchAutoGradHook(torch.autograd.Function):
     tensors have requires_grad=True.
 
     The forward pass:
-    1. Extracts all tensors from the arguments
+    1. Receives args/kwargs with torch tensors already wrapped in NativeTorchTensorDiffPair
     2. Runs the SlangPy kernel
     3. Returns output tensors connected to the autograd graph
 
     The backward pass:
     1. Receives gradients for output tensors
-    2. Generates backwards CallData from function.bwds with real gradient tensors
-    3. Calls the backwards kernel
-    4. Returns gradients for input tensors
+    2. Restores tensor references and populates gradient fields
+    3. Generates backwards CallData from function.bwds with real gradient tensors
+    4. Calls the backwards kernel
+    5. Returns gradients for input tensors
     """
 
     @staticmethod
@@ -172,10 +173,9 @@ class TorchAutoGradHook(torch.autograd.Function):
             "FunctionNode",
             "CallData",
             NativeCallRuntimeOptions,
-            tuple[Any, ...],
+            list[Any],
             dict[str, Any],
-            list[torch.Tensor],
-            list[torch.Tensor],
+            list[Any],  # NativeTorchTensorDiffPair list
         ],
         *tensors: torch.Tensor,
     ) -> tuple[torch.Tensor, ...]:
@@ -183,8 +183,8 @@ class TorchAutoGradHook(torch.autograd.Function):
         Forward pass - run the SlangPy kernel and track tensors for backward.
 
         :param ctx: PyTorch autograd context for storing state.
-        :param options: Tuple containing (function, forwards_cd, rt_options, args, kwargs, inputs, outputs).
-        :param tensors: Input tensors tracked by autograd.
+        :param options: Tuple containing (function, forwards_cd, rt_options, args, kwargs, pairs).
+        :param tensors: Input tensors tracked by autograd (primals of input pairs).
         :return: Tuple of output tensors.
         """
         # Unpack options
@@ -193,20 +193,33 @@ class TorchAutoGradHook(torch.autograd.Function):
         rt_options = options[2]
         args = options[3]
         kwargs = options[4]
-        inputs = options[5]
-        outputs = options[6]
+        pairs = options[5]
 
-        # Store data for backward pass - function is needed to generate backwards CallData
+        # Store function for backward pass (needed to generate backwards CallData)
         ctx.function = function
         ctx.forwards_cd = forwards_cd
         ctx.rt_options = rt_options
-        ctx.args = args
-        ctx.kwargs = kwargs
+
+        # Collect inputs and outputs from pairs for save_for_backward
+        inputs: list[torch.Tensor] = []
+        outputs: list[torch.Tensor] = []
+        for pair in pairs:
+            if pair.is_input:
+                inputs.append(pair.primal)
+            else:
+                outputs.append(pair.primal)
+
         ctx.num_inputs = len(inputs)
         ctx.num_outputs = len(outputs)
 
-        # Run the forward kernel
+        # Run the forward kernel - args/kwargs already contain NativeTorchTensorDiffPair objects
         result = forwards_cd.call(rt_options, *args, **kwargs)
+
+        # Clear tensor references from pairs to avoid keeping them alive,
+        # but keep the pairs themselves for backward pass
+        for pair in pairs:
+            pair.clear_tensors()
+        ctx.pairs = pairs
 
         # Save all tensors for backward (inputs first, then outputs)
         ctx.save_for_backward(*inputs, *outputs)
@@ -233,42 +246,57 @@ class TorchAutoGradHook(torch.autograd.Function):
         """
         # 1. Retrieve saved tensors and split into inputs/outputs
         saved_tensors = ctx.saved_tensors
-        inputs = list(saved_tensors[: ctx.num_inputs])
-        outputs = list(saved_tensors[ctx.num_inputs :])
+        saved_inputs = list(saved_tensors[: ctx.num_inputs])
+        saved_outputs = list(saved_tensors[ctx.num_inputs :])
 
-        # 2. Create gradient tensors for inputs (zeros_like for those that need grads)
+        # 2. Restore tensor references to pairs and populate gradients
+        input_idx = 0
+        output_idx = 0
+        grad_output_idx = 0
         input_grads: list[Optional[torch.Tensor]] = []
-        for inp in inputs:
-            if inp.requires_grad:
-                input_grads.append(torch.zeros_like(inp))
-            else:
-                input_grads.append(None)
 
-        # 3. Build backwards args/kwargs by replacing tensors with (primal, grad) pairs
-        # The backwards kernel expects DiffTensorPair-like structures where we have
-        # both the primal value and a gradient tensor to write to.
-        bwds_args, bwds_kwargs = _build_backwards_args(
-            ctx.args,
-            ctx.kwargs,
-            ctx.forwards_cd.runtime,
-            inputs,
-            input_grads,
-            outputs,
-            list(grad_outputs),
-        )
+        for pair in ctx.pairs:
+            if pair.is_input:
+                # Restore primal tensor
+                pair.primal = saved_inputs[input_idx]
+                # Create gradient tensor for this input
+                if pair.primal.requires_grad:
+                    pair.grad = torch.zeros_like(pair.primal)
+                    input_grads.append(pair.grad)
+                else:
+                    pair.grad = None
+                    input_grads.append(None)
+                input_idx += 1
+            else:
+                # Restore primal tensor
+                pair.primal = saved_outputs[output_idx]
+                # Set gradient from grad_outputs
+                if grad_output_idx < len(grad_outputs):
+                    pair.grad = grad_outputs[grad_output_idx]
+                else:
+                    pair.grad = None
+                output_idx += 1
+                grad_output_idx += 1
+
+        # 3. Build backwards args by walking the saved structure
+        # The pairs are already embedded in the args/kwargs from forward
+        # We need to reconstruct args/kwargs from the pairs
+        # For now, we use the approach of calling bwds with the pairs directly
+        # TODO: Reconstruct full args/kwargs structure
 
         # 4. If the function has a return value, the output gradient becomes _result
-        # The gradient of the return value is the last grad_output (if result was returned)
-        if len(grad_outputs) > len(outputs):
+        bwds_kwargs: dict[str, Any] = {}
+        if len(grad_outputs) > ctx.num_outputs:
             # There was a return value - its gradient is the last grad_output
             result_grad = grad_outputs[-1]
             if result_grad is not None:
                 bwds_kwargs["_result"] = result_grad
 
         # 5. Generate backwards CallData and call the kernel
-        bwds_func = ctx.function.bwds
-        bwds_call_data = bwds_func.generate_call_data(bwds_args, bwds_kwargs)
-        bwds_call_data.call(ctx.rt_options, *bwds_args, **bwds_kwargs)
+        # The backwards function expects the pairs which now have both primal and grad set
+        raise NotImplementedError(
+            "Backward pass not fully implemented yet - need to reconstruct args structure"
+        )
 
         # 6. Return gradients in correct order: None for options tuple, then input grads
         # The first argument to forward() is the options tuple, so we return None for it

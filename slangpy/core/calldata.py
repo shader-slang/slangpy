@@ -457,38 +457,66 @@ class CallData(NativeCallData):
             else:
                 raise
 
-    def find_torch_tensors(
-        self, args: tuple[Any], kwargs: dict[str, Any], inputs: list[Any], outputs: list[Any]
-    ):
+    def find_torch_tensors(self, args: list[Any], kwargs: dict[str, Any]) -> list[Any]:
+        """
+        Find all torch tensors in args/kwargs, wrap them in NativeTorchTensorDiffPair,
+        and replace the tensors in args/kwargs with the pairs.
 
+        :param args: Mutable list of positional arguments (will be modified in place).
+        :param kwargs: Mutable dict of keyword arguments (will be modified in place).
+        :return: List of NativeTorchTensorDiffPair for all found tensors.
+        """
+        from slangpy.core.native import NativeTorchTensorDiffPair
+
+        pairs: list[Any] = []
         for i, arg in enumerate(args):
-            self.find_torch_tensors_recurse(arg, self.runtime.args[i], inputs, outputs)
+            args[i] = self._find_torch_tensors_recurse(arg, self.runtime.args[i], pairs)
         for k, v in kwargs.items():
-            self.find_torch_tensors_recurse(v, self.runtime.kwargs[k], inputs, outputs)
+            kwargs[k] = self._find_torch_tensors_recurse(v, self.runtime.kwargs[k], pairs)
+        return pairs
 
-    def find_torch_tensors_recurse(
-        self, arg: Any, binding: BoundVariableRuntime, inputs: list[Any], outputs: list[Any]
-    ):
+    def _find_torch_tensors_recurse(self, arg: Any, binding: Any, pairs: list[Any]) -> Any:
+        """
+        Recursively find torch tensors, wrap them in NativeTorchTensorDiffPair,
+        and return the modified argument structure.
+
+        :param arg: The argument value to process.
+        :param binding: The binding information for this argument.
+        :param pairs: List to append found pairs to.
+        :return: The argument with tensors replaced by NativeTorchTensorDiffPair.
+        """
         import torch
+        from slangpy.core.native import NativeTorchTensorDiffPair
 
         if isinstance(arg, dict):
-            for k, v in arg.items():
-                self.find_torch_tensors_recurse(v, binding.children[k], inputs, outputs)
+            return {
+                k: self._find_torch_tensors_recurse(v, binding.children[k], pairs)
+                for k, v in arg.items()
+            }
         elif isinstance(arg, torch.Tensor):
+            # Determine if this is an input or output based on access pattern
+            is_input = False
             if isinstance(binding.vector_type, ITensorType):
                 if binding.vector_type.access == TensorAccess.read:
-                    inputs.append(arg)
+                    is_input = True
                 elif binding.vector_type.access == TensorAccess.write:
-                    outputs.append(arg)
+                    is_input = False
                 elif binding.vector_type.access == TensorAccess.read_write:
                     raise ValueError("In-place operations not supported for torch autograd.")
             else:
                 if binding.access[0] == AccessType.read:
-                    inputs.append(arg)
+                    is_input = True
                 elif binding.access[0] == AccessType.write:
-                    outputs.append(arg)
+                    is_input = False
                 elif binding.access[0] == AccessType.readwrite:
                     raise ValueError("In-place operations not supported for torch autograd.")
+
+            # Create pair with index and is_input tracking
+            pair = NativeTorchTensorDiffPair(arg, None, index=len(pairs), is_input=is_input)
+            pairs.append(pair)
+            return pair
+        else:
+            return arg
 
 
 def torch_autograd_hook(
@@ -514,12 +542,16 @@ def torch_autograd_hook(
     """
     from slangpy.torchintegration.autogradhook import TorchAutoGradHook
 
-    inputs: list[Any] = []
-    outputs: list[Any] = []
-    forwards.find_torch_tensors(args, kwargs, inputs, outputs)
+    # Convert args to mutable list and find/replace torch tensors with diff pairs
+    args_list = list(args)
+    pairs = forwards.find_torch_tensors(args_list, kwargs)
+
+    # Extract input tensors (primals of input pairs) for autograd tracking
+    inputs = [pair.primal for pair in pairs if pair.is_input]
+
     results = TorchAutoGradHook.apply(
-        (function, forwards, options, args, kwargs, inputs, outputs), *inputs
+        (function, forwards, options, args_list, kwargs, pairs), *inputs
     )
-    if len(results) > 0:
+    if results is not None and len(results) > 0:
         return results[-1]
     return None

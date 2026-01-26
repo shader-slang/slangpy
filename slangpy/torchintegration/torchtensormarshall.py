@@ -8,6 +8,7 @@ import torch
 from slangpy.core.native import (
     CallContext,
     NativeTorchTensorMarshall,
+    NativeTorchTensorDiffPair,
 )
 from slangpy.bindings.marshall import ReturnContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
@@ -223,7 +224,7 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
 
 
 def create_torch_tensor_marshall(layout: SlangProgramLayout, value: Any):
-    """Factory function for creating TorchTensorMarshall for raw torch.Tensor."""
+    """Factory function for creating TorchTensorMarshall for raw torch.Tensor or TorchTensorDiffPair."""
     if isinstance(value, ReturnContext):
         slang_dtype = value.slang_type
         torch_dtype = _slang_dtype_to_torch(innermost_type(slang_dtype))
@@ -236,6 +237,46 @@ def create_torch_tensor_marshall(layout: SlangProgramLayout, value: Any):
             value.bind_context.call_dimensionality,
             None,
             None,
+        )
+    elif isinstance(value, NativeTorchTensorDiffPair):
+        # DiffPair: create marshall with gradient support
+        # Use primal tensor for type/shape info, grad tensor for derivative
+        primal = value.primal
+        grad = value.grad
+
+        # Determine dtype from whichever tensor is available
+        if primal is not None and not (isinstance(primal, type(None))):
+            torch_dtype = primal.dtype
+            dims = len(primal.shape)
+        elif grad is not None and not (isinstance(grad, type(None))):
+            torch_dtype = grad.dtype
+            dims = len(grad.shape)
+        else:
+            raise ValueError("TorchTensorDiffPair must have at least primal or grad tensor")
+
+        slang_dtype = _torch_dtype_to_slang(torch_dtype, layout)
+        if slang_dtype is None:
+            raise ValueError(f"Unsupported torch dtype {torch_dtype}")
+
+        # Create the gradient marshall (same type as primal, used for d_out)
+        # For backwards pass inputs: primal is read, grad is written (d_out)
+        # For backwards pass outputs: grad is read (d_in)
+        d_out = TorchTensorMarshall(
+            layout,
+            torch_dtype,
+            slang_dtype,
+            dims,
+            None,
+            None,
+        )
+
+        return TorchTensorMarshall(
+            layout,
+            torch_dtype,
+            slang_dtype,
+            dims,
+            None,  # d_in - for reading gradients (output case)
+            d_out,  # d_out - for writing gradients (input case)
         )
     elif isinstance(value, torch.Tensor):
         torch_dtype = value.dtype
@@ -259,6 +300,14 @@ def hash_torch_tensor(value: Any) -> str:
     raise ValueError(f"torch.Tensor should not need a hash key as it is native object")
 
 
+def hash_torch_diff_pair(value: Any) -> str:
+    raise ValueError(f"TorchTensorDiffPair should not need a hash key as it is native object")
+
+
 # Register torch.Tensor handlers
 PYTHON_TYPES[torch.Tensor] = create_torch_tensor_marshall
 PYTHON_SIGNATURES[torch.Tensor] = hash_torch_tensor
+
+# Register NativeTorchTensorDiffPair handlers (uses same factory as torch.Tensor)
+PYTHON_TYPES[NativeTorchTensorDiffPair] = create_torch_tensor_marshall
+PYTHON_SIGNATURES[NativeTorchTensorDiffPair] = hash_torch_diff_pair
