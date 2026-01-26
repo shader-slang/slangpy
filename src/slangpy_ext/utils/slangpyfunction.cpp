@@ -81,13 +81,6 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
 
     // If torch auto grad required, go via autograd hook
     if (call_data->is_torch_autograd()) {
-        auto bwds_sig = sig + "_torch_autograd";
-        ref<NativeCallData> bwds_call_data = cache->find_call_data(bwds_sig);
-        if (!bwds_call_data) {
-            // Use forwards call_data to inform backwards generation about _result type
-            bwds_call_data = generate_bwds_call_data(call_data, args, kwargs);
-            cache->add_call_data(bwds_sig, bwds_call_data);
-        }
         // Lookup and call 'slangpy.core.calldata.torch_autograd_hook'
         // Cache the function lookup to avoid repeated module imports
         static nb::object torch_autograd_hook;
@@ -95,7 +88,9 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
             nb::module_ calldata_module = nb::module_::import_("slangpy.core.calldata");
             torch_autograd_hook = calldata_module.attr("torch_autograd_hook");
         }
-        return torch_autograd_hook(call_data, bwds_call_data, options, args, kwargs);
+        // Pass 'this' (the FunctionNode) so backwards CallData can be generated
+        // lazily in the backward pass when actual gradient tensors are available
+        return torch_autograd_hook(this, call_data, options, args, kwargs);
     } else {
         return call_data->call(options, args, kwargs);
     }

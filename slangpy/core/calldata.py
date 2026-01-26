@@ -492,8 +492,8 @@ class CallData(NativeCallData):
 
 
 def torch_autograd_hook(
+    function: "FunctionNode",
     forwards: "CallData",
-    backwards: "CallData",
     options: NativeCallRuntimeOptions,
     args: tuple[Any],
     kwargs: dict[str, Any],
@@ -501,14 +501,24 @@ def torch_autograd_hook(
     """
     Call the kernel with torch integration.
     Handles CUDA stream synchronization and autograd integration when torch_autograd is True.
+
+    The backwards CallData is generated lazily during the backward pass when actual
+    gradient tensors are available, rather than being pre-generated at forward time.
+
+    :param function: The FunctionNode used to generate backwards CallData in backward pass.
+    :param forwards: The forwards CallData for the kernel.
+    :param options: Runtime options including CUDA stream.
+    :param args: Positional arguments to the kernel.
+    :param kwargs: Keyword arguments to the kernel.
+    :return: The result of the kernel call.
     """
     from slangpy.torchintegration.autogradhook import TorchAutoGradHook
 
-    inputs = []
-    outputs = []
+    inputs: list[Any] = []
+    outputs: list[Any] = []
     forwards.find_torch_tensors(args, kwargs, inputs, outputs)
     results = TorchAutoGradHook.apply(
-        (forwards, backwards, options, args, kwargs, inputs, outputs), *inputs
+        (function, forwards, options, args, kwargs, inputs, outputs), *inputs
     )
     if len(results) > 0:
         return results[-1]
