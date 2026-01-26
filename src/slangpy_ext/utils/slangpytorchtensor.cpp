@@ -202,7 +202,13 @@ Shape NativeTorchTensorMarshall::get_shape(nb::object data) const
     PyObject* ptr;
     NativeTorchTensorDiffPair* pair;
     if (nb::try_cast(data, pair)) {
-        ptr = pair->primal.ptr();
+        if (!pair->primal.is_none()) {
+            ptr = pair->primal.ptr();
+        } else if (!pair->grad.is_none()) {
+            ptr = pair->grad.ptr();
+        } else {
+            SGL_THROW("Expected torch.Tensor, got none");
+        }
     } else {
         ptr = data.ptr();
     }
@@ -241,31 +247,53 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     // Ensure cached offsets are initialized
     ensure_offsets_cached(cursor, binding);
 
-    PyObject* primal_ptr;
-    PyObject* grad_ptr;
+    // Extract tensor info - handle both raw torch.Tensor and NativeTorchTensorDiffPair
+    TensorBridgeInfo primal_info = {};
+    TensorBridgeInfo grad_info = {};
+    bool has_primal = false;
+    bool has_grad = false;
+
     NativeTorchTensorDiffPair* pair;
     if (nb::try_cast(value, pair)) {
-        primal_ptr = pair->primal.ptr();
+        // NativeTorchTensorDiffPair case - extract both primal and grad if present
+        if (!pair->primal.is_none()) {
+            if (TorchBridge::instance().extract(pair->primal.ptr(), primal_info)) {
+                has_primal = true;
+            }
+        }
         if (!pair->grad.is_none()) {
-            grad_ptr = pair->grad.ptr();
-        } else {
-            grad_ptr = nullptr;
+            if (TorchBridge::instance().extract(pair->grad.ptr(), grad_info)) {
+                has_grad = true;
+            }
+        }
+
+        // If primal is missing but grad is present, use grad's shape/dtype info for primal
+        // This happens in backward pass where output primals are meta tensors
+        if (!has_primal && has_grad) {
+            // Copy shape info from grad to primal, but leave data_ptr as nullptr
+            primal_info.ndim = grad_info.ndim;
+            primal_info.numel = grad_info.numel;
+            primal_info.element_size = grad_info.element_size;
+            primal_info.is_cuda = grad_info.is_cuda;
+            primal_info.is_contiguous = grad_info.is_contiguous;
+            for (int i = 0; i < grad_info.ndim; i++) {
+                primal_info.shape[i] = grad_info.shape[i];
+                primal_info.strides[i] = grad_info.strides[i];
+            }
+            primal_info.data_ptr = nullptr; // No primal data
+            has_primal = true;              // We have shape info now
         }
     } else {
-        primal_ptr = value.ptr();
-        grad_ptr = nullptr;
+        // Raw torch.Tensor case - extract primal only
+        if (!TorchBridge::instance().extract(value.ptr(), primal_info)) {
+            SGL_THROW("Expected torch.Tensor, got {}", nb::type_name(value.type()).c_str());
+        }
+        has_primal = true;
     }
 
-    // Extract tensor info using TorchBridge
-    TensorBridgeInfo primal_info;
-    if (!TorchBridge::instance().extract(primal_ptr, primal_info)) {
-        SGL_THROW("Expected torch.Tensor, got {}", nb::type_name(value.type()).c_str());
-    }
-    TensorBridgeInfo grad_info;
-    if (grad_ptr && !TorchBridge::instance().extract(grad_ptr, grad_info)) {
-        SGL_THROW("Expected torch.Tensor, got {}", nb::type_name(value.type()).c_str());
-    } else {
-        grad_info = {nullptr}; // Invalidate grad_info if no grad_ptr
+    // Must have at least shape info (either from primal or grad)
+    if (!has_primal) {
+        SGL_THROW("NativeTorchTensorDiffPair must have at least one of primal or grad tensor");
     }
 
     // Validate shape
@@ -273,7 +301,8 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     validate_tensor_shape(tensor_shape, binding->vector_type()->shape());
 
     // Only support CUDA tensors (the PyTorch tensor must be on CUDA)
-    if (!primal_info.is_cuda) {
+    // For meta tensors (backward pass outputs), is_cuda comes from grad
+    if (!primal_info.is_cuda && primal_info.data_ptr != nullptr) {
         SGL_THROW("Non-CUDA torch tensors are not yet supported. Tensor must be on CUDA device.");
     }
 
@@ -285,12 +314,16 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
 
     if (needs_interop) {
         // Non-CUDA device (D3D12/Vulkan) - need interop buffer
+        // For now, only support cases where we have actual primal data
+        if (primal_info.data_ptr == nullptr) {
+            SGL_THROW("Interop not supported for diff pairs with missing primal tensor");
+        }
         write_shader_cursor_with_interop(
             context,
             binding,
             shader_object,
             base_address,
-            nb::borrow(primal_ptr),
+            pair ? pair->primal : value,
             primal_info,
             read_back
         );
@@ -308,7 +341,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 nullptr
             );
         } else {
-            // Differentiated structure - write primal
+            // Differentiated structure - write primal (may have null data_ptr for backward outputs)
             write_torch_tensor_fields(
                 context,
                 binding,
@@ -319,12 +352,28 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 nullptr
             );
 
-            // Gradient tensors for raw torch.Tensor are not yet supported
-            if (m_d_in && m_cached_offsets.grad_in.is_valid) {
-                SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
+            // Write gradient tensors if present
+            if (has_grad && m_d_in && m_cached_offsets.grad_in.is_valid) {
+                write_torch_tensor_fields(
+                    context,
+                    binding,
+                    shader_object,
+                    base_address,
+                    m_cached_offsets.grad_in,
+                    grad_info,
+                    nullptr
+                );
             }
-            if (m_d_out && m_cached_offsets.grad_out.is_valid) {
-                SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
+            if (has_grad && m_d_out && m_cached_offsets.grad_out.is_valid) {
+                write_torch_tensor_fields(
+                    context,
+                    binding,
+                    shader_object,
+                    base_address,
+                    m_cached_offsets.grad_out,
+                    grad_info,
+                    nullptr
+                );
             }
         }
     }

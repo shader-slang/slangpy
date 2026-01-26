@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Optional, Tuple
 from dataclasses import dataclass
 import torch
 
-from slangpy.core.native import AccessType, NativeCallRuntimeOptions
+from slangpy.core.native import AccessType, NativeCallRuntimeOptions, NativeTorchTensorDiffPair
 from slangpy import Device, DeviceType
 
 if TYPE_CHECKING:
@@ -209,9 +209,6 @@ class TorchAutoGradHook(torch.autograd.Function):
             else:
                 outputs.append(pair.primal)
 
-        ctx.num_inputs = len(inputs)
-        ctx.num_outputs = len(outputs)
-
         # Run the forward kernel - args/kwargs already contain NativeTorchTensorDiffPair objects
         result = forwards_cd.call(rt_options, *args, **kwargs)
 
@@ -219,14 +216,20 @@ class TorchAutoGradHook(torch.autograd.Function):
         # but keep the pairs themselves for backward pass
         for pair in pairs:
             pair.clear_tensors()
+        ctx.args = args
+        ctx.kwargs = kwargs
         ctx.pairs = pairs
 
         # Save all tensors for backward (inputs first, then outputs)
-        ctx.save_for_backward(*inputs, *outputs)
+        ctx.save_for_backward(*inputs)
 
         # Return any output tensors plus the result if present
         res = tuple(outputs)
         if result is not None:
+            if not "_result" in kwargs:
+                pair = NativeTorchTensorDiffPair(None, None, len(pairs), False)
+                kwargs["_result"] = pair
+                ctx.pairs.append(pair)
             res += (result,)
         return res
 
@@ -244,17 +247,14 @@ class TorchAutoGradHook(torch.autograd.Function):
         :param grad_outputs: Gradients for each output tensor.
         :return: Tuple of gradients for each input, with None for the options arg.
         """
-        # 1. Retrieve saved tensors and split into inputs/outputs
+        # Retrieve saved input tensors
         saved_tensors = ctx.saved_tensors
-        saved_inputs = list(saved_tensors[: ctx.num_inputs])
-        saved_outputs = list(saved_tensors[ctx.num_inputs :])
+        saved_inputs = list(saved_tensors)
 
-        # 2. Restore tensor references to pairs and populate gradients
+        # Restore tensor references to pairs and populate gradients
         input_idx = 0
-        output_idx = 0
         grad_output_idx = 0
         input_grads: list[Optional[torch.Tensor]] = []
-
         for pair in ctx.pairs:
             if pair.is_input:
                 # Restore primal tensor
@@ -268,35 +268,24 @@ class TorchAutoGradHook(torch.autograd.Function):
                     input_grads.append(None)
                 input_idx += 1
             else:
-                # Restore primal tensor
-                pair.primal = saved_outputs[output_idx]
-                # Set gradient from grad_outputs
-                if grad_output_idx < len(grad_outputs):
-                    pair.grad = grad_outputs[grad_output_idx]
+                # For outputs, we don't need the primal value in backward pass,
+                # just need shape/dtype info. Use a meta tensor (zero memory).
+                assert grad_output_idx < len(grad_outputs)
+                grad_out = grad_outputs[grad_output_idx]
+                if grad_out is not None:
+                    pair.primal = None
+                    pair.grad = grad_out
                 else:
+                    pair.primal = None
                     pair.grad = None
-                output_idx += 1
                 grad_output_idx += 1
 
-        # 3. Build backwards args by walking the saved structure
-        # The pairs are already embedded in the args/kwargs from forward
-        # We need to reconstruct args/kwargs from the pairs
-        # For now, we use the approach of calling bwds with the pairs directly
-        # TODO: Reconstruct full args/kwargs structure
-
-        # 4. If the function has a return value, the output gradient becomes _result
-        bwds_kwargs: dict[str, Any] = {}
-        if len(grad_outputs) > ctx.num_outputs:
-            # There was a return value - its gradient is the last grad_output
-            result_grad = grad_outputs[-1]
-            if result_grad is not None:
-                bwds_kwargs["_result"] = result_grad
-
-        # 5. Generate backwards CallData and call the kernel
-        # The backwards function expects the pairs which now have both primal and grad set
-        raise NotImplementedError(
-            "Backward pass not fully implemented yet - need to reconstruct args structure"
-        )
+        # By fixing up pairs, we will have implicitly reconstructed the args/kwargs structure
+        # so can just call the backwards immediately.
+        args = ctx.args
+        kwargs = ctx.kwargs
+        function = ctx.function
+        function.bwds(*args, **kwargs)
 
         # 6. Return gradients in correct order: None for options tuple, then input grads
         # The first argument to forward() is the options tuple, so we return None for it
