@@ -532,28 +532,31 @@ def test_texture_1d_broadcast(device_type: DeviceType):
         pytest.skip("1D texture read returns zero on CUDA backend")
     module = load_test_module(device_type)
 
-    tex_data = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32).reshape((4, 1))
+    # Non-square: width=8, sample at position 2
+    tex_data = np.zeros((8, 1), dtype=np.float32)
+    tex_data[2, 0] = 5.5  # Value at x=2
     tex = module.device.create_texture(
         type=TextureType.texture_1d,
-        width=4,
+        width=8,
         usage=TextureUsage.shader_resource | TextureUsage.unordered_access,
         format=Format.r32_float,
         data=tex_data,
     )
 
     result = module.sample_texture_1d_broadcast(tex)
-    assert result == pytest.approx(1.0)
+    assert result == pytest.approx(5.5)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_texture_2d_broadcast(device_type: DeviceType):
     module = load_test_module(device_type)
 
-    tex_data = np.full((4, 4, 1), 2.5, dtype=np.float32)
-    tex_data[0, 0, 0] = 7.0  # Value at position (0,0)
+    # Non-square: width=8, height=4, sample at position (3, 1)
+    tex_data = np.zeros((4, 8, 1), dtype=np.float32)
+    tex_data[1, 3, 0] = 7.25  # Value at x=3, y=1 -> numpy[y, x, channel]
     tex = module.device.create_texture(
         type=TextureType.texture_2d,
-        width=4,
+        width=8,
         height=4,
         usage=TextureUsage.shader_resource | TextureUsage.unordered_access,
         format=Format.r32_float,
@@ -561,19 +564,20 @@ def test_texture_2d_broadcast(device_type: DeviceType):
     )
 
     result = module.sample_texture_2d_broadcast(tex)
-    assert result == pytest.approx(7.0)
+    assert result == pytest.approx(7.25)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_texture_3d_broadcast(device_type: DeviceType):
     module = load_test_module(device_type)
 
-    tex_data = np.full((4, 4, 4, 1), 1.0, dtype=np.float32)
-    tex_data[0, 0, 0, 0] = 3.14  # Value at position (0,0,0)
+    # Non-square: width=8, height=6, depth=4, sample at position (2, 1, 3)
+    tex_data = np.zeros((4, 6, 8, 1), dtype=np.float32)
+    tex_data[3, 1, 2, 0] = 3.14  # Value at x=2, y=1, z=3 -> numpy[z, y, x, channel]
     tex = module.device.create_texture(
         type=TextureType.texture_3d,
-        width=4,
-        height=4,
+        width=8,
+        height=6,
         depth=4,
         usage=TextureUsage.shader_resource | TextureUsage.unordered_access,
         format=Format.r32_float,
@@ -588,18 +592,20 @@ def test_texture_3d_broadcast(device_type: DeviceType):
 def test_texture_3d_broadcast_with_scalar(device_type: DeviceType):
     module = load_test_module(device_type)
 
-    tex_data = np.full((4, 4, 4, 1), 2.0, dtype=np.float32)
+    # Non-square: width=8, height=6, depth=4, sample at position (2, 1, 3)
+    tex_data = np.zeros((4, 6, 8, 1), dtype=np.float32)
+    tex_data[3, 1, 2, 0] = 2.0  # Value at x=2, y=1, z=3 -> numpy[z, y, x, channel]
     tex = module.device.create_texture(
         type=TextureType.texture_3d,
-        width=4,
-        height=4,
+        width=8,
+        height=6,
         depth=4,
         usage=TextureUsage.shader_resource | TextureUsage.unordered_access,
         format=Format.r32_float,
         data=tex_data,
     )
 
-    # tex[0,0,0] = 2.0, value = 3.0, so result should be 6.0
+    # tex[2,1,3] = 2.0, value = 3.0, so result should be 6.0
     result = module.sample_texture_3d_with_scalar(3.0, tex)
     assert result == pytest.approx(6.0)
 
