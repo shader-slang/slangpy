@@ -161,8 +161,11 @@ private:
         NativeBoundVariableRuntime* binding,
         ShaderObject* shader_object,
         void* base_address,
-        nb::object value,
-        const TensorBridgeInfo& info,
+        nb::object primal_value,
+        const TensorBridgeInfo& primal_info,
+        nb::object grad_value,
+        const TensorBridgeInfo& grad_info,
+        bool has_grad,
         nb::list read_back
     ) const;
 };

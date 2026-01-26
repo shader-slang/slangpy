@@ -152,7 +152,7 @@ public:
     void set_type_reflection(const ref<TypeReflection>& reflection) { m_type_reflection = reflection; }
 
     /// Get the shape of the type.
-    Shape shape() const { return m_shape; }
+    const Shape& shape() const { return m_shape; }
 
     /// Set the shape of the type.
     void set_shape(const Shape& shape) { m_shape = shape; }

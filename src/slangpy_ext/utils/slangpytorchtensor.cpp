@@ -247,48 +247,53 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     // Ensure cached offsets are initialized
     ensure_offsets_cached(cursor, binding);
 
-    // Extract tensor info - handle both raw torch.Tensor and NativeTorchTensorDiffPair
+    // Step 1: Extract primal_value and grad_value as nb::objects
+    nb::object primal_value;
+    nb::object grad_value;
+
+    NativeTorchTensorDiffPair* pair;
+    if (nb::try_cast(value, pair)) {
+        // NativeTorchTensorDiffPair case
+        primal_value = pair->primal;
+        grad_value = pair->grad;
+    } else {
+        // Raw torch.Tensor case
+        primal_value = value;
+        grad_value = nb::none();
+    }
+
+    // Step 2: Extract TensorBridgeInfo from the values
     TensorBridgeInfo primal_info = {};
     TensorBridgeInfo grad_info = {};
     bool has_primal = false;
     bool has_grad = false;
 
-    NativeTorchTensorDiffPair* pair;
-    if (nb::try_cast(value, pair)) {
-        // NativeTorchTensorDiffPair case - extract both primal and grad if present
-        if (!pair->primal.is_none()) {
-            if (TorchBridge::instance().extract(pair->primal.ptr(), primal_info)) {
-                has_primal = true;
-            }
+    if (!primal_value.is_none()) {
+        if (TorchBridge::instance().extract(primal_value.ptr(), primal_info)) {
+            has_primal = true;
         }
-        if (!pair->grad.is_none()) {
-            if (TorchBridge::instance().extract(pair->grad.ptr(), grad_info)) {
-                has_grad = true;
-            }
+    }
+    if (!grad_value.is_none()) {
+        if (TorchBridge::instance().extract(grad_value.ptr(), grad_info)) {
+            has_grad = true;
         }
+    }
 
-        // If primal is missing but grad is present, use grad's shape/dtype info for primal
-        // This happens in backward pass where output primals are meta tensors
-        if (!has_primal && has_grad) {
-            // Copy shape info from grad to primal, but leave data_ptr as nullptr
-            primal_info.ndim = grad_info.ndim;
-            primal_info.numel = grad_info.numel;
-            primal_info.element_size = grad_info.element_size;
-            primal_info.is_cuda = grad_info.is_cuda;
-            primal_info.is_contiguous = grad_info.is_contiguous;
-            for (int i = 0; i < grad_info.ndim; i++) {
-                primal_info.shape[i] = grad_info.shape[i];
-                primal_info.strides[i] = grad_info.strides[i];
-            }
-            primal_info.data_ptr = nullptr; // No primal data
-            has_primal = true;              // We have shape info now
+    // Step 3: If primal is missing but grad is present, patch up primal_info from grad
+    // This happens in backward pass where output primals are meta tensors
+    if (!has_primal && has_grad) {
+        // Copy shape info from grad to primal, but leave data_ptr as nullptr
+        primal_info.ndim = grad_info.ndim;
+        primal_info.numel = grad_info.numel;
+        primal_info.element_size = grad_info.element_size;
+        primal_info.is_cuda = grad_info.is_cuda;
+        primal_info.is_contiguous = grad_info.is_contiguous;
+        for (int i = 0; i < grad_info.ndim; i++) {
+            primal_info.shape[i] = grad_info.shape[i];
+            primal_info.strides[i] = grad_info.strides[i];
         }
-    } else {
-        // Raw torch.Tensor case - extract primal only
-        if (!TorchBridge::instance().extract(value.ptr(), primal_info)) {
-            SGL_THROW("Expected torch.Tensor, got {}", nb::type_name(value.type()).c_str());
-        }
-        has_primal = true;
+        primal_info.data_ptr = nullptr; // No primal data
+        has_primal = true;              // We have shape info now
     }
 
     // Must have at least shape info (either from primal or grad)
@@ -314,17 +319,16 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
 
     if (needs_interop) {
         // Non-CUDA device (D3D12/Vulkan) - need interop buffer
-        // For now, only support cases where we have actual primal data
-        if (primal_info.data_ptr == nullptr) {
-            SGL_THROW("Interop not supported for diff pairs with missing primal tensor");
-        }
         write_shader_cursor_with_interop(
             context,
             binding,
             shader_object,
             base_address,
-            pair ? pair->primal : value,
+            primal_value,
             primal_info,
+            grad_value,
+            grad_info,
+            has_grad,
             read_back
         );
     } else {
@@ -450,80 +454,123 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     NativeBoundVariableRuntime* binding,
     ShaderObject* shader_object,
     void* base_address,
-    nb::object value,
-    const TensorBridgeInfo& info,
+    nb::object primal_value,
+    const TensorBridgeInfo& primal_info,
+    nb::object grad_value,
+    const TensorBridgeInfo& grad_info,
+    bool has_grad,
     nb::list read_back
 ) const
 {
-    // Calculate buffer size (numel * element_size)
-    size_t buffer_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
+    // Helper lambda to create interop buffer and copy tensor data
+    auto create_interop_buffer
+        = [&](nb::object tensor_value, const TensorBridgeInfo& info, bool writable) -> ref<Buffer>
+    {
+        // Calculate buffer size (numel * element_size)
+        size_t buffer_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
 
-    // Handle empty tensors - create a minimal placeholder buffer
-    if (buffer_size == 0) {
-        buffer_size = static_cast<size_t>(info.element_size);
-    }
-
-    // Determine if tensor is writable (needs copy-back)
-    // access() returns a pair<AccessType, AccessType> for (read, write) access
-    bool is_writable = m_writable; // && (binding->access().second != AccessType::none);
-
-    // Create shared buffer for interop
-    // The buffer will be accessible from both CUDA (for copy) and D3D12/Vulkan (for shader)
-    ref<Buffer> interop_buffer = context->device()->create_buffer({
-        .size = buffer_size,
-        .struct_size = static_cast<size_t>(info.element_size),
-        .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::shared,
-        .default_state = is_writable ? ResourceState::unordered_access : ResourceState::shader_resource,
-    });
-
-    // Copy data from PyTorch tensor to interop buffer using TorchBridge
-    // This handles non-contiguous tensors via PyTorch's copy mechanism
-    if (info.numel > 0) {
-        if (!TorchBridge::instance().copy_to_buffer(value, interop_buffer->cuda_memory(), buffer_size)) {
-            SGL_THROW("Failed to copy tensor to interop buffer: {}", TorchBridge::instance().get_error());
+        // Handle empty tensors - create a minimal placeholder buffer
+        if (buffer_size == 0) {
+            buffer_size = static_cast<size_t>(info.element_size);
         }
+
+        // Create shared buffer for interop
+        // The buffer will be accessible from both CUDA (for copy) and D3D12/Vulkan (for shader)
+        ref<Buffer> interop_buffer = context->device()->create_buffer({
+            .size = buffer_size,
+            .struct_size = static_cast<size_t>(info.element_size),
+            .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::shared,
+            .default_state = writable ? ResourceState::unordered_access : ResourceState::shader_resource,
+        });
+
+        // Copy data from PyTorch tensor to interop buffer using TorchBridge
+        // This handles non-contiguous tensors via PyTorch's copy mechanism
+        if (info.numel > 0 && info.data_ptr != nullptr) {
+            if (!TorchBridge::instance().copy_to_buffer(tensor_value, interop_buffer->cuda_memory(), buffer_size)) {
+                SGL_THROW("Failed to copy tensor to interop buffer: {}", TorchBridge::instance().get_error());
+            }
+        }
+
+        return interop_buffer;
+    };
+
+    // Create primal interop buffer (if we have primal data)
+    ref<Buffer> primal_interop_buffer;
+    if (primal_info.data_ptr != nullptr) {
+        primal_interop_buffer = create_interop_buffer(primal_value, primal_info, m_writable);
     }
 
-    // Write tensor fields using the interop buffer
+    // Create grad interop buffer (if we have grad data)
+    ref<Buffer> grad_interop_buffer;
+    if (has_grad && grad_info.data_ptr != nullptr) {
+        // Grad tensors are typically writable (for backward pass to write gradients)
+        grad_interop_buffer = create_interop_buffer(grad_value, grad_info, true);
+    }
+
+    // Write tensor fields using the interop buffers
     if (!m_cached_offsets.has_grad_fields) {
+        // Flat structure - write directly to primal offsets
+        if (!primal_interop_buffer) {
+            SGL_THROW("Interop requires primal tensor data for flat structure");
+        }
         write_torch_tensor_fields(
             context,
             binding,
             shader_object,
             base_address,
             m_cached_offsets.primal,
-            info,
-            interop_buffer.get()
+            primal_info,
+            primal_interop_buffer.get()
         );
     } else {
+        // Differentiated structure - write primal
         write_torch_tensor_fields(
             context,
             binding,
             shader_object,
             base_address,
             m_cached_offsets.primal,
-            info,
-            interop_buffer.get()
+            primal_info,
+            primal_interop_buffer.get()
         );
 
-        // Gradient tensors for raw torch.Tensor are not yet supported
-        if (m_d_in && m_cached_offsets.grad_in.is_valid) {
-            SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
+        // Write gradient tensors if present
+        if (has_grad && m_d_in && m_cached_offsets.grad_in.is_valid) {
+            write_torch_tensor_fields(
+                context,
+                binding,
+                shader_object,
+                base_address,
+                m_cached_offsets.grad_in,
+                grad_info,
+                grad_interop_buffer.get()
+            );
         }
-        if (m_d_out && m_cached_offsets.grad_out.is_valid) {
-            SGL_THROW("Gradient tensors not yet supported for raw torch.Tensor");
+        if (has_grad && m_d_out && m_cached_offsets.grad_out.is_valid) {
+            write_torch_tensor_fields(
+                context,
+                binding,
+                shader_object,
+                base_address,
+                m_cached_offsets.grad_out,
+                grad_info,
+                grad_interop_buffer.get()
+            );
         }
     }
 
     // Store interop info for post-dispatch copy-back if tensor is writable
-    if (is_writable && info.numel > 0) {
+    size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
+    if (m_writable && primal_info.numel > 0 && primal_interop_buffer) {
         // Store using standard read_back format: (binding, value, calldata)
         // calldata contains the interop info needed for copy-back
         nb::dict calldata;
-        calldata["_interop_buffer"] = nb::cast(interop_buffer);
-        calldata["_buffer_size"] = buffer_size;
-        store_readback(binding, read_back, value, calldata);
+        calldata["_interop_buffer"] = nb::cast(primal_interop_buffer);
+        calldata["_buffer_size"] = primal_buffer_size;
+        store_readback(binding, read_back, primal_value, calldata);
     }
+
+    // TODO: Handle grad tensor copy-back if needed
 }
 
 void NativeTorchTensorMarshall::read_calldata(
@@ -564,8 +611,14 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
     nb::module_ torch = nb::module_::import_("torch");
 
     // Build shape: call_shape + element type shape
+    // Note: Unlike slangpy tensors, which can match the function's return type precisely,
+    // torch tensors are scalar only and do not support vector/matrix types. To handle this,
+    // we use the shape of the bound type to work out how many extra dimensions are needed. i.e.:
+    // - if binding to a scalar, will add 0 dimensions
+    // - if binding to a vector, will add 1 dimension
+    // - if binding to a matrix, will add 2 dimensions
     const Shape& call_shape = context->call_shape();
-    const Shape& elem_shape = m_slang_element_type->shape();
+    const Shape& elem_shape = binding->vector_type()->shape();
 
     std::vector<int64_t> shape_vec;
     shape_vec.reserve(call_shape.size() + elem_shape.size());
