@@ -510,9 +510,6 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     // Write tensor fields using the interop buffers
     if (!m_cached_offsets.has_grad_fields) {
         // Flat structure - write directly to primal offsets
-        if (!primal_interop_buffer) {
-            SGL_THROW("Interop requires primal tensor data for flat structure");
-        }
         write_torch_tensor_fields(
             context,
             binding,
@@ -561,16 +558,32 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
 
     // Store interop info for post-dispatch copy-back if tensor is writable
     size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
-    if (m_writable && primal_info.numel > 0 && primal_interop_buffer) {
-        // Store using standard read_back format: (binding, value, calldata)
-        // calldata contains the interop info needed for copy-back
+    size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
+
+    // Build calldata dict with all interop info needed for copy-back
+    bool needs_primal_copyback = m_writable && primal_info.numel > 0 && primal_interop_buffer;
+    bool needs_grad_copyback = has_grad && grad_info.numel > 0 && grad_interop_buffer;
+
+    if (needs_primal_copyback || needs_grad_copyback) {
         nb::dict calldata;
-        calldata["_interop_buffer"] = nb::cast(primal_interop_buffer);
-        calldata["_buffer_size"] = primal_buffer_size;
+
+        // Store primal interop info if needed
+        if (needs_primal_copyback) {
+            calldata["_interop_buffer"] = nb::cast(primal_interop_buffer);
+            calldata["_buffer_size"] = primal_buffer_size;
+        }
+
+        // Store grad interop info if needed
+        if (needs_grad_copyback) {
+            calldata["_grad_interop_buffer"] = nb::cast(grad_interop_buffer);
+            calldata["_grad_buffer_size"] = grad_buffer_size;
+            calldata["_grad_value"] = grad_value;
+        }
+
+        // Store using standard read_back format: (binding, value, calldata)
+        // Use primal_value as the main value (for backward compatibility)
         store_readback(binding, read_back, primal_value, calldata);
     }
-
-    // TODO: Handle grad tensor copy-back if needed
 }
 
 void NativeTorchTensorMarshall::read_calldata(
@@ -583,23 +596,35 @@ void NativeTorchTensorMarshall::read_calldata(
     SGL_UNUSED(context);
     SGL_UNUSED(binding);
 
-    // Check if this is an interop calldata (dict with _interop_buffer key)
+    // Check if this is an interop calldata (dict with interop buffer keys)
     if (!nb::isinstance<nb::dict>(result)) {
         return;
     }
 
     nb::dict calldata = nb::cast<nb::dict>(result);
-    if (!calldata.contains("_interop_buffer")) {
-        return;
+
+    // Copy back primal tensor if present
+    if (calldata.contains("_interop_buffer")) {
+        ref<Buffer> interop_buffer = nb::cast<ref<Buffer>>(calldata["_interop_buffer"]);
+        size_t buffer_size = nb::cast<size_t>(calldata["_buffer_size"]);
+
+        // Copy from interop buffer back to tensor using TorchBridge
+        if (!TorchBridge::instance().copy_from_buffer(data, interop_buffer->cuda_memory(), buffer_size)) {
+            SGL_THROW("Failed to copy tensor from interop buffer: {}", TorchBridge::instance().get_error());
+        }
     }
 
-    // This is interop copy-back - copy from buffer back to tensor
-    ref<Buffer> interop_buffer = nb::cast<ref<Buffer>>(calldata["_interop_buffer"]);
-    size_t buffer_size = nb::cast<size_t>(calldata["_buffer_size"]);
+    // Copy back gradient tensor if present
+    if (calldata.contains("_grad_interop_buffer")) {
+        ref<Buffer> grad_interop_buffer = nb::cast<ref<Buffer>>(calldata["_grad_interop_buffer"]);
+        size_t grad_buffer_size = nb::cast<size_t>(calldata["_grad_buffer_size"]);
+        nb::object grad_value = calldata["_grad_value"];
 
-    // Copy from interop buffer back to tensor using TorchBridge
-    if (!TorchBridge::instance().copy_from_buffer(data, interop_buffer->cuda_memory(), buffer_size)) {
-        SGL_THROW("Failed to copy tensor from interop buffer: {}", TorchBridge::instance().get_error());
+        // Copy from grad interop buffer back to grad tensor using TorchBridge
+        if (!TorchBridge::instance()
+                 .copy_from_buffer(grad_value, grad_interop_buffer->cuda_memory(), grad_buffer_size)) {
+            SGL_THROW("Failed to copy grad tensor from interop buffer: {}", TorchBridge::instance().get_error());
+        }
     }
 }
 

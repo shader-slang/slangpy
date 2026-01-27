@@ -4,7 +4,7 @@
 #include "sgl/device/command.h"
 #include "sgl/device/native_handle.h"
 #include "utils/slangpyfunction.h"
-#include "slangpy_torch/tensor_bridge_consumer.h"
+#include "utils/torch_bridge.h"
 #include <fmt/format.h>
 
 namespace sgl {
@@ -70,9 +70,9 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     }
 
     // If torch integration is enabled and the bridge is available, set the CUDA stream
-    if (call_data->is_torch_integration() && is_tensor_bridge_available()) {
+    if (call_data->is_torch_integration() && TorchBridge::instance().is_available()) {
         // Get the current CUDA stream from PyTorch (device 0 by default)
-        void* stream_ptr = get_current_cuda_stream(0);
+        void* stream_ptr = TorchBridge::instance().get_current_cuda_stream(0);
         if (stream_ptr) {
             NativeHandle stream_handle(NativeHandleType::CUstream, reinterpret_cast<uint64_t>(stream_ptr));
             options->set_cuda_stream(stream_handle);

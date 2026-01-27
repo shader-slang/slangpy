@@ -15,135 +15,13 @@ This allows SlangPy's type analysis to work naturally with the real gradient ten
 """
 
 from typing import TYPE_CHECKING, Any, Optional, Tuple
-from dataclasses import dataclass
 import torch
 
-from slangpy.core.native import AccessType, NativeCallRuntimeOptions, NativeTorchTensorDiffPair
-from slangpy import Device, DeviceType
+from slangpy.core.native import NativeCallRuntimeOptions, NativeTorchTensorDiffPair
 
 if TYPE_CHECKING:
     from slangpy.core.function import FunctionNode
     from slangpy.core.calldata import CallData
-
-
-def check_cuda_enabled(device: Device) -> None:
-    """
-    Check that CUDA interop is enabled for the device.
-
-    :param device: The SGL device to check.
-    :raises RuntimeError: If CUDA interop is not enabled.
-    """
-    if not device.supports_cuda_interop and device.info.type != DeviceType.cuda:
-        raise RuntimeError(
-            "Cuda interop must be enabled for torch support. "
-            "Create SGL device with Device(..., enable_cuda_interop=True)"
-        )
-
-
-@dataclass
-class TrackedTensor:
-    """
-    Information about a tensor tracked for autograd purposes.
-
-    Attributes:
-        tensor: The PyTorch tensor.
-        access: The access type (read, write, readwrite) for this tensor.
-        arg_name: The argument name/path this tensor came from (for debugging).
-    """
-
-    tensor: torch.Tensor
-    access: AccessType
-    arg_name: str
-
-
-def _build_backwards_args(
-    fwd_args: tuple[Any, ...],
-    fwd_kwargs: dict[str, Any],
-    fwd_runtime: Any,
-    inputs: list[torch.Tensor],
-    input_grads: list[Optional[torch.Tensor]],
-    outputs: list[torch.Tensor],
-    output_grads: list[Optional[torch.Tensor]],
-) -> tuple[tuple[Any, ...], dict[str, Any]]:
-    """
-    Build arguments for the backwards kernel call.
-
-    For the backwards pass, we need to provide:
-    - Primal values for inputs (for computing gradients)
-    - Gradient tensors for inputs (to write computed gradients into)
-    - Gradient tensors for outputs (the incoming gradients from upstream)
-
-    This function walks the argument structure and replaces torch.Tensor values
-    appropriately for the backwards call.
-
-    :param fwd_args: Original positional arguments from forward pass.
-    :param fwd_kwargs: Original keyword arguments from forward pass.
-    :param fwd_runtime: The BoundCallRuntime from the forwards CallData.
-    :param inputs: List of input tensors (those that were read).
-    :param input_grads: List of gradient tensors for inputs (or None if no grad needed).
-    :param outputs: List of output tensors (those that were written).
-    :param output_grads: List of gradient tensors for outputs (incoming gradients).
-    :return: Tuple of (bwds_args, bwds_kwargs) ready for the backwards kernel.
-    """
-    # Track which input/output we're processing
-    input_idx = [0]
-    output_idx = [0]
-
-    def process_value(
-        value: Any,
-        binding: Any,
-    ) -> Any:
-        """Recursively process a value, replacing tensors as needed."""
-        if isinstance(value, dict):
-            return {
-                k: process_value(
-                    v, binding.children[k] if binding and hasattr(binding, "children") else None
-                )
-                for k, v in value.items()
-            }
-        elif isinstance(value, torch.Tensor):
-            # Determine if this tensor was an input or output based on access pattern
-            from slangpy.reflection import ITensorType, TensorAccess
-
-            is_input = False
-            if binding is not None:
-                if isinstance(binding.vector_type, ITensorType):
-                    is_input = binding.vector_type.access == TensorAccess.read
-                else:
-                    is_input = binding.access[0] == AccessType.read
-
-            if is_input:
-                # Input tensor: return the primal (backwards needs it for computation)
-                # The gradient will be written by the kernel
-                idx = input_idx[0]
-                input_idx[0] += 1
-                # For backwards, we just pass the primal tensor
-                # The gradient tensor is handled separately via d_out marshalling
-                return value
-            else:
-                # Output tensor: the gradient is what we need to pass
-                idx = output_idx[0]
-                output_idx[0] += 1
-                if idx < len(output_grads) and output_grads[idx] is not None:
-                    return output_grads[idx]
-                return value
-        else:
-            return value
-
-    # Process args
-    bwds_args = tuple(
-        process_value(arg, fwd_runtime.args[i] if i < len(fwd_runtime.args) else None)
-        for i, arg in enumerate(fwd_args)
-    )
-
-    # Process kwargs (excluding _result which is handled separately)
-    bwds_kwargs = {
-        k: process_value(v, fwd_runtime.kwargs.get(k))
-        for k, v in fwd_kwargs.items()
-        if k != "_result"
-    }
-
-    return bwds_args, bwds_kwargs
 
 
 class TorchAutoGradHook(torch.autograd.Function):
@@ -226,6 +104,7 @@ class TorchAutoGradHook(torch.autograd.Function):
         # Return any output tensors plus the result if present
         res = tuple(outputs)
         if result is not None:
+            assert isinstance(result, torch.Tensor)
             if not "_result" in kwargs:
                 pair = NativeTorchTensorDiffPair(None, None, len(pairs), False)
                 kwargs["_result"] = pair
