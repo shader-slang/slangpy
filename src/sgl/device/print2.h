@@ -2,12 +2,6 @@
 
 #pragma once
 
-#define USE_PRINT_V2 1
-
-#if USE_PRINT_V2
-#include "sgl/device/print2.h"
-#else // USE_PRINT_V2
-
 #include "sgl/device/fwd.h"
 #include "sgl/device/shader_cursor.h"
 
@@ -17,9 +11,10 @@
 namespace sgl {
 
 /**
- * \brief Debug printer.
+ * \brief Debug printer (v2).
  *
  * This class implements host-side support for shader debug printing.
+ * Uses a multi-stream linked-list buffer format for efficient parallel writes.
  */
 class DebugPrinter {
 public:
@@ -49,5 +44,3 @@ private:
 };
 
 } // namespace sgl
-
-#endif // USE_PRINT_V2

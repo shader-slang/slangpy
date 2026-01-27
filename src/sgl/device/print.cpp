@@ -2,6 +2,10 @@
 
 #include "print.h"
 
+#if USE_PRINT_V2
+#include "print2.cpp"
+#else // USE_PRINT_V2
+
 #include "sgl/core/format.h"
 
 #include "sgl/device/device.h"
@@ -362,3 +366,5 @@ void DebugPrinter::flush_device(bool wait)
 }
 
 } // namespace sgl
+
+#endif // USE_PRINT_V2
