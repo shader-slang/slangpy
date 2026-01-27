@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# pyright: reportAttributeAccessIssue=false
 
 """
 Benchmark the ACTUAL C function call overhead from native code.
@@ -7,8 +8,6 @@ This uses the benchmark functions built into the bridge module,
 which measure the C function call in a tight loop without any
 Python involvement.
 """
-
-# pyright: reportAttributeAccessIssue=false
 
 import torch
 import slangpy_torch as bridge
