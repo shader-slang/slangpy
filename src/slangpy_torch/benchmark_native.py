@@ -8,7 +8,7 @@ which measure the C function call in a tight loop without any
 Python involvement.
 """
 
-# pyright: ignore
+# pyright: reportAttributeAccessIssue=false
 
 import torch
 import slangpy_torch as bridge
