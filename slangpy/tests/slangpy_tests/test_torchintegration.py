@@ -369,5 +369,20 @@ def test_empty_tensor_null_data_ptr(device_type: DeviceType):
     assert output_tensor.numel() == 0
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_parameter_slice(device_type: DeviceType):
+    """
+    Test that tensors that are sliced can be used as a parameter.
+    """
+
+    module = load_test_module(device_type)
+
+    # Fill some pytorch tensors with random data
+    a = torch.rand(100, dtype=torch.float32, device=torch.device("cuda"))
+    b = torch.rand(4, dtype=torch.float32, device=torch.device("cuda"))
+
+    res = module.vector_mul(a, b[:3])
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

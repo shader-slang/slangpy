@@ -92,3 +92,12 @@ void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
         output[i] = input[i];
 }
+
+float vector_mul(float a, float[3] b)
+{
+    float result = 0.0f;
+    for (int i = 0; i < 3; i++) {
+        result += b[i] * a;
+    }
+    return result;
+}
