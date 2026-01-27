@@ -20,6 +20,16 @@
 
 namespace sgl::slangpy {
 
+/// Helper function to convert Shape to nb::list efficiently (avoids std::vector allocation)
+inline nb::list shape_to_list(const Shape& shape)
+{
+    nb::list result;
+    for (size_t i = 0; i < shape.size(); ++i) {
+        result.append(shape[i]);
+    }
+    return result;
+}
+
 class NativeBoundVariableRuntime;
 class NativeCallData;
 class NativeFunctionNode;
@@ -524,7 +534,7 @@ public:
     void set_call_dimensionality(int call_dimensionality) { m_call_dimensionality = call_dimensionality; }
 
     /// Recursively populate the overall kernel call shape.
-    void populate_call_shape(std::vector<int>& call_shape, nb::object value, NativeCallData* error_context);
+    void populate_call_shape(Shape& call_shape, nb::object value, NativeCallData* error_context);
 
     /// Write call data to shader cursor before dispatch, optionally writing data for read back after the kernel has
     /// run.

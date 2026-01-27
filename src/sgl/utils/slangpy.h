@@ -101,6 +101,30 @@ public:
         // For inline storage, values are also uninitialized
     }
 
+    /// Constructor that creates a Shape of a given size with all elements set to a value
+    Shape(size_t size, int fill_value)
+        : m_size(size)
+        , m_valid(true)
+        , m_uses_heap(size > INLINE_CAPACITY)
+    {
+        if (m_uses_heap) {
+            m_storage.heap_data = std::make_unique<int[]>(m_size);
+            for (size_t i = 0; i < m_size; ++i) {
+                m_storage.heap_data[i] = fill_value;
+            }
+        } else {
+            for (size_t i = 0; i < m_size; ++i) {
+                m_storage.inline_data[i] = fill_value;
+            }
+        }
+    }
+
+    /// Static helper to create a Shape filled with ones
+    static Shape ones(size_t size) { return Shape(size, 1); }
+
+    /// Static helper to create a Shape filled with zeros
+    static Shape zeros(size_t size) { return Shape(size, 0); }
+
     /// Constructor from initializer list
     Shape(std::initializer_list<int> shape)
         : m_size(shape.size())
@@ -262,6 +286,12 @@ public:
 
     /// Get size (i.e. number of dimensions) of shape.
     size_t size() const { return m_size; }
+
+    /// Iterator support for range-based for loops and algorithms
+    const int* begin() const { return data(); }
+    const int* end() const { return data() + m_size; }
+    int* begin() { return data(); }
+    int* end() { return data() + m_size; }
 
     /// Check if concrete shape (no dimensions are -1).
     bool concrete() const

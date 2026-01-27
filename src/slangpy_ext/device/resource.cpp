@@ -3,6 +3,7 @@
 #include "nanobind.h"
 
 #include "sgl/device/resource.h"
+#include "sgl/device/sampler.h"
 #include "sgl/device/device.h"
 #include "sgl/device/formats.h"
 #include "sgl/device/command.h"
@@ -40,6 +41,7 @@ SGL_DICT_TO_DESC_FIELD(sample_quality, uint32_t)
 SGL_DICT_TO_DESC_FIELD(memory_type, MemoryType)
 SGL_DICT_TO_DESC_FIELD(usage, TextureUsage)
 SGL_DICT_TO_DESC_FIELD(default_state, ResourceState)
+SGL_DICT_TO_DESC_FIELD(sampler, ref<Sampler>)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
 
@@ -54,6 +56,7 @@ SGL_DICT_TO_DESC_BEGIN(TextureViewDesc)
 SGL_DICT_TO_DESC_FIELD(format, Format)
 SGL_DICT_TO_DESC_FIELD(aspect, TextureAspect)
 SGL_DICT_TO_DESC_FIELD(subresource_range, SubresourceRange)
+SGL_DICT_TO_DESC_FIELD(sampler, ref<Sampler>)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
 
@@ -539,6 +542,7 @@ SGL_PY_EXPORT(device_resource)
                uint32_t layer_count,
                uint32_t mip,
                uint32_t mip_count,
+               ref<Sampler> sampler,
                std::string label)
             {
                 TextureViewDesc desc;
@@ -550,6 +554,7 @@ SGL_PY_EXPORT(device_resource)
                     .mip = mip,
                     .mip_count = mip_count,
                 };
+                desc.sampler = std::move(sampler);
                 desc.label = label;
                 return self->create_view(desc);
             },
@@ -559,6 +564,7 @@ SGL_PY_EXPORT(device_resource)
             "layer_count"_a = TextureViewDesc().subresource_range.layer_count,
             "mip"_a = TextureViewDesc().subresource_range.mip,
             "mip_count"_a = TextureViewDesc().subresource_range.mip_count,
+            "sampler"_a.none() = nb::none(),
             "label"_a = TextureViewDesc().label,
             D(Texture, create_view)
         )

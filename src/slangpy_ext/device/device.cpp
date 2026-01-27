@@ -491,6 +491,7 @@ SGL_PY_EXPORT(device_device)
            MemoryType memory_type,
            TextureUsage usage,
            ResourceState default_state,
+           ref<Sampler> sampler,
            std::string label,
            std::optional<nb::ndarray<nb::numpy>> data)
         {
@@ -523,6 +524,7 @@ SGL_PY_EXPORT(device_device)
                 .memory_type = memory_type,
                 .usage = usage,
                 .default_state = default_state,
+                .sampler = std::move(sampler),
                 .label = std::move(label),
                 .data = data ? subresourceData : std::span<SubresourceData>(),
             });
@@ -539,6 +541,7 @@ SGL_PY_EXPORT(device_device)
         "memory_type"_a = TextureDesc().memory_type,
         "usage"_a = TextureDesc().usage,
         "default_state"_a = TextureDesc().default_state,
+        "sampler"_a.none() = nb::none(),
         "label"_a = TextureDesc().label,
         "data"_a.none() = nb::none(),
         D(Device, create_texture)
@@ -730,7 +733,7 @@ SGL_PY_EXPORT(device_device)
            std::vector<std::string> callable_entry_points)
         {
             return self->create_shader_table({
-                .program = program,
+                .program = std::move(program),
                 .ray_gen_entry_points = std::move(ray_gen_entry_points),
                 .miss_entry_points = std::move(miss_entry_points),
                 .hit_group_names = std::move(hit_group_names),
@@ -909,7 +912,7 @@ SGL_PY_EXPORT(device_device)
         {
             return self->create_render_pipeline(
                 {.program = std::move(program),
-                 .input_layout = input_layout,
+                 .input_layout = std::move(input_layout),
                  .primitive_topology = primitive_topology,
                  .targets = targets,
                  .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),

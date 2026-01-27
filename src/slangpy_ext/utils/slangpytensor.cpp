@@ -613,9 +613,9 @@ nb::object NativeTensorMarshall::create_dispatchdata(nb::object data) const
     auto buffer = nb::cast<NativeTensor*>(data);
     nb::dict res;
     res["_data"] = buffer->storage();
-    res["_shape"] = buffer->shape().as_vector();
+    res["_shape"] = shape_to_list(buffer->shape());
     res["_offset"] = buffer->offset();
-    res["_strides"] = buffer->strides().as_vector();
+    res["_strides"] = shape_to_list(buffer->strides());
     return res;
 }
 
