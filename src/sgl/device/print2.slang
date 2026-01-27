@@ -279,6 +279,186 @@ struct PrintStream {
     }
 };
 
+/// Print output for writing formatted print records with arguments.
+/// This is the main interface users interact with for printing.
+struct PrintOutput {
+    /// The underlying print stream.
+    PrintStream stream;
+
+    /// Initialize a new print output.
+    __init()
+    {
+        stream = PrintStream();
+    }
+
+    /// Print a format string with no arguments.
+    [mutating]
+    void format(String fmt)
+    {
+        stream.begin_format(fmt, 0);
+    }
+
+    /// Print a format string with arguments.
+    [mutating]
+    void format<each T : IPrintable>(String fmt, expand each T args)
+    {
+        stream.begin_format(fmt, countof(T));
+        expand (each args).print(this);
+    }
+};
+
+/// ============================================================================
+/// Printable Interfaces and Type Extensions
+/// ============================================================================
+
+/// Interface for types that can print themselves.
+/// Implement this for custom types to make them printable.
+interface IPrintable {
+    /// Print this value to the output.
+    /// The implementation should write a complete record (header + data).
+    void print(inout PrintOutput output);
+};
+
+/// Interface for scalar types that can write their raw data.
+/// This is a low-level interface used by the generic IPrintable extension.
+interface IPrintableScalar {
+    /// Get the scalar type identifier.
+    static ScalarType scalar_type();
+
+    /// Write the raw scalar data (1 or 2 uints) to the stream.
+    void print_scalar(inout PrintStream stream);
+};
+
+// -----------------------------------------------------------------------------
+// IPrintableScalar implementations for built-in scalar types
+// -----------------------------------------------------------------------------
+
+extension bool : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::bool_; }
+    void print_scalar(inout PrintStream stream) { stream.write(this ? 1u : 0u); }
+};
+
+extension int8_t : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::int8; }
+    void print_scalar(inout PrintStream stream) { stream.write(asuint(int(this))); }
+};
+
+extension int16_t : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::int16; }
+    void print_scalar(inout PrintStream stream) { stream.write(asuint(int(this))); }
+};
+
+extension int32_t : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::int32; }
+    void print_scalar(inout PrintStream stream) { stream.write(asuint(this)); }
+};
+
+extension int64_t : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::int64; }
+    void print_scalar(inout PrintStream stream) {
+        stream.write(uint(this & 0xFFFFFFFF));
+        stream.write(uint(this >> 32));
+    }
+};
+
+extension uint8_t : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::uint8; }
+    void print_scalar(inout PrintStream stream) { stream.write(uint(this)); }
+};
+
+extension uint16_t : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::uint16; }
+    void print_scalar(inout PrintStream stream) { stream.write(uint(this)); }
+};
+
+extension uint32_t : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::uint32; }
+    void print_scalar(inout PrintStream stream) { stream.write(this); }
+};
+
+extension uint64_t : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::uint64; }
+    void print_scalar(inout PrintStream stream) {
+        stream.write(uint(this & 0xFFFFFFFFu));
+        stream.write(uint(this >> 32));
+    }
+};
+
+extension float16_t : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::float16; }
+    void print_scalar(inout PrintStream stream) { stream.write(uint(asuint16(this))); }
+};
+
+extension float : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::float32; }
+    void print_scalar(inout PrintStream stream) { stream.write(asuint(this)); }
+};
+
+extension double : IPrintableScalar {
+    static ScalarType scalar_type() { return ScalarType::float64; }
+    void print_scalar(inout PrintStream stream) {
+        uint lo, hi;
+        asuint(this, lo, hi);
+        stream.write(lo);
+        stream.write(hi);
+    }
+};
+
+// -----------------------------------------------------------------------------
+// Generic IPrintable extension for all IPrintableScalar types
+// -----------------------------------------------------------------------------
+
+extension<T : IPrintableScalar> T : IPrintable {
+    void print(inout PrintOutput output) {
+        output.stream.write_scalar_header(T::scalar_type());
+        this.print_scalar(output.stream);
+    }
+};
+
+// -----------------------------------------------------------------------------
+// IPrintable implementations for vector types
+// -----------------------------------------------------------------------------
+
+extension<T : IPrintableScalar, let N : int> vector<T, N> : IPrintable {
+    void print(inout PrintOutput output) {
+        output.stream.write_vector_header(T::scalar_type(), N);
+        for (int i = 0; i < N; ++i) {
+            this[i].print_scalar(output.stream);
+        }
+    }
+};
+
+// -----------------------------------------------------------------------------
+// IPrintable implementations for matrix types
+// -----------------------------------------------------------------------------
+
+extension<T : IPrintableScalar, let R : int, let C : int> matrix<T, R, C> : IPrintable {
+    void print(inout PrintOutput output) {
+        output.stream.write_matrix_header(T::scalar_type(), R, C);
+        for (int r = 0; r < R; ++r) {
+            for (int c = 0; c < C; ++c) {
+                this[r][c].print_scalar(output.stream);
+            }
+        }
+    }
+};
+
 } // namespace debug_print
+
+/// Top-level print function.
+/// Creates a PrintOutput and formats the message.
+void print(String fmt)
+{
+    debug_print::PrintOutput output = debug_print::PrintOutput();
+    output.format(fmt);
+}
+
+/// Top-level print function with arguments.
+/// Creates a PrintOutput and formats the message with arguments.
+void print<each T : debug_print::IPrintable>(String fmt, expand each T args)
+{
+    debug_print::PrintOutput output = debug_print::PrintOutput();
+    output.format(fmt, expand each args);
+}
 
 #endif // SGL_ENABLE_PRINT
