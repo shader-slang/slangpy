@@ -17,6 +17,7 @@ This allows SlangPy's type analysis to work naturally with the real gradient ten
 from typing import TYPE_CHECKING, Any, Optional, Tuple
 import torch
 
+from slangpy import DeviceType
 from slangpy.core.native import NativeCallRuntimeOptions, NativeTorchTensorDiffPair
 
 if TYPE_CHECKING:
@@ -129,6 +130,9 @@ class TorchAutoGradHook(torch.autograd.Function):
         # Retrieve saved input tensors
         saved_tensors = ctx.saved_tensors
         saved_inputs = list(saved_tensors)
+        args = ctx.args
+        kwargs = ctx.kwargs
+        function = ctx.function
 
         # Restore tensor references to pairs and populate gradients
         input_idx = 0
@@ -154,6 +158,8 @@ class TorchAutoGradHook(torch.autograd.Function):
                 if grad_out is not None:
                     pair.primal = None
                     pair.grad = grad_out
+                    if function.module.device.desc.type != DeviceType.cuda:
+                        pair.grad = pair.grad.contiguous()
                 else:
                     pair.primal = None
                     pair.grad = None
@@ -161,9 +167,6 @@ class TorchAutoGradHook(torch.autograd.Function):
 
         # By fixing up pairs, we will have implicitly reconstructed the args/kwargs structure
         # so can just call the backwards immediately.
-        args = ctx.args
-        kwargs = ctx.kwargs
-        function = ctx.function
         function.bwds(*args, **kwargs)
 
         # 6. Return gradients in correct order: None for options tuple, then input grads
