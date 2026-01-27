@@ -146,15 +146,18 @@ struct OutputStream {
 ///
 /// RECORD KINDS
 /// ------------
-///   format = 0  - Format string with arguments
-///   scalar = 1  - Single value
-///   vector = 2  - Vector of values
-///   matrix = 3  - Matrix of values
+///   format          = 0  - Format string with arguments
+///   scalar          = 1  - Single value
+///   vector          = 2  - Vector of values
+///   matrix          = 3  - Matrix of values
+///   begin_composite = 4  - Start of composite argument (wraps IPrintable output)
+///   end_composite   = 5  - End of composite argument
 ///
 /// HEADER FORMAT
 /// -------------
 /// FORMAT record: [kind:8][arg_count:24]
 ///   Followed by: [fmt_hash:32][arg0][arg1]...[argN-1]
+///   Each argument is wrapped in begin_composite/end_composite markers.
 ///
 /// SCALAR record: [kind:8][type:8][unused:16]
 ///   Followed by: data (1 or 2 uints depending on type)
@@ -185,10 +188,12 @@ struct OutputStream {
 
 /// Record kind values.
 enum class RecordKind {
-    format = 0,
-    scalar = 1,
-    vector = 2,
-    matrix = 3,
+    format          = 0,
+    scalar          = 1,
+    vector          = 2,
+    matrix          = 3,
+    begin_composite = 4,
+    end_composite   = 5,
 };
 
 /// Scalar type values.
@@ -277,6 +282,26 @@ struct PrintStream {
     {
         stream.write(data);
     }
+
+    /// Write a begin_composite marker.
+    /// This marks the start of a composite argument (wraps IPrintable output).
+    [mutating]
+    void begin_composite()
+    {
+        // Header: [kind:8][unused:24]
+        uint header = uint(RecordKind::begin_composite) << 24;
+        stream.write(header);
+    }
+
+    /// Write an end_composite marker.
+    /// This marks the end of a composite argument.
+    [mutating]
+    void end_composite()
+    {
+        // Header: [kind:8][unused:24]
+        uint header = uint(RecordKind::end_composite) << 24;
+        stream.write(header);
+    }
 };
 
 /// Print output for writing formatted print records with arguments.
@@ -303,7 +328,20 @@ struct PrintOutput {
     void format<each T : IPrintable>(String fmt, expand each T args)
     {
         stream.begin_format(fmt, countof(T));
-        expand (each args).print(this);
+        expand print_arg(each args);
+    }
+
+    /// Helper to print a single argument, optionally wrapped in composite markers.
+    [mutating]
+    void print_arg<T : IPrintable>(T arg)
+    {
+        if (T::needs_composite_wrap()) {
+            stream.begin_composite();
+            arg.print(this);
+            stream.end_composite();
+        } else {
+            arg.print(this);
+        }
     }
 };
 
@@ -314,6 +352,12 @@ struct PrintOutput {
 /// Interface for types that can print themselves.
 /// Implement this for custom types to make them printable.
 interface IPrintable {
+    /// Returns true if this type needs composite wrapping.
+    /// Built-in types (scalars, vectors, matrices) return false since they
+    /// always produce exactly one record. Custom types should return true
+    /// (the safe default) unless they guarantee a single record.
+    static bool needs_composite_wrap() { return true; }
+
     /// Print this value to the output.
     /// The implementation should write a complete record (header + data).
     void print(inout PrintOutput output);
@@ -409,6 +453,7 @@ extension double : IPrintableScalar {
 // -----------------------------------------------------------------------------
 
 extension<T : IPrintableScalar> T : IPrintable {
+    override static bool needs_composite_wrap() { return false; }
     void print(inout PrintOutput output) {
         output.stream.write_scalar_header(T::scalar_type());
         this.print_scalar(output.stream);
@@ -420,6 +465,7 @@ extension<T : IPrintableScalar> T : IPrintable {
 // -----------------------------------------------------------------------------
 
 extension<T : IPrintableScalar, let N : int> vector<T, N> : IPrintable {
+    override static bool needs_composite_wrap() { return false; }
     void print(inout PrintOutput output) {
         output.stream.write_vector_header(T::scalar_type(), N);
         for (int i = 0; i < N; ++i) {
@@ -433,6 +479,7 @@ extension<T : IPrintableScalar, let N : int> vector<T, N> : IPrintable {
 // -----------------------------------------------------------------------------
 
 extension<T : IPrintableScalar, let R : int, let C : int> matrix<T, R, C> : IPrintable {
+    override static bool needs_composite_wrap() { return false; }
     void print(inout PrintOutput output) {
         output.stream.write_matrix_header(T::scalar_type(), R, C);
         for (int r = 0; r < R; ++r) {
