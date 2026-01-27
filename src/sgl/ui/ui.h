@@ -58,7 +58,10 @@ public:
 private:
     RenderPipeline* get_pipeline(Format format);
 
-    static constexpr uint32_t FRAME_COUNT = 3;
+    // TODO: The frame count should not be hard-coded like this.
+    // We should probably both control the number of buffers in the Context constructor
+    // and pass in the frame to use in begin_frame().
+    static constexpr uint32_t FRAME_COUNT = 4;
 
     ref<Device> m_device;
     ImGuiContext* m_imgui_context;

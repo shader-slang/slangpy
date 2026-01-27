@@ -71,7 +71,7 @@ def test_this_interface(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Allocate a buffer
-    buffer = Tensor.empty(m.device, dtype=Particle, element_count=1)
+    buffer = Tensor.empty(m.device, dtype=Particle, shape=(1,))
 
     # Create a tiny wrapper around the buffer to provide the this interface
     this = ThisType(buffer)
@@ -116,7 +116,7 @@ def test_this_interface_soa(device_type: DeviceType):
     # Create a tiny wrapper around the buffer to provide the this interface
     this = ThisType(
         {
-            "position": Tensor.empty(m.device, dtype=float2, element_count=1),
+            "position": Tensor.empty(m.device, dtype=float2, shape=(1,)),
             "velocity": float2(1, 0),
             "size": 0.5,
             "material": {"color": float3(1, 1, 1), "emission": float3(0, 0, 0)},
@@ -145,7 +145,7 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Allocate a buffer
-    buffer = Tensor.empty(m.device, dtype=Particle, element_count=1)
+    buffer = Tensor.empty(m.device, dtype=Particle, shape=(1,))
 
     # Create a tiny wrapper around the buffer to provide the this interface
     instance = InstanceList(Particle, buffer)
@@ -186,7 +186,7 @@ def test_loose_instance_soa(device_type: DeviceType):
     instance = InstanceList(
         Particle,
         {
-            "position": Tensor.empty(m.device, dtype=float2, element_count=1),
+            "position": Tensor.empty(m.device, dtype=float2, shape=(1,)),
             "velocity": ValueRef(float2(9999)),
             "size": floatRef(9999),
             "material": {
@@ -308,7 +308,7 @@ def test_pass_nested_instance_to_function(device_type: DeviceType):
     particles = InstanceList(
         Particle,
         {
-            "position": Tensor.empty(m.device, dtype=float2, element_count=1000),
+            "position": Tensor.empty(m.device, dtype=float2, shape=(1000,)),
             "velocity": float2(0, 0),
             "size": 0.5,
             "material": InstanceTensor(Material, shape=(1000,)),
@@ -342,7 +342,7 @@ class CustomInstanceList:
         self.data = data
 
     def get_this(self) -> Any:
-        buffer = Tensor.empty(self.device, dtype=float2, element_count=len(self.data))
+        buffer = Tensor.empty(self.device, dtype=float2, shape=(len(self.data),))
         np_data = np.array([[v.x, v.y] for v in self.data], dtype=np.float32)
         buffer.copy_from_numpy(np_data)
         return buffer
@@ -383,8 +383,8 @@ def test_custom_instance_list(device_type: DeviceType):
 class ExtendedInstanceList(InstanceList):
     def __init__(self, struct: Struct):
         super().__init__(struct)
-        self.position = Tensor.empty(struct.device, dtype=float2, element_count=1000)
-        self.velocity = Tensor.empty(struct.device, dtype=float2, element_count=1000)
+        self.position = Tensor.empty(struct.device, dtype=float2, shape=(1000,))
+        self.velocity = Tensor.empty(struct.device, dtype=float2, shape=(1000,))
         self.size = 0.5
         self.material = {"color": float3(1, 1, 1), "emission": float3(0, 0, 0)}
 
