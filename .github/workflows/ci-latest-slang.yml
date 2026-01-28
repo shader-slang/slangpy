@@ -1,5 +1,22 @@
 name: ci-latest-slang
-run-name: "Slang branch: ${{ github.event.inputs.slang_branch || 'master' }}"
+run-name: "Slang ${{ github.event.inputs.slang_commit || format('branch: {0}', github.event.inputs.slang_branch || 'master') }}${{ github.event.inputs.test_iterations && format(' (bisect: {0}x)', github.event.inputs.test_iterations) || '' }}"
+
+# ============================================================================
+# BISECT MODE - FOR DEBUGGING INTERMITTENT CRASH (PR ONLY - DO NOT MERGE)
+# ============================================================================
+# How to use from PR:
+#   1. Push this PR to create the branch
+#   2. Go to Actions → ci-latest-slang → Run workflow
+#   3. Select your PR branch from the dropdown
+#   4. Fill in:
+#      - Slang commit SHA: e.g., 'abc123def456...'
+#      - Test iterations: e.g., '10'
+#   5. Click Run workflow
+#   6. Check results and repeat with different commits
+#
+# When test_iterations is set, runs the FULL test suite N times.
+# Exits immediately on first failure to preserve crash dumps.
+# ============================================================================
 
 on:
   schedule:
@@ -10,6 +27,14 @@ on:
         description: 'Slang branch'
         required: true
         default: 'master'
+      slang_commit:
+        description: 'Slang commit SHA (for bisecting)'
+        required: false
+        default: ''
+      test_iterations:
+        description: 'Test iterations (e.g., 10 for bisect mode)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -96,8 +121,13 @@ jobs:
         run: |
           git clone --recursive https://github.com/shader-slang/slang.git
           cd slang
-          git checkout ${{ github.event.inputs.slang_branch || 'master' }}
+          COMMIT="${{ github.event.inputs.slang_commit || github.event.inputs.slang_branch || 'master' }}"
+          git checkout "$COMMIT"
           git submodule update --init --recursive
+          echo "========================================"
+          echo "Slang commit: $(git rev-parse HEAD)"
+          echo "Slang commit message: $(git log -1 --oneline)"
+          echo "========================================"
 
       # Build Slang.
       - name: Build Slang
@@ -145,8 +175,40 @@ jobs:
 
       # Unit Tests (Python)
       - name: Unit Tests (Python)
-        if: contains(matrix.flags, 'unit-test')
+        if: contains(matrix.flags, 'unit-test') && github.event.inputs.test_iterations == ''
         run: python tools/ci.py unit-test-python --parallel
+
+      # Unit Tests (Python) - Bisect Mode
+      - name: Unit Tests (Python) - Bisect Mode
+        if: contains(matrix.flags, 'unit-test') && github.event.inputs.test_iterations != ''
+        shell: bash
+        run: |
+          ITERATIONS="${{ github.event.inputs.test_iterations }}"
+          echo "=== BISECT MODE: Running full test suite ${ITERATIONS} times ==="
+          echo "Will exit on first failure to preserve crash dumps"
+          echo ""
+
+          for i in $(seq 1 ${ITERATIONS}); do
+            echo "======================================"
+            echo "=== Iteration $i/${ITERATIONS} ==="
+            echo "======================================"
+
+            if ! python tools/ci.py unit-test-python --parallel; then
+              echo ""
+              echo "!!! Test suite FAILED on iteration $i/${ITERATIONS} !!!"
+              echo "Crash dumps should be in .crashpad/reports/"
+              exit 1
+            fi
+
+            echo "✓ Iteration $i passed"
+            echo ""
+          done
+
+          echo ""
+          echo "=========================================="
+          echo "=== SUCCESS: All ${ITERATIONS} iterations passed ==="
+          echo "=== No crash detected with this Slang commit ==="
+          echo "=========================================="
 
       # Test Examples
       - name: Test Examples
@@ -176,10 +238,11 @@ jobs:
           path: reports/coverage.html
 
   # Notify Slack after all matrix jobs complete
+  # DISABLED for bisect PR - do not send Slack messages
   notify:
     runs-on: ubuntu-latest
     needs: build
-    if: always() && github.event_name == 'schedule'
+    if: false  # Disabled for bisect PR
     steps:
       # Success Notification
       - name: Success Notification
