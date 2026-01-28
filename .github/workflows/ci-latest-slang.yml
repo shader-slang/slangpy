@@ -116,11 +116,16 @@ jobs:
       # Checkout Slang.
       - name: Checkout Slang
         run: |
-          git clone --recursive https://github.com/shader-slang/slang.git
+          # Clone only commits since 2026-01-01
+          git clone --shallow-since="2026-01-01" https://github.com/shader-slang/slang.git
           cd slang
           COMMIT="${{ github.event.inputs.slang_commit || github.event.inputs.slang_branch || 'master' }}"
+
           git checkout "$COMMIT"
-          git submodule update --init --recursive
+
+          # Now init submodules (after checkout)
+          git submodule update --init --recursive --depth 1
+
           echo "========================================"
           echo "Slang commit: $(git rev-parse HEAD)"
           echo "Slang commit message: $(git log -1 --oneline)"
