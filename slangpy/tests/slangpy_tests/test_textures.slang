@@ -42,3 +42,23 @@ T passthru<T>(T t)
 {
     return t;
 }
+
+float sample_texture_1d_broadcast(Texture1D<float> tex)
+{
+    return tex[uint(2)];
+}
+
+float sample_texture_2d_broadcast(Texture2D<float> tex)
+{
+    return tex[uint2(3, 1)];
+}
+
+float sample_texture_3d_broadcast(Texture3D<float> tex)
+{
+    return tex[uint3(2, 1, 3)];
+}
+
+float sample_texture_3d_with_scalar(float value, Texture3D<float> tex)
+{
+    return tex[uint3(2, 1, 3)] * value;
+}

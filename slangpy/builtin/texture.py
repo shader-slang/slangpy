@@ -176,6 +176,19 @@ class TextureMarshall(NativeTextureMarshall):
         # Otherwise, use default behaviour from marshall
         return None
 
+    def resolve_dimensionality(
+        self,
+        context: BindContext,
+        binding: "BoundVariable",
+        vector_target_type: refl.SlangType,
+    ):
+        # If target type is a texture, the texture is passed directly (broadcast as-is)
+        if isinstance(vector_target_type, refl.TextureType):
+            return 0
+
+        # the texture is being used for per-pixel operations
+        return self.texture_dims
+
     # Texture is writable if it has unordered access view.
     @property
     def is_writable(self):
