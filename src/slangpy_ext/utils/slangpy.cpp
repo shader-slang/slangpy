@@ -921,7 +921,7 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
     // Fast path: Signature for pytorch tensors via torch bridge (~15ns)
     char buffer[64];
     if (TorchBridge::instance().get_signature(o, buffer, sizeof(buffer)) == 0) {
-        *builder << buffer;
+        *builder << "torch\n" << buffer;
         return;
     }
 

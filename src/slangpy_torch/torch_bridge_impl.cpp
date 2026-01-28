@@ -135,15 +135,9 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
     int ndim = static_cast<int>(tensor.dim());
     int scalar_type = static_cast<int>(tensor.scalar_type());
 
-    // Format: "[torch,Dn,Sm]" - compatible format, no snprintf
+    // Format: "[Dn,Sm]" - compatible format, no snprintf
     char* p = buffer;
     *p++ = '[';
-    *p++ = 't';
-    *p++ = 'o';
-    *p++ = 'r';
-    *p++ = 'c';
-    *p++ = 'h';
-    *p++ = ',';
     *p++ = 'D';
     p = fast_itoa(p, ndim);
     *p++ = ',';

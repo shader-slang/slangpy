@@ -66,7 +66,7 @@ def test_torch_signature(pair: tuple[torch.Tensor, str]):
     cd = NativeCallDataCache()
     sig = SignatureBuilder()
     cd.get_value_signature(sig, pair[0])
-    assert sig.str == f"Tensor\n[torch,{pair[1]}]"
+    assert sig.str == f"torch\n[{pair[1]}]"
 
 
 ADD_TESTS = [
@@ -385,8 +385,12 @@ def test_copy_tensor_to_buffer(device_type: DeviceType):
         usage=BufferUsage.unordered_access | BufferUsage.shader_resource | BufferUsage.shared,
     )
 
-    # Copy tensor to buffer
+    # Copy tensor to buffer (on cuda device)
     copy_torch_tensor_to_buffer(tensor, buffer)
+
+    # buffer.to_numpy is run on device, so if using interop need to make
+    # sure we wait for the cuda work to complete
+    device.sync_to_cuda()
 
     # Read back buffer contents via CPU and verify
     import numpy as np
@@ -423,7 +427,11 @@ def test_copy_buffer_to_tensor(device_type: DeviceType):
     )
     buffer.copy_from_numpy(test_values)
 
-    # Copy buffer to tensor
+    # If using cuda interop, make sure cuda waits for device
+    # to finish the copy_from_numpy
+    device.sync_to_device()
+
+    # Copy buffer to tensor (on cuda device)
     copy_buffer_to_torch_tensor(buffer, tensor)
 
     # Verify tensor contents
@@ -452,8 +460,12 @@ def test_copy_noncontiguous_tensor_to_buffer(device_type: DeviceType):
         usage=BufferUsage.unordered_access | BufferUsage.shader_resource | BufferUsage.shared,
     )
 
-    # Copy tensor to buffer
+    # Copy tensor to buffer (on cuda device)
     copy_torch_tensor_to_buffer(tensor, buffer)
+
+    # buffer.to_numpy is run on device, so if using interop need to make
+    # sure we wait for the cuda work to complete
+    device.sync_to_cuda()
 
     # Read back and verify - should match contiguous version of tensor
     import numpy as np
@@ -488,6 +500,8 @@ def test_tensor_buffer_roundtrip(device_type: DeviceType):
     )
 
     # Copy: src_tensor -> buffer -> dst_tensor
+    # There is no need for any device waits, as both operations happen
+    # on the cuda device, even in the interop case.
     copy_torch_tensor_to_buffer(src_tensor, buffer)
     copy_buffer_to_torch_tensor(buffer, dst_tensor)
 

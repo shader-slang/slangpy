@@ -99,6 +99,7 @@ public:
         }
         if (m_api->get_signature(obj, buffer, buffer_size) != 0) {
             snprintf(buffer, buffer_size, "Failed to get signature");
+            return -1;
         }
         return 0;
     }

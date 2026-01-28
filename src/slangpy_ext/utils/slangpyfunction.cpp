@@ -69,14 +69,14 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
         cache->add_call_data(sig, call_data);
     }
 
-    // If torch integration is enabled and the bridge is available, set the CUDA stream
+    // If torch integration is enabled and the bridge is available, set the CUDA stream.
+    // Note: We always set the stream even if it's nullptr (the default stream),
+    // because the device needs to know a CUDA stream is in use for interop sync.
     if (call_data->is_torch_integration() && TorchBridge::instance().is_available()) {
         // Get the current CUDA stream from PyTorch (device 0 by default)
         void* stream_ptr = TorchBridge::instance().get_current_cuda_stream(0);
-        if (stream_ptr) {
-            NativeHandle stream_handle(NativeHandleType::CUstream, reinterpret_cast<uint64_t>(stream_ptr));
-            options->set_cuda_stream(stream_handle);
-        }
+        NativeHandle stream_handle(NativeHandleType::CUstream, reinterpret_cast<uint64_t>(stream_ptr));
+        options->set_cuda_stream(stream_handle);
     }
 
     // If torch auto grad required, go via autograd hook

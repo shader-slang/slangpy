@@ -104,12 +104,11 @@ class TorchAutoGradHook(torch.autograd.Function):
 
         # Return any output tensors plus the result if present
         res = tuple(outputs)
-        if result is not None:
+        if result is not None and not "_result" in kwargs:
             assert isinstance(result, torch.Tensor)
-            if not "_result" in kwargs:
-                pair = NativeTorchTensorDiffPair(None, None, len(pairs), False)
-                kwargs["_result"] = pair
-                ctx.pairs.append(pair)
+            pair = NativeTorchTensorDiffPair(None, None, len(pairs), False)
+            kwargs["_result"] = pair
+            ctx.pairs.append(pair)
             res += (result,)
         return res
 
