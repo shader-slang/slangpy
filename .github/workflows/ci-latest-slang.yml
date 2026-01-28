@@ -4,18 +4,20 @@ run-name: "Slang ${{ github.event.inputs.slang_commit || format('branch: {0}', g
 # ============================================================================
 # BISECT MODE - FOR DEBUGGING INTERMITTENT CRASH (PR ONLY - DO NOT MERGE)
 # ============================================================================
-# How to use from PR:
-#   1. Push this PR to create the branch
+# How to use:
+#   1. Push this branch to shader-slang/slangpy
 #   2. Go to Actions → ci-latest-slang → Run workflow
-#   3. Select your PR branch from the dropdown
+#   3. Select this branch from the dropdown
 #   4. Fill in:
 #      - Slang commit SHA: e.g., 'abc123def456...'
 #      - Test iterations: e.g., '10'
 #   5. Click Run workflow
 #   6. Check results and repeat with different commits
 #
-# When test_iterations is set, runs the FULL test suite N times.
-# Exits immediately on first failure to preserve crash dumps.
+# When test_iterations is set:
+#   - ONLY Linux jobs run (Windows/macOS skipped for speed)
+#   - Runs the FULL test suite N times
+#   - Exits immediately on first failure to preserve crash dumps
 # ============================================================================
 
 on:
@@ -47,18 +49,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows, linux, macos]
+        os: [linux]
         config: [Debug, Release]
         python: ["3.10"]
         include:
-          # Builds running on self-hosted runners
-          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          # Linux only - this is a bisect/debug branch
           - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
           - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
-          # Builds running on GitHub hosted runners
-          - { os: macos, platform: aarch64, compiler: clang, config: Debug, flags: "unit-test,crashpad", runs-on: macos-latest }
-          - { os: macos, platform: aarch64, compiler: clang, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: macos-latest }
 
     env:
       # Environment variables used by ci.py
