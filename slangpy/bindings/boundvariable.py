@@ -211,6 +211,11 @@ class BoundVariable:
                 )
             self.python = value.python
             self.create_param_block = True
+        elif isinstance(value, NativeMarshall):
+            # User can pre-specify type information instead of explicit value by
+            # just passing in a NativeMarshall instance
+            self.python = value
+            self.create_param_block = False
         else:
             # Not packed arg so we need to create a marshall for the value
             try:

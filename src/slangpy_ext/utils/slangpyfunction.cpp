@@ -2,7 +2,9 @@
 
 #include "nanobind.h"
 #include "sgl/device/command.h"
+#include "sgl/device/native_handle.h"
 #include "utils/slangpyfunction.h"
+#include "utils/torch_bridge.h"
 #include <fmt/format.h>
 
 namespace sgl {
@@ -62,18 +64,35 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     std::string sig = builder->str();
     ref<NativeCallData> call_data = cache->find_call_data(sig);
 
-    if (call_data) {
-        if (call_data->is_torch_integration())
-            return call_data->_py_torch_call(this, options, args, kwargs);
-        else
-            return call_data->call(options, args, kwargs);
+    if (!call_data) {
+        call_data = generate_call_data(args, kwargs);
+        cache->add_call_data(sig, call_data);
+    }
+
+    // If torch integration is enabled and the bridge is available, set the CUDA stream
+    if (call_data->is_torch_integration() && TorchBridge::instance().is_available()) {
+        // Get the current CUDA stream from PyTorch (device 0 by default)
+        void* stream_ptr = TorchBridge::instance().get_current_cuda_stream(0);
+        if (stream_ptr) {
+            NativeHandle stream_handle(NativeHandleType::CUstream, reinterpret_cast<uint64_t>(stream_ptr));
+            options->set_cuda_stream(stream_handle);
+        }
+    }
+
+    // If torch auto grad required, go via autograd hook
+    if (call_data->is_torch_autograd()) {
+        // Lookup and call 'slangpy.core.calldata.torch_autograd_hook'
+        // Cache the function lookup to avoid repeated module imports
+        static nb::object torch_autograd_hook;
+        if (!torch_autograd_hook.is_valid()) {
+            nb::module_ calldata_module = nb::module_::import_("slangpy.core.calldata");
+            torch_autograd_hook = calldata_module.attr("torch_autograd_hook");
+        }
+        // Pass 'this' (the FunctionNode) so backwards CallData can be generated
+        // lazily in the backward pass when actual gradient tensors are available
+        return torch_autograd_hook(this, call_data, options, args, kwargs);
     } else {
-        ref<NativeCallData> new_call_data = generate_call_data(args, kwargs);
-        cache->add_call_data(sig, new_call_data);
-        if (new_call_data->is_torch_integration())
-            return new_call_data->_py_torch_call(this, options, args, kwargs);
-        else
-            return new_call_data->call(options, args, kwargs);
+        return call_data->call(options, args, kwargs);
     }
 }
 
@@ -182,6 +201,14 @@ SGL_PY_EXPORT(utils_slangpy_function)
             "args"_a,
             "kwargs"_a,
             D_NA(NativeFunctionNode, generate_call_data)
+        )
+        .def(
+            "generate_bwds_call_data",
+            &NativeFunctionNode::generate_bwds_call_data,
+            "forwards_call_data"_a,
+            "args"_a,
+            "kwargs"_a,
+            D_NA(NativeFunctionNode, generate_bwds_call_data)
         )
         .def(
             "read_signature",

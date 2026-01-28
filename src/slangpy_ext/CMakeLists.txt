@@ -61,8 +61,12 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     utils/slangpyresources.cpp
     utils/slangpytensor.h
     utils/slangpytensor.cpp
+    utils/slangpytorchtensor.h
+    utils/slangpytorchtensor.cpp
     utils/tev.cpp
     utils/texture_loader.cpp
+    utils/torch_bridge.h
+    utils/torch_bridge.cpp
 )
 
 if(SGL_ENABLE_PCH)
@@ -72,7 +76,10 @@ if(SGL_ENABLE_PCH)
     )
 endif()
 
-target_include_directories(slangpy_ext PRIVATE .)
+target_include_directories(slangpy_ext PRIVATE
+    .
+    ${CMAKE_CURRENT_SOURCE_DIR}/../slangpy_torch  # For tensor_bridge_api.h
+)
 
 target_link_libraries(slangpy_ext PRIVATE sgl)
 set_target_properties(slangpy_ext PROPERTIES
