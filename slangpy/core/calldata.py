@@ -72,8 +72,31 @@ def set_print_generated_shaders(value: bool):
     _PRINT_GENERATED_SHADERS = value
 
 
+# Type cache for get_this/update_this method presence.
+_has_get_this_cache: dict[type, bool] = {}
+_has_update_this_cache: dict[type, bool] = {}
+
+
+def _has_get_this(obj: Any) -> bool:
+    t = type(obj)
+    if t in _has_get_this_cache:
+        return _has_get_this_cache[t]
+    result = hasattr(obj, "get_this")
+    _has_get_this_cache[t] = result
+    return result
+
+
+def _has_update_this(obj: Any) -> bool:
+    t = type(obj)
+    if t in _has_update_this_cache:
+        return _has_update_this_cache[t]
+    result = hasattr(obj, "update_this")
+    _has_update_this_cache[t] = result
+    return result
+
+
 def unpack_arg(arg: Any) -> Any:
-    if hasattr(arg, "get_this"):
+    if _has_get_this(arg):
         arg = arg.get_this()
     if isinstance(arg, dict):
         arg = {k: unpack_arg(v) for k, v in arg.items()}
@@ -83,7 +106,7 @@ def unpack_arg(arg: Any) -> Any:
 
 
 def pack_arg(arg: Any, unpacked_arg: Any):
-    if hasattr(arg, "update_this"):
+    if _has_update_this(arg):
         arg.update_this(unpacked_arg)
     if isinstance(arg, dict):
         for k, v in arg.items():
