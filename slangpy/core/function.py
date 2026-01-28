@@ -354,7 +354,7 @@ class FunctionNode(NativeFunctionNode):
 
             builder = SignatureBuilder()
             self.module.call_data_cache.get_args_signature(builder, self, **kwargs)
-            sig = builder.str
+            sig = builder.hash
 
             if sig in self.module.dispatch_data_cache:
                 dispatch_data = self.module.dispatch_data_cache[sig]

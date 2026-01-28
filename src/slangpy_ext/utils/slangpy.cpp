@@ -94,43 +94,24 @@ std::string NativeSlangType::to_string() const
     }
 }
 
-static constexpr std::array<char, 16> HEX_CHARS
-    = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-
 void SignatureBuilder::add(const std::string& value)
 {
-    add_bytes((const uint8_t*)value.data(), (int)value.length());
+    hash_bytes(reinterpret_cast<const uint8_t*>(value.data()), value.length());
 }
+
 void SignatureBuilder::add(const char* value)
 {
-    add_bytes((const uint8_t*)value, (int)strlen(value));
+    hash_bytes(reinterpret_cast<const uint8_t*>(value), strlen(value));
 }
+
 void SignatureBuilder::add(const uint32_t value)
 {
-    uint8_t buffer[8];
-    for (int i = 0; i < 8; ++i) {
-        buffer[7 - i] = HEX_CHARS[(value >> (i * 4)) & 0xF];
-    }
-    add_bytes(buffer, 8);
+    hash_bytes(reinterpret_cast<const uint8_t*>(&value), sizeof(value));
 }
+
 void SignatureBuilder::add(const uint64_t value)
 {
-    uint8_t buffer[16];
-    for (int i = 0; i < 16; ++i) {
-        buffer[15 - i] = HEX_CHARS[(value >> (i * 4)) & 0xF];
-    }
-    add_bytes(buffer, 16);
-}
-
-
-nb::bytes SignatureBuilder::bytes() const
-{
-    return nb::bytes(m_buffer, m_size);
-}
-
-std::string SignatureBuilder::str() const
-{
-    return std::string(reinterpret_cast<const char*>(m_buffer), m_size);
+    hash_bytes(reinterpret_cast<const uint8_t*>(&value), sizeof(value));
 }
 
 void NativeMarshall::write_shader_cursor_pre_dispatch(
@@ -1082,13 +1063,13 @@ void pack_arg(nanobind::object arg, nanobind::object unpacked_arg)
     }
 }
 
-// Helper to get signature of a single value.
+// Get signature hash of a value as hex string.
 std::string get_value_signature(nb::handle o)
 {
     static NativeCallDataCache cache;
     auto builder = make_ref<SignatureBuilder>();
     cache.get_value_signature(builder, o);
-    return builder->str();
+    return fmt::format("{:016x}", builder->hash());
 }
 
 } // namespace sgl::slangpy
@@ -1181,13 +1162,7 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::class_<SignatureBuilder, Object>(slangpy, "SignatureBuilder") //
         .def(nb::init<>(), D_NA(SignatureBuilder, SignatureBuilder))
         .def("add", nb::overload_cast<const std::string&>(&SignatureBuilder::add), "value"_a, D_NA(NativeObject, add))
-        .def_prop_ro("str", &SignatureBuilder::str, D_NA(SignatureBuilder, str))
-        .def_prop_ro(
-            "bytes",
-            &SignatureBuilder::bytes,
-            nb::rv_policy::reference_internal,
-            D_NA(SignatureBuilder, bytes)
-        );
+        .def_prop_ro("hash", &SignatureBuilder::hash, D_NA(SignatureBuilder, hash));
 
     nb::class_<NativeObject, PyNativeObject, Object>(slangpy, "NativeObject") //
         .def(
@@ -1576,13 +1551,13 @@ SGL_PY_EXPORT(utils_slangpy)
         .def(
             "find_call_data",
             &NativeCallDataCache::find_call_data,
-            "signature"_a,
+            "signature_hash"_a,
             D_NA(NativeCallDataCache, find_call_data)
         )
         .def(
             "add_call_data",
             &NativeCallDataCache::add_call_data,
-            "signature"_a,
+            "signature_hash"_a,
             "call_data"_a,
             D_NA(NativeCallDataCache, add_call_data)
         )
