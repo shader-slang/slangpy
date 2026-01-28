@@ -9,6 +9,7 @@ device = spy.Device(
     enable_print=True,
     compiler_options={
         "include_paths": [EXAMPLE_DIR],
+        "dump_intermediates": True
     },
 )
 

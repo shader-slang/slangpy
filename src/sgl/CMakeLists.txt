@@ -110,6 +110,7 @@ target_sources(sgl PRIVATE
     device/print.cpp
     device/print.h
     device/print.slang
+    device/print2.slang
     device/query.cpp
     device/query.h
     device/raytracing.cpp
