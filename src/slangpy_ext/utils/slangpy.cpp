@@ -76,22 +76,28 @@ static std::unordered_map<PyTypeObject*, bool> s_has_update_this_cache;
 inline bool has_get_this(nb::handle obj)
 {
     PyTypeObject* type = Py_TYPE(obj.ptr());
+
     auto it = s_has_get_this_cache.find(type);
     if (it != s_has_get_this_cache.end())
         return it->second;
+
     bool result = nb::hasattr(obj, "get_this");
     s_has_get_this_cache[type] = result;
+
     return result;
 }
 
 inline bool has_update_this(nb::handle obj)
 {
     PyTypeObject* type = Py_TYPE(obj.ptr());
+
     auto it = s_has_update_this_cache.find(type);
     if (it != s_has_update_this_cache.end())
         return it->second;
+
     bool result = nb::hasattr(obj, "update_this");
     s_has_update_this_cache[type] = result;
+
     return result;
 }
 

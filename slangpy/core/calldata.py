@@ -81,8 +81,10 @@ def _has_get_this(obj: Any) -> bool:
     t = type(obj)
     if t in _has_get_this_cache:
         return _has_get_this_cache[t]
+
     result = hasattr(obj, "get_this")
     _has_get_this_cache[t] = result
+
     return result
 
 
@@ -90,8 +92,10 @@ def _has_update_this(obj: Any) -> bool:
     t = type(obj)
     if t in _has_update_this_cache:
         return _has_update_this_cache[t]
+
     result = hasattr(obj, "update_this")
     _has_update_this_cache[t] = result
+
     return result
 
 
