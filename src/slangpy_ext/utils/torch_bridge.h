@@ -60,6 +60,7 @@ public:
             // First, try to import torch - slangpy_torch links against libtorch
             // and will fail to load if torch DLLs aren't available
             nb::module_::import_("torch");
+            m_torch_available = true;
 
             // Now try to import slangpy_torch for native support
             try {
@@ -75,17 +76,17 @@ public:
                     m_api = nullptr;
                 }
             } catch (...) {
-                // slangpy_torch not available, will use Python fallback
+                // slangpy_torch not available, will use Python fallback lazily
                 m_api = nullptr;
             }
 
-            // If native API not available, initialize Python fallback
-            if (!m_api) {
-                init_python_fallback();
-            }
+            // Note: Python fallback is now initialized lazily on first use,
+            // to avoid importing slangpy.torchintegration.bridge_fallback during
+            // stub generation (which would cause invalid imports in the stubs).
         } catch (...) {
             // torch not available
             m_api = nullptr;
+            m_torch_available = false;
         }
 
         return is_available();
@@ -96,23 +97,22 @@ public:
     bool is_available() const
     {
         if (m_force_python_fallback) {
-            return m_fallback_initialized;
+            return m_fallback_initialized || m_torch_available;
         }
-        return m_api != nullptr || m_fallback_initialized;
+        // Native API available, or torch is available (fallback can be used)
+        return m_api != nullptr || m_torch_available;
     }
 
     /// Check if using Python fallback mode.
     /// @return True if using Python fallback instead of native API.
-    bool is_using_fallback() const { return m_force_python_fallback || (m_api == nullptr && m_fallback_initialized); }
+    bool is_using_fallback() const { return m_force_python_fallback || (m_api == nullptr && m_torch_available); }
 
     /// Force use of Python fallback even if native is available.
     /// @param force If true, force Python fallback mode.
     void set_force_python_fallback(bool force)
     {
         m_force_python_fallback = force;
-        if (force && !m_fallback_initialized) {
-            init_python_fallback();
-        }
+        // Don't eagerly initialize fallback here - it will be done lazily
     }
 
     /// Reset the bridge, releasing all cached Python objects.
@@ -122,6 +122,7 @@ public:
     {
         m_api = nullptr;
         m_initialized = false;
+        m_torch_available = false;
         m_force_python_fallback = false;
         m_fallback_initialized = false;
 
@@ -291,8 +292,9 @@ private:
     TorchBridge(const TorchBridge&) = delete;
     TorchBridge& operator=(const TorchBridge&) = delete;
 
-    /// Initialize Python fallback - caches all function handles once
-    void init_python_fallback()
+    /// Initialize Python fallback lazily - caches all function handles once.
+    /// This is const because it only modifies mutable caching state.
+    void init_python_fallback() const
     {
         if (m_fallback_initialized)
             return;
@@ -311,9 +313,12 @@ private:
         m_fallback_initialized = true;
     }
 
-    // Python fallback implementations (use cached function handles)
-    // Note: These are only called when m_fallback_initialized is true
-    bool python_is_tensor(PyObject* obj) const { return nb::cast<bool>(m_py_is_tensor(nb::handle(obj))); }
+    // Python fallback implementations - lazily initialize on first use
+    bool python_is_tensor(PyObject* obj) const
+    {
+        init_python_fallback();
+        return nb::cast<bool>(m_py_is_tensor(nb::handle(obj)));
+    }
 
     bool python_extract(
         PyObject* tensor,
@@ -323,6 +328,7 @@ private:
         int32_t buffer_capacity
     ) const
     {
+        init_python_fallback();
         // Call cached function handle directly - no attribute lookup needed
         nb::object result = m_py_extract_tensor_info(nb::handle(tensor));
         nb::dict info = nb::cast<nb::dict>(result);
@@ -364,6 +370,7 @@ private:
 
     int python_get_signature(PyObject* obj, char* buffer, size_t buffer_size) const
     {
+        init_python_fallback();
         std::string sig = nb::cast<std::string>(m_py_get_signature(nb::handle(obj)));
         snprintf(buffer, buffer_size, "%s", sig.c_str());
         return 0;
@@ -371,36 +378,41 @@ private:
 
     void* python_get_current_cuda_stream(int device_index) const
     {
+        init_python_fallback();
         uintptr_t stream = nb::cast<uintptr_t>(m_py_get_current_cuda_stream(device_index));
         return reinterpret_cast<void*>(stream);
     }
 
     bool python_copy_to_buffer(PyObject* tensor, void* dest, size_t size) const
     {
+        init_python_fallback();
         return nb::cast<bool>(m_py_copy_to_buffer(nb::handle(tensor), reinterpret_cast<uintptr_t>(dest), size));
     }
 
     bool python_copy_from_buffer(PyObject* tensor, void* src, size_t size) const
     {
+        init_python_fallback();
         return nb::cast<bool>(m_py_copy_from_buffer(nb::handle(tensor), reinterpret_cast<uintptr_t>(src), size));
     }
 
     // Native API state
     const TensorBridgeAPI* m_api = nullptr;
     bool m_initialized = false;
+    bool m_torch_available = false;
 
-    // Fallback state
+    // Fallback state (mutable for lazy initialization in const methods)
     bool m_force_python_fallback = false;
-    bool m_fallback_initialized = false;
+    mutable bool m_fallback_initialized = false;
 
     // Cached Python objects (module and function handles)
-    nb::object m_fallback_module;
-    nb::object m_py_is_tensor;
-    nb::object m_py_extract_tensor_info;
-    nb::object m_py_get_signature;
-    nb::object m_py_get_current_cuda_stream;
-    nb::object m_py_copy_to_buffer;
-    nb::object m_py_copy_from_buffer;
+    // Mutable for lazy initialization in const methods
+    mutable nb::object m_fallback_module;
+    mutable nb::object m_py_is_tensor;
+    mutable nb::object m_py_extract_tensor_info;
+    mutable nb::object m_py_get_signature;
+    mutable nb::object m_py_get_current_cuda_stream;
+    mutable nb::object m_py_copy_to_buffer;
+    mutable nb::object m_py_copy_from_buffer;
 };
 
 } // namespace sgl
