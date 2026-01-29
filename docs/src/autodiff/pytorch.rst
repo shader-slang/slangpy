@@ -22,6 +22,68 @@ To use SlangPy with PyTorch, you first need to create a device configured for Py
 
 SlangPy automatically detects when PyTorch tensors are used and integrates them into PyTorch's auto-grad graph. No special module types are needed - you can use the standard ``spy.Module`` type as documented in `First Functions <../basics/firstfunctions.html>`_.
 
+Using the ``slangpy-torch`` extension
+-------------------------------------
+
+Whilst SlangPy can integrate with PyTorch out-of-the-box, it does not compile against libtorch, and thus by default has to go via the Python API for any interaction with PyTorch tensor operations. To substantially
+improve performance, users should install the ``slangpy-torch`` pip package, which provides native torch integration to SlangPy. This extension provides fast (~28ns) tensor metadata access from native code, compared to ~350ns when going through the Python API.
+
+The package is built locally against your installed version of PyTorch to ensure ABI compatibility, so **C++ build tools are required**.
+
+Prerequisites
+^^^^^^^^^^^^^
+
+- **Python 3.9+**
+- **PyTorch** installed
+
+**Windows**
+
+Install `Visual Studio 2019 or 2022 <https://visualstudio.microsoft.com/>`_ with the **"Desktop development with C++"** workload. This provides the MSVC compiler required to build the extension.
+
+**Linux**
+
+Install the build-essential package:
+
+.. code-block:: bash
+
+    # Ubuntu/Debian
+    sudo apt-get install build-essential
+
+Installation
+^^^^^^^^^^^^
+
+The extension **must** be installed with ``--no-build-isolation`` to ensure ABI compatibility with your installed PyTorch version:
+
+.. code-block:: bash
+
+    pip install wheels
+    pip install slangpy-torch --no-build-isolation
+
+.. note::
+
+    The ``--no-build-isolation`` flag is critical. Without it, pip may use a different PyTorch version during the build process, leading to ABI incompatibilities and crashes.
+
+Verifying Installation
+^^^^^^^^^^^^^^^^^^^^^^
+
+To verify the extension is installed correctly:
+
+.. code-block:: python
+
+    import torch  # Must import torch first
+    import slangpy_torch
+    print(slangpy_torch.get_api_ptr())  # Should print a non-zero integer
+
+If you see a non-zero integer, the extension is working correctly and SlangPy will automatically use it for improved PyTorch tensor performance.
+
+Troubleshooting
+^^^^^^^^^^^^^^^
+
+- **"torch not found"**: Ensure PyTorch is installed first with ``pip install torch``
+- **"torch still not found"**: Ensure you are running with ``--no-build-isolation``
+- **buildwheels not found**: Ensure you have the `wheels` package installed with ``pip install wheels``
+- **Windows can not find compiler / ninja**: Ensure you have the Visual Studio (or build tools) installed, and are running from a visual studio Developer Tools command prompt or have the compiler in your PATH.
+
 Creating a tensor
 -----------------
 
