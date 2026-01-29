@@ -507,7 +507,11 @@ SGL_PY_EXPORT(device_resource)
         .def_prop_ro("subresource_count", &Texture::subresource_count, D(Texture, subresource_count))
         .def_prop_ro("descriptor_handle_ro", &Texture::descriptor_handle_ro, D(Texture, descriptor_handle_ro))
         .def_prop_ro("descriptor_handle_rw", &Texture::descriptor_handle_rw, D(Texture, descriptor_handle_rw))
-        .def_prop_ro("descriptor_handle_combined", &Texture::descriptor_handle_combined, D(Texture, descriptor_handle_combined))
+        .def_prop_ro(
+            "descriptor_handle_combined",
+            &Texture::descriptor_handle_combined,
+            D(Texture, descriptor_handle_combined)
+        )
         .def_prop_ro("shared_handle", &Texture::shared_handle, D(Texture, shared_handle))
         .def("get_mip_width", &Texture::get_mip_width, "mip"_a = 0, D(Texture, get_mip_width))
         .def("get_mip_height", &Texture::get_mip_height, "mip"_a = 0, D(Texture, get_mip_height))
@@ -578,7 +582,11 @@ SGL_PY_EXPORT(device_resource)
         .def_prop_ro("label", &TextureView::label, D(TextureView, label))
         .def_prop_ro("descriptor_handle_ro", &TextureView::descriptor_handle_ro, D(TextureView, descriptor_handle_ro))
         .def_prop_ro("descriptor_handle_rw", &TextureView::descriptor_handle_rw, D(TextureView, descriptor_handle_rw))
-        .def_prop_ro("descriptor_handle_combined", &TextureView::descriptor_handle_combined, D(TextureView, descriptor_handle_combined))
+        .def_prop_ro(
+            "descriptor_handle_combined",
+            &TextureView::descriptor_handle_combined,
+            D(TextureView, descriptor_handle_combined)
+        )
         .def_prop_ro("native_handle", &TextureView::native_handle, D(TextureView, native_handle))
         .def("__repr__", &TextureView::to_string, D(TextureView, to_string));
 }
