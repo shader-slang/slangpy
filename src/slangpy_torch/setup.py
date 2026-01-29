@@ -7,14 +7,54 @@ access without Python API overhead. It's intentionally built separately
 from the main slangpy extension to avoid libtorch dependency issues.
 
 Usage:
-    pip install ./src/slangpy_torch
+    pip install ./src/slangpy_torch --no-build-isolation
 
 Or for development:
-    pip install -e ./src/slangpy_torch
+    pip install -e ./src/slangpy_torch --no-build-isolation
+
+Note: --no-build-isolation is required to ensure the extension is compiled
+against your installed PyTorch version for ABI compatibility.
 """
+
+import os
+import sys
+
+# Required for Windows MSVC builds with PyTorch extensions
+# Must be set before importing torch.utils.cpp_extension
+if sys.platform == "win32":
+    os.environ.setdefault("DISTUTILS_USE_SDK", "1")
 
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
+# Detect if this is a development/source install
+# Check for .git in repo root or SLANGPY_TORCH_DEBUG environment variable
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_repo_root = os.path.dirname(os.path.dirname(_script_dir))  # src/slangpy_torch -> src -> repo
+_is_dev_install = os.path.exists(os.path.join(_repo_root, ".git")) or os.environ.get(
+    "SLANGPY_TORCH_DEBUG", ""
+).lower() in ("1", "true", "yes")
+
+# Configure compile args based on install type and platform
+if sys.platform == "win32":
+    if _is_dev_install:
+        # Debug info for development
+        cxx_args = ["/O2", "/Zi"]
+        link_args = ["/DEBUG"]
+    else:
+        # Release build for PyPI
+        cxx_args = ["/O2"]
+        link_args = []
+    nvcc_args = ["-O3"]
+else:
+    if _is_dev_install:
+        # Debug info for development (GCC/Clang)
+        cxx_args = ["-O3", "-g"]
+    else:
+        # Release build for PyPI
+        cxx_args = ["-O3"]
+    link_args = []
+    nvcc_args = ["-O3"]
 
 setup(
     name="slangpy-torch",
@@ -27,11 +67,10 @@ setup(
             sources=["torch_bridge_impl.cpp"],
             include_dirs=["."],  # For tensor_bridge_api.h
             extra_compile_args={
-                # Release build with debug symbols for profiling
-                "cxx": ["/O2", "/Zi"],  # MSVC: optimize + debug info
-                "nvcc": ["-O3"],
+                "cxx": cxx_args,
+                "nvcc": nvcc_args,
             },
-            extra_link_args=["/DEBUG"],  # Generate .pdb file
+            extra_link_args=link_args,
         )
     ],
     cmdclass={"build_ext": BuildExtension},

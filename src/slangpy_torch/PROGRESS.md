@@ -137,15 +137,20 @@ class TrackedTensor:
 
 ## Build Commands
 ```powershell
-# Build slangpy-torch
-cd src/slangpy_torch
-$env:DISTUTILS_USE_SDK = "1"; pip install . --no-deps --no-build-isolation
+# Build slangpy-torch (from repo root)
+pip install ./src/slangpy_torch --no-build-isolation
+
+# Or via CI script
+python tools/ci.py install-slangpy-torch
 
 # Build slangpy_ext
-cd <repo_root>
 cmake --preset windows-msvc --fresh  # if needed
 cmake --build .\build\windows-msvc --config Debug --target slangpy_ext
 ```
+
+**Note:** `--no-build-isolation` is required to ensure the extension is compiled
+against your installed PyTorch version for ABI compatibility. The `DISTUTILS_USE_SDK`
+environment variable is now set automatically in `setup.py` for Windows builds.
 
 ## Key Implementation Details
 

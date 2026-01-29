@@ -227,6 +227,18 @@ def coverage_report(args: Any):
     run_command(["gcovr", "-r", ".", "-f", "src/sgl", "--html", "reports/coverage.html"])
 
 
+def install_slangpy_torch(args: Any):
+    """Install the slangpy-torch extension from source."""
+    slangpy_torch_dir = PROJECT_DIR / "src" / "slangpy_torch"
+    if not slangpy_torch_dir.exists():
+        print(f"slangpy_torch directory not found: {slangpy_torch_dir}")
+        return
+
+    # Use --no-build-isolation to compile against the user's installed PyTorch
+    cmd = [sys.executable, "-m", "pip", "install", str(slangpy_torch_dir), "--no-build-isolation"]
+    run_command(cmd)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--os", type=str, action="store", help="OS (windows, linux, macos)")
@@ -283,6 +295,10 @@ def main():
     )
 
     parser_coverage_report = commands.add_parser("coverage-report", help="generate coverage report")
+
+    parser_install_slangpy_torch = commands.add_parser(
+        "install-slangpy-torch", help="install slangpy-torch extension"
+    )
 
     args = parser.parse_args()
     args = vars(args)
@@ -341,6 +357,7 @@ def main():
         "test-examples": test_examples,
         "benchmark-python": benchmark_python,
         "coverage-report": coverage_report,
+        "install-slangpy-torch": install_slangpy_torch,
     }[args.command](args)
 
     return 0

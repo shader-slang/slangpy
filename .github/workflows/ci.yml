@@ -155,6 +155,11 @@ jobs:
       - name: Build
         run: python tools/ci.py build
 
+      # Install slangpy-torch extension (requires MSVC on Windows, PyTorch installed)
+      - name: Install slangpy-torch
+        if: runner.os != 'macos' && contains(matrix.flags, 'unit-test')
+        run: python tools/ci.py install-slangpy-torch
+
       # Typing Checks (Python)
       - name: Typing Checks (Python)
         run: python tools/ci.py typing-check-python
