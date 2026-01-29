@@ -32,6 +32,7 @@ pip install slangpy-torch --no-build-isolation
 ### Verify Installation
 
 ```python
+import torch # Before slangpy_torch
 import slangpy_torch
 print(slangpy_torch.get_api_ptr())  # Should print a non-zero integer
 ```

@@ -234,6 +234,9 @@ def install_slangpy_torch(args: Any):
         print(f"slangpy_torch directory not found: {slangpy_torch_dir}")
         return
 
+    cmd = [sys.executable, "-m", "pip", "install", "wheel"]
+    run_command(cmd)
+
     # Use --no-build-isolation to compile against the user's installed PyTorch
     cmd = [sys.executable, "-m", "pip", "install", str(slangpy_torch_dir), "--no-build-isolation"]
     run_command(cmd)
