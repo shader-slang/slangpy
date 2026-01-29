@@ -33,7 +33,13 @@ extern "C" int tensor_bridge_is_tensor(void* py_obj)
     return THPVariable_Check(static_cast<PyObject*>(py_obj)) ? 1 : 0;
 }
 
-extern "C" int tensor_bridge_extract(void* py_obj, TensorBridgeInfo* out)
+extern "C" int tensor_bridge_extract(
+    void* py_obj,
+    TensorBridgeInfo* out,
+    int64_t* shape_buffer,
+    int64_t* strides_buffer,
+    int32_t buffer_capacity
+)
 {
     if (!py_obj) {
         set_error("null PyObject pointer");
@@ -54,21 +60,24 @@ extern "C" int tensor_bridge_extract(void* py_obj, TensorBridgeInfo* out)
 
     out->data_ptr = tensor.data_ptr();
     out->ndim = static_cast<int32_t>(tensor.dim());
+    out->buffer_capacity = buffer_capacity;
 
-    if (out->ndim > TENSOR_BRIDGE_MAX_DIMS) {
-        set_error("tensor has too many dimensions");
-        return -4;
-    }
+    // Set shape/strides pointers based on buffer capacity
+    if (buffer_capacity >= out->ndim && shape_buffer && strides_buffer) {
+        out->shape = shape_buffer;
+        out->strides = strides_buffer;
 
-    auto sizes = tensor.sizes();
-    auto strd = tensor.strides();
-    for (int i = 0; i < out->ndim; ++i) {
-        out->shape[i] = sizes[i];
-        out->strides[i] = strd[i];
-    }
-    for (int i = out->ndim; i < TENSOR_BRIDGE_MAX_DIMS; ++i) {
-        out->shape[i] = 0;
-        out->strides[i] = 0;
+        auto sizes = tensor.sizes();
+        auto strd = tensor.strides();
+        for (int i = 0; i < out->ndim; ++i) {
+            out->shape[i] = sizes[i];
+            out->strides[i] = strd[i];
+        }
+    } else {
+        // Buffer too small - caller needs to retry with larger buffers
+        // We still populate all other fields so caller knows what size is needed
+        out->shape = nullptr;
+        out->strides = nullptr;
     }
 
     auto device = tensor.device();
@@ -328,13 +337,15 @@ PYBIND11_MODULE(slangpy_torch, m)
         {
             PyObject* raw_ptr = tensor_obj.ptr();
             TensorBridgeInfo info;
+            int64_t shape_buffer[TENSOR_BRIDGE_DEFAULT_DIMS];
+            int64_t strides_buffer[TENSOR_BRIDGE_DEFAULT_DIMS];
 
             for (int i = 0; i < 1000; ++i)
-                tensor_bridge_extract(raw_ptr, &info);
+                tensor_bridge_extract(raw_ptr, &info, shape_buffer, strides_buffer, TENSOR_BRIDGE_DEFAULT_DIMS);
 
             auto start = std::chrono::high_resolution_clock::now();
             for (int i = 0; i < iterations; ++i)
-                tensor_bridge_extract(raw_ptr, &info);
+                tensor_bridge_extract(raw_ptr, &info, shape_buffer, strides_buffer, TENSOR_BRIDGE_DEFAULT_DIMS);
             auto end = std::chrono::high_resolution_clock::now();
 
             double total_ns = std::chrono::duration<double, std::nano>(end - start).count();

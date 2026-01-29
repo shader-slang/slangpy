@@ -213,10 +213,18 @@ Shape NativeTorchTensorMarshall::get_shape(nb::object data) const
         ptr = data.ptr();
     }
 
+    // Resize buffers to expected dimensions
+    m_primal_shape_buffer.resize(m_dims);
+    m_primal_strides_buffer.resize(m_dims);
+
     // Use TorchBridge for fast native shape extraction
     TensorBridgeInfo info;
-    if (TorchBridge::instance().extract(ptr, info)) {
-        return shape_from_bridge_info(info);
+    if (TorchBridge::instance()
+            .extract(ptr, info, m_primal_shape_buffer.data(), m_primal_strides_buffer.data(), m_dims)) {
+        if (info.shape != nullptr) {
+            return shape_from_bridge_info(info);
+        }
+        // Buffer was too small - this shouldn't happen if m_dims is correct
     }
 
     // Fallback: return unknown shape with all -1 dimensions
@@ -263,19 +271,37 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     }
 
     // Step 2: Extract TensorBridgeInfo from the values
+    // Resize buffers to expected dimensions
+    m_primal_shape_buffer.resize(m_dims);
+    m_primal_strides_buffer.resize(m_dims);
+    m_grad_shape_buffer.resize(m_dims);
+    m_grad_strides_buffer.resize(m_dims);
+
     TensorBridgeInfo primal_info = {};
     TensorBridgeInfo grad_info = {};
     bool has_primal = false;
     bool has_grad = false;
 
     if (!primal_value.is_none()) {
-        if (TorchBridge::instance().extract(primal_value.ptr(), primal_info)) {
-            has_primal = true;
+        if (TorchBridge::instance().extract(
+                primal_value.ptr(),
+                primal_info,
+                m_primal_shape_buffer.data(),
+                m_primal_strides_buffer.data(),
+                m_dims
+            )) {
+            has_primal = primal_info.shape != nullptr;
         }
     }
     if (!grad_value.is_none()) {
-        if (TorchBridge::instance().extract(grad_value.ptr(), grad_info)) {
-            has_grad = true;
+        if (TorchBridge::instance().extract(
+                grad_value.ptr(),
+                grad_info,
+                m_grad_shape_buffer.data(),
+                m_grad_strides_buffer.data(),
+                m_dims
+            )) {
+            has_grad = grad_info.shape != nullptr;
         }
     }
 
@@ -284,10 +310,14 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     if (!has_primal && has_grad) {
         // Copy shape info from grad to primal, but leave data_ptr as nullptr
         primal_info.ndim = grad_info.ndim;
+        primal_info.buffer_capacity = m_dims;
         primal_info.numel = grad_info.numel;
         primal_info.element_size = grad_info.element_size;
         primal_info.is_cuda = grad_info.is_cuda;
         primal_info.is_contiguous = grad_info.is_contiguous;
+        // Point primal buffers to grad data (copy the values)
+        primal_info.shape = m_primal_shape_buffer.data();
+        primal_info.strides = m_primal_strides_buffer.data();
         for (int i = 0; i < grad_info.ndim; i++) {
             primal_info.shape[i] = grad_info.shape[i];
             primal_info.strides[i] = grad_info.strides[i];
@@ -701,9 +731,15 @@ NativeTorchTensorMarshall::read_output(CallContext* context, NativeBoundVariable
 
 nb::object NativeTorchTensorMarshall::create_dispatchdata(nb::object data) const
 {
+    // Resize buffers to expected dimensions
+    m_primal_shape_buffer.resize(m_dims);
+    m_primal_strides_buffer.resize(m_dims);
+
     // Extract tensor info for Python fallback path
     TensorBridgeInfo info;
-    if (!TorchBridge::instance().extract(data.ptr(), info)) {
+    if (!TorchBridge::instance()
+             .extract(data.ptr(), info, m_primal_shape_buffer.data(), m_primal_strides_buffer.data(), m_dims)
+        || info.shape == nullptr) {
         SGL_THROW("Expected torch.Tensor for create_dispatchdata");
     }
 

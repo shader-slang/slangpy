@@ -17,11 +17,13 @@ nb::dict tensor_info_to_dict(const TensorBridgeInfo& info)
 
     result["data_ptr"] = reinterpret_cast<uintptr_t>(info.data_ptr);
 
-    // Convert shape and strides to Python lists
+    // Convert shape and strides to Python lists (if available)
     nb::list shape_list, strides_list;
-    for (int i = 0; i < info.ndim; ++i) {
-        shape_list.append(info.shape[i]);
-        strides_list.append(info.strides[i]);
+    if (info.shape && info.strides) {
+        for (int i = 0; i < info.ndim; ++i) {
+            shape_list.append(info.shape[i]);
+            strides_list.append(info.strides[i]);
+        }
     }
     result["shape"] = nb::tuple(shape_list);
     result["strides"] = nb::tuple(strides_list);
@@ -61,8 +63,12 @@ nb::object extract_torch_tensor_info(nb::handle tensor)
         throw std::invalid_argument("Object is not a PyTorch tensor");
     }
 
+    // Use default buffer size for shape/strides extraction
+    int64_t shape_buffer[TENSOR_BRIDGE_DEFAULT_DIMS];
+    int64_t strides_buffer[TENSOR_BRIDGE_DEFAULT_DIMS];
+
     TensorBridgeInfo info;
-    if (!bridge.extract(tensor, info)) {
+    if (!bridge.extract(tensor, info, shape_buffer, strides_buffer, TENSOR_BRIDGE_DEFAULT_DIMS)) {
         throw std::runtime_error(bridge.get_error());
     }
 
@@ -143,9 +149,9 @@ bool copy_torch_tensor_to_buffer(nb::handle tensor, ref<Buffer> buffer)
         throw std::runtime_error("Torch bridge is not available");
     }
 
-    // Extract tensor info
+    // Extract tensor info (don't need shape/strides for copy, just numel and element_size)
     TensorBridgeInfo info;
-    if (!bridge.extract(tensor, info)) {
+    if (!bridge.extract(tensor, info, nullptr, nullptr, 0)) {
         throw std::runtime_error(std::string("Failed to extract tensor info: ") + bridge.get_error());
     }
 
@@ -189,9 +195,9 @@ bool copy_buffer_to_torch_tensor(ref<Buffer> buffer, nb::handle tensor)
         throw std::runtime_error("Torch bridge is not available");
     }
 
-    // Extract tensor info
+    // Extract tensor info (don't need shape/strides for copy, just numel and element_size)
     TensorBridgeInfo info;
-    if (!bridge.extract(tensor, info)) {
+    if (!bridge.extract(tensor, info, nullptr, nullptr, 0)) {
         throw std::runtime_error(std::string("Failed to extract tensor info: ") + bridge.get_error());
     }
 

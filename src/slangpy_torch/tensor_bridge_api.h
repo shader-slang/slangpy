@@ -23,26 +23,35 @@
 extern "C" {
 #endif
 
-// Maximum dimensions we support
-#define TENSOR_BRIDGE_MAX_DIMS 12
+// Default inline storage size for common cases (covers 99%+ of tensors)
+// Callers needing more dimensions can provide larger buffers
+#define TENSOR_BRIDGE_DEFAULT_DIMS 16
 
 // Device type codes (matching c10::DeviceType)
 #define TENSOR_BRIDGE_DEVICE_CPU 0
 #define TENSOR_BRIDGE_DEVICE_CUDA 1
 
 // The C-compatible struct containing all tensor metadata
-// This struct is POD and can be safely memcpy'd
+// Shape and strides are stored via pointers to caller-provided buffers,
+// allowing support for arbitrary dimension counts without allocation.
 typedef struct TensorBridgeInfo {
     // Data pointer (GPU or CPU memory)
     void* data_ptr;
 
     // Shape and strides (in elements, not bytes)
-    // Stored inline to avoid pointer chasing
-    int64_t shape[TENSOR_BRIDGE_MAX_DIMS];
-    int64_t strides[TENSOR_BRIDGE_MAX_DIMS];
+    // These point to caller-provided buffers. Will be set to the provided
+    // buffers if they have sufficient capacity, nullptr otherwise.
+    // Always check ndim and buffer_capacity before accessing.
+    int64_t* shape;
+    int64_t* strides;
 
     // Number of dimensions (0 for scalar)
+    // This is always set, even if shape/strides pointers are null
     int32_t ndim;
+
+    // Capacity of the shape/strides buffers provided by caller
+    // If ndim > buffer_capacity, shape/strides will be nullptr
+    int32_t buffer_capacity;
 
     // Device info
     int32_t device_type;  // c10::DeviceType value
@@ -77,9 +86,24 @@ typedef struct TensorBridgeInfo {
 // ============================================================================
 
 // Extract tensor info from a PyObject* (must be a torch.Tensor)
+// Caller provides buffers for shape and strides data.
+// Parameters:
+//   py_tensor_obj: PyObject* that must be a torch.Tensor
+//   out: Output structure to populate. shape/strides pointers will be set
+//        to shape_buffer/strides_buffer if buffer_capacity >= ndim
+//   shape_buffer: Caller-provided buffer for shape data (may be NULL)
+//   strides_buffer: Caller-provided buffer for strides data (may be NULL)
+//   buffer_capacity: Number of elements the buffers can hold
 // Returns 0 on success, non-zero on error
-// The 'out' struct is filled with the tensor metadata
-typedef int (*TensorBridge_ExtractFn)(void* py_tensor_obj, TensorBridgeInfo* out);
+// Note: out->ndim is always set. If ndim > buffer_capacity, shape/strides
+//       will be nullptr and caller should retry with larger buffers.
+typedef int (*TensorBridge_ExtractFn)(
+    void* py_tensor_obj,
+    TensorBridgeInfo* out,
+    int64_t* shape_buffer,
+    int64_t* strides_buffer,
+    int32_t buffer_capacity
+);
 
 // Check if a PyObject* is a torch.Tensor
 // Returns 1 if true, 0 if false
@@ -117,7 +141,7 @@ typedef int (*TensorBridge_CopyFromBufferFn)(void* py_tensor_obj, void* src_cuda
 // ============================================================================
 // Version info for ABI compatibility checking
 // ============================================================================
-#define TENSOR_BRIDGE_API_VERSION 3
+#define TENSOR_BRIDGE_API_VERSION 4
 
 typedef struct TensorBridgeAPI {
     int api_version;

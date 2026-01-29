@@ -6,6 +6,7 @@
 
 #include "sgl/core/macros.h"
 #include "sgl/core/object.h"
+#include "sgl/core/short_vector.h"
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/shader_offset.h"
@@ -71,6 +72,7 @@ public:
 /// - Native get_shape() using TorchBridge (~28ns vs ~350ns Python)
 /// - Direct CUDA tensor pointer writing for CUDA devices
 /// - Interop buffer handling for non-CUDA backends
+/// - Supports arbitrary dimension counts via caller-provided buffers
 ///
 /// This class shares the CachedOffsets and TensorFieldOffsets structures with
 /// NativeTensorMarshall to ensure consistent shader data layout.
@@ -79,6 +81,9 @@ public:
     /// Reuse the offset structures from NativeTensorMarshall
     using TensorFieldOffsets = NativeTensorMarshall::TensorFieldOffsets;
     using CachedOffsets = NativeTensorMarshall::CachedOffsets;
+
+    /// Default buffer size for shape/strides storage (covers 99%+ of tensors)
+    static constexpr int32_t DEFAULT_BUFFER_CAPACITY = TENSOR_BRIDGE_DEFAULT_DIMS;
 
     NativeTorchTensorMarshall(
         int dims,
@@ -139,6 +144,14 @@ private:
     ref<NativeTorchTensorMarshall> m_d_in;
     ref<NativeTorchTensorMarshall> m_d_out;
     mutable CachedOffsets m_cached_offsets;
+
+    /// Storage buffers for tensor shape/strides extraction.
+    /// Using mutable because extraction happens in const methods.
+    /// These are sized to handle common cases without allocation.
+    mutable short_vector<int64_t, DEFAULT_BUFFER_CAPACITY> m_primal_shape_buffer;
+    mutable short_vector<int64_t, DEFAULT_BUFFER_CAPACITY> m_primal_strides_buffer;
+    mutable short_vector<int64_t, DEFAULT_BUFFER_CAPACITY> m_grad_shape_buffer;
+    mutable short_vector<int64_t, DEFAULT_BUFFER_CAPACITY> m_grad_strides_buffer;
 
     /// Initialize cached offsets if not already done
     void ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;

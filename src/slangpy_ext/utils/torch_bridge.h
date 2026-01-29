@@ -132,22 +132,44 @@ public:
     bool is_tensor(nb::handle h) const { return is_tensor(h.ptr()); }
 
     /// Extract tensor metadata.
+    /// Caller provides buffers for shape/strides data.
     /// @param tensor PyTorch tensor to extract info from.
     /// @param out Output structure to populate with tensor metadata.
-    /// @return True on success.
-    bool extract(PyObject* tensor, TensorBridgeInfo& out) const
+    /// @param shape_buffer Caller-provided buffer for shape data.
+    /// @param strides_buffer Caller-provided buffer for strides data.
+    /// @param buffer_capacity Number of elements the buffers can hold.
+    /// @return True on success. If ndim > buffer_capacity, shape/strides will be nullptr.
+    bool extract(
+        PyObject* tensor,
+        TensorBridgeInfo& out,
+        int64_t* shape_buffer,
+        int64_t* strides_buffer,
+        int32_t buffer_capacity
+    ) const
     {
         if (!m_force_python_fallback && m_api) {
-            return m_api->extract(tensor, &out) == 0;
+            return m_api->extract(tensor, &out, shape_buffer, strides_buffer, buffer_capacity) == 0;
         }
-        return python_extract(tensor, out);
+        return python_extract(tensor, out, shape_buffer, strides_buffer, buffer_capacity);
     }
 
     /// Extract tensor metadata from nanobind handle.
     /// @param h Nanobind handle to PyTorch tensor.
     /// @param out Output structure to populate with tensor metadata.
-    /// @return True on success.
-    bool extract(nb::handle h, TensorBridgeInfo& out) const { return extract(h.ptr(), out); }
+    /// @param shape_buffer Caller-provided buffer for shape data.
+    /// @param strides_buffer Caller-provided buffer for strides data.
+    /// @param buffer_capacity Number of elements the buffers can hold.
+    /// @return True on success. If ndim > buffer_capacity, shape/strides will be nullptr.
+    bool extract(
+        nb::handle h,
+        TensorBridgeInfo& out,
+        int64_t* shape_buffer,
+        int64_t* strides_buffer,
+        int32_t buffer_capacity
+    ) const
+    {
+        return extract(h.ptr(), out, shape_buffer, strides_buffer, buffer_capacity);
+    }
 
     /// Get a minimal signature string for a tensor.
     /// @param obj PyTorch tensor to get signature from.
@@ -273,7 +295,13 @@ private:
     // Note: These are only called when m_fallback_initialized is true
     bool python_is_tensor(PyObject* obj) const { return nb::cast<bool>(m_py_is_tensor(nb::handle(obj))); }
 
-    bool python_extract(PyObject* tensor, TensorBridgeInfo& out) const
+    bool python_extract(
+        PyObject* tensor,
+        TensorBridgeInfo& out,
+        int64_t* shape_buffer,
+        int64_t* strides_buffer,
+        int32_t buffer_capacity
+    ) const
     {
         // Call cached function handle directly - no attribute lookup needed
         nb::object result = m_py_extract_tensor_info(nb::handle(tensor));
@@ -282,6 +310,7 @@ private:
         // Populate TensorBridgeInfo from dict
         out.data_ptr = reinterpret_cast<void*>(nb::cast<uintptr_t>(info["data_ptr"]));
         out.ndim = nb::cast<int32_t>(info["ndim"]);
+        out.buffer_capacity = buffer_capacity;
         out.numel = nb::cast<int64_t>(info["numel"]);
         out.element_size = nb::cast<int32_t>(info["element_size"]);
         out.is_cuda = nb::cast<bool>(info["is_cuda"]) ? 1 : 0;
@@ -293,12 +322,21 @@ private:
         out.storage_offset = nb::cast<int64_t>(info["storage_offset"]);
         out.cuda_stream = reinterpret_cast<void*>(nb::cast<uintptr_t>(info["cuda_stream"]));
 
-        // Extract shape and strides tuples
-        nb::tuple shape = nb::cast<nb::tuple>(info["shape"]);
-        nb::tuple strides = nb::cast<nb::tuple>(info["strides"]);
-        for (int i = 0; i < out.ndim && i < TENSOR_BRIDGE_MAX_DIMS; i++) {
-            out.shape[i] = nb::cast<int64_t>(shape[i]);
-            out.strides[i] = nb::cast<int64_t>(strides[i]);
+        // Set shape/strides pointers based on buffer capacity
+        if (buffer_capacity >= out.ndim && shape_buffer && strides_buffer) {
+            out.shape = shape_buffer;
+            out.strides = strides_buffer;
+
+            // Extract shape and strides tuples
+            nb::tuple shape = nb::cast<nb::tuple>(info["shape"]);
+            nb::tuple strides = nb::cast<nb::tuple>(info["strides"]);
+            for (int i = 0; i < out.ndim; i++) {
+                out.shape[i] = nb::cast<int64_t>(shape[i]);
+                out.strides[i] = nb::cast<int64_t>(strides[i]);
+            }
+        } else {
+            out.shape = nullptr;
+            out.strides = nullptr;
         }
 
         return true;
