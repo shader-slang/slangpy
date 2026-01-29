@@ -261,20 +261,20 @@ def create_torch_tensor_marshall(layout: SlangProgramLayout, value: Any):
         # Create the gradient marshall (same type as primal, used for d_out)
         # For backwards pass inputs: primal is read, grad is written (d_out)
         # For backwards pass outputs: grad is read (d_in)
-        grad = TorchTensorMarshall(
-            layout,
-            torch_dtype,
-            slang_dtype,
-            dims,
-            None,
-            None,
-        )
-        if value.is_input:
-            d_out = grad
-            d_in = None
-        else:
-            d_in = grad
-            d_out = None
+        d_in = d_out = None
+        if grad is not None:
+            grad_marshall = TorchTensorMarshall(
+                layout,
+                torch_dtype,
+                slang_dtype,
+                dims,
+                None,
+                None,
+            )
+            if value.is_input:
+                d_out = grad_marshall
+            else:
+                d_in = grad_marshall
 
         return TorchTensorMarshall(
             layout,

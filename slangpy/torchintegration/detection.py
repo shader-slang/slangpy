@@ -7,6 +7,7 @@ without requiring TensorRef wrappers.
 """
 
 from typing import Any
+from slangpy.core.native import NativeTorchTensorDiffPair
 
 # Cached torch module reference (None = not checked yet, False = not available)
 _torch_module: Any = None
@@ -58,6 +59,11 @@ def detect_torch_tensors(
             tensors.append(obj)
             if obj.requires_grad:
                 requires_autograd = True
+        elif isinstance(obj, NativeTorchTensorDiffPair):
+            if obj.primal is not None:
+                tensors.append(obj.primal)
+            if obj.grad is not None:
+                tensors.append(obj.grad)
         elif isinstance(obj, dict):
             for v in obj.values():
                 scan(v)

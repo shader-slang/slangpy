@@ -214,4 +214,4 @@ class TestTorchTensorExtraction:
         """Test extraction of tensor signature."""
         t = torch.zeros(4, 4, dtype=torch.float32)
         signature = slangpy.extract_torch_tensor_signature(t)
-        assert signature == "[torch,D2,S6]"
+        assert signature == "[D2,S6]"

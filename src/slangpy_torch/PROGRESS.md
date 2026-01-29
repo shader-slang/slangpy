@@ -139,7 +139,7 @@ class TrackedTensor:
 ```powershell
 # Build slangpy-torch
 cd src/slangpy_torch
-$env.DISTUTILS_USE_SDK=1 && pip install . --no-deps --no-build-isolation
+$env:DISTUTILS_USE_SDK = "1"; pip install . --no-deps --no-build-isolation
 
 # Build slangpy_ext
 cd <repo_root>
