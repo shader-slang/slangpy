@@ -17,7 +17,13 @@ from slangpy.core.native import (
     NativeTorchTensorDiffPair,
 )
 
-from slangpy import SlangCompileError, SlangLinkOptions, NativeHandle, DeviceType
+from slangpy import (
+    SlangCompileError,
+    SlangLinkOptions,
+    NativeHandle,
+    DeviceType,
+    is_torch_bridge_using_fallback,
+)
 from slangpy.bindings import (
     BindContext,
     BoundCallRuntime,
@@ -46,6 +52,9 @@ _PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_GENERATED_SHADERS", "fa
     "true",
     "1",
 )
+
+# Track if we've already warned about torch bridge fallback
+_torch_bridge_warned = False
 
 
 def set_dump_generated_shaders(value: bool):
@@ -156,6 +165,21 @@ class CallData(NativeCallData):
             if has_torch:
                 import torch
                 import slangpy.torchintegration.torchtensormarshall  # type: ignore (Registers torch.Tensor handler)
+
+                # Warn once if the slangpy_torch bridge is not installed (using Python fallback)
+                global _torch_bridge_warned
+                if not _torch_bridge_warned:
+                    if is_torch_bridge_using_fallback():
+                        import warnings
+
+                        warnings.warn(
+                            "PyTorch tensors detected but slangpy_torch is not installed. "
+                            "Using slower Python fallback for tensor metadata extraction. "
+                            "Install slangpy_torch for better performance: pip install slangpy_torch",
+                            UserWarning,
+                            stacklevel=6,  # Point to user's call site
+                        )
+                    _torch_bridge_warned = True
 
                 self.torch_integration = True
                 self.torch_autograd = autograd

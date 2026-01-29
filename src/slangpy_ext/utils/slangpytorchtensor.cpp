@@ -195,6 +195,11 @@ NativeTorchTensorMarshall::NativeTorchTensorMarshall(
     , m_d_in(d_in)
     , m_d_out(d_out)
 {
+    // Pre-size buffers once to avoid repeated resize calls
+    m_primal_shape_buffer.resize(m_dims);
+    m_primal_strides_buffer.resize(m_dims);
+    m_grad_shape_buffer.resize(m_dims);
+    m_grad_strides_buffer.resize(m_dims);
 }
 
 Shape NativeTorchTensorMarshall::get_shape(nb::object data) const
@@ -212,10 +217,6 @@ Shape NativeTorchTensorMarshall::get_shape(nb::object data) const
     } else {
         ptr = data.ptr();
     }
-
-    // Resize buffers to expected dimensions
-    m_primal_shape_buffer.resize(m_dims);
-    m_primal_strides_buffer.resize(m_dims);
 
     // Use TorchBridge for fast native shape extraction
     TensorBridgeInfo info;
@@ -271,12 +272,6 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     }
 
     // Step 2: Extract TensorBridgeInfo from the values
-    // Resize buffers to expected dimensions
-    m_primal_shape_buffer.resize(m_dims);
-    m_primal_strides_buffer.resize(m_dims);
-    m_grad_shape_buffer.resize(m_dims);
-    m_grad_strides_buffer.resize(m_dims);
-
     TensorBridgeInfo primal_info = {};
     TensorBridgeInfo grad_info = {};
     bool has_primal = false;
@@ -731,10 +726,6 @@ NativeTorchTensorMarshall::read_output(CallContext* context, NativeBoundVariable
 
 nb::object NativeTorchTensorMarshall::create_dispatchdata(nb::object data) const
 {
-    // Resize buffers to expected dimensions
-    m_primal_shape_buffer.resize(m_dims);
-    m_primal_strides_buffer.resize(m_dims);
-
     // Extract tensor info for Python fallback path
     TensorBridgeInfo info;
     if (!TorchBridge::instance()
