@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# pyright: reportMissingImports=none
 """
 Build script for slangpy_torch
 
@@ -18,6 +19,82 @@ against your installed PyTorch version for ABI compatibility.
 
 import os
 import sys
+
+# =============================================================================
+# Pre-flight checks with helpful error messages
+# =============================================================================
+
+
+def _check_build_isolation():
+    """Check if running in build isolation (which we don't support)."""
+    # When pip uses build isolation, it creates a temporary venv without torch.
+    # We can detect this by checking if we're in a temp directory or if certain
+    # isolation markers are present.
+    import sysconfig
+
+    # Check for common isolation indicators
+    scripts_path = sysconfig.get_path("scripts", "posix_prefix") or ""
+    purelib_path = sysconfig.get_path("purelib") or ""
+
+    # Build isolation typically uses paths containing 'pip-build-env' or similar
+    isolation_markers = ["pip-build-env", "build-env", ".tmp"]
+    in_isolation = any(
+        marker in scripts_path or marker in purelib_path for marker in isolation_markers
+    )
+
+    return in_isolation
+
+
+def _check_torch_available():
+    """Check if PyTorch is available and provide helpful error if not."""
+    try:
+        import torch
+
+        return torch
+    except ImportError:
+        # Check if we might be in build isolation
+        likely_isolation = _check_build_isolation()
+
+        error_msg = """
+================================================================================
+ERROR: PyTorch not found!
+
+slangpy-torch requires PyTorch to be installed BEFORE building.
+"""
+        if likely_isolation:
+            error_msg += """
+It looks like you may be running in build isolation mode.
+This package MUST be installed with --no-build-isolation:
+
+    pip install slangpy-torch --no-build-isolation
+"""
+        else:
+            error_msg += """
+Please install PyTorch first:
+
+    pip install torch
+
+Then install slangpy-torch with --no-build-isolation:
+
+    pip install slangpy-torch --no-build-isolation
+"""
+        error_msg += """
+The --no-build-isolation flag is required to ensure slangpy-torch is compiled
+against your installed PyTorch version for ABI compatibility.
+
+For more information, see: https://github.com/shader-slang/slangpy
+================================================================================
+"""
+        print(error_msg, file=sys.stderr)
+        sys.exit(1)
+
+
+# Run the check before any torch imports
+torch = _check_torch_available()
+
+# =============================================================================
+# Build configuration
+# =============================================================================
 
 # Required for Windows MSVC builds with PyTorch extensions
 # Must be set before importing torch.utils.cpp_extension
