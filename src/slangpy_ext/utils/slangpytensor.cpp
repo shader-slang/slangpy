@@ -162,6 +162,12 @@ NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_fi
     offsets.shape = tensor_cursor["_shape"].offset();
     offsets.strides = tensor_cursor["_strides"].offset();
     offsets.offset = tensor_cursor["_offset"].offset();
+
+    // Extract element_byte_stride offset if present (for AtomicTensor on Metal)
+    ShaderCursor ebs_field = tensor_cursor.find_field("_element_byte_stride");
+    if (ebs_field.is_valid())
+        offsets.element_byte_stride = ebs_field.offset();
+
     offsets.is_valid = true;
     offsets.array_stride
         = (int)tensor_cursor["_shape"].slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
@@ -488,6 +494,17 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
         offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
         offset
     );
+
+    // Write element byte stride if field exists (for AtomicTensor on Metal)
+    // This is needed because sizeof(T) in shader may differ from buffer stride
+    // due to alignment requirements (e.g., sizeof(float3)=12 but Metal buffer stride=16)
+    if (offsets.element_byte_stride.is_valid()) {
+        write_value_helper(
+            base_address,
+            offsets.element_byte_stride.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            static_cast<uint32_t>(buffer->desc().struct_size)
+        );
+    }
 }
 
 void NativeTensorMarshall::write_tensor_fields_from_pointer(
@@ -529,6 +546,14 @@ void NativeTensorMarshall::write_tensor_fields_from_pointer(
         base_address,
         offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
         offset
+    );
+
+    // Note: element_byte_stride is not written here for PyTorch tensors.
+    // On CUDA (the only backend PyTorch supports), _element_byte_stride is static const in shader.
+    // This field only exists as a runtime field on Metal (for AtomicTensor), and PyTorch doesn't support Metal.
+    SGL_CHECK(
+        !offsets.element_byte_stride.is_valid(),
+        "Unexpected element_byte_stride field for PyTorch tensor - this path should only be used on CUDA"
     );
 }
 
