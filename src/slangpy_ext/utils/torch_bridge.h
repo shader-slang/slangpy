@@ -35,16 +35,19 @@ namespace sgl {
 /// For testing, you can force Python fallback mode via set_force_python_fallback(true).
 class TorchBridge {
 public:
+    /// Get singleton instance.
+    /// @return Reference to the TorchBridge singleton.
     static TorchBridge& instance()
     {
         static TorchBridge inst;
         return inst;
     }
 
-    /// Attempt to load torch and slangpy_torch. Returns true if available.
+    /// Attempt to load torch and slangpy_torch.
     /// Safe to call multiple times - will only try once.
     /// Automatically imports torch first if needed (slangpy_torch links against it).
     /// If slangpy_torch is not available, initializes Python fallback.
+    /// @return True if bridge is available (native or fallback).
     bool try_init()
     {
         // Only try once
@@ -88,7 +91,8 @@ public:
         return is_available();
     }
 
-    /// Check if the bridge is available (either native or Python fallback)
+    /// Check if the bridge is available (either native or Python fallback).
+    /// @return True if bridge is available.
     bool is_available() const
     {
         if (m_force_python_fallback) {
@@ -97,10 +101,12 @@ public:
         return m_api != nullptr || m_fallback_initialized;
     }
 
-    /// Check if using Python fallback mode
+    /// Check if using Python fallback mode.
+    /// @return True if using Python fallback instead of native API.
     bool is_using_fallback() const { return m_force_python_fallback || (m_api == nullptr && m_fallback_initialized); }
 
-    /// Force use of Python fallback even if native is available (for testing)
+    /// Force use of Python fallback even if native is available.
+    /// @param force If true, force Python fallback mode.
     void set_force_python_fallback(bool force)
     {
         m_force_python_fallback = force;
@@ -109,7 +115,9 @@ public:
         }
     }
 
-    /// Check if a PyObject is a torch.Tensor (~10ns native, slower with fallback)
+    /// Check if a PyObject is a torch.Tensor.
+    /// @param obj Python object to check.
+    /// @return True if obj is a PyTorch tensor.
     bool is_tensor(PyObject* obj) const
     {
         if (!m_force_python_fallback && m_api) {
@@ -118,9 +126,15 @@ public:
         return python_is_tensor(obj);
     }
 
+    /// Check if a nanobind handle is a torch.Tensor.
+    /// @param h Nanobind handle to check.
+    /// @return True if h is a PyTorch tensor.
     bool is_tensor(nb::handle h) const { return is_tensor(h.ptr()); }
 
-    /// Extract tensor info (~28ns native, slower with fallback). Returns true on success.
+    /// Extract tensor metadata.
+    /// @param tensor PyTorch tensor to extract info from.
+    /// @param out Output structure to populate with tensor metadata.
+    /// @return True on success.
     bool extract(PyObject* tensor, TensorBridgeInfo& out) const
     {
         if (!m_force_python_fallback && m_api) {
@@ -129,11 +143,17 @@ public:
         return python_extract(tensor, out);
     }
 
+    /// Extract tensor metadata from nanobind handle.
+    /// @param h Nanobind handle to PyTorch tensor.
+    /// @param out Output structure to populate with tensor metadata.
+    /// @return True on success.
     bool extract(nb::handle h, TensorBridgeInfo& out) const { return extract(h.ptr(), out); }
 
-    /// Get a minimal signature string for a tensor (~15ns native)
-    /// Returns nullptr if not a tensor or bridge unavailable
-    /// Format: "[Dn,Sm]" where n=ndim, m=scalar_type
+    /// Get a minimal signature string for a tensor.
+    /// @param obj PyTorch tensor to get signature from.
+    /// @param buffer Output buffer for signature string.
+    /// @param buffer_size Size of output buffer.
+    /// @return 0 on success, -1 on failure.
     int get_signature(PyObject* obj, char* buffer, size_t buffer_size) const
     {
         if (!m_force_python_fallback && m_api) {
@@ -146,13 +166,18 @@ public:
         return python_get_signature(obj, buffer, buffer_size);
     }
 
+    /// Get a minimal signature string for a tensor from nanobind handle.
+    /// @param h Nanobind handle to PyTorch tensor.
+    /// @param buffer Output buffer for signature string.
+    /// @param buffer_size Size of output buffer.
+    /// @return 0 on success, -1 on failure.
     int get_signature(nb::handle h, char* buffer, size_t buffer_size) const
     {
         return get_signature(h.ptr(), buffer, buffer_size);
     }
 
-    /// Get last error message
-    /// Note: When using Python fallback, errors propagate as exceptions instead
+    /// Get last error message from native API.
+    /// @return Error message string, or empty string if using Python fallback.
     const char* get_error() const
     {
         if (!m_force_python_fallback && m_api)
@@ -160,7 +185,9 @@ public:
         return ""; // Python fallback uses exceptions
     }
 
-    /// Get the current CUDA stream for a device
+    /// Get the current CUDA stream for a device.
+    /// @param device_index CUDA device index.
+    /// @return CUDA stream pointer, or nullptr if unavailable.
     void* get_current_cuda_stream(int device_index) const
     {
         if (!m_force_python_fallback && m_api) {
@@ -171,7 +198,10 @@ public:
 
     /// Copy tensor data to a contiguous CUDA buffer.
     /// Handles non-contiguous tensors via PyTorch's copy mechanism.
-    /// Returns true on success.
+    /// @param tensor PyTorch CUDA tensor to copy from.
+    /// @param dest_cuda_ptr Destination CUDA buffer pointer.
+    /// @param dest_size Size of destination buffer in bytes.
+    /// @return True on success.
     bool copy_to_buffer(PyObject* tensor, void* dest_cuda_ptr, size_t dest_size) const
     {
         if (!m_force_python_fallback && m_api) {
@@ -180,6 +210,11 @@ public:
         return python_copy_to_buffer(tensor, dest_cuda_ptr, dest_size);
     }
 
+    /// Copy tensor data to a contiguous CUDA buffer from nanobind handle.
+    /// @param h Nanobind handle to PyTorch CUDA tensor.
+    /// @param dest_cuda_ptr Destination CUDA buffer pointer.
+    /// @param dest_size Size of destination buffer in bytes.
+    /// @return True on success.
     bool copy_to_buffer(nb::handle h, void* dest_cuda_ptr, size_t dest_size) const
     {
         return copy_to_buffer(h.ptr(), dest_cuda_ptr, dest_size);
@@ -187,7 +222,10 @@ public:
 
     /// Copy data from a contiguous CUDA buffer back to a tensor.
     /// Handles non-contiguous tensors via PyTorch's copy mechanism.
-    /// Returns true on success.
+    /// @param tensor PyTorch CUDA tensor to copy to.
+    /// @param src_cuda_ptr Source CUDA buffer pointer.
+    /// @param src_size Size of source buffer in bytes.
+    /// @return True on success.
     bool copy_from_buffer(PyObject* tensor, void* src_cuda_ptr, size_t src_size) const
     {
         if (!m_force_python_fallback && m_api) {
@@ -196,6 +234,11 @@ public:
         return python_copy_from_buffer(tensor, src_cuda_ptr, src_size);
     }
 
+    /// Copy data from a contiguous CUDA buffer to a tensor from nanobind handle.
+    /// @param h Nanobind handle to PyTorch CUDA tensor.
+    /// @param src_cuda_ptr Source CUDA buffer pointer.
+    /// @param src_size Size of source buffer in bytes.
+    /// @return True on success.
     bool copy_from_buffer(nb::handle h, void* src_cuda_ptr, size_t src_size) const
     {
         return copy_from_buffer(h.ptr(), src_cuda_ptr, src_size);

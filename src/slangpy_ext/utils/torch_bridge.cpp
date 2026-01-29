@@ -10,7 +10,7 @@
 
 namespace sgl {
 
-/// Convert TensorBridgeInfo to a Python dictionary for testing/debugging.
+/// Convert TensorBridgeInfo to a Python dictionary.
 nb::dict tensor_info_to_dict(const TensorBridgeInfo& info)
 {
     nb::dict result;
@@ -41,8 +41,11 @@ nb::dict tensor_info_to_dict(const TensorBridgeInfo& info)
     return result;
 }
 
-/// Python-exposed function to extract PyTorch tensor info via the bridge.
-/// Returns a dict with all tensor metadata, or throws if bridge unavailable.
+/// Extract PyTorch tensor metadata as a dictionary.
+/// @param tensor PyTorch tensor to extract info from.
+/// @return Dictionary containing tensor metadata.
+/// @throws std::runtime_error if torch bridge is not available.
+/// @throws std::invalid_argument if object is not a PyTorch tensor.
 nb::object extract_torch_tensor_info(nb::handle tensor)
 {
     auto& bridge = TorchBridge::instance();
@@ -66,7 +69,11 @@ nb::object extract_torch_tensor_info(nb::handle tensor)
     return tensor_info_to_dict(info);
 }
 
-/// Extract PyTorch tensor signature via the bridge
+/// Extract PyTorch tensor signature string.
+/// @param tensor PyTorch tensor to get signature from.
+/// @return Signature string in format "[Dn,Sm]" where n=ndim, m=scalar_type.
+/// @throws std::runtime_error if torch bridge is not available.
+/// @throws std::invalid_argument if object is not a PyTorch tensor.
 std::string extract_torch_tensor_signature(nb::handle tensor)
 {
     auto& bridge = TorchBridge::instance();
@@ -88,7 +95,7 @@ std::string extract_torch_tensor_signature(nb::handle tensor)
     return std::string(buffer);
 }
 
-/// Check if the torch bridge is available
+/// Check if the torch bridge is available (native or Python fallback).
 bool is_torch_bridge_available()
 {
     auto& bridge = TorchBridge::instance();
@@ -96,7 +103,9 @@ bool is_torch_bridge_available()
     return bridge.is_available();
 }
 
-/// Check if an object is a PyTorch tensor (via the bridge)
+/// Check if an object is a PyTorch tensor.
+/// @param obj Object to check.
+/// @return True if obj is a PyTorch tensor.
 bool is_torch_tensor(nb::handle obj)
 {
     auto& bridge = TorchBridge::instance();
@@ -106,9 +115,25 @@ bool is_torch_tensor(nb::handle obj)
     return bridge.is_tensor(obj);
 }
 
-/// Copy a PyTorch tensor to a buffer's CUDA memory.
-/// The buffer must have been created with BufferUsage::shared.
-/// Returns true on success.
+/// Check if the torch bridge is using Python fallback mode.
+/// @return True if using Python fallback.
+bool is_torch_bridge_using_fallback()
+{
+    return TorchBridge::instance().is_using_fallback();
+}
+
+/// Force use of Python fallback for torch bridge operations.
+/// @param force If true, force Python fallback mode.
+void set_torch_bridge_python_fallback(bool force)
+{
+    TorchBridge::instance().set_force_python_fallback(force);
+}
+
+/// Copy a PyTorch CUDA tensor to a buffer's CUDA memory.
+/// @param tensor PyTorch CUDA tensor to copy from.
+/// @param buffer Buffer created with BufferUsage::shared.
+/// @return True on success.
+/// @throws std::runtime_error if copy fails or buffer not compatible.
 bool copy_torch_tensor_to_buffer(nb::handle tensor, ref<Buffer> buffer)
 {
     auto& bridge = TorchBridge::instance();
@@ -150,9 +175,11 @@ bool copy_torch_tensor_to_buffer(nb::handle tensor, ref<Buffer> buffer)
     return true;
 }
 
-/// Copy from a buffer's CUDA memory to a PyTorch tensor.
-/// The buffer must have been created with BufferUsage::shared.
-/// Returns true on success.
+/// Copy from a buffer's CUDA memory to a PyTorch CUDA tensor.
+/// @param buffer Buffer created with BufferUsage::shared.
+/// @param tensor PyTorch CUDA tensor to copy to.
+/// @return True on success.
+/// @throws std::runtime_error if copy fails or buffer not compatible.
 bool copy_buffer_to_torch_tensor(ref<Buffer> buffer, nb::handle tensor)
 {
     auto& bridge = TorchBridge::instance();
@@ -200,109 +227,41 @@ SGL_PY_EXPORT(utils_torch_bridge)
 {
     using namespace sgl;
 
-    m.def(
-        "is_torch_bridge_available",
-        &is_torch_bridge_available,
-        "Check if torch bridge is available (native or Python fallback)"
-    );
+    m.def("is_torch_bridge_available", &is_torch_bridge_available, D_NA(is_torch_bridge_available));
 
-    m.def(
-        "is_torch_bridge_using_fallback",
-        []()
-        {
-            return TorchBridge::instance().is_using_fallback();
-        },
-        "Check if the torch bridge is using Python fallback mode.\n\n"
-        "Returns True if using Python fallback (either because slangpy_torch is not\n"
-        "installed, or because fallback mode was forced for testing)."
-    );
+    m.def("is_torch_bridge_using_fallback", &is_torch_bridge_using_fallback, D_NA(is_torch_bridge_using_fallback));
 
     m.def(
         "set_torch_bridge_python_fallback",
-        [](bool force)
-        {
-            TorchBridge::instance().set_force_python_fallback(force);
-        },
-        nb::arg("force"),
-        "Force use of Python fallback for torch bridge operations.\n\n"
-        "This is primarily for testing to validate the fallback path works correctly.\n"
-        "When force=True, all torch bridge operations will use the Python fallback\n"
-        "implementations even if the native slangpy_torch is available.\n\n"
-        "Args:\n"
-        "  force: If True, force Python fallback mode. If False, use native if available."
+        &set_torch_bridge_python_fallback,
+        "force"_a,
+        D_NA(set_torch_bridge_python_fallback)
     );
 
-    m.def("is_torch_tensor", &is_torch_tensor, nb::arg("obj"), "Check if an object is a PyTorch tensor");
+    m.def("is_torch_tensor", &is_torch_tensor, "obj"_a, D_NA(is_torch_tensor));
 
-    m.def(
-        "extract_torch_tensor_info",
-        &extract_torch_tensor_info,
-        nb::arg("tensor"),
-        "Extract PyTorch tensor metadata as a dictionary.\n\n"
-        "Returns a dict containing:\n"
-        "  - data_ptr: GPU/CPU memory address\n"
-        "  - shape: tuple of dimensions\n"
-        "  - strides: tuple of strides (in elements)\n"
-        "  - ndim: number of dimensions\n"
-        "  - device_type: 0=CPU, 1=CUDA\n"
-        "  - device_index: GPU index or -1 for CPU\n"
-        "  - scalar_type: PyTorch scalar type code\n"
-        "  - element_size: bytes per element\n"
-        "  - numel: total number of elements\n"
-        "  - storage_offset: offset in storage\n"
-        "  - cuda_stream: CUDA stream pointer (0 for CPU)\n"
-        "  - is_contiguous: whether tensor is contiguous\n"
-        "  - is_cuda: whether tensor is on CUDA\n"
-        "  - requires_grad: whether tensor requires gradients\n\n"
-        "Raises:\n"
-        "  RuntimeError: if torch bridge is not available\n"
-        "  ValueError: if object is not a PyTorch tensor"
-    );
+    m.def("extract_torch_tensor_info", &extract_torch_tensor_info, "tensor"_a, D_NA(extract_torch_tensor_info));
 
     m.def(
         "extract_torch_tensor_signature",
         &extract_torch_tensor_signature,
-        nb::arg("tensor"),
-        "Extract PyTorch tensor signature as a string.\n\n"
-        "Returns a string containing the tensor signature in the format:\n"
-        "  [Dn,Sm] where n=ndim, m=scalar_type\n"
-        "\n"
-        "Raises:\n"
-        "  RuntimeError: if torch bridge is not available\n"
-        "  ValueError: if object is not a PyTorch tensor"
+        "tensor"_a,
+        D_NA(extract_torch_tensor_signature)
     );
 
     m.def(
         "copy_torch_tensor_to_buffer",
         &copy_torch_tensor_to_buffer,
-        nb::arg("tensor"),
-        nb::arg("buffer"),
-        "Copy a PyTorch CUDA tensor to a buffer's CUDA memory.\n\n"
-        "The buffer must have been created with BufferUsage.shared.\n"
-        "Handles non-contiguous tensors correctly.\n\n"
-        "Args:\n"
-        "  tensor: A PyTorch CUDA tensor\n"
-        "  buffer: A Buffer created with BufferUsage.shared\n\n"
-        "Returns:\n"
-        "  True on success\n\n"
-        "Raises:\n"
-        "  RuntimeError: if copy fails or buffer not compatible"
+        "tensor"_a,
+        "buffer"_a,
+        D_NA(copy_torch_tensor_to_buffer)
     );
 
     m.def(
         "copy_buffer_to_torch_tensor",
         &copy_buffer_to_torch_tensor,
-        nb::arg("buffer"),
-        nb::arg("tensor"),
-        "Copy from a buffer's CUDA memory to a PyTorch CUDA tensor.\n\n"
-        "The buffer must have been created with BufferUsage.shared.\n"
-        "Handles non-contiguous tensors correctly.\n\n"
-        "Args:\n"
-        "  buffer: A Buffer created with BufferUsage.shared\n"
-        "  tensor: A PyTorch CUDA tensor\n\n"
-        "Returns:\n"
-        "  True on success\n\n"
-        "Raises:\n"
-        "  RuntimeError: if copy fails or buffer not compatible"
+        "buffer"_a,
+        "tensor"_a,
+        D_NA(copy_buffer_to_torch_tensor)
     );
 }
