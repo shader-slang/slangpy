@@ -20,7 +20,7 @@ authors = [
     { name = "Sai Bangaru", email = "sbangaru@nvidia.com" },
     { name = "Yong He", email = "yhe@nvidia.com" },
 ]
-license = "Apache-2.0 WITH LLVM-exception"
+license = {file = "LICENSE"}
 
 [project.urls]
 Homepage = "https://github.com/shader-slang/slangpy"
