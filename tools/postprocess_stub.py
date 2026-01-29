@@ -753,7 +753,11 @@ if __name__ == "__main__":
     print_verbose(f"  Input: {input_filename}")
     print_verbose(f"  Output: {output_filename}")
 
-    tree = load_file(input_filename)
+    try:
+        tree = load_file(input_filename)
+    except:
+        print(f"WARNING: Failed to load file: {input_filename}")
+        exit(0)
 
     if not submodule:
         convertable_types = find_convertable_descriptors(tree)
