@@ -115,6 +115,26 @@ public:
         }
     }
 
+    /// Reset the bridge, releasing all cached Python objects.
+    /// Must be called before Python interpreter finalization to avoid
+    /// "GIL not held" errors during static destruction.
+    void reset()
+    {
+        m_api = nullptr;
+        m_initialized = false;
+        m_force_python_fallback = false;
+        m_fallback_initialized = false;
+
+        // Release all cached Python objects
+        m_fallback_module.reset();
+        m_py_is_tensor.reset();
+        m_py_extract_tensor_info.reset();
+        m_py_get_signature.reset();
+        m_py_get_current_cuda_stream.reset();
+        m_py_copy_to_buffer.reset();
+        m_py_copy_from_buffer.reset();
+    }
+
     /// Check if a PyObject is a torch.Tensor.
     /// @param obj Python object to check.
     /// @return True if obj is a PyTorch tensor.

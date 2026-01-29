@@ -7,6 +7,7 @@
 #include "sgl/sgl.h"
 #include "sgl/device/device.h"
 
+#include "utils/slangpyfunction.h"
 #include "utils/torch_bridge.h"
 
 #include <iostream>
@@ -172,6 +173,12 @@ NB_MODULE(slangpy_ext, m_)
     atexit.attr("register")(nb::cpp_function(
         []()
         {
+            // Reset cached Python objects before Python finalization.
+            // This must be done while the GIL is held, before Python finalizes,
+            // to avoid "GIL not held" errors during static destruction.
+            sgl::TorchBridge::instance().reset();
+            sgl::slangpy::NativeFunctionNode::static_reset();
+
             {
                 // While waiting for tasks to finish, we block the main thread
                 // while holding the GIL. This makes it impossible for other
