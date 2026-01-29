@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
-Tests for the PyTorch tensor bridge (slangpy_torch).
+Tests for the PyTorch tensor bridge.
 
-This tests the fast native C API for extracting PyTorch tensor metadata.
+This tests both the native C API (via slangpy_torch) and the Python fallback
+for extracting PyTorch tensor metadata. Tests are run in both modes using
+the torch_bridge_mode fixture.
 """
 
 import pytest
@@ -24,26 +26,36 @@ class TestTorchBridgeAvailability:
     """Test bridge availability detection."""
 
     def test_is_torch_bridge_available(self):
-        """Test that is_torch_bridge_available returns True when slangpy_torch is installed."""
-        # If we got past the imports, torch is available so slangpy_torch should be loadable
-        # (assuming it was installed via pip install src/slangpy_torch)
+        """Test that is_torch_bridge_available returns True (either native or fallback)."""
+        # With the fallback implementation, the bridge should always be available
+        # when torch is installed
         result = slangpy.is_torch_bridge_available()
-        # Just check that it returns a boolean
         assert isinstance(result, bool)
+        assert result is True  # Should be True since torch is installed
 
-    def test_is_torch_tensor_with_tensor(self):
+    def test_fallback_toggle(self):
+        """Test that we can toggle between native and fallback modes."""
+        original = slangpy.is_torch_bridge_using_fallback()
+
+        try:
+            # Force fallback mode
+            slangpy.set_torch_bridge_python_fallback(True)
+            assert slangpy.is_torch_bridge_using_fallback() is True
+
+            # Disable forced fallback (may still be fallback if native unavailable)
+            slangpy.set_torch_bridge_python_fallback(False)
+            # Result depends on whether slangpy_torch is installed
+        finally:
+            # Restore original state
+            slangpy.set_torch_bridge_python_fallback(original)
+
+    def test_is_torch_tensor_with_tensor(self, torch_bridge_mode: str):
         """Test is_torch_tensor correctly identifies PyTorch tensors."""
-        if not slangpy.is_torch_bridge_available():
-            pytest.skip("slangpy_torch not installed")
-
         t = torch.zeros(4, 3, 2)
         assert slangpy.is_torch_tensor(t) is True
 
-    def test_is_torch_tensor_with_non_tensor(self):
+    def test_is_torch_tensor_with_non_tensor(self, torch_bridge_mode: str):
         """Test is_torch_tensor correctly rejects non-tensors."""
-        if not slangpy.is_torch_bridge_available():
-            pytest.skip("slangpy_torch not installed")
-
         assert slangpy.is_torch_tensor([1, 2, 3]) is False
         assert slangpy.is_torch_tensor("hello") is False
         assert slangpy.is_torch_tensor(42) is False
@@ -51,12 +63,12 @@ class TestTorchBridgeAvailability:
 
 
 class TestTorchTensorExtraction:
-    """Test tensor metadata extraction."""
+    """Test tensor metadata extraction in both native and fallback modes."""
 
     @pytest.fixture(autouse=True)
-    def check_bridge_available(self):
-        if not slangpy.is_torch_bridge_available():
-            pytest.skip("slangpy_torch not installed")
+    def setup_bridge_mode(self, torch_bridge_mode: str):
+        """Automatically use torch_bridge_mode fixture for all tests in this class."""
+        self.mode = torch_bridge_mode
 
     def test_extract_cpu_tensor(self):
         """Test extraction of CPU tensor metadata."""

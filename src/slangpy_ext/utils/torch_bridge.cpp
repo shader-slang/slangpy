@@ -42,7 +42,7 @@ nb::dict tensor_info_to_dict(const TensorBridgeInfo& info)
 }
 
 /// Python-exposed function to extract PyTorch tensor info via the bridge.
-/// Returns a dict with all tensor metadata, or None if bridge unavailable.
+/// Returns a dict with all tensor metadata, or throws if bridge unavailable.
 nb::object extract_torch_tensor_info(nb::handle tensor)
 {
     auto& bridge = TorchBridge::instance();
@@ -51,7 +51,7 @@ nb::object extract_torch_tensor_info(nb::handle tensor)
     bridge.try_init();
 
     if (!bridge.is_available()) {
-        throw std::runtime_error("slangpy_torch is not available. Make sure torch is imported before slangpy.");
+        throw std::runtime_error("Torch bridge is not available. Make sure torch is imported before slangpy.");
     }
 
     if (!bridge.is_tensor(tensor)) {
@@ -73,7 +73,7 @@ std::string extract_torch_tensor_signature(nb::handle tensor)
     bridge.try_init();
 
     if (!bridge.is_available()) {
-        throw std::runtime_error("slangpy_torch is not available");
+        throw std::runtime_error("Torch bridge is not available");
     }
 
     if (!bridge.is_tensor(tensor)) {
@@ -115,7 +115,7 @@ bool copy_torch_tensor_to_buffer(nb::handle tensor, ref<Buffer> buffer)
     bridge.try_init();
 
     if (!bridge.is_available()) {
-        throw std::runtime_error("slangpy_torch is not available");
+        throw std::runtime_error("Torch bridge is not available");
     }
 
     // Extract tensor info
@@ -159,7 +159,7 @@ bool copy_buffer_to_torch_tensor(ref<Buffer> buffer, nb::handle tensor)
     bridge.try_init();
 
     if (!bridge.is_available()) {
-        throw std::runtime_error("slangpy_torch is not available");
+        throw std::runtime_error("Torch bridge is not available");
     }
 
     // Extract tensor info
@@ -200,14 +200,39 @@ SGL_PY_EXPORT(utils_torch_bridge)
 {
     using namespace sgl;
 
-    m.def("is_torch_bridge_available", &is_torch_bridge_available, "Check if slangpy_torch is installed and available");
+    m.def(
+        "is_torch_bridge_available",
+        &is_torch_bridge_available,
+        "Check if torch bridge is available (native or Python fallback)"
+    );
 
     m.def(
-        "is_torch_tensor",
-        &is_torch_tensor,
-        nb::arg("obj"),
-        "Check if an object is a PyTorch tensor (requires slangpy_torch)"
+        "is_torch_bridge_using_fallback",
+        []()
+        {
+            return TorchBridge::instance().is_using_fallback();
+        },
+        "Check if the torch bridge is using Python fallback mode.\n\n"
+        "Returns True if using Python fallback (either because slangpy_torch is not\n"
+        "installed, or because fallback mode was forced for testing)."
     );
+
+    m.def(
+        "set_torch_bridge_python_fallback",
+        [](bool force)
+        {
+            TorchBridge::instance().set_force_python_fallback(force);
+        },
+        nb::arg("force"),
+        "Force use of Python fallback for torch bridge operations.\n\n"
+        "This is primarily for testing to validate the fallback path works correctly.\n"
+        "When force=True, all torch bridge operations will use the Python fallback\n"
+        "implementations even if the native slangpy_torch is available.\n\n"
+        "Args:\n"
+        "  force: If True, force Python fallback mode. If False, use native if available."
+    );
+
+    m.def("is_torch_tensor", &is_torch_tensor, nb::arg("obj"), "Check if an object is a PyTorch tensor");
 
     m.def(
         "extract_torch_tensor_info",
@@ -230,7 +255,7 @@ SGL_PY_EXPORT(utils_torch_bridge)
         "  - is_cuda: whether tensor is on CUDA\n"
         "  - requires_grad: whether tensor requires gradients\n\n"
         "Raises:\n"
-        "  RuntimeError: if slangpy_torch is not available\n"
+        "  RuntimeError: if torch bridge is not available\n"
         "  ValueError: if object is not a PyTorch tensor"
     );
 
@@ -240,10 +265,10 @@ SGL_PY_EXPORT(utils_torch_bridge)
         nb::arg("tensor"),
         "Extract PyTorch tensor signature as a string.\n\n"
         "Returns a string containing the tensor signature in the format:\n"
-        "  [torch,Dn,Sm] where n=ndim, m=scalar_type\n"
+        "  [Dn,Sm] where n=ndim, m=scalar_type\n"
         "\n"
         "Raises:\n"
-        "  RuntimeError: if slangpy_torch is not available\n"
+        "  RuntimeError: if torch bridge is not available\n"
         "  ValueError: if object is not a PyTorch tensor"
     );
 
