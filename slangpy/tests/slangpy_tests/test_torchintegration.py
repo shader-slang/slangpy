@@ -79,6 +79,7 @@ ADD_TESTS = [
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("extra_dims", [0, 1, 3])
+@pytest.mark.parametrize("oversize", [0, 1])
 @pytest.mark.parametrize(
     "func_and_shape", ADD_TESTS, ids=[f"{name}_{shape}" for name, shape in ADD_TESTS]
 )
@@ -86,6 +87,7 @@ ADD_TESTS = [
 def test_add_values(
     device_type: DeviceType,
     extra_dims: int,
+    oversize: int,
     func_and_shape: tuple[str, tuple[int]],
     result_mode: str,
 ):
@@ -94,41 +96,49 @@ def test_add_values(
 
     func_name = func_and_shape[0]
     val_shape = func_and_shape[1]
-    extra_shape = (5,) * extra_dims
+    extra_shape_a = (5,) * extra_dims
+    extra_shape_b = ((5 + oversize,) * min(1, extra_dims)) + ((5,) * max(0, extra_dims - 1))
 
-    if len(extra_shape + val_shape) == 0:
+    if len(extra_shape_a + val_shape) == 0:
         pytest.skip("No shape to test")
+    if (oversize > 0) and extra_dims == 0:
+        pytest.skip("Redundant shape")
 
     a = torch.randn(
-        extra_shape + val_shape,
+        extra_shape_a + val_shape,
         dtype=torch.float32,
         device=torch.device("cuda"),
         requires_grad=True,
     )
     b = torch.randn(
-        extra_shape + val_shape,
+        extra_shape_b + val_shape,
         dtype=torch.float32,
         device=torch.device("cuda"),
         requires_grad=True,
     )
 
+    if oversize > 0:
+        b_slice = b[: extra_shape_b[0] - oversize]
+    else:
+        b_slice = b
+
     if result_mode == "return":
-        res = module[func_name](a, b)
+        res = module[func_name](a, b_slice)
     elif result_mode == "pass":
         res = torch.empty_like(a)
-        module[func_name](a, b, _result=res)
+        module[func_name](a, b_slice, _result=res)
     else:  # out
         res = torch.empty_like(a)
         if "<" in func_name:
             func_name = func_name.replace("<", "_out<")
         else:
             func_name += "_out"
-        module[func_name](a, b, res)
+        module[func_name](a, b_slice, res)
     assert isinstance(res, torch.Tensor)
 
-    test = a + b
+    test = a + b_slice
 
-    compare_tensors(a + b, res)
+    compare_tensors(a + b_slice, res)
 
     # Not much to check for backwards pass of an 'add', but call it
     # so we at least catch any exceptions that fire.
