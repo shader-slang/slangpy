@@ -603,7 +603,12 @@ class FixNumpyArrays(cst.CSTTransformer):
 # Loads a parsed file.
 def load_file(file_path: str) -> cst.Module:
     code = open(file_path).read()
-    return cst.parse_module(code)
+    try:
+        return cst.parse_module(code)
+    except Exception as e:
+        print(e)
+        print(code)
+        raise
 
 
 # Gets convertible descriptor types from tree.
@@ -753,11 +758,7 @@ if __name__ == "__main__":
     print_verbose(f"  Input: {input_filename}")
     print_verbose(f"  Output: {output_filename}")
 
-    try:
-        tree = load_file(input_filename)
-    except:
-        print(f"WARNING: Failed to load file: {input_filename}")
-        exit(0)
+    tree = load_file(input_filename)
 
     if not submodule:
         convertable_types = find_convertable_descriptors(tree)
