@@ -22,16 +22,14 @@ namespace sgl {
 
 namespace {
 
-    /// Constants for the chunked stream buffer format.
-    constexpr uint32_t BUFFER_HEADER_SIZE = 8;        // capacity + write_pos
-    constexpr uint32_t CHUNK_SIZE = 256;              // Each chunk is 256 bytes
-    constexpr uint32_t CHUNK_HEADER = 16;             // Chunk header size
-    constexpr uint32_t CHUNK_PAYLOAD = 240;           // Payload size per chunk (60 uints)
-    constexpr uint32_t OVERFLOW_CHUNK = 8;            // Reserved overflow chunk offset
-    constexpr uint32_t FIRST_DATA_CHUNK = 264;        // First actual data chunk (after header + overflow)
-    constexpr uint32_t MAGIC_FIRST = 0xFFFFFFFF;      // First chunk of stream marker
-    constexpr uint32_t MAGIC_CONTINUE = 0x00000000;   // Continuation chunk marker
-    constexpr uint32_t MAGIC_OVERFLOW = 0xFFFFFFFE;   // Overflow chunk marker
+    /// Constants for the fixed-size message slot buffer format.
+    constexpr uint32_t GLOBAL_HEADER_SIZE = 8;        // capacity + write_pos
+    constexpr uint32_t SLOT_SIZE = 1024;              // Each slot is 1024 bytes (power of 2)
+    constexpr uint32_t SLOT_HEADER_SIZE = 4;          // Slot header size (used_size only)
+    constexpr uint32_t SLOT_PAYLOAD_SIZE = 1020;      // Payload size per slot (255 uints)
+    constexpr uint32_t OVERFLOW_SLOT = 8;             // Reserved overflow slot offset
+    constexpr uint32_t FIRST_DATA_SLOT = 1032;        // First data slot (after header + overflow slot)
+    constexpr uint32_t OVERFLOW_MARKER = 0xFFFFFFFF;  // Per-message overflow marker
 
     /// Record kind values (must match print2.slang).
     enum class RecordKind : uint8_t {
@@ -73,91 +71,64 @@ namespace {
         }
     }
 
-    /// Decode a stream chain starting from a first chunk.
-    /// Returns the collected payload values from all chunks in the chain.
-    /// Returns empty vector if the stream has overflowed (contains MAGIC_OVERFLOW).
-    std::vector<uint32_t> decode_stream_chain(const uint32_t* data, uint32_t first_chunk, uint32_t buffer_size, bool& overflowed)
+    /// Decode all message slots from the buffer.
+    /// Returns a vector of messages, where each message is a vector of uint32_t payloads.
+    std::vector<std::vector<uint32_t>> decode_all_slots(
+        const void* buffer_data,
+        size_t buffer_size,
+        bool& had_buffer_overflow,
+        uint32_t& message_overflow_count
+    )
     {
-        std::vector<uint32_t> payload;
-        overflowed = false;
-
-        uint32_t chunk = first_chunk;
-        while (chunk != 0) {
-            // Bounds check
-            if (chunk + CHUNK_SIZE > buffer_size) {
-                log_warn("Stream chunk out of bounds: {} + {} > {}", chunk, CHUNK_SIZE, buffer_size);
-                break;
-            }
-
-            // Read chunk header: [magic:32][next:32][used:32][reserved:32]
-            uint32_t magic = data[chunk / 4 + 0];
-            uint32_t next = data[chunk / 4 + 1];
-            uint32_t used = data[chunk / 4 + 2];
-
-            // Check for overflow
-            if (magic == MAGIC_OVERFLOW) {
-                overflowed = true;
-                return {}; // Discard this stream
-            }
-
-            // Validate magic (first chunk should be MAGIC_FIRST, others MAGIC_CONTINUE)
-            if (chunk == first_chunk && magic != MAGIC_FIRST) {
-                log_warn("Expected first chunk magic at offset {}", chunk);
-                break;
-            }
-
-            // Clamp used to payload size
-            used = std::min(used, CHUNK_PAYLOAD);
-
-            // Read payload (used bytes, in 4-byte increments)
-            uint32_t payload_offset = chunk + CHUNK_HEADER;
-            for (uint32_t i = 0; i < used; i += 4) {
-                payload.push_back(data[(payload_offset + i) / 4]);
-            }
-
-            chunk = next;
-        }
-
-        return payload;
-    }
-
-    /// Decode all streams from the buffer.
-    /// Returns a vector of streams, where each stream is a vector of uint32_t payloads.
-    std::vector<std::vector<uint32_t>> decode_all_streams(const void* buffer_data, size_t buffer_size, bool& had_overflow)
-    {
-        std::vector<std::vector<uint32_t>> streams;
-        had_overflow = false;
+        std::vector<std::vector<uint32_t>> messages;
+        had_buffer_overflow = false;
+        message_overflow_count = 0;
 
         const uint32_t* data = reinterpret_cast<const uint32_t*>(buffer_data);
 
-        // Read header
+        // Read global header
         uint32_t capacity = data[0];
         uint32_t write_pos = data[1];
 
-        // Clamp write_pos to buffer size (in case of overflow)
+        // Check overflow slot (offset 8)
+        uint32_t overflow_flag = data[OVERFLOW_SLOT / 4];
+        if (overflow_flag == OVERFLOW_MARKER) {
+            had_buffer_overflow = true;
+        }
+
+        // Clamp write_pos to buffer size
         write_pos = std::min(write_pos, static_cast<uint32_t>(buffer_size));
 
-        if (write_pos > capacity) {
-            had_overflow = true;
-        }
+        // Scan slots at 1024-byte intervals starting from FIRST_DATA_SLOT
+        for (uint32_t slot_offset = FIRST_DATA_SLOT; slot_offset + SLOT_SIZE <= write_pos; slot_offset += SLOT_SIZE) {
+            // Read slot header: [used_size:32][reserved:32]
+            uint32_t used_size = data[slot_offset / 4];
 
-        // Scan for first chunks at 256-byte intervals starting from offset 264 (skip overflow chunk)
-        for (uint32_t offset = FIRST_DATA_CHUNK; offset + CHUNK_SIZE <= write_pos; offset += CHUNK_SIZE) {
-            uint32_t magic = data[offset / 4];
-
-            // Check for first chunk marker
-            if (magic == MAGIC_FIRST) {
-                bool stream_overflowed = false;
-                auto stream = decode_stream_chain(data, offset, write_pos, stream_overflowed);
-                if (stream_overflowed) {
-                    had_overflow = true;
-                } else if (!stream.empty()) {
-                    streams.push_back(std::move(stream));
-                }
+            // Check for per-message overflow
+            if (used_size == OVERFLOW_MARKER) {
+                message_overflow_count++;
+                continue; // Skip this corrupted message
             }
+
+            // Clamp used_size to payload size
+            used_size = std::min(used_size, SLOT_PAYLOAD_SIZE);
+
+            // Skip empty slots
+            if (used_size == 0) {
+                continue;
+            }
+
+            // Read payload (used_size bytes, in 4-byte increments)
+            std::vector<uint32_t> payload;
+            uint32_t payload_offset = slot_offset + SLOT_HEADER_SIZE;
+            for (uint32_t i = 0; i < used_size; i += 4) {
+                payload.push_back(data[(payload_offset + i) / 4]);
+            }
+
+            messages.push_back(std::move(payload));
         }
 
-        return streams;
+        return messages;
     }
 
     // -------------------------------------------------------------------------
@@ -607,10 +578,11 @@ DebugPrinter::DebugPrinter(Device* device, size_t buffer_size)
     });
 
     // Write buffer header.
-    // Buffer layout: [capacity:4][write_pos:4][overflow_chunk:256][data_chunks...]
-    // write_pos starts at 264 (after header + reserved overflow chunk)
+    // Buffer layout: [capacity:4][write_pos:4][overflow_slot:1024][data_slots...]
+    // write_pos starts at FIRST_DATA_SLOT (1032)
+    // overflow_slot.used_size starts at 0 (no overflow)
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
-    uint32_t header[2] = {uint32_t(buffer_size), FIRST_DATA_CHUNK};
+    uint32_t header[3] = {uint32_t(buffer_size), FIRST_DATA_SLOT, 0};
     command_encoder->upload_buffer_data(m_buffer, 0, sizeof(header), header);
     m_device->submit_command_buffer(command_encoder->finish());
 }
@@ -625,17 +597,21 @@ void DebugPrinter::flush()
     flush_device(true);
 
     const void* data = m_readback_buffer->map();
-    bool had_overflow = false;
-    auto streams = decode_all_streams(data, m_readback_buffer->size(), had_overflow);
+    bool had_buffer_overflow = false;
+    uint32_t message_overflow_count = 0;
+    auto slots = decode_all_slots(data, m_readback_buffer->size(), had_buffer_overflow, message_overflow_count);
     m_readback_buffer->unmap();
 
-    if (had_overflow) {
+    if (had_buffer_overflow) {
         log_warn("Print buffer overflow: some messages were lost");
     }
+    if (message_overflow_count > 0) {
+        log_warn("{} message(s) exceeded slot size and were corrupted", message_overflow_count);
+    }
 
-    // Decode and log each stream's messages
-    for (const auto& stream : streams) {
-        auto messages = decode_stream_records(stream, m_hashed_strings);
+    // Decode and log each slot's records
+    for (const auto& slot : slots) {
+        auto messages = decode_stream_records(slot, m_hashed_strings);
         for (const auto& msg : messages) {
             log_info("{}", msg);
         }
@@ -647,21 +623,23 @@ std::string DebugPrinter::flush_to_string()
     flush_device(true);
 
     const void* data = m_readback_buffer->map();
-    bool had_overflow = false;
-    auto streams = decode_all_streams(data, m_readback_buffer->size(), had_overflow);
+    bool had_buffer_overflow = false;
+    uint32_t message_overflow_count = 0;
+    auto slots = decode_all_slots(data, m_readback_buffer->size(), had_buffer_overflow, message_overflow_count);
     m_readback_buffer->unmap();
 
-    // Decode all streams and concatenate messages
+    // Decode all slots and concatenate messages
     std::string result;
-    if (had_overflow) {
+    if (had_buffer_overflow) {
         result = "[WARNING: Print buffer overflow, some messages lost]\n";
     }
-    for (const auto& stream : streams) {
-        auto messages = decode_stream_records(stream, m_hashed_strings);
+    if (message_overflow_count > 0) {
+        result += fmt::format("[WARNING: {} message(s) exceeded slot size]\n", message_overflow_count);
+    }
+    for (const auto& slot : slots) {
+        auto messages = decode_stream_records(slot, m_hashed_strings);
         for (const auto& msg : messages) {
-            if (!result.empty() && result.back() != '\n')
-                result += "\n";
-            result += msg;
+            result += msg + "\n";
         }
     }
     return result;
@@ -679,9 +657,9 @@ void DebugPrinter::flush_device(bool wait)
 {
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
     command_encoder->copy_buffer(m_readback_buffer, 0, m_buffer, 0, m_buffer->size());
-    // Reset write position to 264 (after header + overflow chunk)
-    uint32_t reset_write_pos = FIRST_DATA_CHUNK;
-    command_encoder->upload_buffer_data(m_buffer, 4, sizeof(reset_write_pos), &reset_write_pos);
+    // Reset write position to FIRST_DATA_SLOT and clear overflow flag
+    uint32_t reset_data[2] = {FIRST_DATA_SLOT, 0};
+    command_encoder->upload_buffer_data(m_buffer, 4, sizeof(reset_data), reset_data);
     m_device->submit_command_buffer(command_encoder->finish());
     if (wait)
         m_device->wait_for_idle();

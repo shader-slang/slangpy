@@ -14,81 +14,68 @@ struct DebugPrinter {
 DebugPrinter g_debug_printer;
 
 /// ============================================================================
-/// Chunked Multi-Stream Print Buffer Format (v2)
+/// Fixed-Size Message Buffer Format (v3)
 /// ============================================================================
 ///
 /// This module implements a lock-free, multi-stream buffer for GPU debug printing.
-/// Multiple threads can write to independent streams in parallel with minimal
-/// contention (atomics only on chunk allocation, not per-write).
+/// Each print statement allocates a fixed-size message slot. Writes within a slot
+/// are completely branch-free using power-of-2 masking.
 ///
 /// BUFFER LAYOUT
 /// -------------
 /// The buffer is a single RWByteAddressBuffer with the following layout:
 ///
-///   Offset 0:   capacity       (4 bytes) - Total buffer size in bytes
-///   Offset 4:   write_pos      (4 bytes) - Current write position (atomically incremented)
-///   Offset 8:   overflow_chunk (256 bytes) - Reserved chunk for overflow writes
-///   Offset 264: chunks...                 - Stream chunks (256 bytes each)
+///   Offset 0:      capacity      (4 bytes) - Total buffer size in bytes
+///   Offset 4:      write_pos     (4 bytes) - Next slot offset (atomically incremented)
+///   Offset 8:      overflow_slot (1024 bytes) - Reserved slot for overflow writes
+///   Offset 1032:   slots...                - Message slots (1024 bytes each)
 ///
-/// The first chunk at offset 8 is reserved as an overflow zone. When the buffer
-/// is full, all new allocations redirect to this chunk and are marked with
-/// MAGIC_OVERFLOW. This allows write() to remain branch-free while keeping
-/// all writes in-bounds. The host decoder detects and reports overflowed streams.
+/// The first slot at offset 8 is reserved as an overflow sink. When the buffer
+/// is full, new allocations redirect to this slot and set its used_size to 1.
+/// This allows write() to remain completely branch-free.
 ///
-/// CHUNK FORMAT (256 bytes)
-/// ------------------------
-///   Offset 0:  magic        (4 bytes) - See magic values below
-///   Offset 4:  next         (4 bytes) - Offset of next chunk, 0 = end of chain
-///   Offset 8:  used         (4 bytes) - Bytes written to payload (0-240)
-///   Offset 12: reserved     (4 bytes) - Padding for 16-byte alignment
-///   Offset 16: payload    (240 bytes) - 60 x uint32 of record data
-///
-/// MAGIC VALUES
-/// ------------
-///   MAGIC_FIRST    = 0xFFFFFFFF - First chunk of a valid stream
-///   MAGIC_CONTINUE = 0x00000000 - Continuation chunk of a valid stream
-///   MAGIC_OVERFLOW = 0xFFFFFFFE - Chunk allocated after buffer overflow
+/// SLOT FORMAT (1024 bytes, power of 2)
+/// ------------------------------------
+///   Offset 0:  used_size    (4 bytes) - Payload bytes used, or 0xFFFFFFFF if overflowed
+///   Offset 4:  payload    (1020 bytes) - 255 x uint32 of record data
 ///
 /// CONSTANTS
 /// ---------
-///   CHUNK_SIZE     = 256
-///   CHUNK_HEADER   = 16
-///   CHUNK_PAYLOAD  = 240 (60 uints)
-///   OVERFLOW_CHUNK = 8 (offset of reserved overflow chunk)
+///   SLOT_SIZE       = 1024
+///   SLOT_MASK       = 1023 (0x3FF)
+///   HEADER_SIZE     = 4
+///   PAYLOAD_SIZE    = 1020
+///   OVERFLOW_SLOT   = 8
+///   FIRST_DATA_SLOT = 1032
+///   OVERFLOW_MARKER = 0xFFFFFFFF
 ///
 /// WRITE PROTOCOL
 /// --------------
 /// Creating a new stream (__init):
-///   1. atomic_add(write_pos, 256) -> chunk_offset
-///   2. If chunk_offset + 256 > capacity: redirect to overflow chunk
-///   3. Store appropriate magic at chunk_offset+0
-///   4. Store 0 at chunk_offset+4 (next = none)
-///   5. Store 0 at chunk_offset+8 (used = 0)
-///   6. write_offset = chunk_offset + 16
+///   1. atomic_add(write_pos, SLOT_SIZE) -> slot_offset
+///   2. If slot_offset + SLOT_SIZE > capacity:
+///        - Store OVERFLOW_MARKER at overflow_slot (flag overflow occurred)
+///        - slot_offset = OVERFLOW_SLOT
+///   3. write_offset = HEADER_SIZE (start after header)
 ///
-/// Reserving space (reserve):
-///   1. If write_offset + bytes <= chunk_offset + 256: return (space available)
-///   2. Store used count at current_chunk+8 (finalize)
-///   3. atomic_add(write_pos, 256) -> new_chunk
-///   4. If new_chunk + 256 > capacity: redirect to overflow chunk
-///   5. Initialize new chunk with appropriate magic
-///   6. Store new_chunk at current_chunk+4 (link)
-///   7. chunk_offset = new_chunk, write_offset = new_chunk + 16
-///
-/// Writing data (write):
-///   1. Store data at write_offset
+/// Writing data (write) - COMPLETELY BRANCH-FREE:
+///   1. buffer.Store(slot_offset + (write_offset & SLOT_MASK), data)
 ///   2. write_offset += 4
 ///
 /// Finishing (finish):
-///   1. Store used count at chunk_offset+8
+///   1. If write_offset > SLOT_SIZE:
+///        buffer.Store(slot_offset, OVERFLOW_MARKER)
+///      Else:
+///        buffer.Store(slot_offset, write_offset - HEADER_SIZE)
 ///
 /// HOST DECODE PROTOCOL
 /// --------------------
-/// 1. Scan buffer at 256-byte intervals starting from offset 264 (skip overflow chunk)
-/// 2. For each chunk with magic == MAGIC_FIRST, follow the chain
-/// 3. If any chunk in chain has magic == MAGIC_OVERFLOW, discard stream and warn
-/// 4. For each valid chunk: read `used` bytes from payload, follow `next`
-/// 5. Decode collected payload as records
+/// 1. Read global header: capacity, write_pos
+/// 2. Check overflow slot (offset 8): if used_size != 0, warn about lost messages
+/// 3. Scan slots at 1024-byte intervals starting from offset 1032:
+///    - Read used_size at slot_offset
+///    - If used_size == 0xFFFFFFFF: warn "message overflow"
+///    - Else: decode used_size bytes from slot_offset + HEADER_SIZE
 ///
 /// ============================================================================
 
@@ -97,101 +84,69 @@ namespace detail {
 /// Output stream for writing debug print data.
 /// Each thread should create its own OutputStream instance.
 struct OutputStream {
-    /// Chunk size in bytes.
-    static const uint CHUNK_SIZE = 256;
-    /// Chunk header size in bytes.
-    static const uint CHUNK_HEADER = 16;
-    /// Chunk payload size in bytes.
-    static const uint CHUNK_PAYLOAD = 240;
-    /// Offset of the reserved overflow chunk.
-    static const uint OVERFLOW_CHUNK = 8;
-    /// Magic value for first chunk of a stream.
-    static const uint MAGIC_FIRST = 0xFFFFFFFFu;
-    /// Magic value for continuation chunks.
-    static const uint MAGIC_CONTINUE = 0x00000000u;
-    /// Magic value for overflow chunks (buffer full).
-    static const uint MAGIC_OVERFLOW = 0xFFFFFFFEu;
+    /// Slot size in bytes (power of 2).
+    static const uint SLOT_SIZE = 1024;
+    /// Slot mask for wrap-around writes.
+    static const uint SLOT_MASK = 1023;
+    /// Slot header size in bytes.
+    static const uint HEADER_SIZE = 4;
+    /// Slot payload size in bytes.
+    static const uint PAYLOAD_SIZE = 1020;
+    /// Offset of the reserved overflow slot.
+    static const uint OVERFLOW_SLOT = 8;
+    /// First data slot offset (after global header + overflow slot).
+    static const uint FIRST_DATA_SLOT = 1032;
+    /// Marker for per-message overflow (message too large for slot).
+    static const uint OVERFLOW_MARKER = 0xFFFFFFFFu;
 
-    /// Offset of current chunk in the buffer.
-    uint chunk_offset;
-    /// Absolute write offset in the buffer (points to next write location).
+    /// Offset of this message's slot in the buffer.
+    uint slot_offset;
+    /// Current write position within slot (unbounded, can exceed SLOT_SIZE).
     uint write_offset;
 
     /// Initialize a new output stream.
-    /// Allocates the first chunk and marks it as a stream start.
+    /// Allocates a fixed-size slot for this message.
     __init()
     {
-        // Allocate first chunk
-        g_debug_printer.buffer.InterlockedAdd(4, CHUNK_SIZE, chunk_offset);
+        // Allocate a slot
+        g_debug_printer.buffer.InterlockedAdd(4, SLOT_SIZE, slot_offset);
 
-        // Check for overflow
+        // Check for buffer overflow
         uint capacity = g_debug_printer.buffer.Load(0);
-        uint magic = MAGIC_FIRST;
-        if (chunk_offset + CHUNK_SIZE > capacity) {
-            chunk_offset = OVERFLOW_CHUNK;
-            magic = MAGIC_OVERFLOW;
+        if (slot_offset + SLOT_SIZE > capacity) {
+            // Flag overflow and redirect to overflow sink
+            g_debug_printer.buffer.Store(OVERFLOW_SLOT, OVERFLOW_MARKER);
+            slot_offset = OVERFLOW_SLOT;
         }
 
-        // Initialize chunk header
-        g_debug_printer.buffer.Store(chunk_offset + 0, magic);
-        g_debug_printer.buffer.Store(chunk_offset + 4, 0u);           // next = none
-        g_debug_printer.buffer.Store(chunk_offset + 8, 0u);           // used = 0 (set on finish)
-
-        write_offset = chunk_offset + CHUNK_HEADER;
-    }
-
-    /// Ensure there is space for at least `bytes` more bytes in the current chunk.
-    /// If not, allocates a new chunk and links it.
-    /// Contract: `bytes` must be <= CHUNK_PAYLOAD (240).
-    [mutating]
-    void reserve(uint bytes)
-    {
-        if (write_offset + bytes <= chunk_offset + CHUNK_SIZE)
-            return; // Enough space
-
-        // Finalize current chunk
-        g_debug_printer.buffer.Store(chunk_offset + 8, write_offset - (chunk_offset + CHUNK_HEADER));
-
-        // Allocate new chunk
-        uint new_chunk;
-        g_debug_printer.buffer.InterlockedAdd(4, CHUNK_SIZE, new_chunk);
-
-        // Check for overflow
-        uint capacity = g_debug_printer.buffer.Load(0);
-        uint magic = MAGIC_CONTINUE;
-        if (new_chunk + CHUNK_SIZE > capacity) {
-            new_chunk = OVERFLOW_CHUNK;
-            magic = MAGIC_OVERFLOW;
-        }
-
-        // Initialize new chunk
-        g_debug_printer.buffer.Store(new_chunk + 0, magic);
-        g_debug_printer.buffer.Store(new_chunk + 4, 0u);              // next = none
-        g_debug_printer.buffer.Store(new_chunk + 8, 0u);              // used = 0
-
-        // Link current chunk to new chunk
-        g_debug_printer.buffer.Store(chunk_offset + 4, new_chunk);
-
-        // Update state
-        chunk_offset = new_chunk;
-        write_offset = new_chunk + CHUNK_HEADER;
+        // Start writing after the header
+        write_offset = HEADER_SIZE;
     }
 
     /// Write a single uint to the stream.
-    /// Caller must have called reserve() first to ensure space.
+    /// Completely branch-free: uses masking to wrap around within the slot.
+    /// If write_offset exceeds SLOT_SIZE, data wraps and overwrites earlier data,
+    /// but finish() will detect this and mark the message as overflowed.
+    [ForceInline]
     [mutating]
     void write(uint data)
     {
-        g_debug_printer.buffer.Store(write_offset, data);
+        g_debug_printer.buffer.Store(slot_offset + (write_offset & SLOT_MASK), data);
         write_offset += 4;
     }
 
     /// Finalize the stream.
-    /// Writes the final used count to the current chunk.
+    /// Writes the used size to the slot header, or marks as overflowed.
     [mutating]
     void finish()
     {
-        g_debug_printer.buffer.Store(chunk_offset + 8, write_offset - (chunk_offset + CHUNK_HEADER));
+        if (write_offset > SLOT_SIZE) {
+            // Message overflowed the slot
+            g_debug_printer.buffer.Store(slot_offset, OVERFLOW_MARKER);
+        } else {
+            // Store actual payload size (excluding header)
+            g_debug_printer.buffer.Store(slot_offset, write_offset - HEADER_SIZE);
+        }
     }
 };
 
@@ -299,28 +254,25 @@ struct PrintStream {
     [mutating]
     void begin_format(String fmt, uint arg_count)
     {
-        // Reserve space for header (1 uint) + hash (1 uint)
-        stream.reserve(8);
         // Header: [kind:8][arg_count:24]
         uint header = (uint(RecordKind::format) << 24) | (arg_count & 0x00FFFFFFu);
         stream.write(header);
         stream.write(getStringHash(fmt));
     }
 
-    /// Write a complete scalar record (header + data).
+    /// Write a scalar record header.
+    /// Caller must then write the scalar data.
     /// \param type The scalar type.
     /// \param size_in_bytes Size of the scalar data in bytes (4 or 8).
     [mutating]
     void begin_scalar(ScalarType type, uint size_in_bytes)
     {
-        // Reserve space for header (4 bytes) + data
-        stream.reserve(4 + size_in_bytes);
         // Header: [kind:8][type:8][unused:16]
         uint header = (uint(RecordKind::scalar) << 24) | (uint(type) << 16);
         stream.write(header);
     }
 
-    /// Write a vector record header and reserve space for data.
+    /// Write a vector record header.
     /// Caller must then write the vector data.
     /// \param type The element type.
     /// \param count Number of elements in the vector.
@@ -328,14 +280,12 @@ struct PrintStream {
     [mutating]
     void begin_vector(ScalarType type, uint count, uint element_size_in_bytes)
     {
-        // Reserve space for header (4 bytes) + data
-        stream.reserve(4 + count * element_size_in_bytes);
         // Header: [kind:8][type:8][count:8][unused:8]
         uint header = (uint(RecordKind::vector) << 24) | (uint(type) << 16) | (count << 8);
         stream.write(header);
     }
 
-    /// Write a matrix record header and reserve space for data.
+    /// Write a matrix record header.
     /// Caller must then write the matrix data.
     /// \param type The element type.
     /// \param rows Number of rows.
@@ -344,8 +294,6 @@ struct PrintStream {
     [mutating]
     void begin_matrix(ScalarType type, uint rows, uint cols, uint element_size_in_bytes)
     {
-        // Reserve space for header (4 bytes) + data
-        stream.reserve(4 + rows * cols * element_size_in_bytes);
         // Header: [kind:8][type:8][rows:8][cols:8]
         uint header = (uint(RecordKind::matrix) << 24) | (uint(type) << 16) | (rows << 8) | cols;
         stream.write(header);
@@ -354,6 +302,7 @@ struct PrintStream {
     /// Write raw data to the stream.
     /// Used after writing a record header to write the payload.
     /// Caller must have reserved space via begin_* functions.
+    [ForceInline]
     [mutating]
     void write(uint data)
     {
@@ -365,7 +314,6 @@ struct PrintStream {
     [mutating]
     void begin_composite()
     {
-        stream.reserve(4);
         // Header: [kind:8][unused:24]
         uint header = uint(RecordKind::begin_composite) << 24;
         stream.write(header);
@@ -376,7 +324,6 @@ struct PrintStream {
     [mutating]
     void end_composite()
     {
-        stream.reserve(4);
         // Header: [kind:8][unused:24]
         uint header = uint(RecordKind::end_composite) << 24;
         stream.write(header);
@@ -475,30 +422,35 @@ interface IPrintableScalar {
 extension bool : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::bool_;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(this ? 1u : 0u); }
 };
 
 extension int8_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::int8;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(asuint(int(this))); }
 };
 
 extension int16_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::int16;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(asuint(int(this))); }
 };
 
 extension int32_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::int32;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(asuint(this)); }
 };
 
 extension int64_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::int64;
     static const uint PRINTABLE_SCALAR_SIZE = 8;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) {
         stream.write(uint(this & 0xFFFFFFFF));
         stream.write(uint(this >> 32));
@@ -508,24 +460,28 @@ extension int64_t : IPrintableScalar {
 extension uint8_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::uint8;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(uint(this)); }
 };
 
 extension uint16_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::uint16;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(uint(this)); }
 };
 
 extension uint32_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::uint32;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(this); }
 };
 
 extension uint64_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::uint64;
     static const uint PRINTABLE_SCALAR_SIZE = 8;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) {
         stream.write(uint(this & 0xFFFFFFFFu));
         stream.write(uint(this >> 32));
@@ -535,18 +491,21 @@ extension uint64_t : IPrintableScalar {
 extension float16_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::float16;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(uint(asuint16(this))); }
 };
 
 extension float : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::float32;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(asuint(this)); }
 };
 
 extension double : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::float64;
     static const uint PRINTABLE_SCALAR_SIZE = 8;
+    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) {
         uint lo, hi;
         asuint(this, lo, hi);
@@ -608,6 +567,25 @@ extension string : IPrintable {
     void print(inout PrintOutput output) {
         output.stream.begin_scalar(detail::ScalarType::string, 4);
         output.stream.write(getStringHash(this));
+    }
+};
+
+// Slang's native String has very limited support, notably,
+// cannot be realibly passed out of functions. The work-around is to use
+// result of `getStringHash` instead of the actual String literal and pass that instead.
+// PrintableString wraps the hash so it is strongly typed and can be extended.
+struct PrintableString {
+    uint hash;
+
+    __init() { hash = getStringHash(""); }
+    __implicit_conversion(1) __init(String str) { hash = getStringHash(str); }
+}
+
+extension PrintableString : IPrintable {
+    override static bool needs_composite_wrap() { return false; }
+    void print(inout PrintOutput output) {
+        output.stream.begin_scalar(detail::ScalarType::string, 4);
+        output.stream.write(hash);
     }
 };
 

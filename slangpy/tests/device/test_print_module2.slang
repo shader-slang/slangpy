@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 module test_print_module2;
-import sgl.device.print;
+import sgl.device.print2;
 
 public void print_from_another_module(int arg)
 {
