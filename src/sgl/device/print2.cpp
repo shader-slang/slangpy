@@ -22,11 +22,16 @@ namespace sgl {
 
 namespace {
 
-    /// Constants for the stream buffer format.
+    /// Constants for the chunked stream buffer format.
     constexpr uint32_t BUFFER_HEADER_SIZE = 8;        // capacity + write_pos
-    constexpr uint32_t STREAM_SENTINEL = 0xFFFFFFFF;  // Sentinel value marking stream start
-    constexpr uint32_t ENTRY_SIZE = 8;                // Each entry is 8 bytes (link + payload)
-    constexpr uint32_t STREAM_HEADER_SIZE = 16;       // Sentinel pair + dummy entry
+    constexpr uint32_t CHUNK_SIZE = 256;              // Each chunk is 256 bytes
+    constexpr uint32_t CHUNK_HEADER = 16;             // Chunk header size
+    constexpr uint32_t CHUNK_PAYLOAD = 240;           // Payload size per chunk (60 uints)
+    constexpr uint32_t OVERFLOW_CHUNK = 8;            // Reserved overflow chunk offset
+    constexpr uint32_t FIRST_DATA_CHUNK = 264;        // First actual data chunk (after header + overflow)
+    constexpr uint32_t MAGIC_FIRST = 0xFFFFFFFF;      // First chunk of stream marker
+    constexpr uint32_t MAGIC_CONTINUE = 0x00000000;   // Continuation chunk marker
+    constexpr uint32_t MAGIC_OVERFLOW = 0xFFFFFFFE;   // Overflow chunk marker
 
     /// Record kind values (must match print2.slang).
     enum class RecordKind : uint8_t {
@@ -68,29 +73,49 @@ namespace {
         }
     }
 
-    /// Decode a single stream starting at the given offset.
-    /// Returns the collected payload values.
-    std::vector<uint32_t> decode_stream(const uint32_t* data, uint32_t dummy_entry_offset, uint32_t buffer_size)
+    /// Decode a stream chain starting from a first chunk.
+    /// Returns the collected payload values from all chunks in the chain.
+    /// Returns empty vector if the stream has overflowed (contains MAGIC_OVERFLOW).
+    std::vector<uint32_t> decode_stream_chain(const uint32_t* data, uint32_t first_chunk, uint32_t buffer_size, bool& overflowed)
     {
         std::vector<uint32_t> payload;
+        overflowed = false;
 
-        // Read the link from the dummy entry's header
-        uint32_t link = data[dummy_entry_offset / 4];
-
-        // Follow the chain
-        while (link != 0) {
+        uint32_t chunk = first_chunk;
+        while (chunk != 0) {
             // Bounds check
-            if (link + ENTRY_SIZE > buffer_size) {
-                log_warn("Stream link out of bounds: {} > {}", link, buffer_size);
+            if (chunk + CHUNK_SIZE > buffer_size) {
+                log_warn("Stream chunk out of bounds: {} + {} > {}", chunk, CHUNK_SIZE, buffer_size);
                 break;
             }
 
-            // Read entry: [link:32][payload:32]
-            uint32_t next_link = data[link / 4];
-            uint32_t value = data[link / 4 + 1];
+            // Read chunk header: [magic:32][next:32][used:32][reserved:32]
+            uint32_t magic = data[chunk / 4 + 0];
+            uint32_t next = data[chunk / 4 + 1];
+            uint32_t used = data[chunk / 4 + 2];
 
-            payload.push_back(value);
-            link = next_link;
+            // Check for overflow
+            if (magic == MAGIC_OVERFLOW) {
+                overflowed = true;
+                return {}; // Discard this stream
+            }
+
+            // Validate magic (first chunk should be MAGIC_FIRST, others MAGIC_CONTINUE)
+            if (chunk == first_chunk && magic != MAGIC_FIRST) {
+                log_warn("Expected first chunk magic at offset {}", chunk);
+                break;
+            }
+
+            // Clamp used to payload size
+            used = std::min(used, CHUNK_PAYLOAD);
+
+            // Read payload (used bytes, in 4-byte increments)
+            uint32_t payload_offset = chunk + CHUNK_HEADER;
+            for (uint32_t i = 0; i < used; i += 4) {
+                payload.push_back(data[(payload_offset + i) / 4]);
+            }
+
+            chunk = next;
         }
 
         return payload;
@@ -98,9 +123,10 @@ namespace {
 
     /// Decode all streams from the buffer.
     /// Returns a vector of streams, where each stream is a vector of uint32_t payloads.
-    std::vector<std::vector<uint32_t>> decode_all_streams(const void* buffer_data, size_t buffer_size)
+    std::vector<std::vector<uint32_t>> decode_all_streams(const void* buffer_data, size_t buffer_size, bool& had_overflow)
     {
         std::vector<std::vector<uint32_t>> streams;
+        had_overflow = false;
 
         const uint32_t* data = reinterpret_cast<const uint32_t*>(buffer_data);
 
@@ -112,27 +138,22 @@ namespace {
         write_pos = std::min(write_pos, static_cast<uint32_t>(buffer_size));
 
         if (write_pos > capacity) {
-            log_warn("Print buffer overflow detected: write_pos={} > capacity={}", write_pos, capacity);
+            had_overflow = true;
         }
 
-        // Scan for sentinel pairs
-        for (uint32_t offset = BUFFER_HEADER_SIZE; offset + STREAM_HEADER_SIZE <= write_pos; offset += ENTRY_SIZE) {
-            uint32_t word0 = data[offset / 4];
-            uint32_t word1 = data[offset / 4 + 1];
+        // Scan for first chunks at 256-byte intervals starting from offset 264 (skip overflow chunk)
+        for (uint32_t offset = FIRST_DATA_CHUNK; offset + CHUNK_SIZE <= write_pos; offset += CHUNK_SIZE) {
+            uint32_t magic = data[offset / 4];
 
-            // Check for sentinel pair
-            if (word0 == STREAM_SENTINEL && word1 == STREAM_SENTINEL) {
-                // Found a stream start
-                // The dummy entry is at offset + 8
-                uint32_t dummy_entry_offset = offset + 8;
-
-                auto stream = decode_stream(data, dummy_entry_offset, write_pos);
-                if (!stream.empty()) {
+            // Check for first chunk marker
+            if (magic == MAGIC_FIRST) {
+                bool stream_overflowed = false;
+                auto stream = decode_stream_chain(data, offset, write_pos, stream_overflowed);
+                if (stream_overflowed) {
+                    had_overflow = true;
+                } else if (!stream.empty()) {
                     streams.push_back(std::move(stream));
                 }
-
-                // Skip the rest of the stream header (we've consumed 16 bytes total)
-                offset += ENTRY_SIZE;
             }
         }
 
@@ -586,10 +607,10 @@ DebugPrinter::DebugPrinter(Device* device, size_t buffer_size)
     });
 
     // Write buffer header.
-    // Buffer layout: [capacity:4][write_pos:4][entries...]
-    // write_pos starts at 8 (right after the header)
+    // Buffer layout: [capacity:4][write_pos:4][overflow_chunk:256][data_chunks...]
+    // write_pos starts at 264 (after header + reserved overflow chunk)
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
-    uint32_t header[2] = {uint32_t(buffer_size), 8};
+    uint32_t header[2] = {uint32_t(buffer_size), FIRST_DATA_CHUNK};
     command_encoder->upload_buffer_data(m_buffer, 0, sizeof(header), header);
     m_device->submit_command_buffer(command_encoder->finish());
 }
@@ -604,22 +625,14 @@ void DebugPrinter::flush()
     flush_device(true);
 
     const void* data = m_readback_buffer->map();
-    auto streams = decode_all_streams(data, m_readback_buffer->size());
+    bool had_overflow = false;
+    auto streams = decode_all_streams(data, m_readback_buffer->size(), had_overflow);
     m_readback_buffer->unmap();
 
-#if 0
-    // For now, just log the raw stream data
-    for (size_t i = 0; i < streams.size(); ++i) {
-        const auto& stream = streams[i];
-        std::string hex;
-        for (uint32_t value : stream) {
-            if (!hex.empty())
-                hex += " ";
-            hex += fmt::format("{:08x}", value);
-        }
-        log_info("Stream {}: [{}]", i, hex);
+    if (had_overflow) {
+        log_warn("Print buffer overflow: some messages were lost");
     }
-#else
+
     // Decode and log each stream's messages
     for (const auto& stream : streams) {
         auto messages = decode_stream_records(stream, m_hashed_strings);
@@ -627,7 +640,6 @@ void DebugPrinter::flush()
             log_info("{}", msg);
         }
     }
-#endif
 }
 
 std::string DebugPrinter::flush_to_string()
@@ -635,15 +647,19 @@ std::string DebugPrinter::flush_to_string()
     flush_device(true);
 
     const void* data = m_readback_buffer->map();
-    auto streams = decode_all_streams(data, m_readback_buffer->size());
+    bool had_overflow = false;
+    auto streams = decode_all_streams(data, m_readback_buffer->size(), had_overflow);
     m_readback_buffer->unmap();
 
     // Decode all streams and concatenate messages
     std::string result;
+    if (had_overflow) {
+        result = "[WARNING: Print buffer overflow, some messages lost]\n";
+    }
     for (const auto& stream : streams) {
         auto messages = decode_stream_records(stream, m_hashed_strings);
         for (const auto& msg : messages) {
-            if (!result.empty())
+            if (!result.empty() && result.back() != '\n')
                 result += "\n";
             result += msg;
         }
@@ -663,8 +679,8 @@ void DebugPrinter::flush_device(bool wait)
 {
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
     command_encoder->copy_buffer(m_readback_buffer, 0, m_buffer, 0, m_buffer->size());
-    // Reset write position to 8 (right after header)
-    uint32_t reset_write_pos = 8;
+    // Reset write position to 264 (after header + overflow chunk)
+    uint32_t reset_write_pos = FIRST_DATA_CHUNK;
     command_encoder->upload_buffer_data(m_buffer, 4, sizeof(reset_write_pos), &reset_write_pos);
     m_device->submit_command_buffer(command_encoder->finish());
     if (wait)
