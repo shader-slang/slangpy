@@ -804,16 +804,6 @@ nb::object NativeCallData::exec(
     return nb::none();
 }
 
-nb::object PyNativeCallData::_py_torch_autograd_call(
-    NativeFunctionNode* func,
-    ref<NativeCallRuntimeOptions> opts,
-    nb::tuple args,
-    nb::dict kwargs
-)
-{
-    NB_OVERRIDE(_py_torch_autograd_call, func, opts, args, kwargs);
-}
-
 NativeCallDataCache::NativeCallDataCache()
 {
     m_cache.reserve(1024);
@@ -1500,15 +1490,6 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg("args"),
             nb::arg("kwargs"),
             D_NA(NativeCallData, append_to)
-        )
-        .def(
-            "_py_torch_autograd_call",
-            &NativeCallData::_py_torch_autograd_call,
-            nb::arg("function"),
-            nb::arg("opts"),
-            nb::arg("args"),
-            nb::arg("kwargs"),
-            D_NA(NativeCallData, _py_torch_autograd_call)
         )
         .def_prop_rw(
             "call_group_shape",

@@ -794,21 +794,6 @@ public:
     SGL_LOG_FUNC_FAMILY(log_error, LogLevel::error)
     SGL_LOG_FUNC_FAMILY(log_fatal, LogLevel::fatal)
 
-    // Virtual for python to override for wrapping torch calls
-    virtual nb::object _py_torch_autograd_call(
-        NativeFunctionNode* func,
-        ref<NativeCallRuntimeOptions> opts,
-        nb::tuple args,
-        nb::dict kwargs
-    )
-    {
-        SGL_UNUSED(func);
-        SGL_UNUSED(opts);
-        SGL_UNUSED(args);
-        SGL_UNUSED(kwargs);
-        SGL_THROW("Not implemented");
-    }
-
 private:
     /// Cached shader offsets for call data fields
     struct CallDataOffsets {
@@ -847,14 +832,7 @@ private:
 
 class PyNativeCallData : public NativeCallData {
 public:
-    NB_TRAMPOLINE(NativeCallData, 1);
-
-    nb::object _py_torch_autograd_call(
-        NativeFunctionNode* func,
-        ref<NativeCallRuntimeOptions> opts,
-        nb::tuple args,
-        nb::dict kwargs
-    ) override;
+    NB_TRAMPOLINE(NativeCallData, 0);
 };
 
 typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> BuildSignatureFunc;

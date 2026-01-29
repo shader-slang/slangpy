@@ -110,16 +110,6 @@ class TensorMarshall(NativeTensorMarshall):
             d_out=d_out,
         )
 
-    def clone(self) -> "TensorMarshall":
-        return TensorMarshall(
-            layout=self.layout,
-            element_type=self.slang_element_type,
-            dims=self.dims,
-            writable=self.writable,
-            d_in=self.d_in.clone() if self.d_in else None,
-            d_out=self.d_out.clone() if self.d_out else None,
-        )
-
     def __repr__(self) -> str:
         return f"Tensor[dtype={self.slang_element_type.full_name}, dims={self.dims}, writable={self.writable}]"
 

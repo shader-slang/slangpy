@@ -7,7 +7,6 @@
 #include "sgl/device/device.h"
 #include "sgl/device/formats.h"
 #include "sgl/device/command.h"
-#include "sgl/device/cuda_utils.h"
 
 #include "sgl/core/bitmap.h"
 
@@ -468,11 +467,6 @@ SGL_PY_EXPORT(device_resource)
         .def_rw("default_state", &TextureDesc::default_state, D(TextureDesc, default_state))
         .def_rw("label", &TextureDesc::label, D(TextureDesc, label));
     nb::implicitly_convertible<nb::dict, TextureDesc>();
-
-    nb::class_<cuda::ExternalMemory>(m, "ExternalMemory", D_NA(cuda::ExternalMemory))
-        .def(nb::init<ref<Buffer>>())
-        .def_prop_ro("size", &cuda::ExternalMemory::size, D_NA(cuda::ExternalMemory, size))
-        .def_prop_ro("offset", &cuda::ExternalMemory::mapped_data, D_NA(cuda::ExternalMemory, mapped_data));
 
     nb::class_<TextureViewDesc>(m, "TextureViewDesc", D(TextureViewDesc))
         .def(nb::init<>())
