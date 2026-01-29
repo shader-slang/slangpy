@@ -13,9 +13,7 @@ from slangpy.core.native import NativeTorchTensorDiffPair
 _torch_module: Any = None
 
 
-def detect_torch_tensors(
-    args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> tuple[bool, bool, list[Any]]:
+def detect_torch_tensors(args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple[bool, bool]:
     """
     Scan args/kwargs for torch.Tensor objects.
 
@@ -31,7 +29,6 @@ def detect_torch_tensors(
         A tuple of:
         - has_torch_tensors: True if any torch tensors were found
         - requires_autograd: True if any tensor has requires_grad=True
-        - tensors: List of all detected torch.Tensor objects
     """
 
     # Check for torch just once and cache the module
@@ -44,26 +41,24 @@ def detect_torch_tensors(
         except ImportError:
             _torch_module = False
     if _torch_module is False:
-        return False, False, []
+        return False, False
 
     # Local reference to torch module for use in nested function
     torch = _torch_module
 
-    tensors: list[Any] = []
+    has_torch = False
     requires_autograd = False
 
     def scan(obj: Any) -> None:
-        nonlocal requires_autograd
+        nonlocal has_torch, requires_autograd
 
         if isinstance(obj, torch.Tensor):
-            tensors.append(obj)
+            has_torch = True
             if obj.requires_grad:
                 requires_autograd = True
         elif isinstance(obj, NativeTorchTensorDiffPair):
-            if obj.primal is not None:
-                tensors.append(obj.primal)
-            if obj.grad is not None:
-                tensors.append(obj.grad)
+            if obj.primal is not None or obj.grad is not None:
+                has_torch = True
         elif isinstance(obj, dict):
             for v in obj.values():
                 scan(v)
@@ -77,4 +72,4 @@ def detect_torch_tensors(
     for v in kwargs.values():
         scan(v)
 
-    return len(tensors) > 0, requires_autograd, tensors
+    return has_torch, requires_autograd

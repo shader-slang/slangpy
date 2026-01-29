@@ -151,9 +151,7 @@ class CallData(NativeCallData):
             # Detect torch tensors in arguments
             from slangpy.torchintegration.detection import detect_torch_tensors
 
-            has_torch, autograd, detected_tensors = detect_torch_tensors(
-                tuple(unpacked_args), dict(unpacked_kwargs)
-            )
+            has_torch, autograd = detect_torch_tensors(tuple(unpacked_args), dict(unpacked_kwargs))
 
             # If we have torch tensors, enable torch integration
             if has_torch:
@@ -162,7 +160,6 @@ class CallData(NativeCallData):
 
                 self.torch_integration = True
                 self.torch_autograd = autograd
-                self._detected_tensors = detected_tensors
                 if return_type is None:
                     return_type = torch.Tensor
 
@@ -466,8 +463,6 @@ class CallData(NativeCallData):
         :param kwargs: Mutable dict of keyword arguments (will be modified in place).
         :return: List of NativeTorchTensorDiffPair for all found tensors.
         """
-        from slangpy.core.native import NativeTorchTensorDiffPair
-
         pairs: list[Any] = []
         for i, arg in enumerate(args):
             args[i] = self._find_torch_tensors_recurse(arg, self.runtime.args[i], pairs)
