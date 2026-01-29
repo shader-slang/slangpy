@@ -16,11 +16,18 @@ def test_print(device_type: spy.DeviceType):
             "Skipped due to issue in Slang: https://github.com/shader-slang/slangpy/issues/497"
         )
 
-    device = spy.Device(type=device_type, enable_print=True, label=f"print-{device_type.name}")
+    device = spy.Device(
+        type=device_type,
+        enable_print=True,
+        enable_compilation_reports=True,
+        compiler_options={"dump_intermediates": True},
+        label=f"print-{device_type.name}",
+    )
     helpers.dispatch_compute(
         device=device,
         path=Path(__file__).parent / "test_print.slang",
         entry_point="compute_main",
+        compiler_options={"dump_intermediates": True},
         thread_count=[1, 1, 1],
     )
     result = device.flush_print_to_string()

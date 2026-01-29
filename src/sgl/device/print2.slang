@@ -1,17 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-/// Global debug printer buffer.
-/// This is bound by the host before shader execution.
-struct DebugPrinter {
-    RWByteAddressBuffer buffer;
-};
-
 #ifndef SGL_ENABLE_PRINT
 #define SGL_ENABLE_PRINT 1
 #endif
-
-#if SGL_ENABLE_PRINT
-DebugPrinter g_debug_printer;
 
 /// ============================================================================
 /// Fixed-Size Message Buffer Format (v3)
@@ -99,6 +90,8 @@ struct OutputStream {
     /// Marker for per-message overflow (message too large for slot).
     static const uint OVERFLOW_MARKER = 0xFFFFFFFFu;
 
+    RWByteAddressBuffer buffer;
+
     /// Offset of this message's slot in the buffer.
     uint slot_offset;
     /// Current write position within slot (unbounded, can exceed SLOT_SIZE).
@@ -106,16 +99,18 @@ struct OutputStream {
 
     /// Initialize a new output stream.
     /// Allocates a fixed-size slot for this message.
-    __init()
+    __init(RWByteAddressBuffer buffer)
     {
+        this.buffer = buffer;
+
         // Allocate a slot
-        g_debug_printer.buffer.InterlockedAdd(4, SLOT_SIZE, slot_offset);
+        buffer.InterlockedAdd(4, SLOT_SIZE, slot_offset);
 
         // Check for buffer overflow
-        uint capacity = g_debug_printer.buffer.Load(0);
+        uint capacity = buffer.Load(0);
         if (slot_offset + SLOT_SIZE > capacity) {
             // Flag overflow and redirect to overflow sink
-            g_debug_printer.buffer.Store(OVERFLOW_SLOT, OVERFLOW_MARKER);
+            buffer.Store(OVERFLOW_SLOT, OVERFLOW_MARKER);
             slot_offset = OVERFLOW_SLOT;
         }
 
@@ -127,11 +122,10 @@ struct OutputStream {
     /// Completely branch-free: uses masking to wrap around within the slot.
     /// If write_offset exceeds SLOT_SIZE, data wraps and overwrites earlier data,
     /// but finish() will detect this and mark the message as overflowed.
-    [ForceInline]
     [mutating]
     void write(uint data)
     {
-        g_debug_printer.buffer.Store(slot_offset + (write_offset & SLOT_MASK), data);
+        buffer.Store(slot_offset + (write_offset & SLOT_MASK), data);
         write_offset += 4;
     }
 
@@ -142,10 +136,10 @@ struct OutputStream {
     {
         if (write_offset > SLOT_SIZE) {
             // Message overflowed the slot
-            g_debug_printer.buffer.Store(slot_offset, OVERFLOW_MARKER);
+            buffer.Store(slot_offset, OVERFLOW_MARKER);
         } else {
             // Store actual payload size (excluding header)
-            g_debug_printer.buffer.Store(slot_offset, write_offset - HEADER_SIZE);
+            buffer.Store(slot_offset, write_offset - HEADER_SIZE);
         }
     }
 };
@@ -233,9 +227,9 @@ struct PrintStream {
     OutputStream stream;
 
     /// Initialize a new print stream.
-    __init()
+    __init(RWByteAddressBuffer buffer)
     {
-        stream = OutputStream();
+        stream = OutputStream(buffer);
     }
 
     /// Finalize the stream.
@@ -252,7 +246,7 @@ struct PrintStream {
     /// \param fmt The format string.
     /// \param arg_count Number of arguments that follow.
     [mutating]
-    void begin_format(String fmt, uint arg_count)
+    void begin_format(string fmt, uint arg_count)
     {
         // Header: [kind:8][arg_count:24]
         uint header = (uint(RecordKind::format) << 24) | (arg_count & 0x00FFFFFFu);
@@ -302,7 +296,6 @@ struct PrintStream {
     /// Write raw data to the stream.
     /// Used after writing a record header to write the payload.
     /// Caller must have reserved space via begin_* functions.
-    [ForceInline]
     [mutating]
     void write(uint data)
     {
@@ -339,9 +332,9 @@ struct PrintOutput {
     detail::PrintStream stream;
 
     /// Initialize a new print output.
-    __init()
+    __init(RWByteAddressBuffer buffer)
     {
-        stream = detail::PrintStream();
+        stream = detail::PrintStream(buffer);
     }
 
     /// Finalize the stream.
@@ -354,14 +347,14 @@ struct PrintOutput {
 
     /// Print a format string with no arguments.
     [mutating]
-    void format(String fmt)
+    void format(string fmt)
     {
         stream.begin_format(fmt, 0);
     }
 
     /// Print a format string with arguments.
     [mutating]
-    void format<each T : IPrintable>(String fmt, expand each T args)
+    void format<each T : IPrintable>(string fmt, expand each T args)
     {
         stream.begin_format(fmt, countof(T));
         expand print_arg(each args);
@@ -422,35 +415,30 @@ interface IPrintableScalar {
 extension bool : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::bool_;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(this ? 1u : 0u); }
 };
 
 extension int8_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::int8;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(asuint(int(this))); }
 };
 
 extension int16_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::int16;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(asuint(int(this))); }
 };
 
 extension int32_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::int32;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(asuint(this)); }
 };
 
 extension int64_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::int64;
     static const uint PRINTABLE_SCALAR_SIZE = 8;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) {
         stream.write(uint(this & 0xFFFFFFFF));
         stream.write(uint(this >> 32));
@@ -460,28 +448,24 @@ extension int64_t : IPrintableScalar {
 extension uint8_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::uint8;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(uint(this)); }
 };
 
 extension uint16_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::uint16;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(uint(this)); }
 };
 
 extension uint32_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::uint32;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(this); }
 };
 
 extension uint64_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::uint64;
     static const uint PRINTABLE_SCALAR_SIZE = 8;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) {
         stream.write(uint(this & 0xFFFFFFFFu));
         stream.write(uint(this >> 32));
@@ -491,21 +475,18 @@ extension uint64_t : IPrintableScalar {
 extension float16_t : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::float16;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(uint(asuint16(this))); }
 };
 
 extension float : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::float32;
     static const uint PRINTABLE_SCALAR_SIZE = 4;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) { stream.write(asuint(this)); }
 };
 
 extension double : IPrintableScalar {
     static const ScalarType PRINTABLE_SCALAR_TYPE = ScalarType::float64;
     static const uint PRINTABLE_SCALAR_SIZE = 8;
-    [ForceInline]
     void write_printable_scalar(inout PrintStream stream) {
         uint lo, hi;
         asuint(this, lo, hi);
@@ -570,15 +551,15 @@ extension string : IPrintable {
     }
 };
 
-// Slang's native String has very limited support, notably,
+// Slang's native string has very limited support, notably,
 // cannot be realibly passed out of functions. The work-around is to use
-// result of `getStringHash` instead of the actual String literal and pass that instead.
+// result of `getStringHash` instead of the actual string literal and pass that instead.
 // PrintableString wraps the hash so it is strongly typed and can be extended.
 struct PrintableString {
     uint hash;
 
     __init() { hash = getStringHash(""); }
-    __implicit_conversion(1) __init(String str) { hash = getStringHash(str); }
+    __implicit_conversion(1) __init(string str) { hash = getStringHash(str); }
 }
 
 extension PrintableString : IPrintable {
@@ -589,22 +570,35 @@ extension PrintableString : IPrintable {
     }
 };
 
+#if SGL_ENABLE_PRINT
+
+/// Global debug printer buffer.
+/// This is bound by the host before shader execution.
+struct DebugPrinter {
+    RWByteAddressBuffer buffer;
+};
+
+DebugPrinter g_debug_printer;
+
 /// Top-level print function.
-/// Creates a PrintOutput and formats the message.
-void print(String fmt)
+void print(string fmt)
 {
-    PrintOutput output = PrintOutput();
+    PrintOutput output = PrintOutput(g_debug_printer.buffer);
     output.format(fmt);
     output.finish();
 }
 
 /// Top-level print function with arguments.
-/// Creates a PrintOutput and formats the message with arguments.
-void print<each T : IPrintable>(String fmt, expand each T args)
+void print<each T : IPrintable>(string fmt, expand each T args)
 {
-    PrintOutput output = PrintOutput();
+    PrintOutput output = PrintOutput(g_debug_printer.buffer);
     output.format(fmt, expand each args);
     output.finish();
 }
+
+#else
+
+void print(string fmt) { }
+void print<each T : IPrintable>(string fmt, expand each T args) { }
 
 #endif // SGL_ENABLE_PRINT
