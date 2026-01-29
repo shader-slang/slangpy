@@ -1419,15 +1419,8 @@ SGL_PY_EXPORT(utils_slangpy)
 #define DEF_LOG_METHOD(name) def(#name, [](NativeCallData& self, const std::string_view msg) { self.name(msg); }, "msg"_a)
     // clang-format on
 
-    nb::class_<NativeCallData, PyNativeCallData, Object>(slangpy, "NativeCallData") //
-        .def(
-            "__init__",
-            [](NativeCallData& self)
-            {
-                new (&self) PyNativeCallData();
-            },
-            D_NA(NativeCallData, NativeCallData)
-        )
+    nb::class_<NativeCallData, Object>(slangpy, "NativeCallData") //
+        .def(nb::init<>(), D_NA(NativeCallData, NativeCallData))
         .def_prop_rw("device", &NativeCallData::device, &NativeCallData::set_device, D_NA(NativeCallData, device))
         .def_prop_rw(
             "pipeline",

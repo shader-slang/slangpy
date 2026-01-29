@@ -14,6 +14,7 @@ from slangpy.core.native import (
     unpack_args,
     unpack_kwargs,
     NativeCallRuntimeOptions,
+    NativeTorchTensorDiffPair,
 )
 
 from slangpy import SlangCompileError, SlangLinkOptions, NativeHandle, DeviceType
@@ -148,12 +149,10 @@ class CallData(NativeCallData):
             unpacked_args = unpack_args(*args)
             unpacked_kwargs = unpack_kwargs(**kwargs)
 
-            # Detect torch tensors in arguments
+            # If we have torch tensors, enable torch integration
             from slangpy.torchintegration.detection import detect_torch_tensors
 
             has_torch, autograd = detect_torch_tensors(tuple(unpacked_args), dict(unpacked_kwargs))
-
-            # If we have torch tensors, enable torch integration
             if has_torch:
                 import torch
                 import slangpy.torchintegration.torchtensormarshall  # type: ignore (Registers torch.Tensor handler)
@@ -454,7 +453,9 @@ class CallData(NativeCallData):
             else:
                 raise
 
-    def find_torch_tensors(self, args: list[Any], kwargs: dict[str, Any]) -> list[Any]:
+    def find_torch_tensors(
+        self, args: list[Any], kwargs: dict[str, Any]
+    ) -> list[NativeTorchTensorDiffPair]:
         """
         Find all torch tensors in args/kwargs, wrap them in NativeTorchTensorDiffPair,
         and replace the tensors in args/kwargs with the pairs.
@@ -470,18 +471,10 @@ class CallData(NativeCallData):
             kwargs[k] = self._find_torch_tensors_recurse(v, self.runtime.kwargs[k], pairs)
         return pairs
 
-    def _find_torch_tensors_recurse(self, arg: Any, binding: Any, pairs: list[Any]) -> Any:
-        """
-        Recursively find torch tensors, wrap them in NativeTorchTensorDiffPair,
-        and return the modified argument structure.
-
-        :param arg: The argument value to process.
-        :param binding: The binding information for this argument.
-        :param pairs: List to append found pairs to.
-        :return: The argument with tensors replaced by NativeTorchTensorDiffPair.
-        """
+    def _find_torch_tensors_recurse(
+        self, arg: Any, binding: Any, pairs: list[NativeTorchTensorDiffPair]
+    ) -> Any:
         import torch
-        from slangpy.core.native import NativeTorchTensorDiffPair
 
         if isinstance(arg, dict):
             return {

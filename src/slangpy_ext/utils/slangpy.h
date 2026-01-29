@@ -830,11 +830,6 @@ private:
 };
 #undef SGL_LOG_FUNC_FAMILY
 
-class PyNativeCallData : public NativeCallData {
-public:
-    NB_TRAMPOLINE(NativeCallData, 0);
-};
-
 typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> BuildSignatureFunc;
 
 /// Native side of system for caching call data info for given function signatures.
