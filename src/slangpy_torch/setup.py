@@ -89,8 +89,14 @@ For more information, see: https://github.com/shader-slang/slangpy
         sys.exit(1)
 
 
-# Run the check before any torch imports
-torch = _check_torch_available()
+def _is_sdist_only():
+    """Check if we're only building an sdist (no compilation needed)."""
+    # Check command line for sdist-only operations
+    # 'egg_info' is called during sdist creation
+    # 'sdist' is the explicit sdist command
+    sdist_commands = {"sdist", "egg_info", "--version"}
+    return any(cmd in sys.argv for cmd in sdist_commands)
+
 
 # =============================================================================
 # Build configuration
@@ -101,44 +107,50 @@ torch = _check_torch_available()
 if sys.platform == "win32":
     os.environ.setdefault("DISTUTILS_USE_SDK", "1")
 
-from setuptools import setup
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+# Only import torch and set up extensions if we're actually building
+if _is_sdist_only():
+    # For sdist, we don't need torch - just package the source
+    from setuptools import setup
 
-# Detect if this is a development/source install
-# Check for .git in repo root or SLANGPY_TORCH_DEBUG environment variable
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_repo_root = os.path.dirname(os.path.dirname(_script_dir))  # src/slangpy_torch -> src -> repo
-_is_dev_install = os.path.exists(os.path.join(_repo_root, ".git")) or os.environ.get(
-    "SLANGPY_TORCH_DEBUG", ""
-).lower() in ("1", "true", "yes")
-
-# Configure compile args based on install type and platform
-if sys.platform == "win32":
-    if _is_dev_install:
-        # Debug info for development
-        cxx_args = ["/O2", "/Zi"]
-        link_args = ["/DEBUG"]
-    else:
-        # Release build for PyPI
-        cxx_args = ["/O2"]
-        link_args = []
-    nvcc_args = ["-O3"]
+    ext_modules = []
+    cmdclass = {}
 else:
-    if _is_dev_install:
-        # Debug info for development (GCC/Clang)
-        cxx_args = ["-O3", "-g"]
-    else:
-        # Release build for PyPI
-        cxx_args = ["-O3"]
-    link_args = []
-    nvcc_args = ["-O3"]
+    # For wheel/install, we need torch
+    torch = _check_torch_available()
 
-setup(
-    name="slangpy-torch",
-    version="0.1.0",
-    description="Fast PyTorch tensor access for slangpy",
-    author="Shader Slang",
-    ext_modules=[
+    from setuptools import setup
+    from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
+    # Detect if this is a development/source install
+    # Check for .git in repo root or SLANGPY_TORCH_DEBUG environment variable
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    _repo_root = os.path.dirname(os.path.dirname(_script_dir))  # src/slangpy_torch -> src -> repo
+    _is_dev_install = os.path.exists(os.path.join(_repo_root, ".git")) or os.environ.get(
+        "SLANGPY_TORCH_DEBUG", ""
+    ).lower() in ("1", "true", "yes")
+
+    # Configure compile args based on install type and platform
+    if sys.platform == "win32":
+        if _is_dev_install:
+            # Debug info for development
+            cxx_args = ["/O2", "/Zi"]
+            link_args = ["/DEBUG"]
+        else:
+            # Release build for PyPI
+            cxx_args = ["/O2"]
+            link_args = []
+        nvcc_args = ["-O3"]
+    else:
+        if _is_dev_install:
+            # Debug info for development (GCC/Clang)
+            cxx_args = ["-O3", "-g"]
+        else:
+            # Release build for PyPI
+            cxx_args = ["-O3"]
+        link_args = []
+        nvcc_args = ["-O3"]
+
+    ext_modules = [
         CUDAExtension(
             name="slangpy_torch",
             sources=["torch_bridge_impl.cpp"],
@@ -149,8 +161,15 @@ setup(
             },
             extra_link_args=link_args,
         )
-    ],
-    cmdclass={"build_ext": BuildExtension},
+    ]
+    cmdclass = {"build_ext": BuildExtension}
+
+setup(
+    name="slangpy-torch",
+    version="0.1.0",
+    description="Fast PyTorch tensor access for slangpy",
+    author="Shader Slang",
+    ext_modules=ext_modules,
+    cmdclass=cmdclass,
     python_requires=">=3.9",
-    install_requires=["torch>=2.0.0"],
 )

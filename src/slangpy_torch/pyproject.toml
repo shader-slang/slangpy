@@ -28,6 +28,3 @@ Documentation = "https://slangpy.shader-slang.org/en/latest/"
 Repository = "https://github.com/shader-slang/slangpy"
 Issues = "https://github.com/shader-slang/slangpy/issues"
 Changelog = "https://slangpy.shader-slang.org/en/latest/changelog.html"
-
-[tool.setuptools]
-py-modules = []
