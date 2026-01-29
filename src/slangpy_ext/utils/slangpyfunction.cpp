@@ -203,14 +203,6 @@ SGL_PY_EXPORT(utils_slangpy_function)
             D_NA(NativeFunctionNode, generate_call_data)
         )
         .def(
-            "generate_bwds_call_data",
-            &NativeFunctionNode::generate_bwds_call_data,
-            "forwards_call_data"_a,
-            "args"_a,
-            "kwargs"_a,
-            D_NA(NativeFunctionNode, generate_bwds_call_data)
-        )
-        .def(
             "read_signature",
             &NativeFunctionNode::read_signature,
             "builder"_a,
