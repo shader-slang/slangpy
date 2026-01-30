@@ -134,6 +134,7 @@ public:
         m_py_get_current_cuda_stream.reset();
         m_py_copy_to_buffer.reset();
         m_py_copy_from_buffer.reset();
+        m_py_torch_autograd_hook.reset();
     }
 
     /// Check if a PyObject is a torch.Tensor.
@@ -287,6 +288,26 @@ public:
         return copy_from_buffer(h.ptr(), src_cuda_ptr, src_size);
     }
 
+    /// Call torch autograd hook for differentiable function calls.
+    /// Currently always uses Python implementation; native implementation to be added.
+    /// @param function_node The function node being called.
+    /// @param call_data The call data for the function.
+    /// @param options Runtime options for the call.
+    /// @param args Positional arguments.
+    /// @param kwargs Keyword arguments.
+    /// @return Result of the autograd hook.
+    nb::object call_torch_autograd_hook(
+        nb::handle function_node,
+        nb::handle call_data,
+        nb::handle options,
+        nb::args args,
+        nb::kwargs kwargs
+    ) const
+    {
+        init_python_fallback();
+        return m_py_torch_autograd_hook(function_node, call_data, options, args, kwargs);
+    }
+
 private:
     TorchBridge() = default;
     TorchBridge(const TorchBridge&) = delete;
@@ -309,6 +330,10 @@ private:
         m_py_get_current_cuda_stream = m_fallback_module.attr("get_current_cuda_stream");
         m_py_copy_to_buffer = m_fallback_module.attr("copy_to_buffer");
         m_py_copy_from_buffer = m_fallback_module.attr("copy_from_buffer");
+
+        // Import autograd hook from calldata module
+        nb::module_ calldata_module = nb::module_::import_("slangpy.core.calldata");
+        m_py_torch_autograd_hook = calldata_module.attr("torch_autograd_hook");
 
         m_fallback_initialized = true;
     }
@@ -413,6 +438,7 @@ private:
     mutable nb::object m_py_get_current_cuda_stream;
     mutable nb::object m_py_copy_to_buffer;
     mutable nb::object m_py_copy_from_buffer;
+    mutable nb::object m_py_torch_autograd_hook;
 };
 
 } // namespace sgl
