@@ -5,6 +5,8 @@
 #include "sgl/core/macros.h"
 
 #include <nanobind/nanobind.h>
+#include <stdexcept>
+#include <string>
 
 // Include the tensor bridge API header from slangpy_torch
 // This header is shared between slangpy_torch and slangpy_ext
@@ -13,6 +15,33 @@
 namespace nb = nanobind;
 
 namespace sgl {
+
+/// Convert a TensorBridgeResult error code to a human-readable string.
+/// @param result The error code to convert.
+/// @return A string describing the error.
+inline const char* tensor_bridge_result_to_string(int result)
+{
+    switch (result) {
+    case TENSOR_BRIDGE_SUCCESS:
+        return "success";
+    case TENSOR_BRIDGE_ERROR_NULL_OBJECT:
+        return "null PyObject pointer";
+    case TENSOR_BRIDGE_ERROR_NULL_OUTPUT:
+        return "null output pointer";
+    case TENSOR_BRIDGE_ERROR_NOT_TENSOR:
+        return "object is not a PyTorch tensor";
+    case TENSOR_BRIDGE_ERROR_NOT_CUDA:
+        return "tensor is not on CUDA device";
+    case TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL:
+        return "buffer too small";
+    case TENSOR_BRIDGE_ERROR_EXCEPTION:
+        return "C++ exception occurred";
+    case TENSOR_BRIDGE_ERROR_UNKNOWN:
+        return "unknown error";
+    default:
+        return "unrecognized error code";
+    }
+}
 
 /// Singleton providing fast access to PyTorch tensor metadata.
 ///
@@ -23,8 +52,11 @@ namespace sgl {
 ///   // In hot path (~28ns with native, slower with Python fallback):
 ///   if (TorchBridge::instance().is_available()) {
 ///       TensorBridgeInfo info;
-///       if (TorchBridge::instance().extract(handle, info)) {
+///       try {
+///           TorchBridge::instance().extract(handle, info, shape_buf, stride_buf, capacity);
 ///           // Use info.data_ptr, info.shape, etc.
+///       } catch (const std::exception& e) {
+///           // Handle error
 ///       }
 ///   }
 ///
@@ -33,6 +65,10 @@ namespace sgl {
 /// 2. Python fallback mode: Uses Python/PyTorch APIs when slangpy_torch is unavailable
 ///
 /// For testing, you can force Python fallback mode via set_force_python_fallback(true).
+///
+/// Error handling:
+/// - extract(), copy_to_buffer(), copy_from_buffer(): throw std::runtime_error on failure
+/// - get_signature(): returns error code (no throw) for performance in hot paths
 class TorchBridge {
 public:
     /// Get singleton instance.
@@ -160,6 +196,7 @@ public:
     /// @param strides_buffer Caller-provided buffer for strides data.
     /// @param buffer_capacity Number of elements the buffers can hold.
     /// @return True on success. If ndim > buffer_capacity, shape/strides will be nullptr.
+    /// @throws std::runtime_error on failure with detailed error message.
     bool extract(
         PyObject* tensor,
         TensorBridgeInfo& out,
@@ -169,7 +206,13 @@ public:
     ) const
     {
         if (!m_force_python_fallback && m_api) {
-            return m_api->extract(tensor, &out, shape_buffer, strides_buffer, buffer_capacity) == 0;
+            int result = m_api->extract(tensor, &out, shape_buffer, strides_buffer, buffer_capacity);
+            if (result != TENSOR_BRIDGE_SUCCESS) {
+                throw std::runtime_error(
+                    std::string("tensor_bridge_extract failed: ") + tensor_bridge_result_to_string(result)
+                );
+            }
+            return true;
         }
         return python_extract(tensor, out, shape_buffer, strides_buffer, buffer_capacity);
     }
@@ -196,15 +239,13 @@ public:
     /// @param obj PyTorch tensor to get signature from.
     /// @param buffer Output buffer for signature string.
     /// @param buffer_size Size of output buffer.
-    /// @return 0 on success, -1 on failure.
+    /// @return 0 on success, negative TensorBridgeResult error code on failure.
+    /// @note This method does NOT throw exceptions for performance reasons.
+    ///       Use the return value to check for errors.
     int get_signature(PyObject* obj, char* buffer, size_t buffer_size) const
     {
         if (!m_force_python_fallback && m_api) {
-            if (m_api->get_signature(obj, buffer, buffer_size) != 0) {
-                snprintf(buffer, buffer_size, "Failed to get signature");
-                return -1;
-            }
-            return 0;
+            return m_api->get_signature(obj, buffer, buffer_size);
         }
         return python_get_signature(obj, buffer, buffer_size);
     }
@@ -213,19 +254,10 @@ public:
     /// @param h Nanobind handle to PyTorch tensor.
     /// @param buffer Output buffer for signature string.
     /// @param buffer_size Size of output buffer.
-    /// @return 0 on success, -1 on failure.
+    /// @return 0 on success, negative TensorBridgeResult error code on failure.
     int get_signature(nb::handle h, char* buffer, size_t buffer_size) const
     {
         return get_signature(h.ptr(), buffer, buffer_size);
-    }
-
-    /// Get last error message from native API.
-    /// @return Error message string, or empty string if using Python fallback.
-    const char* get_error() const
-    {
-        if (!m_force_python_fallback && m_api)
-            return m_api->get_error();
-        return ""; // Python fallback uses exceptions
     }
 
     /// Get the current CUDA stream for a device.
@@ -245,10 +277,17 @@ public:
     /// @param dest_cuda_ptr Destination CUDA buffer pointer.
     /// @param dest_size Size of destination buffer in bytes.
     /// @return True on success.
+    /// @throws std::runtime_error on failure with detailed error message.
     bool copy_to_buffer(PyObject* tensor, void* dest_cuda_ptr, size_t dest_size) const
     {
         if (!m_force_python_fallback && m_api) {
-            return m_api->copy_to_buffer(tensor, dest_cuda_ptr, dest_size) == 0;
+            int result = m_api->copy_to_buffer(tensor, dest_cuda_ptr, dest_size);
+            if (result != TENSOR_BRIDGE_SUCCESS) {
+                throw std::runtime_error(
+                    std::string("tensor_bridge_copy_to_buffer failed: ") + tensor_bridge_result_to_string(result)
+                );
+            }
+            return true;
         }
         return python_copy_to_buffer(tensor, dest_cuda_ptr, dest_size);
     }
@@ -269,10 +308,17 @@ public:
     /// @param src_cuda_ptr Source CUDA buffer pointer.
     /// @param src_size Size of source buffer in bytes.
     /// @return True on success.
+    /// @throws std::runtime_error on failure with detailed error message.
     bool copy_from_buffer(PyObject* tensor, void* src_cuda_ptr, size_t src_size) const
     {
         if (!m_force_python_fallback && m_api) {
-            return m_api->copy_from_buffer(tensor, src_cuda_ptr, src_size) == 0;
+            int result = m_api->copy_from_buffer(tensor, src_cuda_ptr, src_size);
+            if (result != TENSOR_BRIDGE_SUCCESS) {
+                throw std::runtime_error(
+                    std::string("tensor_bridge_copy_from_buffer failed: ") + tensor_bridge_result_to_string(result)
+                );
+            }
+            return true;
         }
         return python_copy_from_buffer(tensor, src_cuda_ptr, src_size);
     }
@@ -371,9 +417,14 @@ private:
     int python_get_signature(PyObject* obj, char* buffer, size_t buffer_size) const
     {
         init_python_fallback();
-        std::string sig = nb::cast<std::string>(m_py_get_signature(nb::handle(obj)));
-        snprintf(buffer, buffer_size, "%s", sig.c_str());
-        return 0;
+        auto res = m_py_get_signature(nb::handle(obj));
+        if (res.is_none()) {
+            return -1;
+        } else {
+            std::string sig = nb::cast<std::string>(res);
+            snprintf(buffer, buffer_size, "%s", sig.c_str());
+            return 0;
+        }
     }
 
     void* python_get_current_cuda_stream(int device_index) const

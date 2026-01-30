@@ -68,9 +68,8 @@ nb::object extract_torch_tensor_info(nb::handle tensor)
     int64_t strides_buffer[TENSOR_BRIDGE_DEFAULT_DIMS];
 
     TensorBridgeInfo info;
-    if (!bridge.extract(tensor, info, shape_buffer, strides_buffer, TENSOR_BRIDGE_DEFAULT_DIMS)) {
-        throw std::runtime_error(bridge.get_error());
-    }
+    // extract() now throws on error, so we don't need to check the return value
+    bridge.extract(tensor, info, shape_buffer, strides_buffer, TENSOR_BRIDGE_DEFAULT_DIMS);
 
     return tensor_info_to_dict(info);
 }
@@ -94,8 +93,9 @@ std::string extract_torch_tensor_signature(nb::handle tensor)
     }
 
     char buffer[64];
-    if (bridge.get_signature(tensor, buffer, sizeof(buffer)) != 0) {
-        throw std::runtime_error(bridge.get_error());
+    int result = bridge.get_signature(tensor, buffer, sizeof(buffer));
+    if (result != 0) {
+        throw std::runtime_error(std::string("get_signature failed: ") + tensor_bridge_result_to_string(result));
     }
 
     return std::string(buffer);
@@ -150,10 +150,9 @@ bool copy_torch_tensor_to_buffer(nb::handle tensor, ref<Buffer> buffer)
     }
 
     // Extract tensor info (don't need shape/strides for copy, just numel and element_size)
+    // extract() now throws on error
     TensorBridgeInfo info;
-    if (!bridge.extract(tensor, info, nullptr, nullptr, 0)) {
-        throw std::runtime_error(std::string("Failed to extract tensor info: ") + bridge.get_error());
-    }
+    bridge.extract(tensor, info, nullptr, nullptr, 0);
 
     if (!info.is_cuda) {
         throw std::runtime_error("Tensor must be on CUDA device");
@@ -173,10 +172,8 @@ bool copy_torch_tensor_to_buffer(nb::handle tensor, ref<Buffer> buffer)
         );
     }
 
-    // Copy tensor to buffer
-    if (!bridge.copy_to_buffer(tensor, cuda_ptr, tensor_size)) {
-        throw std::runtime_error(std::string("copy_to_buffer failed: ") + bridge.get_error());
-    }
+    // Copy tensor to buffer - copy_to_buffer() now throws on error
+    bridge.copy_to_buffer(tensor, cuda_ptr, tensor_size);
 
     return true;
 }
@@ -196,10 +193,9 @@ bool copy_buffer_to_torch_tensor(ref<Buffer> buffer, nb::handle tensor)
     }
 
     // Extract tensor info (don't need shape/strides for copy, just numel and element_size)
+    // extract() now throws on error
     TensorBridgeInfo info;
-    if (!bridge.extract(tensor, info, nullptr, nullptr, 0)) {
-        throw std::runtime_error(std::string("Failed to extract tensor info: ") + bridge.get_error());
-    }
+    bridge.extract(tensor, info, nullptr, nullptr, 0);
 
     if (!info.is_cuda) {
         throw std::runtime_error("Tensor must be on CUDA device");
@@ -219,10 +215,8 @@ bool copy_buffer_to_torch_tensor(ref<Buffer> buffer, nb::handle tensor)
         );
     }
 
-    // Copy buffer to tensor
-    if (!bridge.copy_from_buffer(tensor, cuda_ptr, tensor_size)) {
-        throw std::runtime_error(std::string("copy_from_buffer failed: ") + bridge.get_error());
-    }
+    // Copy buffer to tensor - copy_from_buffer() now throws on error
+    bridge.copy_from_buffer(tensor, cuda_ptr, tensor_size);
 
     return true;
 }

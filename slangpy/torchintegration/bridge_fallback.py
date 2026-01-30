@@ -82,7 +82,7 @@ def get_signature(tensor: torch.Tensor) -> str:
     :raises ValueError: If object is not a PyTorch tensor.
     """
     if not isinstance(tensor, torch.Tensor):
-        raise ValueError("Object is not a PyTorch tensor")
+        return None
     scalar_type = _SCALAR_TYPE_MAP.get(tensor.dtype, -1)
     return f"[D{tensor.ndim},S{scalar_type}]"
 

@@ -155,6 +155,7 @@ void NativeTorchTensorDiffPair::read_signature(SignatureBuilder* builder) const
     *builder << "TorchDiffPair\n";
 
     // Add primal signature
+    // get_signature() returns 0 on success, non-zero on failure (does not throw)
     if (!primal.is_none()) {
         if (TorchBridge::instance().get_signature(primal.ptr(), buffer, sizeof(buffer)) == 0) {
             *builder << "primal:" << buffer << "\n";
@@ -220,12 +221,9 @@ Shape NativeTorchTensorMarshall::get_shape(nb::object data) const
 
     // Use TorchBridge for fast native shape extraction
     TensorBridgeInfo info;
-    if (TorchBridge::instance()
-            .extract(ptr, info, m_primal_shape_buffer.data(), m_primal_strides_buffer.data(), m_dims)) {
-        if (info.shape != nullptr) {
-            return shape_from_bridge_info(info);
-        }
-        // Buffer was too small - this shouldn't happen if m_dims is correct
+    TorchBridge::instance().extract(ptr, info, m_primal_shape_buffer.data(), m_primal_strides_buffer.data(), m_dims);
+    if (info.shape != nullptr) {
+        return shape_from_bridge_info(info);
     }
 
     // Fallback: return unknown shape with all -1 dimensions
@@ -278,26 +276,19 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     bool has_grad = false;
 
     if (!primal_value.is_none()) {
-        if (TorchBridge::instance().extract(
-                primal_value.ptr(),
-                primal_info,
-                m_primal_shape_buffer.data(),
-                m_primal_strides_buffer.data(),
-                m_dims
-            )) {
-            has_primal = primal_info.shape != nullptr;
-        }
+        TorchBridge::instance().extract(
+            primal_value.ptr(),
+            primal_info,
+            m_primal_shape_buffer.data(),
+            m_primal_strides_buffer.data(),
+            m_dims
+        );
+        has_primal = true;
     }
     if (!grad_value.is_none()) {
-        if (TorchBridge::instance().extract(
-                grad_value.ptr(),
-                grad_info,
-                m_grad_shape_buffer.data(),
-                m_grad_strides_buffer.data(),
-                m_dims
-            )) {
-            has_grad = grad_info.shape != nullptr;
-        }
+        TorchBridge::instance()
+            .extract(grad_value.ptr(), grad_info, m_grad_shape_buffer.data(), m_grad_strides_buffer.data(), m_dims);
+        has_grad = true;
     }
 
     // Step 3: If primal is missing but grad is present, patch up primal_info from grad
@@ -510,10 +501,9 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
 
         // Copy data from PyTorch tensor to interop buffer using TorchBridge
         // This handles non-contiguous tensors via PyTorch's copy mechanism
+        // copy_to_buffer() now throws on error with detailed message
         if (info.numel > 0 && info.data_ptr != nullptr) {
-            if (!TorchBridge::instance().copy_to_buffer(tensor_value, interop_buffer->cuda_memory(), buffer_size)) {
-                SGL_THROW("Failed to copy tensor to interop buffer: {}", TorchBridge::instance().get_error());
-            }
+            TorchBridge::instance().copy_to_buffer(tensor_value, interop_buffer->cuda_memory(), buffer_size);
         }
 
         return interop_buffer;
@@ -634,9 +624,8 @@ void NativeTorchTensorMarshall::read_calldata(
         size_t buffer_size = nb::cast<size_t>(calldata["_buffer_size"]);
 
         // Copy from interop buffer back to tensor using TorchBridge
-        if (!TorchBridge::instance().copy_from_buffer(data, interop_buffer->cuda_memory(), buffer_size)) {
-            SGL_THROW("Failed to copy tensor from interop buffer: {}", TorchBridge::instance().get_error());
-        }
+        // copy_from_buffer() now throws on error with detailed message
+        TorchBridge::instance().copy_from_buffer(data, interop_buffer->cuda_memory(), buffer_size);
     }
 
     // Copy back gradient tensor if present
@@ -646,10 +635,8 @@ void NativeTorchTensorMarshall::read_calldata(
         nb::object grad_value = calldata["_grad_value"];
 
         // Copy from grad interop buffer back to grad tensor using TorchBridge
-        if (!TorchBridge::instance()
-                 .copy_from_buffer(grad_value, grad_interop_buffer->cuda_memory(), grad_buffer_size)) {
-            SGL_THROW("Failed to copy grad tensor from interop buffer: {}", TorchBridge::instance().get_error());
-        }
+        // copy_from_buffer() now throws on error with detailed message
+        TorchBridge::instance().copy_from_buffer(grad_value, grad_interop_buffer->cuda_memory(), grad_buffer_size);
     }
 }
 
