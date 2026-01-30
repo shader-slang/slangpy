@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "torch_bridge.h"
-#include "../nanobind.h"
 
 #include "sgl/device/device.h"
 #include "sgl/device/cuda_utils.h"
@@ -35,7 +34,6 @@ nb::dict tensor_info_to_dict(const TensorBridgeInfo& info)
     result["element_size"] = info.element_size;
     result["numel"] = info.numel;
     result["storage_offset"] = info.storage_offset;
-    result["cuda_stream"] = reinterpret_cast<uintptr_t>(info.cuda_stream);
     result["is_contiguous"] = static_cast<bool>(info.is_contiguous);
     result["is_cuda"] = static_cast<bool>(info.is_cuda);
     result["requires_grad"] = static_cast<bool>(info.requires_grad);

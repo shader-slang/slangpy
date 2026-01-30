@@ -85,7 +85,6 @@ class TestTorchTensorExtraction:
         assert info["is_contiguous"] is True
         assert info["is_cuda"] is False
         assert info["requires_grad"] is False
-        assert info["cuda_stream"] == 0  # No stream for CPU
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
     def test_extract_cuda_tensor(self):
@@ -112,9 +111,6 @@ class TestTorchTensorExtraction:
         try:
             t = torch.zeros(4, 4, device="cuda:0")
             info = slangpy.extract_torch_tensor_info(t)
-
-            # cuda_stream should be non-zero for a non-default stream
-            assert info["cuda_stream"] != 0
             assert info["is_cuda"] is True
         finally:
             # Reset to default stream

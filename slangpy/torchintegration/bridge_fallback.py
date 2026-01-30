@@ -66,7 +66,6 @@ def extract_tensor_info(tensor: torch.Tensor) -> Dict[str, Any]:
         "element_size": tensor.element_size(),
         "numel": tensor.numel(),
         "storage_offset": tensor.storage_offset(),
-        "cuda_stream": _get_cuda_stream(tensor) if tensor.is_cuda else 0,
         "is_contiguous": tensor.is_contiguous(),
         "is_cuda": tensor.is_cuda,
         "requires_grad": tensor.requires_grad,

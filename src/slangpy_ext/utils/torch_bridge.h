@@ -4,7 +4,7 @@
 
 #include "sgl/core/macros.h"
 
-#include <nanobind/nanobind.h>
+#include "../nanobind.h"
 #include <stdexcept>
 #include <string>
 
@@ -392,7 +392,6 @@ private:
         out.device_index = nb::cast<int32_t>(info["device_index"]);
         out.scalar_type = nb::cast<int32_t>(info["scalar_type"]);
         out.storage_offset = nb::cast<int64_t>(info["storage_offset"]);
-        out.cuda_stream = reinterpret_cast<void*>(nb::cast<uintptr_t>(info["cuda_stream"]));
 
         // Set shape/strides pointers based on buffer capacity
         if (buffer_capacity >= out.ndim && shape_buffer && strides_buffer) {
