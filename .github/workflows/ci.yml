@@ -200,3 +200,9 @@ jobs:
         with:
           name: coverage-report
           path: reports/coverage.html
+
+      # Cleanup slangpy-torch
+      - name: Uninstall slangpy-torch
+        if: always()
+        run: python -m pip uninstall slangpy-torch -y
+        continue-on-error: true

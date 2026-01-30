@@ -234,6 +234,14 @@ def install_slangpy_torch(args: Any):
         print(f"slangpy_torch directory not found: {slangpy_torch_dir}")
         return
 
+    # Uninstall any existing slangpy-torch to ensure a clean install
+    cmd = [sys.executable, "-m", "pip", "uninstall", "slangpy-torch", "-y"]
+    try:
+        run_command(cmd)
+    except RuntimeError:
+        # Ignore errors if package is not installed
+        pass
+
     cmd = [sys.executable, "-m", "pip", "install", "wheel"]
     run_command(cmd)
 
