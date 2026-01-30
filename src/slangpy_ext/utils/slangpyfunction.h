@@ -122,6 +122,10 @@ public:
         return nullptr;
     }
 
+    /// Reset all static Python objects cached by NativeFunctionNode.
+    /// Must be called before Python interpreter finalization.
+    static void static_reset();
+
     void garbage_collect()
     {
         m_parent = nullptr;

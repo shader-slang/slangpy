@@ -2,7 +2,9 @@
 
 #include "nanobind.h"
 #include "sgl/device/command.h"
+#include "sgl/device/native_handle.h"
 #include "utils/slangpyfunction.h"
+#include "utils/torch_bridge.h"
 #include <fmt/format.h>
 
 namespace sgl {
@@ -21,6 +23,14 @@ struct GcHelper<slangpy::NativeFunctionNode> {
 
 namespace sgl::slangpy {
 
+// Cached Python object for torch autograd hook - stored at namespace scope
+// so it can be reset during shutdown.
+static nb::object s_torch_autograd_hook;
+
+void NativeFunctionNode::static_reset()
+{
+    s_torch_autograd_hook.reset();
+}
 
 ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
@@ -62,18 +72,30 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     std::string sig = builder->str();
     ref<NativeCallData> call_data = cache->find_call_data(sig);
 
-    if (call_data) {
-        if (call_data->is_torch_integration())
-            return call_data->_py_torch_call(this, options, args, kwargs);
-        else
-            return call_data->call(options, args, kwargs);
+    if (!call_data) {
+        call_data = generate_call_data(args, kwargs);
+        cache->add_call_data(sig, call_data);
+    }
+
+    // If torch integration is enabled and the bridge is available, set the CUDA stream.
+    if (call_data->is_torch_integration() && TorchBridge::instance().is_available()) {
+        void* stream_ptr = TorchBridge::instance().get_current_cuda_stream(0);
+        NativeHandle stream_handle(NativeHandleType::CUstream, reinterpret_cast<uint64_t>(stream_ptr));
+        options->set_cuda_stream(stream_handle);
+    }
+
+    // If torch auto grad required, go via autograd hook
+    if (call_data->is_torch_autograd()) {
+        // Lookup and call 'slangpy.core.calldata.torch_autograd_hook'
+        // Cache the function lookup to avoid repeated module imports
+        // Note: This will be made into a native call via bridge soon.
+        if (!s_torch_autograd_hook.is_valid()) {
+            nb::module_ calldata_module = nb::module_::import_("slangpy.core.calldata");
+            s_torch_autograd_hook = calldata_module.attr("torch_autograd_hook");
+        }
+        return s_torch_autograd_hook(this, call_data, options, args, kwargs);
     } else {
-        ref<NativeCallData> new_call_data = generate_call_data(args, kwargs);
-        cache->add_call_data(sig, new_call_data);
-        if (new_call_data->is_torch_integration())
-            return new_call_data->_py_torch_call(this, options, args, kwargs);
-        else
-            return new_call_data->call(options, args, kwargs);
+        return call_data->call(options, args, kwargs);
     }
 }
 

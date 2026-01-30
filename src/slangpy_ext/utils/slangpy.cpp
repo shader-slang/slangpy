@@ -18,6 +18,7 @@
 #include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpyfunction.h"
+#include "utils/torch_bridge.h"
 
 #include <fmt/format.h>
 
@@ -803,16 +804,6 @@ nb::object NativeCallData::exec(
     return nb::none();
 }
 
-nb::object PyNativeCallData::_py_torch_call(
-    NativeFunctionNode* func,
-    ref<NativeCallRuntimeOptions> opts,
-    nb::tuple args,
-    nb::dict kwargs
-)
-{
-    NB_OVERRIDE(_py_torch_call, func, opts, args, kwargs);
-}
-
 NativeCallDataCache::NativeCallDataCache()
 {
     m_cache.reserve(1024);
@@ -917,6 +908,17 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         return;
     }
 
+    // Fast path: Signature for pytorch tensors via torch bridge (~15ns native, ~50ns fallback)
+    // Only check if torch is available to avoid any cost when torch isn't installed.
+    // get_signature() returns 0 on success, non-zero on failure (does not throw)
+    if (TorchBridge::instance().is_available()) {
+        char buffer[64];
+        if (TorchBridge::instance().get_signature(o, buffer, sizeof(buffer)) == 0) {
+            *builder << "torch\n" << buffer;
+            return;
+        }
+    }
+
     // Add type name.
     auto type_name = nb::str(nb::getattr(o.type(), "__name__"));
     *builder << type_name.c_str() << "\n";
@@ -937,20 +939,6 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         return;
     }
 
-    // Signature for pytorch tensors
-    {
-        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
-        if (nb::try_cast(o, pytorch_tensor)) {
-            *builder << fmt::format(
-                "[torch,D{},C{},B{},L{}]",
-                pytorch_tensor.ndim(),
-                pytorch_tensor.dtype().code,
-                pytorch_tensor.dtype().bits,
-                pytorch_tensor.dtype().lanes
-            );
-            return;
-        }
-    }
 
     // If x is a dictionary get signature of its children.
     nb::dict dict;
@@ -1023,14 +1011,12 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
         obj = nb::getattr(obj, "get_this")();
     }
 
-    // If object is a pytorch tensor, wrap it in a ref and export
+    // If object is a pytorch tensor, add it to refs for autograd tracking
     if (refs.has_value()) {
         nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
         if (nb::try_cast(arg, pytorch_tensor)) {
-            ref<TensorRef> tensorref = make_ref<TensorRef>((int32_t)refs->size(), pytorch_tensor);
-            auto asobj = nb::cast(tensorref);
-            refs->append(asobj);
-            return asobj;
+            refs->append(arg);
+            return arg;
         }
     }
 
@@ -1437,15 +1423,8 @@ SGL_PY_EXPORT(utils_slangpy)
 #define DEF_LOG_METHOD(name) def(#name, [](NativeCallData& self, const std::string_view msg) { self.name(msg); }, "msg"_a)
     // clang-format on
 
-    nb::class_<NativeCallData, PyNativeCallData, Object>(slangpy, "NativeCallData") //
-        .def(
-            "__init__",
-            [](NativeCallData& self)
-            {
-                new (&self) PyNativeCallData();
-            },
-            D_NA(NativeCallData, NativeCallData)
-        )
+    nb::class_<NativeCallData, Object>(slangpy, "NativeCallData") //
+        .def(nb::init<>(), D_NA(NativeCallData, NativeCallData))
         .def_prop_rw("device", &NativeCallData::device, &NativeCallData::set_device, D_NA(NativeCallData, device))
         .def_prop_rw(
             "pipeline",
@@ -1508,15 +1487,6 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg("args"),
             nb::arg("kwargs"),
             D_NA(NativeCallData, append_to)
-        )
-        .def(
-            "_py_torch_call",
-            &NativeCallData::_py_torch_call,
-            nb::arg("function"),
-            nb::arg("opts"),
-            nb::arg("args"),
-            nb::arg("kwargs"),
-            D_NA(NativeCallData, _py_torch_call)
         )
         .def_prop_rw(
             "call_group_shape",
@@ -1716,46 +1686,4 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(CallContext, call_shape)
         )
         .def_prop_ro("call_mode", &CallContext::call_mode, D_NA(CallContext, call_mode));
-
-    nb::class_<TensorRef, NativeObject>(slangpy, "TensorRef") //
-        .def(
-            "__init__",
-            [](TensorRef& self, int id, nb::ndarray<nb::pytorch, nb::device::cuda> tensor)
-            {
-                new (&self) TensorRef(id, tensor);
-            },
-            "id"_a,
-            "tensor"_a,
-            D_NA(TensorRef, TensorRef)
-        )
-        .def_prop_rw("id", &TensorRef::id, &TensorRef::set_id, nb::arg(), D_NA(TensorRef, index))
-        .def_prop_rw("tensor", &TensorRef::tensor, &TensorRef::set_tensor, nb::arg().none(), D_NA(TensorRef, tensor))
-        .def_prop_rw(
-            "interop_buffer",
-            &TensorRef::interop_buffer,
-            &TensorRef::set_interop_buffer,
-            nb::arg().none(),
-            D_NA(TensorRef, interop_buffer)
-        )
-        .def_prop_rw(
-            "grad_in",
-            &TensorRef::grad_in,
-            &TensorRef::set_grad_in,
-            nb::arg().none(),
-            D_NA(TensorRef, grad_in)
-        )
-        .def_prop_rw(
-            "grad_out",
-            &TensorRef::grad_out,
-            &TensorRef::set_grad_out,
-            nb::arg().none(),
-            D_NA(TensorRef, grad_out)
-        )
-        .def_prop_rw(
-            "last_access",
-            &TensorRef::last_access,
-            &TensorRef::set_last_access,
-            nb::arg(),
-            D_NA(TensorRef, last_access)
-        );
 }

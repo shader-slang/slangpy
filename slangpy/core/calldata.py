@@ -3,7 +3,7 @@ import hashlib
 import os
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from slangpy.core.callsignature import *
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
@@ -11,13 +11,19 @@ from slangpy.core.native import (
     CallMode,
     CallDataMode,
     NativeCallData,
-    unpack_refs_and_args,
-    unpack_refs_and_kwargs,
+    unpack_args,
+    unpack_kwargs,
     NativeCallRuntimeOptions,
-    TensorRef,
+    NativeTorchTensorDiffPair,
 )
 
-from slangpy import SlangCompileError, SlangLinkOptions, NativeHandle, DeviceType
+from slangpy import (
+    SlangCompileError,
+    SlangLinkOptions,
+    NativeHandle,
+    DeviceType,
+    is_torch_bridge_using_fallback,
+)
 from slangpy.bindings import (
     BindContext,
     BoundCallRuntime,
@@ -25,10 +31,11 @@ from slangpy.bindings import (
     CodeGen,
 )
 from slangpy.bindings.boundvariable import BoundCall, BoundVariable
-from slangpy.reflection import SlangFunction
+from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
+from slangpy.reflection import SlangFunction, ITensorType, TensorAccess
 
 if TYPE_CHECKING:
-    from slangpy.core.function import FunctionNode
+    from slangpy.core.function import FunctionNode, FunctionBuildInfo
 
 SLANG_PATH = Path(__file__).parent.parent / "slang"
 
@@ -45,6 +52,9 @@ _PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_GENERATED_SHADERS", "fa
     "true",
     "1",
 )
+
+# Track if we've already warned about torch bridge fallback
+_torch_bridge_warned = False
 
 
 def set_dump_generated_shaders(value: bool):
@@ -102,6 +112,10 @@ class CallData(NativeCallData):
         **kwargs: Any,
     ) -> None:
         super().__init__()
+        build_info = func.calc_build_info()
+        self.build(build_info, *args, **kwargs)
+
+    def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any):
 
         try:
 
@@ -111,8 +125,6 @@ class CallData(NativeCallData):
             diagnostics = ResolutionDiagnostic()
 
             # Read temps from function
-            function = func
-            build_info = function.calc_build_info()
             return_type = build_info.return_type
             positional_mapping = build_info.map_args
             keyword_mapping = build_info.map_kwargs
@@ -124,9 +136,9 @@ class CallData(NativeCallData):
                 self.logger = build_info.logger
             else:
                 self.logger = build_info.module.logger
-            self.debug_name = f"{build_info.module.name}::{function.name}"
+            self.debug_name = f"{build_info.module.name}::{build_info.function.name}"
 
-            self.log_debug(f"Generating kernel for {func.name}")
+            self.log_debug(f"Generating kernel for {build_info.function.name}")
             self.log_debug(f"  Module: {build_info.module.name}")
 
             # Store layout and callmode from function
@@ -142,30 +154,37 @@ class CallData(NativeCallData):
             else:
                 self.call_data_mode = CallDataMode.global_data
 
-            # Build 'unpacked' args (that handle IThis) and extract any pytorch
-            # tensor references at the same time.
-            tensor_refs = []
-            unpacked_args = unpack_refs_and_args(tensor_refs, *args)
-            unpacked_kwargs = unpack_refs_and_kwargs(tensor_refs, **kwargs)
+            # Unpack args (handles IThis wrappers)
+            unpacked_args = unpack_args(*args)
+            unpacked_kwargs = unpack_kwargs(**kwargs)
 
-            # If we have tensor references, store whether a call to this function
-            # will require injection into the autograd graph by checking if any of
-            # the tensors require gradients.
-            if len(tensor_refs) > 0:
+            # If we have torch tensors, enable torch integration
+            from slangpy.torchintegration.detection import detect_torch_tensors
+
+            has_torch, autograd = detect_torch_tensors(tuple(unpacked_args), dict(unpacked_kwargs))
+            if has_torch:
                 import torch
-                import slangpy.torchintegration.torchtensormarshall  # type: ignore (Causes tensor ref handler to be created)
+                import slangpy.torchintegration.torchtensormarshall  # type: ignore (Registers torch.Tensor handler)
 
-                autograd = False
-                for ref in tensor_refs:
-                    assert isinstance(ref, TensorRef), f"Expected TensorRef, got {type(ref)}"
-                    assert isinstance(
-                        ref.tensor, torch.Tensor
-                    ), f"Expected torch.Tensor, got {type(ref.tensor)}"
-                    autograd = autograd or ref.tensor.requires_grad
+                # Warn once if the slangpy_torch bridge is not installed (using Python fallback)
+                global _torch_bridge_warned
+                if not _torch_bridge_warned:
+                    if is_torch_bridge_using_fallback():
+                        import warnings
+
+                        warnings.warn(
+                            "PyTorch tensors detected but slangpy_torch is not installed. "
+                            "Using slower Python fallback for tensor metadata extraction. "
+                            "Install slangpy_torch for better performance: pip install slangpy_torch",
+                            UserWarning,
+                            stacklevel=6,  # Point to user's call site
+                        )
+                    _torch_bridge_warned = True
+
                 self.torch_integration = True
                 self.torch_autograd = autograd
                 if return_type is None:
-                    return_type = TensorRef
+                    return_type = torch.Tensor
 
             # Setup context
             context = BindContext(
@@ -188,7 +207,7 @@ class CallData(NativeCallData):
             )
             if resolve_result is None:
                 raise ResolveException(
-                    f"Could not call function '{function.name}':\n\n"
+                    f"Could not call function '{build_info.function.name}':\n\n"
                     f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
                 )
             slang_function = resolve_result.function
@@ -196,7 +215,7 @@ class CallData(NativeCallData):
             # Check for differentiability error
             if not resolve_result.function.differentiable and self.call_mode != CallMode.prim:
                 raise ResolveException(
-                    f"Could not call function '{function.name}': Function is not differentiable\n\n"
+                    f"Could not call function '{build_info.function.name}': Function is not differentiable\n\n"
                     f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
                 )
 
@@ -303,7 +322,6 @@ class CallData(NativeCallData):
 
             # Hash the code to get a unique identifier for the module.
             # We add type conformances to the start of the code to ensure that the hash is unique
-            assert function.slangpy_signature is not None
             code_minus_header = (
                 "[CallData]\n" + str(build_info.type_conformances) + code[len(codegen.header) :]
             )
@@ -459,55 +477,93 @@ class CallData(NativeCallData):
             else:
                 raise
 
-    def _py_torch_call(
-        self,
-        function: "FunctionNode",
-        options: NativeCallRuntimeOptions,
-        args: tuple[Any],
-        kwargs: dict[str, Any],
+    def find_torch_tensors(
+        self, args: list[Any], kwargs: dict[str, Any]
+    ) -> list[NativeTorchTensorDiffPair]:
+        """
+        Find all torch tensors in args/kwargs, wrap them in NativeTorchTensorDiffPair,
+        and replace the tensors in args/kwargs with the pairs.
+
+        :param args: Mutable list of positional arguments (will be modified in place).
+        :param kwargs: Mutable dict of keyword arguments (will be modified in place).
+        :return: List of NativeTorchTensorDiffPair for all found tensors.
+        """
+        pairs: list[Any] = []
+        for i, arg in enumerate(args):
+            args[i] = self._find_torch_tensors_recurse(arg, self.runtime.args[i], pairs)
+        for k, v in kwargs.items():
+            kwargs[k] = self._find_torch_tensors_recurse(v, self.runtime.kwargs[k], pairs)
+        return pairs
+
+    def _find_torch_tensors_recurse(
+        self, arg: Any, binding: Any, pairs: list[NativeTorchTensorDiffPair]
     ) -> Any:
-        """
-        Call the kernel with the given arguments and options.
-        """
         import torch
-        from slangpy.torchintegration.autogradhook import TorchAutoGradHook
 
-        # Unpack args and kwargs
-        refs: list[TensorRef] = []
-        unpacked_args = unpack_refs_and_args(refs, *args)
-        unpacked_kwargs = unpack_refs_and_kwargs(refs, **kwargs)
+        if isinstance(arg, dict):
+            return {
+                k: self._find_torch_tensors_recurse(v, binding.children[k], pairs)
+                for k, v in arg.items()
+            }
+        elif isinstance(arg, torch.Tensor):
+            # Determine if this is an input or output based on access pattern
+            is_input = False
+            if isinstance(binding.vector_type, ITensorType):
+                if binding.vector_type.access == TensorAccess.read:
+                    is_input = True
+                elif binding.vector_type.access == TensorAccess.write:
+                    is_input = False
+                elif binding.vector_type.access == TensorAccess.read_write:
+                    raise ValueError("In-place operations not supported for torch autograd.")
+            else:
+                if binding.access[0] == AccessType.read:
+                    is_input = True
+                elif binding.access[0] == AccessType.write:
+                    is_input = False
+                elif binding.access[0] == AccessType.readwrite:
+                    raise ValueError("In-place operations not supported for torch autograd.")
 
-        # Set the cuda stream to use (CUDA backend) or sync to (Vulkan/Metal/D3D12 backend) for the call
-        options.cuda_stream = NativeHandle.from_cuda_stream(torch.cuda.current_stream().cuda_stream)
+            # Create pair with index and is_input tracking
+            pair = NativeTorchTensorDiffPair(arg, None, index=len(pairs), is_input=is_input)
+            pairs.append(pair)
+            return pair
+        else:
+            return arg
 
-        # Call the kernel
-        res = self.call(options, *unpacked_args, **unpacked_kwargs)
 
-        # If result is a tensor ref, ensure its in refs list and extract the torch tensor to return
-        if isinstance(res, TensorRef):
-            if not res in refs:
-                refs.append(res)
-            res = cast(torch.Tensor, res.tensor)
+def torch_autograd_hook(
+    function: "FunctionNode",
+    forwards: "CallData",
+    options: NativeCallRuntimeOptions,
+    args: tuple[Any],
+    kwargs: dict[str, Any],
+) -> Any:
+    """
+    Call the kernel with torch integration.
+    Handles CUDA stream synchronization and autograd integration when torch_autograd is True.
 
-        if self.torch_autograd:
-            # Extract all tensors that should be treated as inputs to the auto-grad function
-            # i.e. ones that SlangPy marked as 'read' or 'readwrite' during the primal call.
-            # These can then be passed as arguments to the auto-grad function so they get hooked
-            # into the torch auto-grad graph.
-            primal_in_tensors = [
-                x.tensor
-                for x in refs
-                if x.last_access[0] in (AccessType.read, AccessType.readwrite)
-            ]
+    The backwards CallData is generated lazily during the backward pass when actual
+    gradient tensors are available, rather than being pre-generated at forward time.
 
-            # Call the dummy auto-grad apply function, which critically takes the primal input list
-            # as arguments and returns the primal output list as results
-            TorchAutoGradHook.apply(
-                function,
-                unpacked_args,
-                unpacked_kwargs,
-                refs,
-                *primal_in_tensors,
-            )
+    :param function: The FunctionNode used to generate backwards CallData in backward pass.
+    :param forwards: The forwards CallData for the kernel.
+    :param options: Runtime options including CUDA stream.
+    :param args: Positional arguments to the kernel.
+    :param kwargs: Keyword arguments to the kernel.
+    :return: The result of the kernel call.
+    """
+    from slangpy.torchintegration.autogradhook import TorchAutoGradHook
 
-        return res
+    # Convert args to mutable list and find/replace torch tensors with diff pairs
+    args_list = list(args)
+    pairs = forwards.find_torch_tensors(args_list, kwargs)
+
+    # Extract input tensors (primals of input pairs) for autograd tracking
+    inputs = [pair.primal for pair in pairs if pair.is_input]
+
+    results = TorchAutoGradHook.apply(
+        (function, forwards, options, args_list, kwargs, pairs), *inputs
+    )
+    if results is not None and len(results) > 0:
+        return results[-1]
+    return None

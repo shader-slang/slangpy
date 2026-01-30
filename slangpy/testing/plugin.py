@@ -19,6 +19,9 @@ from . import crashpad
 
 CRASHPAD_SUPPORT = spy.crashpad.is_supported()
 
+# Torch bridge mode values for parametrization
+TORCH_BRIDGE_MODES = ["native", "fallback"]
+
 
 def pytest_addoption(parser: pytest.Parser):
     """Add command line options for testing specific device types."""
@@ -112,3 +115,37 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):
     # Report crashpad reports
     if CRASHPAD_SUPPORT:
         crashpad.report(terminalreporter.config.get_terminal_writer())
+
+
+@pytest.fixture(params=TORCH_BRIDGE_MODES)
+def torch_bridge_mode(request: pytest.FixtureRequest):
+    """
+    Fixture that runs the test in both native and fallback torch bridge modes.
+
+    Use this fixture in any torch-related test that should validate both paths.
+    The test will be run twice: once with native slangpy_torch support (if available),
+    and once with Python fallback mode.
+
+    Example usage:
+        def test_torch_tensor_info(torch_bridge_mode):
+            # This test runs twice - once native, once fallback
+            t = torch.zeros(4, 4)
+            info = slangpy.extract_torch_tensor_info(t)
+            assert info["shape"] == (4, 4)
+
+    The fixture ensures the torch bridge mode is always restored after the test,
+    even if the test fails or raises an exception.
+    """
+    mode = request.param
+    was_fallback = spy.is_torch_bridge_using_fallback()
+
+    try:
+        if mode == "fallback":
+            spy.set_torch_bridge_python_fallback(True)
+        else:
+            spy.set_torch_bridge_python_fallback(False)
+
+        yield mode
+    finally:
+        # Always restore the original state
+        spy.set_torch_bridge_python_fallback(was_fallback)

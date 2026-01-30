@@ -1,177 +1,173 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+"""
+PyTorch autograd integration for SlangPy.
 
-from typing import TYPE_CHECKING, Any, Optional, Union, cast
+This module provides automatic differentiation support for SlangPy kernels
+when used with PyTorch tensors that have requires_grad=True.
+
+The implementation tracks tensors during dispatch using the access patterns
+from the bound variable runtime (read/write/readwrite) to determine which
+tensors are inputs vs outputs for autograd purposes.
+
+The backwards CallData is generated lazily during the backward pass when actual
+gradient tensors are available, rather than being pre-generated at forward time.
+This allows SlangPy's type analysis to work naturally with the real gradient tensors.
+"""
+
+from typing import TYPE_CHECKING, Any, Optional, Tuple
 import torch
 
-from slangpy.core.native import AccessType, unpack_refs_and_args, unpack_refs_and_kwargs
-from slangpy.torchintegration.torchtensormarshall import TensorRef
-from slangpy.core.function import Function, FunctionNode, IThis
-from slangpy import TypeConformance, Device, DeviceType, NativeHandle
+from slangpy import DeviceType
+from slangpy.core.native import NativeCallRuntimeOptions, NativeTorchTensorDiffPair
 
 if TYPE_CHECKING:
-    from slangpy.torchintegration.torchstruct import TorchStruct
-
-
-def check_cuda_enabled(device: Device):
-    if not device.supports_cuda_interop and device.info.type != DeviceType.cuda:
-        raise RuntimeError(
-            "Cuda interop must be enabled for torch support "
-            "create SGL device with Device..., enable_cuda_interop=True"
-        )
-
-
-def populate_tensor_refs(args: list[TensorRef], tensors: tuple[torch.Tensor, ...]) -> Any:
-    for arg in args:
-        if arg.id >= 0:
-            arg.tensor = tensors[arg.id]
-        if arg.grad_in is not None and arg.grad_in.id >= 0:
-            arg.grad_in.tensor = tensors[arg.grad_in.id]
-        if arg.grad_out is not None and arg.grad_out.id >= 0:
-            arg.grad_out.tensor = tensors[arg.grad_out.id]
-
-
-def clear_tensor_refs(args: list[TensorRef]) -> Any:
-    for arg in args:
-        arg.tensor = None
-        if arg.grad_in is not None:
-            arg.grad_in.tensor = None
-        if arg.grad_out is not None:
-            arg.grad_out.tensor = None
-    return arg
-
-
-def gather_and_clear_primal_tensors(
-    args: list[TensorRef],
-    primal_in_tensors: list[torch.Tensor],
-    primal_out_tensors: list[torch.Tensor],
-) -> Any:
-    for arg in args:
-        if arg.last_access[0] in (AccessType.read, AccessType.readwrite):
-            assert arg.tensor is not None
-            primal_in_tensors.append(arg.tensor)
-        if arg.last_access[0] in (AccessType.write, AccessType.readwrite):
-            assert arg.tensor is not None
-            primal_out_tensors.append(arg.tensor)
-
-
-def assign_primal_and_grad_tensors(
-    args: list[TensorRef],
-    all_tensors: list[torch.Tensor],
-    grad_in_tensors: list[torch.Tensor],
-    grad_out_tensors: list[torch.Tensor],
-) -> Any:
-    for arg in args:
-        if arg.id >= 0:
-            arg.tensor = all_tensors[arg.id]
-            if arg.last_access[0] in (AccessType.read, AccessType.readwrite):
-                arg.grad_out = TensorRef(-1, torch.zeros_like(arg.tensor))
-                grad_out_tensors.append(arg.grad_out.tensor)  # type: ignore
-            if arg.last_access[0] in (AccessType.write, AccessType.readwrite):
-                arg.grad_in = TensorRef(-1, grad_in_tensors.pop(0).contiguous())
-
-
-def alloc_gradients(args: list[TensorRef], tensors: list[Optional[torch.Tensor]]) -> Any:
-    for arg in args:
-        if arg.tensor is not None and arg.tensor.requires_grad:
-            grad = torch.zeros_like(arg.tensor)
-            arg.grad_out = TensorRef(-1, grad)
-            tensors.append(grad)
-        else:
-            tensors.append(None)
+    from slangpy.core.function import FunctionNode
+    from slangpy.core.calldata import CallData
 
 
 class TorchAutoGradHook(torch.autograd.Function):
+    """
+    PyTorch autograd function that wraps SlangPy kernel dispatch.
+
+    This allows gradients to flow through SlangPy kernel calls when
+    tensors have requires_grad=True.
+
+    The forward pass:
+    1. Receives args/kwargs with torch tensors already wrapped in NativeTorchTensorDiffPair
+    2. Runs the SlangPy kernel
+    3. Returns output tensors connected to the autograd graph
+
+    The backward pass:
+    1. Receives gradients for output tensors
+    2. Restores tensor references and populates gradient fields
+    3. Generates backwards CallData from function.bwds with real gradient tensors
+    4. Calls the backwards kernel
+    5. Returns gradients for input tensors
+    """
+
     @staticmethod
     def forward(
         ctx: Any,
-        spy_function: Function,
-        unpacked_args: tuple[Any, ...],
-        unpacked_kwargs: dict[str, Any],
-        tensor_refs: list[TensorRef],
+        options: Tuple[
+            "FunctionNode",
+            "CallData",
+            NativeCallRuntimeOptions,
+            list[Any],
+            dict[str, Any],
+            list[Any],  # NativeTorchTensorDiffPair list
+        ],
         *tensors: torch.Tensor,
-    ):
-        # Store data
-        ctx.spy_function = spy_function
-        ctx.unpacked_args = unpacked_args
-        ctx.unpacked_kwargs = unpacked_kwargs
-        ctx.tensor_refs = tensor_refs
+    ) -> tuple[torch.Tensor, ...]:
+        """
+        Forward pass - run the SlangPy kernel and track tensors for backward.
 
-        # Extract any tensors that were written to, and so should be treated as outputs
-        primal_out_tensors = [
-            cast(torch.Tensor, x.tensor)
-            for x in tensor_refs
-            if x.last_access[0] in (AccessType.write, AccessType.readwrite)
-        ]
+        :param ctx: PyTorch autograd context for storing state.
+        :param options: Tuple containing (function, forwards_cd, rt_options, args, kwargs, pairs).
+        :param tensors: Input tensors tracked by autograd (primals of input pairs).
+        :return: Tuple of output tensors.
+        """
+        # Unpack options
+        function = options[0]
+        forwards_cd = options[1]
+        rt_options = options[2]
+        args = options[3]
+        kwargs = options[4]
+        pairs = options[5]
 
-        # Extract read-write tensors (i.e. will be inputs+outputs that must be marked dirty)
-        primal_inout_tensors = [
-            cast(torch.Tensor, x.tensor)
-            for x in tensor_refs
-            if x.last_access[0] == AccessType.readwrite
-        ]
+        # Store function for backward pass (needed to generate backwards CallData)
+        ctx.function = function
+        ctx.forwards_cd = forwards_cd
+        ctx.rt_options = rt_options
 
-        # Mark all the outputs as dirty, so torch knows they may have changed
-        # as a result of the forward pass
-        ctx.mark_dirty(*primal_inout_tensors)
+        # Collect inputs and outputs from pairs for save_for_backward
+        inputs: list[torch.Tensor] = []
+        outputs: list[torch.Tensor] = []
+        for pair in pairs:
+            if pair.is_input:
+                inputs.append(pair.primal)
+            else:
+                outputs.append(pair.primal)
 
-        # Save all tensors.
-        all_tensors = [x.tensor for x in tensor_refs if x.tensor is not None]
-        ctx.save_for_backward(*all_tensors)
+        # Run the forward kernel - args/kwargs already contain NativeTorchTensorDiffPair objects
+        result = forwards_cd.call(rt_options, *args, **kwargs)
 
-        # Clear all torch tensor references (PyTorch takes over at this point, and may
-        # want to allocate new ones, so holding on to them can just cause excess memory usage)
-        clear_tensor_refs(tensor_refs)
+        # Clear tensor references from pairs to avoid keeping them alive,
+        # but keep the pairs themselves for backward pass
+        for pair in pairs:
+            pair.clear_tensors()
+        ctx.args = args
+        ctx.kwargs = kwargs
+        ctx.pairs = pairs
 
-        # Return the outputs, so they get hooked into the torch auto-grad graph
-        return tuple(primal_out_tensors)
+        # Save all tensors for backward (inputs first, then outputs)
+        ctx.save_for_backward(*inputs)
+
+        # Return any output tensors plus the result if present
+        res = tuple(outputs)
+        if result is not None and not "_result" in kwargs:
+            assert isinstance(result, torch.Tensor)
+            pair = NativeTorchTensorDiffPair(None, None, len(pairs), False)
+            kwargs["_result"] = pair
+            ctx.pairs.append(pair)
+            res += (result,)
+        return res
 
     @staticmethod
-    def backward(ctx: Any, *args: torch.Tensor):
+    def backward(
+        ctx: Any, *grad_outputs: Optional[torch.Tensor]
+    ) -> tuple[Optional[torch.Tensor], ...]:
+        """
+        Backward pass - compute gradients by calling function.bwds().
 
-        # Load parameters from context
-        spy_function: FunctionNode = ctx.spy_function
-        unpacked_args: tuple[Any, ...] = ctx.unpacked_args
-        unpacked_kwargs: dict[str, Any] = ctx.unpacked_kwargs
-        tensor_refs: list[TensorRef] = ctx.tensor_refs
-        result_out_provided = "_result" in unpacked_kwargs
-        all_tensors = list(ctx.saved_tensors)
+        The backwards CallData is generated here with actual gradient tensors,
+        allowing SlangPy's type analysis to work naturally.
 
-        # Re-populate the primal tensor references and create/assign the gradient tensors
-        grad_in_tensors: list[torch.Tensor] = list(args)
-        grad_out_tensors: list[torch.Tensor] = []
-        assign_primal_and_grad_tensors(
-            tensor_refs,
-            all_tensors,
-            grad_in_tensors,
-            grad_out_tensors,
-        )
+        :param ctx: PyTorch autograd context with saved state.
+        :param grad_outputs: Gradients for each output tensor.
+        :return: Tuple of gradients for each input, with None for the options arg.
+        """
+        # Retrieve saved input tensors
+        saved_tensors = ctx.saved_tensors
+        saved_inputs = list(saved_tensors)
+        args = ctx.args
+        kwargs = ctx.kwargs
+        function = ctx.function
 
-        # Get cuda stream and tell slangpy to use it
-        cuda_stream_handle = NativeHandle.from_cuda_stream(torch.cuda.current_stream().cuda_stream)
-        spy_function = spy_function.cuda_stream(cuda_stream_handle)
+        # Restore tensor references to pairs and populate gradients
+        input_idx = 0
+        grad_output_idx = 0
+        input_grads: list[Optional[torch.Tensor]] = []
+        for pair in ctx.pairs:
+            if pair.is_input:
+                # Restore primal tensor
+                pair.primal = saved_inputs[input_idx]
+                # Create gradient tensor for this input
+                if pair.primal.requires_grad:
+                    pair.grad = torch.zeros_like(pair.primal)
+                    input_grads.append(pair.grad)
+                else:
+                    pair.grad = None
+                    input_grads.append(None)
+                input_idx += 1
+            else:
+                # For outputs, we don't need the primal value in backward pass,
+                # just need shape/dtype info. Use a meta tensor (zero memory).
+                assert grad_output_idx < len(grad_outputs)
+                grad_out = grad_outputs[grad_output_idx]
+                if grad_out is not None:
+                    pair.primal = None
+                    pair.grad = grad_out
+                    if function.module.device.desc.type != DeviceType.cuda:
+                        pair.grad = pair.grad.contiguous()
+                else:
+                    pair.primal = None
+                    pair.grad = None
+                grad_output_idx += 1
 
-        # Check for a final tensor from the args, which would be the return value if there was one
-        # This is only necessary if user did not supply an _result argument (if they did, the
-        # assign_primal_and_grad_tensors function will have already set it up correctly).
-        if not result_out_provided and len(grad_in_tensors) > 0:
-            # Function returns a value but user didn't provide an _result argument.
-            # Need to create a new TensorRef for the result, and pass it in using the _result argument.
-            assert len(grad_in_tensors) == 1
-            result_grad_tensor = grad_in_tensors[0].contiguous()
-            result = TensorRef(-1, ctx.saved_tensors[-1])
-            result.grad_in = TensorRef(-1, result_grad_tensor)
-            spy_function.bwds(*unpacked_args, **unpacked_kwargs, _result=result)
-        else:
-            # Function either returns no value, or user provided an _result argument
-            # so can just call it directly with the provided args.
-            spy_function.bwds(*unpacked_args, **unpacked_kwargs)
+        # By fixing up pairs, we will have implicitly reconstructed the args/kwargs structure
+        # so can just call the backwards immediately.
+        function.bwds(*args, **kwargs)
 
-        # Clear the tensors after passing to the function
-        # Is this necessary? I have a feeling not doing so would break
-        # calling bwds more than once.
-        clear_tensor_refs(tensor_refs)
-
-        # Return the gradients, with 4 'nones' to correspond to the first
-        # 4 arguments of the forward function.
-        res = (None, None, None, None) + tuple(grad_out_tensors)
-        return res
+        # 6. Return gradients in correct order: None for options tuple, then input grads
+        # The first argument to forward() is the options tuple, so we return None for it
+        return (None,) + tuple(input_grads)

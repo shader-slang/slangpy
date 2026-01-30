@@ -27,13 +27,13 @@ except ImportError:
 
 SLEEPS = True
 ITERATIONS = 10
-SUB_ITERATIONS = 2000
+SUB_ITERATIONS = 20000
 WARMUPS = 10
-COUNTS = [6]
+COUNTS = [1, 6]
 
-RUN_SLANGTORCH_BENCHMARK = False
-RUN_PURE_TORCH_BENCHMARK = False
-RUN_TORCH_TENSOR_BENCHMARK = False
+RUN_SLANGTORCH_BENCHMARK = True
+RUN_PURE_TORCH_BENCHMARK = True
+RUN_TORCH_TENSOR_BENCHMARK = True
 RUN_NATIVE_TENSOR_BENCHMARK = True
 
 # ITERATIONS = 1
@@ -52,8 +52,8 @@ def test_tensor_sum_torch(
         pytest.skip("PyTorch is not installed")
 
     device = helpers.get_torch_device(device_type)
-    inputs = [np.random.rand(1024, 1024).astype(np.float32) for _ in range(count)]
-    result_tensor = torch.empty((1024, 1024), dtype=torch.float32, device="cuda")
+    inputs = [np.random.rand(1, 32).astype(np.float32) for _ in range(count)]
+    result_tensor = torch.empty((1, 32), dtype=torch.float32, device="cuda")
 
     args: dict[str, Any] = {
         f"tensor_{i}": torch.from_numpy(input).cuda() for i, input in enumerate(inputs)

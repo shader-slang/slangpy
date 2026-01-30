@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+[build-system]
+# Note: torch is NOT listed here because this package MUST be installed with
+# --no-build-isolation to ensure ABI compatibility with the user's PyTorch.
+# The user must have a version of torch installed before use.
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slangpy-torch"
+version = "0.5.0"
+description = "Fast PyTorch tensor access for slangpy"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Simon Kallweit", email = "skallweit@nvidia.com" },
+    { name = "Chris Cummings", email = "chriscummings@nvidia.com" },
+    { name = "Benedikt Bitterli", email = "bbitterli@nvidia.com" },
+    { name = "Sai Bangaru", email = "sbangaru@nvidia.com" },
+    { name = "Yong He", email = "yhe@nvidia.com" },
+]
+license = {text = "Apache-2.0 WITH LLVM-exception"}
+
+[project.urls]
+Homepage = "https://github.com/shader-slang/slangpy"
+Documentation = "https://slangpy.shader-slang.org/en/latest/"
+Repository = "https://github.com/shader-slang/slangpy"
+Issues = "https://github.com/shader-slang/slangpy/issues"
+Changelog = "https://slangpy.shader-slang.org/en/latest/changelog.html"
