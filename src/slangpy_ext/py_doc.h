@@ -920,6 +920,82 @@ static const char *__doc_sgl_Blitter_m_render_program_cache = R"doc()doc";
 
 static const char *__doc_sgl_Blob = R"doc()doc";
 
+static const char *__doc_sgl_BlockAllocator =
+R"doc(Block allocator for fixed-size objects. Allocates fixed-size blocks of
+sizeof(T) out of larger pages. Thread-safe for concurrent allocations
+and deallocations using a mutex.
+
+This allocator never frees pages, which means it can only grow in size
+and never shrink.)doc";
+
+static const char *__doc_sgl_BlockAllocator_BlockAllocator =
+R"doc(Constructor.
+
+Parameter ``blocks_per_page``:
+    Number of blocks to allocate per page (default: 256).)doc";
+
+static const char *__doc_sgl_BlockAllocator_BlockAllocator_2 = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_BlockAllocator_3 = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_FreeBlock = R"doc(Free block - stores next pointer when block is unused.)doc";
+
+static const char *__doc_sgl_BlockAllocator_FreeBlock_next = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_Page =
+R"doc(A page contains multiple blocks and a link to the next page. Note:
+blocks[1] is a flexible array member pattern - actual size is
+m_blocks_per_page.)doc";
+
+static const char *__doc_sgl_BlockAllocator_Page_blocks = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_Page_next = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_allocate =
+R"doc(Allocate a block (thread safe).
+
+Returns:
+    Pointer to allocated block, or nullptr if allocation fails.)doc";
+
+static const char *__doc_sgl_BlockAllocator_allocate_from_new_page_locked =
+R"doc(Allocate a new page and return a block from it. Called while m_mutex
+is already held.)doc";
+
+static const char *__doc_sgl_BlockAllocator_free =
+R"doc(Free a block (thread safe).
+
+Parameter ``ptr``:
+    Pointer to block to free.)doc";
+
+static const char *__doc_sgl_BlockAllocator_m_blocks_per_page = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_m_free_list = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_m_mutex = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_m_num_pages = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_m_page_list_head = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_num_pages = R"doc(Get the number of allocated pages.)doc";
+
+static const char *__doc_sgl_BlockAllocator_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_operator_assign_2 = R"doc()doc";
+
+static const char *__doc_sgl_BlockAllocator_owns =
+R"doc(Check if a pointer is owned by this allocator (thread safe).
+
+Parameter ``ptr``:
+    Pointer to check.
+
+Returns:
+    true if the pointer is within any page managed by this allocator.)doc";
+
+static const char *__doc_sgl_BlockAllocator_reset =
+R"doc(Reset the allocator, rebuilding the free list from all pages (NOT
+thread safe).)doc";
+
 static const char *__doc_sgl_Buffer = R"doc()doc";
 
 static const char *__doc_sgl_Buffer_2 = R"doc()doc";
@@ -2423,6 +2499,8 @@ static const char *__doc_sgl_DescriptorHandleType = R"doc()doc";
 static const char *__doc_sgl_DescriptorHandleType_acceleration_structure = R"doc()doc";
 
 static const char *__doc_sgl_DescriptorHandleType_buffer = R"doc()doc";
+
+static const char *__doc_sgl_DescriptorHandleType_combined_texture_sampler = R"doc()doc";
 
 static const char *__doc_sgl_DescriptorHandleType_info = R"doc()doc";
 
@@ -4611,6 +4689,15 @@ Returns:
 
 static const char *__doc_sgl_LMDBCache_evict = R"doc()doc";
 
+static const char *__doc_sgl_LMDBCache_for_each =
+R"doc(Iterate over all entries in the cache. The callback receives the key
+and value as spans. Throws on error.
+
+Parameter ``callback``:
+    Function to call for each entry.)doc";
+
+static const char *__doc_sgl_LMDBCache_for_each_impl = R"doc()doc";
+
 static const char *__doc_sgl_LMDBCache_get =
 R"doc(Get a value from the cache. Throws on error.
 
@@ -4642,6 +4729,8 @@ Returns:
     True if the key was found, false otherwise.)doc";
 
 static const char *__doc_sgl_LMDBCache_m_db = R"doc()doc";
+
+static const char *__doc_sgl_LMDBCache_m_evict_mutex = R"doc()doc";
 
 static const char *__doc_sgl_LMDBCache_m_eviction_target_size = R"doc()doc";
 
@@ -6507,7 +6596,11 @@ static const char *__doc_sgl_ShaderCursor_find_entry_point = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_find_field = R"doc()doc";
 
+static const char *__doc_sgl_ShaderCursor_find_field_index = R"doc()doc";
+
 static const char *__doc_sgl_ShaderCursor_get_device_type = R"doc()doc";
+
+static const char *__doc_sgl_ShaderCursor_get_field_by_index = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_get_offset = R"doc()doc";
 
@@ -6534,6 +6627,13 @@ static const char *__doc_sgl_ShaderCursor_operator_array = R"doc()doc";
 static const char *__doc_sgl_ShaderCursor_operator_array_2 = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_ShaderCursor_reserve_data =
+R"doc(Reserves a block of memory within the shader object's internal data
+buffer at the specified offset. WARNING: This function bypasses the
+immutability of a ShaderObject. To use safely, ensure that the address
+returned is immediately populated, not retained. Prefer using set_data
+unless absolutely necessary.)doc";
 
 static const char *__doc_sgl_ShaderCursor_set = R"doc()doc";
 
@@ -6564,6 +6664,8 @@ static const char *__doc_sgl_ShaderCursor_set_sampler = R"doc()doc";
 static const char *__doc_sgl_ShaderCursor_set_texture = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_set_texture_view = R"doc()doc";
+
+static const char *__doc_sgl_ShaderCursor_shader_object = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_slang_type_layout = R"doc()doc";
 
@@ -6623,6 +6725,21 @@ static const char *__doc_sgl_ShaderObject_m_retain = R"doc()doc";
 
 static const char *__doc_sgl_ShaderObject_m_shader_object = R"doc()doc";
 
+static const char *__doc_sgl_ShaderObject_operator_delete = R"doc()doc";
+
+static const char *__doc_sgl_ShaderObject_operator_delete_2 = R"doc()doc";
+
+static const char *__doc_sgl_ShaderObject_operator_new = R"doc()doc";
+
+static const char *__doc_sgl_ShaderObject_operator_new_2 = R"doc()doc";
+
+static const char *__doc_sgl_ShaderObject_reserve_data =
+R"doc(Reserves a block of memory within the shader object's internal data
+buffer at the specified offset. WARNING: This function bypasses the
+immutability of a ShaderObject. To use safely, ensure that the address
+returned is immediately populated, not retained. Prefer using set_data
+unless absolutely necessary.)doc";
+
 static const char *__doc_sgl_ShaderObject_rhi_shader_object = R"doc()doc";
 
 static const char *__doc_sgl_ShaderObject_set_acceleration_structure = R"doc()doc";
@@ -6667,6 +6784,10 @@ static const char *__doc_sgl_ShaderOffset_ShaderOffset_2 = R"doc(Constructor.)do
 static const char *__doc_sgl_ShaderOffset_binding_array_index = R"doc()doc";
 
 static const char *__doc_sgl_ShaderOffset_binding_range_index = R"doc()doc";
+
+static const char *__doc_sgl_ShaderOffset_has_binding_offset = R"doc(Check whether this has valid binding offset)doc";
+
+static const char *__doc_sgl_ShaderOffset_has_uniform_offset = R"doc(Check whether this has valid uniform offset)doc";
 
 static const char *__doc_sgl_ShaderOffset_invalid = R"doc(Create an invalid offset.)doc";
 
@@ -7467,6 +7588,14 @@ static const char *__doc_sgl_TextureDesc_sample_count = R"doc(Number of samples 
 
 static const char *__doc_sgl_TextureDesc_sample_quality = R"doc(Quality level for multisampled textures.)doc";
 
+static const char *__doc_sgl_TextureDesc_sampler =
+R"doc(Default sampler to use for the texture. This specifies the sampler for
+combined texture/sampler descriptor handles when getting
+Texture::descriptor_handle_combined. On CUDA, texture objects are
+always combined texture/sampler objects, so this sampler is used for
+all texture access. If not specified, tri-linear filtering and wrap
+addressing mode will be used.)doc";
+
 static const char *__doc_sgl_TextureDesc_type = R"doc(Texture type.)doc";
 
 static const char *__doc_sgl_TextureDesc_usage = R"doc()doc";
@@ -7663,6 +7792,14 @@ static const char *__doc_sgl_TextureViewDesc_format = R"doc()doc";
 
 static const char *__doc_sgl_TextureViewDesc_label = R"doc()doc";
 
+static const char *__doc_sgl_TextureViewDesc_sampler =
+R"doc(Sampler to use for the texture view. This specifies the sampler for
+combined texture/sampler descriptor handles when getting
+TextureView::descriptor_handle_combined. On CUDA, texture objects are
+always combined texture/sampler objects, so this sampler is used for
+all texture access. If not specified, the default sampler from the
+texture will be used.)doc";
+
 static const char *__doc_sgl_TextureViewDesc_subresource_range = R"doc()doc";
 
 static const char *__doc_sgl_TextureView_TextureView = R"doc()doc";
@@ -7673,9 +7810,11 @@ static const char *__doc_sgl_TextureView_class_name = R"doc()doc";
 
 static const char *__doc_sgl_TextureView_desc = R"doc()doc";
 
-static const char *__doc_sgl_TextureView_descriptor_handle_ro = R"doc()doc";
+static const char *__doc_sgl_TextureView_descriptor_handle_combined = R"doc(Get bindless combined texture/sampler descriptor handle.)doc";
 
-static const char *__doc_sgl_TextureView_descriptor_handle_rw = R"doc()doc";
+static const char *__doc_sgl_TextureView_descriptor_handle_ro = R"doc(Get bindless texture descriptor handle for read access.)doc";
+
+static const char *__doc_sgl_TextureView_descriptor_handle_rw = R"doc(Get bindless texture descriptor handle for read-write access.)doc";
 
 static const char *__doc_sgl_TextureView_format = R"doc()doc";
 
@@ -7713,9 +7852,11 @@ static const char *__doc_sgl_Texture_depth = R"doc()doc";
 
 static const char *__doc_sgl_Texture_desc = R"doc()doc";
 
-static const char *__doc_sgl_Texture_descriptor_handle_ro = R"doc(Get bindless descriptor handle for read access.)doc";
+static const char *__doc_sgl_Texture_descriptor_handle_combined = R"doc(Get bindless combined texture/sampler descriptor handle.)doc";
 
-static const char *__doc_sgl_Texture_descriptor_handle_rw = R"doc(Get bindless descriptor handle for read-write access.)doc";
+static const char *__doc_sgl_Texture_descriptor_handle_ro = R"doc(Get bindless texture descriptor handle for read access.)doc";
+
+static const char *__doc_sgl_Texture_descriptor_handle_rw = R"doc(Get bindless texture descriptor handle for read-write access.)doc";
 
 static const char *__doc_sgl_Texture_format = R"doc()doc";
 
@@ -10403,11 +10544,21 @@ static const char *__doc_sgl_short_vector = R"doc()doc";
 static const char *__doc_sgl_short_vector_2 =
 R"doc(A vector that stores a small number of elements on the stack.
 
+Uses small buffer optimization (SBO) to avoid heap allocation for
+small sizes. Falls back to heap allocation when capacity exceeds the
+inline buffer size.
+
 Template parameter ``T``:
     Element type
 
 Template parameter ``N``:
-    Size of the short vector)doc";
+    Size of the inline buffer (default 16))doc";
+
+static const char *__doc_sgl_short_vector_assign = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_assign_2 = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_assign_3 = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_back = R"doc()doc";
 
@@ -10419,11 +10570,31 @@ static const char *__doc_sgl_short_vector_begin_2 = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_capacity = R"doc()doc";
 
+static const char *__doc_sgl_short_vector_cbegin = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_cend = R"doc()doc";
+
 static const char *__doc_sgl_short_vector_clear = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_construct_at = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_construct_range = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_copy_construct_range = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_crbegin = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_crend = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_data = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_data_2 = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_destroy_all = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_destroy_at = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_destroy_range = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_emplace_back = R"doc()doc";
 
@@ -10433,27 +10604,55 @@ static const char *__doc_sgl_short_vector_end = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_end_2 = R"doc()doc";
 
+static const char *__doc_sgl_short_vector_erase = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_erase_2 = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_free_heap = R"doc()doc";
+
 static const char *__doc_sgl_short_vector_front = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_front_2 = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_grow = R"doc()doc";
 
+static const char *__doc_sgl_short_vector_inline_buffer = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_inline_buffer_2 = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_inline_storage_type = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_inline_storage_type_data = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_insert = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_insert_2 = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_is_inline = R"doc(Returns true if using the inline buffer (no heap allocation).)doc";
+
 static const char *__doc_sgl_short_vector_m_capacity = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_m_data = R"doc()doc";
 
-static const char *__doc_sgl_short_vector_m_short_data = R"doc()doc";
+static const char *__doc_sgl_short_vector_m_inline_storage = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_m_size = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_move_construct_range = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_operator_array = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_operator_array_2 = R"doc()doc";
 
-static const char *__doc_sgl_short_vector_operator_assign = R"doc()doc";
+static const char *__doc_sgl_short_vector_operator_assign = R"doc(Copy assignment.)doc";
 
-static const char *__doc_sgl_short_vector_operator_assign_2 = R"doc()doc";
+static const char *__doc_sgl_short_vector_operator_assign_2 = R"doc(Move assignment.)doc";
+
+static const char *__doc_sgl_short_vector_operator_assign_3 = R"doc(Initializer list assignment.)doc";
+
+static const char *__doc_sgl_short_vector_operator_eq = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_operator_ne = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_pop_back = R"doc()doc";
 
@@ -10461,19 +10660,39 @@ static const char *__doc_sgl_short_vector_push_back = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_push_back_2 = R"doc()doc";
 
+static const char *__doc_sgl_short_vector_rbegin = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_rbegin_2 = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_rend = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_rend_2 = R"doc()doc";
+
 static const char *__doc_sgl_short_vector_reserve = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_resize = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_resize_2 = R"doc()doc";
 
 static const char *__doc_sgl_short_vector_short_vector = R"doc(Default constructor.)doc";
 
-static const char *__doc_sgl_short_vector_short_vector_2 = R"doc(Size constructor.)doc";
+static const char *__doc_sgl_short_vector_short_vector_2 = R"doc(Size constructor with default value.)doc";
 
-static const char *__doc_sgl_short_vector_short_vector_3 = R"doc(Initializer list constructor.)doc";
+static const char *__doc_sgl_short_vector_short_vector_3 = R"doc(Size constructor with fill value.)doc";
 
-static const char *__doc_sgl_short_vector_short_vector_4 = R"doc()doc";
+static const char *__doc_sgl_short_vector_short_vector_4 = R"doc(Initializer list constructor.)doc";
 
-static const char *__doc_sgl_short_vector_short_vector_5 = R"doc()doc";
+static const char *__doc_sgl_short_vector_short_vector_5 = R"doc(Iterator range constructor.)doc";
+
+static const char *__doc_sgl_short_vector_short_vector_6 = R"doc(Copy constructor.)doc";
+
+static const char *__doc_sgl_short_vector_short_vector_7 = R"doc(Move constructor.)doc";
 
 static const char *__doc_sgl_short_vector_size = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_swap = R"doc()doc";
+
+static const char *__doc_sgl_short_vector_unchecked_push_back = R"doc(Push back without capacity check (caller must ensure capacity).)doc";
 
 static const char *__doc_sgl_slangpy_AccessType = R"doc()doc";
 
@@ -10527,27 +10746,66 @@ static const char *__doc_sgl_slangpy_Shape_Shape = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_Shape_Shape_2 = R"doc(Constructor from optional 'tuple'.)doc";
 
-static const char *__doc_sgl_slangpy_Shape_Shape_3 = R"doc(Constructor from initializer list)doc";
+static const char *__doc_sgl_slangpy_Shape_Shape_3 =
+R"doc(Constructor that creates a Shape of a given size with uninitialized
+values Use this when you need to populate the shape manually)doc";
 
-static const char *__doc_sgl_slangpy_Shape_Shape_4 = R"doc(Copy constructor.)doc";
+static const char *__doc_sgl_slangpy_Shape_Shape_4 =
+R"doc(Constructor that creates a Shape of a given size with all elements set
+to a value)doc";
 
-static const char *__doc_sgl_slangpy_Shape_Shape_5 = R"doc(Move constructor.)doc";
+static const char *__doc_sgl_slangpy_Shape_Shape_5 = R"doc(Constructor from initializer list)doc";
 
-static const char *__doc_sgl_slangpy_Shape_as_vector = R"doc(Access to internal vector.)doc";
+static const char *__doc_sgl_slangpy_Shape_Shape_6 = R"doc(Copy constructor.)doc";
 
-static const char *__doc_sgl_slangpy_Shape_as_vector_2 = R"doc(Const access to internal vector.)doc";
+static const char *__doc_sgl_slangpy_Shape_Shape_7 = R"doc(Move constructor.)doc";
+
+static const char *__doc_sgl_slangpy_Shape_Storage = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_Shape_Storage_heap_data = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_Shape_Storage_inline_data = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_Shape_as_vector =
+R"doc(Access to internal vector (creates a copy for compatibility). NOTE:
+This method allocates memory. Prefer using data() + size() or direct
+indexing.)doc";
+
+static const char *__doc_sgl_slangpy_Shape_begin = R"doc(Iterator support for range-based for loops and algorithms)doc";
+
+static const char *__doc_sgl_slangpy_Shape_begin_2 = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_Shape_calc_contiguous_strides =
 R"doc(Calculate the strides of a buffer of this shape, assuming it is
-contiguous.)doc";
+contiguous. Optimized to avoid temporary allocations.)doc";
 
 static const char *__doc_sgl_slangpy_Shape_concrete = R"doc(Check if concrete shape (no dimensions are -1).)doc";
 
+static const char *__doc_sgl_slangpy_Shape_data = R"doc(Access to internal data as pointer (const version).)doc";
+
+static const char *__doc_sgl_slangpy_Shape_data_2 =
+R"doc(Access to internal data as pointer (mutable version). Use this in hot
+paths to avoid per-element branching on m_uses_heap.)doc";
+
 static const char *__doc_sgl_slangpy_Shape_element_count = R"doc(Total element count (if this represented contiguous array))doc";
 
-static const char *__doc_sgl_slangpy_Shape_m_shape = R"doc()doc";
+static const char *__doc_sgl_slangpy_Shape_end = R"doc()doc";
 
-static const char *__doc_sgl_slangpy_Shape_operator_add = R"doc(Add operator combines the 2 shapes.)doc";
+static const char *__doc_sgl_slangpy_Shape_end_2 = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_Shape_m_size = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_Shape_m_storage = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_Shape_m_uses_heap = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_Shape_m_valid = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_Shape_ones = R"doc(Static helper to create a Shape filled with ones)doc";
+
+static const char *__doc_sgl_slangpy_Shape_operator_add =
+R"doc(Add operator combines the 2 shapes (optimized to avoid temporary
+allocations).)doc";
 
 static const char *__doc_sgl_slangpy_Shape_operator_array = R"doc(Indexers.)doc";
 
@@ -10563,6 +10821,8 @@ static const char *__doc_sgl_slangpy_Shape_to_string = R"doc(Convert to string)d
 
 static const char *__doc_sgl_slangpy_Shape_valid = R"doc(Check if shape is valid (if the std::optional has a value).)doc";
 
+static const char *__doc_sgl_slangpy_Shape_zeros = R"doc(Static helper to create a Shape filled with zeros)doc";
+
 static const char *__doc_sgl_slangpy_find_enum_info_adl = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_find_enum_info_adl_2 = R"doc()doc";
@@ -10576,11 +10836,20 @@ static const char *__doc_sgl_static_vector = R"doc()doc";
 static const char *__doc_sgl_static_vector_2 =
 R"doc(A vector that stores up to a fixed number of elements.
 
+Uses uninitialized storage with proper object lifetime management,
+supporting both trivial and non-trivial types correctly.
+
 Template parameter ``T``:
     Element type
 
 Template parameter ``N``:
     Maximum size of the static vector)doc";
+
+static const char *__doc_sgl_static_vector_assign = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_assign_2 = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_assign_3 = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_back = R"doc()doc";
 
@@ -10592,11 +10861,31 @@ static const char *__doc_sgl_static_vector_begin_2 = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_capacity = R"doc()doc";
 
+static const char *__doc_sgl_static_vector_cbegin = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_cend = R"doc()doc";
+
 static const char *__doc_sgl_static_vector_clear = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_construct_at = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_construct_range = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_copy_construct_range = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_crbegin = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_crend = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_data = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_data_2 = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_destroy_all = R"doc(Destroys all elements after they have been moved from.)doc";
+
+static const char *__doc_sgl_static_vector_destroy_at = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_destroy_range = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_emplace_back = R"doc()doc";
 
@@ -10606,39 +10895,77 @@ static const char *__doc_sgl_static_vector_end = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_end_2 = R"doc()doc";
 
+static const char *__doc_sgl_static_vector_erase = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_erase_2 = R"doc()doc";
+
 static const char *__doc_sgl_static_vector_front = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_front_2 = R"doc()doc";
 
-static const char *__doc_sgl_static_vector_m_data = R"doc()doc";
+static const char *__doc_sgl_static_vector_insert = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_insert_2 = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_m_size = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_m_storage = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_max_size = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_move_construct_range = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_operator_array = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_operator_array_2 = R"doc()doc";
 
-static const char *__doc_sgl_static_vector_operator_assign = R"doc()doc";
+static const char *__doc_sgl_static_vector_operator_assign = R"doc(Copy assignment.)doc";
 
-static const char *__doc_sgl_static_vector_operator_assign_2 = R"doc()doc";
+static const char *__doc_sgl_static_vector_operator_assign_2 = R"doc(Move assignment.)doc";
 
 static const char *__doc_sgl_static_vector_pop_back = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_ptr_at = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_ptr_at_2 = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_push_back = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_push_back_2 = R"doc()doc";
 
+static const char *__doc_sgl_static_vector_rbegin = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_rbegin_2 = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_rend = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_rend_2 = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_resize = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_resize_2 = R"doc()doc";
+
 static const char *__doc_sgl_static_vector_size = R"doc()doc";
 
 static const char *__doc_sgl_static_vector_static_vector = R"doc(Default constructor.)doc";
 
-static const char *__doc_sgl_static_vector_static_vector_2 = R"doc(Size constructor.)doc";
+static const char *__doc_sgl_static_vector_static_vector_2 = R"doc(Size constructor with default value.)doc";
 
-static const char *__doc_sgl_static_vector_static_vector_3 = R"doc(Initializer list constructor.)doc";
+static const char *__doc_sgl_static_vector_static_vector_3 = R"doc(Size constructor with fill value.)doc";
 
-static const char *__doc_sgl_static_vector_static_vector_4 = R"doc()doc";
+static const char *__doc_sgl_static_vector_static_vector_4 = R"doc(Initializer list constructor.)doc";
 
-static const char *__doc_sgl_static_vector_static_vector_5 = R"doc()doc";
+static const char *__doc_sgl_static_vector_static_vector_5 = R"doc(Iterator range constructor.)doc";
+
+static const char *__doc_sgl_static_vector_static_vector_6 = R"doc(Copy constructor.)doc";
+
+static const char *__doc_sgl_static_vector_static_vector_7 = R"doc(Move constructor.)doc";
+
+static const char *__doc_sgl_static_vector_storage_type = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_storage_type_data = R"doc()doc";
+
+static const char *__doc_sgl_static_vector_swap = R"doc()doc";
 
 static const char *__doc_sgl_string_copy_to_cstr =
 R"doc(Copy a string to a C-style string buffer. Truncates the input string

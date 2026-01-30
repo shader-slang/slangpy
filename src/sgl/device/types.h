@@ -180,6 +180,7 @@ enum class DescriptorHandleType {
     texture = static_cast<uint32_t>(rhi::DescriptorHandleType::Texture),
     rw_texture = static_cast<uint32_t>(rhi::DescriptorHandleType::RWTexture),
     sampler = static_cast<uint32_t>(rhi::DescriptorHandleType::Sampler),
+    combined_texture_sampler = static_cast<uint32_t>(rhi::DescriptorHandleType::CombinedTextureSampler),
     acceleration_structure = static_cast<uint32_t>(rhi::DescriptorHandleType::AccelerationStructure),
 };
 
@@ -192,6 +193,7 @@ SGL_ENUM_INFO(
         {DescriptorHandleType::texture, "texture"},
         {DescriptorHandleType::rw_texture, "rw_texture"},
         {DescriptorHandleType::sampler, "sampler"},
+        {DescriptorHandleType::combined_texture_sampler, "combined_texture_sampler"},
         {DescriptorHandleType::acceleration_structure, "acceleration_structure"},
     }
 );

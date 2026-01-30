@@ -94,7 +94,7 @@ public:
 
     template<typename T>
         requires(HasWriteToCursor<T, BufferElementCursor>)
-    void set(const T& value)
+    void set(const T& value) const
     {
         value.write_to_cursor(*this);
     }

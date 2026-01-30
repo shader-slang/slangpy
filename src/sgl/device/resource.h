@@ -508,7 +508,11 @@ struct TextureDesc {
     TextureUsage usage{TextureUsage::none};
     ResourceState default_state{ResourceState::undefined};
 
-    /// Default sampler settings to use for the texture (CUDA only).
+    /// Default sampler to use for the texture.
+    /// This specifies the sampler for combined texture/sampler descriptor handles
+    /// when getting Texture::descriptor_handle_combined.
+    /// On CUDA, texture objects are always combined texture/sampler objects,
+    /// so this sampler is used for all texture access.
     /// If not specified, tri-linear filtering and wrap addressing mode will be used.
     ref<Sampler> sampler;
 
@@ -616,10 +620,12 @@ public:
 
     ref<TextureView> create_view(TextureViewDesc desc);
 
-    /// Get bindless descriptor handle for read access.
+    /// Get bindless texture descriptor handle for read access.
     DescriptorHandle descriptor_handle_ro() const;
-    /// Get bindless descriptor handle for read-write access.
+    /// Get bindless texture descriptor handle for read-write access.
     DescriptorHandle descriptor_handle_rw() const;
+    /// Get bindless combined texture/sampler descriptor handle.
+    DescriptorHandle descriptor_handle_combined() const;
 
     /// Get the shared resource handle.
     /// Note: Texture must be created with the \c TextureUsage::shared usage flag.
@@ -644,8 +650,12 @@ struct TextureViewDesc {
     TextureAspect aspect{TextureAspect::all};
     SubresourceRange subresource_range;
 
-    /// Sampler settings to use for the texture view (CUDA only).
-    /// If not specified, the default sampler settings from the texture will be used.
+    /// Sampler to use for the texture view.
+    /// This specifies the sampler for combined texture/sampler descriptor handles
+    /// when getting TextureView::descriptor_handle_combined.
+    /// On CUDA, texture objects are always combined texture/sampler objects,
+    /// so this sampler is used for all texture access.
+    /// If not specified, the default sampler from the texture will be used.
     ref<Sampler> sampler;
 
     std::string label;
@@ -667,8 +677,12 @@ public:
     const SubresourceRange& subresource_range() const { return m_desc.subresource_range; }
     std::string_view label() const { return m_desc.label; }
 
+    /// Get bindless texture descriptor handle for read access.
     DescriptorHandle descriptor_handle_ro() const;
+    /// Get bindless texture descriptor handle for read-write access.
     DescriptorHandle descriptor_handle_rw() const;
+    /// Get bindless combined texture/sampler descriptor handle.
+    DescriptorHandle descriptor_handle_combined() const;
 
     /// Get the native texture view handle.
     NativeHandle native_handle() const;
