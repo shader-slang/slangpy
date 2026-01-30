@@ -170,6 +170,7 @@ public:
         m_py_get_current_cuda_stream.reset();
         m_py_copy_to_buffer.reset();
         m_py_copy_from_buffer.reset();
+        m_cached_tensor_type = nullptr;
     }
 
     /// Check if a PyObject is a torch.Tensor.
@@ -244,9 +245,17 @@ public:
     ///       Use the return value to check for errors.
     int get_signature(PyObject* obj, char* buffer, size_t buffer_size) const
     {
+        // Native path - fast (~15ns)
         if (!m_force_python_fallback && m_api) {
             return m_api->get_signature(obj, buffer, buffer_size);
         }
+
+        // Fallback path - use fast C-level type check first to avoid
+        // expensive Python function calls for non-tensor objects
+        if (!fast_is_tensor_type(obj)) {
+            return TENSOR_BRIDGE_ERROR_NOT_TENSOR;
+        }
+
         return python_get_signature(obj, buffer, buffer_size);
     }
 
@@ -337,6 +346,30 @@ private:
     TorchBridge() = default;
     TorchBridge(const TorchBridge&) = delete;
     TorchBridge& operator=(const TorchBridge&) = delete;
+
+    /// Fast C-level check if an object is a torch.Tensor.
+    /// Uses cached torch.Tensor type to avoid Python function calls.
+    /// This is much faster than calling a Python isinstance() function.
+    /// @param obj Python object to check.
+    /// @return True if obj is a PyTorch tensor.
+    bool fast_is_tensor_type(PyObject* obj) const
+    {
+        if (!m_torch_available)
+            return false;
+
+        // Lazy init the cached tensor type
+        if (!m_cached_tensor_type) {
+            try {
+                nb::module_ torch = nb::module_::import_("torch");
+                m_cached_tensor_type = reinterpret_cast<PyTypeObject*>(torch.attr("Tensor").ptr());
+            } catch (...) {
+                return false;
+            }
+        }
+
+        // Fast C-level type check (equivalent to isinstance but much faster)
+        return PyObject_TypeCheck(obj, m_cached_tensor_type) != 0;
+    }
 
     /// Initialize Python fallback lazily - caches all function handles once.
     /// This is const because it only modifies mutable caching state.
@@ -463,6 +496,10 @@ private:
     mutable nb::object m_py_get_current_cuda_stream;
     mutable nb::object m_py_copy_to_buffer;
     mutable nb::object m_py_copy_from_buffer;
+
+    // Cached torch.Tensor type for fast isinstance check in fallback mode
+    // This avoids calling Python functions just to check if an object is a tensor
+    mutable PyTypeObject* m_cached_tensor_type = nullptr;
 };
 
 } // namespace sgl
