@@ -335,12 +335,21 @@ private:
     /// Note: this is a vector, as order of creation matters.
     std::vector<SlangModule*> m_registered_modules;
 
+    /// Map to deduplicate sgl::SlangModule that reference same slang::IModule
+    std::map<slang::IModule*, SlangModule*> m_slang_to_sgl_module_map;
+
+    /// Caches the entry in the m_slang_to_sgl_module_map for faster deletion.
+    std::map<SlangModule*, std::map<slang::IModule*, SlangModule*>::iterator> m_sgl_to_cache_location_map;
+
     /// All created sgl programs (via link_program)
     std::set<ShaderProgram*> m_registered_programs;
 
     void update_module_cache_and_dependencies();
     bool write_module_to_cache(slang::IModule* module);
     void create_session(SlangSessionBuild& build);
+
+    // Returns either the same module, or a different `SlangModule` that references identical `slang::IModule`
+    ref<SlangModule> deduplicate_module(ref<SlangModule>&& module);
 };
 
 struct SlangModuleDesc {
