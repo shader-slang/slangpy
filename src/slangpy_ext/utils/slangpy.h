@@ -60,20 +60,16 @@ private:
     ref<NativeCallData> m_context;
 };
 
-/// Used during calculation of slangpy signature
+/// Builds a signature hash for slangpy call data caching.
 class SignatureBuilder : public Object {
     SGL_OBJECT(SignatureBuilder)
 public:
+    static constexpr uint64_t FNV_OFFSET_BASIS = 0xcbf29ce484222325ULL;
+    static constexpr uint64_t FNV_PRIME = 0x100000001b3ULL;
+
     SignatureBuilder()
+        : m_hash(FNV_OFFSET_BASIS)
     {
-        m_buffer = m_initial_buffer;
-        m_size = 0;
-        m_capacity = sizeof(m_initial_buffer);
-    }
-    ~SignatureBuilder()
-    {
-        if (m_buffer != m_initial_buffer)
-            delete[] m_buffer;
     }
 
     void add(const std::string& value);
@@ -88,31 +84,19 @@ public:
         return *this;
     }
 
-    nb::bytes bytes() const;
-
-    std::string str() const;
-
-    std::string dbg_as_string() const { return std::string((const char*)m_buffer, m_size); }
+    /// Get the signature hash.
+    uint64_t hash() const { return m_hash; }
 
 private:
-    uint8_t m_initial_buffer[1024];
-    uint8_t* m_buffer;
-    size_t m_size;
-    size_t m_capacity;
+    uint64_t m_hash;
 
-    void add_bytes(const uint8_t* data, size_t size)
+    void hash_bytes(const uint8_t* data, size_t size)
     {
-        if (m_size + size > m_capacity) {
-            m_capacity = std::max(m_capacity * 2, m_size + size);
-            uint8_t* new_buffer = new uint8_t[m_capacity];
-            memcpy(new_buffer, m_buffer, m_size);
-            if (m_buffer != m_initial_buffer)
-                delete[] m_buffer;
-            m_buffer = new_buffer;
+        for (size_t i = 0; i < size; ++i) {
+            m_hash ^= data[i];
+            m_hash *= FNV_PRIME;
         }
-        memcpy(m_buffer + m_size, data, size);
-        m_size += size;
-    };
+    }
 };
 
 /// Base class for types that can be passed to a slang function. Use of
@@ -865,18 +849,20 @@ public:
 
     void get_args_signature(const ref<SignatureBuilder> builder, nb::args args, nb::kwargs kwargs);
 
-    ref<NativeCallData> find_call_data(const std::string& signature)
+    /// Find cached call data.
+    ref<NativeCallData> find_call_data(uint64_t signature_hash)
     {
-        auto it = m_cache.find(signature);
+        auto it = m_cache.find(signature_hash);
         if (it != m_cache.end()) {
             return it->second;
         }
         return nullptr;
     }
 
-    void add_call_data(const std::string& signature, const ref<NativeCallData>& call_data)
+    /// Add call data to cache.
+    void add_call_data(uint64_t signature_hash, const ref<NativeCallData>& call_data)
     {
-        m_cache[signature] = call_data;
+        m_cache[signature_hash] = call_data;
     }
 
     virtual std::optional<std::string> lookup_value_signature(nb::handle o)
@@ -886,7 +872,7 @@ public:
     }
 
 private:
-    std::unordered_map<std::string, ref<NativeCallData>> m_cache;
+    std::unordered_map<uint64_t, ref<NativeCallData>> m_cache;
     std::unordered_map<std::type_index, BuildSignatureFunc> m_type_signature_table;
 };
 

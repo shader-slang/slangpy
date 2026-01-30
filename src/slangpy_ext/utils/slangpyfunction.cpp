@@ -36,11 +36,11 @@ ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cac
     read_signature(builder);
     cache->get_args_signature(builder, args, kwargs);
 
-    std::string sig = builder->str();
-    ref<NativeCallData> result = cache->find_call_data(sig);
+    uint64_t sig_hash = builder->hash();
+    ref<NativeCallData> result = cache->find_call_data(sig_hash);
     if (!result) {
         result = generate_call_data(args, kwargs);
-        cache->add_call_data(sig, result);
+        cache->add_call_data(sig_hash, result);
     }
     return result;
 }
@@ -59,8 +59,8 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     read_signature(builder);
     cache->get_args_signature(builder, args, kwargs);
 
-    std::string sig = builder->str();
-    ref<NativeCallData> call_data = cache->find_call_data(sig);
+    uint64_t sig_hash = builder->hash();
+    ref<NativeCallData> call_data = cache->find_call_data(sig_hash);
 
     if (call_data) {
         if (call_data->is_torch_integration())
@@ -69,7 +69,7 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
             return call_data->call(options, args, kwargs);
     } else {
         ref<NativeCallData> new_call_data = generate_call_data(args, kwargs);
-        cache->add_call_data(sig, new_call_data);
+        cache->add_call_data(sig_hash, new_call_data);
         if (new_call_data->is_torch_integration())
             return new_call_data->_py_torch_call(this, options, args, kwargs);
         else
@@ -96,15 +96,14 @@ void NativeFunctionNode::append_to(
     read_signature(builder);
     cache->get_args_signature(builder, args, kwargs);
 
-
-    std::string sig = builder->str();
-    NativeCallData* call_data = cache->find_call_data(sig);
+    uint64_t sig_hash = builder->hash();
+    ref<NativeCallData> call_data = cache->find_call_data(sig_hash);
 
     if (call_data) {
         call_data->append_to(options, command_encoder, args, kwargs);
     } else {
         ref<NativeCallData> new_call_data = generate_call_data(args, kwargs);
-        cache->add_call_data(sig, new_call_data);
+        cache->add_call_data(sig_hash, new_call_data);
         new_call_data->append_to(options, command_encoder, args, kwargs);
     }
 }
