@@ -83,9 +83,6 @@ typedef struct TensorBridgeInfo {
     // Storage offset (for views)
     int64_t storage_offset;
 
-    // CUDA stream (cudaStream_t, or nullptr for CPU tensors)
-    void* cuda_stream;
-
     // Flags
     uint32_t is_contiguous : 1;
     uint32_t is_cuda : 1;
