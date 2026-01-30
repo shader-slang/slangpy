@@ -141,12 +141,17 @@ class TensorRefMarshall(TensorMarshall):
                 )
                 interop_tensor.copy_(primal)
 
-            primal_calldata = {
+            primal_calldata: dict[str, Any] = {
                 "_data": data.interop_buffer,
                 "_offset": 0,
                 "_strides": strides,
                 "_shape": shape,
             }
+            # Note: On Metal, AtomicTensor needs _element_byte_stride because sizeof(T)
+            # may differ from buffer stride (e.g., float3). However, PyTorch doesn't
+            # support Metal backend, so we don't need to handle it here. If PyTorch
+            # adds Metal support in the future, _element_byte_stride would need to be
+            # set to self.element_stride (from Slang type layout).
 
             if not self.d_in and not self.d_out:
                 return primal_calldata
