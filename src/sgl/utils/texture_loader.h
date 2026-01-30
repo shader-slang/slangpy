@@ -12,6 +12,18 @@
 
 namespace sgl {
 
+/// Strategy for handling YA (greyscale + alpha) bitmaps during texture loading.
+enum class YAHandling {
+    expand_to_rgba,
+    preserve_as_rg,
+};
+
+SGL_ENUM_INFO(
+    YAHandling,
+    {{YAHandling::expand_to_rgba, "expand_to_rgba"}, {YAHandling::preserve_as_rg, "preserve_as_rg"}}
+);
+SGL_ENUM_REGISTER(YAHandling);
+
 /**
  * \brief Utility class for loading textures from bitmaps and image files.
  */
@@ -35,6 +47,8 @@ public:
         /// Resource usage flags for the texture.
         /// \c TextureUsage::render_target will be added automatically if \c generate_mips is true.
         TextureUsage usage{TextureUsage::shader_resource};
+        /// Strategy for handling YA (greyscale + alpha) bitmaps.
+        YAHandling ya_handling{YAHandling::expand_to_rgba};
     };
 
     /**
