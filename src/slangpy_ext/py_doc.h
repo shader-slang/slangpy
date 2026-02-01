@@ -7701,6 +7701,30 @@ Returns:
     List of new of texture objects.)doc";
 
 static const char *__doc_sgl_TextureLoader_load_textures_2 =
+R"doc(Load textures from a list of bitmaps.
+
+Parameter ``bitmaps``:
+    Bitmaps to load.
+
+Parameter ``options``:
+    Texture loading options.
+
+Returns:
+    List of new of texture objects.)doc";
+
+static const char *__doc_sgl_TextureLoader_load_textures_3 =
+R"doc(Load textures from a list of image files.
+
+Parameter ``paths``:
+    Image file paths.
+
+Parameter ``options``:
+    Texture loading options.
+
+Returns:
+    List of new texture objects.)doc";
+
+static const char *__doc_sgl_TextureLoader_load_textures_4 =
 R"doc(Load textures from a list of image files.
 
 Parameter ``paths``:
