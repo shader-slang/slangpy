@@ -5,7 +5,7 @@ import slangpy;
 // Basic scalar function types, should generally support:
 // - scalar arg (any python number)
 // - vector/matrix arg (correct vector type)
-// - containers such as NDBuffer/Tensor of any dimensionality
+// - containers such as Tensor of any dimensionality
 float func_float(float a)
 {
     return a;
@@ -28,7 +28,7 @@ int64_t func_int64(int64_t a)
 }
 
 // Fully generic function, generally ambiguous as a type such
-// as NDBuffer<float> could be vectorized as NDBuffer<float> or float.
+// as Tensor<float> could be vectorized as Tensor<float> or float.
 // Only pure scalars can typically disambiguate.
 T func_generic<T>(T a)
 {
@@ -36,7 +36,7 @@ T func_generic<T>(T a)
 }
 
 // Correctly constrained generic function allows disambiguation
-// via specializeWithArgTypes. i.e. NDBuffer<int> can only map to
+// via specializeWithArgTypes. i.e. Tensor<int> can only map to
 // T: __BuiltinIntegerType by vectorizing to int.
 T func_genericint<T: __BuiltinIntegerType>(T a)
 {
@@ -52,8 +52,8 @@ T func_genericfloat<T : __BuiltinFloatingPointType>(T a)
 // General vector types
 // - vector of correct type
 // - matrix of correct type (vectorizes across rows)
-// - containers such as NDBuffer/Tensor of the vector element type
-// - containers such as NDBuffer/Tensor of the correct scalar type (eg NDBuffer<float> of shape (N,3) can load float3)
+// - containers such as Tensor of the vector element type
+// - containers such as Tensor of the correct scalar type (eg Tensor<float> of shape (N,3) can load float3)
 float3 func_float3(float3 a)
 {
     return a;
@@ -85,21 +85,21 @@ vector<half,3> func_vector_half3(vector<half,3> a)
 // is unknown.
 // - vector
 // - matrix
-// - containers such as NDBuffer/Tensor of vector type
-// - containers such as NDBuffer/Tensor of scalar type (eg NDBuffer<float> of shape (N,3) can load float3)
+// - containers such as Tensor of vector type
+// - containers such as Tensor of scalar type (eg Tensor<float> of shape (N,3) can load float3)
 vector<T,3> func_vector3_generic<T>(vector<T,3> a)
 {
     return a;
 }
 
-// Vector with generic dimensionality and generic type. The NDBuffer of scalars can not
+// Vector with generic dimensionality and generic type. The Tensor of scalars can not
 // be resolved in this case, as the last dimension's size can't be inferred at compile time.
 vector<T,N> func_vectorN_generic<T,let N: int>(vector<T,N> a)
 {
     return a;
 }
 
-// Vector with generic dimensionality and known type. The NDBuffer of scalars can not
+// Vector with generic dimensionality and known type. The Tensor of scalars can not
 // be resolved in this case, as the last dimension's size can't be inferred at compile time.
 vector<float, N> func_floatN_generic<let N : int>(vector<float, N> a)
 {
@@ -150,8 +150,8 @@ matrix<float,3,C> func_matrix_float3C_generic<let C: int>(matrix<float,3,C> a)
 
 // 1D arrays of known type/size. Can be passed
 // - python list/tuple of correct type and length
-// - spy.NDBuffer/Tensor of ArrayType
-// - spy.NDBuffer/Tensor of ElementType
+// - spy.Tensor of ArrayType
+// - spy.Tensor of ElementType
 float[4] func_float_array(float[4] a)
 {
     return a;
@@ -220,9 +220,8 @@ float [R][C] func_generic_size_array2d_RC<let R : int, let C : int>(float [R][C]
 }
 
 // StructuredBuffer and RWStructuredBuffer types. These can be passed
-// a slangpy Buffer, or an NDBuffer/Tensor of the correct element type.
+// a slangpy Buffer, or an Tensor of the correct element type.
 // - spy.Buffer
-// - spy.NDBuffer<float> of any shape
 // - spy.Tensor<float> of any shape
 void func_float_structuredbuffer(StructuredBuffer<float> a)
 {
@@ -242,8 +241,7 @@ void func_half_structuredbuffer(StructuredBuffer<half> a)
 }
 
 // Generic structured buffer is valid when passed a typed slangpy
-// container such as NDBuffer/Tensor
-// - spy.NDBuffer<T> of any shape
+// container such as Tensor
 // - spy.Tensor<T> of any shape
 void func_generic_structuredbuffer<T>(StructuredBuffer<T> a)
 {
@@ -253,7 +251,6 @@ void func_generic_structuredbuffer<T>(StructuredBuffer<T> a)
 // Pointer types obey effectively the same rules as structure buffers.
 // in both types and generic situations
 // - spy.Buffer
-// - spy.NDBuffer<T> of any shape
 // - spy.Tensor<T> of any shape
 void func_float_ptr(Ptr<float> a)
 {
@@ -271,7 +268,6 @@ void func_generic_ptr<T>(Ptr<T> a)
 // ByteAddressBuffer and RWByteAddressBuffer types. Obey same basic
 // rules as structure buffer without any generic element typing.
 // - spy.Buffer
-// - spy.NDBuffer of any shape
 // - spy.Tensor of any shape
 void func_bytebuffer(ByteAddressBuffer a)
 {
@@ -282,8 +278,12 @@ void func_rwbytebuffer(RWByteAddressBuffer a)
     return;
 }
 
-// Passing NDBuffers and Tensors
-void func_itensor(ITensor<float, 2> a)
+// Passing Tensors and DiffTensors
+void func_iTensor(ITensor<float, 2> a)
+{
+    return;
+}
+void func_iWTensor(IWTensor<float, 2> a)
 {
     return;
 }
@@ -291,7 +291,11 @@ void func_irwtensor(IRWTensor<float, 2> a)
 {
     return;
 }
-void func_tensor(Tensor<float, 2> a)
+void func_Tensor(Tensor<float, 2> a)
+{
+    return;
+}
+void func_WTensor(WTensor<float, 2> a)
 {
     return;
 }
@@ -299,45 +303,50 @@ void func_rwtensor(RWTensor<float, 2> a)
 {
     return;
 }
-void func_ndbuffer(NDBuffer<float, 2> a)
-{
-    return;
-}
-void func_rwndbuffer(RWNDBuffer<float, 2> a)
-{
-    return;
-}
 void func_atomictensor(AtomicTensor<float, 2> a)
 {
     return;
 }
-void func_gradintensor(GradInTensor<float, 2> a)
+
+void func_iDiffTensor(IDiffTensor<float, 2> a)
 {
     return;
 }
-void func_gradouttensor(GradOutTensor<float, 2> a)
+void func_iWDiffTensor(IWDiffTensor<float, 2> a)
 {
     return;
 }
-void func_gradinouttensor(GradInOutTensor<float, 2> a)
+void func_irwdifftensor(IRWDiffTensor<float, 2> a)
+{
+    return;
+}
+void func_DiffTensor(DiffTensor<float, 2> a)
+{
+    return;
+}
+void func_WDiffTensor(WDiffTensor<float, 2> a)
+{
+    return;
+}
+void func_rwdifftensor(RWDiffTensor<float, 2> a)
+{
+    return;
+}
+void func_PrimalTensor(PrimalTensor<float, 2> a)
+{
+    return;
+}
+void func_WPrimalTensor(WPrimalTensor<float, 2> a)
+{
+    return;
+}
+void func_rwprimaltensor(RWPrimalTensor<float, 2> a)
 {
     return;
 }
 
-void func_generic_element_ndbuffer<T>(NDBuffer<T, 2> a)
-{
-    return;
-}
-void func_generic_dims_ndbuffer<let N: int>(NDBuffer<float, N> a)
-{
-    return;
-}
-void func_generic_ndbuffer<T, let N: int>(NDBuffer<T, N> a)
-{
-    return;
-}
 
-void func_generic_element_tensor<T: IDifferentiable>(Tensor<T, 2> a)
+void func_generic_element_tensor<T>(Tensor<T, 2> a)
 {
     return;
 }
@@ -345,11 +354,23 @@ void func_generic_dims_tensor<let N: int>(Tensor<float, N> a)
 {
     return;
 }
-void func_generic_tensor<T : IDifferentiable, let N: int>(Tensor<T, N> a)
+void func_generic_tensor<T, let N: int>(Tensor<T, N> a)
 {
     return;
 }
 
+void func_generic_element_difftensor<T : IDifferentiable>(DiffTensor<T, 2> a) where T.Differential : IAtomicAddable
+{
+    return;
+}
+void func_generic_dims_difftensor<let N : int>(DiffTensor<float, N> a)
+{
+    return;
+}
+void func_generic_difftensor<T : IDifferentiable, let N : int>(DiffTensor<T, N> a) where T.Differential : IAtomicAddable
+{
+    return;
+}
 
 // Passing textures
 void func_texture1d(Texture1D<float4> a)

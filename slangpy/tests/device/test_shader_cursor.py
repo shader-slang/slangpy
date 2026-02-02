@@ -398,5 +398,72 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
         assert named_typed_result == named_typed_reference
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_shader_cursor_field_by_index(device_type: spy.DeviceType):
+    """Test find_field_index and get_field_by_index methods."""
+    device = helpers.get_device(type=device_type)
+
+    program = device.load_program("test_shader_cursor.slang", ["compute_main"])
+    kernel = device.create_compute_kernel(program)
+
+    result_buffer = device.create_buffer(
+        size=4096,
+        struct_size=4,
+        usage=spy.BufferUsage.unordered_access,
+    )
+
+    command_encoder = device.create_command_encoder()
+    with command_encoder.begin_compute_pass() as pass_encoder:
+        shader_object = pass_encoder.bind_pipeline(kernel.pipeline)
+        cursor = spy.ShaderCursor(shader_object)
+        cursor["results"] = result_buffer
+
+        # Test find_field_index - get the index for a known field
+        field_index = cursor.find_field_index("u_int")
+        assert field_index >= 0, "find_field_index should return a valid index for existing field"
+
+        # Test get_field_by_index - get cursor using the index
+        cursor_by_index = cursor.get_field_by_index(field_index)
+        assert cursor_by_index.is_valid(), "get_field_by_index should return a valid cursor"
+
+        # Test find_field - get cursor using the name directly
+        cursor_by_name = cursor.find_field("u_int")
+        assert cursor_by_name.is_valid(), "find_field should return a valid cursor"
+
+        # Compare the offsets - they should be the same
+        offset_by_index = cursor_by_index._offset
+        offset_by_name = cursor_by_name._offset
+        assert (
+            offset_by_index.uniform_offset == offset_by_name.uniform_offset
+        ), "Cursors obtained by index and by name should have the same uniform_offset"
+        assert (
+            offset_by_index.binding_range_index == offset_by_name.binding_range_index
+        ), "Cursors obtained by index and by name should have the same binding_range_index"
+        assert (
+            offset_by_index.binding_array_index == offset_by_name.binding_array_index
+        ), "Cursors obtained by index and by name should have the same binding_array_index"
+
+        # Test that non-existent field returns -1
+        invalid_index = cursor.find_field_index("non_existent_field")
+        assert invalid_index == -1, "find_field_index should return -1 for non-existent field"
+
+        # Test with a struct field
+        struct_cursor = cursor.find_field("u_struct")
+        assert struct_cursor.is_valid(), "u_struct cursor should be valid"
+
+        struct_field_index = struct_cursor.find_field_index("f_int")
+        assert struct_field_index >= 0, "find_field_index should work on struct fields"
+
+        struct_field_by_index = struct_cursor.get_field_by_index(struct_field_index)
+        struct_field_by_name = struct_cursor.find_field("f_int")
+
+        assert struct_field_by_index.is_valid(), "Struct field cursor by index should be valid"
+        assert struct_field_by_name.is_valid(), "Struct field cursor by name should be valid"
+        assert (
+            struct_field_by_index._offset.uniform_offset
+            == struct_field_by_name._offset.uniform_offset
+        ), "Struct field cursors should have matching uniform_offset"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

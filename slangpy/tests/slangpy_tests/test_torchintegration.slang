@@ -17,12 +17,12 @@ vector<float,N> add_vectors_generic<let N:int>(vector<float,N> a, vector<float,N
 }
 
 [Differentiable]
-void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, RWTensor<float, 2> res) {
+void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, WTensor<float, 2> res) {
     [MaxIters(8)]
     for (int i = 0; i < a.shape[0]; i++)
         [MaxIters(8)]
         for (int j = 0; j < a.shape[1]; j++)
-            res.set({i, j}, a[i,j] + b[i, j]);
+            res[i,j] = a[i,j] + b[i, j];
 }
 
 [Differentiable]
@@ -86,4 +86,9 @@ float[5] polynomial_arrays(float a, float b, float c, float[5] x) {
 void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] res) {
     for (int i = 0; i < 5; i++)
         res[i] = a * x[i] * x[i] + b * x[i] + c;
+}
+
+void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
+    for (uint i = 0; i < input.shape[0]; i++)
+        output[i] = input[i];
 }

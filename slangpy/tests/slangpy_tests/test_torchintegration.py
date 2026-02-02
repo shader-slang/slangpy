@@ -4,7 +4,7 @@ import pytest
 import sys
 
 from slangpy import DeviceType, Device, Module
-from slangpy.core.native import NativeCallDataCache, SignatureBuilder, TensorRef
+from slangpy.core.native import NativeCallDataCache, SignatureBuilder
 from slangpy.testing import helpers
 
 try:
@@ -54,24 +54,19 @@ def compare_tensors(a: torch.Tensor, b: torch.Tensor):
 @pytest.mark.parametrize(
     "pair",
     [
-        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,C2,B32,L1"),
-        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,C2,B32,L1"),
-        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,C2,B16,L1"),
-        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,C0,B32,L1"),
-        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,C1,B8,L1"),
-        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,C1,B8,L1"),
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0"),
     ],
 )
 def test_torch_signature(pair: tuple[torch.Tensor, str]):
     cd = NativeCallDataCache()
     sig = SignatureBuilder()
     cd.get_value_signature(sig, pair[0])
-    assert sig.str == f"Tensor\n[torch,{pair[1]}]"
-
-    ref = TensorRef(0, pair[0])
-    sig = SignatureBuilder()
-    cd.get_value_signature(sig, ref)
-    assert sig.str.endswith(f"[torch,{pair[1]}]")
+    assert sig.str == f"torch\n[{pair[1]}]"
 
 
 ADD_TESTS = [
@@ -100,6 +95,9 @@ def test_add_values(
     func_name = func_and_shape[0]
     val_shape = func_and_shape[1]
     extra_shape = (5,) * extra_dims
+
+    if len(extra_shape + val_shape) == 0:
+        pytest.skip("No shape to test")
 
     a = torch.randn(
         extra_shape + val_shape,
@@ -281,6 +279,9 @@ def test_polynomials(
     if func_name == "polynomial_vectors":
         pytest.skip("Slang bug currently causing derivatives to return 0")
 
+    if len(extra_shape + val_shape) == 0:
+        pytest.skip("No shape to test")
+
     a = 2.0
     b = 4.0
     c = 1.0
@@ -314,7 +315,8 @@ def test_polynomials(
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("extra_dims", [0, 1, 3])
-def test_add_tensors(device_type: DeviceType, extra_dims: int):
+@pytest.mark.parametrize("grads", [False, True])
+def test_add_tensors(device_type: DeviceType, extra_dims: int, grads: bool):
 
     module = load_test_module(device_type)
 
@@ -326,13 +328,13 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int):
         extra_shape + val_shape,
         dtype=torch.float32,
         device=torch.device("cuda"),
-        requires_grad=True,
+        requires_grad=grads,
     )
     b = torch.randn(
         extra_shape + val_shape,
         dtype=torch.float32,
         device=torch.device("cuda"),
-        requires_grad=True,
+        requires_grad=grads,
     )
 
     res = torch.empty_like(a)
@@ -342,6 +344,171 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int):
 
     # Should this work??
     # res.backward(torch.ones_like(res))
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_empty_tensor_null_data_ptr(device_type: DeviceType):
+    """
+    Test that tensors with null data pointers (e.g., zero-element tensors) are accepted.
+    """
+    module = load_test_module(device_type)
+
+    # Create empty tensors - these have null data pointers
+    input_tensor = torch.empty((0,), dtype=torch.float32, device=torch.device("cuda"))
+    output_tensor = torch.empty((0,), dtype=torch.float32, device=torch.device("cuda"))
+
+    # This should not crash - empty tensors with null data_ptr should be accepted
+    module.copy_tensor(input_tensor, output_tensor)
+
+    # Verify tensors are still empty
+    assert input_tensor.numel() == 0
+    assert output_tensor.numel() == 0
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_copy_tensor_to_buffer(device_type: DeviceType):
+    """
+    Test that copy_torch_tensor_to_buffer correctly copies tensor data to a shared buffer.
+    """
+    from slangpy import BufferUsage, copy_torch_tensor_to_buffer
+
+    # Get a device that shares the CUDA context with PyTorch
+    device = helpers.get_torch_device(device_type)
+
+    # Create a test tensor with known values
+    tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32, device="cuda")
+
+    # Create a shared buffer large enough for the tensor
+    buffer = device.create_buffer(
+        size=tensor.numel() * tensor.element_size(),
+        struct_size=tensor.element_size(),
+        usage=BufferUsage.unordered_access | BufferUsage.shader_resource | BufferUsage.shared,
+    )
+
+    # Copy tensor to buffer (on cuda device)
+    copy_torch_tensor_to_buffer(tensor, buffer)
+
+    # buffer.to_numpy is run on device, so if using interop need to make
+    # sure we wait for the cuda work to complete
+    device.sync_to_cuda()
+
+    # Read back buffer contents via CPU and verify
+    import numpy as np
+
+    buffer_data = np.frombuffer(buffer.to_numpy().tobytes(), dtype=np.float32)
+    expected = tensor.cpu().numpy()
+
+    assert len(buffer_data) == len(
+        expected
+    ), f"Length mismatch: {len(buffer_data)} vs {len(expected)}"
+    assert np.allclose(buffer_data, expected), f"Data mismatch: {buffer_data} vs {expected}"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_copy_buffer_to_tensor(device_type: DeviceType):
+    """
+    Test that copy_buffer_to_torch_tensor correctly copies buffer data to a tensor.
+    """
+    from slangpy import BufferUsage, copy_buffer_to_torch_tensor
+
+    device = helpers.get_torch_device(device_type)
+
+    # Create a tensor to receive data
+    tensor = torch.zeros(5, dtype=torch.float32, device="cuda")
+
+    # Create a shared buffer and write known values
+    import numpy as np
+
+    test_values = np.array([0.5, 1.0, 1.5, 2.0, 2.5], dtype=np.float32)
+    buffer = device.create_buffer(
+        size=test_values.nbytes,
+        struct_size=4,
+        usage=BufferUsage.unordered_access | BufferUsage.shader_resource | BufferUsage.shared,
+    )
+    buffer.copy_from_numpy(test_values)
+
+    # If using cuda interop, make sure cuda waits for device
+    # to finish the copy_from_numpy
+    device.sync_to_device()
+
+    # Copy buffer to tensor (on cuda device)
+    copy_buffer_to_torch_tensor(buffer, tensor)
+
+    # Verify tensor contents
+    result = tensor.cpu().numpy()
+    assert np.allclose(result, test_values), f"Data mismatch: {result} vs {test_values}"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_copy_noncontiguous_tensor_to_buffer(device_type: DeviceType):
+    """
+    Test that copy_torch_tensor_to_buffer works with non-contiguous tensors.
+    """
+    from slangpy import BufferUsage, copy_torch_tensor_to_buffer
+
+    device = helpers.get_torch_device(device_type)
+
+    # Create a non-contiguous tensor (transposed)
+    base = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32, device="cuda")
+    tensor = base.t()  # Transpose makes it non-contiguous
+    assert not tensor.is_contiguous(), "Test tensor should be non-contiguous"
+
+    # Create buffer for the contiguous data
+    buffer = device.create_buffer(
+        size=tensor.numel() * tensor.element_size(),
+        struct_size=tensor.element_size(),
+        usage=BufferUsage.unordered_access | BufferUsage.shader_resource | BufferUsage.shared,
+    )
+
+    # Copy tensor to buffer (on cuda device)
+    copy_torch_tensor_to_buffer(tensor, buffer)
+
+    # buffer.to_numpy is run on device, so if using interop need to make
+    # sure we wait for the cuda work to complete
+    device.sync_to_cuda()
+
+    # Read back and verify - should match contiguous version of tensor
+    import numpy as np
+
+    buffer_data = np.frombuffer(buffer.to_numpy().tobytes(), dtype=np.float32)
+    expected = tensor.contiguous().cpu().numpy().flatten()
+
+    assert np.allclose(buffer_data, expected), f"Data mismatch: {buffer_data} vs {expected}"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensor_buffer_roundtrip(device_type: DeviceType):
+    """
+    Test round-trip: tensor -> buffer -> tensor2.
+    Verifies that data survives a complete copy cycle through the interop buffer.
+    """
+    from slangpy import BufferUsage, copy_torch_tensor_to_buffer, copy_buffer_to_torch_tensor
+
+    device = helpers.get_torch_device(device_type)
+
+    # Create source tensor with known values
+    src_tensor = torch.tensor([1.5, 2.5, 3.5, 4.5, 5.5], dtype=torch.float32, device="cuda")
+
+    # Create destination tensor (zeros)
+    dst_tensor = torch.zeros_like(src_tensor)
+
+    # Create shared buffer
+    buffer = device.create_buffer(
+        size=src_tensor.numel() * src_tensor.element_size(),
+        struct_size=src_tensor.element_size(),
+        usage=BufferUsage.unordered_access | BufferUsage.shader_resource | BufferUsage.shared,
+    )
+
+    # Copy: src_tensor -> buffer -> dst_tensor
+    # There is no need for any device waits, as both operations happen
+    # on the cuda device, even in the interop case.
+    copy_torch_tensor_to_buffer(src_tensor, buffer)
+    copy_buffer_to_torch_tensor(buffer, dst_tensor)
+
+    # Verify dst_tensor matches src_tensor
+    assert torch.allclose(
+        src_tensor, dst_tensor
+    ), f"Round-trip mismatch: {src_tensor} vs {dst_tensor}"
 
 
 if __name__ == "__main__":

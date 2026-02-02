@@ -3,6 +3,7 @@
 #include "resource.h"
 
 #include "sgl/device/device.h"
+#include "sgl/device/sampler.h"
 #include "sgl/device/command.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/cuda_utils.h"
@@ -419,6 +420,7 @@ Texture::Texture(ref<Device> device, TextureDesc desc)
     rhi_desc.sampleCount = m_desc.sample_count;
     rhi_desc.sampleQuality = m_desc.sample_quality;
     rhi_desc.optimalClearValue = nullptr; // TODO(slang-rhi)
+    rhi_desc.sampler = m_desc.sampler ? m_desc.sampler->rhi_sampler() : nullptr;
     rhi_desc.label = m_desc.label.empty() ? nullptr : m_desc.label.c_str();
 
     if (m_desc.memory_type == MemoryType::device_local)
@@ -507,6 +509,13 @@ DescriptorHandle Texture::descriptor_handle_rw() const
 {
     rhi::DescriptorHandle rhi_handle = {};
     m_rhi_texture->getDefaultView()->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
+DescriptorHandle Texture::descriptor_handle_combined() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture->getDefaultView()->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
     return DescriptorHandle(rhi_handle);
 }
 
@@ -712,6 +721,7 @@ TextureView::TextureView(ref<Device> device, ref<Texture> texture, TextureViewDe
             .mip = m_desc.subresource_range.mip,
             .mipCount = m_desc.subresource_range.mip_count,
         },
+        .sampler = m_desc.sampler ? m_desc.sampler->rhi_sampler() : nullptr,
         .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
     SLANG_RHI_CALL(
@@ -730,6 +740,13 @@ DescriptorHandle TextureView::descriptor_handle_rw() const
 {
     rhi::DescriptorHandle rhi_handle = {};
     m_rhi_texture_view->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
+DescriptorHandle TextureView::descriptor_handle_combined() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture_view->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
     return DescriptorHandle(rhi_handle);
 }
 

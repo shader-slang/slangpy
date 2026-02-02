@@ -48,6 +48,7 @@ SGL_DICT_TO_DESC_END()
 
 NB_MAKE_OPAQUE(std::map<std::string, std::string, std::less<>>);
 NB_MAKE_OPAQUE(std::vector<sgl::TypeConformance>);
+NB_MAKE_OPAQUE(std::vector<sgl::SpecializationArg>);
 
 SGL_PY_EXPORT(device_shader)
 {
@@ -72,6 +73,17 @@ SGL_PY_EXPORT(device_shader)
         .def_rw("id", &TypeConformance::id, D(TypeConformance, id))
         .def("__repr__", &TypeConformance::to_string);
     nb::implicitly_convertible<nb::tuple, TypeConformance>();
+
+    nb::sgl_enum<SpecializationArgKind>(m, "SpecializationArgKind");
+
+    nb::class_<SpecializationArg>(m, "SpecializationArg")
+        .def(nb::init<>())
+        .def(nb::init<SpecializationArgKind, std::string_view>(), "kind"_a, "value"_a)
+        .def_static("from_type", &SpecializationArg::from_type, "type_name"_a)
+        .def_static("from_expr", &SpecializationArg::from_expr, "expr"_a)
+        .def_rw("kind", &SpecializationArg::kind)
+        .def_rw("value", &SpecializationArg::value)
+        .def("__repr__", &SpecializationArg::to_string);
 
     nb::exception<SlangCompileError>(m, "SlangCompileError");
 
@@ -240,7 +252,8 @@ SGL_PY_EXPORT(device_shader)
         .def_prop_ro("stage", &SlangEntryPoint::stage, D(SlangEntryPoint, stage))
         .def_prop_ro("layout", &SlangEntryPoint::layout, D(SlangEntryPoint, layout))
         .def("rename", &SlangEntryPoint::rename, "new_name"_a, D(SlangEntryPoint, rename))
-        .def("with_name", &SlangEntryPoint::with_name, "new_name"_a, D(SlangEntryPoint, with_name));
+        .def("with_name", &SlangEntryPoint::with_name, "new_name"_a, D(SlangEntryPoint, with_name))
+        .def("specialize", &SlangEntryPoint::specialize, "specialization_args"_a);
 
     nb::class_<ShaderProgram, DeviceChild>(m, "ShaderProgram", D(ShaderProgram))
         .def_prop_ro("layout", &ShaderProgram::layout, D(ShaderProgram, layout))

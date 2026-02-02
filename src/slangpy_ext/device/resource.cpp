@@ -3,6 +3,7 @@
 #include "nanobind.h"
 
 #include "sgl/device/resource.h"
+#include "sgl/device/sampler.h"
 #include "sgl/device/device.h"
 #include "sgl/device/formats.h"
 #include "sgl/device/command.h"
@@ -39,6 +40,7 @@ SGL_DICT_TO_DESC_FIELD(sample_quality, uint32_t)
 SGL_DICT_TO_DESC_FIELD(memory_type, MemoryType)
 SGL_DICT_TO_DESC_FIELD(usage, TextureUsage)
 SGL_DICT_TO_DESC_FIELD(default_state, ResourceState)
+SGL_DICT_TO_DESC_FIELD(sampler, ref<Sampler>)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
 
@@ -53,6 +55,7 @@ SGL_DICT_TO_DESC_BEGIN(TextureViewDesc)
 SGL_DICT_TO_DESC_FIELD(format, Format)
 SGL_DICT_TO_DESC_FIELD(aspect, TextureAspect)
 SGL_DICT_TO_DESC_FIELD(subresource_range, SubresourceRange)
+SGL_DICT_TO_DESC_FIELD(sampler, ref<Sampler>)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
 
@@ -502,6 +505,13 @@ SGL_PY_EXPORT(device_resource)
         .def_prop_ro("mip_count", &Texture::mip_count, D(Texture, mip_count))
         .def_prop_ro("layer_count", &Texture::layer_count, D(Texture, layer_count))
         .def_prop_ro("subresource_count", &Texture::subresource_count, D(Texture, subresource_count))
+        .def_prop_ro("descriptor_handle_ro", &Texture::descriptor_handle_ro, D(Texture, descriptor_handle_ro))
+        .def_prop_ro("descriptor_handle_rw", &Texture::descriptor_handle_rw, D(Texture, descriptor_handle_rw))
+        .def_prop_ro(
+            "descriptor_handle_combined",
+            &Texture::descriptor_handle_combined,
+            D(Texture, descriptor_handle_combined)
+        )
         .def_prop_ro("shared_handle", &Texture::shared_handle, D(Texture, shared_handle))
         .def("get_mip_width", &Texture::get_mip_width, "mip"_a = 0, D(Texture, get_mip_width))
         .def("get_mip_height", &Texture::get_mip_height, "mip"_a = 0, D(Texture, get_mip_height))
@@ -533,6 +543,7 @@ SGL_PY_EXPORT(device_resource)
                uint32_t layer_count,
                uint32_t mip,
                uint32_t mip_count,
+               ref<Sampler> sampler,
                std::string label)
             {
                 TextureViewDesc desc;
@@ -544,6 +555,7 @@ SGL_PY_EXPORT(device_resource)
                     .mip = mip,
                     .mip_count = mip_count,
                 };
+                desc.sampler = std::move(sampler);
                 desc.label = label;
                 return self->create_view(desc);
             },
@@ -553,6 +565,7 @@ SGL_PY_EXPORT(device_resource)
             "layer_count"_a = TextureViewDesc().subresource_range.layer_count,
             "mip"_a = TextureViewDesc().subresource_range.mip,
             "mip_count"_a = TextureViewDesc().subresource_range.mip_count,
+            "sampler"_a.none() = nb::none(),
             "label"_a = TextureViewDesc().label,
             D(Texture, create_view)
         )
@@ -569,6 +582,11 @@ SGL_PY_EXPORT(device_resource)
         .def_prop_ro("label", &TextureView::label, D(TextureView, label))
         .def_prop_ro("descriptor_handle_ro", &TextureView::descriptor_handle_ro, D(TextureView, descriptor_handle_ro))
         .def_prop_ro("descriptor_handle_rw", &TextureView::descriptor_handle_rw, D(TextureView, descriptor_handle_rw))
+        .def_prop_ro(
+            "descriptor_handle_combined",
+            &TextureView::descriptor_handle_combined,
+            D(TextureView, descriptor_handle_combined)
+        )
         .def_prop_ro("native_handle", &TextureView::native_handle, D(TextureView, native_handle))
         .def("__repr__", &TextureView::to_string, D(TextureView, to_string));
 }

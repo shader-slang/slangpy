@@ -43,6 +43,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     math/vector.cpp
     ui/ui.cpp
     ui/widgets.cpp
+    utils/crashpad.cpp
     utils/renderdoc.cpp
     utils/slangpy.h
     utils/slangpy.cpp
@@ -60,8 +61,12 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     utils/slangpyresources.cpp
     utils/slangpytensor.h
     utils/slangpytensor.cpp
+    utils/slangpytorchtensor.h
+    utils/slangpytorchtensor.cpp
     utils/tev.cpp
     utils/texture_loader.cpp
+    utils/torch_bridge.h
+    utils/torch_bridge.cpp
 )
 
 if(SGL_ENABLE_PCH)
@@ -71,7 +76,10 @@ if(SGL_ENABLE_PCH)
     )
 endif()
 
-target_include_directories(slangpy_ext PRIVATE .)
+target_include_directories(slangpy_ext PRIVATE
+    .
+    ${CMAKE_CURRENT_SOURCE_DIR}/../slangpy_torch  # For tensor_bridge_api.h
+)
 
 target_link_libraries(slangpy_ext PRIVATE sgl)
 set_target_properties(slangpy_ext PROPERTIES
@@ -126,7 +134,7 @@ postprocess_stub(${SLANGPY_PACKAGE_DIR}/__init__.pyi "")
 install(FILES ${SLANGPY_PACKAGE_DIR}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Generate submodule stub files.
-foreach(submodule IN ITEMS platform thread math ui tev renderdoc slangpy)
+foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy)
     string(REPLACE "." "/" submodule_path ${submodule})
     nanobind_add_stub(
         slangpy_${submodule}_stub
@@ -145,81 +153,79 @@ foreach(submodule IN ITEMS platform thread math ui tev renderdoc slangpy)
 
 endforeach()
 
-if(SGL_MASTER_PROJECT)
-    set(MKDOC_ARGS "")
+set(MKDOC_ARGS "")
 
-    # Add system include directories.
-    foreach(value ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
-        list(APPEND MKDOC_ARGS -I${value})
+# Add system include directories.
+foreach(value ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
+    list(APPEND MKDOC_ARGS -I${value})
+endforeach()
+
+# Add target include directories.
+get_target_property(list sgl INCLUDE_DIRECTORIES)
+foreach(value ${list})
+    list(APPEND MKDOC_ARGS -I${value})
+endforeach()
+get_target_property(list sgl INTERFACE_INCLUDE_DIRECTORIES)
+foreach(value ${list})
+    list(APPEND MKDOC_ARGS -I${value})
+endforeach()
+
+# Add target include directories from dependencies.
+get_target_property(targets sgl INTERFACE_LINK_LIBRARIES)
+if(targets)
+    foreach(value ${targets})
+        # Skip generator expressions
+        if(value MATCHES "^\\$<.*>$")
+            # message(STATUS "Skipping target: ${value}")
+            continue()
+        endif()
+        get_target_property(list ${value} INTERFACE_INCLUDE_DIRECTORIES)
+        if(list)
+            foreach(value ${list})
+                # Unwrap BUILD_INTERFACE generator expression
+                string(REGEX REPLACE "\\$<BUILD_INTERFACE:([^>]+)>" "\\1" value "${value}")
+                # Skip generator expressions
+                if(value MATCHES "^\\$<.*>$")
+                    # message(STATUS "Skipping path: ${value}")
+                    continue()
+                endif()
+                list(APPEND MKDOC_ARGS -I${value})
+            endforeach()
+        endif()
     endforeach()
-
-    # Add target include directories.
-    get_target_property(list sgl INCLUDE_DIRECTORIES)
-    foreach(value ${list})
-        list(APPEND MKDOC_ARGS -I${value})
-    endforeach()
-    get_target_property(list sgl INTERFACE_INCLUDE_DIRECTORIES)
-    foreach(value ${list})
-        list(APPEND MKDOC_ARGS -I${value})
-    endforeach()
-
-    # Add target include directories from dependencies.
-    get_target_property(targets sgl INTERFACE_LINK_LIBRARIES)
-    if(targets)
-        foreach(value ${targets})
-            # Skip generator expressions
-            if(value MATCHES "^\\$<.*>$")
-                # message(STATUS "Skipping target: ${value}")
-                continue()
-            endif()
-            get_target_property(list ${value} INTERFACE_INCLUDE_DIRECTORIES)
-            if(list)
-                foreach(value ${list})
-                    # Unwrap BUILD_INTERFACE generator expression
-                    string(REGEX REPLACE "\\$<BUILD_INTERFACE:([^>]+)>" "\\1" value "${value}")
-                    # Skip generator expressions
-                    if(value MATCHES "^\\$<.*>$")
-                        # message(STATUS "Skipping path: ${value}")
-                        continue()
-                    endif()
-                    list(APPEND MKDOC_ARGS -I${value})
-                endforeach()
-            endif()
-        endforeach()
-    endif()
-
-    set(SGL_HEADER_DIRS
-        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/app"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/core"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/device"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/math"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/ui"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/utils"
-    )
-    set(SGL_HEADER_FILES "")
-    foreach(sgl_dir IN ITEMS ${SGL_HEADER_DIRS})
-        file(GLOB FOUND_HEADERS "${sgl_dir}/*.h")
-        list(APPEND SGL_HEADER_FILES ${FOUND_HEADERS})
-    endforeach()
-
-    # Note: Older versions of python packages pybind11_mkdoc and clang
-    # may not support C++20. If you see the following error:
-    #   ValueError: Unknown template argument kind 604
-    # Upgrade to:
-    #   pybind_mkdoc >= 2.6.2
-    #   clang >= 20.1.5
-    # Or manually change the cindex.py file in your
-    # clang python package to add the following lines:
-    # > # A concept declaration
-    # > CursorKind.CONCEPT_DECL = CursorKind(604)
-    add_custom_target(pydoc USES_TERMINAL COMMAND
-        COMMAND ${Python_EXECUTABLE} -m pybind11_mkdoc -std=c++20 -stdlib=libc++
-        ${MKDOC_ARGS}
-        -I${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
-        ${SGL_HEADER_FILES}
-        -o ${CMAKE_CURRENT_SOURCE_DIR}/py_doc.h
-    )
 endif()
+
+set(SGL_HEADER_DIRS
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/app"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/core"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/device"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/math"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/ui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/utils"
+)
+set(SGL_HEADER_FILES "")
+foreach(sgl_dir IN ITEMS ${SGL_HEADER_DIRS})
+    file(GLOB FOUND_HEADERS "${sgl_dir}/*.h")
+    list(APPEND SGL_HEADER_FILES ${FOUND_HEADERS})
+endforeach()
+
+# Note: Older versions of python packages pybind11_mkdoc and clang
+# may not support C++20. If you see the following error:
+#   ValueError: Unknown template argument kind 604
+# Upgrade to:
+#   pybind_mkdoc >= 2.6.2
+#   clang >= 20.1.5
+# Or manually change the cindex.py file in your
+# clang python package to add the following lines:
+# > # A concept declaration
+# > CursorKind.CONCEPT_DECL = CursorKind(604)
+add_custom_target(slangpy_pydoc USES_TERMINAL COMMAND
+    COMMAND ${Python_EXECUTABLE} -m pybind11_mkdoc -std=c++20 -stdlib=libc++
+    ${MKDOC_ARGS}
+    -I${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
+    ${SGL_HEADER_FILES}
+    -o ${CMAKE_CURRENT_SOURCE_DIR}/py_doc.h
+)
 
 # Install binaries.
 install(

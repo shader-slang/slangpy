@@ -25,8 +25,9 @@ from slangpy import (
     Logger,
     LogLevel,
     NativeHandle,
+    Tensor,
 )
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.core.function import Function
 
 # Global variables for device isolation. If SELECTED_DEVICE_TYPES is None, no restriction.
@@ -75,6 +76,7 @@ DEVICE_CACHE: dict[
         tuple[Path, ...],  # include_paths
         tuple[NativeHandle, ...],  # existing_device_handles
         bool,  # cuda_interop
+        bool,  # is_benchmark
     ],
     Device,
 ] = {}
@@ -198,19 +200,26 @@ def get_device(
         stack_index += 1
     include_paths = [caller_module_path, SLANG_PATH]
 
+    # Check if we're being called from a benchmark by examining the caller path.
+    # Benchmarks disable debug layers and RHI validation to avoid performance overhead.
+    is_benchmark = "benchmarks" in str(caller_module_path)
+
     cache_key = (
         type,
         tuple(include_paths),
         tuple(existing_device_handles) if existing_device_handles else (),
         cuda_interop,
+        is_benchmark,
     )
 
     if use_cache and cache_key in DEVICE_CACHE:
         return DEVICE_CACHE[cache_key]
+
     device = Device(
         type=type,
         adapter_luid=selected_adaptor_luid,
-        enable_debug_layers=True,
+        enable_debug_layers=not is_benchmark,
+        enable_rhi_validation=not is_benchmark,
         compiler_options=SlangCompilerOptions(
             {
                 "include_paths": include_paths,
@@ -309,7 +318,7 @@ def create_function_from_module(
     return cast(Function, function)
 
 
-def read_ndbuffer_from_numpy(buffer: NDBuffer) -> np.ndarray:
+def read_tensor_from_numpy(buffer: Tensor) -> np.ndarray:
     cursor = buffer.cursor()
     data = np.array([])
     shape = np.prod(np.array(buffer.shape))
@@ -322,7 +331,7 @@ def read_ndbuffer_from_numpy(buffer: NDBuffer) -> np.ndarray:
     return data
 
 
-def write_ndbuffer_from_numpy(buffer: NDBuffer, data: np.ndarray, element_count: int = 0):
+def write_tensor_from_numpy(buffer: Tensor, data: np.ndarray, element_count: int = 0):
     cursor = buffer.cursor()
     shape = np.prod(np.array(buffer.shape))
 

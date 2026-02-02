@@ -23,24 +23,28 @@ def find_slangc():
     Returns:
         Path to slangc if found, None otherwise.
     """
+    paths = []
+    # Check for SLANG_PATH environment variable
+    if "SLANG_PATH" in os.environ:
+        paths.append(Path(os.environ["SLANG_PATH"]))
     # Look for slangc in the build directory
     root_dir = Path(__file__).parent.parent.parent.parent
-    build_dirs = [
+    paths += [
         root_dir / "build/pip/_deps/slang-src/bin",
         root_dir / "build/linux-gcc/_deps/slang-src/bin",
         root_dir / "build/windows-msvc/_deps/slang-src/bin",
         root_dir / "build/macos-arm64-clang/_deps/slang-src/bin",
     ]
 
-    for build_dir in build_dirs:
-        slangc_path = build_dir / "slangc"
-        if slangc_path.exists():
-            return slangc_path
-        slangc_path = build_dir / "slangc.exe"
+    SLANGC_EXE = "slangc.exe" if os.name == "nt" else "slangc"
+
+    for path in paths:
+        slangc_path = path / SLANGC_EXE
         if slangc_path.exists():
             return slangc_path
 
-    return None
+    # If not found, search on PATH
+    return shutil.which(SLANGC_EXE)
 
 
 def compile_precompiled_module(

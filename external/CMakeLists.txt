@@ -74,8 +74,9 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SLANG_VERSION "2025.22.1")
-set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/slang-${SLANG_VERSION}")
+set(SGL_SLANG_VERSION "2026.1" CACHE STRING "Slang version to download when not using a local build")
+
+set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SGL_SLANG_VERSION}/slang-${SGL_SLANG_VERSION}")
 
 if(SGL_WINDOWS)
     if(SGL_ARCHITECTURE MATCHES "x86_64")
@@ -103,7 +104,9 @@ elseif(SGL_MACOS)
     endif()
 endif()
 
-sgl_download_package(slang ${SLANG_URL})
+if(NOT SGL_LOCAL_SLANG)
+    sgl_download_package(slang ${SLANG_URL})
+endif()
 
 set(SLANG_DIR ${slang_SOURCE_DIR})
 set(SLANG_INCLUDE_DIR ${slang_SOURCE_DIR}/include)
@@ -139,8 +142,8 @@ function(sgl_add_library_slang)
             if(EXISTS "${SLANG_TAG_VERSION_HEADER}")
                 extract_define_from_header("${SLANG_TAG_VERSION_HEADER}" "SLANG_VERSION_NUMERIC" SLANG_VERSION_FROM_HEADER)
                 if(SLANG_VERSION_FROM_HEADER)
-                    set(SLANG_VERSION "${SLANG_VERSION_FROM_HEADER}")
-                    message(STATUS "Using Slang version from local build: ${SLANG_VERSION}")
+                    set(SGL_SLANG_VERSION "${SLANG_VERSION_FROM_HEADER}")
+                    message(STATUS "Using Slang version from local build: ${SGL_SLANG_VERSION}")
                 else()
                     message(FATAL_ERROR "Could not extract SLANG_VERSION_NUMERIC from: ${SLANG_TAG_VERSION_HEADER}")
                 endif()
@@ -148,7 +151,7 @@ function(sgl_add_library_slang)
                 message(FATAL_ERROR "Slang tag version header not found: ${SLANG_TAG_VERSION_HEADER}")
             endif()
         endif()
-        set(slang_module_version "-${SLANG_VERSION}")
+        set(slang_module_version "-${SGL_SLANG_VERSION}")
     else()
         set(slang_lib_base slang)
         set(slang_module_version "")
@@ -246,3 +249,14 @@ set(SGL_IMGUI_DIR ${imgui_SOURCE_DIR} PARENT_SCOPE)
 
 add_library(header_only INTERFACE)
 target_include_directories(header_only INTERFACE include)
+
+# crashpad
+
+if(SGL_HAS_CRASHPAD)
+    # Copy crashpad_handler binary
+    set(CRASHPAD_HANDLER "crashpad_handler")
+    if(SGL_WINDOWS)
+        set(CRASHPAD_HANDLER "crashpad_handler.exe")
+    endif()
+    sgl_copy_binary(${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/packages/crashpad_${VCPKG_TARGET_TRIPLET}/tools/${CRASHPAD_HANDLER} .)
+endif()

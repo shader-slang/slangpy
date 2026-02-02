@@ -1,5 +1,5 @@
 name: ci-latest-slang
-run-name: "Slang branch: ${{ github.event.inputs.slang_branch }}"
+run-name: "Slang branch: ${{ github.event.inputs.slang_branch || 'master' }}"
 
 on:
   schedule:
@@ -27,13 +27,13 @@ jobs:
         python: ["3.10"]
         include:
           # Builds running on self-hosted runners
-          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test,test-examples", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test,test-examples", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
           # Builds running on GitHub hosted runners
-          - { os: macos, platform: aarch64, compiler: clang, config: Debug, flags: "unit-test", runs-on: macos-latest }
-          - { os: macos, platform: aarch64, compiler: clang, config: Release, flags: "unit-test,test-examples", runs-on: macos-latest }
+          - { os: macos, platform: aarch64, compiler: clang, config: Debug, flags: "unit-test,crashpad", runs-on: macos-latest }
+          - { os: macos, platform: aarch64, compiler: clang, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: macos-latest }
 
     env:
       # Environment variables used by ci.py
@@ -43,6 +43,9 @@ jobs:
       CI_CONFIG: ${{ matrix.config }}
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
+
+      # Path to the built slang compiler
+      SLANG_PATH: ${{ github.workspace }}/slang/build/${{ matrix.config }}/bin
 
     steps:
       - uses: actions/checkout@v4
@@ -93,7 +96,7 @@ jobs:
         run: |
           git clone --recursive https://github.com/shader-slang/slang.git
           cd slang
-          git checkout ${{ github.event.inputs.slang_branch }}
+          git checkout ${{ github.event.inputs.slang_branch || 'master' }}
           git submodule update --init --recursive
 
       # Build Slang.
@@ -150,6 +153,15 @@ jobs:
         if: contains(matrix.flags, 'test-examples')
         run: python tools/ci.py test-examples -p
 
+      # Upload Crashpad Reports
+      - name: Upload Crashpad Reports
+        if: always() && contains(matrix.flags, 'crashpad')
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ matrix.config }}
+          path: .crashpad/reports/
+          if-no-files-found: ignore
+
       # Generate Coverage Report
       - name: Generate Coverage Report
         if: contains(matrix.flags, 'coverage')
@@ -162,3 +174,29 @@ jobs:
         with:
           name: coverage-report
           path: reports/coverage.html
+
+  # Notify Slack after all matrix jobs complete
+  notify:
+    runs-on: ubuntu-latest
+    needs: build
+    if: always() && github.event_name == 'schedule'
+    steps:
+      # Success Notification
+      - name: Success Notification
+        if: ${{ needs.build.result == 'success' }}
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":green-check-mark: SlangPy nightly status: success\n"
+
+      # Failure Notification
+      - name: Failure Notification
+        if: ${{ needs.build.result != 'success' }}
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":alert: :alert: :alert: :alert: :alert: :alert:\nSlangPy nightly status: ${{ needs.build.result }}: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

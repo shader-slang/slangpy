@@ -20,9 +20,9 @@ def test_vector_padded():
     assert res == ("vector", ["float", "4"])
 
 
-def test_ndbuffer_padded():
-    res = parse_generic_signature("NDBuffer<vector<float, 4>, 2>")
-    assert res == ("NDBuffer", ["vector<float, 4>", "2"])
+def test_tensor_padded():
+    res = parse_generic_signature("Tensor<vector<float, 4>, 2>")
+    assert res == ("Tensor", ["vector<float, 4>", "2"])
 
 
 if __name__ == "__main__":

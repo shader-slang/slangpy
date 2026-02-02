@@ -14,11 +14,11 @@ from slangpy import (
     math,
     Buffer,
     InstanceList,
-    InstanceBuffer,
+    InstanceTensor,
     Module,
 )
 from slangpy.core.struct import Struct
-from slangpy.types import NDBuffer, Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.types.randfloatarg import RandFloatArg
 from slangpy.types.valueref import ValueRef, floatRef
 from slangpy.experimental.diffinstancelist import InstanceDifferentiableBuffer
@@ -71,7 +71,7 @@ def test_this_interface(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Allocate a buffer
-    buffer = NDBuffer(m.device, Particle, 1)
+    buffer = Tensor.empty(m.device, dtype=Particle, shape=(1,))
 
     # Create a tiny wrapper around the buffer to provide the this interface
     this = ThisType(buffer)
@@ -81,7 +81,7 @@ def test_this_interface(device_type: DeviceType):
     Particle_reset(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = helpers.read_ndbuffer_from_numpy(buffer)
+    data = helpers.read_tensor_from_numpy(buffer)
 
     # position
     positions = np.array([item["position"] for item in data])
@@ -116,7 +116,7 @@ def test_this_interface_soa(device_type: DeviceType):
     # Create a tiny wrapper around the buffer to provide the this interface
     this = ThisType(
         {
-            "position": NDBuffer(m.device, float2, 1),
+            "position": Tensor.empty(m.device, dtype=float2, shape=(1,)),
             "velocity": float2(1, 0),
             "size": 0.5,
             "material": {"color": float3(1, 1, 1), "emission": float3(0, 0, 0)},
@@ -144,15 +144,15 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     assert Particle is not None
     assert isinstance(Particle, Struct)
 
-    # Sllocate a buffer
-    buffer = NDBuffer(m.device, Particle, 1)
+    # Allocate a buffer
+    buffer = Tensor.empty(m.device, dtype=Particle, shape=(1,))
 
     # Create a tiny wrapper around the buffer to provide the this interface
     instance = InstanceList(Particle, buffer)
     instance.construct(float2(1, 2), float2(3, 4))
 
     # Check the buffer has been correctly populated
-    data = helpers.read_ndbuffer_from_numpy(buffer)
+    data = helpers.read_tensor_from_numpy(buffer)
     positions = np.array([item["position"] for item in data])
     assert np.all(positions == [1.0, 2.0])
     velocity = np.array([item["velocity"] for item in data])
@@ -165,7 +165,7 @@ def test_loose_instance_as_buffer(device_type: DeviceType):
     instance.update_position(1.0)
 
     # Check the buffer has been correctly updated
-    data = helpers.read_ndbuffer_from_numpy(buffer)
+    data = helpers.read_tensor_from_numpy(buffer)
     positions = np.array([item["position"] for item in data])
     assert np.all(positions == [0.0, 1.0])
     velocity = np.array([item["velocity"] for item in data])
@@ -186,7 +186,7 @@ def test_loose_instance_soa(device_type: DeviceType):
     instance = InstanceList(
         Particle,
         {
-            "position": NDBuffer(m.device, float2, 1),
+            "position": Tensor.empty(m.device, dtype=float2, shape=(1,)),
             "velocity": ValueRef(float2(9999)),
             "size": floatRef(9999),
             "material": {
@@ -257,13 +257,13 @@ def test_pass_instance_to_function(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create storage for particles in a simple buffer
-    particles = InstanceBuffer(Particle, shape=(1000,))
+    particles = InstanceTensor(Particle, shape=(1000,))
 
     # Call the slang constructor on all particles in the buffer,
     # assigning each a constant starting position and a random velocity
     particles.construct(position=float2(10, 10), velocity=RandFloatArg(min=-1, max=1, dim=2))
 
-    expected_particles = helpers.read_ndbuffer_from_numpy(particles._data)
+    expected_particles = helpers.read_tensor_from_numpy(particles._data)
     expected_particles = flatten_ndarray(expected_particles)
 
     # Call the slang function 'Particle::update_position' to update them
@@ -272,14 +272,14 @@ def test_pass_instance_to_function(device_type: DeviceType):
     particle_update_positions(expected_particles, 1.0 / 60.0)
 
     # Check the numpy buffer and the slang buffer are the same
-    particle_data = helpers.read_ndbuffer_from_numpy(particles._data)
+    particle_data = helpers.read_tensor_from_numpy(particles._data)
     particle_data = flatten_ndarray(particle_data)
     assert np.allclose(particle_data, expected_particles)
 
     # Define a 'Quad' type which is just an array of float2s, and make a buffer for them
     Quad = m["float2[4]"]
     assert isinstance(Quad, Struct)
-    quads = InstanceBuffer(Quad, particles.shape)
+    quads = InstanceTensor(Quad, particles.shape)
 
     # Call the slang function 'get_particle_quad' which takes particles and returns quads
     m.get_particle_quad(particles, _result=quads)
@@ -308,10 +308,10 @@ def test_pass_nested_instance_to_function(device_type: DeviceType):
     particles = InstanceList(
         Particle,
         {
-            "position": NDBuffer(m.device, float2, 1000),
+            "position": Tensor.empty(m.device, dtype=float2, shape=(1000,)),
             "velocity": float2(0, 0),
             "size": 0.5,
-            "material": InstanceBuffer(Material, shape=(1000,)),
+            "material": InstanceTensor(Material, shape=(1000,)),
         },
     )
 
@@ -320,7 +320,7 @@ def test_pass_nested_instance_to_function(device_type: DeviceType):
     particles.construct(position=float2(10, 10), velocity=float2(0, 0))
 
     # Check colors are white and emission is black!
-    material_data = helpers.read_ndbuffer_from_numpy(particles._data["material"]._data)
+    material_data = helpers.read_tensor_from_numpy(particles._data["material"]._data)
     material_data = np.array(
         [list(item["color"]) + list(item["emission"]) for item in material_data]
     )
@@ -342,7 +342,7 @@ class CustomInstanceList:
         self.data = data
 
     def get_this(self) -> Any:
-        buffer = NDBuffer(self.device, float2, len(self.data))
+        buffer = Tensor.empty(self.device, dtype=float2, shape=(len(self.data),))
         np_data = np.array([[v.x, v.y] for v in self.data], dtype=np.float32)
         buffer.copy_from_numpy(np_data)
         return buffer
@@ -383,8 +383,8 @@ def test_custom_instance_list(device_type: DeviceType):
 class ExtendedInstanceList(InstanceList):
     def __init__(self, struct: Struct):
         super().__init__(struct)
-        self.position = NDBuffer(struct.device, float2, 1000)
-        self.velocity = NDBuffer(struct.device, float2, 1000)
+        self.position = Tensor.empty(struct.device, dtype=float2, shape=(1000,))
+        self.velocity = Tensor.empty(struct.device, dtype=float2, shape=(1000,))
         self.size = 0.5
         self.material = {"color": float3(1, 1, 1), "emission": float3(0, 0, 0)}
 
@@ -419,6 +419,11 @@ def test_extended_instance_list(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_backwards_diff(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        pytest.skip(
+            "Metal backend can not atomically accumulate float3 types due to sizeof(float3) returning 12"
+        )
+
     # Use test system helper to load a slangpy module from a file
     m = load_module(device_type, "test_modules.slang")
     assert m is not None
@@ -440,7 +445,7 @@ def test_backwards_diff(device_type: DeviceType):
     next_positions = next_positions.with_grads()
 
     # Init the gradients of next positions to 1 for the backwards pass
-    helpers.write_ndbuffer_from_numpy(
+    helpers.write_tensor_from_numpy(
         next_positions.grad, np.ones((particle_count * 2), dtype=np.float32), 2
     )
 
@@ -452,14 +457,14 @@ def test_backwards_diff(device_type: DeviceType):
     particles.calc_next_position.bwds(dt=dts, _result=next_positions)
 
     # Read back all primals and gradients we ended up with into numpy arrays
-    particle_primals = helpers.read_ndbuffer_from_numpy(particles.buffer)
+    particle_primals = helpers.read_tensor_from_numpy(particles.buffer)
     particle_primals = flatten_ndarray(particle_primals).reshape(-1, 11)
 
-    particle_grads = helpers.read_ndbuffer_from_numpy(particles.buffer.grad)
+    particle_grads = helpers.read_tensor_from_numpy(particles.buffer.grad)
     particle_grads = flatten_ndarray(particle_grads).reshape(-1, 11)
 
-    dt_grads = helpers.read_ndbuffer_from_numpy(dts.grad)
-    next_positions = helpers.read_ndbuffer_from_numpy(next_positions).reshape(-1, 2)
+    dt_grads = helpers.read_tensor_from_numpy(dts.grad)
+    next_positions = helpers.read_tensor_from_numpy(next_positions).reshape(-1, 2)
 
     for particle_idx in range(0, len(particle_primals)):
         pos = particle_primals[particle_idx][0:2]

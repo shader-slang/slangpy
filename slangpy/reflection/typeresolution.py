@@ -95,18 +95,25 @@ def resolve_arguments(
         if not python:
             continue
 
+        logged = False
         if vec:
             types = [vec]
         else:
-            if hasattr(python, "resolve_types"):
-                types = python.resolve_types(bind_context, slang)
-            else:
-                types = [python.resolve_type(bind_context, slang)]
+            try:
+                if hasattr(python, "resolve_types"):
+                    types = python.resolve_types(bind_context, slang)
+                else:
+                    types = [python.resolve_type(bind_context, slang)]
+            except TypeError as e:
+                diagnostics.summary(f"  Argument {i} could not be resolved: {e}")
+                logged = True
+                types = []
+
         if not types:
             types = []
         types = [t for t in types if t]
 
-        if len(types) == 0:
+        if len(types) == 0 and not logged:
             diagnostics.summary(
                 f"  Argument {i} could not be resolved: python type {python} does not match slang type {slang.full_name}."
             )
