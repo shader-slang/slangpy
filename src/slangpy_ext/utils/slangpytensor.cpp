@@ -373,104 +373,6 @@ void NativeTensorMarshall::write_native_tensor(
     }
 }
 
-void NativeTensorMarshall::write_torch_tensor_ref(
-    CallContext* context,
-    NativeBoundVariableRuntime* binding,
-    ShaderObject* shader_object,
-    TensorRef* tensorref
-) const
-{
-    // Extract PyTorch tensor from TensorRef
-    auto pytorch_tensor_opt = tensorref->tensor();
-    if (!pytorch_tensor_opt.has_value()) {
-        SGL_THROW("TensorRef does not contain a PyTorch tensor");
-    }
-    auto& pytorch_tensor = pytorch_tensor_opt.value();
-
-    // Validate tensor shape against expected vector type shape
-    // This mirrors the validation in Python's torchtensormarshall.py:118
-    Shape tensor_shape = extract_shape(pytorch_tensor);
-    const Shape& vector_shape = binding->vector_type()->shape();
-    validate_tensor_shape(tensor_shape, vector_shape);
-
-    // Extract strides once for reuse
-    Shape tensor_strides = extract_strides(pytorch_tensor);
-
-    // Reserve memory in shader object for tensor fields
-    void* base_address = shader_object->reserve_data(m_cached_offsets.field_offset, m_cached_offsets.field_size);
-
-    // Write primal tensor
-    if (!m_cached_offsets.has_grad_fields) {
-        // Flat structure - use primal offsets directly
-        write_torch_tensor_ref_fields(
-            context,
-            binding,
-            shader_object,
-            base_address,
-            m_cached_offsets.primal,
-            pytorch_tensor.data(),
-            tensor_shape,
-            tensor_strides,
-            0
-        );
-    } else {
-        // Differentiated structure - write primal
-        write_torch_tensor_ref_fields(
-            context,
-            binding,
-            shader_object,
-            base_address,
-            m_cached_offsets.primal,
-            pytorch_tensor.data(),
-            tensor_shape,
-            tensor_strides,
-            0
-        );
-
-        // Handle grad_in
-        if (m_d_in && m_cached_offsets.grad_in.is_valid) {
-            ref<TensorRef> grad_in_ref = tensorref->grad_in();
-            SGL_CHECK(grad_in_ref, "Missing required input gradients");
-            auto grad_in_tensor_opt = grad_in_ref->tensor();
-            if (grad_in_tensor_opt.has_value()) {
-                auto& grad_in_tensor = grad_in_tensor_opt.value();
-                write_torch_tensor_ref_fields(
-                    context,
-                    binding,
-                    shader_object,
-                    base_address,
-                    m_cached_offsets.grad_in,
-                    grad_in_tensor.data(),
-                    extract_shape(grad_in_tensor),
-                    extract_strides(grad_in_tensor),
-                    0
-                );
-            }
-        }
-
-        // Handle grad_out
-        if (m_d_out && m_cached_offsets.grad_out.is_valid) {
-            ref<TensorRef> grad_out_ref = tensorref->grad_out();
-            SGL_CHECK(grad_out_ref, "Missing required output gradients");
-            auto grad_out_tensor_opt = grad_out_ref->tensor();
-            if (grad_out_tensor_opt.has_value()) {
-                auto& grad_out_tensor = grad_out_tensor_opt.value();
-                write_torch_tensor_ref_fields(
-                    context,
-                    binding,
-                    shader_object,
-                    base_address,
-                    m_cached_offsets.grad_out,
-                    grad_out_tensor.data(),
-                    extract_shape(grad_out_tensor),
-                    extract_strides(grad_out_tensor),
-                    0
-                );
-            }
-        }
-    }
-}
-
 /**
  * Write tensor data to shader uniforms using pre-cached reflection offsets.
  * This is the optimized path that avoids repeated shader cursor navigation.
@@ -541,20 +443,6 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
                 );
         }
         return;
-    }
-
-    // Try PyTorch TensorRef path (CUDA only)
-    TensorRef* tensorref;
-    if (nb::try_cast(value, tensorref)) {
-        auto pytorch_tensor_opt = tensorref->tensor();
-        // Only use fast path for CUDA tensors - other backends need interop buffer
-        if (pytorch_tensor_opt.has_value() && context->device()->type() == DeviceType::cuda) {
-            // Set last_access to track read/write operations for autograd
-            tensorref->set_last_access(binding->access());
-            ShaderObject* shader_object = cursor.shader_object();
-            write_torch_tensor_ref(context, binding, shader_object, tensorref);
-            return;
-        }
     }
 
     // Fall back to base class for all other cases
@@ -669,24 +557,6 @@ void NativeTensorMarshall::write_native_tensor_fields(
         strides,
         tensor->offset()
     );
-}
-
-void NativeTensorMarshall::write_torch_tensor_ref_fields(
-    CallContext* context,
-    NativeBoundVariableRuntime* binding,
-    ShaderObject* shader_object,
-    void* base_address,
-    const TensorFieldOffsets& offsets,
-    void* data_ptr,
-    const Shape& shape,
-    const Shape& strides_in,
-    int offset
-) const
-{
-    // Apply broadcast stride zeroing (ZERO allocations for shapes ≤8 dims!)
-    Shape strides = apply_broadcast_stride_zeroing(strides_in, shape, binding->transform(), context->call_shape());
-
-    write_tensor_fields_from_pointer(shader_object, base_address, offsets, data_ptr, shape, strides, offset);
 }
 
 void NativeTensorMarshall::read_calldata(
