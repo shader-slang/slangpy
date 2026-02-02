@@ -512,6 +512,13 @@ DescriptorHandle Texture::descriptor_handle_rw() const
     return DescriptorHandle(rhi_handle);
 }
 
+DescriptorHandle Texture::descriptor_handle_combined() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture->getDefaultView()->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
 NativeHandle Texture::shared_handle() const
 {
     rhi::NativeHandle rhi_handle = {};
@@ -733,6 +740,13 @@ DescriptorHandle TextureView::descriptor_handle_rw() const
 {
     rhi::DescriptorHandle rhi_handle = {};
     m_rhi_texture_view->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
+DescriptorHandle TextureView::descriptor_handle_combined() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture_view->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
     return DescriptorHandle(rhi_handle);
 }
 
