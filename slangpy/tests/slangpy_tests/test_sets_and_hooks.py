@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, Module
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 TEST_MODULE = r"""
@@ -34,7 +34,7 @@ def test_set(device_type: DeviceType):
 
     add_k = m.add_k.as_func()
 
-    val = NDBuffer(m.device, float, 10)
+    val = Tensor.empty(m.device, dtype=float, shape=(10,))
     val_data = np.zeros(10, dtype=np.float32)  # np.random.rand(10).astype(np.float32)
     val.copy_from_numpy(val_data)
 
@@ -53,7 +53,7 @@ def test_set_with_callback(device_type: DeviceType):
 
     add_k = m.add_k.as_func()
 
-    val = NDBuffer(m.device, float, 10)
+    val = Tensor.empty(m.device, dtype=float, shape=(10,))
     val_data = np.random.rand(10).astype(np.float32)
     val.copy_from_numpy(val_data)
 

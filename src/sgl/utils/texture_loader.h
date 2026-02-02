@@ -79,6 +79,15 @@ public:
     std::vector<ref<Texture>> load_textures(std::span<const Bitmap*> bitmaps, std::optional<Options> options = {});
 
     /**
+     * \brief Load textures from a list of bitmaps.
+     *
+     * \param bitmaps Bitmaps to load.
+     * \param options Texture loading options.
+     * \return List of new of texture objects.
+     */
+    std::vector<ref<Texture>> load_textures(std::span<const Bitmap*> bitmaps, std::span<const Options> options);
+
+    /**
      * \brief Load textures from a list of image files.
      *
      * \param paths Image file paths.
@@ -86,7 +95,17 @@ public:
      * \return List of new texture objects.
      */
     std::vector<ref<Texture>>
-    load_textures(std::span<std::filesystem::path> paths, std::optional<Options> options = {});
+    load_textures(std::span<const std::filesystem::path> paths, std::optional<Options> options = {});
+
+    /**
+     * \brief Load textures from a list of image files.
+     *
+     * \param paths Image file paths.
+     * \param options Texture loading options.
+     * \return List of new texture objects.
+     */
+    std::vector<ref<Texture>>
+    load_textures(std::span<const std::filesystem::path> paths, std::span<const Options> options);
 
     /**
      * \brief Load a texture array from a list of bitmaps.
@@ -108,7 +127,7 @@ public:
      * \param options Texture loading options.
      * \return New texture array object.
      */
-    ref<Texture> load_texture_array(std::span<std::filesystem::path> paths, std::optional<Options> options = {});
+    ref<Texture> load_texture_array(std::span<const std::filesystem::path> paths, std::optional<Options> options = {});
 
 private:
     ref<Device> m_device;

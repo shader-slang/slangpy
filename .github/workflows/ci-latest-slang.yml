@@ -44,6 +44,9 @@ jobs:
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
 
+      # Path to the built slang compiler
+      SLANG_PATH: ${{ github.workspace }}/slang/build/${{ matrix.config }}/bin
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -176,7 +179,7 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'schedule'
+    if: always() && github.event_name == 'schedule'
     steps:
       # Success Notification
       - name: Success Notification

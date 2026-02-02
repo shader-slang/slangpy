@@ -92,16 +92,16 @@ jobs:
         run: |
           sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
 
-      # Setup Python (no pip cache on unit test windows runners - massive slow down).
+      # Setup Python (no pip cache on self-hosted runners).
       - name: Setup Python ${{ matrix.python }} (No cache)
-        if: runner.os == 'windows' && contains(matrix.flags, 'unit-test')
+        if: runner.environment == 'self-hosted'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
 
-      # Setup Python (with pip cache on all other runners).
+      # Setup Python (with pip cache on github-hosted runners).
       - name: Setup Python ${{ matrix.python }} (Pip cache)
-        if: runner.os != 'windows' || !contains(matrix.flags, 'unit-test')
+        if: runner.environment == 'github-hosted'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -155,6 +155,11 @@ jobs:
       - name: Build
         run: python tools/ci.py build
 
+      # Install slangpy-torch extension (requires MSVC on Windows, PyTorch installed)
+      - name: Install slangpy-torch
+        if: runner.os != 'macos' && contains(matrix.flags, 'unit-test')
+        run: python tools/ci.py install-slangpy-torch
+
       # Typing Checks (Python)
       - name: Typing Checks (Python)
         run: python tools/ci.py typing-check-python
@@ -195,3 +200,9 @@ jobs:
         with:
           name: coverage-report
           path: reports/coverage.html
+
+      # Cleanup slangpy-torch
+      - name: Uninstall slangpy-torch
+        if: always()
+        run: python -m pip uninstall slangpy-torch -y
+        continue-on-error: true

@@ -193,26 +193,26 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
         device=device,
         dtype=float3,
     ).with_grads()
-    helpers.write_ndbuffer_from_numpy(a, np.random.rand(32 * 3).astype(np.float32), 3)
+    helpers.write_tensor_from_numpy(a, np.random.rand(32 * 3).astype(np.float32), 3)
 
     b = Tensor.empty(
         shape=(32,),
         device=device,
         dtype=float3,
     ).with_grads()
-    helpers.write_ndbuffer_from_numpy(b, np.random.rand(32 * 3).astype(np.float32), 3)
+    helpers.write_tensor_from_numpy(b, np.random.rand(32 * 3).astype(np.float32), 3)
 
     res: Tensor = kernel_eval_polynomial(a, b)
-    a_data = helpers.read_ndbuffer_from_numpy(a).reshape(-1, 3)
-    b_data = helpers.read_ndbuffer_from_numpy(b).reshape(-1, 3)
+    a_data = helpers.read_tensor_from_numpy(a).reshape(-1, 3)
+    b_data = helpers.read_tensor_from_numpy(b).reshape(-1, 3)
 
     expected = python_eval_polynomial(a_data, b_data)
-    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(-1, 3)
+    res_data = helpers.read_tensor_from_numpy(res).reshape(-1, 3)
 
     assert np.allclose(res_data, expected)
 
     res = res.with_grads()
-    helpers.write_ndbuffer_from_numpy(res.grad, np.ones(32 * 3).astype(np.float32), 3)
+    helpers.write_tensor_from_numpy(res.grad, np.ones(32 * 3).astype(np.float32), 3)
 
     kernel_eval_polynomial.bwds(a, b, res)
 
@@ -274,14 +274,14 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     a_y_data = a_y.storage.to_numpy().view(np.float32).reshape(-1, 1)
     a_z_data = a_z.storage.to_numpy().view(np.float32).reshape(-1, 1)
     a_data = np.column_stack((a_x_data, a_y_data, a_z_data))
-    b_data = helpers.read_ndbuffer_from_numpy(b).reshape(-1, 3)
+    b_data = helpers.read_tensor_from_numpy(b).reshape(-1, 3)
     expected = python_eval_polynomial(a_data, b_data)
-    res_data = helpers.read_ndbuffer_from_numpy(res).reshape(-1, 3)
+    res_data = helpers.read_tensor_from_numpy(res).reshape(-1, 3)
 
     assert np.allclose(res_data, expected)
 
     res = res.with_grads()
-    helpers.write_ndbuffer_from_numpy(res.grad, np.ones(32 * 3).astype(np.float32), 3)
+    helpers.write_tensor_from_numpy(res.grad, np.ones(32 * 3).astype(np.float32), 3)
 
     kernel_eval_polynomial.bwds({"x": a_x, "y": a_y, "z": a_z}, b, res)
     a_x_grad_data = a_x.grad.storage.to_numpy().view(np.float32).reshape(-1, 1)

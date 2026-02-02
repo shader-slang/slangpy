@@ -319,21 +319,21 @@ inline ref<Texture> create_texture(
     }
 }
 
-
 inline std::vector<ref<Texture>> create_textures(
     Device* device,
     Blitter* blitter,
     std::span<SourceImage> source_images,
     std::span<thread::TaskHandle> source_image_tasks,
-    const TextureLoader::Options& options
+    std::span<const TextureLoader::Options> options
 )
 {
     SGL_ASSERT(source_images.size() == source_image_tasks.size());
+    SGL_ASSERT(source_images.size() == options.size());
     std::vector<ref<Texture>> textures(source_images.size());
     ref<CommandEncoder> command_encoder = device->create_command_encoder();
     for (size_t i = 0; i < source_images.size(); ++i) {
         thread::task_wait_and_release(source_image_tasks[i]);
-        textures[i] = create_texture(device, blitter, command_encoder, source_images[i], options);
+        textures[i] = create_texture(device, blitter, command_encoder, source_images[i], options[i]);
         if (i && (i % BATCH_SIZE == 0)) {
             device->submit_command_buffer(command_encoder->finish());
             command_encoder = device->create_command_encoder();
@@ -445,7 +445,14 @@ ref<Texture> TextureLoader::load_texture(const std::filesystem::path& path, std:
 std::vector<ref<Texture>>
 TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::optional<Options> options_)
 {
-    Options options = options_.value_or(Options{});
+    std::vector<Options> options(bitmaps.size(), options_.value_or(Options{}));
+    return load_textures(bitmaps, options);
+}
+
+std::vector<ref<Texture>>
+TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::span<const Options> options)
+{
+    SGL_CHECK(bitmaps.size() == options.size(), "Number of options must be equal to the number of bitmaps");
 
     // Convert bitmaps in parallel.
     std::vector<SourceImage> source_images(bitmaps.size());
@@ -454,7 +461,7 @@ TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::optional<Opt
         source_image_tasks[i] = thread::do_async(
             [&, i]()
             {
-                source_images[i] = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmaps[i])), options);
+                source_images[i] = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmaps[i])), options[i]);
             }
         );
     }
@@ -463,9 +470,16 @@ TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::optional<Opt
 }
 
 std::vector<ref<Texture>>
-TextureLoader::load_textures(std::span<std::filesystem::path> paths, std::optional<Options> options_)
+TextureLoader::load_textures(std::span<const std::filesystem::path> paths, std::optional<Options> options_)
 {
-    Options options = options_.value_or(Options{});
+    std::vector<Options> options(paths.size(), options_.value_or(Options{}));
+    return load_textures(paths, options);
+}
+
+std::vector<ref<Texture>>
+TextureLoader::load_textures(std::span<const std::filesystem::path> paths, std::span<const Options> options)
+{
+    SGL_CHECK(paths.size() == options.size(), "Number of options must be equal to the number of paths");
 
     // Load & convert source images in parallel.
     std::vector<SourceImage> source_images(paths.size());
@@ -474,7 +488,7 @@ TextureLoader::load_textures(std::span<std::filesystem::path> paths, std::option
         source_image_tasks[i] = thread::do_async(
             [&, i]()
             {
-                source_images[i] = load_and_convert_source_image(m_device, paths[i], options);
+                source_images[i] = load_and_convert_source_image(m_device, paths[i], options[i]);
             }
         );
     }
@@ -504,7 +518,8 @@ ref<Texture> TextureLoader::load_texture_array(std::span<const Bitmap*> bitmaps,
     return create_texture_array(m_device, m_blitter, source_images, source_image_tasks, options);
 }
 
-ref<Texture> TextureLoader::load_texture_array(std::span<std::filesystem::path> paths, std::optional<Options> options_)
+ref<Texture>
+TextureLoader::load_texture_array(std::span<const std::filesystem::path> paths, std::optional<Options> options_)
 {
     if (paths.empty())
         return nullptr;

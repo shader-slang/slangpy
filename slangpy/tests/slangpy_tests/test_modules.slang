@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import "slangpy";
 
-struct Material : IDifferentiable {
+struct Material : IDifferentiable, IAtomicAddable {
     float3 color;
     float3 emission;
 
@@ -10,9 +10,21 @@ struct Material : IDifferentiable {
         color = float3(1, 1, 1);
         emission = float3(0, 0, 0);
     }
+
+    static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
+    {
+        float3::atomicAdd(buf, addr, value.color); addr += sizeof(float3);
+        float3::atomicAdd(buf, addr, value.emission);
+    }
+
+    static void atomicAdd(This* buf, uint element, This value)
+    {
+        float3::atomicAdd(&buf[element].color, 0, value.color);
+        float3::atomicAdd(&buf[element].emission, 0, value.emission);
+    }
 };
 
-struct Particle : IDifferentiable {
+struct Particle : IDifferentiable, IAtomicAddable {
 
     float2 position;
     float2 velocity;
@@ -51,6 +63,22 @@ struct Particle : IDifferentiable {
     [mutating]
     void update_position(float dt) {
         position = calc_next_position(dt);
+    }
+
+    static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
+    {
+        float2::atomicAdd(buf, addr, value.position); addr += sizeof(float2);
+        float2::atomicAdd(buf, addr, value.velocity); addr += sizeof(float2);
+        float::atomicAdd(buf, addr, value.size); addr += sizeof(float);
+        Material::atomicAdd(buf, addr, value.material);
+    }
+
+    static void atomicAdd(This* buf, uint element, This value)
+    {
+        float2::atomicAdd(&buf[element].position, 0, value.position);
+        float2::atomicAdd(&buf[element].velocity, 0, value.velocity);
+        float::atomicAdd(&buf[element].size, 0, value.size);
+        Material::atomicAdd(&buf[element].material, 0, value.material);
     }
 }
 

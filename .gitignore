@@ -1,5 +1,6 @@
 build/
 external/vcpkg
+external/slang/
 tools/download
 tools/host
 docs/_build/
@@ -31,4 +32,8 @@ slangpy/tests/slangpy_tests/logs/
 
 *.sqlite
 
+.slangtorch_cache/
+
 sgl_tests.log
+
+__pycache__/
