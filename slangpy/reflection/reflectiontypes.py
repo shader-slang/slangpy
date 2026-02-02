@@ -1672,10 +1672,12 @@ class SlangProgramLayout:
         for piece in reversed(pieces):
             if can_convert_to_int(piece):
                 x = int(piece)
-            else:
+            elif check_type_name(piece):
                 x = self.find_type_by_name(piece)
                 if x is None:
                     x = self.require_type_by_name("Unknown")
+            else:
+                x = self.require_type_by_name("Unknown")
             result.append(x)
 
         return tuple(result)
@@ -1692,6 +1694,51 @@ def can_convert_to_int(value: Any):
         return True
     else:
         return False
+
+def check_type_name(name: str) -> bool:
+    """
+    Check if a given name is a valid type name. This is not completely robust,
+    but is designed to catch erroneous names that can crash the compiler.
+    :param name: The name to check.
+    :return: True if the name is valid, False otherwise.
+    """
+
+    # These are valid type names (allowing for generic resolution)
+    #   MyType
+    #   MyType<T>
+    #   MyType<2>
+    #   MyType[10]
+    #   MyType[]
+    #   _My_Type_10
+    #   MyType<N>[10][]
+    #   MyType<N*2>
+    #   MyType[N]
+    # This are still invalid
+    #   N*2
+    # Check type is valid and return:
+
+    if not name:
+        return False
+
+    # A valid type name must start with an identifier, and the first
+    # non-identifier character (if any) must be < or [ (for generics/arrays).
+    # This rejects bare expressions like "N*2" where * follows the identifier.
+    import re
+    match = re.match(r'^[A-Za-z_][A-Za-z0-9_\.]*', name)
+    if not match:
+        return False
+
+    # If the whole string is the identifier, it's valid
+    if match.end() == len(name):
+        return True
+
+    # Otherwise, the next character must start a generic or array suffix
+    next_char = name[match.end()]
+    return next_char in '<[:'
+
+
+
+
 
 
 def is_unknown(slang_type: Optional[Union[SlangType, NativeSlangType]]) -> bool:
