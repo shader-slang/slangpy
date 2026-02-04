@@ -1037,12 +1037,6 @@ class TensorViewType(SlangType):
 
     @staticmethod
     def build_wrapper_name() -> str:
-        """Return the wrapper struct name used in CallData for TensorView parameters.
-
-        TensorView is a magic type - Slang reports size=0, causing layout issues.
-        Use TensorViewData (defined in tensorviewdata.slang) which has identical memory
-        layout to CUDA's TensorView but with known size for correct struct layout.
-        """
         return "TensorViewData"
 
 

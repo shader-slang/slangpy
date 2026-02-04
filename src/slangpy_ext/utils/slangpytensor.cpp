@@ -159,6 +159,7 @@ namespace {
 NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_field_offsets(ShaderCursor tensor_cursor)
 {
     TensorFieldOffsets offsets;
+
     // TensorView<T> is a magic type with no visible fields.
     // Detect it by type name and use fixed layout (56 bytes written via set_data).
     const char* type_name = tensor_cursor.slang_type_layout()->getType()->getName();
