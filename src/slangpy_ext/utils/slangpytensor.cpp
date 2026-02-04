@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <cstring>
 #include <initializer_list>
 #include "nanobind.h"
 #include <fmt/format.h>
@@ -158,6 +159,15 @@ namespace {
 NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_field_offsets(ShaderCursor tensor_cursor)
 {
     TensorFieldOffsets offsets;
+    // TensorView<T> is a magic type with no visible fields.
+    // Detect it by type name and use fixed layout (56 bytes written via set_data).
+    const char* type_name = tensor_cursor.slang_type_layout()->getType()->getName();
+    if (type_name && strcmp(type_name, "TensorView") == 0) {
+        offsets.is_tensorview = true;
+        offsets.is_valid = true;
+        return offsets;
+    }
+
     offsets.data = tensor_cursor["_data"].offset();
     offsets.shape = tensor_cursor["_shape"].offset();
     offsets.strides = tensor_cursor["_strides"].offset();

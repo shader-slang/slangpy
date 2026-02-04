@@ -21,6 +21,19 @@
 
 namespace sgl::slangpy {
 
+/// Maximum dimensions for TensorView (matches slang-cuda-prelude.h)
+static constexpr int kSlangPyTensorViewMaxDim = 5;
+
+/// TensorViewData - C++ struct matching TensorView's memory layout.
+struct TensorViewData {
+    uint64_t data;                              // GPU pointer (8 bytes)
+    uint32_t strides[kSlangPyTensorViewMaxDim]; // Strides in bytes (20 bytes)
+    uint32_t sizes[kSlangPyTensorViewMaxDim];   // Shape (20 bytes)
+    uint32_t dimensionCount;                    // Number of dims (4 bytes)
+};
+// 52 bytes of data + 4 bytes padding for 8-byte alignment = 56 bytes
+static_assert(sizeof(TensorViewData) == 56, "TensorViewData must be 56 bytes to match TensorView");
+
 class NativeTensor;
 
 struct NativeTensorDesc : public StridedBufferViewDesc { };
@@ -137,6 +150,7 @@ public:
         ShaderOffset offset;              // Offset for _offset field
         ShaderOffset element_byte_stride; // Offset for _element_byte_stride field (if present)
         bool is_valid = false;            // Whether offsets have been initialized
+        bool is_tensorview = false;
     };
 
     /// Cached offsets for all tensor variants (primal, grad_in, grad_out)
