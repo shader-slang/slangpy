@@ -14,7 +14,7 @@ from slangpy.bindings.boundvariable import (
 )
 from slangpy.bindings.codegen import CodeGen
 from slangpy.builtin.value import NoneMarshall
-from slangpy.reflection.reflectiontypes import SlangFunction, SlangType
+from slangpy.reflection.reflectiontypes import SlangFunction, SlangType, TensorViewType
 from slangpy.reflection.typeresolution import resolve_function, ResolvedParam, ResolutionDiagnostic
 from slangpy.types import Tensor
 from slangpy.types.valueref import ValueRef
@@ -379,9 +379,17 @@ def generate_code(
                     if x.create_param_block
                     else f"call_data.{x.variable_name}"
                 )
-            cg.trampoline.append_statement(
-                f"{data_name}.__slangpy_load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
-            )
+            # TensorView uses TensorViewData which has identical memory layout.
+            # Call toTensorView<T>() to convert via reinterpret_cast (defined in tensorviewdata.slang).
+            if isinstance(x.vector_type, TensorViewType):
+                el_type = x.vector_type.dtype.full_name
+                cg.trampoline.append_statement(
+                    f"{x.variable_name} = toTensorView<{el_type}>({data_name})"
+                )
+            else:
+                cg.trampoline.append_statement(
+                    f"{data_name}.__slangpy_load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
+                )
 
     cg.trampoline.append_indent()
     if any(x.variable_name == "_result" for x in root_params):
@@ -428,9 +436,15 @@ def generate_code(
                     if x.create_param_block
                     else f"call_data.{x.variable_name}"
                 )
-            cg.trampoline.append_statement(
-                f"{data_name}.__slangpy_store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
-            )
+            # SlangPy tensors require an explicit __slangpy_store() call to write results
+            # back through the marshalling interfaces. With TensorView the .store() method
+            # writes directly to GPU memory.
+            if isinstance(x.vector_type, TensorViewType):
+                pass
+            else:
+                cg.trampoline.append_statement(
+                    f"{data_name}.__slangpy_store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
+                )
 
     cg.trampoline.end_block()
     cg.trampoline.append_line("")

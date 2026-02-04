@@ -7,6 +7,7 @@ from slangpy.reflection import (
     SlangType,
     ITensorType,
     TensorType,
+    TensorViewType,
     ArrayType,
     InterfaceType,
     UnknownType,
@@ -266,6 +267,8 @@ def resolve_dimensionality(
     Once a target type has been selected for vectorization, this function is called
     to determine the dimensionality of the call from the perspective of a bound variable.
     """
+    if isinstance(vector_target_type, TensorViewType):
+        return self.dims
     if isinstance(vector_target_type, ITensorType):
         return self.dims - vector_target_type.dims
     else:
@@ -282,6 +285,8 @@ def gen_calldata(
             access=binding.vector_type.access,
             tensor_type=binding.vector_type.tensor_type,
         )
+    elif isinstance(binding.vector_type, TensorViewType):
+        type_name = TensorViewType.build_wrapper_name()
     else:
         if isinstance(binding.vector_type, ResourceType):
             access = (

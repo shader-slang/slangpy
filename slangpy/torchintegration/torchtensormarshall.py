@@ -23,6 +23,7 @@ from slangpy.reflection.reflectiontypes import (
     MatrixType,
     TensorType,
     TensorAccess,
+    TensorViewType,
 )
 from slangpy.reflection.lookup import innermost_type
 import slangpy.builtin.tensorcommon as spytc
@@ -170,7 +171,24 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
 
     def resolve_types(self, context: BindContext, bound_type: SlangType):
         """Resolve types during binding phase."""
+        if isinstance(bound_type, TensorViewType):
+            return self._resolve_tensorview(context, bound_type)
         return spytc.resolve_types(self, context, bound_type)
+
+    def _resolve_tensorview(self, context: BindContext, bound_type: TensorViewType):
+        tensor_element = innermost_type(self._slang_dtype)
+        tensorview_element = bound_type.dtype
+
+        if tensor_element.full_name != tensorview_element.full_name:
+            raise TypeError(
+                f"Cannot bind torch.Tensor with dtype {tensor_element.full_name} "
+                f"to TensorView<{tensorview_element.full_name}>"
+            )
+
+        tensorview_type = self._layout.tensorview_type(tensorview_element)
+        if tensorview_type is None:
+            raise ValueError(f"TensorView<{tensorview_element.full_name}> not found")
+        return [tensorview_type]
 
     def reduce_type(self, context: BindContext, dimensions: int):
         """Reduce tensor type by consuming dimensions."""

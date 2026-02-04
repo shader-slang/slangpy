@@ -415,6 +415,14 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     // Apply broadcast stride zeroing
     strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
 
+    // For TensorView, strides are in bytes, not elements
+    // PyTorch strides are in elements, so multiply by element_size
+    if (offsets.is_tensorview) {
+        for (int i = 0; i < strides.size(); i++) {
+            strides[i] = strides[i] * info.element_size;
+        }
+    }
+
     // Write device pointer - use interop buffer if provided, otherwise use tensor's CUDA pointer
     if (interop_buffer) {
         // For interop, strides should be contiguous since interop buffer is contiguous
@@ -445,7 +453,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
         );
     }
 
-    // Write shape
+    // Write shape/sizes
     write_strided_array_helper(
         base_address,
         offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
@@ -461,8 +469,22 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
         offsets.array_stride
     );
 
-    // Write offset (always 0 for raw tensors)
-    write_value_helper(base_address, offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset, 0);
+    // Write offset (slangpy Tensor) or dimensionCount (TensorView)
+    if (offsets.is_tensorview) {
+        // TensorView: write dimensionCount
+        write_value_helper(
+            base_address,
+            offsets.dimension_count.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            static_cast<uint32_t>(info.ndim)
+        );
+    } else {
+        // slangpy Tensor: write offset (always 0 for raw tensors)
+        write_value_helper(
+            base_address,
+            offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            0
+        );
+    }
 }
 
 void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
