@@ -11,11 +11,19 @@ public struct TensorViewData {
     uint32_t sizes[5];          // 20 bytes - shape
     uint32_t dimensionCount;    // 4 bytes
     // Total: 52 bytes + 4 padding = 56 bytes
-}
 
-// Convert TensorViewData to TensorView<T> via reinterpret_cast.
-// This works because the memory layout is identical to CUDA's TensorView struct.
-[require(cuda)]
-public TensorView<T> toTensorView<T>(TensorViewData data) {
-    __intrinsic_asm "*reinterpret_cast<TensorView*>(&$0)", data;
+    [require(cuda)]
+    public TensorView<T> toTensorView<T>() {
+        __intrinsic_asm "*reinterpret_cast<TensorView*>(&$0)", this;
+    }
+
+    [require(cuda)]
+    public void __slangpy_load<T, let D : int>(ContextND<D> context, out TensorView<T> value) {
+        value = this.toTensorView<T>();
+    }
+
+    // SlangPy store interface - no-op since TensorView writes directly to GPU memory
+    [require(cuda)]
+    public void __slangpy_store<T, let D : int>(ContextND<D> context, TensorView<T> value) {
+    }
 }

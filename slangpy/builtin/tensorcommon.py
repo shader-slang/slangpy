@@ -79,6 +79,25 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
     self_dims = self.dims
     self_writable = self.writable
 
+    if isinstance(bound_type, TensorViewType):
+        tensorview_element = bound_type.dtype
+
+        # If TensorView has generic type (Unknown), use tensor's element type
+        if isinstance(tensorview_element, UnknownType) or tensorview_element.is_generic:
+            resolved_element = self_element_type
+        elif not types_equal(self_element_type, tensorview_element):
+            raise TypeError(
+                f"Cannot bind tensor with dtype {self_element_type.full_name} "
+                f"to TensorView<{tensorview_element.full_name}>"
+            )
+        else:
+            resolved_element = tensorview_element
+
+        tensorview_type = self.layout.tensorview_type(resolved_element)
+        if tensorview_type is None:
+            raise ValueError(f"TensorView<{resolved_element.full_name}> not found")
+        return [tensorview_type]
+
     # Trying to pass tensor to tensor - handle programmatically
     if isinstance(bound_type, ITensorType):
         if bound_type.writable and not self.writable:
