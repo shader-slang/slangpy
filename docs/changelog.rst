@@ -11,6 +11,12 @@ Version 0.41 (TBD)
 -------
 - Significant rewrite of type inference system for better handling of generics and complex types.
 - Rewrite of Tensors and removal of NDBuffer in favour of unified Tensor type
+- **CUDA performance optimization**: Reduced CUDA context management overhead by ~20× by removing per-call
+  context push/pop from slang-rhi. When using PyTorch interop, the shared primary context is already set
+  by PyTorch, so no user action is typically required. For edge cases (multi-threaded resource creation,
+  after manual context switching), new APIs are exposed: ``device.set_cuda_context_current()``,
+  ``device.push_cuda_context()``, and ``device.pop_cuda_context()``.
+  (PR `#774 <https://github.com/shader-slang/slangpy/pull/774>`__)
 
 This version carries with it some breaking changes, please see the migration guide :ref:`here <tensorupdate>` for details.
 

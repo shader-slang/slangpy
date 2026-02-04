@@ -371,6 +371,26 @@ SGL_PY_EXPORT(device_device)
     device.def_prop_ro("capabilities", &Device::capabilities, D(Device, capabilities));
     device.def_prop_ro("supports_cuda_interop", &Device::supports_cuda_interop, D(Device, supports_cuda_interop));
     device.def_prop_ro("native_handles", &Device::native_handles, D(Device, native_handles));
+    device.def(
+        "set_cuda_context_current",
+        &Device::set_cuda_context_current,
+        "Set the CUDA context current on the calling thread. No-op for non-CUDA devices.\n\n"
+        "Use this when operating from a thread that doesn't have the CUDA context set,\n"
+        "or after manually switching to a different context."
+    );
+    device.def(
+        "push_cuda_context",
+        &Device::push_cuda_context,
+        "Push the CUDA context onto the current thread's context stack. No-op for non-CUDA devices.\n\n"
+        "Must be paired with pop_cuda_context(). Use this when you need to temporarily\n"
+        "switch contexts and restore the previous one afterward."
+    );
+    device.def(
+        "pop_cuda_context",
+        &Device::pop_cuda_context,
+        "Pop the CUDA context from the current thread's context stack. No-op for non-CUDA devices.\n\n"
+        "Must be paired with a prior push_cuda_context() call."
+    );
     device.def("has_feature", &Device::has_feature, "feature"_a, D(Device, has_feature));
     device.def("has_capability", &Device::has_capability, "capability"_a, D(Device, has_capability));
     device.def("get_format_support", &Device::get_format_support, "format"_a, D(Device, get_format_support));
