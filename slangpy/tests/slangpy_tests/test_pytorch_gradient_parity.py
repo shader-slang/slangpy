@@ -15,6 +15,7 @@ This approach can be generalized to test multiple node types and input slicing.
 
 import pytest
 import sys
+from typing import Any, Callable, Optional
 
 from slangpy import DeviceType
 from slangpy.testing import helpers
@@ -24,6 +25,9 @@ try:
     import torch.nn as nn
 except ImportError:
     pytest.skip("PyTorch not installed", allow_module_level=True)
+
+# Type alias for loss functions: takes (output, target) -> scalar loss
+LossFn = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
@@ -88,7 +92,7 @@ float square(float x) {
 class SlangpyReLU(nn.Module):
     """SlangPy-based ReLU that can be used in nn.Sequential."""
 
-    def __init__(self, slang_module):
+    def __init__(self, slang_module: Any):
         super().__init__()
         self.slang_module = slang_module
 
@@ -99,7 +103,7 @@ class SlangpyReLU(nn.Module):
 class SlangpyLeakyReLU(nn.Module):
     """SlangPy-based Leaky ReLU that can be used in nn.Sequential."""
 
-    def __init__(self, slang_module):
+    def __init__(self, slang_module: Any):
         super().__init__()
         self.slang_module = slang_module
 
@@ -110,7 +114,7 @@ class SlangpyLeakyReLU(nn.Module):
 class SlangpySquare(nn.Module):
     """SlangPy-based square operation that can be used in nn.Sequential."""
 
-    def __init__(self, slang_module):
+    def __init__(self, slang_module: Any):
         super().__init__()
         self.slang_module = slang_module
 
@@ -130,13 +134,25 @@ class PyTorchSquare(nn.Module):
 # =============================================================================
 
 
-def run_training_step(
+def default_mse_loss(output: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """Default MSE loss function."""
+    return ((output - target) ** 2).mean()
+
+
+def compute_gradients(
     model: nn.Module,
     x: torch.Tensor,
     target: torch.Tensor,
-) -> tuple[dict[str, torch.Tensor], torch.Tensor | None]:
+    loss_fn: LossFn = default_mse_loss,
+) -> tuple[dict[str, torch.Tensor], Optional[torch.Tensor]]:
     """
-    Run one training step and return gradients for all parameters.
+    Run forward + backward pass and return all gradients.
+
+    Args:
+        model: The neural network model
+        x: Input tensor (should have requires_grad=True to get input gradients)
+        target: Target tensor for loss computation
+        loss_fn: Loss function taking (output, target) -> scalar loss
 
     Returns:
         - Dict mapping parameter names to their gradients
@@ -149,8 +165,8 @@ def run_training_step(
     # Forward pass
     output = model(x)
 
-    # Simple MSE loss
-    loss = ((output - target) ** 2).mean()
+    # Compute loss using provided loss function
+    loss = loss_fn(output, target)
 
     # Backward pass
     loss.backward()
@@ -178,6 +194,84 @@ def copy_model_weights(src: nn.Module, dst: nn.Module):
                 param.copy_(src_params[name])
 
 
+def run_gradient_parity_test(
+    control_model: nn.Module,
+    test_model: nn.Module,
+    x: torch.Tensor,
+    target: torch.Tensor,
+    control_loss_fn: LossFn = default_mse_loss,
+    test_loss_fn: Optional[LossFn] = None,
+    rtol: float = 1e-4,
+    atol: float = 1e-4,
+):
+    """
+    Compare gradients between control and test setups.
+
+    This is the main test helper. It:
+    1. Runs forward + backward on both models
+    2. Compares input gradients
+    3. Compares all parameter gradients
+
+    Args:
+        control_model: The reference PyTorch model
+        test_model: The model with SlangPy component(s)
+        x: Input tensor (will be cloned for each model)
+        target: Target tensor for loss computation
+        control_loss_fn: Loss function for control model
+        test_loss_fn: Loss function for test model (defaults to control_loss_fn)
+        rtol: Relative tolerance for gradient comparison
+        atol: Absolute tolerance for gradient comparison
+    """
+    if test_loss_fn is None:
+        test_loss_fn = control_loss_fn
+
+    # Create separate input tensors for separate backward passes
+    x_control = x.clone().detach().requires_grad_(True)
+    x_test = x.clone().detach().requires_grad_(True)
+
+    # Compute gradients for both
+    control_grads, control_input_grad = compute_gradients(
+        control_model, x_control, target, control_loss_fn
+    )
+    test_grads, test_input_grad = compute_gradients(test_model, x_test, target, test_loss_fn)
+
+    # Compare input gradients
+    if control_input_grad is not None and test_input_grad is not None:
+        compare_gradients("Input gradient", test_input_grad, control_input_grad, rtol, atol)
+
+    # Compare all parameter gradients
+    for name in control_grads:
+        if name in test_grads:
+            compare_gradients(
+                f"Parameter '{name}'", test_grads[name], control_grads[name], rtol, atol
+            )
+
+
+# =============================================================================
+# SlangPy Loss Function Implementations
+# =============================================================================
+
+SLANG_MSE_LOSS = """
+[Differentiable]
+float mse_element(float prediction, float target) {
+    float diff = prediction - target;
+    return diff * diff;
+}
+"""
+
+
+class SlangpyMSELoss:
+    """SlangPy-based MSE loss that can be used as a loss function."""
+
+    def __init__(self, slang_module: Any):
+        super().__init__()
+        self.slang_module = slang_module
+
+    def __call__(self, output: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        # Element-wise squared difference, then mean
+        return self.slang_module.mse_element(output, target).mean()
+
+
 # =============================================================================
 # Tests
 # =============================================================================
@@ -190,10 +284,6 @@ def test_relu_gradient_parity(device_type: DeviceType):
 
     Control: Linear(8, 16) -> ReLU -> Linear(16, 4)
     Test:    Linear(8, 16) -> SlangpyReLU -> Linear(16, 4)
-
-    We verify that:
-    1. Input gradients match
-    2. All layer weight/bias gradients match
     """
     device = helpers.get_torch_device(device_type)
     slang_module = helpers.create_module(device, SLANG_RELU)
@@ -220,26 +310,66 @@ def test_relu_gradient_parity(device_type: DeviceType):
     # Copy weights from control to test model
     copy_model_weights(control_model, test_model)
 
-    # Create identical inputs for both models
+    # Create test inputs
     torch.manual_seed(42)
     x = torch.randn(batch_size, in_features, device="cuda")
     target = torch.randn(batch_size, out_features, device="cuda")
 
-    # Need separate input tensors for separate backward passes
-    x_control = x.clone().detach().requires_grad_(True)
-    x_test = x.clone().detach().requires_grad_(True)
+    # Run comparison
+    run_gradient_parity_test(control_model, test_model, x, target)
 
-    # Run training step on both models
-    control_grads, control_input_grad = run_training_step(control_model, x_control, target)
-    test_grads, test_input_grad = run_training_step(test_model, x_test, target)
 
-    # Compare input gradients
-    assert control_input_grad is not None and test_input_grad is not None
-    compare_gradients("Input gradient", test_input_grad, control_input_grad)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_mse_loss_gradient_parity(device_type: DeviceType):
+    """
+    Compare gradients when MSE loss is replaced with SlangPy implementation.
 
-    # Compare all parameter gradients
-    for name in control_grads:
-        compare_gradients(f"Parameter '{name}'", test_grads[name], control_grads[name])
+    Both use: Linear(8, 16) -> ReLU -> Linear(16, 4)
+    Control loss: PyTorch MSE
+    Test loss: SlangPy MSE
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_MSE_LOSS)
+
+    in_features = 8
+    hidden_features = 16
+    out_features = 4
+    batch_size = 32
+
+    # Create identical models for both
+    control_model = nn.Sequential(
+        nn.Linear(in_features, hidden_features),
+        nn.ReLU(),
+        nn.Linear(hidden_features, out_features),
+    ).cuda()
+
+    test_model = nn.Sequential(
+        nn.Linear(in_features, hidden_features),
+        nn.ReLU(),
+        nn.Linear(hidden_features, out_features),
+    ).cuda()
+
+    # Copy weights so models are identical
+    copy_model_weights(control_model, test_model)
+
+    # Create test inputs
+    torch.manual_seed(42)
+    x = torch.randn(batch_size, in_features, device="cuda")
+    target = torch.randn(batch_size, out_features, device="cuda")
+
+    # Define loss functions
+    pytorch_mse = lambda output, tgt: nn.functional.mse_loss(output, tgt)
+    slangpy_mse = SlangpyMSELoss(slang_module)
+
+    # Run comparison with different loss functions
+    run_gradient_parity_test(
+        control_model,
+        test_model,
+        x,
+        target,
+        control_loss_fn=pytorch_mse,
+        test_loss_fn=slangpy_mse,
+    )
 
 
 if __name__ == "__main__":
