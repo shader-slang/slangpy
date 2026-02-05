@@ -421,5 +421,306 @@ def test_mse_loss_gradient_parity(device_type: DeviceType):
     )
 
 
+# =============================================================================
+# Slicing Tests
+# =============================================================================
+
+
+class SliceEveryOther(nn.Module):
+    """Slice module that takes every other element along feature dimension."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x[:, ::2]
+
+
+class SliceFirstHalf(nn.Module):
+    """Slice module that takes the first half of features."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        half = x.shape[1] // 2
+        return x[:, :half]
+
+
+class SliceSpec:
+    """Specification for a slice operation to test."""
+
+    def __init__(self, name: str, module_factory: Callable[[], nn.Module], is_contiguous: bool):
+        super().__init__()
+        self.name = name
+        self.module_factory = module_factory
+        self.is_contiguous = is_contiguous
+
+    def __repr__(self) -> str:
+        return self.name
+
+
+SLICE_SPECS = [
+    SliceSpec("strided", SliceEveryOther, is_contiguous=False),
+    SliceSpec("contiguous", SliceFirstHalf, is_contiguous=True),
+]
+
+SLICE_POSITIONS = ["before_activation", "after_activation"]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("slice_spec", SLICE_SPECS, ids=lambda s: s.name)
+@pytest.mark.parametrize("slice_position", SLICE_POSITIONS)
+def test_slice_gradient_parity(
+    device_type: DeviceType,
+    slice_spec: SliceSpec,
+    slice_position: str,
+):
+    """
+    Test that SlangPy correctly handles tensor slices.
+
+    Parameterized over:
+    - Slice type: strided (non-contiguous) vs contiguous
+    - Slice position: before or after the activation
+
+    This addresses Chris's concern about "clever slicing functionality".
+    Tests both that SlangPy can handle sliced inputs AND that gradients
+    back-propagate correctly through slicing after SlangPy operations.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ACTIVATIONS)
+
+    in_features = 8
+    hidden_features = 16
+    post_slice_features = hidden_features // 2  # Both slice types halve the features
+    out_features = 4
+    batch_size = 32
+
+    # Build models based on slice position
+    if slice_position == "before_activation":
+        # Linear -> Slice -> Activation -> Linear
+        # Tests: SlangPy receiving sliced (possibly non-contiguous) tensor
+        control_model = nn.Sequential(
+            nn.Linear(in_features, hidden_features),
+            slice_spec.module_factory(),
+            nn.ReLU(),
+            nn.Linear(post_slice_features, out_features),
+        ).cuda()
+
+        test_model = nn.Sequential(
+            nn.Linear(in_features, hidden_features),
+            slice_spec.module_factory(),
+            SlangpyActivation(slang_module, "slang_relu"),
+            nn.Linear(post_slice_features, out_features),
+        ).cuda()
+    else:
+        # Linear -> Activation -> Slice -> Linear
+        # Tests: Gradients back-propagating through slice after SlangPy
+        control_model = nn.Sequential(
+            nn.Linear(in_features, hidden_features),
+            nn.ReLU(),
+            slice_spec.module_factory(),
+            nn.Linear(post_slice_features, out_features),
+        ).cuda()
+
+        test_model = nn.Sequential(
+            nn.Linear(in_features, hidden_features),
+            SlangpyActivation(slang_module, "slang_relu"),
+            slice_spec.module_factory(),
+            nn.Linear(post_slice_features, out_features),
+        ).cuda()
+
+    # Copy weights
+    copy_model_weights(control_model, test_model)
+
+    # Create test inputs
+    torch.manual_seed(42)
+    x = torch.randn(batch_size, in_features, device="cuda")
+    target = torch.randn(batch_size, out_features, device="cuda")
+
+    # Run comparison
+    run_gradient_parity_test(control_model, test_model, x, target)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_transposed_tensor_gradient_parity(device_type: DeviceType):
+    """
+    Test that SlangPy correctly handles transposed (non-contiguous) tensors.
+
+    Structure:
+        Input (batch, seq, features) -> Transpose -> Activation -> Transpose back
+
+    Transpose creates a view with non-trivial strides.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ACTIVATIONS)
+
+    batch_size = 16
+    seq_len = 8
+    features = 4
+
+    # We'll build this manually since transpose doesn't fit Sequential well
+    torch.manual_seed(42)
+    x_control = torch.randn(batch_size, seq_len, features, device="cuda", requires_grad=True)
+    x_test = x_control.clone().detach().requires_grad_(True)
+    target = torch.randn(batch_size, seq_len, features, device="cuda")
+
+    # Control: transpose -> ReLU -> transpose back
+    x_control_t = x_control.transpose(1, 2)  # (batch, features, seq)
+    y_control_t = torch.relu(x_control_t)
+    y_control = y_control_t.transpose(1, 2)  # (batch, seq, features)
+    loss_control = ((y_control - target) ** 2).mean()
+    loss_control.backward()
+
+    # Test: transpose -> SlangPy ReLU -> transpose back
+    x_test_t = x_test.transpose(1, 2)
+    y_test_t = slang_module.slang_relu(x_test_t)
+    y_test = y_test_t.transpose(1, 2)
+    loss_test = ((y_test - target) ** 2).mean()
+    loss_test.backward()
+
+    # Compare input gradients
+    assert x_control.grad is not None and x_test.grad is not None
+    compare_gradients("Transposed tensor input gradient", x_test.grad, x_control.grad)
+
+
+# =============================================================================
+# Multi-Kernel Sequence Tests
+# =============================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_consecutive_slangpy_ops(device_type: DeviceType):
+    """
+    Test consecutive SlangPy operations in a sequence.
+
+    Structure:
+        Linear -> SlangPy(relu) -> SlangPy(sigmoid) -> Linear
+
+    Control:
+        Linear -> PyTorch(ReLU) -> PyTorch(Sigmoid) -> Linear
+
+    Tests that gradients correctly flow through multiple consecutive SlangPy ops.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ACTIVATIONS)
+
+    in_features = 8
+    hidden_features = 16
+    out_features = 4
+    batch_size = 32
+
+    # Control: PyTorch -> PyTorch
+    control_model = nn.Sequential(
+        nn.Linear(in_features, hidden_features),
+        nn.ReLU(),
+        nn.Sigmoid(),
+        nn.Linear(hidden_features, out_features),
+    ).cuda()
+
+    # Test: SlangPy -> SlangPy
+    test_model = nn.Sequential(
+        nn.Linear(in_features, hidden_features),
+        SlangpyActivation(slang_module, "slang_relu"),
+        SlangpyActivation(slang_module, "slang_sigmoid"),
+        nn.Linear(hidden_features, out_features),
+    ).cuda()
+
+    copy_model_weights(control_model, test_model)
+
+    torch.manual_seed(42)
+    x = torch.randn(batch_size, in_features, device="cuda")
+    target = torch.randn(batch_size, out_features, device="cuda")
+
+    run_gradient_parity_test(control_model, test_model, x, target)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_interleaved_slangpy_pytorch_ops(device_type: DeviceType):
+    """
+    Test interleaved SlangPy and PyTorch operations.
+
+    Structure:
+        Linear -> SlangPy(relu) -> PyTorch(Tanh) -> SlangPy(sigmoid) -> Linear
+
+    Control:
+        Linear -> PyTorch(ReLU) -> PyTorch(Tanh) -> PyTorch(Sigmoid) -> Linear
+
+    Tests that gradients correctly flow through interleaved SlangPy/PyTorch ops.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ACTIVATIONS)
+
+    in_features = 8
+    hidden_features = 16
+    out_features = 4
+    batch_size = 32
+
+    # Control: all PyTorch
+    control_model = nn.Sequential(
+        nn.Linear(in_features, hidden_features),
+        nn.ReLU(),
+        nn.Tanh(),
+        nn.Sigmoid(),
+        nn.Linear(hidden_features, out_features),
+    ).cuda()
+
+    # Test: SlangPy -> PyTorch -> SlangPy
+    test_model = nn.Sequential(
+        nn.Linear(in_features, hidden_features),
+        SlangpyActivation(slang_module, "slang_relu"),
+        nn.Tanh(),  # PyTorch in the middle
+        SlangpyActivation(slang_module, "slang_sigmoid"),
+        nn.Linear(hidden_features, out_features),
+    ).cuda()
+
+    copy_model_weights(control_model, test_model)
+
+    torch.manual_seed(42)
+    x = torch.randn(batch_size, in_features, device="cuda")
+    target = torch.randn(batch_size, out_features, device="cuda")
+
+    run_gradient_parity_test(control_model, test_model, x, target)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_three_consecutive_slangpy_ops(device_type: DeviceType):
+    """
+    Test three consecutive SlangPy operations.
+
+    Structure:
+        Linear -> SlangPy(relu) -> SlangPy(tanh) -> SlangPy(sigmoid) -> Linear
+
+    Tests gradient flow through a longer chain of SlangPy operations.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ACTIVATIONS)
+
+    in_features = 8
+    hidden_features = 16
+    out_features = 4
+    batch_size = 32
+
+    # Control: all PyTorch
+    control_model = nn.Sequential(
+        nn.Linear(in_features, hidden_features),
+        nn.ReLU(),
+        nn.Tanh(),
+        nn.Sigmoid(),
+        nn.Linear(hidden_features, out_features),
+    ).cuda()
+
+    # Test: three consecutive SlangPy ops
+    test_model = nn.Sequential(
+        nn.Linear(in_features, hidden_features),
+        SlangpyActivation(slang_module, "slang_relu"),
+        SlangpyActivation(slang_module, "slang_tanh"),
+        SlangpyActivation(slang_module, "slang_sigmoid"),
+        nn.Linear(hidden_features, out_features),
+    ).cuda()
+
+    copy_model_weights(control_model, test_model)
+
+    torch.manual_seed(42)
+    x = torch.randn(batch_size, in_features, device="cuda")
+    target = torch.randn(batch_size, out_features, device="cuda")
+
+    run_gradient_parity_test(control_model, test_model, x, target)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
