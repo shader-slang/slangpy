@@ -40,6 +40,8 @@ public:
         bool load_as_srgb{true};
         /// Extend RGB to RGBA if RGB texture format is not available.
         bool extend_alpha{true};
+        /// Strategy for handling YA (greyscale + alpha) bitmaps.
+        YAHandling ya_handling{YAHandling::expand_to_rgba};
         /// Allocate mip levels for the texture.
         bool allocate_mips{false};
         /// Generate mip levels for the texture.
@@ -47,8 +49,6 @@ public:
         /// Resource usage flags for the texture.
         /// \c TextureUsage::render_target will be added automatically if \c generate_mips is true.
         TextureUsage usage{TextureUsage::shader_resource};
-        /// Strategy for handling YA (greyscale + alpha) bitmaps.
-        YAHandling ya_handling{YAHandling::expand_to_rgba};
     };
 
     /**
