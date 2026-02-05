@@ -20,6 +20,36 @@
 #include "sgl/core/window.h"
 
 namespace sgl {
+
+/// Helper class for Python context manager support.
+/// Used with: `with device.cuda_context_scope(): ...`
+class CudaContextScope {
+public:
+    CudaContextScope(ref<Device> device)
+        : m_device(std::move(device))
+    {
+    }
+
+    // Prevent copying (could cause double pop)
+    CudaContextScope(const CudaContextScope&) = delete;
+    CudaContextScope& operator=(const CudaContextScope&) = delete;
+
+    // Allow moving
+    CudaContextScope(CudaContextScope&&) = default;
+    CudaContextScope& operator=(CudaContextScope&&) = default;
+
+    CudaContextScope* enter()
+    {
+        m_device->push_cuda_context();
+        return this;
+    }
+
+    void exit(nb::object /*exc_type*/, nb::object /*exc_val*/, nb::object /*exc_tb*/) { m_device->pop_cuda_context(); }
+
+private:
+    ref<Device> m_device;
+};
+
 SGL_DICT_TO_DESC_BEGIN(DeviceDesc)
 SGL_DICT_TO_DESC_FIELD(type, DeviceType)
 SGL_DICT_TO_DESC_FIELD(enable_debug_layers, bool)
@@ -301,6 +331,15 @@ SGL_PY_EXPORT(device_device)
         .def_rw("num_allocations", &HeapReport::num_allocations, D(HeapReport, num_allocations))
         .def("__repr__", &HeapReport::to_string);
 
+    nb::class_<CudaContextScope>(
+        m,
+        "CudaContextScope",
+        "Context manager for temporarily switching CUDA contexts.\n\n"
+        "Do not instantiate directly; use device.cuda_context_scope() instead."
+    )
+        .def("__enter__", &CudaContextScope::enter, nb::rv_policy::reference)
+        .def("__exit__", &CudaContextScope::exit, "exc_type"_a.none(), "exc_val"_a.none(), "exc_tb"_a.none());
+
     nb::class_<Device, Object> device(m, "Device", nb::is_weak_referenceable(), D(Device));
     device.def(
         "__init__",
@@ -379,17 +418,19 @@ SGL_PY_EXPORT(device_device)
         "or after manually switching to a different context."
     );
     device.def(
-        "push_cuda_context",
-        &Device::push_cuda_context,
-        "Push the CUDA context onto the current thread's context stack. No-op for non-CUDA devices.\n\n"
-        "Must be paired with pop_cuda_context(). Use this when you need to temporarily\n"
-        "switch contexts and restore the previous one afterward."
-    );
-    device.def(
-        "pop_cuda_context",
-        &Device::pop_cuda_context,
-        "Pop the CUDA context from the current thread's context stack. No-op for non-CUDA devices.\n\n"
-        "Must be paired with a prior push_cuda_context() call."
+        "cuda_context_scope",
+        [](ref<Device> self)
+        {
+            return CudaContextScope(std::move(self));
+        },
+        "Returns a context manager that pushes/pops the CUDA context.\n\n"
+        "Usage:\n"
+        "    with device.cuda_context_scope():\n"
+        "        # CUDA context is active here\n"
+        "        buffer = device.create_buffer(...)\n"
+        "    # Previous context is restored\n\n"
+        "This is useful for multi-GPU scenarios where you need to temporarily\n"
+        "switch to a different device's context."
     );
     device.def("has_feature", &Device::has_feature, "feature"_a, D(Device, has_feature));
     device.def("has_capability", &Device::has_capability, "capability"_a, D(Device, has_capability));
