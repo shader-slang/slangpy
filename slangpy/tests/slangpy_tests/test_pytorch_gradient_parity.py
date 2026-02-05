@@ -635,6 +635,84 @@ def test_transposed_tensor_gradient_parity(device_type: DeviceType):
     compare_gradients("Transposed tensor input gradient", x_test.grad, x_control.grad)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_strided_slice_different_ops(device_type: DeviceType):
+    """
+    Test strided slicing with different operations on each slice.
+
+    Structure:
+        Input features divisible by 3, stride-sliced into 3 parts:
+        - x[:, 0::3] -> max(x, 0.5)   (every 3rd starting at 0)
+        - x[:, 1::3] -> min(x, 0.5)   (every 3rd starting at 1)
+        - x[:, 2::3] -> identity      (every 3rd starting at 2)
+
+    Tests gradient routing through multiple strided slices with different ops.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ACTIVATIONS)
+
+    batch_size = 32
+    # Features must be divisible by 3
+    in_features = 12
+    hidden_features = 18  # divisible by 3
+    out_features = 6
+
+    threshold = 0.5
+
+    # Build models manually since this doesn't fit Sequential pattern
+    linear1 = nn.Linear(in_features, hidden_features).cuda()
+    linear2 = nn.Linear(hidden_features, out_features).cuda()
+
+    # Clone weights for both paths
+    linear1_test = nn.Linear(in_features, hidden_features).cuda()
+    linear2_test = nn.Linear(hidden_features, out_features).cuda()
+    linear1_test.load_state_dict(linear1.state_dict())
+    linear2_test.load_state_dict(linear2.state_dict())
+
+    torch.manual_seed(42)
+    x = torch.randn(batch_size, in_features, device="cuda")
+    target = torch.randn(batch_size, out_features, device="cuda")
+
+    # ===== Control: Pure PyTorch =====
+    x_control = x.clone().requires_grad_(True)
+    h_control = linear1(x_control)
+
+    # Apply different ops to different strided slices
+    out_control = torch.empty_like(h_control)
+    out_control[:, 0::3] = torch.maximum(h_control[:, 0::3], torch.tensor(threshold, device="cuda"))
+    out_control[:, 1::3] = torch.minimum(h_control[:, 1::3], torch.tensor(threshold, device="cuda"))
+    out_control[:, 2::3] = h_control[:, 2::3]  # identity
+
+    y_control = linear2(out_control)
+    loss_control = ((y_control - target) ** 2).mean()
+    loss_control.backward()
+
+    # ===== Test: SlangPy for max/min =====
+    x_test = x.clone().requires_grad_(True)
+    h_test = linear1_test(x_test)
+
+    # Apply SlangPy ops to strided slices
+    out_test = torch.empty_like(h_test)
+    out_test[:, 0::3] = slang_module.slang_max_half(h_test[:, 0::3])
+    out_test[:, 1::3] = slang_module.slang_min_half(h_test[:, 1::3])
+    out_test[:, 2::3] = h_test[:, 2::3]  # identity (pure PyTorch)
+
+    y_test = linear2_test(out_test)
+    loss_test = ((y_test - target) ** 2).mean()
+    loss_test.backward()
+
+    # Compare gradients
+    assert x_control.grad is not None and x_test.grad is not None
+    compare_gradients("Strided slice input gradient", x_test.grad, x_control.grad)
+
+    # Also compare linear layer gradients
+    assert linear1.weight.grad is not None and linear1_test.weight.grad is not None
+    compare_gradients("Linear1 weight gradient", linear1_test.weight.grad, linear1.weight.grad)
+
+    assert linear2.weight.grad is not None and linear2_test.weight.grad is not None
+    compare_gradients("Linear2 weight gradient", linear2_test.weight.grad, linear2.weight.grad)
+
+
 # =============================================================================
 # Multi-Kernel Sequence Tests
 # =============================================================================
