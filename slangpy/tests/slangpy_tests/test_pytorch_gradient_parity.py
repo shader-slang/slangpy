@@ -97,11 +97,6 @@ float slang_softplus(float x) {
     return log(1.0f + exp(x));
 }
 
-[Differentiable]
-float slang_square(float x) {
-    return x * x;
-}
-
 // Hardtanh: clamp(x, -1, 1) - tests both min and max
 [Differentiable]
 float slang_hardtanh(float x) {
@@ -114,19 +109,13 @@ float slang_relu6(float x) {
     return min(max(x, 0.0f), 6.0f);
 }
 
-// Clamp to arbitrary range - generalized min/max test
-[Differentiable]
-float slang_clamp_0_1(float x) {
-    return max(min(x, 1.0f), 0.0f);
-}
-
-// Element-wise maximum with a constant (threshold at 0.5)
+// Element-wise maximum with a constant (used in strided slice test)
 [Differentiable]
 float slang_max_half(float x) {
     return max(x, 0.5f);
 }
 
-// Element-wise minimum with a constant (cap at 0.5)
+// Element-wise minimum with a constant (used in strided slice test)
 [Differentiable]
 float slang_min_half(float x) {
     return min(x, 0.5f);
@@ -151,34 +140,6 @@ class SlangpyActivation(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.func(x)
-
-
-class PyTorchSquare(nn.Module):
-    """PyTorch square operation for comparison."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x * x
-
-
-class PyTorchClamp01(nn.Module):
-    """PyTorch clamp to [0, 1] range."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.clamp(x, min=0.0, max=1.0)
-
-
-class PyTorchMaxHalf(nn.Module):
-    """PyTorch element-wise maximum with 0.5 (threshold at 0.5)."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.maximum(x, torch.tensor(0.5, device=x.device, dtype=x.dtype))
-
-
-class PyTorchMinHalf(nn.Module):
-    """PyTorch element-wise minimum with 0.5 (cap at 0.5)."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.minimum(x, torch.tensor(0.5, device=x.device, dtype=x.dtype))
 
 
 # =============================================================================
@@ -219,9 +180,6 @@ ACTIVATION_SPECS = [
     # Min/max based activations
     ActivationSpec("hardtanh", "slang_hardtanh", nn.Hardtanh),
     ActivationSpec("relu6", "slang_relu6", nn.ReLU6),
-    ActivationSpec("clamp_0_1", "slang_clamp_0_1", PyTorchClamp01),
-    ActivationSpec("max_half", "slang_max_half", PyTorchMaxHalf),
-    ActivationSpec("min_half", "slang_min_half", PyTorchMinHalf),
 ]
 
 
