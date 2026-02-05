@@ -58,27 +58,47 @@ def compare_gradients(
 # Slang Implementations of Standard Operations
 # =============================================================================
 
-# ReLU: max(0, x)
-SLANG_RELU = """
+# All activation functions in one module for convenience
+SLANG_ACTIVATIONS = """
 [Differentiable]
-float relu(float x) {
+float slang_relu(float x) {
     return max(0.0f, x);
 }
-"""
 
-# Leaky ReLU: x if x > 0 else alpha * x
-SLANG_LEAKY_RELU = """
 [Differentiable]
-float leaky_relu(float x) {
+float slang_leaky_relu(float x) {
     float alpha = 0.01f;  // Standard leaky ReLU slope
     return x > 0.0f ? x : alpha * x;
 }
-"""
 
-# Square (simple differentiable operation)
-SLANG_SQUARE = """
 [Differentiable]
-float square(float x) {
+float slang_sigmoid(float x) {
+    return 1.0f / (1.0f + exp(-x));
+}
+
+[Differentiable]
+float slang_tanh(float x) {
+    return tanh(x);
+}
+
+[Differentiable]
+float slang_silu(float x) {
+    // SiLU/Swish: x * sigmoid(x)
+    return x / (1.0f + exp(-x));
+}
+
+[Differentiable]
+float slang_softplus(float x) {
+    // Softplus: log(1 + exp(x))
+    // Use numerically stable version for large x
+    if (x > 20.0f) {
+        return x;
+    }
+    return log(1.0f + exp(x));
+}
+
+[Differentiable]
+float slang_square(float x) {
     return x * x;
 }
 """
@@ -89,37 +109,18 @@ float square(float x) {
 # =============================================================================
 
 
-class SlangpyReLU(nn.Module):
-    """SlangPy-based ReLU that can be used in nn.Sequential."""
+class SlangpyActivation(nn.Module):
+    """Generic SlangPy activation wrapper that can call any named function."""
 
-    def __init__(self, slang_module: Any):
+    def __init__(self, slang_module: Any, func_name: str):
         super().__init__()
         self.slang_module = slang_module
+        self.func_name = func_name
+        # Get the function from the module
+        self.func = getattr(slang_module, func_name)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.slang_module.relu(x)
-
-
-class SlangpyLeakyReLU(nn.Module):
-    """SlangPy-based Leaky ReLU that can be used in nn.Sequential."""
-
-    def __init__(self, slang_module: Any):
-        super().__init__()
-        self.slang_module = slang_module
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.slang_module.leaky_relu(x)
-
-
-class SlangpySquare(nn.Module):
-    """SlangPy-based square operation that can be used in nn.Sequential."""
-
-    def __init__(self, slang_module: Any):
-        super().__init__()
-        self.slang_module = slang_module
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.slang_module.square(x)
+        return self.func(x)
 
 
 class PyTorchSquare(nn.Module):
@@ -127,6 +128,44 @@ class PyTorchSquare(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * x
+
+
+# =============================================================================
+# Activation Function Specifications for Parametrized Testing
+# =============================================================================
+
+
+class ActivationSpec:
+    """Specification for an activation function to test."""
+
+    def __init__(
+        self,
+        name: str,
+        slang_func_name: str,
+        pytorch_module_factory: Callable[[], nn.Module],
+        rtol: float = 1e-4,
+        atol: float = 1e-4,
+    ):
+        super().__init__()
+        self.name = name
+        self.slang_func_name = slang_func_name
+        self.pytorch_module_factory = pytorch_module_factory
+        self.rtol = rtol
+        self.atol = atol
+
+    def __repr__(self) -> str:
+        return self.name
+
+
+# Define all activation functions to test
+ACTIVATION_SPECS = [
+    ActivationSpec("relu", "slang_relu", nn.ReLU),
+    ActivationSpec("leaky_relu", "slang_leaky_relu", lambda: nn.LeakyReLU(0.01)),
+    ActivationSpec("sigmoid", "slang_sigmoid", nn.Sigmoid),
+    ActivationSpec("tanh", "slang_tanh", nn.Tanh),
+    ActivationSpec("silu", "slang_silu", nn.SiLU),
+    ActivationSpec("softplus", "slang_softplus", nn.Softplus, rtol=1e-3, atol=1e-3),
+]
 
 
 # =============================================================================
@@ -278,15 +317,18 @@ class SlangpyMSELoss:
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_relu_gradient_parity(device_type: DeviceType):
+@pytest.mark.parametrize("activation_spec", ACTIVATION_SPECS, ids=lambda s: s.name)
+def test_activation_gradient_parity(device_type: DeviceType, activation_spec: ActivationSpec):
     """
-    Compare gradients when ReLU is replaced with SlangPy implementation.
+    Compare gradients when an activation is replaced with SlangPy implementation.
 
-    Control: Linear(8, 16) -> ReLU -> Linear(16, 4)
-    Test:    Linear(8, 16) -> SlangpyReLU -> Linear(16, 4)
+    Control: Linear(8, 16) -> PyTorchActivation -> Linear(16, 4)
+    Test:    Linear(8, 16) -> SlangpyActivation -> Linear(16, 4)
+
+    Parametrized over multiple activation functions.
     """
     device = helpers.get_torch_device(device_type)
-    slang_module = helpers.create_module(device, SLANG_RELU)
+    slang_module = helpers.create_module(device, SLANG_ACTIVATIONS)
 
     in_features = 8
     hidden_features = 16
@@ -296,14 +338,14 @@ def test_relu_gradient_parity(device_type: DeviceType):
     # Create control model (pure PyTorch)
     control_model = nn.Sequential(
         nn.Linear(in_features, hidden_features),
-        nn.ReLU(),
+        activation_spec.pytorch_module_factory(),
         nn.Linear(hidden_features, out_features),
     ).cuda()
 
-    # Create test model with SlangPy ReLU
+    # Create test model with SlangPy activation
     test_model = nn.Sequential(
         nn.Linear(in_features, hidden_features),
-        SlangpyReLU(slang_module),
+        SlangpyActivation(slang_module, activation_spec.slang_func_name),
         nn.Linear(hidden_features, out_features),
     ).cuda()
 
@@ -315,8 +357,15 @@ def test_relu_gradient_parity(device_type: DeviceType):
     x = torch.randn(batch_size, in_features, device="cuda")
     target = torch.randn(batch_size, out_features, device="cuda")
 
-    # Run comparison
-    run_gradient_parity_test(control_model, test_model, x, target)
+    # Run comparison with activation-specific tolerances
+    run_gradient_parity_test(
+        control_model,
+        test_model,
+        x,
+        target,
+        rtol=activation_spec.rtol,
+        atol=activation_spec.atol,
+    )
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
