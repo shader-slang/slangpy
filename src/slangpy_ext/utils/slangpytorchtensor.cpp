@@ -576,7 +576,15 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
     // Build calldata dict with all interop info needed for copy-back
-    bool needs_primal_copyback = m_writable && primal_info.numel > 0 && primal_interop_buffer;
+    // Only copy back if:
+    // 1. The marshall allows writing (m_writable)
+    // 2. The binding's primal access includes write (not read-only)
+    // 3. There's data to copy (numel > 0) and an interop buffer
+    // This prevents incrementing PyTorch tensor _version for read-only inputs,
+    // which would break autograd's version tracking and cause RuntimeError during backward pass.
+    AccessType primal_access = binding->access().first;
+    bool primal_is_writable = (primal_access == AccessType::write || primal_access == AccessType::readwrite);
+    bool needs_primal_copyback = m_writable && primal_is_writable && primal_info.numel > 0 && primal_interop_buffer;
     bool needs_grad_copyback = has_grad && grad_info.numel > 0 && grad_interop_buffer;
 
     if (needs_primal_copyback || needs_grad_copyback) {
