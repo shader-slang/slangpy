@@ -12,7 +12,11 @@
 
 SGL_EXPORT_AGILITY_SDK
 
+#ifdef __EMSCRIPTEN__
+static const std::filesystem::path EXAMPLE_DIR(".");
+#else
 static const std::filesystem::path EXAMPLE_DIR(SGL_EXAMPLE_DIR);
+#endif
 
 using namespace sgl;
 
