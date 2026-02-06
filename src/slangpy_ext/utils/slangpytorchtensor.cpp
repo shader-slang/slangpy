@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "slangpytorchtensor.h"
+#include "slangpytensor.h"
 
 #include "sgl/device/device.h"
 #include "sgl/device/shader_object.h"
@@ -415,6 +416,21 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     // Apply broadcast stride zeroing
     strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
 
+    if (offsets.is_tensorview) {
+        TensorViewData tvd = {};
+        tvd.data = reinterpret_cast<uint64_t>(info.data_ptr);
+
+        // TensorView strides are in bytes, PyTorch strides are in elements
+        for (int i = 0; i < info.ndim && i < kSlangPyTensorViewMaxDim; i++) {
+            tvd.strides[i] = static_cast<uint32_t>(strides[i] * info.element_size);
+            tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
+        }
+        tvd.dimensionCount = static_cast<uint32_t>(info.ndim);
+        shader_object->set_data(m_cached_offsets.field_offset, &tvd, sizeof(TensorViewData));
+        return;
+    }
+
+    // slangpy Tensor: use field-by-field approach (needs buffer binding)
     // Write device pointer - use interop buffer if provided, otherwise use tensor's CUDA pointer
     if (interop_buffer) {
         // For interop, strides should be contiguous since interop buffer is contiguous
@@ -445,7 +461,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
         );
     }
 
-    // Write shape
+    // Write shape/sizes
     write_strided_array_helper(
         base_address,
         offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,

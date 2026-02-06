@@ -167,6 +167,8 @@ class CodeGen:
         """
         Add an import to the kernel.
         """
+        # Use forward slashes for cross-platform compatibility
+        import_name = import_name.replace("\\", "/")
         if not import_name in self.imports:
             self.imports.append(import_name)
 
