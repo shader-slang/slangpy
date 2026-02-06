@@ -68,13 +68,17 @@ Device::Device(const DeviceDesc& desc)
     SLANG_CALL(slang::createGlobalSession(m_global_session.writeRef()));
 
     // Setup path for slang's downstream compilers.
+#if !SLANG_WASM
     for (SlangPassThrough pass_through :
          {SLANG_PASS_THROUGH_DXC, SLANG_PASS_THROUGH_GLSLANG, SLANG_PASS_THROUGH_SPIRV_OPT}) {
         m_global_session->setDownstreamCompilerPath(pass_through, platform::runtime_directory().string().c_str());
     }
+#endif
 
     if (m_desc.type == DeviceType::automatic) {
-#if SGL_WINDOWS
+#if SLANG_WASM
+        m_desc.type = DeviceType::wgpu;
+#elif SGL_WINDOWS
         m_desc.type = DeviceType::d3d12;
 #elif SGL_LINUX
         m_desc.type = DeviceType::vulkan;
@@ -120,6 +124,7 @@ Device::Device(const DeviceDesc& desc)
         }
     }
 
+#if SGL_HAS_CUDA
     // If CUDA interop is enabled on non-cuda backend, check if existing CUDA context or device
     // is provided. If so, we will attempt to identify the same device for use with SlangPy.
     if (m_desc.enable_cuda_interop) {
@@ -153,6 +158,7 @@ Device::Device(const DeviceDesc& desc)
             );
         }
     }
+#endif
 
     // If we now have a valid CUDA device, use it to determine the adapter LUID.
     if (m_cuda_device) {
@@ -1258,7 +1264,7 @@ void Device::_unregister_device_child(DeviceChild* device_child)
 std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
 {
     std::array<NativeHandle, 3> handles;
-
+#if SGL_HAS_CUDA
     CUcontext cu_context;
     SGL_CHECK(rhiCudaDriverApiInit(), "Failed to initialize CUDA driver API.");
     SGL_CU_CHECK(cuCtxGetCurrent(&cu_context));
@@ -1269,7 +1275,7 @@ std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
 
     handles[0] = NativeHandle(cu_device);
     handles[1] = NativeHandle(cu_context);
-
+#endif
     return handles;
 }
 

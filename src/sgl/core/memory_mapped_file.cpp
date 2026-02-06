@@ -22,6 +22,8 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#elif SGL_EMSCRIPTEN
+#include <errno.h>
 #include <unistd.h>
 #else
 #error "Unknown OS"
@@ -152,7 +154,7 @@ void MemoryMappedFile::close()
     if (m_file) {
 #if SGL_WINDOWS
         ::CloseHandle(m_file);
-#elif SGL_LINUX || SGL_MACOS
+#elif SGL_LINUX || SGL_MACOS || SGL_EMSCRIPTEN
         ::close(m_file);
 #endif
         m_file = 0;
@@ -169,6 +171,8 @@ size_t MemoryMappedFile::page_size()
     return sysInfo.dwAllocationGranularity;
 #elif SGL_LINUX || SGL_MACOS
     return sysconf(_SC_PAGESIZE);
+#elif SGL_EMSCRIPTEN
+    return 4096; // WebAssembly page size is 4 KiB
 #endif
 }
 
@@ -209,6 +213,8 @@ bool MemoryMappedFile::remap(uint64_t offset, size_t mapped_size)
     m_mapped_data = ::mmap64(NULL, mapped_size, PROT_READ, MAP_SHARED, m_file, offset);
 #elif SGL_MACOS
     m_mapped_data = ::mmap(NULL, mapped_size, PROT_READ, MAP_SHARED, m_file, offset);
+#elif SGL_EMSCRIPTEN
+    m_mapped_data = MAP_FAILED;
 #endif
     if (m_mapped_data == MAP_FAILED) {
         m_mapped_data = nullptr;

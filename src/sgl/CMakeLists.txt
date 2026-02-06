@@ -49,6 +49,7 @@ target_sources(sgl PRIVATE
     core/lmdb_cache.h
     core/platform_linux.cpp
     core/platform_windows.cpp
+    core/platform_emscripten.cpp
     core/platform.cpp
     core/platform.h
     core/plugin.cpp
@@ -360,18 +361,18 @@ target_include_directories(sgl PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TY
 target_link_libraries(sgl
     PUBLIC
         fmt::fmt
-        nanothread
+        $<$<NOT:$<BOOL:${SGL_EMSCRIPTEN}>>:nanothread>
         slang
         slang-rhi
-        slang-rhi-vulkan-headers
+        $<$<NOT:$<BOOL:${SGL_EMSCRIPTEN}>>:slang-rhi-vulkan-headers>
         header_only
         $<$<NOT:$<BOOL:${SGL_USE_DYNAMIC_CUDA}>>:CUDA::cuda_driver>
         sgl_data
     PRIVATE
         git_version
-        glfw
+        $<$<NOT:$<BOOL:${SGL_EMSCRIPTEN}>>:glfw>
         tevclient
-        lmdb
+        $<$<NOT:$<BOOL:${SGL_EMSCRIPTEN}>>:lmdb>
         $<$<BOOL:${SGL_HAS_D3D12}>:d3d12>
         $<$<BOOL:${SGL_HAS_LIBPNG}>:PNG::PNG>
         $<$<BOOL:${SGL_HAS_LIBJPEG}>:JPEG::JPEG>
@@ -406,3 +407,13 @@ foreach(file IN ZIP_LISTS shader_files_src shader_files_dst)
     # if dst is directory create it
     add_custom_command(TARGET sgl POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ${file_1} COMMAND ${CMAKE_COMMAND} -E copy_if_different ${file_0} ${file_1}/)
 endforeach()
+
+if(SGL_EMSCRIPTEN)
+    target_link_options(sgl
+        PUBLIC
+            "-sUSE_GLFW=3"
+            "--use-port=emdawnwebgpu"
+            "-sALLOW_MEMORY_GROWTH"
+            "-fwasm-exceptions"
+    )
+endif()

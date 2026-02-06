@@ -37,7 +37,9 @@ set(GLFW_BUILD_EXAMPLES OFF)
 set(GLFW_BUILD_TESTS OFF)
 set(GLFW_BUILD_DOCS OFF)
 set(GLFW_INSTALL OFF)
-add_subdirectory(glfw)
+if(NOT SGL_EMSCRIPTEN)
+    add_subdirectory(glfw)
+endif()
 
 # tevclient
 
@@ -52,10 +54,12 @@ endif()
 
 # nanothread
 
-set(NANOTHREAD_STATIC ON)
-add_subdirectory(nanothread)
-# Disable LTO for nanothread as this causes problems when linking with sgl.
-set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
+if(NOT SGL_EMSCRIPTEN)
+    set(NANOTHREAD_STATIC ON)
+    add_subdirectory(nanothread)
+    # Disable LTO for nanothread as this causes problems when linking with sgl.
+    set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
+endif()
 
 # lmdb
 
@@ -118,6 +122,20 @@ endif()
 
 # Slang library adding logic to find the exact filenames to use and copy
 function(sgl_add_library_slang)
+    # For Emscripten, we use an INTERFACE library with static libraries
+    if(SGL_EMSCRIPTEN)
+        # Get the base directory for the Slang build (SLANG_DIR is set by the parent scope)
+        set(SLANG_LIB_DIR "${SLANG_DIR}/lib")
+        set(SLANG_EXT_DIR "${SGL_LOCAL_SLANG_DIR}/${SGL_LOCAL_SLANG_BUILD_DIR}/../external")
+        
+        add_library(slang INTERFACE IMPORTED GLOBAL)
+        set_target_properties(slang PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES ${SLANG_INCLUDE_DIR}
+            INTERFACE_LINK_LIBRARIES "${SLANG_LIB_DIR}/libslang-compiler.a;${SLANG_LIB_DIR}/libcompiler-core.a;${SLANG_LIB_DIR}/libcore.a;${SLANG_EXT_DIR}/lz4/build/cmake/Release/liblz4.a;${SLANG_EXT_DIR}/miniz/Release/libminiz.a"
+        )
+        return()
+    endif()
+
     if(SGL_WINDOWS)
         set(slang_lib_dir "${SLANG_DIR}/bin")
         set(slang_lib_prefix "")
@@ -185,8 +203,10 @@ function(sgl_add_library_slang)
             IMPORTED_LOCATION ${slang_resolved}
         )
         sgl_copy_binary(${slang_resolved} .)
-        sgl_copy_binary(${slang_lib_dir}/libslang-glslang${slang_module_version}.${slang_lib_suffix} .)
-        sgl_copy_binary(${slang_lib_dir}/libslang-glsl-module${slang_module_version}.${slang_lib_suffix} .)
+        if(NOT SGL_EMSCRIPTEN)
+            sgl_copy_binary(${slang_lib_dir}/libslang-glslang${slang_module_version}.${slang_lib_suffix} .)
+            sgl_copy_binary(${slang_lib_dir}/libslang-glsl-module${slang_module_version}.${slang_lib_suffix} .)
+        endif()
         # sgl_copy_binary(${slang_lib_dir}/libslang-llvm.${slang_lib_suffix} .)
         get_filename_component(slang_resolved_debug_info_base ${slang_resolved} NAME)
         set(slang_resolved_debug_info "lib/${slang_resolved_debug_info_base}.dwarf")
@@ -207,21 +227,35 @@ install(FILES ${SLANG_DIR}/include/slang-image-format-defs.h DESTINATION ${CMAKE
 
 # slang-rhi
 
-set(SLANG_RHI_BUILD_TESTS OFF)
-set(SLANG_RHI_BUILD_EXAMPLES OFF)
+set(SGL_LOCAL_SLANG_RHI OFF CACHE BOOL "Use a local source of slang-rhi instead of the submodule")
+set(SGL_LOCAL_SLANG_RHI_DIR "${CMAKE_SOURCE_DIR}/../slang-rhi" CACHE PATH "Path to a local slang-rhi source")
+
+set(SLANG_RHI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SLANG_RHI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_ENABLE_D3D11 OFF)
-set(SLANG_RHI_ENABLE_WGPU OFF)
+if(SGL_EMSCRIPTEN)
+    set(SLANG_RHI_ENABLE_WGPU ON)
+else()
+    set(SLANG_RHI_ENABLE_WGPU OFF)
+endif()
 # TODO: We should rename SLANG_RHI_BUILD_FROM_SLANG_REPO to something more generic.
 # We want slang-rhi to support using a `slang` target that is provided from the outside.
 set(SLANG_RHI_BUILD_FROM_SLANG_REPO ON)
 set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_SLANG_INCLUDE_DIR ${SLANG_INCLUDE_DIR} CACHE STRING "" FORCE)
 set(SLANG_RHI_SLANG_BINARY_DIR ${SLANG_DIR} CACHE STRING "" FORCE)
-add_subdirectory(slang-rhi)
+
+if(SGL_LOCAL_SLANG_RHI)
+    add_subdirectory(${SGL_LOCAL_SLANG_RHI_DIR} ${CMAKE_BINARY_DIR}/external/slang-rhi)
+    set(SLANG_RHI_SOURCE_PATH ${SGL_LOCAL_SLANG_RHI_DIR})
+else()
+    add_subdirectory(slang-rhi)
+    set(SLANG_RHI_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi)
+endif()
 
 # Copy shared slang-rhi-device.h header to shaders directory (wrapped in sgl/device/rhi.slang)
-sgl_copy_shader_file(${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi/include/slang-rhi-device.h slang-rhi)
+sgl_copy_shader_file(${SLANG_RHI_SOURCE_PATH}/include/slang-rhi-device.h slang-rhi)
 
 if(TARGET slang-rhi-nvapi)
     get_target_property(NVAPI_DIR slang-rhi-nvapi INTERFACE_INCLUDE_DIRECTORIES)

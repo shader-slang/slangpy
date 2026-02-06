@@ -74,7 +74,7 @@ FileSystemWatcher::FileSystemWatcher()
     }
 #endif
 
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
     m_thread = std::thread(
         [this]()
         {
@@ -93,7 +93,7 @@ FileSystemWatcher::~FileSystemWatcher()
     close(m_inotify_file_descriptor);
 #endif
 
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
     m_stop_thread = true;
     if (m_thread.joinable())
         m_thread.join();
@@ -102,7 +102,7 @@ FileSystemWatcher::~FileSystemWatcher()
 
 uint32_t FileSystemWatcher::add_watch(const FileSystemWatchDesc& desc)
 {
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
     std::lock_guard<std::mutex> lock(m_watches_mutex);
 #endif
 
@@ -154,7 +154,7 @@ uint32_t FileSystemWatcher::add_watch(const FileSystemWatchDesc& desc)
 void FileSystemWatcher::remove_watch(uint32_t id)
 {
     if (id > 0) {
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
         std::lock_guard<std::mutex> lock(m_watches_mutex);
 #endif
         stop_watch(m_watches[id]);
@@ -164,7 +164,7 @@ void FileSystemWatcher::remove_watch(uint32_t id)
 
 void FileSystemWatcher::remove_watch(const std::filesystem::path& directory)
 {
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
     std::lock_guard<std::mutex> lock(m_watches_mutex);
 #endif
 
@@ -208,7 +208,7 @@ void FileSystemWatcher::_notify_change(
         .time = now,
     };
     {
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
         std::lock_guard<std::mutex> lock(m_queued_events_mutex);
 #endif
         m_queued_events.push_back(event);
@@ -260,7 +260,7 @@ void FileSystemWatcher::update()
 
     // Process queued events.
     {
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
         std::lock_guard<std::mutex> lock(m_queued_events_mutex);
 #endif
         if (m_queued_events.size() > 0) {
@@ -274,7 +274,7 @@ void FileSystemWatcher::update()
     }
 }
 
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
 void FileSystemWatcher::thread_func()
 {
     uint32_t counter = 0;
