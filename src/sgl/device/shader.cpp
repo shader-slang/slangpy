@@ -333,6 +333,10 @@ void SlangSession::create_session(SlangSessionBuild& build)
     session_options.add(slang::CompilerOptionName::DumpIntermediates, options.dump_intermediates);
     session_options.add(slang::CompilerOptionName::DumpIntermediatePrefix, options.dump_intermediates_prefix);
 
+    // Enable experimental features (required for neural module).
+    if (options.enable_experimental_features)
+        session_options.add(slang::CompilerOptionName::ExperimentalFeature, true);
+
     // Add hlsl_nvapi capability.
     session_options.add(
         slang::CompilerOptionName::Capability,
