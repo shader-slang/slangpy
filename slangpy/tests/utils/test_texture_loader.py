@@ -302,5 +302,102 @@ def test_load_texture_array(device_type: spy.DeviceType):
     assert texture.array_length == 2
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_ya_handling_default_expands_to_rgba(device_type: spy.DeviceType):
+    """Test that default YA handling expands to RGBA (Y to RGB, A to A)."""
+    device = helpers.get_device(type=device_type)
+
+    bitmap = Bitmap(
+        pixel_format=PixelFormat.ya,
+        component_type=ComponentType.uint8,
+        width=32,
+        height=16,
+    )
+    a = np.array(bitmap, copy=False)
+    a[:, :, 0] = 100  # Y (luminance)
+    a[:, :, 1] = 200  # A (alpha)
+
+    loader = TextureLoader(device)
+    options = TextureLoader.Options()
+    options.load_as_normalized = True
+    options.load_as_srgb = False
+    texture = loader.load_texture(bitmap=bitmap, options=options)
+
+    assert texture.format == Format.rgba8_unorm
+
+    data = texture.to_numpy()
+    assert data.shape == (16, 32, 4)
+    assert np.allclose(data[:, :, 0], 100, atol=1)  # R = Y
+    assert np.allclose(data[:, :, 1], 100, atol=1)  # G = Y
+    assert np.allclose(data[:, :, 2], 100, atol=1)  # B = Y
+    assert np.allclose(data[:, :, 3], 200, atol=1)  # A = A
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_ya_handling_preserve_as_rg(device_type: spy.DeviceType):
+    """Test that preserve_as_rg keeps YA as 2-channel RG (Y to R, A to G)."""
+    device = helpers.get_device(type=device_type)
+
+    format_support = device.get_format_support(Format.rg8_unorm)
+    if not FormatSupport.shader_load in format_support:
+        pytest.skip("RG format not supported")
+
+    bitmap = Bitmap(
+        pixel_format=PixelFormat.ya,
+        component_type=ComponentType.uint8,
+        width=48,
+        height=24,
+    )
+    a = np.array(bitmap, copy=False)
+    a[:, :, 0] = 100  # Y (luminance)
+    a[:, :, 1] = 200  # A (alpha)
+
+    loader = TextureLoader(device)
+    options = TextureLoader.Options()
+    options.load_as_normalized = True
+    options.load_as_srgb = False
+    options.ya_handling = spy.YAHandling.preserve_as_rg
+    texture = loader.load_texture(bitmap=bitmap, options=options)
+
+    assert texture.format == Format.rg8_unorm
+
+    data = texture.to_numpy()
+    assert data.shape == (24, 48, 2)
+    assert np.allclose(data[:, :, 0], 100, atol=1)  # R = Y
+    assert np.allclose(data[:, :, 1], 200, atol=1)  # G = A
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_ya_handling_preserve_as_rg_float32(device_type: spy.DeviceType):
+    """Test that preserve_as_rg works with float32 component type."""
+    device = helpers.get_device(type=device_type)
+
+    format_support = device.get_format_support(Format.rg32_float)
+    if not FormatSupport.shader_load in format_support:
+        pytest.skip("RG32 float format not supported")
+
+    bitmap = Bitmap(
+        pixel_format=PixelFormat.ya,
+        component_type=ComponentType.float32,
+        width=64,
+        height=32,
+    )
+    a = np.array(bitmap, copy=False)
+    a[:, :, 0] = 0.5  # Y (luminance)
+    a[:, :, 1] = 0.8  # A (alpha)
+
+    loader = TextureLoader(device)
+    options = TextureLoader.Options()
+    options.ya_handling = spy.YAHandling.preserve_as_rg
+    texture = loader.load_texture(bitmap=bitmap, options=options)
+
+    assert texture.format == Format.rg32_float
+
+    data = texture.to_numpy()
+    assert data.shape == (32, 64, 2)
+    assert np.allclose(data[:, :, 0], 0.5, atol=0.01)  # R = Y
+    assert np.allclose(data[:, :, 1], 0.8, atol=0.01)  # G = A
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
