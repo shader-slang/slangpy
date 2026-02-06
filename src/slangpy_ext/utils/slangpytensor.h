@@ -131,11 +131,12 @@ public:
     /// Public so NativeTorchTensorMarshall can reuse them
     struct TensorFieldOffsets {
         int array_stride;
-        ShaderOffset data;     // Offset for _data field
-        ShaderOffset shape;    // Offset for _shape field
-        ShaderOffset strides;  // Offset for _strides field
-        ShaderOffset offset;   // Offset for _offset field
-        bool is_valid = false; // Whether offsets have been initialized
+        ShaderOffset data;                // Offset for _data field
+        ShaderOffset shape;               // Offset for _shape field
+        ShaderOffset strides;             // Offset for _strides field
+        ShaderOffset offset;              // Offset for _offset field
+        ShaderOffset element_byte_stride; // Offset for _element_byte_stride field (if present)
+        bool is_valid = false;            // Whether offsets have been initialized
     };
 
     /// Cached offsets for all tensor variants (primal, grad_in, grad_out)
