@@ -656,6 +656,18 @@ public:
     rhi::IDevice* rhi_device() const { return m_rhi_device; }
     rhi::ICommandQueue* rhi_graphics_queue() const { return m_rhi_graphics_queue; }
 
+    /// Set the device's CUDA context as current on this thread.
+    /// For non-CUDA devices, this is a no-op.
+    void set_cuda_context_current() { m_rhi_device->setCudaContextCurrent(); }
+
+    /// Push the device's CUDA context onto the current thread's context stack.
+    /// Must be paired with pop_cuda_context(). For non-CUDA devices, this is a no-op.
+    void push_cuda_context() { m_rhi_device->pushCudaContext(); }
+
+    /// Pop the CUDA context from the current thread's context stack.
+    /// For non-CUDA devices, this is a no-op.
+    void pop_cuda_context() { m_rhi_device->popCudaContext(); }
+
     slang::IGlobalSession* global_session() const { return m_global_session; }
 
     /// Get the native device handles.
