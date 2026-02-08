@@ -27,6 +27,8 @@ public:
     /// Create with none-owning view of specific block of memory
     BufferElementCursor(ref<const TypeLayoutReflection> layout, ref<BufferCursor> owner);
 
+    BufferElementCursor reinterpret(ref<const TypeLayoutReflection> new_layout);
+
     ref<const TypeLayoutReflection> type_layout() const { return m_type_layout; }
     ref<const TypeReflection> type() const { return m_type_layout->type(); }
 

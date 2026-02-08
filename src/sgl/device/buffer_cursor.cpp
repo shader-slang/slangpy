@@ -21,6 +21,14 @@ BufferElementCursor::BufferElementCursor(ref<const TypeLayoutReflection> layout,
 {
 }
 
+BufferElementCursor BufferElementCursor::reinterpret(ref<const TypeLayoutReflection> new_layout) {
+    BufferElementCursor element_cursor;
+    element_cursor.m_buffer = m_buffer;
+    element_cursor.m_type_layout = new_layout;
+    element_cursor.m_offset = m_offset;
+    return element_cursor;
+}
+
 std::string BufferElementCursor::to_string() const
 {
     return "BufferElementCursor()";

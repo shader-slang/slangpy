@@ -1154,6 +1154,8 @@ static const char *__doc_sgl_BufferElementCursor_read_data = R"doc()doc";
 
 static const char *__doc_sgl_BufferElementCursor_set = R"doc()doc";
 
+static const char *__doc_sgl_BufferElementCursor_reinterpret = R"doc()doc";
+
 static const char *__doc_sgl_BufferElementCursor_set_2 = R"doc()doc";
 
 static const char *__doc_sgl_BufferElementCursor_set_data = R"doc()doc";
