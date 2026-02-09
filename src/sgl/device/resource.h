@@ -374,7 +374,13 @@ public:
         return values;
     }
 
-    DeviceAddress device_address() const { return m_rhi_buffer->getDeviceAddress(); }
+    DeviceAddress device_address() const
+    {
+        // Used in perf critical code, cache address to avoid repeated virtual COM calls.
+        if (m_cached_device_address == 0)
+            m_cached_device_address = m_rhi_buffer->getDeviceAddress();
+        return m_cached_device_address;
+    }
 
     ref<BufferView> create_view(BufferViewDesc desc);
 
@@ -397,6 +403,7 @@ public:
 private:
     BufferDesc m_desc;
     Slang::ComPtr<rhi::IBuffer> m_rhi_buffer;
+    mutable DeviceAddress m_cached_device_address{0};
     mutable ref<cuda::ExternalMemory> m_cuda_memory;
     mutable void* m_mapped_ptr{nullptr};
 };
@@ -500,6 +507,14 @@ struct TextureDesc {
 
     TextureUsage usage{TextureUsage::none};
     ResourceState default_state{ResourceState::undefined};
+
+    /// Default sampler to use for the texture.
+    /// This specifies the sampler for combined texture/sampler descriptor handles
+    /// when getting Texture::descriptor_handle_combined.
+    /// On CUDA, texture objects are always combined texture/sampler objects,
+    /// so this sampler is used for all texture access.
+    /// If not specified, tri-linear filtering and wrap addressing mode will be used.
+    ref<Sampler> sampler;
 
     /// Debug label.
     std::string label;
@@ -605,10 +620,12 @@ public:
 
     ref<TextureView> create_view(TextureViewDesc desc);
 
-    /// Get bindless descriptor handle for read access.
+    /// Get bindless texture descriptor handle for read access.
     DescriptorHandle descriptor_handle_ro() const;
-    /// Get bindless descriptor handle for read-write access.
+    /// Get bindless texture descriptor handle for read-write access.
     DescriptorHandle descriptor_handle_rw() const;
+    /// Get bindless combined texture/sampler descriptor handle.
+    DescriptorHandle descriptor_handle_combined() const;
 
     /// Get the shared resource handle.
     /// Note: Texture must be created with the \c TextureUsage::shared usage flag.
@@ -632,6 +649,15 @@ struct TextureViewDesc {
     Format format{Format::undefined};
     TextureAspect aspect{TextureAspect::all};
     SubresourceRange subresource_range;
+
+    /// Sampler to use for the texture view.
+    /// This specifies the sampler for combined texture/sampler descriptor handles
+    /// when getting TextureView::descriptor_handle_combined.
+    /// On CUDA, texture objects are always combined texture/sampler objects,
+    /// so this sampler is used for all texture access.
+    /// If not specified, the default sampler from the texture will be used.
+    ref<Sampler> sampler;
+
     std::string label;
 };
 
@@ -651,8 +677,12 @@ public:
     const SubresourceRange& subresource_range() const { return m_desc.subresource_range; }
     std::string_view label() const { return m_desc.label; }
 
+    /// Get bindless texture descriptor handle for read access.
     DescriptorHandle descriptor_handle_ro() const;
+    /// Get bindless texture descriptor handle for read-write access.
     DescriptorHandle descriptor_handle_rw() const;
+    /// Get bindless combined texture/sampler descriptor handle.
+    DescriptorHandle descriptor_handle_combined() const;
 
     /// Get the native texture view handle.
     NativeHandle native_handle() const;

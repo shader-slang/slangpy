@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
 import pytest
 import inspect
 from typing import Any
 
 import slangpy as spy
+
 from .helpers import (
     close_all_devices,
     close_leaked_devices,
@@ -13,6 +15,12 @@ from .helpers import (
     should_skip_non_device_test,
     SELECTED_DEVICE_TYPES,
 )
+from . import crashpad
+
+CRASHPAD_SUPPORT = spy.crashpad.is_supported()
+
+# Torch bridge mode values for parametrization
+TORCH_BRIDGE_MODES = ["native", "fallback"]
 
 
 def pytest_addoption(parser: pytest.Parser):
@@ -28,6 +36,14 @@ def pytest_addoption(parser: pytest.Parser):
 
 
 @pytest.hookimpl(tryfirst=True)
+def pytest_configure(config: pytest.Config):
+    # Setup crashpad
+    if CRASHPAD_SUPPORT:
+        if not os.environ.get("PYTEST_XDIST_WORKER"):
+            crashpad.setup()
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_sessionstart(session: pytest.Session):
     # pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
     # when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
@@ -36,6 +52,10 @@ def pytest_sessionstart(session: pytest.Session):
     # Set the global device types based on the command line option
     device_types_option = session.config.getoption("--device-types")
     set_device_types(device_types_option)
+
+    # Start crashpad handler
+    if CRASHPAD_SUPPORT:
+        crashpad.start_handler()
 
 
 @pytest.hookimpl(trylast=True)
@@ -55,6 +75,11 @@ def pytest_runtest_setup(item: Any) -> None:
     This hook runs before each test and can skip tests that don't match
     the target device types.
     """
+
+    # Inform crashpad handler about the current test
+    if CRASHPAD_SUPPORT:
+        crashpad.notify_current_test(item.location[0] + ":" + item.location[2])
+
     # Check if the test function has a device_type parameter
     if hasattr(item, "function"):
         sig = inspect.signature(item.function)
@@ -83,3 +108,44 @@ def pytest_runtest_setup(item: Any) -> None:
                 pytest.skip(
                     f"Skipping non-device test (target devices: {', '.join(target_device_names)})"
                 )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_terminal_summary(terminalreporter: Any, exitstatus: int):
+    # Report crashpad reports
+    if CRASHPAD_SUPPORT:
+        crashpad.report(terminalreporter.config.get_terminal_writer())
+
+
+@pytest.fixture(params=TORCH_BRIDGE_MODES)
+def torch_bridge_mode(request: pytest.FixtureRequest):
+    """
+    Fixture that runs the test in both native and fallback torch bridge modes.
+
+    Use this fixture in any torch-related test that should validate both paths.
+    The test will be run twice: once with native slangpy_torch support (if available),
+    and once with Python fallback mode.
+
+    Example usage:
+        def test_torch_tensor_info(torch_bridge_mode):
+            # This test runs twice - once native, once fallback
+            t = torch.zeros(4, 4)
+            info = slangpy.extract_torch_tensor_info(t)
+            assert info["shape"] == (4, 4)
+
+    The fixture ensures the torch bridge mode is always restored after the test,
+    even if the test fails or raises an exception.
+    """
+    mode = request.param
+    was_fallback = spy.is_torch_bridge_using_fallback()
+
+    try:
+        if mode == "fallback":
+            spy.set_torch_bridge_python_fallback(True)
+        else:
+            spy.set_torch_bridge_python_fallback(False)
+
+        yield mode
+    finally:
+        # Always restore the original state
+        spy.set_torch_bridge_python_fallback(was_fallback)

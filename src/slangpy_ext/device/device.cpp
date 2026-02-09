@@ -307,6 +307,9 @@ SGL_PY_EXPORT(device_device)
         [](Device* self,
            DeviceType type,
            bool enable_debug_layers,
+           bool enable_rhi_validation,
+           bool enable_ray_tracing_validation,
+           bool enable_aftermath,
            bool enable_cuda_interop,
            bool enable_print,
            bool enable_hot_reload,
@@ -323,6 +326,9 @@ SGL_PY_EXPORT(device_device)
             new (self) Device(
                 {.type = type,
                  .enable_debug_layers = enable_debug_layers,
+                 .enable_rhi_validation = enable_rhi_validation,
+                 .enable_ray_tracing_validation = enable_ray_tracing_validation,
+                 .enable_aftermath = enable_aftermath,
                  .enable_cuda_interop = enable_cuda_interop,
                  .enable_print = enable_print,
                  .enable_hot_reload = enable_hot_reload,
@@ -339,6 +345,9 @@ SGL_PY_EXPORT(device_device)
         },
         "type"_a = DeviceDesc().type,
         "enable_debug_layers"_a = DeviceDesc().enable_debug_layers,
+        "enable_rhi_validation"_a = DeviceDesc().enable_rhi_validation,
+        "enable_ray_tracing_validation"_a = DeviceDesc().enable_ray_tracing_validation,
+        "enable_aftermath"_a = DeviceDesc().enable_aftermath,
         "enable_cuda_interop"_a = DeviceDesc().enable_cuda_interop,
         "enable_print"_a = DeviceDesc().enable_print,
         "enable_hot_reload"_a = DeviceDesc().enable_hot_reload,
@@ -485,6 +494,7 @@ SGL_PY_EXPORT(device_device)
            MemoryType memory_type,
            TextureUsage usage,
            ResourceState default_state,
+           ref<Sampler> sampler,
            std::string label,
            std::optional<nb::ndarray<nb::numpy>> data)
         {
@@ -517,6 +527,7 @@ SGL_PY_EXPORT(device_device)
                 .memory_type = memory_type,
                 .usage = usage,
                 .default_state = default_state,
+                .sampler = std::move(sampler),
                 .label = std::move(label),
                 .data = data ? subresourceData : std::span<SubresourceData>(),
             });
@@ -533,6 +544,7 @@ SGL_PY_EXPORT(device_device)
         "memory_type"_a = TextureDesc().memory_type,
         "usage"_a = TextureDesc().usage,
         "default_state"_a = TextureDesc().default_state,
+        "sampler"_a.none() = nb::none(),
         "label"_a = TextureDesc().label,
         "data"_a.none() = nb::none(),
         D(Device, create_texture)
@@ -724,7 +736,7 @@ SGL_PY_EXPORT(device_device)
            std::vector<std::string> callable_entry_points)
         {
             return self->create_shader_table({
-                .program = program,
+                .program = std::move(program),
                 .ray_gen_entry_points = std::move(ray_gen_entry_points),
                 .miss_entry_points = std::move(miss_entry_points),
                 .hit_group_names = std::move(hit_group_names),
@@ -903,7 +915,7 @@ SGL_PY_EXPORT(device_device)
         {
             return self->create_render_pipeline(
                 {.program = std::move(program),
-                 .input_layout = input_layout,
+                 .input_layout = std::move(input_layout),
                  .primitive_topology = primitive_topology,
                  .targets = targets,
                  .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),

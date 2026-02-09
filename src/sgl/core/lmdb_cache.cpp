@@ -58,6 +58,13 @@ public:
             LMDB_THROW("Failed to commit transaction", result);
     }
 
+    void abort()
+    {
+        SGL_CHECK(m_txn != nullptr, "Transaction is already committed or aborted");
+        mdb_txn_abort(m_txn);
+        m_txn = nullptr;
+    }
+
     operator MDB_txn*() { return m_txn; }
 
 private:
@@ -133,19 +140,38 @@ void LMDBCache::set(const void* key_data, size_t key_size, const void* value_dat
     if (usage().used_size > m_eviction_threshold_size)
         evict();
 
-    ScopedTransaction txn(m_db.env);
+    // If the first attempt fails with MDB_MAP_FULL, retry one time after
+    // running eviction. Force eviction to bypass threshold checks since
+    // MDB_MAP_FULL indicates we're truly out of space (size metrics don't
+    // perfectly predict this due to LMDB's copy-on-write overhead).
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        ScopedTransaction txn(m_db.env);
 
-    MDB_val mdb_key = {key_size, const_cast<void*>(key_data)};
-    MDB_val mdb_val = {value_size, const_cast<void*>(value_data)};
-    if (int result = mdb_put(txn, m_db.dbi_data, &mdb_key, &mdb_val, 0); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to write data", result);
+        MDB_val mdb_key = {key_size, const_cast<void*>(key_data)};
+        MDB_val mdb_val = {value_size, const_cast<void*>(value_data)};
+        int result = mdb_put(txn, m_db.dbi_data, &mdb_key, &mdb_val, 0);
+        if (attempt == 0 && result == MDB_MAP_FULL) {
+            txn.abort();
+            evict(true);
+            continue;
+        }
+        if (result != MDB_SUCCESS)
+            LMDB_THROW("Failed to write data", result);
 
-    MetaData meta_data{.last_access = get_current_time_ns()};
-    MDB_val mdb_val_meta = {sizeof(MetaData), &meta_data};
-    if (int result = mdb_put(txn, m_db.dbi_meta, &mdb_key, &mdb_val_meta, 0); result != MDB_SUCCESS)
-        LMDB_THROW("Failed to write metadata", result);
+        MetaData meta_data{.last_access = get_current_time_ns()};
+        MDB_val mdb_val_meta = {sizeof(MetaData), &meta_data};
+        result = mdb_put(txn, m_db.dbi_meta, &mdb_key, &mdb_val_meta, 0);
+        if (attempt == 0 && result == MDB_MAP_FULL) {
+            txn.abort();
+            evict(true);
+            continue;
+        }
+        if (result != MDB_SUCCESS)
+            LMDB_THROW("Failed to write metadata", result);
 
-    txn.commit();
+        txn.commit();
+        break;
+    }
 }
 
 bool LMDBCache::get(const void* key_data, size_t key_size, WriteValueFunc write_value_func, void* user_data)
@@ -246,30 +272,68 @@ LMDBCache::Stats LMDBCache::stats() const
     return stats;
 }
 
-void LMDBCache::evict()
+void LMDBCache::for_each_impl(ForEachFunc callback, void* user_data) const
 {
+    ScopedTransaction txn(m_db.env, MDB_RDONLY);
+    ScopedCursor cursor(txn, m_db.dbi_data);
+
+    MDB_val key, val;
+    while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
+        callback(key.mv_data, key.mv_size, val.mv_data, val.mv_size, user_data);
+    }
+}
+
+void LMDBCache::evict(bool force)
+{
+    // Only one thread should work on evicting entries.
+    std::lock_guard lock{m_evict_mutex};
+
+    // Entry stores metadata and a direct pointer to the key in LMDB's memory-mapped pages.
+    // This is safe because LMDB uses copy-on-write: delete operations write to new pages,
+    // leaving the original pages (containing our scanned keys) intact until transaction commit.
     struct Entry {
         uint64_t last_access;
         MDB_val key;
     };
     std::vector<Entry> entries;
 
-    size_t used_size = usage().used_size;
-    // fmt::println("Evicting entries: used_size={} target_size={}", used_size, m_eviction_target_size);
-    if (used_size < m_eviction_target_size)
+    // Early out if eviction target size is already hit.
+    // When force=true (triggered by MDB_MAP_FULL), we skip this check entirely
+    // since size metrics don't perfectly predict MDB_MAP_FULL due to LMDB's
+    // copy-on-write semantics and transaction overhead.
+    Usage current_usage = usage();
+    if (!force && current_usage.used_size < m_eviction_target_size)
         return;
-    size_t required_free_size = used_size - m_eviction_target_size;
+
+    // Calculate how much space to free. When forced, assume database is full.
+    size_t required_free_size
+        = (force ? current_usage.reserved_size : current_usage.used_size) - m_eviction_target_size;
+
+#if 0
+    {
+        auto u = usage();
+        log_info(
+            "Evicting entries: target_size={}, used_size={}, committed_size={}, reserved_size={}",
+            m_eviction_target_size,
+            u.used_size,
+            u.committed_size,
+            u.reserved_size
+        );
+    }
+#endif
 
     ScopedTransaction txn(m_db.env);
     ScopedCursor cursor(txn, m_db.dbi_meta);
 
-    // Scan all entries.
-    MDB_val key, val;
-    while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
-        entries.push_back({
-            .last_access = static_cast<const MetaData*>(val.mv_data)->last_access,
-            .key = key,
-        });
+    // Scan all entries. Key pointers point directly into LMDB's memory-mapped pages.
+    {
+        MDB_val key, val;
+        while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
+            entries.push_back({
+                .last_access = static_cast<const MetaData*>(val.mv_data)->last_access,
+                .key = key,
+            });
+        }
     }
 
     // Create heap based on last access time (oldest first).
@@ -284,6 +348,7 @@ void LMDBCache::evict()
     while (required_free_size > 0 && !entries.empty()) {
         std::pop_heap(entries.begin(), entries.end(), cmp);
         Entry& entry = entries.back();
+        MDB_val val;
         if (int result = mdb_get(txn, m_db.dbi_data, &entry.key, &val); result != MDB_SUCCESS)
             LMDB_THROW("Failed to get data during eviction", result);
         required_free_size -= std::min(required_free_size, val.mv_size);
@@ -298,7 +363,22 @@ void LMDBCache::evict()
     cursor.close();
     txn.commit();
 
-    // fmt::println("Eviction complete: used_size={} evictions={}", usage().used_size, evictions);
+    // Sync to disk.
+    if (int result = mdb_env_sync(m_db.env, true); result != MDB_SUCCESS)
+        LMDB_THROW("Failed to sync database", result);
+
+#if 0
+    {
+        auto u = usage();
+        log_info(
+            "Evicting complete: evictions={}, used_size={}, committed_size={}, reserved_size={}",
+            evictions,
+            u.used_size,
+            u.committed_size,
+            u.reserved_size
+        );
+    }
+#endif
 
     m_evictions.fetch_add(evictions);
 }
@@ -372,7 +452,6 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
 
 void LMDBCache::close_db(DB db)
 {
-    ProcessID pid = platform::current_process_id();
     std::lock_guard lock(s_db_cache_mutex);
     auto it = std::find_if(
         s_db_cache.begin(),
@@ -383,7 +462,7 @@ void LMDBCache::close_db(DB db)
         }
     );
     SGL_ASSERT(it != s_db_cache.end());
-    SGL_ASSERT(it->pid == pid);
+    SGL_ASSERT(it->pid == platform::current_process_id());
     if (--it->ref_count == 0) {
         mdb_dbi_close(db.env, db.dbi_data);
         mdb_dbi_close(db.env, db.dbi_meta);

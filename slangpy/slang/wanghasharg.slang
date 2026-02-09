@@ -51,13 +51,13 @@ public struct WangHashArg<let WarmupIterations: int=0> {
 
     public uint seed;
 
-    public void load<let N : int>(Context0D context, out vector<uint, N> value) {
+    public void __slangpy_load<let N : int>(Context0D context, out vector<uint, N> value) {
         value = wang_hash_thread_vector<WarmupIterations, N>(context.thread_id, seed);
     }
-    public void store<let N : int>(Context0D context, in vector<uint, N> value) {};
+    public void __slangpy_store<let N : int>(Context0D context, in vector<uint, N> value) {};
 
-    public void load(Context0D context, out uint value) {
+    public void __slangpy_load(Context0D context, out uint value) {
         value = wang_hash_thread_scalar<WarmupIterations>(context.thread_id, seed);
     }
-    public void store(Context0D context, in uint value) {};
+    public void __slangpy_store(Context0D context, in uint value) {};
 }

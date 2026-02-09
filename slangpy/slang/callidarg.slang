@@ -6,7 +6,7 @@ public struct CallIdArg {
     int dummy;
 
     // Array load
-    public void load<let N : int, T: __BuiltinIntegerType>(ContextND<N> context, out Array<T, N> value) {
+    public void __slangpy_load<let N : int, T: __BuiltinIntegerType>(ContextND<N> context, out Array<T, N> value) {
         var t = context.call_id;
         [ForceUnroll]
         for (int i = 0; i < N; i++) {
@@ -15,7 +15,7 @@ public struct CallIdArg {
     }
 
     // Vector load (transpose of array load)
-    public void load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out vector<T,N> value) {
+    public void __slangpy_load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out vector<T,N> value) {
         var t = context.call_id;
         int end = N - 1;
         [ForceUnroll]
@@ -26,7 +26,7 @@ public struct CallIdArg {
 
     //Vector load (transpose of array load)
     //TODO: Add array version of this, and see if we can support a version for any other size, not just N+1
-    public void load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out vector<T,N+1> value) {
+    public void __slangpy_load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out vector<T,N+1> value) {
         var t = context.call_id;
         int end = N - 1;
         [ForceUnroll]
@@ -37,7 +37,7 @@ public struct CallIdArg {
     }
 
     // Scalar load (works for N = 1)
-    public void load<T : __BuiltinIntegerType>(ContextND<1> context, out T value) {
+    public void __slangpy_load<T : __BuiltinIntegerType>(ContextND<1> context, out T value) {
         value = (T)context.call_id[0];
     }
 }

@@ -74,7 +74,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SGL_SLANG_VERSION "2025.24.3" CACHE STRING "Slang version to download when not using a local build")
+set(SGL_SLANG_VERSION "2026.1.2" CACHE STRING "Slang version to download when not using a local build")
 
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SGL_SLANG_VERSION}/slang-${SGL_SLANG_VERSION}")
 
@@ -249,3 +249,14 @@ set(SGL_IMGUI_DIR ${imgui_SOURCE_DIR} PARENT_SCOPE)
 
 add_library(header_only INTERFACE)
 target_include_directories(header_only INTERFACE include)
+
+# crashpad
+
+if(SGL_HAS_CRASHPAD)
+    # Copy crashpad_handler binary
+    set(CRASHPAD_HANDLER "crashpad_handler")
+    if(SGL_WINDOWS)
+        set(CRASHPAD_HANDLER "crashpad_handler.exe")
+    endif()
+    sgl_copy_binary(${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/packages/crashpad_${VCPKG_TARGET_TRIPLET}/tools/${CRASHPAD_HANDLER} .)
+endif()

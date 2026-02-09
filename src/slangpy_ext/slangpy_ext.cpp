@@ -7,6 +7,9 @@
 #include "sgl/sgl.h"
 #include "sgl/device/device.h"
 
+#include "utils/slangpyfunction.h"
+#include "utils/torch_bridge.h"
+
 #include <iostream>
 
 SGL_PY_DECLARE(app_app);
@@ -54,6 +57,7 @@ SGL_PY_DECLARE(math_quaternion);
 SGL_PY_DECLARE(ui);
 SGL_PY_DECLARE(ui_widgets);
 
+SGL_PY_DECLARE(utils_crashpad);
 SGL_PY_DECLARE(utils_renderdoc);
 SGL_PY_DECLARE(utils_slangpy);
 SGL_PY_DECLARE(utils_slangpy_strided_buffer_view);
@@ -62,9 +66,11 @@ SGL_PY_DECLARE(utils_slangpy_function);
 SGL_PY_DECLARE(utils_slangpy_packedarg);
 SGL_PY_DECLARE(utils_slangpy_resources);
 SGL_PY_DECLARE(utils_slangpy_tensor);
+SGL_PY_DECLARE(utils_slangpy_torch_tensor);
 SGL_PY_DECLARE(utils_slangpy_value);
 SGL_PY_DECLARE(utils_tev);
 SGL_PY_DECLARE(utils_texture_loader);
+SGL_PY_DECLARE(utils_torch_bridge);
 
 
 NB_MODULE(slangpy_ext, m_)
@@ -86,6 +92,10 @@ NB_MODULE(slangpy_ext, m_)
 
     sgl::static_init();
     sgl::platform::set_python_active(true);
+
+    // Try to load slangpy_torch for fast PyTorch tensor access.
+    // If not installed, falls back to slower Python API path.
+    sgl::TorchBridge::instance().try_init();
 
     sgl::Device::enable_agility_sdk();
 
@@ -139,6 +149,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(ui);
     SGL_PY_IMPORT(ui_widgets);
 
+    SGL_PY_IMPORT(utils_crashpad);
     SGL_PY_IMPORT(utils_renderdoc);
 
     SGL_PY_IMPORT(utils_slangpy);
@@ -148,10 +159,12 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(utils_slangpy_packedarg);
     SGL_PY_IMPORT(utils_slangpy_resources);
     SGL_PY_IMPORT(utils_slangpy_tensor);
+    SGL_PY_IMPORT(utils_slangpy_torch_tensor);
     SGL_PY_IMPORT(utils_slangpy_value);
 
     SGL_PY_IMPORT(utils_tev);
     SGL_PY_IMPORT(utils_texture_loader);
+    SGL_PY_IMPORT(utils_torch_bridge);
 
     SGL_PY_IMPORT(app_app);
 
@@ -160,6 +173,12 @@ NB_MODULE(slangpy_ext, m_)
     atexit.attr("register")(nb::cpp_function(
         []()
         {
+            // Reset cached Python objects before Python finalization.
+            // This must be done while the GIL is held, before Python finalizes,
+            // to avoid "GIL not held" errors during static destruction.
+            sgl::TorchBridge::instance().reset();
+            sgl::slangpy::NativeFunctionNode::static_reset();
+
             {
                 // While waiting for tasks to finish, we block the main thread
                 // while holding the GIL. This makes it impossible for other
@@ -177,7 +196,7 @@ NB_MODULE(slangpy_ext, m_)
     ));
 
     // Shutdown on module unload.
-    nanobind_module_def_slangpy_ext.m_free = [](void*)
+    nanobind_slangpy_ext_module.m_free = [](void*)
     {
         sgl::static_shutdown();
     };
