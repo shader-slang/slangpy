@@ -69,7 +69,10 @@ Device::Device(const DeviceDesc& desc)
 
     // Setup path for slang's downstream compilers.
     for (SlangPassThrough pass_through :
-         {SLANG_PASS_THROUGH_DXC, SLANG_PASS_THROUGH_GLSLANG, SLANG_PASS_THROUGH_SPIRV_OPT, SLANG_PASS_THROUGH_SPIRV_DIS}) {
+         {SLANG_PASS_THROUGH_DXC,
+          SLANG_PASS_THROUGH_GLSLANG,
+          SLANG_PASS_THROUGH_SPIRV_OPT,
+          SLANG_PASS_THROUGH_SPIRV_DIS}) {
         m_global_session->setDownstreamCompilerPath(pass_through, platform::runtime_directory().string().c_str());
     }
 
