@@ -122,6 +122,25 @@ float slang_min_half(float x) {
 }
 """
 
+# Separate module for tensor parameter tests (Case 2: tensor → tensor type)
+# These test the copy-back path for WTensor/RWTensor parameters
+SLANG_TENSOR_OPS = """
+import slangpy;
+
+// Copy with transformation - tests RWTensor write-back
+// Input is read-only Tensor, output is writable RWTensor
+void scale_tensor(Tensor<float, 1> input, float scale, RWTensor<float, 1> output) {
+    for (uint i = 0; i < input.shape[0]; i++)
+        output[i] = input[i] * scale;
+}
+
+// In-place scale - tests RWTensor read AND write
+void scale_inplace(float scale, RWTensor<float, 1> data) {
+    for (uint i = 0; i < data.shape[0]; i++)
+        data[i] = data[i] * scale;
+}
+"""
+
 
 # =============================================================================
 # SlangPy Module Wrappers
@@ -813,6 +832,120 @@ def test_three_consecutive_slangpy_ops(device_type: DeviceType):
     target = torch.randn(batch_size, out_features, device="cuda")
 
     run_gradient_parity_test(control_model, test_model, x, target)
+
+
+# =============================================================================
+# Tensor Parameter Tests (Case 2: tensor → tensor type)
+# These verify copy-back works for WTensor/RWTensor parameters
+# =============================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_parameter_output(device_type: DeviceType):
+    """
+    Test Case 2a: Torch tensor passed to RWTensor output parameter.
+
+    This tests that data written to an RWTensor parameter is correctly
+    copied back to the PyTorch tensor. This is the case the reviewer
+    identified as potentially broken by the AccessType-based fix.
+
+    Structure:
+        scale_tensor(Tensor<float,1> input, float scale, RWTensor<float,1> output)
+        - input: read-only tensor (no copy-back needed)
+        - output: writable tensor (MUST copy back)
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_TENSOR_OPS)
+
+    # Create input and output tensors
+    input_data = torch.tensor([1.0, 2.0, 3.0, 4.0], device="cuda")
+    output_data = torch.zeros(4, device="cuda")
+    scale = 2.5
+
+    # Call the function - output should be modified
+    slang_module.scale_tensor(input_data, scale, output_data)
+
+    # Verify output was written correctly
+    expected = input_data * scale
+    assert torch.allclose(output_data, expected), (
+        f"RWTensor output not copied back correctly.\n"
+        f"Expected: {expected}\n"
+        f"Got: {output_data}"
+    )
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_parameter_inplace(device_type: DeviceType):
+    """
+    Test Case 2b: Torch tensor passed to RWTensor for in-place modification.
+
+    This tests that data in an RWTensor parameter that is read AND written
+    is correctly copied back to the PyTorch tensor.
+
+    Structure:
+        scale_inplace(float scale, RWTensor<float,1> data)
+        - data: read-write tensor (reads original, writes scaled)
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_TENSOR_OPS)
+
+    # Create tensor with known values
+    original = torch.tensor([1.0, 2.0, 3.0, 4.0], device="cuda")
+    data = original.clone()
+    scale = 3.0
+
+    # Call the function - data should be modified in-place
+    slang_module.scale_inplace(scale, data)
+
+    # Verify data was modified correctly
+    expected = original * scale
+    assert torch.allclose(data, expected), (
+        f"RWTensor in-place modification not copied back correctly.\n"
+        f"Expected: {expected}\n"
+        f"Got: {data}"
+    )
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_scalar_broadcast_no_copyback(device_type: DeviceType):
+    """
+    Test Case 1: Torch tensor broadcast to scalar - verify no spurious copy-back.
+
+    This tests the original bug: when a torch tensor is broadcast to scalar
+    parameters, the input tensor should NOT be modified (no copy-back).
+    This is what the AccessType fix was intended to address.
+
+    This test passes a tensor through a scalar function and verifies:
+    1. The input tensor is unchanged (no spurious copy-back)
+    2. The output is correct
+    3. Autograd works correctly
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ACTIVATIONS)
+
+    # Create input tensor and save original values
+    input_data = torch.tensor([-1.0, 0.5, 1.0, 2.0], device="cuda", requires_grad=True)
+    original_values = input_data.clone().detach()
+
+    # Call scalar function (broadcasts tensor elements to float x)
+    output = slang_module.slang_relu(input_data)
+
+    # Verify input was NOT modified
+    assert torch.equal(input_data.detach(), original_values), (
+        f"Input tensor was modified during scalar broadcast.\n"
+        f"Original: {original_values}\n"
+        f"After: {input_data}"
+    )
+
+    # Verify output is correct
+    expected_output = torch.relu(original_values)
+    assert torch.allclose(output, expected_output), (
+        f"Output incorrect.\n" f"Expected: {expected_output}\n" f"Got: {output}"
+    )
+
+    # Verify autograd still works (the original bug caused RuntimeError here)
+    output.sum().backward()
+    assert input_data.grad is not None, "Gradients should exist"
 
 
 if __name__ == "__main__":
