@@ -122,7 +122,7 @@ float slang_min_half(float x) {
 }
 """
 
-# Separate module for tensor parameter tests (Case 2: tensor → tensor type)
+# Separate module for tensor parameter tests
 # These test the copy-back path for WTensor/RWTensor parameters
 SLANG_TENSOR_OPS = """
 import slangpy;
@@ -511,7 +511,6 @@ def test_slice_gradient_parity(
     - Slice type: strided (non-contiguous) vs contiguous
     - Slice position: before or after the activation
 
-    This addresses Chris's concern about "clever slicing functionality".
     Tests both that SlangPy can handle sliced inputs AND that gradients
     back-propagate correctly through slicing after SlangPy operations.
     """
@@ -835,19 +834,18 @@ def test_three_consecutive_slangpy_ops(device_type: DeviceType):
 
 
 # =============================================================================
-# Tensor Parameter Tests (Case 2: tensor → tensor type)
-# These verify copy-back works for WTensor/RWTensor parameters
+# Tensor Parameter and Copy-back Tests
+# These verify correct copy-back behavior for different parameter types
 # =============================================================================
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_parameter_output(device_type: DeviceType):
     """
-    Test Case 2a: Torch tensor passed to RWTensor output parameter.
+    Test torch tensor passed to RWTensor output parameter.
 
-    This tests that data written to an RWTensor parameter is correctly
-    copied back to the PyTorch tensor. This is the case the reviewer
-    identified as potentially broken by the AccessType-based fix.
+    Verifies that data written to an RWTensor parameter is correctly
+    copied back to the PyTorch tensor.
 
     Structure:
         scale_tensor(Tensor<float,1> input, float scale, RWTensor<float,1> output)
@@ -877,9 +875,9 @@ def test_tensor_parameter_output(device_type: DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_parameter_inplace(device_type: DeviceType):
     """
-    Test Case 2b: Torch tensor passed to RWTensor for in-place modification.
+    Test torch tensor passed to RWTensor for in-place modification.
 
-    This tests that data in an RWTensor parameter that is read AND written
+    Verifies that data in an RWTensor parameter that is read AND written
     is correctly copied back to the PyTorch tensor.
 
     Structure:
@@ -909,11 +907,11 @@ def test_tensor_parameter_inplace(device_type: DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_scalar_broadcast_no_copyback(device_type: DeviceType):
     """
-    Test Case 1: Torch tensor broadcast to scalar - verify no spurious copy-back.
+    Test torch tensor broadcast to scalar - verify no spurious copy-back.
 
-    This tests the original bug: when a torch tensor is broadcast to scalar
-    parameters, the input tensor should NOT be modified (no copy-back).
-    This is what the AccessType fix was intended to address.
+    When a torch tensor is broadcast to scalar parameters, the input tensor
+    should NOT be modified (no copy-back). Spurious copy-back would increment
+    PyTorch's _version counter and break autograd.
 
     This test passes a tensor through a scalar function and verifies:
     1. The input tensor is unchanged (no spurious copy-back)
