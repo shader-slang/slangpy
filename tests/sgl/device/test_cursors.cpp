@@ -51,6 +51,12 @@ struct TestStruct
     float f0;
     NestedTestStruct nested;
 };
+
+struct Pair
+{
+    uint16_t x;
+    uint16_t y;
+};
 )SHADER";
 
     // Just verify module loads.
@@ -87,6 +93,20 @@ struct TestStruct
             from_tocursor.size()
         );
 
+        (*tocursor_cursor)[0] = cpu_struct;
+
+        CHECK(memcmp(from_direct.data(), from_tocursor.data(), from_direct.size()) == 0);
+
+        // reinterpret uint32_t data as uint16_t[2]
+        uint16_t pair[] = { 55, 67 };
+        auto reinterpret_element_type = layout->find_type_by_name("Pair");
+        auto reinterpret_element_type_layout = layout->get_type_layout(reinterpret_element_type);
+        auto reinterpret_cursor = (*direct_buffer_cursor)[0]["nested"]["data"].reinterpret(reinterpret_element_type_layout);
+        reinterpret_cursor["x"] = pair[0];
+        reinterpret_cursor["y"] = pair[1];
+
+        reinterpret_cast<uint16_t*>(&cpu_struct.nested.data)[0] = pair[0];
+        reinterpret_cast<uint16_t*>(&cpu_struct.nested.data)[1] = pair[1];
         (*tocursor_cursor)[0] = cpu_struct;
 
         CHECK(memcmp(from_direct.data(), from_tocursor.data(), from_direct.size()) == 0);

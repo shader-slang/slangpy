@@ -21,7 +21,8 @@ BufferElementCursor::BufferElementCursor(ref<const TypeLayoutReflection> layout,
 {
 }
 
-BufferElementCursor BufferElementCursor::reinterpret(ref<const TypeLayoutReflection> new_layout) {
+BufferElementCursor BufferElementCursor::reinterpret(ref<const TypeLayoutReflection> new_layout) const
+{
     BufferElementCursor element_cursor;
     element_cursor.m_buffer = m_buffer;
     element_cursor.m_type_layout = new_layout;

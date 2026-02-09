@@ -23,7 +23,7 @@ SGL_PY_EXPORT(device_buffer_cursor)
     nb::class_<BufferElementCursor> buffer_element_cursor(m, "BufferElementCursor", D(BufferElementCursor));
 
     buffer_element_cursor //
-        .def("reinterpret", [](BufferElementCursor& self, ref<TypeLayoutReflection> new_layout)
+        .def("reinterpret", [](const BufferElementCursor& self, ref<TypeLayoutReflection> new_layout)
             {
                 return self.reinterpret(new_layout);
             }, "new_layout"_a, D(BufferElementCursor, reinterpret))
