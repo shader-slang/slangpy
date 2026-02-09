@@ -1185,6 +1185,20 @@ TESTS = [
     # Generic TensorView<T> resolution
     ("func_tensorview_generic", _TorchTensor("float", 1), "TensorView<float>", 1),
     ("func_tensorview_generic", _TorchTensor("int", 2), "TensorView<int>", 2),
+
+    # Normal slangpy Tensor should also resolve to TensorView<T>
+    ("func_tensorview_float", _Tensor("float", 1, True), "TensorView<float>", 1),
+    ("func_tensorview_float", _Tensor("float", 2, True), "TensorView<float>", 2),
+    ("func_tensorview_float", _Tensor("float", 1, False), "TensorView<float>", 1),
+    ("func_tensorview_int", _Tensor("int", 1, True), "TensorView<int>", 1),
+
+    # Normal slangpy Tensor type mismatch should fail
+    ("func_tensorview_float", _Tensor("int", 1, True), None, None),
+    ("func_tensorview_int", _Tensor("float", 1, True), None, None),
+
+    # Normal slangpy Tensor with generic TensorView<T>
+    ("func_tensorview_generic", _Tensor("float", 1, True), "TensorView<float>", 1),
+    ("func_tensorview_generic", _Tensor("int", 2, True), "TensorView<int>", 2),
 ]
 
 # fmt: on

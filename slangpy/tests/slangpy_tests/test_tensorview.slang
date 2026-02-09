@@ -11,3 +11,9 @@ void add_tensorview(TensorView<float> a, TensorView<float> b, TensorView<float> 
     for (uint i = 0; i < a.size(0); i++)
         output.store(i, a.load(i) + b.load(i));
 }
+
+// Writes a 1 at the given coordinate position.
+void mark_thread(int coord, TensorView<int> markers)
+{
+    markers.store(coord, 1);
+}
