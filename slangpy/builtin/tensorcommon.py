@@ -287,7 +287,7 @@ def resolve_dimensionality(
     to determine the dimensionality of the call from the perspective of a bound variable.
     """
     if isinstance(vector_target_type, TensorViewType):
-        return self.dims
+        return 0
     if isinstance(vector_target_type, ITensorType):
         return self.dims - vector_target_type.dims
     else:
