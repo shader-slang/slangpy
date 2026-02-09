@@ -576,38 +576,44 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
     // Build calldata dict with all interop info needed for copy-back
-    // Determine if copy-back is needed based on the target type:
+    // Determine if copy-back is needed based on the target type and access mode:
     //
     // When a torch tensor is passed to a Slang function, it can map to either:
-    // 1. Simple types (scalar/vector/matrix): The tensor is "broadcast" - elements are read
-    //    one per thread as input values. The tensor data is never written to.
-    //    Example: torch.Tensor -> float x (each thread reads one element)
+    // 1. Simple types (scalar/vector/matrix): The tensor is "broadcast" - elements are
+    //    read/written one per thread.
+    //    - INPUT tensor → scalar: Read-only, DON'T copy back
+    //    - OUTPUT tensor → scalar: Contains results, MUST copy back
     //
     // 2. Tensor types (Tensor, RWTensor, WTensor, etc.): The tensor storage pointer is
     //    passed to the shader. The shader may write to the tensor data.
     //    Example: torch.Tensor -> RWTensor<float,1> (shader can write to tensor)
     //
-    // For case 1, we must NOT copy back - doing so would:
-    // - Increment PyTorch's _version counter via copy_() in copy_from_buffer
-    // - Break autograd's version tracking, causing RuntimeError during backward pass
+    // For input tensors bound to simple types (case 1a), we must NOT copy back:
+    // - Doing so would increment PyTorch's _version counter via copy_()
+    // - This breaks autograd's version tracking, causing RuntimeError during backward
     //
-    // For case 2, we must copy back if the tensor type is writable (WTensor, RWTensor).
+    // For output tensors (case 1b) or tensor types (case 2), we must copy back.
     //
-    // We detect case 1 by checking if vector_type is a simple type (scalar/vector/matrix).
-    // These types cannot write to tensor storage - they only read scalar values.
-    bool is_simple_type = false;
+    // We detect read-only input broadcast by:
+    // - vector_type is a simple type (scalar/vector/matrix)
+    // - AND access type is read-only (not write or readwrite)
+    bool is_readonly_simple_type = false;
     if (auto vector_type = binding->vector_type()) {
         if (auto type_refl = vector_type->type_reflection()) {
             auto kind = type_refl->kind();
-            is_simple_type
+            bool is_simple_type
                 = (kind == TypeReflection::Kind::scalar || kind == TypeReflection::Kind::vector
                    || kind == TypeReflection::Kind::matrix);
+            AccessType primal_access = binding->access().first;
+            bool is_readonly = (primal_access == AccessType::read || primal_access == AccessType::none);
+            is_readonly_simple_type = is_simple_type && is_readonly;
         }
     }
 
-    // For simple types (broadcast), never copy back - tensor is read-only input
-    // For tensor types, use m_writable to decide (set by the tensor type's access mode)
-    bool needs_primal_copyback = m_writable && !is_simple_type && primal_info.numel > 0 && primal_interop_buffer;
+    // Skip copy-back only for read-only simple types (input scalar broadcast)
+    // For outputs (write/readwrite access) or tensor types, use m_writable
+    bool needs_primal_copyback
+        = m_writable && !is_readonly_simple_type && primal_info.numel > 0 && primal_interop_buffer;
     bool needs_grad_copyback = has_grad && grad_info.numel > 0 && grad_interop_buffer;
 
     if (needs_primal_copyback || needs_grad_copyback) {
