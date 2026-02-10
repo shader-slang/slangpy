@@ -28,6 +28,22 @@ struct SourceImage {
     Format format{Format::undefined};
 };
 
+inline ref<Bitmap> convert_ya_to_rg(const Bitmap* ya_bitmap)
+{
+    SGL_ASSERT(ya_bitmap->pixel_format() == Bitmap::PixelFormat::ya);
+
+    ref<Bitmap> rg_bitmap = make_ref<Bitmap>(
+        Bitmap::PixelFormat::rg,
+        ya_bitmap->component_type(),
+        ya_bitmap->width(),
+        ya_bitmap->height()
+    );
+    rg_bitmap->set_srgb_gamma(ya_bitmap->srgb_gamma());
+    std::memcpy(rg_bitmap->data(), ya_bitmap->data(), ya_bitmap->buffer_size());
+
+    return rg_bitmap;
+}
+
 /**
  * \brief Determine the texture format given a bitmap.
  *
@@ -142,10 +158,14 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
         }
     }
 
-    // If format is greyscale with alpha, we must convert to rgba
+    // Handle YA bitmap based on ya_handling option.
     if (pixel_format == PixelFormat::ya) {
-        pixel_format = PixelFormat::rgba;
-        convert_to_rgba = true;
+        if (options.ya_handling == YAHandling::expand_to_rgba) {
+            pixel_format = PixelFormat::rgba;
+            convert_to_rgba = true;
+        } else {
+            pixel_format = PixelFormat::rg;
+        }
     }
 
     // Use sRGB format if requested and supported.
@@ -185,11 +205,20 @@ inline std::pair<TextureType, uint32_t> get_texture_type_and_layer_count(DDSFile
 
 inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const TextureLoader::Options& options)
 {
+    using PixelFormat = Bitmap::PixelFormat;
+
     auto [format, convert_to_rgba] = determine_texture_format(device, bitmap, options);
+
+    if (bitmap->pixel_format() == PixelFormat::ya && options.ya_handling == YAHandling::preserve_as_rg) {
+        return SourceImage{
+            .bitmap = convert_ya_to_rg(bitmap),
+            .format = format,
+        };
+    }
+
     return SourceImage{
-        .bitmap = convert_to_rgba
-            ? bitmap->convert(Bitmap::PixelFormat::rgba, bitmap->component_type(), bitmap->srgb_gamma())
-            : bitmap,
+        .bitmap
+        = convert_to_rgba ? bitmap->convert(PixelFormat::rgba, bitmap->component_type(), bitmap->srgb_gamma()) : bitmap,
         .format = format,
     };
 }
