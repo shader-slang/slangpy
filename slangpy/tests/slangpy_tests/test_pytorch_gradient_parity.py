@@ -946,5 +946,87 @@ def test_scalar_broadcast_no_copyback(device_type: DeviceType):
     assert input_data.grad is not None, "Gradients should exist"
 
 
+# =============================================================================
+# Explicit Gradient Copy-back Tests
+# These verify the interop buffer → PyTorch tensor copy-back for gradients
+# =============================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gradient_copyback_single_op(device_type: DeviceType):
+    """
+    Verify gradient copy-back works for a single differentiable operation.
+
+    This directly tests that after backward(), the gradient is correctly
+    copied from the interop buffer back to the PyTorch tensor.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ACTIVATIONS)
+
+    # Create input with requires_grad
+    x = torch.tensor([1.0, 2.0, 3.0, 4.0], device="cuda", requires_grad=True)
+
+    # Forward pass through SlangPy
+    y = slang_module.slang_sigmoid(x)
+
+    # Backward pass
+    y.sum().backward()
+
+    # Verify gradient exists and is correct
+    # sigmoid'(x) = sigmoid(x) * (1 - sigmoid(x))
+    expected_grad = torch.sigmoid(x.detach()) * (1 - torch.sigmoid(x.detach()))
+    assert x.grad is not None, "Gradient should be computed"
+    assert torch.allclose(
+        x.grad, expected_grad, rtol=1e-4
+    ), f"Gradient mismatch.\nExpected: {expected_grad}\nGot: {x.grad}"
+
+
+SLANG_WEIGHTED_SUM = """
+[Differentiable]
+float weighted_sum(float a, float b, float weight) {
+    return a * weight + b * (1.0f - weight);
+}
+"""
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gradient_copyback_multiple_inputs(device_type: DeviceType):
+    """
+    Verify gradient copy-back works when multiple inputs require gradients.
+
+    Tests that gradients for all inputs are correctly copied back.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_WEIGHTED_SUM)
+
+    # Create inputs
+    a = torch.tensor([1.0, 2.0, 3.0], device="cuda", requires_grad=True)
+    b = torch.tensor([4.0, 5.0, 6.0], device="cuda", requires_grad=True)
+    weight = torch.tensor([0.3, 0.5, 0.7], device="cuda", requires_grad=True)
+
+    # Forward
+    result = slang_module.weighted_sum(a, b, weight)
+
+    # Backward
+    result.sum().backward()
+
+    # All gradients should exist
+    assert a.grad is not None, "Gradient for 'a' should exist"
+    assert b.grad is not None, "Gradient for 'b' should exist"
+    assert weight.grad is not None, "Gradient for 'weight' should exist"
+
+    # Verify gradient values
+    # d/da = weight, d/db = (1-weight), d/dweight = a - b
+    assert torch.allclose(
+        a.grad, weight.detach(), rtol=1e-4
+    ), f"Gradient for 'a' mismatch.\nExpected: {weight.detach()}\nGot: {a.grad}"
+    assert torch.allclose(
+        b.grad, 1 - weight.detach(), rtol=1e-4
+    ), f"Gradient for 'b' mismatch.\nExpected: {1 - weight.detach()}\nGot: {b.grad}"
+    assert torch.allclose(
+        weight.grad, a.detach() - b.detach(), rtol=1e-4
+    ), f"Gradient for 'weight' mismatch.\nExpected: {a.detach() - b.detach()}\nGot: {weight.grad}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
