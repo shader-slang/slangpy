@@ -161,10 +161,11 @@ public:
         // 2. Tensor types (Tensor, RWTensor, etc.): Tensor storage is passed to shader
         //    - Copy back if marshall is writable (shader may have modified data)
         //
-        // For gradient copy-back, similar logic applies:
-        // - Only copy back if tensor has gradients AND is writable
+        // NOTE: needs_grad_copyback is NOT cached because raw torch.Tensor inputs
+        // have has_derivative()=false at marshall creation, but backward pass still
+        // needs gradient copy-back. The runtime has_grad check is used instead.
         bool needs_primal_copyback = false;
-        bool needs_grad_copyback = false;
+        bool needs_grad_copyback = false; // Unused for torch tensors; see note above
     };
 
     /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure

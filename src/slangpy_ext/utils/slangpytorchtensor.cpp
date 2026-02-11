@@ -280,17 +280,12 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
         // For outputs (write/readwrite access) or tensor types, use m_writable
         m_cached_binding_info.needs_primal_copyback = m_writable && !is_readonly_simple_type;
 
-        // For gradient copy-back, check if derivative access is writable
-        // Gradients are written when: primal is an input (grad flows back)
-        // Access for gradients is stored in binding->access().second
-        bool has_grad = has_derivative();
-        if (has_grad) {
-            AccessType grad_access = binding->access().second;
-            bool grad_is_writable = (grad_access == AccessType::write || grad_access == AccessType::readwrite);
-            m_cached_binding_info.needs_grad_copyback = grad_is_writable;
-        } else {
-            m_cached_binding_info.needs_grad_copyback = false;
-        }
+        // NOTE: We intentionally do NOT cache needs_grad_copyback here.
+        // For raw torch.Tensor inputs, has_derivative() returns false at cache time
+        // (no d_in/d_out marshalls), but the backward pass STILL needs gradient copy-back.
+        // The gradient copy-back decision must be made at runtime based on whether
+        // grad_value is actually present, not based on the marshall's static properties.
+        // See write_shader_cursor_with_interop() for the runtime check.
     }
 }
 
@@ -631,12 +626,17 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
-    // Use pre-computed copy-back flags from ensure_binding_info_cached().
-    // These flags are determined once at cache time based on binding type and access mode,
+    // Use pre-computed needs_primal_copyback from ensure_binding_info_cached().
+    // This flag is determined once at cache time based on binding type and access mode,
     // avoiding expensive runtime type reflection on every dispatch.
     bool needs_primal_copyback
         = m_cached_binding_info.needs_primal_copyback && primal_info.numel > 0 && primal_interop_buffer;
-    bool needs_grad_copyback = m_cached_binding_info.needs_grad_copyback && grad_info.numel > 0 && grad_interop_buffer;
+
+    // For gradient copy-back, we use runtime has_grad (not cached) because:
+    // - Raw torch.Tensor inputs have has_derivative()=false at marshall creation time
+    // - But the backward pass DOES need gradient copy-back when grad_value is present
+    // - So we check the runtime has_grad parameter instead of caching
+    bool needs_grad_copyback = has_grad && grad_info.numel > 0 && grad_interop_buffer;
 
     if (needs_primal_copyback || needs_grad_copyback) {
         nb::dict calldata;
