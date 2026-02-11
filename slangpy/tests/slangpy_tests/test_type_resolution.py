@@ -747,6 +747,38 @@ class _TorchTensor:
         return torch.zeros((3,) * self.dim, dtype=torch_dtype, device="cuda")
 
 
+class _TorchTensorDiffPair:
+    _dtype_map = {
+        "float": "float32",
+        "int": "int32",
+        "half": "float16",
+    }
+
+    def __init__(self, base_type: str, dim: int):
+        super().__init__()
+        self.base_type = base_type
+        self.dim = dim
+
+    def __repr__(self) -> str:
+        return f"TorchTensorDiffPair<{self.base_type},{self.dim}>"
+
+    def __call__(self, module: spy.Module):
+        if not _HAS_TORCH:
+            raise RuntimeError("PyTorch not installed")
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA not available")
+
+        from slangpy.core.native import NativeTorchTensorDiffPair
+
+        torch_dtype_name = self._dtype_map.get(self.base_type)
+        if torch_dtype_name is None:
+            raise ValueError(f"Unknown torch dtype for Slang type {self.base_type}")
+        torch_dtype = getattr(torch, torch_dtype_name)
+
+        primal = torch.zeros((3,) * self.dim, dtype=torch_dtype, device="cuda")
+        return NativeTorchTensorDiffPair(primal, None)
+
+
 # fmt: off
 
 # List of simple tests, where each is a function, input argument value (or factor func + args), and expected resolved type / dimensionality.
@@ -1199,6 +1231,20 @@ TESTS = [
     # Normal slangpy Tensor with generic TensorView<T>
     ("func_tensorview_generic", _Tensor("float", 1, True), "TensorView<float>", 1),
     ("func_tensorview_generic", _Tensor("int", 2, True), "TensorView<int>", 2),
+
+    # DiffTensorView type resolution tests (CUDA-only, requires PyTorch)
+    # NativeTorchTensorDiffPair should resolve to DiffTensorView<T>
+    ("func_difftensorview_float", _TorchTensorDiffPair("float", 1), "DiffTensorView<float>", 1),
+    ("func_difftensorview_float", _TorchTensorDiffPair("float", 2), "DiffTensorView<float>", 2),
+    ("func_difftensorview_half", _TorchTensorDiffPair("half", 2), "DiffTensorView<half>", 2),
+
+    # DiffTensorView float/half are both __BuiltinFloatingPointType, so resolution succeeds
+    ("func_difftensorview_float", _TorchTensorDiffPair("half", 1), "DiffTensorView<float>", 1),
+    ("func_difftensorview_half", _TorchTensorDiffPair("float", 1), "DiffTensorView<half>", 1),
+
+    # Generic DiffTensorView<T> resolution
+    ("func_difftensorview_generic", _TorchTensorDiffPair("float", 1), "DiffTensorView<float>", 1),
+    ("func_difftensorview_generic", _TorchTensorDiffPair("half", 2), "DiffTensorView<half>", 2),
 ]
 
 # fmt: on
@@ -1384,7 +1430,7 @@ def test_type_resolution_texture(
 
 TORCHTENSOR_TESTS, TESTS = filter_tests(
     TESTS,
-    types=(_TorchTensor,),
+    types=(_TorchTensor, _TorchTensorDiffPair),
 )
 
 # TensorView requires CUDA device

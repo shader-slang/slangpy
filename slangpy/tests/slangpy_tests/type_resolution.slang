@@ -486,3 +486,15 @@ void func_tensorview_generic<T>(TensorView<T> a)
 {
     return;
 }
+void func_difftensorview_float(DiffTensorView<float> a)
+{
+    return;
+}
+void func_difftensorview_half(DiffTensorView<half> a)
+{
+    return;
+}
+void func_difftensorview_generic<T : __BuiltinFloatingPointType>(DiffTensorView<T> a)
+{
+    return;
+}

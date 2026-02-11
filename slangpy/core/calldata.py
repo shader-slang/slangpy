@@ -57,6 +57,25 @@ _PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_GENERATED_SHADERS", "fa
 _torch_bridge_warned = False
 
 
+def _try_convert_diff_tuple(arg: Any) -> Any:
+    """Convert slangtorch-style (tensor, (grad,)) tuple to NativeTorchTensorDiffPair."""
+    if not isinstance(arg, tuple) or len(arg) != 2:
+        return arg
+    try:
+        import torch
+    except ImportError:
+        return arg
+    primal, grad_tuple = arg
+    if not isinstance(primal, torch.Tensor):
+        return arg
+    if not isinstance(grad_tuple, tuple) or len(grad_tuple) != 1:
+        return arg
+    grad = grad_tuple[0]
+    if not isinstance(grad, torch.Tensor):
+        return arg
+    return NativeTorchTensorDiffPair(primal, grad)
+
+
 def set_dump_generated_shaders(value: bool):
     """
     Specify whether to dump generated shaders to .temp for analysis.
@@ -157,6 +176,10 @@ class CallData(NativeCallData):
             # Unpack args (handles IThis wrappers)
             unpacked_args = unpack_args(*args)
             unpacked_kwargs = unpack_kwargs(**kwargs)
+
+            # Convert slangtorch-style (tensor, (grad,)) tuples to NativeTorchTensorDiffPair
+            unpacked_args = [_try_convert_diff_tuple(a) for a in unpacked_args]
+            unpacked_kwargs = {k: _try_convert_diff_tuple(v) for k, v in unpacked_kwargs.items()}
 
             # If we have torch tensors, enable torch integration
             from slangpy.torchintegration.detection import detect_torch_tensors

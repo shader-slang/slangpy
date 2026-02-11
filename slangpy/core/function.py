@@ -284,6 +284,10 @@ class FunctionNode(NativeFunctionNode):
                 return self.append_to(app_to, *args, **kwargs)
 
         try:
+            from slangpy.core.calldata import _try_convert_diff_tuple
+
+            args = tuple(_try_convert_diff_tuple(a) for a in args)
+            kwargs = {k: _try_convert_diff_tuple(v) for k, v in kwargs.items()}
             return self._native_call(self.module.call_data_cache, *args, **kwargs)
         except ValueError as e:
             # If runtime returned useful information, reformat it and raise a new exception
@@ -320,6 +324,10 @@ class FunctionNode(NativeFunctionNode):
         this will generate and compile a new kernel if need be. However the dispatch
         is just added to the command list and no results are returned.
         """
+        from slangpy.core.calldata import _try_convert_diff_tuple
+
+        args = tuple(_try_convert_diff_tuple(a) for a in args)
+        kwargs = {k: _try_convert_diff_tuple(v) for k, v in kwargs.items()}
         self._native_append_to(self.module.call_data_cache, command_encoder, *args, **kwargs)
 
     def dispatch(

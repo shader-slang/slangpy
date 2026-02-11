@@ -26,6 +26,7 @@ from .reflectiontypes import (
     TensorType,
     TensorAccess,
     TensorViewType,
+    DiffTensorViewType,
     SlangFunction,
     SlangField,
     SlangParameter,

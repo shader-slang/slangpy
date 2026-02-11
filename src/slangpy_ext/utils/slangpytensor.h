@@ -34,6 +34,14 @@ struct TensorViewData {
 // 52 bytes of data + 4 bytes padding for 8-byte alignment = 56 bytes
 static_assert(sizeof(TensorViewData) == 56, "TensorViewData must be 56 bytes to match TensorView");
 
+/// DiffTensorViewData - C++ struct matching DiffTensorViewData's memory layout in Slang.
+/// Contains primal (56 bytes) + diff (56 bytes) = 112 bytes total.
+struct DiffTensorViewData {
+    TensorViewData primal; // 56 bytes - primal tensor data
+    TensorViewData diff;   // 56 bytes - gradient/diff tensor data
+};
+static_assert(sizeof(DiffTensorViewData) == 112, "DiffTensorViewData must be 112 bytes");
+
 class NativeTensor;
 
 struct NativeTensorDesc : public StridedBufferViewDesc { };
