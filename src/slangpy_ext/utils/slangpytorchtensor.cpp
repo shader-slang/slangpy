@@ -461,7 +461,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
         );
     }
 
-    // Write shape/sizes
+    // Write shape
     write_strided_array_helper(
         base_address,
         offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,

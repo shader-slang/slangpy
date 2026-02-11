@@ -25,4 +25,3 @@ __include "tensor_indices_generated.slang";
 //__include "tensor_indices_each.slang";
 __include "gridarg.slang";
 __include "callshape.slang";
-__include "tensorviewdata.slang";
