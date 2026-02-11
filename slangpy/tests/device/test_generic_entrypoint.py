@@ -130,6 +130,17 @@ def test_generic_entrypoint_int_generic_param(device_type: spy.DeviceType):
     program = device.link_program(modules=[module], entry_points=[specialized])
     kernel = device.create_compute_kernel(program)
 
+    # Dispatch and verify results
+    output_data = np.zeros(8, dtype=np.float32)
+    buffer = device.create_buffer(
+        data=output_data,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    kernel.dispatch(thread_count=[8, 1, 1], output=buffer)
+    result = buffer.to_numpy().view(np.float32)
+    expected = np.arange(8, dtype=np.float32)
+    assert np.allclose(result, expected), f"Expected {expected}, got {result}"
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_generic_entrypoint_int_generic_entry_points(device_type: spy.DeviceType):

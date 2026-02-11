@@ -1097,7 +1097,8 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
 
     // Read name and stage from the entry point.
     // For unspecialized generic entry points, getLayout() may throw,
-    // so fall back to using the descriptor name.
+    // so fall back to using the descriptor name and ShaderStage::none.
+    // These will be set to their correct values when specialize() is called.
     if (data->slang_entry_point->getSpecializationParamCount() > 0) {
         data->name = desc.name;
         data->stage = ShaderStage::none;
