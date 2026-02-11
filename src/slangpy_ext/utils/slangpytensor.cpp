@@ -502,7 +502,7 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
     if (offsets.element_byte_stride.is_valid()) {
         write_value_helper(
             base_address,
-            offsets.element_byte_stride.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            offsets.element_byte_stride.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
             static_cast<uint32_t>(buffer->desc().struct_size)
         );
     }
