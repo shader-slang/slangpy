@@ -150,21 +150,9 @@ public:
         ShaderOffset field_offset;    // Base offset of the entire field structure
         uint32_t field_size = 0;      // Total size of the field in uniform data
 
-        // Primal copy-back flag computed at cache time based on binding type and access mode.
-        // This avoids expensive runtime type reflection during dispatch.
-        // NOTE: Only used by NativeTorchTensorMarshall; NativeTensorMarshall leaves this false.
-        //
-        // For torch tensors, copy-back decisions depend on:
-        // 1. Simple types (scalar/vector/matrix): Tensor is "broadcast" per-thread
-        //    - Read-only inputs: DON'T copy back (would break autograd version tracking)
-        //    - Writable outputs: MUST copy back (contains results)
-        // 2. Tensor types (Tensor, RWTensor, etc.): Tensor storage is passed to shader
-        //    - Copy back if marshall is writable (shader may have modified data)
-        //
-        // NOTE: Gradient copy-back is NOT cached here because raw torch.Tensor inputs
-        // have has_derivative()=false at marshall creation, but backward pass still
-        // needs gradient copy-back. The runtime has_grad check is used instead in
-        // NativeTorchTensorMarshall::write_shader_cursor_with_interop().
+        // Whether to copy interop buffer back to torch tensor after dispatch.
+        // Only used by NativeTorchTensorMarshall; see ensure_binding_info_cached() for details.
+        // Gradient copy-back uses runtime check instead (has_derivative() is not final at cache time).
         bool needs_primal_copyback = false;
     };
 

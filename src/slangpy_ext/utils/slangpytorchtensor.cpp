@@ -244,25 +244,14 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
         ShaderCursor field = cursor[binding->variable_name()];
         m_cached_binding_info = NativeTensorMarshall::extract_binding_info(field);
 
-        // Compute copy-back flags based on binding type and access mode.
-        // This avoids expensive runtime type reflection during every dispatch.
+        // Compute primal copy-back flag based on binding type and access mode.
         //
-        // When a torch tensor is passed to a Slang function, it can map to either:
-        // 1. Simple types (scalar/vector/matrix): The tensor is "broadcast" - elements are
-        //    read/written one per thread.
-        //    - INPUT tensor → scalar: Read-only, DON'T copy back (breaks autograd)
-        //    - OUTPUT tensor → scalar: Contains results, MUST copy back
+        // For simple types (scalar/vector/matrix), the tensor is "broadcast" per-thread.
+        // Read-only inputs must NOT copy back - this would increment PyTorch's _version
+        // counter via copy_(), breaking autograd's version tracking.
+        // Writable outputs MUST copy back to return results.
         //
-        // 2. Tensor types (Tensor, RWTensor, WTensor, etc.): The tensor storage pointer is
-        //    passed to the shader. The shader may write to the tensor data.
-        //
-        // For input tensors bound to simple types (case 1a), we must NOT copy back:
-        // - Doing so would increment PyTorch's _version counter via copy_()
-        // - This breaks autograd's version tracking, causing RuntimeError during backward
-        //
-        // We detect read-only input broadcast by checking if:
-        // - vector_type is a simple type (scalar/vector/matrix)
-        // - AND access type is read-only (not write or readwrite)
+        // For tensor types (Tensor, RWTensor, etc.), copy back if marshall is writable.
         bool is_readonly_simple_type = false;
         if (auto vector_type = binding->vector_type()) {
             if (auto type_refl = vector_type->type_reflection()) {
@@ -276,16 +265,8 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
             }
         }
 
-        // Skip primal copy-back only for read-only simple types (input scalar broadcast)
-        // For outputs (write/readwrite access) or tensor types, use m_writable
         m_cached_binding_info.needs_primal_copyback = m_writable && !is_readonly_simple_type;
-
-        // NOTE: We intentionally do NOT cache needs_grad_copyback here.
-        // For raw torch.Tensor inputs, has_derivative() returns false at cache time
-        // (no d_in/d_out marshalls), but the backward pass STILL needs gradient copy-back.
-        // The gradient copy-back decision must be made at runtime based on whether
-        // grad_value is actually present, not based on the marshall's static properties.
-        // See write_shader_cursor_with_interop() for the runtime check.
+        // Gradient copy-back uses runtime has_grad check (has_derivative() is false for raw tensors).
     }
 }
 
@@ -626,16 +607,9 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
-    // Use pre-computed needs_primal_copyback from ensure_binding_info_cached().
-    // This flag is determined once at cache time based on binding type and access mode,
-    // avoiding expensive runtime type reflection on every dispatch.
+    // Primal: use cached flag. Gradient: use runtime has_grad (see ensure_binding_info_cached).
     bool needs_primal_copyback
         = m_cached_binding_info.needs_primal_copyback && primal_info.numel > 0 && primal_interop_buffer;
-
-    // For gradient copy-back, we use runtime has_grad (not cached) because:
-    // - Raw torch.Tensor inputs have has_derivative()=false at marshall creation time
-    // - But the backward pass DOES need gradient copy-back when grad_value is present
-    // - So we check the runtime has_grad parameter instead of caching
     bool needs_grad_copyback = has_grad && grad_info.numel > 0 && grad_interop_buffer;
 
     if (needs_primal_copyback || needs_grad_copyback) {
