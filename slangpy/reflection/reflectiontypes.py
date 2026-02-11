@@ -1035,9 +1035,6 @@ class TensorViewType(SlangType):
     def build_tensorview_name(element_type: SlangType) -> str:
         return f"TensorView<{element_type.full_name}>"
 
-    @staticmethod
-    def build_wrapper_name() -> str:
-        return "TensorViewData"
 
 
 class UnhandledType(SlangType):

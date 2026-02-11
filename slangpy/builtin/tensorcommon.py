@@ -305,7 +305,7 @@ def gen_calldata(
             tensor_type=binding.vector_type.tensor_type,
         )
     elif isinstance(binding.vector_type, TensorViewType):
-        type_name = TensorViewType.build_wrapper_name()
+        type_name = TensorViewType.build_tensorview_name(binding.vector_type.dtype)
     else:
         if isinstance(binding.vector_type, ResourceType):
             access = (
