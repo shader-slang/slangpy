@@ -338,7 +338,6 @@ int sum_inner(Outer outer) {
     assert result == 100
 
 
-@pytest.mark.xfail(reason="https://github.com/shader-slang/slangpy/issues/123")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_array_of_structured_buffers(device_type: DeviceType):
     """A function parameter that is an array of StructuredBuffer<T>."""
