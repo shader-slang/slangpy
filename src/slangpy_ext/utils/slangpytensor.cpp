@@ -186,11 +186,9 @@ NativeTensorMarshall::CachedOffsets NativeTensorMarshall::extract_offsets(Shader
 {
     NativeTensorMarshall::CachedOffsets offsets;
 
+    // Check for SlangPy's _primal/_grad_in/_grad_out pattern (DiffTensor)
     ShaderCursor primal_field = field.find_field("_primal");
-    if (!primal_field.is_valid()) {
-        offsets.has_grad_fields = false;
-        offsets.primal = extract_tensor_field_offsets(field);
-    } else {
+    if (primal_field.is_valid()) {
         offsets.has_grad_fields = true;
         offsets.primal = extract_tensor_field_offsets(primal_field);
 
@@ -201,6 +199,20 @@ NativeTensorMarshall::CachedOffsets NativeTensorMarshall::extract_offsets(Shader
         ShaderCursor grad_out_field = field.find_field("_grad_out");
         if (grad_out_field.is_valid()) {
             offsets.grad_out = extract_tensor_field_offsets(grad_out_field);
+        }
+    } else {
+        // Check for DiffTensorViewData's primal/diff pattern (no underscore prefix)
+        ShaderCursor dtv_primal_field = field.find_field("primal");
+        ShaderCursor dtv_diff_field = field.find_field("diff");
+        if (dtv_primal_field.is_valid() && dtv_diff_field.is_valid()) {
+            offsets.has_grad_fields = true;
+            offsets.primal = extract_tensor_field_offsets(dtv_primal_field);
+            // Map diff to both grad_in and grad_out (bidirectional gradient flow)
+            offsets.grad_in = extract_tensor_field_offsets(dtv_diff_field);
+            offsets.grad_out = offsets.grad_in;
+        } else {
+            offsets.has_grad_fields = false;
+            offsets.primal = extract_tensor_field_offsets(field);
         }
     }
 

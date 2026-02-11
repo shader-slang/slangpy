@@ -107,6 +107,24 @@ class Marshall(NativeMarshall):
         """
         return super().gen_calldata(cgb, context, binding)
 
+    def gen_trampoline_load(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+    ) -> bool:
+        """
+        Generate custom trampoline load code for this parameter.
+        Return True if handled (skip standard __slangpy_load), False for default behavior.
+        """
+        return False
+
+    def gen_trampoline_store(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+    ) -> bool:
+        """
+        Generate custom trampoline store code for this parameter.
+        Return True if handled (skip standard __slangpy_store), False for default behavior.
+        """
+        return False
+
     def reduce_type(self, context: BindContext, dimensions: int) -> "SlangType":
         """
         Get the slang type for this variable when a given number of dimensions
