@@ -235,11 +235,14 @@ Shape NativeTorchTensorMarshall::get_shape(nb::object data) const
     return result;
 }
 
-void NativeTorchTensorMarshall::ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const
+void NativeTorchTensorMarshall::ensure_binding_info_cached(
+    ShaderCursor cursor,
+    NativeBoundVariableRuntime* binding
+) const
 {
-    if (!m_cached_offsets.primal.is_valid) {
+    if (!m_cached_binding_info.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
-        m_cached_offsets = NativeTensorMarshall::extract_offsets(field);
+        m_cached_binding_info = NativeTensorMarshall::extract_binding_info(field);
 
         // Compute copy-back flags based on binding type and access mode.
         // This avoids expensive runtime type reflection during every dispatch.
@@ -275,7 +278,7 @@ void NativeTorchTensorMarshall::ensure_offsets_cached(ShaderCursor cursor, Nativ
 
         // Skip primal copy-back only for read-only simple types (input scalar broadcast)
         // For outputs (write/readwrite access) or tensor types, use m_writable
-        m_cached_offsets.needs_primal_copyback = m_writable && !is_readonly_simple_type;
+        m_cached_binding_info.needs_primal_copyback = m_writable && !is_readonly_simple_type;
 
         // For gradient copy-back, check if derivative access is writable
         // Gradients are written when: primal is an input (grad flows back)
@@ -284,9 +287,9 @@ void NativeTorchTensorMarshall::ensure_offsets_cached(ShaderCursor cursor, Nativ
         if (has_grad) {
             AccessType grad_access = binding->access().second;
             bool grad_is_writable = (grad_access == AccessType::write || grad_access == AccessType::readwrite);
-            m_cached_offsets.needs_grad_copyback = grad_is_writable;
+            m_cached_binding_info.needs_grad_copyback = grad_is_writable;
         } else {
-            m_cached_offsets.needs_grad_copyback = false;
+            m_cached_binding_info.needs_grad_copyback = false;
         }
     }
 }
@@ -300,7 +303,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
 ) const
 {
     // Ensure cached offsets are initialized
-    ensure_offsets_cached(cursor, binding);
+    ensure_binding_info_cached(cursor, binding);
 
     // Step 1: Extract primal_value and grad_value as nb::objects
     nb::object primal_value;
@@ -376,7 +379,8 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     }
 
     ShaderObject* shader_object = cursor.shader_object();
-    void* base_address = shader_object->reserve_data(m_cached_offsets.field_offset, m_cached_offsets.field_size);
+    void* base_address
+        = shader_object->reserve_data(m_cached_binding_info.field_offset, m_cached_binding_info.field_size);
 
     // Check if we need interop (non-CUDA device backend)
     bool needs_interop = context->device()->type() != DeviceType::cuda;
@@ -397,14 +401,14 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
         );
     } else {
         // CUDA device - direct pointer access
-        if (!m_cached_offsets.has_grad_fields) {
+        if (!m_cached_binding_info.has_grad_fields) {
             // Flat structure - write directly to primal offsets
             write_torch_tensor_fields(
                 context,
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.primal,
+                m_cached_binding_info.primal,
                 primal_info,
                 nullptr
             );
@@ -415,30 +419,30 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.primal,
+                m_cached_binding_info.primal,
                 primal_info,
                 nullptr
             );
 
             // Write gradient tensors if present
-            if (has_grad && m_d_in && m_cached_offsets.grad_in.is_valid) {
+            if (has_grad && m_d_in && m_cached_binding_info.grad_in.is_valid) {
                 write_torch_tensor_fields(
                     context,
                     binding,
                     shader_object,
                     base_address,
-                    m_cached_offsets.grad_in,
+                    m_cached_binding_info.grad_in,
                     grad_info,
                     nullptr
                 );
             }
-            if (has_grad && m_d_out && m_cached_offsets.grad_out.is_valid) {
+            if (has_grad && m_d_out && m_cached_binding_info.grad_out.is_valid) {
                 write_torch_tensor_fields(
                     context,
                     binding,
                     shader_object,
                     base_address,
-                    m_cached_offsets.grad_out,
+                    m_cached_binding_info.grad_out,
                     grad_info,
                     nullptr
                 );
@@ -476,7 +480,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
             // a pointer, but its good to support long term.
             write_value_helper(
                 base_address,
-                offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+                offsets.data.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
                 interop_buffer->device_address()
             );
         } else {
@@ -488,7 +492,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
         DeviceAddress address = reinterpret_cast<DeviceAddress>(info.data_ptr);
         write_value_helper(
             base_address,
-            offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            offsets.data.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
             address
         );
     }
@@ -496,7 +500,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     // Write shape
     write_strided_array_helper(
         base_address,
-        offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.shape.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         shape,
         offsets.array_stride
     );
@@ -504,13 +508,17 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     // Write strides
     write_strided_array_helper(
         base_address,
-        offsets.strides.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.strides.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         strides,
         offsets.array_stride
     );
 
     // Write offset (always 0 for raw tensors)
-    write_value_helper(base_address, offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset, 0);
+    write_value_helper(
+        base_address,
+        offsets.offset.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
+        0
+    );
 }
 
 void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
@@ -571,14 +579,14 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     }
 
     // Write tensor fields using the interop buffers
-    if (!m_cached_offsets.has_grad_fields) {
+    if (!m_cached_binding_info.has_grad_fields) {
         // Flat structure - write directly to primal offsets
         write_torch_tensor_fields(
             context,
             binding,
             shader_object,
             base_address,
-            m_cached_offsets.primal,
+            m_cached_binding_info.primal,
             primal_info,
             primal_interop_buffer.get()
         );
@@ -589,30 +597,30 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
             binding,
             shader_object,
             base_address,
-            m_cached_offsets.primal,
+            m_cached_binding_info.primal,
             primal_info,
             primal_interop_buffer.get()
         );
 
         // Write gradient tensors if present
-        if (has_grad && m_d_in && m_cached_offsets.grad_in.is_valid) {
+        if (has_grad && m_d_in && m_cached_binding_info.grad_in.is_valid) {
             write_torch_tensor_fields(
                 context,
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.grad_in,
+                m_cached_binding_info.grad_in,
                 grad_info,
                 grad_interop_buffer.get()
             );
         }
-        if (has_grad && m_d_out && m_cached_offsets.grad_out.is_valid) {
+        if (has_grad && m_d_out && m_cached_binding_info.grad_out.is_valid) {
             write_torch_tensor_fields(
                 context,
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.grad_out,
+                m_cached_binding_info.grad_out,
                 grad_info,
                 grad_interop_buffer.get()
             );
@@ -623,12 +631,12 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
-    // Use pre-computed copy-back flags from ensure_offsets_cached().
+    // Use pre-computed copy-back flags from ensure_binding_info_cached().
     // These flags are determined once at cache time based on binding type and access mode,
     // avoiding expensive runtime type reflection on every dispatch.
     bool needs_primal_copyback
-        = m_cached_offsets.needs_primal_copyback && primal_info.numel > 0 && primal_interop_buffer;
-    bool needs_grad_copyback = m_cached_offsets.needs_grad_copyback && grad_info.numel > 0 && grad_interop_buffer;
+        = m_cached_binding_info.needs_primal_copyback && primal_info.numel > 0 && primal_interop_buffer;
+    bool needs_grad_copyback = m_cached_binding_info.needs_grad_copyback && grad_info.numel > 0 && grad_interop_buffer;
 
     if (needs_primal_copyback || needs_grad_copyback) {
         nb::dict calldata;

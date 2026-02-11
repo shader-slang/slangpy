@@ -168,9 +168,9 @@ NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_fi
     return offsets;
 }
 
-NativeTensorMarshall::CachedOffsets NativeTensorMarshall::extract_offsets(ShaderCursor field)
+NativeTensorMarshall::CachedBindingInfo NativeTensorMarshall::extract_binding_info(ShaderCursor field)
 {
-    NativeTensorMarshall::CachedOffsets offsets;
+    NativeTensorMarshall::CachedBindingInfo offsets;
 
     ShaderCursor primal_field = field.find_field("_primal");
     if (!primal_field.is_valid()) {
@@ -302,11 +302,11 @@ Shape NativeTensorMarshall::get_shape(nb::object data) const
     return buffer->shape();
 }
 
-void NativeTensorMarshall::ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const
+void NativeTensorMarshall::ensure_binding_info_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const
 {
-    if (!m_cached_offsets.primal.is_valid) {
+    if (!m_cached_binding_info.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
-        m_cached_offsets = extract_offsets(field);
+        m_cached_binding_info = extract_binding_info(field);
     }
 }
 
@@ -322,14 +322,14 @@ void NativeTensorMarshall::write_native_tensor(
     const ref<NativeTensor>& grad_in = primal_tensor->grad_in();
     const ref<NativeTensor>& grad_out = primal_tensor->grad_out();
 
-    if (!m_cached_offsets.has_grad_fields) {
+    if (!m_cached_binding_info.has_grad_fields) {
         // Flat structure - write directly to primal offsets
         write_native_tensor_fields(
             context,
             binding,
             shader_object,
             base_address,
-            m_cached_offsets.primal,
+            m_cached_binding_info.primal,
             primal_tensor,
             read_back
         );
@@ -340,32 +340,32 @@ void NativeTensorMarshall::write_native_tensor(
             binding,
             shader_object,
             base_address,
-            m_cached_offsets.primal,
+            m_cached_binding_info.primal,
             primal_tensor,
             read_back
         );
 
-        if (m_d_in && m_cached_offsets.grad_in.is_valid) {
+        if (m_d_in && m_cached_binding_info.grad_in.is_valid) {
             SGL_CHECK(grad_in, "Missing required input gradients");
             write_native_tensor_fields(
                 context,
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.grad_in,
+                m_cached_binding_info.grad_in,
                 grad_in.get(),
                 read_back
             );
         }
 
-        if (m_d_out && m_cached_offsets.grad_out.is_valid) {
+        if (m_d_out && m_cached_binding_info.grad_out.is_valid) {
             SGL_CHECK(grad_out, "Missing required output gradients");
             write_native_tensor_fields(
                 context,
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.grad_out,
+                m_cached_binding_info.grad_out,
                 grad_out.get(),
                 read_back
             );
@@ -389,35 +389,35 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
 ) const
 {
     // Initialize cached offsets on first call
-    ensure_offsets_cached(cursor, binding);
+    ensure_binding_info_cached(cursor, binding);
 
 #if 0
     // Validate offsets on future calls
-    if (m_cached_offsets.primal.is_valid) {
-        CachedOffsets offsets = extract_offsets(cursor[binding->variable_name()]);
+    if (m_cached_binding_info.primal.is_valid) {
+        CachedBindingInfo offsets = extract_binding_info(cursor[binding->variable_name()]);
         SGL_CHECK(
-            offsets.primal.data == m_cached_offsets.primal.data &&
-                offsets.primal.shape == m_cached_offsets.primal.shape &&
-                offsets.primal.strides == m_cached_offsets.primal.strides &&
-                offsets.primal.offset == m_cached_offsets.primal.offset,
+            offsets.primal.data == m_cached_binding_info.primal.data &&
+                offsets.primal.shape == m_cached_binding_info.primal.shape &&
+                offsets.primal.strides == m_cached_binding_info.primal.strides &&
+                offsets.primal.offset == m_cached_binding_info.primal.offset,
             "Cached primal tensor offsets do not match current shader cursor offsets"
         );
         if (offsets.grad_in.is_valid) {
                         SGL_CHECK(
-                offsets.grad_in.data == m_cached_offsets.grad_in.data &&
-                    offsets.grad_in.shape == m_cached_offsets.grad_in.shape &&
-                    offsets.grad_in.strides == m_cached_offsets.grad_in.strides &&
-                    offsets.grad_in.offset == m_cached_offsets.grad_in.offset,
+                offsets.grad_in.data == m_cached_binding_info.grad_in.data &&
+                    offsets.grad_in.shape == m_cached_binding_info.grad_in.shape &&
+                    offsets.grad_in.strides == m_cached_binding_info.grad_in.strides &&
+                    offsets.grad_in.offset == m_cached_binding_info.grad_in.offset,
                 "Cached grad_in tensor offsets do not match current shader cursor offsets"
             );
         }
         if (offsets.grad_out.is_valid) {
 
             SGL_CHECK(
-                offsets.grad_out.data == m_cached_offsets.grad_out.data &&
-                    offsets.grad_out.shape == m_cached_offsets.grad_out.shape &&
-                    offsets.grad_out.strides == m_cached_offsets.grad_out.strides &&
-                    offsets.grad_out.offset == m_cached_offsets.grad_out.offset,
+                offsets.grad_out.data == m_cached_binding_info.grad_out.data &&
+                    offsets.grad_out.shape == m_cached_binding_info.grad_out.shape &&
+                    offsets.grad_out.strides == m_cached_binding_info.grad_out.strides &&
+                    offsets.grad_out.offset == m_cached_binding_info.grad_out.offset,
                 "Cached grad_out tensor offsets do not match current shader cursor offsets"
             );
         }
@@ -428,7 +428,8 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     NativeTensor* primal;
     if (nb::try_cast(value, primal)) {
         ShaderObject* shader_object = cursor.shader_object();
-        void* base_address = shader_object->reserve_data(m_cached_offsets.field_offset, m_cached_offsets.field_size);
+        void* base_address
+            = shader_object->reserve_data(m_cached_binding_info.field_offset, m_cached_binding_info.field_size);
 
         // Write the differentiated tensor structure
         write_native_tensor(context, binding, shader_object, base_address, primal, read_back);
@@ -462,7 +463,7 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
     if (offsets.data.binding_range_index == offsets.shape.binding_range_index) {
         write_value_helper(
             base_address,
-            offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            offsets.data.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
             buffer->device_address()
         );
     } else {
@@ -471,21 +472,21 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
 
     write_strided_array_helper(
         base_address,
-        offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.shape.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         shape,
         offsets.array_stride
     );
 
     write_strided_array_helper(
         base_address,
-        offsets.strides.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.strides.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         strides,
         offsets.array_stride
     );
 
     write_value_helper(
         base_address,
-        offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.offset.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         offset
     );
 }
@@ -506,28 +507,28 @@ void NativeTensorMarshall::write_tensor_fields_from_pointer(
     DeviceAddress address = reinterpret_cast<DeviceAddress>(data_ptr);
     write_value_helper(
         base_address,
-        offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.data.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         address
     );
 
     // Write shape and strides using the same mechanism as write_tensor_fields_from_buffer
     write_strided_array_helper(
         base_address,
-        offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.shape.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         shape,
         offsets.array_stride
     );
 
     write_strided_array_helper(
         base_address,
-        offsets.strides.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.strides.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         strides,
         offsets.array_stride
     );
 
     write_value_helper(
         base_address,
-        offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.offset.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         offset
     );
 }
