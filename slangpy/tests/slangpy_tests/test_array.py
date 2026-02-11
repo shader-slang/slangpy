@@ -264,5 +264,185 @@ float add(Val val, float val2) {
     )
 
 
+# ---------------------------------------------------------------------------
+# Tests for GitHub issue #123: complex types passing arrays to SlangPy
+# https://github.com/shader-slang/slangpy/issues/123
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_struct_with_scalar_array_field(device_type: DeviceType):
+    """A struct whose field is a fixed-size array of scalars."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "sum_inner",
+        r"""
+struct Foo {
+    int vals[4];
+}
+
+int sum_inner(Foo foo) {
+    int s = 0;
+    for (int i = 0; i < 4; i++) {
+        s += foo.vals[i];
+    }
+    return s;
+}
+""",
+    )
+
+    result = function({"vals": [1, 2, 3, 4], "_type": "Foo"})
+    assert result == 10
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_struct_with_struct_array_field(device_type: DeviceType):
+    """A struct whose field is a fixed-size array of structs."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "sum_inner",
+        r"""
+struct Inner {
+    int x;
+}
+
+struct Outer {
+    Inner items[4];
+}
+
+int sum_inner(Outer outer) {
+    int s = 0;
+    for (int i = 0; i < 4; i++) {
+        s += outer.items[i].x;
+    }
+    return s;
+}
+""",
+    )
+
+    result = function(
+        {
+            "items": [
+                {"x": 10, "_type": "Inner"},
+                {"x": 20, "_type": "Inner"},
+                {"x": 30, "_type": "Inner"},
+                {"x": 40, "_type": "Inner"},
+            ],
+            "_type": "Outer",
+        }
+    )
+    assert result == 100
+
+
+@pytest.mark.xfail(reason="https://github.com/shader-slang/slangpy/issues/123")
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_structured_buffers(device_type: DeviceType):
+    """A function parameter that is an array of StructuredBuffer<T>."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "sum_buffers",
+        r"""
+int sum_buffers(StructuredBuffer<int> buffers[4]) {
+    int s = 0;
+    for (int i = 0; i < 4; i++) {
+        s += buffers[i][0];
+    }
+    return s;
+}
+""",
+    )
+
+    buffers = []
+    for i in range(4):
+        buf = device.create_buffer(
+            element_count=1,
+            struct_size=4,
+            data=np.array([(i + 1) * 10], dtype=np.int32),
+            usage=BufferUsage.shader_resource,
+        )
+        buffers.append(buf)
+
+    result = function(buffers)
+    assert result == 100
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_nested_struct_with_array_field(device_type: DeviceType):
+    """A struct containing another struct that itself has an array field."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "sum_nested",
+        r"""
+struct Middle {
+    int vals[4];
+}
+
+struct Outer {
+    Middle m;
+    int scale;
+}
+
+int sum_nested(Outer outer) {
+    int s = 0;
+    for (int i = 0; i < 4; i++) {
+        s += outer.m.vals[i];
+    }
+    return s * outer.scale;
+}
+""",
+    )
+
+    result = function(
+        {
+            "m": {"vals": [1, 2, 3, 4], "_type": "Middle"},
+            "scale": 2,
+            "_type": "Outer",
+        }
+    )
+    assert result == 20
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_broadcast_array_to_scalar(device_type: DeviceType):
+    """Broadcasting: pass an array of values where each element maps to a scalar parameter."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "double_val",
+        r"""
+struct Pair {
+    int vals[2];
+}
+
+int double_val(Pair p) {
+    return p.vals[0] + p.vals[1];
+}
+""",
+    )
+
+    # Pass multiple Pair structs and vectorize over them
+    results = function.map((0,))(
+        [
+            {"vals": [1, 2], "_type": "Pair"},
+            {"vals": [3, 4], "_type": "Pair"},
+            {"vals": [5, 6], "_type": "Pair"},
+        ],
+        _result="numpy",
+    )
+    assert isinstance(results, np.ndarray)
+    assert results.shape == (3,)
+    assert results.dtype == np.int32
+    assert np.array_equal(results, np.array([3, 7, 11], dtype=np.int32))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
