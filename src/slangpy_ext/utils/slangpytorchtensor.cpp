@@ -627,7 +627,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
         }
     }
 
-    // Store interop info for post-dispatch copy-back if tensor is writable
+    // Store interop info for post-dispatch copy-back
     size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
