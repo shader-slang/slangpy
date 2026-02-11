@@ -147,6 +147,21 @@ public:
         bool has_grad_fields = false; // Whether tensor uses _primal wrapper (differentiated mode)
         ShaderOffset field_offset;    // Base offset of the entire field structure
         uint32_t field_size = 0;      // Total size of the field in uniform data
+
+        // Copy-back flags computed at cache time based on binding type and access mode.
+        // These avoid expensive runtime type reflection during dispatch.
+        //
+        // For torch tensors, copy-back decisions depend on:
+        // 1. Simple types (scalar/vector/matrix): Tensor is "broadcast" per-thread
+        //    - Read-only inputs: DON'T copy back (would break autograd version tracking)
+        //    - Writable outputs: MUST copy back (contains results)
+        // 2. Tensor types (Tensor, RWTensor, etc.): Tensor storage is passed to shader
+        //    - Copy back if marshall is writable (shader may have modified data)
+        //
+        // For gradient copy-back, similar logic applies:
+        // - Only copy back if tensor has gradients AND is writable
+        bool needs_primal_copyback = false;
+        bool needs_grad_copyback = false;
     };
 
     /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure

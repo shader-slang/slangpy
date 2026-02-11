@@ -240,6 +240,54 @@ void NativeTorchTensorMarshall::ensure_offsets_cached(ShaderCursor cursor, Nativ
     if (!m_cached_offsets.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
         m_cached_offsets = NativeTensorMarshall::extract_offsets(field);
+
+        // Compute copy-back flags based on binding type and access mode.
+        // This avoids expensive runtime type reflection during every dispatch.
+        //
+        // When a torch tensor is passed to a Slang function, it can map to either:
+        // 1. Simple types (scalar/vector/matrix): The tensor is "broadcast" - elements are
+        //    read/written one per thread.
+        //    - INPUT tensor → scalar: Read-only, DON'T copy back (breaks autograd)
+        //    - OUTPUT tensor → scalar: Contains results, MUST copy back
+        //
+        // 2. Tensor types (Tensor, RWTensor, WTensor, etc.): The tensor storage pointer is
+        //    passed to the shader. The shader may write to the tensor data.
+        //
+        // For input tensors bound to simple types (case 1a), we must NOT copy back:
+        // - Doing so would increment PyTorch's _version counter via copy_()
+        // - This breaks autograd's version tracking, causing RuntimeError during backward
+        //
+        // We detect read-only input broadcast by checking if:
+        // - vector_type is a simple type (scalar/vector/matrix)
+        // - AND access type is read-only (not write or readwrite)
+        bool is_readonly_simple_type = false;
+        if (auto vector_type = binding->vector_type()) {
+            if (auto type_refl = vector_type->type_reflection()) {
+                auto kind = type_refl->kind();
+                bool is_simple_type
+                    = (kind == TypeReflection::Kind::scalar || kind == TypeReflection::Kind::vector
+                       || kind == TypeReflection::Kind::matrix);
+                AccessType primal_access = binding->access().first;
+                bool is_readonly = (primal_access == AccessType::read || primal_access == AccessType::none);
+                is_readonly_simple_type = is_simple_type && is_readonly;
+            }
+        }
+
+        // Skip primal copy-back only for read-only simple types (input scalar broadcast)
+        // For outputs (write/readwrite access) or tensor types, use m_writable
+        m_cached_offsets.needs_primal_copyback = m_writable && !is_readonly_simple_type;
+
+        // For gradient copy-back, check if derivative access is writable
+        // Gradients are written when: primal is an input (grad flows back)
+        // Access for gradients is stored in binding->access().second
+        bool has_grad = has_derivative();
+        if (has_grad) {
+            AccessType grad_access = binding->access().second;
+            bool grad_is_writable = (grad_access == AccessType::write || grad_access == AccessType::readwrite);
+            m_cached_offsets.needs_grad_copyback = grad_is_writable;
+        } else {
+            m_cached_offsets.needs_grad_copyback = false;
+        }
     }
 }
 
@@ -575,46 +623,12 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
-    // Build calldata dict with all interop info needed for copy-back
-    // Determine if copy-back is needed based on the target type and access mode:
-    //
-    // When a torch tensor is passed to a Slang function, it can map to either:
-    // 1. Simple types (scalar/vector/matrix): The tensor is "broadcast" - elements are
-    //    read/written one per thread.
-    //    - INPUT tensor → scalar: Read-only, DON'T copy back
-    //    - OUTPUT tensor → scalar: Contains results, MUST copy back
-    //
-    // 2. Tensor types (Tensor, RWTensor, WTensor, etc.): The tensor storage pointer is
-    //    passed to the shader. The shader may write to the tensor data.
-    //    Example: torch.Tensor -> RWTensor<float,1> (shader can write to tensor)
-    //
-    // For input tensors bound to simple types (case 1a), we must NOT copy back:
-    // - Doing so would increment PyTorch's _version counter via copy_()
-    // - This breaks autograd's version tracking, causing RuntimeError during backward
-    //
-    // For output tensors (case 1b) or tensor types (case 2), we must copy back.
-    //
-    // We detect read-only input broadcast by:
-    // - vector_type is a simple type (scalar/vector/matrix)
-    // - AND access type is read-only (not write or readwrite)
-    bool is_readonly_simple_type = false;
-    if (auto vector_type = binding->vector_type()) {
-        if (auto type_refl = vector_type->type_reflection()) {
-            auto kind = type_refl->kind();
-            bool is_simple_type
-                = (kind == TypeReflection::Kind::scalar || kind == TypeReflection::Kind::vector
-                   || kind == TypeReflection::Kind::matrix);
-            AccessType primal_access = binding->access().first;
-            bool is_readonly = (primal_access == AccessType::read || primal_access == AccessType::none);
-            is_readonly_simple_type = is_simple_type && is_readonly;
-        }
-    }
-
-    // Skip copy-back only for read-only simple types (input scalar broadcast)
-    // For outputs (write/readwrite access) or tensor types, use m_writable
+    // Use pre-computed copy-back flags from ensure_offsets_cached().
+    // These flags are determined once at cache time based on binding type and access mode,
+    // avoiding expensive runtime type reflection on every dispatch.
     bool needs_primal_copyback
-        = m_writable && !is_readonly_simple_type && primal_info.numel > 0 && primal_interop_buffer;
-    bool needs_grad_copyback = has_grad && grad_info.numel > 0 && grad_interop_buffer;
+        = m_cached_offsets.needs_primal_copyback && primal_info.numel > 0 && primal_interop_buffer;
+    bool needs_grad_copyback = m_cached_offsets.needs_grad_copyback && grad_info.numel > 0 && grad_interop_buffer;
 
     if (needs_primal_copyback || needs_grad_copyback) {
         nb::dict calldata;
