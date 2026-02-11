@@ -151,6 +151,7 @@ public:
 
         // Copy-back flags computed at cache time based on binding type and access mode.
         // These avoid expensive runtime type reflection during dispatch.
+        // NOTE: Only used by NativeTorchTensorMarshall; NativeTensorMarshall leaves these false.
         //
         // For torch tensors, copy-back decisions depend on:
         // 1. Simple types (scalar/vector/matrix): Tensor is "broadcast" per-thread
