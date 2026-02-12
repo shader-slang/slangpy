@@ -876,8 +876,9 @@ std::vector<ref<SlangEntryPoint>> SlangModule::entry_points() const
         Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
         m_data->slang_module->getDefinedEntryPoint(i, slang_entry_point.writeRef());
 
-        slang::EntryPointLayout* layout = slang_entry_point->getLayout()->getEntryPointByIndex(0);
-        std::string name = layout->getNameOverride() ? layout->getNameOverride() : layout->getName();
+        // Use getFunctionReflection() to get the name, as getLayout() may throw
+        // for unspecialized generic entry points.
+        std::string name = slang_entry_point->getFunctionReflection()->getName();
 
         entry_points.push_back(entry_point(name));
     }
@@ -1095,9 +1096,17 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
     }
 
     // Read name and stage from the entry point.
-    slang::EntryPointLayout* layout = data->slang_entry_point->getLayout()->getEntryPointByIndex(0);
-    data->name = layout->getNameOverride() ? layout->getNameOverride() : layout->getName();
-    data->stage = static_cast<ShaderStage>(layout->getStage());
+    // For unspecialized generic entry points, getLayout() may throw,
+    // so fall back to using the descriptor name and ShaderStage::none.
+    // These will be set to their correct values when specialize() is called.
+    if (data->slang_entry_point->getSpecializationParamCount() > 0) {
+        data->name = desc.name;
+        data->stage = ShaderStage::none;
+    } else {
+        slang::EntryPointLayout* layout = data->slang_entry_point->getLayout()->getEntryPointByIndex(0);
+        data->name = layout->getNameOverride() ? layout->getNameOverride() : layout->getName();
+        data->stage = static_cast<ShaderStage>(layout->getStage());
+    }
 
     // Output the built entry point.
     build_data.entry_points[this] = data;
